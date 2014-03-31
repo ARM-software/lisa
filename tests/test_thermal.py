@@ -31,3 +31,14 @@ class TestThermal(unittest.TestCase):
                     break
 
         self.assertTrue(found)
+
+    def test_get_thermal_csv(self):
+        thermal.Thermal().write_thermal_csv()
+        first_data_line = "433.685088,3,1244,144,1391,0,0,0,0,48000,9000\n"
+
+        with open("thermal.csv") as f:
+            first_line = f.readline()
+            self.assertTrue(first_line.startswith("time,Pa7_in"))
+
+            second_line = f.readline()
+            self.assertEquals(second_line, first_data_line)
