@@ -60,3 +60,9 @@ class TestThermal(unittest.TestCase):
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         thermal.Thermal().plot_temperature()
+
+    def test_plot_input_power(self):
+        """Test plot_input_power()
+
+        Can't check that the graph is ok, so just see that the method doesn't blow up"""
+        thermal.Thermal().plot_input_power()

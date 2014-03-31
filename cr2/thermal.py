@@ -89,3 +89,9 @@ class Thermal(object):
         df = self.get_data_frame()
         (df["currT"] / 1000).plot()
         self.__default_plot_settings(title="Temperature")
+
+    def plot_input_power(self):
+        """Plot input power"""
+        df = self.get_data_frame()
+        df[["Pa7_in", "Pa15_in", "Pgpu_in"]].plot()
+        self.__default_plot_settings(title="Input Power")
