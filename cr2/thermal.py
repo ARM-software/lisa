@@ -5,6 +5,7 @@ import os
 import re
 from StringIO import StringIO
 import pandas as pd
+from matplotlib import pyplot as plt
 
 class Thermal(object):
     def __init__(self):
@@ -78,7 +79,13 @@ class Thermal(object):
         self.data_frame = pd.read_csv(StringIO(self.data_csv)).set_index("time")
         return self.data_frame
 
+    def __default_plot_settings(self, title=""):
+        plt.xlabel("Time")
+        if title:
+            plt.title(title)
+
     def plot_temperature(self):
         """Plot the temperature"""
         df = self.get_data_frame()
         (df["currT"] / 1000).plot()
+        self.__default_plot_settings(title="Temperature")
