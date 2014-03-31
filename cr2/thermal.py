@@ -2,7 +2,7 @@
 """Process the output of the power allocator trace in the current directory's trace.dat"""
 
 import os
-import re, subprocess
+import re
 
 class Thermal(object):
     def __init__(self):
@@ -12,8 +12,10 @@ class Thermal(object):
 
     def __run_trace_cmd_report(self):
         """Run "trace-cmd report > trace.txt".  Overwrites the contents of trace.txt if it exists."""
+        from subprocess import check_output
+
         with open(os.devnull) as devnull:
-            out = subprocess.check_output(["trace-cmd", "report"], stderr=devnull)
+            out = check_output(["trace-cmd", "report"], stderr=devnull)
 
         with open("trace.txt", "w") as f:
             f.write(out)
