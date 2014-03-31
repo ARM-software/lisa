@@ -77,3 +77,8 @@ class Thermal(object):
 
         self.data_frame = pd.read_csv(StringIO(self.data_csv)).set_index("time")
         return self.data_frame
+
+    def plot_temperature(self):
+        """Plot the temperature"""
+        df = self.get_data_frame()
+        (df["currT"] / 1000).plot()

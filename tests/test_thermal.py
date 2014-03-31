@@ -54,3 +54,9 @@ class TestThermal(unittest.TestCase):
         self.assertTrue("Ptot_out" in df.columns)
         self.assertFalse("time" in df.columns)
         self.assertEquals(len(df), 4)
+
+    def test_plot_temp(self):
+        """Test plot_temp()
+
+        Can't check that the graph is ok, so just see that the method doesn't blow up"""
+        thermal.Thermal().plot_temperature()
