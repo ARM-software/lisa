@@ -32,6 +32,10 @@ class TestThermal(unittest.TestCase):
 
         self.assertTrue(found)
 
+    def test_fail_if_no_trace_dat(self):
+        os.remove("trace.dat")
+        self.assertRaises(IOError, thermal.Thermal)
+
     def test_get_thermal_csv(self):
         thermal.Thermal().write_thermal_csv()
         first_data_line = "433.685088,3,1244,144,1391,0,0,0,0,48000,9000\n"

@@ -18,6 +18,9 @@ class Thermal(object):
         """Run "trace-cmd report > trace.txt".  Overwrites the contents of trace.txt if it exists."""
         from subprocess import check_output
 
+        if not os.path.isfile("trace.dat"):
+            raise IOError("No such file or directory: trace.dat")
+
         with open(os.devnull) as devnull:
             out = check_output(["trace-cmd", "report"], stderr=devnull)
 
