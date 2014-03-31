@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 """Process the output of the power allocator trace in the current directory's trace.dat"""
 
 import os
