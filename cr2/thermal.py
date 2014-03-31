@@ -3,11 +3,13 @@
 
 import os
 import re
+import pandas as pd
 
 class Thermal(object):
     def __init__(self):
         if not os.path.isfile("trace.txt"):
             self.__run_trace_cmd_report()
+        self.data_frame = False
 
 
     def __run_trace_cmd_report(self):
@@ -51,3 +53,14 @@ class Thermal(object):
 
                     parsed_data = timestamp + "," + parsed_data + "\n"
                     fout.write(parsed_data)
+
+    def get_data_frame(self):
+        """Return a pandas data frame for the run"""
+        if self.data_frame:
+            return self.data_frame
+
+        if not os.path.isfile("thermal.csv"):
+            self.write_thermal_csv()
+
+        self.data_frame = pd.read_csv("thermal.csv").set_index("time")
+        return self.data_frame

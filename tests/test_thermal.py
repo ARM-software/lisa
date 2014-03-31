@@ -42,3 +42,11 @@ class TestThermal(unittest.TestCase):
 
             second_line = f.readline()
             self.assertEquals(second_line, first_data_line)
+
+    def test_get_dataframe(self):
+        df = thermal.Thermal().get_data_frame()
+
+        self.assertEquals(df["currT"][0], 48000)
+        self.assertTrue("Ptot_out" in df.columns)
+        self.assertFalse("time" in df.columns)
+        self.assertEquals(len(df), 4)
