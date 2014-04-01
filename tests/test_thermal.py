@@ -8,7 +8,7 @@ TESTS_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(TESTS_DIRECTORY, "..", "cr2"))
 import thermal
 
-class TestThermal(unittest.TestCase):
+class TestThermalBase(unittest.TestCase):
     def setUp(self):
         self.out_dir = tempfile.mkdtemp()
         os.chdir(self.out_dir)
@@ -19,6 +19,7 @@ class TestThermal(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.out_dir)
 
+class TestThermal(TestThermalBase):
     def test_do_txt_if_not_there(self):
         c = thermal.Thermal()
 
