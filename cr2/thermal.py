@@ -7,13 +7,14 @@ from StringIO import StringIO
 import pandas as pd
 from matplotlib import pyplot as plt
 
-class Thermal(object):
-    def __init__(self):
+class BaseThermal(object):
+    def __init__(self, unique_word):
         if not os.path.isfile("trace.txt"):
             self.__run_trace_cmd_report()
+
+        self.unique_word = unique_word
         self.data_csv = ""
         self.data_frame = False
-
 
     def __run_trace_cmd_report(self):
         """Run "trace-cmd report > trace.txt".  Overwrites the contents of trace.txt if it exists."""
@@ -28,15 +29,16 @@ class Thermal(object):
         with open("trace.txt", "w") as f:
             f.write(out)
 
-    def __parse_into_csv(self):
+    def parse_into_csv(self):
         """Create a csv representation of the thermal data and store it in self.data_csv"""
         pat_timestamp = re.compile(r"([0-9]+\.[0-9]+):")
         pat_data = re.compile(r"[A-Za-z0-9_]+=([0-9]+) ")
+        pat_header = re.compile(r"([A-Za-z0-9_]+)=[0-9]+ ")
         header = ""
 
         with open("trace.txt") as fin:
             for line in fin:
-                if not re.search("Ptot_out", line):
+                if not re.search(self.unique_word, line):
                     continue
 
                 line = line[:-1]
@@ -44,11 +46,11 @@ class Thermal(object):
                 m = re.search(pat_timestamp, line)
                 timestamp = m.group(1)
 
-                semi_idx = line.index(" : ")
-                data_str = line[semi_idx + 3:]
+                data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
+                data_str = line[data_start_idx:]
 
                 if not header:
-                    header = re.sub(r"([A-Za-z0-9_]+)=[0-9]+ ", r"\1,", data_str)
+                    header = re.sub(pat_header, r"\1,", data_str)
                     header = header[:-1]
                     header = "time," + header + "\n"
                     self.data_csv = header
@@ -60,24 +62,30 @@ class Thermal(object):
                 parsed_data = timestamp + "," + parsed_data + "\n"
                 self.data_csv += parsed_data
 
-    def write_thermal_csv(self):
-        """Write the csv info in thermal.csv"""
-        if not self.data_csv:
-            self.__parse_into_csv()
-
-        with open("thermal.csv", "w") as fout:
-            fout.write(self.data_csv)
-
     def get_data_frame(self):
         """Return a pandas data frame for the run"""
         if self.data_frame:
             return self.data_frame
 
         if not self.data_csv:
-            self.__parse_into_csv()
+            self.parse_into_csv()
 
         self.data_frame = pd.read_csv(StringIO(self.data_csv)).set_index("time")
         return self.data_frame
+
+class Thermal(BaseThermal):
+    def __init__(self):
+        super(Thermal, self).__init__(
+            unique_word="Ptot_out"
+        )
+
+    def write_thermal_csv(self):
+        """Write the csv info in thermal.csv"""
+        if not self.data_csv:
+            self.parse_into_csv()
+
+        with open("thermal.csv", "w") as fout:
+            fout.write(self.data_csv)
 
     def __default_plot_settings(self, title=""):
         plt.xlabel("Time")
