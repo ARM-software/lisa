@@ -7,6 +7,8 @@ from StringIO import StringIO
 import pandas as pd
 from matplotlib import pyplot as plt
 
+GOLDEN_RATIO = 1.618034
+
 class BaseThermal(object):
     def __init__(self, unique_word):
         if not os.path.isfile("trace.txt"):
@@ -93,19 +95,38 @@ class Thermal(BaseThermal):
         with open("thermal.csv", "w") as fout:
             fout.write(self.data_csv)
 
+    def set_plot_size(self, width, height):
+        """Set the plot size.
+
+        This has to be called before plot()
+        """
+        if height is None:
+            if width is None:
+                height = 6
+                width = 10
+            else:
+                height = width / GOLDEN_RATIO
+        else:
+            if width is None:
+                width = height * GOLDEN_RATIO
+        
+        plt.figure(figsize=(width, height))
+
     def __default_plot_settings(self, title=""):
         plt.xlabel("Time")
         if title:
             plt.title(title)
 
-    def plot_temperature(self):
+    def plot_temperature(self, width=None, height=None):
         """Plot the temperature"""
+        self.set_plot_size(width, height)
         df = self.get_data_frame()
         (df["currT"] / 1000).plot()
         self.__default_plot_settings(title="Temperature")
 
-    def plot_input_power(self):
+    def plot_input_power(self, width=None, height=None):
         """Plot input power"""
+        self.set_plot_size(width, height)
         df = self.get_data_frame()
         df[["Pa7_in", "Pa15_in", "Pgpu_in"]].plot()
         self.__default_plot_settings(title="Input Power")

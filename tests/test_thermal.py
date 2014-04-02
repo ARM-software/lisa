@@ -68,6 +68,14 @@ class TestThermal(TestThermalBase):
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         thermal.Thermal().plot_input_power()
 
+    def test_set_plot_size(self):
+        """Test that Thermal.set_plot_size() doesn't bomb"""
+        t = thermal.Thermal()
+        t.set_plot_size(None, None)
+        t.set_plot_size(height=9, width=None)
+        t.set_plot_size(height=None, width=9)
+        t.set_plot_size(3, 9)
+
 class TestEmptyThermal(unittest.TestCase):
     def setUp(self):
         self.out_dir = tempfile.mkdtemp()
