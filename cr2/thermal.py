@@ -70,7 +70,13 @@ class BaseThermal(object):
         if not self.data_csv:
             self.parse_into_csv()
 
-        self.data_frame = pd.read_csv(StringIO(self.data_csv)).set_index("time")
+        try:
+            self.data_frame = pd.read_csv(StringIO(self.data_csv)).set_index("time")
+        except StopIteration:
+            if not self.data_frame:
+                return pd.DataFrame()
+            raise
+
         return self.data_frame
 
 class Thermal(BaseThermal):

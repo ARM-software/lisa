@@ -67,3 +67,36 @@ class TestThermal(TestThermalBase):
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         thermal.Thermal().plot_input_power()
+
+class TestEmptyThermal(unittest.TestCase):
+    def setUp(self):
+        self.out_dir = tempfile.mkdtemp()
+        os.chdir(self.out_dir)
+        with open("trace.txt", "w") as fout:
+            fout.write("""version = 6
+cpus=8
+CPU:7 [204600 EVENTS DROPPED]
+           <...>-3979  [007]   217.975284: sched_stat_runtime:   comm=Thread-103 pid=3979 runtime=5014167 [ns] vruntime=244334517704 [ns]
+           <...>-3979  [007]   217.975298: sched_task_load_contrib: comm=Thread-103 pid=3979 load_contrib=2500
+           <...>-3979  [007]   217.975314: sched_task_runnable_ratio: comm=Thread-103 pid=3979 ratio=1023
+           <...>-3979  [007]   217.975332: sched_rq_runnable_ratio: cpu=7 ratio=1023
+           <...>-3979  [007]   217.975345: sched_rq_runnable_load: cpu=7 load=127
+           <...>-3979  [007]   217.975366: softirq_raise:        vec=7 [action=SCHED]
+           <...>-3979  [007]   217.975446: irq_handler_exit:     irq=163 ret=handled
+           <...>-3979  [007]   217.975502: softirq_entry:        vec=1 [action=TIMER]
+           <...>-3979  [007]   217.975523: softirq_exit:         vec=1 [action=TIMER]
+           <...>-3979  [007]   217.975535: softirq_entry:        vec=7 [action=SCHED]
+           <...>-3979  [007]   217.975559: sched_rq_runnable_ratio: cpu=7 ratio=1023
+           <...>-3979  [007]   217.975571: sched_rq_runnable_load: cpu=7 load=127
+           <...>-3979  [007]   217.975584: softirq_exit:         vec=7 [action=SCHED]
+           <...>-3979  [007]   217.980139: irq_handler_entry:    irq=163 name=mct_tick7
+           <...>-3979  [007]   217.980216: softirq_raise:        vec=1 [action=TIMER]
+           <...>-3979  [007]   217.980253: sched_stat_runtime:   comm=Thread-103 pid=3979 runtime=4990542 [ns] vruntime=244336561007 [ns]
+           <...>-3979  [007]   217.980268: sched_task_load_contrib: comm=Thread-103 pid=3979 load_contrib=2500""")
+
+    def tearDown(self):
+        shutil.rmtree(self.out_dir)
+
+    def test_empty_trace_txt(self):
+        df = thermal.Thermal().get_data_frame()
+        self.assertEquals(len(df), 0)
