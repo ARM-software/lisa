@@ -13,4 +13,5 @@ class TestPower(TestThermalBase):
         df = power.Power().get_data_frame()
 
         self.assertEquals(df["freq"][0], 800000)
+        self.assertEquals(df["power"][0], 0)
         self.assertTrue("cdev_state" in df.columns)

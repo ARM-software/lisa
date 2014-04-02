@@ -39,11 +39,11 @@ class TestThermal(TestThermalBase):
 
     def test_get_thermal_csv(self):
         thermal.Thermal().write_thermal_csv()
-        first_data_line = "267.525370,0,1244,144,1388,0,0,0,0,50000,7000\n"
+        first_data_line = "164.990777,0,1244,143,1387,0,0,0,0,50000,7000\n"
 
         with open("thermal.csv") as f:
             first_line = f.readline()
-            self.assertTrue(first_line.startswith("time,Pa7_in"))
+            self.assertTrue(first_line.startswith("time,Pgpu_in"))
 
             second_line = f.readline()
             self.assertEquals(second_line, first_data_line)
@@ -54,7 +54,7 @@ class TestThermal(TestThermalBase):
         self.assertEquals(df["currT"][0], 50000)
         self.assertTrue("Ptot_out" in df.columns)
         self.assertFalse("time" in df.columns)
-        self.assertEquals(len(df), 3)
+        self.assertEquals(len(df), 5)
 
     def test_plot_temp(self):
         """Test plot_temp()
