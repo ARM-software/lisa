@@ -113,6 +113,11 @@ class Thermal(BaseThermal):
         plt.figure(figsize=(width, height))
 
     def __default_plot_settings(self, title=""):
+        """Set xlabel and title of the plot
+
+        This has to be called after the plot() command
+        """
+
         plt.xlabel("Time")
         if title:
             plt.title(title)
