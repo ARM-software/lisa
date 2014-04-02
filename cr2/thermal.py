@@ -128,9 +128,16 @@ class Thermal(BaseThermal):
         (df["currT"] / 1000).plot()
         self.__default_plot_settings(title="Temperature")
 
-    def plot_input_power(self, width=None, height=None):
-        """Plot input power"""
+    def plot_multivalue(self, values, title, width, height):
+        """Plot multiple values of the DataFrame
+
+        values is an array with the keys of the DataFrame to plot
+        """
         self.set_plot_size(width, height)
         df = self.get_data_frame()
-        df[["Pa7_in", "Pa15_in", "Pgpu_in"]].plot()
-        self.__default_plot_settings(title="Input Power")
+        df[values].plot()
+        self.__default_plot_settings(title=title)
+
+    def plot_input_power(self, width=None, height=None):
+        """Plot input power"""
+        self.plot_multivalue( ["Pa7_in", "Pa15_in", "Pgpu_in"], "Input Power", width, height)
