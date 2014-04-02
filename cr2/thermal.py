@@ -141,3 +141,7 @@ class Thermal(BaseThermal):
     def plot_input_power(self, width=None, height=None):
         """Plot input power"""
         self.plot_multivalue( ["Pa7_in", "Pa15_in", "Pgpu_in"], "Input Power", width, height)
+
+    def plot_output_power(self, width=None, height=None):
+        """Plot output power"""
+        self.plot_multivalue( ["Pa7_out", "Pa15_out", "Pgpu_out"], "Output Power", width, height)
