@@ -34,8 +34,8 @@ class BaseThermal(object):
     def parse_into_csv(self):
         """Create a csv representation of the thermal data and store it in self.data_csv"""
         pat_timestamp = re.compile(r"([0-9]+\.[0-9]+):")
-        pat_data = re.compile(r"[A-Za-z0-9_]+=([a-f0-9]+)")
-        pat_header = re.compile(r"([A-Za-z0-9_]+)=[a-f0-9]+")
+        pat_data = re.compile(r"[A-Za-z0-9_]+=([-a-f0-9]+)")
+        pat_header = re.compile(r"([A-Za-z0-9_]+)=[-a-f0-9]+")
         header = ""
 
         with open("trace.txt") as fin:
