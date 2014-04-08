@@ -57,11 +57,12 @@ class TestThermal(TestThermalBase):
         self.assertTrue("Ptot_out" in df.columns)
         self.assertFalse("time" in df.columns)
 
-    def test_plot_temp(self):
-        """Test plot_temp()
+    def test_plot_temperature(self):
+        """Test Thermal.plot_temperature()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         thermal.Thermal().plot_temperature()
+        thermal.Thermal().plot_temperature(title="Antutu")
 
     def test_plot_input_power(self):
         """Test plot_input_power()
