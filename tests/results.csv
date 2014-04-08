@@ -1,0 +1,25 @@
+id,workload,iteration,metric,value,units
+antutu,antutu,1,ram,42,
+antutu,antutu,1,database,6,
+antutu,antutu,1,dalvik,10,
+antutu,antutu,1,float,4,
+antutu,antutu,1,storage,7,
+antutu,antutu,1,renderscript,3,
+antutu,antutu,1,2d,1,
+antutu,antutu,1,score,1,
+antutu,antutu,1,memory,2,
+antutu,antutu,1,integer,3,
+antutu,antutu,1,multitask,9,
+antutu,antutu,1,3d,1,
+glbench_egypt,glbenchmark,1,Frames_0,1,frames
+glbench_egypt,glbenchmark,1,FPS_0,2,fps
+glbench_egypt,glbenchmark,1,Frames_1,4,frames
+glbench_egypt,glbenchmark,1,FPS_1,3,fps
+geekbench,geekbench,1,score,4,
+geekbench,geekbench,1,multicore_score,3,
+geekbench,geekbench,1,Integer_score,5,
+geekbench,geekbench,1,Integer_multicore_score,1,
+geekbench,geekbench,1,Floating Point_score,5,
+geekbench,geekbench,1,Floating Point_multicore_score,6,
+geekbench,geekbench,1,Memory_score,6,
+geekbench,geekbench,1,Memory_multicore_score,7,
