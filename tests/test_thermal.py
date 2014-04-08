@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import unittest
-import os,sys
+import os, sys
 import re, shutil, tempfile
 
 TESTS_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
