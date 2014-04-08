@@ -147,10 +147,17 @@ class Thermal(BaseThermal):
 
     def plot_temperature(self, width=None, height=None):
         """Plot the temperature"""
-        set_plot_size(width, height)
         dfr = self.get_data_frame()
+        control_temp_series = (dfr["currT"] + dfr["deltaT"]) / 1000
+
+        set_plot_size(width, height)
+
         (dfr["currT"] / 1000).plot()
+        control_temp_series.plot(color="y", linestyle="--",
+                                 label="control temperature")
+
         default_plot_settings(title="Temperature")
+        plt.legend()
 
     def plot_multivalue(self, values, title, width, height):
         """Plot multiple values of the DataFrame
