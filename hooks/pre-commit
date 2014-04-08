@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# git pre-commit hook.  There's no way to automate them when cloning a
+# repository.  You need to run this by hand in the root of the
+# repository to activate it:
+#
+#   ln -s ../../hooks/pre-commit .git/hooks/
+
+set -e
+
+# Fail if there's whitespace errors
+git diff-index --check --cached HEAD --
+
+# Run testsuite
+exec nosetests
