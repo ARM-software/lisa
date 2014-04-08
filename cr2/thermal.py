@@ -1,5 +1,6 @@
 #!/usr/bin/python
-"""Process the output of the power allocator trace in the current directory's trace.dat"""
+"""Process the output of the power allocator trace in the current
+directory's trace.dat"""
 
 import os
 import re
@@ -10,6 +11,10 @@ from matplotlib import pyplot as plt
 GOLDEN_RATIO = 1.618034
 
 class BaseThermal(object):
+    """Base class to parse trace.dat dumps.
+
+    Don't use directly, create a subclass that defines the unique_word
+    you want to match in the output"""
     def __init__(self, basepath, unique_word):
         if basepath is None:
             basepath = "."
@@ -23,7 +28,9 @@ class BaseThermal(object):
             self.__run_trace_cmd_report()
 
     def __run_trace_cmd_report(self):
-        """Run "trace-cmd report > trace.txt".  Overwrites the contents of trace.txt if it exists."""
+        """Run "trace-cmd report > trace.txt".
+
+        Overwrites the contents of trace.txt if it exists."""
         from subprocess import check_output
 
         if not os.path.isfile(os.path.join(self.basepath, "trace.dat")):
@@ -41,11 +48,12 @@ class BaseThermal(object):
         finally:
             os.chdir(previous_path)
 
-        with open(os.path.join(self.basepath, "trace.txt"), "w") as f:
-            f.write(out)
+        with open(os.path.join(self.basepath, "trace.txt"), "w") as fout:
+            fout.write(out)
 
     def parse_into_csv(self):
-        """Create a csv representation of the thermal data and store it in self.data_csv"""
+        """Create a csv representation of the thermal data and store
+        it in self.data_csv"""
         pat_timestamp = re.compile(r"([0-9]+\.[0-9]+):")
         pat_data = re.compile(r"[A-Za-z0-9_]+=([-a-f0-9]+)")
         pat_header = re.compile(r"([A-Za-z0-9_]+)=[-a-f0-9]+")
@@ -58,8 +66,8 @@ class BaseThermal(object):
 
                 line = line[:-1]
 
-                m = re.search(pat_timestamp, line)
-                timestamp = m.group(1)
+                timestamp_match = re.search(pat_timestamp, line)
+                timestamp = timestamp_match.group(1)
 
                 data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
                 data_str = line[data_start_idx:]
@@ -85,7 +93,8 @@ class BaseThermal(object):
             self.parse_into_csv()
 
         try:
-            self.data_frame = pd.read_csv(StringIO(self.data_csv)).set_index("time")
+            unordered_df = pd.read_csv(StringIO(self.data_csv))
+            self.data_frame = unordered_df.set_index("time")
         except StopIteration:
             if not self.data_frame:
                 return pd.DataFrame()
@@ -121,6 +130,7 @@ def default_plot_settings(title=""):
         plt.title(title)
 
 class Thermal(BaseThermal):
+    """Process the power allocator data in a ftrace dump"""
     def __init__(self, path=None):
         super(Thermal, self).__init__(
             basepath=path,
@@ -138,8 +148,8 @@ class Thermal(BaseThermal):
     def plot_temperature(self, width=None, height=None):
         """Plot the temperature"""
         set_plot_size(width, height)
-        df = self.get_data_frame()
-        (df["currT"] / 1000).plot()
+        dfr = self.get_data_frame()
+        (dfr["currT"] / 1000).plot()
         default_plot_settings(title="Temperature")
 
     def plot_multivalue(self, values, title, width, height):
@@ -148,14 +158,16 @@ class Thermal(BaseThermal):
         values is an array with the keys of the DataFrame to plot
         """
         set_plot_size(width, height)
-        df = self.get_data_frame()
-        df[values].plot()
+        dfr = self.get_data_frame()
+        dfr[values].plot()
         default_plot_settings(title=title)
 
     def plot_input_power(self, width=None, height=None):
         """Plot input power"""
-        self.plot_multivalue( ["Pa7_in", "Pa15_in", "Pgpu_in"], "Input Power", width, height)
+        self.plot_multivalue(["Pa7_in", "Pa15_in", "Pgpu_in"], "Input Power",
+                             width, height)
 
     def plot_output_power(self, width=None, height=None):
         """Plot output power"""
-        self.plot_multivalue( ["Pa7_out", "Pa15_out", "Pgpu_out"], "Output Power", width, height)
+        self.plot_multivalue(["Pa7_out", "Pa15_out", "Pgpu_out"],
+                             "Output Power", width, height)
