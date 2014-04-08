@@ -34,6 +34,7 @@ class TestThermal(TestThermalBase):
         self.assertTrue(found)
 
     def test_fail_if_no_trace_dat(self):
+        """Raise an IOError if there's no trace.dat and trace.txt"""
         os.remove("trace.dat")
         self.assertRaises(IOError, thermal.Thermal)
 
