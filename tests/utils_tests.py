@@ -13,6 +13,8 @@ class SetupDirectory(unittest.TestCase):
         super(SetupDirectory, self).__init__(*args, **kwargs)
 
     def setUp(self):
+        self.previous_dir = os.getcwd()
+
         self.out_dir = tempfile.mkdtemp()
         os.chdir(self.out_dir)
 
@@ -21,4 +23,5 @@ class SetupDirectory(unittest.TestCase):
             shutil.copy(src_fname, self.out_dir)
 
     def tearDown(self):
+        os.chdir(self.previous_dir)
         shutil.rmtree(self.out_dir)
