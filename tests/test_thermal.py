@@ -83,6 +83,18 @@ class TestThermal(TestThermalBase):
         t.set_plot_size(height=None, width=9)
         t.set_plot_size(3, 9)
 
+    def test_other_directory(self):
+        """Thermal can grab the trace.dat from other directories"""
+
+        other_random_dir = tempfile.mkdtemp()
+        os.chdir(other_random_dir)
+
+        t = thermal.Thermal(self.out_dir)
+        df = t.get_data_frame()
+
+        self.assertTrue(len(df) > 0)
+        self.assertEquals(os.getcwd(), other_random_dir)
+
 class TestEmptyThermal(unittest.TestCase):
     def setUp(self):
         self.out_dir = tempfile.mkdtemp()

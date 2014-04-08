@@ -10,25 +10,38 @@ from matplotlib import pyplot as plt
 GOLDEN_RATIO = 1.618034
 
 class BaseThermal(object):
-    def __init__(self, unique_word):
-        if not os.path.isfile("trace.txt"):
-            self.__run_trace_cmd_report()
+    def __init__(self, basepath, unique_word):
+        if basepath is None:
+            basepath = "."
 
-        self.unique_word = unique_word
+        self.basepath = basepath
         self.data_csv = ""
         self.data_frame = False
+        self.unique_word = unique_word
+
+        if not os.path.isfile(os.path.join(basepath, "trace.txt")):
+            self.__run_trace_cmd_report()
 
     def __run_trace_cmd_report(self):
         """Run "trace-cmd report > trace.txt".  Overwrites the contents of trace.txt if it exists."""
         from subprocess import check_output
 
-        if not os.path.isfile("trace.dat"):
+        if not os.path.isfile(os.path.join(self.basepath, "trace.dat")):
             raise IOError("No such file or directory: trace.dat")
 
-        with open(os.devnull) as devnull:
-            out = check_output(["trace-cmd", "report"], stderr=devnull)
+        previous_path = os.getcwd()
+        os.chdir(self.basepath)
 
-        with open("trace.txt", "w") as f:
+        # This would better be done with a context manager (i.e.
+        # http://stackoverflow.com/a/13197763/970766)
+        try:
+            with open(os.devnull) as devnull:
+                out = check_output(["trace-cmd", "report"], stderr=devnull)
+
+        finally:
+            os.chdir(previous_path)
+
+        with open(os.path.join(self.basepath, "trace.txt"), "w") as f:
             f.write(out)
 
     def parse_into_csv(self):
@@ -38,7 +51,7 @@ class BaseThermal(object):
         pat_header = re.compile(r"([A-Za-z0-9_]+)=[-a-f0-9]+")
         header = ""
 
-        with open("trace.txt") as fin:
+        with open(os.path.join(self.basepath, "trace.txt")) as fin:
             for line in fin:
                 if not re.search(self.unique_word, line):
                     continue
@@ -81,9 +94,10 @@ class BaseThermal(object):
         return self.data_frame
 
 class Thermal(BaseThermal):
-    def __init__(self):
+    def __init__(self, path=None):
         super(Thermal, self).__init__(
-            unique_word="Ptot_out"
+            basepath=path,
+            unique_word="Ptot_out",
         )
 
     def write_thermal_csv(self):

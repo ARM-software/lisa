@@ -5,7 +5,8 @@ import pandas as pd
 from thermal import BaseThermal
 
 class Power(BaseThermal):
-    def __init__(self):
+    def __init__(self, path=None):
         super(Power, self).__init__(
-            unique_word="thermal_power_limit"
+            basepath=path,
+            unique_word="thermal_power_limit",
         )
