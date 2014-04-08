@@ -1,10 +1,12 @@
 #!/usr/bin/python
-"""Process the output of the cpu_cooling devices in the current directory's trace.dat"""
+"""Process the output of the cpu_cooling devices in the current
+directory's trace.dat"""
 
-import pandas as pd
 from thermal import BaseThermal
 
 class Power(BaseThermal):
+    """Process the cpufreq cooling power actor data in a ftrace dump"""
+
     def __init__(self, path=None):
         super(Power, self).__init__(
             basepath=path,
