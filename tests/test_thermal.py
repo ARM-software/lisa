@@ -92,6 +92,7 @@ class TestThermal(TestThermalBase):
 
 class TestEmptyThermal(unittest.TestCase):
     def setUp(self):
+        self.previous_dir = os.getcwd()
         self.out_dir = tempfile.mkdtemp()
         os.chdir(self.out_dir)
         with open("trace.txt", "w") as fout:
@@ -117,6 +118,7 @@ CPU:7 [204600 EVENTS DROPPED]
            <...>-3979  [007]   217.980268: sched_task_load_contrib: comm=Thread-103 pid=3979 load_contrib=2500""")
 
     def tearDown(self):
+        os.chdir(self.previous_dir)
         shutil.rmtree(self.out_dir)
 
     def test_empty_trace_txt(self):
