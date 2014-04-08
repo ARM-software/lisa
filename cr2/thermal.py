@@ -93,6 +93,23 @@ class BaseThermal(object):
 
         return self.data_frame
 
+def set_plot_size(width, height):
+    """Set the plot size.
+
+    This has to be called before calls to .plot()
+    """
+    if height is None:
+        if width is None:
+            height = 6
+            width = 10
+        else:
+            height = width / GOLDEN_RATIO
+    else:
+        if width is None:
+            width = height * GOLDEN_RATIO
+
+    plt.figure(figsize=(width, height))
+
 class Thermal(BaseThermal):
     def __init__(self, path=None):
         super(Thermal, self).__init__(
@@ -108,23 +125,6 @@ class Thermal(BaseThermal):
         with open("thermal.csv", "w") as fout:
             fout.write(self.data_csv)
 
-    def set_plot_size(self, width, height):
-        """Set the plot size.
-
-        This has to be called before plot()
-        """
-        if height is None:
-            if width is None:
-                height = 6
-                width = 10
-            else:
-                height = width / GOLDEN_RATIO
-        else:
-            if width is None:
-                width = height * GOLDEN_RATIO
-        
-        plt.figure(figsize=(width, height))
-
     def __default_plot_settings(self, title=""):
         """Set xlabel and title of the plot
 
@@ -137,7 +137,7 @@ class Thermal(BaseThermal):
 
     def plot_temperature(self, width=None, height=None):
         """Plot the temperature"""
-        self.set_plot_size(width, height)
+        set_plot_size(width, height)
         df = self.get_data_frame()
         (df["currT"] / 1000).plot()
         self.__default_plot_settings(title="Temperature")
@@ -147,7 +147,7 @@ class Thermal(BaseThermal):
 
         values is an array with the keys of the DataFrame to plot
         """
-        self.set_plot_size(width, height)
+        set_plot_size(width, height)
         df = self.get_data_frame()
         df[values].plot()
         self.__default_plot_settings(title=title)

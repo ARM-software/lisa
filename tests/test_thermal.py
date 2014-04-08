@@ -76,12 +76,11 @@ class TestThermal(TestThermalBase):
         thermal.Thermal().plot_output_power()
 
     def test_set_plot_size(self):
-        """Test that Thermal.set_plot_size() doesn't bomb"""
-        t = thermal.Thermal()
-        t.set_plot_size(None, None)
-        t.set_plot_size(height=9, width=None)
-        t.set_plot_size(height=None, width=9)
-        t.set_plot_size(3, 9)
+        """Test that thermal.set_plot_size() doesn't bomb"""
+        thermal.set_plot_size(None, None)
+        thermal.set_plot_size(height=9, width=None)
+        thermal.set_plot_size(height=None, width=9)
+        thermal.set_plot_size(3, 9)
 
     def test_other_directory(self):
         """Thermal can grab the trace.dat from other directories"""
