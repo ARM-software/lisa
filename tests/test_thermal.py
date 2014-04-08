@@ -4,20 +4,15 @@ import unittest
 import os, sys
 import re, shutil, tempfile
 
-TESTS_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(TESTS_DIRECTORY, "..", "cr2"))
+import utils_tests
 import thermal
 
-class TestThermalBase(unittest.TestCase):
-    def setUp(self):
-        self.out_dir = tempfile.mkdtemp()
-        os.chdir(self.out_dir)
-
-        src_fname = os.path.join(TESTS_DIRECTORY, "trace.dat")
-        shutil.copy(src_fname, self.out_dir)
-
-    def tearDown(self):
-        shutil.rmtree(self.out_dir)
+class TestThermalBase(utils_tests.SetupDirectory):
+    def __init__(self, *args, **kwargs):
+        super(TestThermalBase, self).__init__(
+             ["trace.dat"],
+             *args,
+             **kwargs)
 
 class TestThermal(TestThermalBase):
     def test_do_txt_if_not_there(self):
