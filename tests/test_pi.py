@@ -10,6 +10,7 @@ import pi_controller
 
 class TestPIController(TestThermalBase):
     def test_get_dataframe(self):
+        """Test PIController.get_data_frame()"""
         df = pi_controller.PIController().get_data_frame()
 
         self.assertTrue(len(df) > 0)

@@ -10,6 +10,7 @@ import power
 
 class TestPower(TestThermalBase):
     def test_get_dataframe(self):
+        """Test Power.get_data_frame()"""
         df = power.Power().get_data_frame()
 
         self.assertEquals(df["power"][0], 2898)
