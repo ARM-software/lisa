@@ -110,6 +110,16 @@ def set_plot_size(width, height):
 
     plt.figure(figsize=(width, height))
 
+def default_plot_settings(title=""):
+    """Set xlabel and title of the plot
+
+    This has to be called after calls to .plot()
+    """
+
+    plt.xlabel("Time")
+    if title:
+        plt.title(title)
+
 class Thermal(BaseThermal):
     def __init__(self, path=None):
         super(Thermal, self).__init__(
@@ -125,22 +135,12 @@ class Thermal(BaseThermal):
         with open("thermal.csv", "w") as fout:
             fout.write(self.data_csv)
 
-    def __default_plot_settings(self, title=""):
-        """Set xlabel and title of the plot
-
-        This has to be called after the plot() command
-        """
-
-        plt.xlabel("Time")
-        if title:
-            plt.title(title)
-
     def plot_temperature(self, width=None, height=None):
         """Plot the temperature"""
         set_plot_size(width, height)
         df = self.get_data_frame()
         (df["currT"] / 1000).plot()
-        self.__default_plot_settings(title="Temperature")
+        default_plot_settings(title="Temperature")
 
     def plot_multivalue(self, values, title, width, height):
         """Plot multiple values of the DataFrame
@@ -150,7 +150,7 @@ class Thermal(BaseThermal):
         set_plot_size(width, height)
         df = self.get_data_frame()
         df[values].plot()
-        self.__default_plot_settings(title=title)
+        default_plot_settings(title=title)
 
     def plot_input_power(self, width=None, height=None):
         """Plot input power"""
