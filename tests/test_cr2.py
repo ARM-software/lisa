@@ -45,3 +45,13 @@ class TestCR2(utils_tests.SetupDirectory):
         self.assertEquals(combined["antutu"]["ipa"][0], 34400)
         self.assertEquals(combined["glbench_egypt"]["power_allocator"][1], 75)
         self.assertEquals(combined["glbench_egypt"]["ipa"][1], 75)
+
+    def test_plot_results(self):
+        """Test CR2.plot_results()
+
+        Can't test it, so just check that it doens't bomb
+        """
+        results_frame = cr2.get_results()
+
+        results_frame.plot_results("antutu")
+        results_frame.plot_results("glbench_egypt", title="Glbench Egypt")

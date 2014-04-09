@@ -7,10 +7,22 @@ the power allocator governor"""
 import os
 import csv, re
 import pandas as pd
+from matplotlib import pyplot as plt
 
 class CR2(pd.DataFrame):
     """A DataFrame-like class for storing benchmark results"""
-    pass
+    def plot_results(self, benchmark, title=None):
+        """Plot the results of the execution of a given benchmark
+
+        A title is added to the plot if title is not supplied
+        """
+
+        if title is None:
+            title = benchmark.replace('_', ' ')
+            title = title.title()
+
+        self[benchmark].plot()
+        plt.title(title)
 
 def get_results(dirname="."):
     """Return a pd.DataFrame with the results
