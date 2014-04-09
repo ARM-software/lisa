@@ -5,7 +5,7 @@ Second version of the compare runs script, to compare two traces of
 the power allocator governor"""
 
 import os
-import csv, re
+import collections, csv, re
 import pandas as pd
 from matplotlib import pyplot as plt
 
@@ -24,6 +24,21 @@ class CR2(pd.DataFrame):
         self[benchmark].plot()
         plt.title(title)
 
+def get_run_number(metric):
+    found = False
+    run_number = None
+
+    if re.match("score|FPS_", metric):
+        found = True
+
+        match = re.search("[ _](\d+)", metric)
+        if match:
+            run_number = int(match.group(1))
+        else:
+            run_number = 0
+
+    return (found, run_number)
+
 def get_results(dirname="."):
     """Return a pd.DataFrame with the results
 
@@ -32,24 +47,26 @@ def get_results(dirname="."):
     result, that's what's used.  For benchmarks with FPS_* result,
     that's the score.  E.g. glbenchmark "score" is it's fps"""
 
-    pat_result = re.compile("score|FPS_")
     res_dict = {}
 
     with open(os.path.join(dirname, "results.csv")) as fin:
         results = csv.reader(fin)
 
         for row in results:
-            if (re.match(pat_result, row[3])):
+            (is_result, run_number) = get_run_number(row[3])
+
+            if is_result:
                 bench = row[0]
                 result = int(row[4])
 
                 if bench not in res_dict:
-                    res_dict[bench] = [result]
+                    res_dict[bench] = {run_number: result}
                 else:
-                    res_dict[bench].append(result)
+                    res_dict[bench][run_number] = result
 
-    for k in res_dict.keys():
-        res_dict[k] = pd.Series(res_dict[k])
+    for bench,val in res_dict.iteritems():
+        ordered_dict = collections.OrderedDict(sorted(val.items()))
+        res_dict[bench] = pd.Series(ordered_dict.values())
 
     return CR2(res_dict)
 
