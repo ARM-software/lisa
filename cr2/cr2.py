@@ -8,7 +8,7 @@ import os
 import csv, re
 import pandas as pd
 
-def get_results(dir="."):
+def get_results(dirname="."):
     """Return a pd.DataFrame with the results
 
     The DataFrame has one row: "score" and as many columns as
@@ -19,7 +19,7 @@ def get_results(dir="."):
     pat_result = re.compile("score|FPS_")
     res_dict = {}
 
-    with open(os.path.join(dir, "results.csv")) as fin:
+    with open(os.path.join(dirname, "results.csv")) as fin:
         results = csv.reader(fin)
 
         for row in results:
@@ -36,3 +36,25 @@ def get_results(dir="."):
         res_dict[k] = pd.Series(res_dict[k])
 
     return pd.DataFrame(res_dict)
+
+def combine_results(data, keys):
+    """Combine two DataFrame results into one
+
+    The data should be an array of results like the ones returned by
+    get_results() or have the same structure.  The returned DataFrame
+    has two column indexes.  The first one is still the benchmark and
+    the second one is the key for the result.  keys must be an array
+    of strings, each of which describes the same element in the data
+    array.
+
+    """
+
+    combined = pd.concat(data, axis=1, keys=keys)
+
+    # Now we've got everything in the DataFrame but the first column
+    # index is the key for the result and the second one is the
+    # benchmark. Swap the column indexes.  (There *has* to be a better
+    # way of doing this)
+    combined = combined.stack([1, 1]).unstack([1, 1])
+
+    return combined
