@@ -15,6 +15,8 @@ class TestCR2(utils_tests.SetupDirectory):
 
     def test_get_results(self):
         results_frame = cr2.get_results()
+
+        self.assertEquals(type(results_frame), cr2.CR2)
         self.assertEquals(len(results_frame.columns), 3)
         self.assertEquals(results_frame["antutu"][0], 1)
         self.assertEquals(results_frame["glbench_egypt"][0], 2)
@@ -38,8 +40,7 @@ class TestCR2(utils_tests.SetupDirectory):
         res2["antutu"][0] = 34400
         combined = cr2.combine_results([res1, res2], keys=["power_allocator", "ipa"])
 
-        print combined
-
+        self.assertEquals(type(combined), cr2.CR2)
         self.assertEquals(combined["antutu"]["power_allocator"][0], 35544)
         self.assertEquals(combined["antutu"]["ipa"][0], 34400)
         self.assertEquals(combined["glbench_egypt"]["power_allocator"][1], 75)

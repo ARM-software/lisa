@@ -8,6 +8,10 @@ import os
 import csv, re
 import pandas as pd
 
+class CR2(pd.DataFrame):
+    """A DataFrame-like class for storing benchmark results"""
+    pass
+
 def get_results(dirname="."):
     """Return a pd.DataFrame with the results
 
@@ -35,7 +39,7 @@ def get_results(dirname="."):
     for k in res_dict.keys():
         res_dict[k] = pd.Series(res_dict[k])
 
-    return pd.DataFrame(res_dict)
+    return CR2(res_dict)
 
 def combine_results(data, keys):
     """Combine two DataFrame results into one
@@ -57,4 +61,4 @@ def combine_results(data, keys):
     # way of doing this)
     combined = combined.stack([1, 1]).unstack([1, 1])
 
-    return combined
+    return CR2(combined)
