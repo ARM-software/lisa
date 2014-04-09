@@ -4,10 +4,11 @@
 Second version of the compare runs script, to compare two traces of
 the power allocator governor"""
 
+import os
 import csv, re
 import pandas as pd
 
-def get_results():
+def get_results(dir="."):
     """Return a pd.DataFrame with the results
 
     The DataFrame has one row: "score" and as many columns as
@@ -18,7 +19,7 @@ def get_results():
     pat_result = re.compile("score|FPS_")
     res_dict = {}
 
-    with open("results.csv") as fin:
+    with open(os.path.join(dir, "results.csv")) as fin:
         results = csv.reader(fin)
 
         for row in results:
