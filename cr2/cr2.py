@@ -24,6 +24,15 @@ class CR2(object):
 
             for row in results:
                 if (re.match(pat_result, row[3])):
-                    res_dict[row[0]] = pd.Series([int(row[4])], index=["score"])
+                    bench = row[0]
+                    result = int(row[4])
+
+                    if bench not in res_dict:
+                        res_dict[bench] = [result]
+                    else:
+                        res_dict[bench].append(result)
+
+        for k in res_dict.keys():
+            res_dict[k] = pd.Series(res_dict[k])
 
         return pd.DataFrame(res_dict)

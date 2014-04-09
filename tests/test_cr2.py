@@ -17,6 +17,7 @@ class TestCR2(utils_tests.SetupDirectory):
 
         results_frame = cr.get_results()
         self.assertEquals(len(results_frame.columns), 3)
-        self.assertEquals(results_frame["antutu"], 1)
-        self.assertEquals(results_frame["glbench_egypt"], 2)
-        self.assertEquals(results_frame["geekbench"], 4)
+        self.assertEquals(results_frame["antutu"][0], 1)
+        self.assertEquals(results_frame["glbench_egypt"][0], 2)
+        self.assertEquals(results_frame["glbench_egypt"][1], 3)
+        self.assertEquals(results_frame["geekbench"][0], 4)
