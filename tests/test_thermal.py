@@ -92,6 +92,13 @@ class TestThermal(TestThermalBase):
         self.assertTrue(len(df) > 0)
         self.assertEquals(os.getcwd(), other_random_dir)
 
+    def test_double_thermal(self):
+        """Make sure that multiple invocations of Thermal work fine"""
+
+        t = Thermal()
+        dfr = t.get_data_frame()
+        t.plot_temperature()
+
 class TestEmptyThermal(unittest.TestCase):
     def setUp(self):
         self.previous_dir = os.getcwd()

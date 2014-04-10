@@ -86,7 +86,7 @@ class BaseThermal(object):
 
     def get_data_frame(self):
         """Return a pandas data frame for the run"""
-        if self.data_frame:
+        if self.data_frame is None:
             return self.data_frame
 
         if not self.data_csv:
