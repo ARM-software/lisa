@@ -88,6 +88,6 @@ def combine_results(data, keys):
     # index is the key for the result and the second one is the
     # benchmark. Swap the column indexes.  (There *has* to be a better
     # way of doing this)
-    combined = combined.stack([1, 1]).unstack([1, 1])
+    combined = combined.stack([1, 1]).unstack(1).unstack()
 
     return CR2(combined)

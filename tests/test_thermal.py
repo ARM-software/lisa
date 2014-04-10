@@ -48,7 +48,7 @@ class TestThermal(TestThermalBase):
         df = thermal.Thermal().get_data_frame()
 
         self.assertTrue(len(df) > 0)
-        self.assertEquals(df["currT"][0], 48000)
+        self.assertEquals(df["currT"].iloc[0], 48000)
         self.assertTrue("Ptot_out" in df.columns)
         self.assertFalse("time" in df.columns)
 

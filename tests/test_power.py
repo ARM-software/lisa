@@ -12,5 +12,5 @@ class TestPower(TestThermalBase):
         """Test Power.get_data_frame()"""
         df = power.Power().get_data_frame()
 
-        self.assertEquals(df["power"][0], 2898)
+        self.assertEquals(df["power"].iloc[0], 2898)
         self.assertTrue("cdev_state" in df.columns)

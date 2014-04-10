@@ -92,13 +92,11 @@ class BaseThermal(object):
         if not self.data_csv:
             self.parse_into_csv()
 
-        try:
-            unordered_df = pd.read_csv(StringIO(self.data_csv))
-            self.data_frame = unordered_df.set_index("time")
-        except StopIteration:
-            if not self.data_frame:
-                return pd.DataFrame()
-            raise
+        if self.data_csv is "":
+            return pd.DataFrame()
+
+        unordered_df = pd.read_csv(StringIO(self.data_csv))
+        self.data_frame = unordered_df.set_index("time")
 
         return self.data_frame
 
