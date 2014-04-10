@@ -5,6 +5,8 @@ import os, sys
 import re, shutil, tempfile
 
 import utils_tests
+from cr2 import Thermal
+sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
 import thermal
 
 class TestThermalBase(utils_tests.SetupDirectory):
@@ -16,7 +18,7 @@ class TestThermalBase(utils_tests.SetupDirectory):
 
 class TestThermal(TestThermalBase):
     def test_do_txt_if_not_there(self):
-        c = thermal.Thermal()
+        c = Thermal()
 
         found = False
         with open("trace.txt") as f:
@@ -31,10 +33,10 @@ class TestThermal(TestThermalBase):
     def test_fail_if_no_trace_dat(self):
         """Raise an IOError if there's no trace.dat and trace.txt"""
         os.remove("trace.dat")
-        self.assertRaises(IOError, thermal.Thermal)
+        self.assertRaises(IOError, Thermal)
 
     def test_get_thermal_csv(self):
-        thermal.Thermal().write_thermal_csv()
+        Thermal().write_thermal_csv()
         first_data_line = '328.473417,3,156,12,171,2898,2898,5252,6580,68,8934,48000,9000\n'
 
         with open("thermal.csv") as f:
@@ -45,7 +47,7 @@ class TestThermal(TestThermalBase):
             self.assertEquals(second_line, first_data_line)
 
     def test_get_dataframe(self):
-        df = thermal.Thermal().get_data_frame()
+        df = Thermal().get_data_frame()
 
         self.assertTrue(len(df) > 0)
         self.assertEquals(df["currT"].iloc[0], 48000)
@@ -56,20 +58,20 @@ class TestThermal(TestThermalBase):
         """Test Thermal.plot_temperature()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        thermal.Thermal().plot_temperature()
-        thermal.Thermal().plot_temperature(title="Antutu")
+        Thermal().plot_temperature()
+        Thermal().plot_temperature(title="Antutu")
 
     def test_plot_input_power(self):
         """Test plot_input_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        thermal.Thermal().plot_input_power()
+        Thermal().plot_input_power()
 
     def test_plot_output_power(self):
         """Test plot_output_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        thermal.Thermal().plot_output_power()
+        Thermal().plot_output_power()
 
     def test_set_plot_size(self):
         """Test that thermal.set_plot_size() doesn't bomb"""
@@ -84,7 +86,7 @@ class TestThermal(TestThermalBase):
         other_random_dir = tempfile.mkdtemp()
         os.chdir(other_random_dir)
 
-        t = thermal.Thermal(self.out_dir)
+        t = Thermal(self.out_dir)
         df = t.get_data_frame()
 
         self.assertTrue(len(df) > 0)
@@ -122,5 +124,5 @@ CPU:7 [204600 EVENTS DROPPED]
         shutil.rmtree(self.out_dir)
 
     def test_empty_trace_txt(self):
-        df = thermal.Thermal().get_data_frame()
+        df = Thermal().get_data_frame()
         self.assertEquals(len(df), 0)

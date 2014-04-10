@@ -1,11 +1,10 @@
 #!/usr/bin/python
 
 import unittest
-import os, sys
+import os
 import shutil, tempfile
 
 TESTS_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(TESTS_DIRECTORY, "..", "cr2"))
 
 class SetupDirectory(unittest.TestCase):
     def __init__(self, files_to_copy, *args, **kwargs):

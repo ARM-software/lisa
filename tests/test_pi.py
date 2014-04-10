@@ -1,16 +1,12 @@
 #!/usr/bin/python
 
-import unittest
-import os, sys
-
-import utils_tests
 from test_thermal import TestThermalBase
-import pi_controller
+from cr2 import PIController
 
 class TestPIController(TestThermalBase):
     def test_get_dataframe(self):
         """Test PIController.get_data_frame()"""
-        df = pi_controller.PIController().get_data_frame()
+        df = PIController().get_data_frame()
 
         self.assertTrue(len(df) > 0)
         self.assertTrue("err_integral" in df.columns)
