@@ -64,3 +64,15 @@ class TestCR2(utils_tests.SetupDirectory):
         self.assertEquals(cr2.get_run_number("score 3"), (True, 3))
         self.assertEquals(cr2.get_run_number("FPS_1"), (True, 1))
         self.assertEquals(cr2.get_run_number("Memory_score")[0], False)
+
+    def test_plot_results(self):
+        """Test CR2.plot_results()
+
+        Can't test it, so just check that it doens't bomb
+        """
+
+        r1 = cr2.get_results()
+        r2 = cr2.get_results()
+        combined = cr2.combine_results([r1, r2], ["r1", "r2"])
+
+        combined.plot_results()

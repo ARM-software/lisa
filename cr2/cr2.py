@@ -24,6 +24,10 @@ class CR2(pd.DataFrame):
         self[benchmark].plot()
         plt.title(title)
 
+    def plot_results(self):
+        for bench in self.columns.levels[0]:
+            self.plot_results_benchmark(bench)
+
 def get_run_number(metric):
     found = False
     run_number = None
