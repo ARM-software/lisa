@@ -48,15 +48,15 @@ class TestCR2(utils_tests.SetupDirectory):
         self.assertEquals(combined["geekbench"]["power_allocator"][1], 4)
         self.assertEquals(combined["glbench_trex"]["ipa"][2], 920)
 
-    def test_plot_results(self):
-        """Test CR2.plot_results()
+    def test_plot_results_benchmark(self):
+        """Test CR2.plot_results_benchmark()
 
         Can't test it, so just check that it doens't bomb
         """
         results_frame = cr2.get_results()
 
-        results_frame.plot_results("antutu")
-        results_frame.plot_results("glbench_trex", title="Glbench TRex")
+        results_frame.plot_results_benchmark("antutu")
+        results_frame.plot_results_benchmark("glbench_trex", title="Glbench TRex")
 
     def test_get_run_number(self):
         self.assertEquals(cr2.get_run_number("score_2"), (True, 2))

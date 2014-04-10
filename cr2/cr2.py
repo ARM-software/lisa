@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 
 class CR2(pd.DataFrame):
     """A DataFrame-like class for storing benchmark results"""
-    def plot_results(self, benchmark, title=None):
+    def plot_results_benchmark(self, benchmark, title=None):
         """Plot the results of the execution of a given benchmark
 
         A title is added to the plot if title is not supplied
