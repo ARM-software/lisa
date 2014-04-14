@@ -179,12 +179,14 @@ class Thermal(BaseThermal):
         dfr[values].plot()
         default_plot_settings(title=title)
 
-    def plot_input_power(self, width=None, height=None):
+    def plot_input_power(self, title="", width=None, height=None):
         """Plot input power"""
-        self.plot_multivalue(["Pa7_in", "Pa15_in", "Pgpu_in"], "Input Power",
-                             width, height)
+        title = normalize_title("Input Power", title)
+        self.plot_multivalue(["Pa7_in", "Pa15_in", "Pgpu_in"],
+                             title, width, height)
 
-    def plot_output_power(self, width=None, height=None):
+    def plot_output_power(self, title="", width=None, height=None):
         """Plot output power"""
+        title = normalize_title("Output Power", title)
         self.plot_multivalue(["Pa7_out", "Pa15_out", "Pgpu_out"],
-                             "Output Power", width, height)
+                             title, width, height)

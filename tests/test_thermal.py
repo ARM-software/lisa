@@ -66,12 +66,14 @@ class TestThermal(TestThermalBase):
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         Thermal().plot_input_power()
+        Thermal().plot_input_power(title="Antutu")
 
     def test_plot_output_power(self):
         """Test plot_output_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         Thermal().plot_output_power()
+        Thermal().plot_output_power(title="Antutu")
 
     def test_set_plot_size(self):
         """Test that thermal.set_plot_size() doesn't bomb"""
