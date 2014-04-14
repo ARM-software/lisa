@@ -11,6 +11,40 @@ from matplotlib import pyplot as plt
 
 class CR2(pd.DataFrame):
     """A DataFrame-like class for storing benchmark results"""
+    def __init__(self, *args, **kwargs):
+        super(CR2, self).__init__(*args, **kwargs)
+        self.ax = None
+
+    def init_fig(self):
+        _, self.ax = plt.subplots()
+
+    def enlarge_axis(self, data):
+        """Make sure that the axis don't clobber some of the data"""
+
+        (_, _, plot_y_min, plot_y_max) = plt.axis()
+
+        concat_data = pd.concat(data[s] for s in data)
+        data_min = min(concat_data)
+        data_max = max(concat_data)
+
+        # A good margin can be 10% of the data range
+        margin = (data_max - data_min) / 10
+        if margin < 1:
+            margin = 1
+
+        update_axis = False
+
+        if data_min <= plot_y_min:
+            plot_y_min = data_min - margin
+            update_axis = True
+
+        if data_max >= plot_y_max:
+            plot_y_max = data_max + margin
+            update_axis = True
+
+        if update_axis:
+            self.ax.set_ylim(plot_y_min, plot_y_max)
+
     def plot_results_benchmark(self, benchmark, title=None):
         """Plot the results of the execution of a given benchmark
 
@@ -21,8 +55,10 @@ class CR2(pd.DataFrame):
             title = benchmark.replace('_', ' ')
             title = title.title()
 
-        self[benchmark].plot()
+        self.init_fig()
+        self[benchmark].plot(ax=self.ax)
         plt.title(title)
+        self.enlarge_axis(self[benchmark])
 
     def plot_results(self):
         for bench in self.columns.levels[0]:

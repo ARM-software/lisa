@@ -2,6 +2,7 @@
 
 import os, sys
 import tempfile
+import pandas as pd
 
 import utils_tests
 sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
@@ -53,10 +54,26 @@ class TestResults(utils_tests.SetupDirectory):
 
         Can't test it, so just check that it doens't bomb
         """
-        results_frame = results.get_results()
+        from matplotlib import pyplot as plt
 
-        results_frame.plot_results_benchmark("antutu")
-        results_frame.plot_results_benchmark("glbench_trex", title="Glbench TRex")
+        r1 = results.get_results()
+        r2 = results.get_results()
+        r2["glbench_trex"].loc[1] = 28
+        r2["glbench_trex"].loc[2] = 28
+        combined = results.combine_results([r1, r2], ["r1", "r2"])
+
+        combined.plot_results_benchmark("antutu")
+        combined.plot_results_benchmark("glbench_trex", title="Glbench TRex")
+
+        (_, _, y_min, y_max) = plt.axis()
+
+        concat_data = pd.concat(combined["glbench_trex"][s] for s in combined["glbench_trex"])
+        data_min = min(concat_data)
+        data_max = max(concat_data)
+
+        # Fail if the axes are within the limits of the data.
+        self.assertTrue(data_min > y_min)
+        self.assertTrue(data_max < y_max)
 
     def test_get_run_number(self):
         self.assertEquals(results.get_run_number("score_2"), (True, 2))
@@ -76,3 +93,7 @@ class TestResults(utils_tests.SetupDirectory):
         combined = results.combine_results([r1, r2], ["r1", "r2"])
 
         combined.plot_results()
+
+    def test_init_fig(self):
+        r1 = results.get_results()
+        r1.init_fig()
