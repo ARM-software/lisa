@@ -99,6 +99,11 @@ class TestThermal(TestThermalBase):
         dfr = t.get_data_frame()
         t.plot_temperature()
 
+    def test_normalize_title(self):
+        """Test normalize_title"""
+        self.assertEquals(thermal.normalize_title("Foo", ""), "Foo")
+        self.assertEquals(thermal.normalize_title("Foo", "Bar"), "Bar - Foo")
+
 class TestEmptyThermal(unittest.TestCase):
     def setUp(self):
         self.previous_dir = os.getcwd()

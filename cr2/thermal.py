@@ -127,6 +127,17 @@ def default_plot_settings(title=""):
     if title:
         plt.title(title)
 
+def normalize_title(title, opt_title):
+    """
+    Return a string with that contains the title and opt_title if it's not the empty string
+
+    See test_normalize_title() for usage
+    """
+    if opt_title is not "":
+        title = opt_title + " - " + title
+
+    return title
+
 class Thermal(BaseThermal):
     """Process the power allocator data in a ftrace dump"""
     def __init__(self, path=None):
@@ -147,10 +158,7 @@ class Thermal(BaseThermal):
         """Plot the temperature"""
         dfr = self.get_data_frame()
         control_temp_series = (dfr["currT"] + dfr["deltaT"]) / 1000
-        if (title == ""):
-            title = "Temperature"
-        else:
-            title += " - Temperature"
+        title = normalize_title("Temperature", title)
 
         set_plot_size(width, height)
 
