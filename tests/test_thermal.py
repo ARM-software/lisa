@@ -106,6 +106,15 @@ class TestThermal(TestThermalBase):
         self.assertEquals(thermal.normalize_title("Foo", ""), "Foo")
         self.assertEquals(thermal.normalize_title("Foo", "Bar"), "Bar - Foo")
 
+    def test_summary_plots(self):
+        """Test summary_plots()
+
+        Can't check that the graphs are ok, so just see that the method doesn't blow up"""
+
+        t = Thermal()
+        t.summary_plots()
+        t.summary_plots(width=14, title="Foo")
+
 class TestEmptyThermal(unittest.TestCase):
     def setUp(self):
         self.previous_dir = os.getcwd()

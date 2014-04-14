@@ -190,3 +190,8 @@ class Thermal(BaseThermal):
         title = normalize_title("Output Power", title)
         self.plot_multivalue(["Pa7_out", "Pa15_out", "Pgpu_out"],
                              title, width, height)
+
+    def summary_plots(self, **kwords):
+        self.plot_temperature(**kwords)
+        self.plot_input_power(**kwords)
+        self.plot_output_power(**kwords)
