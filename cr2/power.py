@@ -3,6 +3,7 @@
 directory's trace.dat"""
 
 from thermal import BaseThermal
+from matplotlib import pyplot as plt
 
 class OutPower(BaseThermal):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
@@ -26,3 +27,11 @@ class InPower(BaseThermal):
         df = self.get_data_frame()
 
         return df[df["cluster"] == cluster]
+
+    def plot_load(self, cluster):
+        df = self.get_cluster_data_frame(cluster)
+        load_cols = [s for s in df.columns if s.startswith("load")]
+
+        _, ax = plt.subplots()
+        df[load_cols].plot(ax=ax)
+        ax.set_ylim(0, 110)

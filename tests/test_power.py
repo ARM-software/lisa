@@ -24,3 +24,7 @@ class TestPower(TestThermalBase):
 
         self.assertEquals(df["raw_cpu_power"].iloc[0], 36)
         self.assertTrue("load0" in df.columns)
+
+    def test_inpower_plot_load(self):
+        """Test that InPower.plot_load() doesn't explode"""
+        df = InPower().plot_load(0)
