@@ -181,14 +181,21 @@ class Thermal(BaseThermal):
 
     def plot_input_power(self, title="", width=None, height=None):
         """Plot input power"""
+        dfr = self.get_data_frame()
+        in_cols = [s for s in dfr.columns
+                   if re.match("P.*_in", s) and s != "Ptot_in"]
+
         title = normalize_title("Input Power", title)
-        self.plot_multivalue(["Pa7_in", "Pa15_in", "Pgpu_in"],
-                             title, width, height)
+        self.plot_multivalue(in_cols, title, width, height)
 
     def plot_output_power(self, title="", width=None, height=None):
         """Plot output power"""
+        dfr = self.get_data_frame()
+        out_cols = [s for s in dfr.columns
+                   if re.match("P.*_out", s) and s != "Ptot_out"]
+
         title = normalize_title("Output Power", title)
-        self.plot_multivalue(["Pa7_out", "Pa15_out", "Pgpu_out"],
+        self.plot_multivalue(out_cols,
                              title, width, height)
 
     def summary_plots(self, **kwords):
