@@ -12,3 +12,12 @@ class OutPower(BaseThermal):
             basepath=path,
             unique_word="thermal_power_limit",
         )
+
+class InPower(BaseThermal):
+    """Process the cpufreq cooling power actor data in a ftrace dump"""
+
+    def __init__(self, path=None):
+        super(InPower, self).__init__(
+            basepath=path,
+            unique_word="raw_cpu_power",
+        )
