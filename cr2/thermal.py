@@ -198,6 +198,21 @@ class Thermal(BaseThermal):
         self.plot_multivalue(out_cols,
                              title, width, height)
 
+    def plot_inout_power(self, title="", width=None, height=None):
+        """Make multiple plots showing input and output power for each actor"""
+        dfr = self.get_data_frame()
+
+        actors = []
+        for col in dfr.columns:
+                match = re.match("P(.*)_in", col)
+                if match and col != "Ptot_in":
+                    actors.append(match.group(1))
+
+        for actor in actors:
+            cols = ["P" + actor + "_in", "P" + actor + "_out"]
+            this_title = normalize_title(actor, title)
+            dfr[cols].plot(title=this_title)
+
     def summary_plots(self, **kwords):
         self.plot_temperature(**kwords)
         self.plot_input_power(**kwords)
