@@ -10,4 +10,4 @@ class TestPIController(TestThermalBase):
 
         self.assertTrue(len(df) > 0)
         self.assertTrue("err_integral" in df.columns)
-        self.assertEquals(df["err"].iloc[0], 2304)
+        self.assertEquals(df["err"].iloc[0], 9)
