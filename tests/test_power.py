@@ -17,3 +17,10 @@ class TestPower(TestThermalBase):
 
         self.assertEquals(df["load0"].iloc[0], 2)
         self.assertTrue("load0" in df.columns)
+
+    def test_inpower_percluster_dataframe(self):
+        """Test InPower.get_cluster_data_frame()"""
+        df = InPower().get_cluster_data_frame(0)
+
+        self.assertEquals(df["raw_cpu_power"].iloc[0], 36)
+        self.assertTrue("load0" in df.columns)

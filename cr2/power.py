@@ -21,3 +21,8 @@ class InPower(BaseThermal):
             basepath=path,
             unique_word="raw_cpu_power",
         )
+
+    def get_cluster_data_frame(self, cluster):
+        df = self.get_data_frame()
+
+        return df[df["cluster"] == cluster]
