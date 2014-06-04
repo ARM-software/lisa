@@ -2,7 +2,8 @@
 
 import unittest
 import os, sys
-import re, shutil, tempfile
+import matplotlib, re, shutil, tempfile
+
 
 import utils_tests
 from cr2 import Thermal
@@ -60,6 +61,7 @@ class TestThermal(TestThermalBase):
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         Thermal().plot_temperature()
         Thermal().plot_temperature(title="Antutu")
+        matplotlib.pyplot.close('all')
 
     def test_plot_input_power(self):
         """Test plot_input_power()
@@ -67,6 +69,7 @@ class TestThermal(TestThermalBase):
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         Thermal().plot_input_power()
         Thermal().plot_input_power(title="Antutu")
+        matplotlib.pyplot.close('all')
 
     def test_plot_output_power(self):
         """Test plot_output_power()
@@ -74,6 +77,7 @@ class TestThermal(TestThermalBase):
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         Thermal().plot_output_power()
         Thermal().plot_output_power(title="Antutu")
+        matplotlib.pyplot.close('all')
 
     def test_plot_inout_power(self):
         """Test plot_inout_power()
@@ -81,6 +85,7 @@ class TestThermal(TestThermalBase):
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         Thermal().plot_inout_power()
         Thermal().plot_inout_power(title="Antutu")
+        matplotlib.pyplot.close('all')
 
     def test_set_plot_size(self):
         """Test that thermal.set_plot_size() doesn't bomb"""
@@ -88,6 +93,7 @@ class TestThermal(TestThermalBase):
         thermal.set_plot_size(height=9, width=None)
         thermal.set_plot_size(height=None, width=9)
         thermal.set_plot_size(3, 9)
+        matplotlib.pyplot.close('all')
 
     def test_other_directory(self):
         """Thermal can grab the trace.dat from other directories"""
@@ -121,6 +127,7 @@ class TestThermal(TestThermalBase):
         t = Thermal()
         t.summary_plots()
         t.summary_plots(width=14, title="Foo")
+        matplotlib.pyplot.close('all')
 
 class TestEmptyThermal(unittest.TestCase):
     def setUp(self):
