@@ -6,7 +6,7 @@ import matplotlib, re, shutil, tempfile
 
 
 import utils_tests
-from cr2 import Thermal
+from cr2 import ThermalGovernor
 sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
 import thermal
 
@@ -17,9 +17,9 @@ class TestThermalBase(utils_tests.SetupDirectory):
              *args,
              **kwargs)
 
-class TestThermal(TestThermalBase):
+class TestThermalGovernor(TestThermalBase):
     def test_do_txt_if_not_there(self):
-        c = Thermal()
+        c = ThermalGovernor()
 
         found = False
         with open("trace.txt") as f:
@@ -34,10 +34,10 @@ class TestThermal(TestThermalBase):
     def test_fail_if_no_trace_dat(self):
         """Raise an IOError if there's no trace.dat and trace.txt"""
         os.remove("trace.dat")
-        self.assertRaises(IOError, Thermal)
+        self.assertRaises(IOError, ThermalGovernor)
 
     def test_get_thermal_csv(self):
-        Thermal().write_thermal_csv()
+        ThermalGovernor().write_thermal_csv()
         first_data_line = '1094.696946,0,112,12,124,2718,5036,756,8510,8511,8511,48000,9000\n'
 
         with open("thermal.csv") as f:
@@ -48,7 +48,7 @@ class TestThermal(TestThermalBase):
             self.assertEquals(second_line, first_data_line)
 
     def test_get_dataframe(self):
-        df = Thermal().get_data_frame()
+        df = ThermalGovernor().get_data_frame()
 
         self.assertTrue(len(df) > 0)
         self.assertEquals(df["currT"].iloc[0], 48000)
@@ -56,35 +56,35 @@ class TestThermal(TestThermalBase):
         self.assertFalse("time" in df.columns)
 
     def test_plot_temperature(self):
-        """Test Thermal.plot_temperature()
+        """Test ThermalGovernor.plot_temperature()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        Thermal().plot_temperature()
-        Thermal().plot_temperature(title="Antutu")
+        ThermalGovernor().plot_temperature()
+        ThermalGovernor().plot_temperature(title="Antutu")
         matplotlib.pyplot.close('all')
 
     def test_plot_input_power(self):
         """Test plot_input_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        Thermal().plot_input_power()
-        Thermal().plot_input_power(title="Antutu")
+        ThermalGovernor().plot_input_power()
+        ThermalGovernor().plot_input_power(title="Antutu")
         matplotlib.pyplot.close('all')
 
     def test_plot_output_power(self):
         """Test plot_output_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        Thermal().plot_output_power()
-        Thermal().plot_output_power(title="Antutu")
+        ThermalGovernor().plot_output_power()
+        ThermalGovernor().plot_output_power(title="Antutu")
         matplotlib.pyplot.close('all')
 
     def test_plot_inout_power(self):
         """Test plot_inout_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        Thermal().plot_inout_power()
-        Thermal().plot_inout_power(title="Antutu")
+        ThermalGovernor().plot_inout_power()
+        ThermalGovernor().plot_inout_power(title="Antutu")
         matplotlib.pyplot.close('all')
 
     def test_set_plot_size(self):
@@ -96,21 +96,21 @@ class TestThermal(TestThermalBase):
         matplotlib.pyplot.close('all')
 
     def test_other_directory(self):
-        """Thermal can grab the trace.dat from other directories"""
+        """ThermalGovernor can grab the trace.dat from other directories"""
 
         other_random_dir = tempfile.mkdtemp()
         os.chdir(other_random_dir)
 
-        t = Thermal(self.out_dir)
+        t = ThermalGovernor(self.out_dir)
         df = t.get_data_frame()
 
         self.assertTrue(len(df) > 0)
         self.assertEquals(os.getcwd(), other_random_dir)
 
     def test_double_thermal(self):
-        """Make sure that multiple invocations of Thermal work fine"""
+        """Make sure that multiple invocations of ThermalGovernor work fine"""
 
-        t = Thermal()
+        t = ThermalGovernor()
         dfr = t.get_data_frame()
         t.plot_temperature()
 
@@ -124,12 +124,12 @@ class TestThermal(TestThermalBase):
 
         Can't check that the graphs are ok, so just see that the method doesn't blow up"""
 
-        t = Thermal()
+        t = ThermalGovernor()
         t.summary_plots()
         t.summary_plots(width=14, title="Foo")
         matplotlib.pyplot.close('all')
 
-class TestEmptyThermal(unittest.TestCase):
+class TestEmptyThermalGovernor(unittest.TestCase):
     def setUp(self):
         self.previous_dir = os.getcwd()
         self.out_dir = tempfile.mkdtemp()
@@ -161,5 +161,5 @@ CPU:7 [204600 EVENTS DROPPED]
         shutil.rmtree(self.out_dir)
 
     def test_empty_trace_txt(self):
-        df = Thermal().get_data_frame()
+        df = ThermalGovernor().get_data_frame()
         self.assertEquals(len(df), 0)

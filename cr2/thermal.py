@@ -138,10 +138,10 @@ def normalize_title(title, opt_title):
 
     return title
 
-class Thermal(BaseThermal):
+class ThermalGovernor(BaseThermal):
     """Process the power allocator data in a ftrace dump"""
     def __init__(self, path=None):
-        super(Thermal, self).__init__(
+        super(ThermalGovernor, self).__init__(
             basepath=path,
             unique_word="Ptot_out",
         )
