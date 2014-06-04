@@ -38,7 +38,7 @@ class TestThermal(TestThermalBase):
 
     def test_get_thermal_csv(self):
         Thermal().write_thermal_csv()
-        first_data_line = '51.598880,0,169,0,169,2898,5252,784,8934,8934,8934,48000,9000\n'
+        first_data_line = '1094.696946,0,112,12,124,2718,5036,756,8510,8511,8511,48000,9000\n'
 
         with open("thermal.csv") as f:
             first_line = f.readline()
