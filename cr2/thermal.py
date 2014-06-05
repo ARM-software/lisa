@@ -55,8 +55,8 @@ class BaseThermal(object):
         """Create a csv representation of the thermal data and store
         it in self.data_csv"""
         pat_timestamp = re.compile(r"([0-9]+\.[0-9]+):")
-        pat_data = re.compile(r"[A-Za-z0-9_]+=([-a-f0-9]+)")
-        pat_header = re.compile(r"([A-Za-z0-9_]+)=[-a-f0-9]+")
+        pat_data = re.compile(r"[A-Za-z0-9_]+=([^ ]+)")
+        pat_header = re.compile(r"([A-Za-z0-9_]+)=[^ ]+")
         header = ""
 
         with open(os.path.join(self.basepath, "trace.txt")) as fin:
@@ -137,6 +137,14 @@ def normalize_title(title, opt_title):
         title = opt_title + " - " + title
 
     return title
+
+class Thermal(BaseThermal):
+    """Process the thermal framework data in a ftrace dump"""
+    def __init__(self, path=None):
+        super(Thermal, self).__init__(
+            basepath=path,
+            unique_word="thermal_zone=",
+        )
 
 class ThermalGovernor(BaseThermal):
     """Process the power allocator data in a ftrace dump"""

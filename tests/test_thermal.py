@@ -6,7 +6,7 @@ import matplotlib, re, shutil, tempfile
 
 
 import utils_tests
-from cr2 import ThermalGovernor
+from cr2 import Thermal, ThermalGovernor
 sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
 import thermal
 
@@ -16,6 +16,13 @@ class TestThermalBase(utils_tests.SetupDirectory):
              ["trace.dat"],
              *args,
              **kwargs)
+
+class TestThermal(TestThermalBase):
+    def test_get_dataframe(self):
+        df = Thermal().get_data_frame()
+
+        self.assertTrue("thermal_zone" in df.columns)
+        self.assertEquals(df["temp"].iloc[0], 45000)
 
 class TestThermalGovernor(TestThermalBase):
     def test_do_txt_if_not_there(self):
