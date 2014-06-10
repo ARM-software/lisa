@@ -24,6 +24,14 @@ class TestThermal(TestThermalBase):
         self.assertTrue("thermal_zone" in df.columns)
         self.assertEquals(df["temp"].iloc[0], 45000)
 
+    def test_plot_temperature(self):
+        """Test ThermalGovernor.plot_temperature()
+
+        Can't check that the graph is ok, so just see that the method doesn't blow up"""
+        Thermal().plot_temperature()
+        Thermal().plot_temperature(title="Antutu")
+        matplotlib.pyplot.close('all')
+
 class TestThermalGovernor(TestThermalBase):
     def test_do_txt_if_not_there(self):
         c = ThermalGovernor()

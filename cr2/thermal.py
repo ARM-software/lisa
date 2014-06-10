@@ -146,6 +146,19 @@ class Thermal(BaseThermal):
             unique_word="thermal_zone=",
         )
 
+    def plot_temperature(self, title="", width=None, height=None):
+        """Plot the temperature"""
+        dfr = self.get_data_frame()
+        title = normalize_title("Temperature", title)
+
+        set_plot_size(width, height)
+
+        (dfr["temp"] / 1000).plot()
+
+        default_plot_settings(title=title)
+        plt.legend()
+
+
 class ThermalGovernor(BaseThermal):
     """Process the power allocator data in a ftrace dump"""
     def __init__(self, path=None):
