@@ -10,6 +10,23 @@ from matplotlib import pyplot as plt
 
 GOLDEN_RATIO = 1.618034
 
+def set_plot_size(width, height):
+    """Set the plot size.
+
+    This has to be called before calls to .plot()
+    """
+    if height is None:
+        if width is None:
+            height = 6
+            width = 10
+        else:
+            height = width / GOLDEN_RATIO
+    else:
+        if width is None:
+            width = height * GOLDEN_RATIO
+
+    plt.figure(figsize=(width, height))
+
 class BaseThermal(object):
     """Base class to parse trace.dat dumps.
 
@@ -23,6 +40,7 @@ class BaseThermal(object):
         self.data_csv = ""
         self.data_frame = False
         self.unique_word = unique_word
+        self.ax = None
 
         if not os.path.isfile(os.path.join(basepath, "trace.txt")):
             self.__run_trace_cmd_report()
@@ -100,22 +118,17 @@ class BaseThermal(object):
 
         return self.data_frame
 
-def set_plot_size(width, height):
-    """Set the plot size.
+    def init_fig(self, width=None, height=None, ylim=None):
+        """initialize a figure
 
-    This has to be called before calls to .plot()
-    """
-    if height is None:
-        if width is None:
-            height = 6
-            width = 10
-        else:
-            height = width / GOLDEN_RATIO
-    else:
-        if width is None:
-            width = height * GOLDEN_RATIO
+        width and height are numbers, ylim is a tuple with min and max values
+        for the y axis"""
+        set_plot_size(width, height)
 
-    plt.figure(figsize=(width, height))
+        _, self.ax = plt.subplots()
+
+        if (ylim):
+            self.ax.set_ylim(*ylim)
 
 def default_plot_settings(title=""):
     """Set xlabel and title of the plot
@@ -146,18 +159,17 @@ class Thermal(BaseThermal):
             unique_word="thermal_zone=",
         )
 
-    def plot_temperature(self, title="", width=None, height=None):
+    def plot_temperature(self, title="", width=None, height=None, ylim=None):
         """Plot the temperature"""
         dfr = self.get_data_frame()
         title = normalize_title("Temperature", title)
 
-        set_plot_size(width, height)
+        self.init_fig(width, height, ylim)
 
-        (dfr["temp"] / 1000).plot()
+        (dfr["temp"] / 1000).plot(ax=self.ax)
 
         default_plot_settings(title=title)
         plt.legend()
-
 
 class ThermalGovernor(BaseThermal):
     """Process the power allocator data in a ftrace dump"""
@@ -175,16 +187,16 @@ class ThermalGovernor(BaseThermal):
         with open("thermal.csv", "w") as fout:
             fout.write(self.data_csv)
 
-    def plot_temperature(self, title="", width=None, height=None):
+    def plot_temperature(self, title="", width=None, height=None, ylim=None):
         """Plot the temperature"""
         dfr = self.get_data_frame()
         control_temp_series = (dfr["currT"] + dfr["deltaT"]) / 1000
         title = normalize_title("Temperature", title)
 
-        set_plot_size(width, height)
+        self.init_fig(width, height, ylim)
 
-        (dfr["currT"] / 1000).plot()
-        control_temp_series.plot(color="y", linestyle="--",
+        (dfr["currT"] / 1000).plot(ax=self.ax)
+        control_temp_series.plot(ax=self.ax, color="y", linestyle="--",
                                  label="control temperature")
 
         default_plot_settings(title=title)

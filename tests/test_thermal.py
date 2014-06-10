@@ -30,6 +30,7 @@ class TestThermal(TestThermalBase):
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         Thermal().plot_temperature()
         Thermal().plot_temperature(title="Antutu")
+        Thermal().plot_temperature(title="Antutu", ylim=[0, 60])
         matplotlib.pyplot.close('all')
 
 class TestThermalGovernor(TestThermalBase):
@@ -75,7 +76,7 @@ class TestThermalGovernor(TestThermalBase):
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         ThermalGovernor().plot_temperature()
-        ThermalGovernor().plot_temperature(title="Antutu")
+        ThermalGovernor().plot_temperature(title="Antutu", ylim=(0, 72))
         matplotlib.pyplot.close('all')
 
     def test_plot_input_power(self):
