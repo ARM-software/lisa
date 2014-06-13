@@ -1,12 +1,12 @@
 #!/usr/bin/python
 
 from test_thermal import TestThermalBase
-from cr2 import PIController
+from cr2 import PIDController
 
-class TestPIController(TestThermalBase):
+class TestPIDController(TestThermalBase):
     def test_get_dataframe(self):
-        """Test PIController.get_data_frame()"""
-        df = PIController().get_data_frame()
+        """Test PIDController.get_data_frame()"""
+        df = PIDController().get_data_frame()
 
         self.assertTrue(len(df) > 0)
         self.assertTrue("err_integral" in df.columns)
