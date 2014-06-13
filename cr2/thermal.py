@@ -245,15 +245,3 @@ class ThermalGovernor(BaseThermal):
             cols = ["P" + actor + "_in", "P" + actor + "_out"]
             this_title = normalize_title(actor, title)
             dfr[cols].plot(title=this_title)
-
-    def summary_plots(self, **kwords):
-        """A summary of plots similar to what CompareRuns plots"""
-
-        if "width" not in kwords:
-            kwords["width"] = 20
-        if "height" not in kwords:
-            kwords["height"] = 5
-
-        self.plot_temperature(ylim=(0, 72), **kwords)
-        self.plot_input_power(**kwords)
-        self.plot_output_power(**kwords)
