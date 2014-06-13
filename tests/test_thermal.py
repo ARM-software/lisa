@@ -4,7 +4,6 @@ import unittest
 import os, sys
 import matplotlib, re, shutil, tempfile
 
-
 import utils_tests
 from cr2 import Thermal, ThermalGovernor
 sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
@@ -103,14 +102,6 @@ class TestThermalGovernor(TestThermalBase):
         ThermalGovernor().plot_inout_power(title="Antutu")
         matplotlib.pyplot.close('all')
 
-    def test_set_plot_size(self):
-        """Test that thermal.set_plot_size() doesn't bomb"""
-        thermal.set_plot_size(None, None)
-        thermal.set_plot_size(height=9, width=None)
-        thermal.set_plot_size(height=None, width=9)
-        thermal.set_plot_size(3, 9)
-        matplotlib.pyplot.close('all')
-
     def test_other_directory(self):
         """ThermalGovernor can grab the trace.dat from other directories"""
 
@@ -129,11 +120,6 @@ class TestThermalGovernor(TestThermalBase):
         t = ThermalGovernor()
         dfr = t.get_data_frame()
         t.plot_temperature()
-
-    def test_normalize_title(self):
-        """Test normalize_title"""
-        self.assertEquals(thermal.normalize_title("Foo", ""), "Foo")
-        self.assertEquals(thermal.normalize_title("Foo", "Bar"), "Bar - Foo")
 
 class TestEmptyThermalGovernor(unittest.TestCase):
     def setUp(self):
