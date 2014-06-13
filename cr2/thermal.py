@@ -27,6 +27,27 @@ def set_plot_size(width, height):
 
     plt.figure(figsize=(width, height))
 
+def normalize_title(title, opt_title):
+    """
+    Return a string with that contains the title and opt_title if it's not the empty string
+
+    See test_normalize_title() for usage
+    """
+    if opt_title is not "":
+        title = opt_title + " - " + title
+
+    return title
+
+def default_plot_settings(title=""):
+    """Set xlabel and title of the plot
+
+    This has to be called after calls to .plot()
+    """
+
+    plt.xlabel("Time")
+    if title:
+        plt.title(title)
+
 class BaseThermal(object):
     """Base class to parse trace.dat dumps.
 
@@ -130,26 +151,15 @@ class BaseThermal(object):
         if (ylim):
             self.ax.set_ylim(*ylim)
 
-def default_plot_settings(title=""):
-    """Set xlabel and title of the plot
+    def plot_multivalue(self, values, title, width, height):
+        """Plot multiple values of the DataFrame
 
-    This has to be called after calls to .plot()
-    """
-
-    plt.xlabel("Time")
-    if title:
-        plt.title(title)
-
-def normalize_title(title, opt_title):
-    """
-    Return a string with that contains the title and opt_title if it's not the empty string
-
-    See test_normalize_title() for usage
-    """
-    if opt_title is not "":
-        title = opt_title + " - " + title
-
-    return title
+        values is an array with the keys of the DataFrame to plot
+        """
+        set_plot_size(width, height)
+        dfr = self.get_data_frame()
+        dfr[values].plot()
+        default_plot_settings(title=title)
 
 class Thermal(BaseThermal):
     """Process the thermal framework data in a ftrace dump"""
@@ -201,16 +211,6 @@ class ThermalGovernor(BaseThermal):
 
         default_plot_settings(title=title)
         plt.legend()
-
-    def plot_multivalue(self, values, title, width, height):
-        """Plot multiple values of the DataFrame
-
-        values is an array with the keys of the DataFrame to plot
-        """
-        set_plot_size(width, height)
-        dfr = self.get_data_frame()
-        dfr[values].plot()
-        default_plot_settings(title=title)
 
     def plot_input_power(self, title="", width=None, height=None):
         """Plot input power"""
