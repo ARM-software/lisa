@@ -118,9 +118,11 @@ class BaseThermal(object):
 
         values is an array with the keys of the DataFrame to plot
         """
-        set_plot_size(width, height)
+
+        self.init_fig(width, height)
+
         dfr = self.get_data_frame()
-        dfr[values].plot()
+        dfr[values].plot(ax=self.ax)
         default_plot_settings(title=title)
 
 class Thermal(BaseThermal):
