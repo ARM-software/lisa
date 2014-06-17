@@ -2,6 +2,8 @@
 
 import unittest
 
+from matplotlib import pyplot as plt
+
 import plot_utils
 
 class TestPlotUtils(unittest.TestCase):
@@ -19,5 +21,9 @@ class TestPlotUtils(unittest.TestCase):
 
     def test_default_plot_settings(self):
         """Test that plot_utils.default_plot_settings() doesn't bomb"""
-        plot_utils.default_plot_settings()
-        plot_utils.default_plot_settings(title="Foo")
+
+        _, ax = plt.subplots()
+
+        plot_utils.default_plot_settings(ax)
+        plot_utils.default_plot_settings(ax, title="Foo")
+        plot_utils.default_plot_settings(ax, ylim=(0, 72))

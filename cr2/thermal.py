@@ -101,7 +101,7 @@ class BaseThermal(object):
 
         return self.data_frame
 
-    def init_fig(self, width=None, height=None, ylim=None):
+    def init_fig(self, width=None, height=None):
         """initialize a figure
 
         width and height are numbers, ylim is a tuple with min and max values
@@ -109,9 +109,6 @@ class BaseThermal(object):
         set_plot_size(width, height)
 
         _, self.ax = plt.subplots()
-
-        if (ylim):
-            self.ax.set_ylim(*ylim)
 
     def plot_multivalue(self, values, title, width, height):
         """Plot multiple values of the DataFrame
@@ -123,7 +120,7 @@ class BaseThermal(object):
 
         dfr = self.get_data_frame()
         dfr[values].plot(ax=self.ax)
-        default_plot_settings(title=title)
+        default_plot_settings(self.ax, title=title)
 
 class Thermal(BaseThermal):
     """Process the thermal framework data in a ftrace dump"""
@@ -138,11 +135,11 @@ class Thermal(BaseThermal):
         dfr = self.get_data_frame()
         title = normalize_title("Temperature", title)
 
-        self.init_fig(width, height, ylim)
+        self.init_fig(width, height)
 
         (dfr["temp"] / 1000).plot(ax=self.ax)
 
-        default_plot_settings(title=title)
+        default_plot_settings(self.ax, title=title, ylim=ylim)
         plt.legend()
 
 class ThermalGovernor(BaseThermal):
@@ -167,13 +164,13 @@ class ThermalGovernor(BaseThermal):
         control_temp_series = (dfr["currT"] + dfr["deltaT"]) / 1000
         title = normalize_title("Temperature", title)
 
-        self.init_fig(width, height, ylim)
+        self.init_fig(width, height)
 
         (dfr["currT"] / 1000).plot(ax=self.ax)
         control_temp_series.plot(ax=self.ax, color="y", linestyle="--",
                                  label="control temperature")
 
-        default_plot_settings(title=title)
+        default_plot_settings(self.ax, title=title, ylim=ylim)
         plt.legend()
 
     def plot_input_power(self, title="", width=None, height=None):

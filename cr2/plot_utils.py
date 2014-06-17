@@ -33,8 +33,8 @@ def normalize_title(title, opt_title):
 
     return title
 
-def default_plot_settings(title=""):
-    """Set xlabel and title of the plot
+def default_plot_settings(ax, title="", ylim=None):
+    """Set xlabel, title and ylim of the plot
 
     This has to be called after calls to .plot()
     """
@@ -42,3 +42,6 @@ def default_plot_settings(title=""):
     plt.xlabel("Time")
     if title:
         plt.title(title)
+
+    if (ylim):
+        ax.set_ylim(*ylim)
