@@ -43,5 +43,9 @@ def default_plot_settings(ax, title="", ylim=None):
     if title:
         plt.title(title)
 
-    if (ylim):
-        ax.set_ylim(*ylim)
+    if not ylim:
+        cur_ylim = ax.get_ylim()
+        ylim = (cur_ylim[0] - 0.1 * (cur_ylim[1] - cur_ylim[0]),
+                cur_ylim[1] + 0.1 * (cur_ylim[1] - cur_ylim[0]))
+
+    ax.set_ylim(*ylim)

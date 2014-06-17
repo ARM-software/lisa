@@ -22,7 +22,7 @@ def summary_plots(**kwords):
     if "height" not in kwords:
         kwords["height"] = 5
 
-    gov_data.plot_temperature(ylim=(0, 72), **kwords)
+    gov_data.plot_temperature(**kwords)
     pid_data.plot_controller(**kwords)
     gov_data.plot_input_power(**kwords)
     gov_data.plot_output_power(**kwords)
