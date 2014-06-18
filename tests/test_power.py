@@ -1,9 +1,25 @@
 #!/usr/bin/python
 
+import pandas as pd
+
 from test_thermal import TestThermalBase
 from cr2 import OutPower, InPower
+import power
 
 class TestPower(TestThermalBase):
+    def test_pivot_with_labels(self):
+        """Test pivot_with_labels()"""
+        dfr_in = pd.DataFrame({'cpus': ["000000f0", "0000000f", "000000f0", "0000000f"],
+                               'freq': [1, 3, 2, 6]})
+        map_label = {"000000f0": "A15", "0000000f": "A7"}
+
+        dfr_out = power.pivot_with_labels(dfr_in, "freq", "cpus", map_label)
+
+        self.assertEquals(dfr_out["A15"].iloc[0], 1)
+        self.assertEquals(dfr_out["A15"].iloc[1], 1)
+        self.assertEquals(dfr_out["A15"].iloc[2], 2)
+        self.assertEquals(dfr_out["A7"].iloc[1], 3)
+
     def test_outpower_get_dataframe(self):
         """Test OutPower.get_data_frame()"""
         df = OutPower().get_data_frame()
