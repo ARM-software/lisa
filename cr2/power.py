@@ -6,7 +6,6 @@ from matplotlib import pyplot as plt
 import pandas as pd
 
 from thermal import BaseThermal
-from plot_utils import default_plot_settings
 
 class OutPower(BaseThermal):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
@@ -74,6 +73,6 @@ class InPower(BaseThermal):
 
         load_data = self.get_load_data(mapping_label)
 
-        self.init_fig(width=width, height=height)
+        self.pre_plot_setup(width=width, height=height)
         load_data.plot(ax=self.ax)
-        default_plot_settings(self.ax, title=title)
+        self.post_plot_setup(title=title)

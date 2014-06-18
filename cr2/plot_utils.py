@@ -32,20 +32,3 @@ def normalize_title(title, opt_title):
         title = opt_title + " - " + title
 
     return title
-
-def default_plot_settings(ax, title="", ylim=None):
-    """Set xlabel, title and ylim of the plot
-
-    This has to be called after calls to .plot()
-    """
-
-    plt.xlabel("Time")
-    if title:
-        plt.title(title)
-
-    if not ylim:
-        cur_ylim = ax.get_ylim()
-        ylim = (cur_ylim[0] - 0.1 * (cur_ylim[1] - cur_ylim[0]),
-                cur_ylim[1] + 0.1 * (cur_ylim[1] - cur_ylim[0]))
-
-    ax.set_ylim(ylim[0], ylim[1])

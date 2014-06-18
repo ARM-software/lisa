@@ -8,7 +8,7 @@ from StringIO import StringIO
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from plot_utils import set_plot_size, normalize_title, default_plot_settings
+from plot_utils import set_plot_size, normalize_title
 
 class BaseThermal(object):
     """Base class to parse trace.dat dumps.
@@ -101,14 +101,36 @@ class BaseThermal(object):
 
         return self.data_frame
 
-    def init_fig(self, width=None, height=None):
+    def pre_plot_setup(self, width=None, height=None):
         """initialize a figure
 
-        width and height are numbers, ylim is a tuple with min and max values
-        for the y axis"""
+        width and height are numbers, ylim is a tuple with min and max
+        values for the y axis.  This function should be called before
+        any calls to plot()
+
+        """
+
         set_plot_size(width, height)
 
         _, self.ax = plt.subplots()
+
+    def post_plot_setup(self, title="", ylim=None):
+        """Set xlabel, title and ylim of the plot
+
+        This has to be called after calls to .plot()
+
+        """
+
+        plt.xlabel("Time")
+        if title:
+            plt.title(title)
+
+        if not ylim:
+            cur_ylim = self.ax.get_ylim()
+            ylim = (cur_ylim[0] - 0.1 * (cur_ylim[1] - cur_ylim[0]),
+                    cur_ylim[1] + 0.1 * (cur_ylim[1] - cur_ylim[0]))
+
+        self.ax.set_ylim(ylim[0], ylim[1])
 
     def plot_multivalue(self, values, title, width, height):
         """Plot multiple values of the DataFrame
@@ -116,11 +138,11 @@ class BaseThermal(object):
         values is an array with the keys of the DataFrame to plot
         """
 
-        self.init_fig(width, height)
-
         dfr = self.get_data_frame()
+
+        self.pre_plot_setup(width, height)
         dfr[values].plot(ax=self.ax)
-        default_plot_settings(self.ax, title=title)
+        self.post_plot_setup(title=title)
 
 class Thermal(BaseThermal):
     """Process the thermal framework data in a ftrace dump"""
@@ -135,11 +157,10 @@ class Thermal(BaseThermal):
         dfr = self.get_data_frame()
         title = normalize_title("Temperature", title)
 
-        self.init_fig(width, height)
-
+        self.pre_plot_setup(width, height)
         (dfr["temp"] / 1000).plot(ax=self.ax)
+        self.post_plot_setup(title=title, ylim=ylim)
 
-        default_plot_settings(self.ax, title=title, ylim=ylim)
         plt.legend()
 
 class ThermalGovernor(BaseThermal):
@@ -164,13 +185,13 @@ class ThermalGovernor(BaseThermal):
         control_temp_series = (dfr["currT"] + dfr["deltaT"]) / 1000
         title = normalize_title("Temperature", title)
 
-        self.init_fig(width, height)
+        self.pre_plot_setup(width, height)
 
         (dfr["currT"] / 1000).plot(ax=self.ax)
         control_temp_series.plot(ax=self.ax, color="y", linestyle="--",
                                  label="control temperature")
 
-        default_plot_settings(self.ax, title=title, ylim=ylim)
+        self.post_plot_setup(title=title, ylim=ylim)
         plt.legend()
 
     def plot_input_power(self, title="", width=None, height=None):
