@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 import pandas as pd
 
 from thermal import BaseThermal
+from plot_utils import normalize_title
 
 class OutPower(BaseThermal):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
@@ -62,7 +63,7 @@ class InPower(BaseThermal):
         df[load_cols].plot(ax=self.ax)
         self.post_plot_setup(ylim=(0, 110))
 
-    def plot_load(self, mapping_label, title="Utilisation", width=None, height=None):
+    def plot_load(self, mapping_label, title="", width=None, height=None):
         """plot the load of all the clusters, similar to how compare runs did it
 
         the mapping_label has to be a dict whose keys are the cluster
@@ -72,6 +73,7 @@ class InPower(BaseThermal):
         """
 
         load_data = self.get_load_data(mapping_label)
+        title = normalize_title("Utilisation", title)
 
         self.pre_plot_setup(width=width, height=height)
         load_data.plot(ax=self.ax)
