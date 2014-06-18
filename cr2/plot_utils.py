@@ -48,4 +48,4 @@ def default_plot_settings(ax, title="", ylim=None):
         ylim = (cur_ylim[0] - 0.1 * (cur_ylim[1] - cur_ylim[0]),
                 cur_ylim[1] + 0.1 * (cur_ylim[1] - cur_ylim[0]))
 
-    ax.set_ylim(*ylim)
+    ax.set_ylim(ylim[0], ylim[1])
