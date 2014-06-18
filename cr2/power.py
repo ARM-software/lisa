@@ -58,9 +58,9 @@ class InPower(BaseThermal):
         df = self.get_cluster_data_frame(cluster)
         load_cols = [s for s in df.columns if s.startswith("load")]
 
-        _, ax = plt.subplots()
-        df[load_cols].plot(ax=ax)
-        ax.set_ylim(0, 110)
+        self.pre_plot_setup()
+        df[load_cols].plot(ax=self.ax)
+        self.post_plot_setup(ylim=(0, 110))
 
     def plot_load(self, mapping_label, title="Utilisation", width=None, height=None):
         """plot the load of all the clusters, similar to how compare runs did it
