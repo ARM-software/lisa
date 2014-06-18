@@ -28,6 +28,15 @@ class TestPower(TestThermalBase):
         print df.columns
         self.assertTrue("cdev_state" in df.columns)
 
+    def test_outpower_get_all_freqs(self):
+        """Test OutPower.get_all_freqs()"""
+        map_label = {"000000f0": "A15",
+                     "0000000f": "A7"}
+        dfr = OutPower().get_all_freqs(map_label)
+
+        self.assertEquals(dfr["A15"].iloc[0], 1900)
+        self.assertEquals(dfr["A7"].iloc[1], 1400)
+
     def test_inpower_get_dataframe(self):
         """Test InPower.get_data_frame()"""
         df = InPower().get_data_frame()
@@ -41,6 +50,16 @@ class TestPower(TestThermalBase):
 
         self.assertEquals(df["raw_cpu_power"].iloc[0], 36)
         self.assertTrue("load0" in df.columns)
+
+    def test_inpower_get_all_freqs(self):
+        """Test InPower.get_all_freqs()"""
+        map_label = {1: "A15",
+                     0: "A7"}
+        dfr = InPower().get_all_freqs(map_label)
+
+        self.assertEquals(dfr["A15"].iloc[0], 1900)
+        self.assertEquals(dfr["A7"].iloc[1], 500)
+        self.assertEquals(dfr["A15"].iloc[18], 1800)
 
     def test_inpower_get_load_data(self):
         """Test InPower.get_load_data()"""

@@ -67,6 +67,17 @@ class OutPower(BaseThermal):
             unique_word="thermal_power_limit",
         )
 
+    def get_all_freqs(self, mapping_label):
+        """get a DataFrame with the maximum frequencies allowed by the governor
+
+        mapping_label must be a dictionary that maps cpumasks to name
+        of the cpu.  Returned freqs are in KHz
+        """
+
+        dfr = self.get_data_frame()
+
+        return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
+
 class InPower(BaseThermal):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
@@ -97,6 +108,16 @@ class InPower(BaseThermal):
         cluster_numbers = set(dfr["cluster"])
 
         return pivot_with_labels(load_dfr, "load", "cluster", mapping_label)
+
+    def get_all_freqs(self, mapping_label):
+        """get a DataFrame with the "in" frequencies as seen by the governor
+
+        Frequencies are in KHz
+        """
+
+        dfr = self.get_data_frame()
+
+        return pivot_with_labels(dfr, "freq", "cluster", mapping_label) / 1000
 
     def plot_cluster_load(self, cluster):
         df = self.get_cluster_data_frame(cluster)
