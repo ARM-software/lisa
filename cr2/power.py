@@ -28,7 +28,7 @@ class InPower(BaseThermal):
 
         return df[df["cluster"] == cluster]
 
-    def plot_load(self, cluster):
+    def plot_cluster_load(self, cluster):
         df = self.get_cluster_data_frame(cluster)
         load_cols = [s for s in df.columns if s.startswith("load")]
 
