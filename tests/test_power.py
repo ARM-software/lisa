@@ -28,4 +28,4 @@ class TestPower(TestThermalBase):
 
     def test_inpower_plot_cluster_load(self):
         """Test that InPower.plot_cluster_load() doesn't explode"""
-        df = InPower().plot_cluster_load(0)
+        InPower().plot_cluster_load(0)
