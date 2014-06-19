@@ -7,6 +7,7 @@ from results import CR2, get_results, combine_results
 
 def summary_plots(**kwords):
     """A summary of plots as similar as possible to what CompareRuns plots"""
+    import plot_utils
 
     if "path" in kwords:
         path = kwords["path"]
@@ -16,6 +17,7 @@ def summary_plots(**kwords):
 
     gov_data = ThermalGovernor(path=path)
     inpower_data = InPower(path=path)
+    outpower_data = OutPower(path=path)
     pid_data = PIDController(path=path)
 
     if "width" not in kwords:
@@ -28,6 +30,7 @@ def summary_plots(**kwords):
 
     gov_data.plot_temperature(**kwords)
     inpower_data.plot_load(map_label, **kwords)
+    plot_utils.plot_allfreqs(inpower_data, outpower_data, map_label, **kwords)
     pid_data.plot_controller(**kwords)
     gov_data.plot_input_power(**kwords)
     gov_data.plot_output_power(**kwords)

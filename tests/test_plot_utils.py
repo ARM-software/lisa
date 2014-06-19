@@ -2,6 +2,8 @@
 
 import unittest
 
+from test_thermal import TestThermalBase
+import cr2
 import plot_utils
 
 class TestPlotUtils(unittest.TestCase):
@@ -25,3 +27,13 @@ class TestPlotUtils(unittest.TestCase):
         plot_utils.post_plot_setup(ax)
         plot_utils.post_plot_setup(ax, title="Foo")
         plot_utils.post_plot_setup(ax, ylim=(0, 72))
+
+class TestPlotUtilsNeedTrace(TestThermalBase):
+    def test_plot_allfreqs(self):
+        """Test that plot_allfreqs() doesn't bomb"""
+
+        inp = cr2.InPower()
+        outp = cr2.OutPower()
+        map_label = {"0000000f": "A7", "000000f0": "A15"}
+
+        plot_utils.plot_allfreqs(inp, outp, map_label)

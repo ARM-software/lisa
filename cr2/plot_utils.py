@@ -63,3 +63,19 @@ def post_plot_setup(ax, title="", ylim=None):
                 cur_ylim[1] + 0.1 * (cur_ylim[1] - cur_ylim[0]))
 
     ax.set_ylim(ylim[0], ylim[1])
+
+def plot_allfreqs(in_power, out_power, map_label, **kwords):
+    """Do allfreqs plots similar to those of CompareRuns"""
+    import power
+
+    if "title" in kwords:
+        orig_title = kwords["title"]
+        del kwords["title"]
+    else:
+        orig_title = ""
+
+    all_freqs = power.get_all_freqs_data(in_power, out_power, map_label)
+
+    for label, dfr in all_freqs.iteritems():
+        title = normalize_title("allfreqs", orig_title)
+        dfr.plot()
