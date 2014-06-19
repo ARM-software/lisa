@@ -58,6 +58,22 @@ def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
 
     return pd.DataFrame(ret_series).fillna(method="pad")
 
+def get_all_freqs_data(in_power, out_power, map_label):
+    """get a dict of DataFrames suitable for the allfreqs plot"""
+
+    in_freqs = in_power.get_all_freqs(map_label)
+    out_freqs = out_power.get_all_freqs(map_label)
+
+    ret_dict = {}
+    for label in map_label.values():
+        in_label = label + "_freq_in"
+        out_label = label + "_freq_out"
+
+        inout_freq_dict = {in_label: in_freqs[label], out_label: out_freqs[label]}
+        ret_dict[label] = pd.DataFrame(inout_freq_dict).fillna(method="pad")
+
+    return ret_dict
+
 class OutPower(BaseThermal):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
