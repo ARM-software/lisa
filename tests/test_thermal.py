@@ -28,7 +28,11 @@ class TestThermal(TestThermalBase):
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
         Thermal().plot_temperature()
+        matplotlib.pyplot.close('all')
+
         Thermal().plot_temperature(title="Antutu")
+        matplotlib.pyplot.close('all')
+
         Thermal().plot_temperature(title="Antutu", ylim=[0, 60])
         matplotlib.pyplot.close('all')
 

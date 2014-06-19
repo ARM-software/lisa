@@ -13,6 +13,8 @@ class TestCR2(TestThermalBase):
         Can't check that the graphs are ok, so just see that the method doesn't blow up"""
 
         cr2.summary_plots()
+        matplotlib.pyplot.close('all')
+
         cr2.summary_plots(width=14, title="Foo")
         matplotlib.pyplot.close('all')
 
