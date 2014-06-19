@@ -16,3 +16,12 @@ class TestPlotUtils(unittest.TestCase):
         """Test normalize_title"""
         self.assertEquals(plot_utils.normalize_title("Foo", ""), "Foo")
         self.assertEquals(plot_utils.normalize_title("Foo", "Bar"), "Bar - Foo")
+
+    def test_post_plot_setup(self):
+        """Test that post_plot_setup() doesn't bomb"""
+
+        ax = plot_utils.pre_plot_setup()
+
+        plot_utils.post_plot_setup(ax)
+        plot_utils.post_plot_setup(ax, title="Foo")
+        plot_utils.post_plot_setup(ax, ylim=(0, 72))

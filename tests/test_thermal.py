@@ -23,17 +23,6 @@ class TestThermal(TestThermalBase):
         self.assertTrue("thermal_zone" in df.columns)
         self.assertEquals(df["temp"].iloc[0], 44000)
 
-    def test_post__plot_setup(self):
-        """Test that post_plot_setup() doesn't bomb"""
-
-        therm = Thermal()
-        therm.pre_plot_setup()
-
-        therm.post_plot_setup()
-        therm.post_plot_setup(title="Foo")
-        therm.post_plot_setup(ylim=(0, 72))
-
-
     def test_plot_temperature(self):
         """Test ThermalGovernor.plot_temperature()
 

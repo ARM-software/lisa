@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 import pandas as pd
 
 from thermal import BaseThermal
-from plot_utils import normalize_title
+from plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
 def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
     """Pivot a DataFrame row into columns
@@ -126,6 +126,6 @@ class InPower(BaseThermal):
         load_data = self.get_load_data(mapping_label)
         title = normalize_title("Utilisation", title)
 
-        self.pre_plot_setup(width=width, height=height)
-        load_data.plot(ax=self.ax)
-        self.post_plot_setup(title=title)
+        ax = pre_plot_setup(width=width, height=height)
+        load_data.plot(ax=ax)
+        post_plot_setup(ax, title=title)
