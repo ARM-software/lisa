@@ -42,27 +42,25 @@ class TestPower(TestThermalBase):
         """Test InPower.get_data_frame()"""
         df = InPower().get_data_frame()
 
-        self.assertEquals(df["load0"].iloc[0], 2)
+        self.assertEquals(df["load0"].iloc[0], 5)
         self.assertTrue("load0" in df.columns)
 
     def test_inpower_get_all_freqs(self):
         """Test InPower.get_all_freqs()"""
-        map_label = {1: "A15",
-                     0: "A7"}
-        dfr = InPower().get_all_freqs(map_label)
+        dfr = InPower().get_all_freqs(self.map_label)
 
         self.assertEquals(dfr["A15"].iloc[0], 1900)
         self.assertEquals(dfr["A7"].iloc[1], 500)
-        self.assertEquals(dfr["A15"].iloc[18], 1800)
+        self.assertEquals(dfr["A7"].iloc[11], 1400)
 
     def test_inpower_get_load_data(self):
         """Test InPower.get_load_data()"""
-        load_data = InPower().get_load_data({0: "A7", 1: "A15"})
+        load_data = InPower().get_load_data(self.map_label)
 
-        self.assertEquals(load_data["A15"].iloc[0], 2 + 6 + 0 + 1)
-        self.assertEquals(load_data["A7"].iloc[3], 9 + 7 + 20 + 2)
+        self.assertEquals(load_data["A15"].iloc[0], 5 + 3 + 0 + 2)
+        self.assertEquals(load_data["A7"].iloc[3], 20 + 37 + 7 + 25)
         self.assertEquals(load_data["A15"].iloc[0], load_data["A15"].iloc[1])
 
     def test_inpower_plot_load(self):
         """Test that InPower.plot_load() doesn't explode"""
-        InPower().plot_load({0: "A7", 1: "A15"}, title="Util")
+        InPower().plot_load(self.map_label, title="Util")

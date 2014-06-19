@@ -21,7 +21,7 @@ class TestThermal(TestThermalBase):
         df = Thermal().get_data_frame()
 
         self.assertTrue("thermal_zone" in df.columns)
-        self.assertEquals(df["temp"].iloc[0], 45000)
+        self.assertEquals(df["temp"].iloc[0], 44000)
 
     def test_post__plot_setup(self):
         """Test that post_plot_setup() doesn't bomb"""
@@ -64,7 +64,7 @@ class TestThermalGovernor(TestThermalBase):
 
     def test_get_thermal_csv(self):
         ThermalGovernor().write_thermal_csv()
-        first_data_line = '1094.696946,0,112,12,124,2718,5036,756,8510,8511,8511,48000,9000\n'
+        first_data_line = '666.731837,3,124,10,137,2718,5036,755,8509,8511,8511,48000,9000\n'
 
         with open("thermal.csv") as f:
             first_line = f.readline()

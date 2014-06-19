@@ -99,10 +99,10 @@ class InPower(BaseThermal):
         for col in load_cols[1:]:
             load_series += dfr[col]
 
-        load_dfr = pd.DataFrame({"cluster": dfr["cluster"], "load": load_series})
-        cluster_numbers = set(dfr["cluster"])
+        load_dfr = pd.DataFrame({"cpus": dfr["cpus"], "load": load_series})
+        cluster_numbers = set(dfr["cpus"])
 
-        return pivot_with_labels(load_dfr, "load", "cluster", mapping_label)
+        return pivot_with_labels(load_dfr, "load", "cpus", mapping_label)
 
     def get_all_freqs(self, mapping_label):
         """get a DataFrame with the "in" frequencies as seen by the governor
@@ -112,7 +112,7 @@ class InPower(BaseThermal):
 
         dfr = self.get_data_frame()
 
-        return pivot_with_labels(dfr, "freq", "cluster", mapping_label) / 1000
+        return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
     def plot_load(self, mapping_label, title="", width=None, height=None):
         """plot the load of all the clusters, similar to how compare runs did it

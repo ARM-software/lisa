@@ -24,7 +24,7 @@ def summary_plots(**kwords):
         kwords["height"] = 5
 
     # XXX This needs to be made generic
-    map_label = {0: "A7", 1: "A15"}
+    map_label = {"0000000f": "A7", "000000f0": "A15"}
 
     gov_data.plot_temperature(**kwords)
     inpower_data.plot_load(map_label, **kwords)
