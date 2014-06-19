@@ -87,11 +87,6 @@ class InPower(BaseThermal):
             unique_word="raw_cpu_power",
         )
 
-    def get_cluster_data_frame(self, cluster):
-        df = self.get_data_frame()
-
-        return df[df["cluster"] == cluster]
-
     def get_load_data(self, mapping_label):
         """return a dataframe suitable for plot_load()
 
@@ -118,14 +113,6 @@ class InPower(BaseThermal):
         dfr = self.get_data_frame()
 
         return pivot_with_labels(dfr, "freq", "cluster", mapping_label) / 1000
-
-    def plot_cluster_load(self, cluster):
-        df = self.get_cluster_data_frame(cluster)
-        load_cols = [s for s in df.columns if s.startswith("load")]
-
-        self.pre_plot_setup()
-        df[load_cols].plot(ax=self.ax)
-        self.post_plot_setup(ylim=(0, 110))
 
     def plot_load(self, mapping_label, title="", width=None, height=None):
         """plot the load of all the clusters, similar to how compare runs did it
