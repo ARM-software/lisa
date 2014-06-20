@@ -56,7 +56,7 @@ class CR2(pd.DataFrame):
             title = title.title()
 
         self.init_fig()
-        self[benchmark].plot(ax=self.ax)
+        self[benchmark].plot(ax=self.ax, style="*-")
         plt.title(title)
         self.enlarge_axis(self[benchmark])
 
