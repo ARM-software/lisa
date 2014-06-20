@@ -64,18 +64,15 @@ def post_plot_setup(ax, title="", ylim=None):
 
     ax.set_ylim(ylim[0], ylim[1])
 
-def plot_allfreqs(in_power, out_power, map_label, **kwords):
+def plot_allfreqs(in_power, out_power, map_label, title="", width=None, height=None):
     """Do allfreqs plots similar to those of CompareRuns"""
     import power
-
-    if "title" in kwords:
-        orig_title = kwords["title"]
-        del kwords["title"]
-    else:
-        orig_title = ""
 
     all_freqs = power.get_all_freqs_data(in_power, out_power, map_label)
 
     for label, dfr in all_freqs.iteritems():
-        title = normalize_title("allfreqs", orig_title)
-        dfr.plot()
+        this_title = normalize_title("allfreqs " + label, title)
+
+        ax = pre_plot_setup(width=width, height=height)
+        dfr.plot(ax=ax)
+        post_plot_setup(ax, title=this_title)
