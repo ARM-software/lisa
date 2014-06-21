@@ -119,7 +119,13 @@ class TestThermalGovernor(TestThermalBase):
         self.assertEquals(os.getcwd(), other_random_dir)
 
     def test_double_thermal(self):
-        """Make sure that multiple invocations of ThermalGovernor work fine"""
+        """Make sure that multiple invocations of ThermalGovernor work fine
+
+        It should memoize the DataFrame() from the call to
+        get_data_frame() to the plot_temperature() one and the latter
+        shouldn't bomb
+
+        """
 
         t = ThermalGovernor()
         dfr = t.get_data_frame()
