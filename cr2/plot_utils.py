@@ -47,8 +47,8 @@ def pre_plot_setup(width=None, height=None):
 
     return ax
 
-def post_plot_setup(ax, title="", xlabel=None, ylim=None):
-    """Set xlabel, title and ylim of the plot
+def post_plot_setup(ax, title="", xlabel=None, xlim=None, ylim=None):
+    """Set xlabel, title, xlim adn ylim of the plot
 
     This has to be called after calls to .plot()
     """
@@ -66,6 +66,9 @@ def post_plot_setup(ax, title="", xlabel=None, ylim=None):
                 cur_ylim[1] + 0.1 * (cur_ylim[1] - cur_ylim[0]))
 
     ax.set_ylim(ylim[0], ylim[1])
+
+    if xlim:
+        ax.set_xlim(xlim[0], xlim[1])
 
 def plot_allfreqs(in_power, out_power, map_label, title="", width=None, height=None):
     """Do allfreqs plots similar to those of CompareRuns"""

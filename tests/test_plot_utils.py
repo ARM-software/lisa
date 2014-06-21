@@ -28,6 +28,7 @@ class TestPlotUtils(unittest.TestCase):
         plot_utils.post_plot_setup(ax, title="Foo")
         plot_utils.post_plot_setup(ax, ylim=(0, 72))
         plot_utils.post_plot_setup(ax, xlabel="Bar")
+        plot_utils.post_plot_setup(ax, xlim=(0, 100))
 
 class TestPlotUtilsNeedTrace(TestThermalBase):
     def test_plot_allfreqs(self):
