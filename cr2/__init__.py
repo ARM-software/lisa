@@ -34,3 +34,4 @@ def summary_plots(**kwords):
     pid_data.plot_controller(**kwords)
     gov_data.plot_input_power(**kwords)
     gov_data.plot_output_power(**kwords)
+    plot_utils.plot_power_hists(inpower_data, outpower_data, map_label)
