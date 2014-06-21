@@ -5,23 +5,6 @@ from matplotlib import pyplot as plt
 
 GOLDEN_RATIO = 1.618034
 
-def set_plot_size(width, height):
-    """Set the plot size.
-
-    This has to be called before calls to .plot()
-    """
-    if height is None:
-        if width is None:
-            height = 6
-            width = 10
-        else:
-            height = width / GOLDEN_RATIO
-    else:
-        if width is None:
-            width = height * GOLDEN_RATIO
-
-    plt.figure(figsize=(width, height))
-
 def normalize_title(title, opt_title):
     """
     Return a string with that contains the title and opt_title if it's not the empty string
@@ -70,13 +53,22 @@ def set_ylim(ax, ylim):
 def pre_plot_setup(width=None, height=None):
     """initialize a figure
 
-    width and height are numbers  This function should be called before
-    any calls to plot()
+    width and height are numbers.  This function should be called
+    before any calls to plot()
+
     """
 
-    set_plot_size(width, height)
+    if height is None:
+        if width is None:
+            height = 6
+            width = 10
+        else:
+            height = width / GOLDEN_RATIO
+    else:
+        if width is None:
+            width = height * GOLDEN_RATIO
 
-    _, ax = plt.subplots()
+    _, ax = plt.subplots(figsize=(width, height))
 
     return ax
 
