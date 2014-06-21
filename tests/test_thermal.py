@@ -61,7 +61,7 @@ class TestThermalGovernor(TestThermalBase):
 
         with open("thermal.csv") as f:
             first_line = f.readline()
-            self.assertTrue(first_line.startswith("time,Pgpu_in"))
+            self.assertTrue(first_line.startswith("Time,Pgpu_in"))
 
             second_line = f.readline()
             self.assertEquals(second_line, first_data_line)

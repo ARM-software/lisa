@@ -75,7 +75,7 @@ class BaseThermal(object):
                 if not header:
                     header = re.sub(pat_header, r"\1", data_str)
                     header = re.sub(r" ", r",", header)
-                    header = "time," + header + "\n"
+                    header = "Time," + header + "\n"
                     self.data_csv = header
 
                 parsed_data = re.sub(pat_data, r"\1", data_str)
@@ -96,7 +96,7 @@ class BaseThermal(object):
             return pd.DataFrame()
 
         unordered_df = pd.read_csv(StringIO(self.data_csv))
-        self.data_frame = unordered_df.set_index("time")
+        self.data_frame = unordered_df.set_index("Time")
 
         return self.data_frame
 
