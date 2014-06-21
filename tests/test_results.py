@@ -2,6 +2,7 @@
 
 import os, sys
 import tempfile
+import matplotlib
 import pandas as pd
 
 import utils_tests
@@ -54,7 +55,6 @@ class TestResults(utils_tests.SetupDirectory):
 
         Can't test it, so just check that it doens't bomb
         """
-        from matplotlib import pyplot as plt
 
         r1 = results.get_results()
         r2 = results.get_results()
@@ -65,7 +65,7 @@ class TestResults(utils_tests.SetupDirectory):
         combined.plot_results_benchmark("antutu")
         combined.plot_results_benchmark("glbench_trex", title="Glbench TRex")
 
-        (_, _, y_min, y_max) = plt.axis()
+        (_, _, y_min, y_max) = matplotlib.pyplot.axis()
 
         concat_data = pd.concat(combined["glbench_trex"][s] for s in combined["glbench_trex"])
         data_min = min(concat_data)
@@ -74,6 +74,7 @@ class TestResults(utils_tests.SetupDirectory):
         # Fail if the axes are within the limits of the data.
         self.assertTrue(data_min > y_min)
         self.assertTrue(data_max < y_max)
+        matplotlib.pyplot.close('all')
 
     def test_get_run_number(self):
         self.assertEquals(results.get_run_number("score_2"), (True, 2))
@@ -93,6 +94,7 @@ class TestResults(utils_tests.SetupDirectory):
         combined = results.combine_results([r1, r2], ["r1", "r2"])
 
         combined.plot_results()
+        matplotlib.pyplot.close('all')
 
     def test_init_fig(self):
         r1 = results.get_results()
