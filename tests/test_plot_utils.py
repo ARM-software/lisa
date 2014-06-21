@@ -86,3 +86,12 @@ class TestPlotUtilsNeedTrace(TestThermalBase):
         map_label = {"0000000f": "A7", "000000f0": "A15"}
 
         plot_utils.plot_allfreqs(inp, outp, map_label)
+
+    def test_plot_power_hists(self):
+        """Test that plot_power_hists() doesn't bomb"""
+
+        inp = cr2.InPower()
+        outp = cr2.OutPower()
+        map_label = {"0000000f": "A7", "000000f0": "A15"}
+
+        plot_utils.plot_power_hists(inp, outp, map_label)

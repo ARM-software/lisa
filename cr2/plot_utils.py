@@ -111,3 +111,30 @@ def plot_allfreqs(in_power, out_power, map_label, title="", width=None, height=N
         ax = pre_plot_setup(width=width, height=height)
         dfr.plot(ax=ax)
         post_plot_setup(ax, title=this_title)
+
+def __plot_power_hists(power_inst, map_label, what, title):
+    """Helper function for plot_power_hists
+
+    power_obj is either an InPower() or OutPower() instance.  what is
+    a string: "in" or "out"
+
+    """
+    freqs = power_inst.get_all_freqs(map_label)
+    for actor in freqs:
+        mean = freqs[actor].mean()
+        std = freqs[actor].std()
+        this_title = "freq_{} {} (mean = {:.2f}, std = {:.2f})".format(what, actor,
+                                                               mean, std)
+        this_title = normalize_title(this_title, title)
+        xlim = (0, freqs[actor].max())
+
+        ax = pre_plot_setup()
+        freqs[actor].hist(ax=ax, bins=20)
+        post_plot_setup(ax, title=this_title, xlabel="Frequency (KHz)",
+                        xlim=xlim, ylim="default")
+
+def plot_power_hists(in_power, out_power, map_label, title=""):
+    """Plot histograms for each actor input and output power"""
+
+    __plot_power_hists(out_power, map_label, "out", title)
+    __plot_power_hists(in_power, map_label, "in", title)
