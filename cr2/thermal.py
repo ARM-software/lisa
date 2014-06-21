@@ -21,7 +21,7 @@ class BaseThermal(object):
 
         self.basepath = basepath
         self.data_csv = ""
-        self.data_frame = False
+        self.data_frame = None
         self.unique_word = unique_word
 
         if not os.path.isfile(os.path.join(basepath, "trace.txt")):
@@ -86,7 +86,7 @@ class BaseThermal(object):
 
     def get_data_frame(self):
         """Return a pandas data frame for the run"""
-        if self.data_frame is None:
+        if self.data_frame is not None:
             return self.data_frame
 
         if not self.data_csv:
