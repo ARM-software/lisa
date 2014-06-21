@@ -47,13 +47,16 @@ def pre_plot_setup(width=None, height=None):
 
     return ax
 
-def post_plot_setup(ax, title="", ylim=None):
+def post_plot_setup(ax, title="", xlabel=None, ylim=None):
     """Set xlabel, title and ylim of the plot
 
     This has to be called after calls to .plot()
     """
 
-    plt.xlabel("Time")
+    if xlabel is None:
+        xlabel = "Time"
+    plt.xlabel(xlabel)
+
     if title:
         plt.title(title)
 
