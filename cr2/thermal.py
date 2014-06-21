@@ -120,7 +120,7 @@ class Thermal(BaseThermal):
             unique_word="thermal_zone=",
         )
 
-    def plot_temperature(self, title="", width=None, height=None, ylim=None):
+    def plot_temperature(self, title="", width=None, height=None, ylim="range"):
         """Plot the temperature"""
         dfr = self.get_data_frame()
         title = normalize_title("Temperature", title)
@@ -147,7 +147,7 @@ class ThermalGovernor(BaseThermal):
         with open("thermal.csv", "w") as fout:
             fout.write(self.data_csv)
 
-    def plot_temperature(self, title="", width=None, height=None, ylim=None):
+    def plot_temperature(self, title="", width=None, height=None, ylim="range"):
         """Plot the temperature"""
         dfr = self.get_data_frame()
         control_temp_series = (dfr["currT"] + dfr["deltaT"]) / 1000

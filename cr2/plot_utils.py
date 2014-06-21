@@ -33,11 +33,44 @@ def normalize_title(title, opt_title):
 
     return title
 
+def set_lim(lim, get_lim, set_lim):
+    """Set x or y limitis of the plot
+
+    lim can be a tuple containing the limits or the string "default"
+    or "range".  "default" does nothing and uses matplotlib default.
+    "range" extends the current margin by 10%.  This is useful since
+    the default xlim and ylim of the plots sometimes make it harder to
+    see data that is just in the margin.
+
+    """
+    if lim == "default":
+        return
+
+    if lim == "range":
+        cur_lim = get_lim()
+        lim = (cur_lim[0] - 0.1 * (cur_lim[1] - cur_lim[0]),
+               cur_lim[1] + 0.1 * (cur_lim[1] - cur_lim[0]))
+
+    set_lim(lim[0], lim[1])
+
+def set_xlim(ax, xlim):
+    """Set the xlim of the plot
+
+    See set_lim() for the details
+    """
+    set_lim(xlim, ax.get_xlim, ax.set_xlim)
+
+def set_ylim(ax, ylim):
+    """Set the ylim of the plot
+
+    See set_lim() for the details
+    """
+    set_lim(ylim, ax.get_ylim, ax.set_ylim)
+
 def pre_plot_setup(width=None, height=None):
     """initialize a figure
 
-    width and height are numbers, ylim is a tuple with min and max
-    values for the y axis.  This function should be called before
+    width and height are numbers  This function should be called before
     any calls to plot()
     """
 
@@ -47,10 +80,13 @@ def pre_plot_setup(width=None, height=None):
 
     return ax
 
-def post_plot_setup(ax, title="", xlabel=None, xlim=None, ylim=None):
+def post_plot_setup(ax, title="", xlabel=None, xlim="default", ylim="range"):
     """Set xlabel, title, xlim adn ylim of the plot
 
-    This has to be called after calls to .plot()
+    This has to be called after calls to .plot().  The default ylim is
+    to extend it by 10% because matplotlib default makes it hard
+    values that are close to the margins
+
     """
 
     if xlabel is None:
@@ -60,15 +96,8 @@ def post_plot_setup(ax, title="", xlabel=None, xlim=None, ylim=None):
     if title:
         plt.title(title)
 
-    if not ylim:
-        cur_ylim = ax.get_ylim()
-        ylim = (cur_ylim[0] - 0.1 * (cur_ylim[1] - cur_ylim[0]),
-                cur_ylim[1] + 0.1 * (cur_ylim[1] - cur_ylim[0]))
-
-    ax.set_ylim(ylim[0], ylim[1])
-
-    if xlim:
-        ax.set_xlim(xlim[0], xlim[1])
+    set_ylim(ax, ylim)
+    set_xlim(ax, xlim)
 
 def plot_allfreqs(in_power, out_power, map_label, title="", width=None, height=None):
     """Do allfreqs plots similar to those of CompareRuns"""
