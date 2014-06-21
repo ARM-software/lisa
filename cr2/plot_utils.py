@@ -81,9 +81,8 @@ def post_plot_setup(ax, title="", xlabel=None, xlim="default", ylim="range"):
 
     """
 
-    if xlabel is None:
-        xlabel = "Time"
-    plt.xlabel(xlabel)
+    if xlabel is not None:
+        plt.xlabel(xlabel)
 
     if title:
         plt.title(title)
