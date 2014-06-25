@@ -134,3 +134,13 @@ def plot_power_hists(in_power, out_power, map_label, title=""):
 
     __plot_power_hists(out_power, map_label, "out", title)
     __plot_power_hists(in_power, map_label, "in", title)
+
+def plot_temperature_hist(thermal_data, title=""):
+    """Plot a temperature histogram"""
+
+    dfr = thermal_data.get_data_frame()
+    temps = dfr["temp"] / 1000
+    title = normalize_title("Temperature", title)
+    xlim = (0, temps.max())
+
+    plot_hist(temps, title, 30, "Temperature", xlim, "default")

@@ -102,3 +102,10 @@ class TestPlotUtilsNeedTrace(TestThermalBase):
         map_label = {"0000000f": "A7", "000000f0": "A15"}
 
         plot_utils.plot_power_hists(inp, outp, map_label)
+
+    def test_plot_temperature_hist(self):
+        """Test that plot_temperature_hist() doesn't bomb"""
+
+        therm = cr2.Thermal()
+
+        plot_utils.plot_temperature_hist(therm, "Foo")
