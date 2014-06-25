@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import pandas as pd
 import unittest
 
 from test_thermal import TestThermalBase
@@ -76,6 +77,12 @@ class TestPlotUtils(unittest.TestCase):
         plot_utils.post_plot_setup(ax, xlabel="Bar")
         plot_utils.post_plot_setup(ax, xlim=(0, 100))
         plot_utils.post_plot_setup(ax, xlim="default")
+
+    def test_plot_hist(self):
+        """Test that plost_hist doesn't bomb"""
+        data = pd.Series([1, 1, 2, 4])
+
+        plot_utils.plot_hist(data, "Foo", 20, "numbers", (0, 4), "default")
 
 class TestPlotUtilsNeedTrace(TestThermalBase):
     def test_plot_allfreqs(self):

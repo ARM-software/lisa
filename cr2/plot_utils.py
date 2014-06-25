@@ -103,6 +103,17 @@ def plot_allfreqs(in_power, out_power, map_label, title="", width=None, height=N
         dfr.plot(ax=ax)
         post_plot_setup(ax, title=this_title)
 
+def plot_hist(data, title, bins, xlabel, xlim, ylim):
+    """Plot a histogram"""
+
+    mean = data.mean()
+    std = data.std()
+    title += " (mean = {:.2f}, std = {:.2f})".format(mean, std)
+
+    ax = pre_plot_setup()
+    data.hist(ax=ax, bins=bins)
+    post_plot_setup(ax, title=title, xlabel=xlabel, xlim=xlim, ylim=ylim)
+
 def __plot_power_hists(power_inst, map_label, what, title):
     """Helper function for plot_power_hists
 
@@ -112,17 +123,11 @@ def __plot_power_hists(power_inst, map_label, what, title):
     """
     freqs = power_inst.get_all_freqs(map_label)
     for actor in freqs:
-        mean = freqs[actor].mean()
-        std = freqs[actor].std()
-        this_title = "freq_{} {} (mean = {:.2f}, std = {:.2f})".format(what, actor,
-                                                               mean, std)
+        this_title = "freq {} {}".format(what, actor)
         this_title = normalize_title(this_title, title)
         xlim = (0, freqs[actor].max())
 
-        ax = pre_plot_setup()
-        freqs[actor].hist(ax=ax, bins=20)
-        post_plot_setup(ax, title=this_title, xlabel="Frequency (KHz)",
-                        xlim=xlim, ylim="default")
+        plot_hist(freqs[actor], this_title, 20, "Frequency (KHz)", xlim, "default")
 
 def plot_power_hists(in_power, out_power, map_label, title=""):
     """Plot histograms for each actor input and output power"""
