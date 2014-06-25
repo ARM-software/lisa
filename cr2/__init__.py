@@ -25,6 +25,11 @@ def summary_plots(**kwords):
     if "height" not in kwords:
         kwords["height"] = 5
 
+    if "title" in kwords:
+        title = kwords["title"]
+    else:
+        title = ""
+
     # XXX This needs to be made generic
     map_label = {"0000000f": "A7", "000000f0": "A15"}
 
@@ -34,4 +39,4 @@ def summary_plots(**kwords):
     pid_data.plot_controller(**kwords)
     gov_data.plot_input_power(**kwords)
     gov_data.plot_output_power(**kwords)
-    plot_utils.plot_power_hists(inpower_data, outpower_data, map_label)
+    plot_utils.plot_power_hists(inpower_data, outpower_data, map_label, title)
