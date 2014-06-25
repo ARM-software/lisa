@@ -15,6 +15,7 @@ def summary_plots(**kwords):
     else:
         path = None
 
+    thermal_data = Thermal(path=path)
     gov_data = ThermalGovernor(path=path)
     inpower_data = InPower(path=path)
     outpower_data = OutPower(path=path)
@@ -40,3 +41,4 @@ def summary_plots(**kwords):
     gov_data.plot_input_power(**kwords)
     gov_data.plot_output_power(**kwords)
     plot_utils.plot_power_hists(inpower_data, outpower_data, map_label, title)
+    plot_utils.plot_temperature_hist(thermal_data, title)
