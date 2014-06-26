@@ -1,7 +1,8 @@
 #!/usr/bin/python
 
-import pandas as pd
 import unittest
+import matplotlib
+import pandas as pd
 
 from test_thermal import TestThermalBase
 import cr2
@@ -93,6 +94,7 @@ class TestPlotUtilsNeedTrace(TestThermalBase):
         map_label = {"0000000f": "A7", "000000f0": "A15"}
 
         plot_utils.plot_allfreqs(inp, outp, map_label)
+        matplotlib.pyplot.close('all')
 
     def test_plot_temperature(self):
         """Test that plot_utils.plot_temperature() doesn't bomb"""
@@ -101,6 +103,7 @@ class TestPlotUtilsNeedTrace(TestThermalBase):
         gov = cr2.ThermalGovernor()
 
         plot_utils.plot_temperature(thrm, gov, title="Foo")
+        matplotlib.pyplot.close('all')
 
     def test_plot_power_hists(self):
         """Test that plot_power_hists() doesn't bomb"""
@@ -110,6 +113,7 @@ class TestPlotUtilsNeedTrace(TestThermalBase):
         map_label = {"0000000f": "A7", "000000f0": "A15"}
 
         plot_utils.plot_power_hists(inp, outp, map_label)
+        matplotlib.pyplot.close('all')
 
     def test_plot_temperature_hist(self):
         """Test that plot_temperature_hist() doesn't bomb"""
@@ -117,3 +121,4 @@ class TestPlotUtilsNeedTrace(TestThermalBase):
         therm = cr2.Thermal()
 
         plot_utils.plot_temperature_hist(therm, "Foo")
+        matplotlib.pyplot.close('all')
