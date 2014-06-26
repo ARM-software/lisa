@@ -94,6 +94,14 @@ class TestPlotUtilsNeedTrace(TestThermalBase):
 
         plot_utils.plot_allfreqs(inp, outp, map_label)
 
+    def test_plot_temperature(self):
+        """Test that plot_utils.plot_temperature() doesn't bomb"""
+
+        thrm = cr2.Thermal()
+        gov = cr2.ThermalGovernor()
+
+        plot_utils.plot_temperature(thrm, gov, title="Foo")
+
     def test_plot_power_hists(self):
         """Test that plot_power_hists() doesn't bomb"""
 

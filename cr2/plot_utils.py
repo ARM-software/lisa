@@ -103,6 +103,20 @@ def plot_allfreqs(in_power, out_power, map_label, title="", width=None, height=N
         dfr.plot(ax=ax)
         post_plot_setup(ax, title=this_title)
 
+def plot_temperature(thermal, thermal_gov, **kwords):
+    """Plot temperatures
+
+    Extract the control_temp from the governor data and plot the
+    temperatures reported by the thermal framework.  The governor
+    doesn't track temperature when its off, so the thermal framework
+    trace is more reliable.
+
+    """
+
+    gov_dfr = thermal_gov.get_data_frame()
+    control_temp_series = (gov_dfr["currT"] + gov_dfr["deltaT"]) / 1000
+    thermal.plot_temperature(control_temperature=control_temp_series, **kwords)
+
 def plot_hist(data, title, bins, xlabel, xlim, ylim):
     """Plot a histogram"""
 
