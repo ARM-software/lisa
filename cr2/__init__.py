@@ -34,7 +34,7 @@ def summary_plots(**kwords):
     # XXX This needs to be made generic
     map_label = {"0000000f": "A7", "000000f0": "A15"}
 
-    gov_data.plot_temperature(**kwords)
+    plot_utils.plot_temperature(thermal_data, gov_data, **kwords)
     inpower_data.plot_load(map_label, **kwords)
     plot_utils.plot_allfreqs(inpower_data, outpower_data, map_label, **kwords)
     pid_data.plot_controller(**kwords)
