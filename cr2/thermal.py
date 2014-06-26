@@ -158,21 +158,6 @@ class ThermalGovernor(BaseThermal):
         with open("thermal.csv", "w") as fout:
             fout.write(self.data_csv)
 
-    def plot_temperature(self, title="", width=None, height=None, ylim="range"):
-        """Plot the temperature"""
-        dfr = self.get_data_frame()
-        control_temp_series = (dfr["currT"] + dfr["deltaT"]) / 1000
-        title = normalize_title("Temperature", title)
-
-        ax = pre_plot_setup(width, height)
-
-        (dfr["currT"] / 1000).plot(ax=ax)
-        control_temp_series.plot(ax=ax, color="y", linestyle="--",
-                                 label="control temperature")
-
-        post_plot_setup(ax, title=title, ylim=ylim)
-        plt.legend()
-
     def plot_input_power(self, title="", width=None, height=None):
         """Plot input power"""
         dfr = self.get_data_frame()

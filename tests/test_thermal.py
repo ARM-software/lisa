@@ -83,14 +83,6 @@ class TestThermalGovernor(TestThermalBase):
         self.assertTrue("Ptot_out" in df.columns)
         self.assertFalse("time" in df.columns)
 
-    def test_plot_temperature(self):
-        """Test ThermalGovernor.plot_temperature()
-
-        Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        ThermalGovernor().plot_temperature()
-        ThermalGovernor().plot_temperature(title="Antutu", ylim=(0, 72))
-        matplotlib.pyplot.close('all')
-
     def test_plot_input_power(self):
         """Test plot_input_power()
 
@@ -138,7 +130,7 @@ class TestThermalGovernor(TestThermalBase):
 
         t = ThermalGovernor()
         dfr = t.get_data_frame()
-        t.plot_temperature()
+        t.plot_inout_power()
 
 class TestEmptyThermalGovernor(unittest.TestCase):
     def setUp(self):
