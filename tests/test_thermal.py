@@ -3,6 +3,7 @@
 import unittest
 import os, sys
 import matplotlib, re, shutil, tempfile
+import pandas as pd
 
 import utils_tests
 from cr2 import Thermal, ThermalGovernor
@@ -26,14 +27,19 @@ class TestThermal(TestThermalBase):
     def test_plot_temperature(self):
         """Test ThermalGovernor.plot_temperature()
 
-        Can't check that the graph is ok, so just see that the method doesn't blow up"""
+        Can't check that the graph is ok, so just see that the method
+        doesn't blow up
+
+        """
 
         th_data = Thermal()
+        dfr = th_data.get_data_frame()
+        ct_series = pd.Series([57, 57], index=(dfr.index[0], dfr.index[-1]))
 
         th_data.plot_temperature()
         matplotlib.pyplot.close('all')
 
-        th_data.plot_temperature(title="Antutu")
+        th_data.plot_temperature(title="Antutu", control_temperature=ct_series)
         matplotlib.pyplot.close('all')
 
         th_data.plot_temperature(title="Antutu", ylim=[0, 60])
