@@ -80,7 +80,7 @@ class OutPower(BaseThermal):
     def __init__(self, path=None):
         super(OutPower, self).__init__(
             basepath=path,
-            unique_word="thermal_power_limit",
+            unique_word="thermal_power_actor_cpu_limit",
         )
 
     def get_all_freqs(self, mapping_label):
