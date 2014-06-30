@@ -82,7 +82,7 @@ class BaseThermal(object):
         """Create a csv representation of the thermal data and store
         it in self.data_csv"""
         pat_timestamp = re.compile(r"([0-9]+\.[0-9]+):")
-        pat_data = re.compile(r"[A-Za-z0-9_]+=([^ ]+)")
+        pat_data = re.compile(r"[A-Za-z0-9_]+=([^ {]+)")
         pat_header = re.compile(r"([A-Za-z0-9_]+)=[^ ]+")
         header = ""
 
@@ -98,6 +98,8 @@ class BaseThermal(object):
 
                 data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
                 data_str = line[data_start_idx:]
+
+                data_str = trace_parser_explode_array(data_str)
 
                 if not header:
                     header = re.sub(pat_header, r"\1", data_str)
