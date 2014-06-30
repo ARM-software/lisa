@@ -10,6 +10,33 @@ from matplotlib import pyplot as plt
 
 from plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
+def trace_parser_explode_array(string):
+    """Explode an array in the trace into individual elements for easy parsing
+
+    Basically, turn "load={1 1 2 2}" into "load0=1 load1=1 load2=2
+    load3=2".  Currently, it only supports one array in string
+
+    """
+
+    match = re.search(r"[^ ]+={[^}]+}", string)
+    if match is None:
+        return string
+
+    to_explode = match.group()
+    col_basename = re.match(r"([^=]+)=", to_explode).groups()[0]
+    vals_str = re.search(r"{(.+)}", to_explode).groups()[0]
+    vals_array = vals_str.split(' ')
+
+    exploded_str = ""
+    for (idx, val) in enumerate(vals_array):
+        exploded_str += "{}{}={} ".format(col_basename, idx, val)
+
+    exploded_str = exploded_str[:-1]
+    begin_idx = match.start()
+    end_idx = match.end()
+
+    return string[:begin_idx] + exploded_str + string[end_idx:]
+
 class BaseThermal(object):
     """Base class to parse trace.dat dumps.
 

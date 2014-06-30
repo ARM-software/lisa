@@ -10,6 +10,22 @@ from cr2 import Thermal, ThermalGovernor
 sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
 import thermal
 
+class TestThermalMethods(unittest.TestCase):
+    """Test simple methods that don't need to set up a directory"""
+    def test_trace_parser_explode_array(self):
+        """Basic test of trace_parser_explode_array()"""
+
+        line = "cpus=0000000f freq=1400000 raw_cpu_power=189 load={3 2 12 2} power=14"
+        expected = "cpus=0000000f freq=1400000 raw_cpu_power=189 load0=3 load1=2 load2=12 load3=2 power=14"
+
+        self.assertEquals(thermal.trace_parser_explode_array(line), expected)
+
+    def test_trace_parser_explode_array_nop(self):
+        """trace_parser_explode_array() returns the same string if there's no array in it"""
+
+        line = "cpus=0000000f freq=1400000 raw_cpu_power=189 load0=3 load1=2 load2=12 load3=2 power=14"
+        self.assertEquals(thermal.trace_parser_explode_array(line), line)
+
 class TestThermalBase(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         super(TestThermalBase, self).__init__(
