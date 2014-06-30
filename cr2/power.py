@@ -100,7 +100,7 @@ class InPower(BaseThermal):
     def __init__(self, path=None):
         super(InPower, self).__init__(
             basepath=path,
-            unique_word="raw_cpu_power",
+            unique_word="thermal_power_actor_cpu_get_dyn",
         )
 
     def get_load_data(self, mapping_label):
