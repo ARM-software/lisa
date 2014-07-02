@@ -43,7 +43,6 @@ class TestPower(TestThermalBase):
         df = OutPower().get_data_frame()
 
         self.assertEquals(df["power"].iloc[0], 5036)
-        print df.columns
         self.assertTrue("cdev_state" in df.columns)
 
     def test_outpower_get_all_freqs(self):

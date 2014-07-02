@@ -68,7 +68,6 @@ class TestThermalGovernor(TestThermalBase):
         found = False
         with open("trace.txt") as f:
             for line in f:
-                print line
                 if re.search("bprint", line):
                     found = True
                     break
