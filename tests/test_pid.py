@@ -2,10 +2,10 @@
 
 import matplotlib
 
-from test_thermal import TestThermalBase
+from test_thermal import BaseTestThermal
 from cr2 import PIDController
 
-class TestPIDController(TestThermalBase):
+class TestPIDController(BaseTestThermal):
     def test_get_dataframe(self):
         """Test PIDController.get_data_frame()"""
         df = PIDController().get_data_frame()

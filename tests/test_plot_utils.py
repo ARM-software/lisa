@@ -4,7 +4,7 @@ import unittest
 import matplotlib
 import pandas as pd
 
-from test_thermal import TestThermalBase
+from test_thermal import BaseTestThermal
 import cr2
 import plot_utils
 
@@ -85,7 +85,7 @@ class TestPlotUtils(unittest.TestCase):
 
         plot_utils.plot_hist(data, "Foo", 20, "numbers", (0, 4), "default")
 
-class TestPlotUtilsNeedTrace(TestThermalBase):
+class TestPlotUtilsNeedTrace(BaseTestThermal):
     def test_plot_allfreqs(self):
         """Test that plot_allfreqs() doesn't bomb"""
 

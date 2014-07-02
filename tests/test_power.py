@@ -2,11 +2,11 @@
 
 import pandas as pd
 
-from test_thermal import TestThermalBase
+from test_thermal import BaseTestThermal
 from cr2 import OutPower, InPower
 import power
 
-class TestPower(TestThermalBase):
+class TestPower(BaseTestThermal):
     def __init__(self, *args, **kwargs):
         super(TestPower, self).__init__(*args, **kwargs)
         self.map_label = {"000000f0": "A15", "0000000f": "A7"}

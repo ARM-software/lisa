@@ -34,14 +34,14 @@ class TestThermalMethods(unittest.TestCase):
 
         self.assertEquals(thermal.trace_parser_explode_array(line), expected)
 
-class TestThermalBase(utils_tests.SetupDirectory):
+class BaseTestThermal(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
-        super(TestThermalBase, self).__init__(
+        super(BaseTestThermal, self).__init__(
              ["trace.dat"],
              *args,
              **kwargs)
 
-class TestThermal(TestThermalBase):
+class TestThermal(BaseTestThermal):
     def test_get_dataframe(self):
         df = Thermal().get_data_frame()
 
@@ -69,7 +69,7 @@ class TestThermal(TestThermalBase):
         th_data.plot_temperature(title="Antutu", ylim=[0, 60])
         matplotlib.pyplot.close('all')
 
-class TestThermalGovernor(TestThermalBase):
+class TestThermalGovernor(BaseTestThermal):
     def test_do_txt_if_not_there(self):
         c = ThermalGovernor()
 

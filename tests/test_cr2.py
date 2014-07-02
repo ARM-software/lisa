@@ -4,9 +4,9 @@ import os
 import matplotlib, tempfile
 
 import cr2
-from test_thermal import TestThermalBase
+from test_thermal import BaseTestThermal
 
-class TestCR2(TestThermalBase):
+class TestCR2(BaseTestThermal):
     def test_summary_plots(self):
         """Test summary_plots()
 
