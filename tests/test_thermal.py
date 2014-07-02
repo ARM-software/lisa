@@ -26,6 +26,14 @@ class TestThermalMethods(unittest.TestCase):
         line = "cpus=0000000f freq=1400000 raw_cpu_power=189 load0=3 load1=2 load2=12 load3=2 power=14"
         self.assertEquals(thermal.trace_parser_explode_array(line), line)
 
+    def test_trace_parser_explode_array_2(self):
+        """trace_parser_explode_array() works if there's two arrays in the string"""
+
+        line = "cpus=0000000f freq=1400000 load={3 2 12 2} power=14 req_power={10 7 2 34}"
+        expected = "cpus=0000000f freq=1400000 load0=3 load1=2 load2=12 load3=2 power=14 req_power0=10 req_power1=7 req_power2=2 req_power3=34"
+
+        self.assertEquals(thermal.trace_parser_explode_array(line), expected)
+
 class TestThermalBase(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         super(TestThermalBase, self).__init__(

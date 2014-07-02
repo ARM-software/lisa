@@ -14,28 +14,31 @@ def trace_parser_explode_array(string):
     """Explode an array in the trace into individual elements for easy parsing
 
     Basically, turn "load={1 1 2 2}" into "load0=1 load1=1 load2=2
-    load3=2".  Currently, it only supports one array in string
+    load3=2".
 
     """
 
-    match = re.search(r"[^ ]+={[^}]+}", string)
-    if match is None:
-        return string
+    while 1:
+        match = re.search(r"[^ ]+={[^}]+}", string)
+        if match is None:
+            break
 
-    to_explode = match.group()
-    col_basename = re.match(r"([^=]+)=", to_explode).groups()[0]
-    vals_str = re.search(r"{(.+)}", to_explode).groups()[0]
-    vals_array = vals_str.split(' ')
+        to_explode = match.group()
+        col_basename = re.match(r"([^=]+)=", to_explode).groups()[0]
+        vals_str = re.search(r"{(.+)}", to_explode).groups()[0]
+        vals_array = vals_str.split(' ')
 
-    exploded_str = ""
-    for (idx, val) in enumerate(vals_array):
-        exploded_str += "{}{}={} ".format(col_basename, idx, val)
+        exploded_str = ""
+        for (idx, val) in enumerate(vals_array):
+            exploded_str += "{}{}={} ".format(col_basename, idx, val)
 
-    exploded_str = exploded_str[:-1]
-    begin_idx = match.start()
-    end_idx = match.end()
+        exploded_str = exploded_str[:-1]
+        begin_idx = match.start()
+        end_idx = match.end()
 
-    return string[:begin_idx] + exploded_str + string[end_idx:]
+        string = string[:begin_idx] + exploded_str + string[end_idx:]
+
+    return string
 
 class BaseThermal(object):
     """Base class to parse trace.dat dumps.
