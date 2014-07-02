@@ -13,10 +13,11 @@ class TestPower(TestThermalBase):
 
     def test_pivot_with_labels(self):
         """Test pivot_with_labels()"""
+        map_label = {"000000f0": "A15", "0000000f": "A7"}
         dfr_in = pd.DataFrame({'cpus': ["000000f0", "0000000f", "000000f0", "0000000f"],
                                'freq': [1, 3, 2, 6]})
 
-        dfr_out = power.pivot_with_labels(dfr_in, "freq", "cpus", self.map_label)
+        dfr_out = power.pivot_with_labels(dfr_in, "freq", "cpus", map_label)
 
         self.assertEquals(dfr_out["A15"].iloc[0], 1)
         self.assertEquals(dfr_out["A15"].iloc[1], 1)
