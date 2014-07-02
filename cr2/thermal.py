@@ -87,6 +87,7 @@ class BaseThermal(object):
         pat_timestamp = re.compile(r"([0-9]+\.[0-9]+):")
         pat_data = re.compile(r"[A-Za-z0-9_]+=([^ {]+)")
         pat_header = re.compile(r"([A-Za-z0-9_]+)=[^ ]+")
+        pat_empty_array = re.compile(r"[A-Za-z0-9_]+=\{\} ")
         header = ""
 
         with open(os.path.join(self.basepath, "trace.txt")) as fin:
@@ -101,6 +102,9 @@ class BaseThermal(object):
 
                 data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
                 data_str = line[data_start_idx:]
+
+                # Remove empty arrays from the trace
+                data_str = re.sub(pat_empty_array, r"", data_str)
 
                 data_str = trace_parser_explode_array(data_str)
 

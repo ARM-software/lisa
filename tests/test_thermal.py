@@ -41,6 +41,34 @@ class BaseTestThermal(utils_tests.SetupDirectory):
              *args,
              **kwargs)
 
+class TestThermalBase(utils_tests.SetupDirectory):
+    """Incomplete tests for the ThermalBase class"""
+
+    def __init__(self, *args, **kwargs):
+        super(TestThermalBase, self).__init__(
+             [],
+             *args,
+             **kwargs)
+
+    def test_parse_into_csv_empty_array(self):
+        """Test that trace that has an empty array creates valid csv"""
+
+        in_data = """     kworker/4:1-397   [004]   720.741315: thermal_power_actor_cpu_get_dyn_power: cpus=000000f0 freq=1900000 raw_cpu_power=1259 load={} power=61
+     kworker/4:1-397   [004]   720.741349: thermal_power_actor_cpu_get_dyn_power: cpus=0000000f freq=1400000 raw_cpu_power=189 load={} power=14"""
+        expected_header = "Time,cpus,freq,raw_cpu_power,power"
+        expected_first_data = "720.741315,000000f0,1900000,1259,61"
+
+        with open("trace.txt", "w") as fout:
+            fout.write(in_data)
+
+        base = thermal.BaseThermal(None, "thermal_power_actor_cpu_get_dyn_power")
+        base.parse_into_csv()
+
+        data_csv_lines = base.data_csv.split('\n')
+
+        self.assertEquals(data_csv_lines[0], expected_header)
+        self.assertEquals(data_csv_lines[1], expected_first_data)
+
 class TestThermal(BaseTestThermal):
     def test_get_dataframe(self):
         df = Thermal().get_data_frame()
