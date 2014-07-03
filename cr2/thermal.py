@@ -182,27 +182,46 @@ class ThermalGovernor(BaseThermal):
         with open("thermal.csv", "w") as fout:
             fout.write(self.data_csv)
 
-    def plot_input_power(self, title="", width=None, height=None):
-        """Plot input power"""
+    def plot_input_power(self, actor_order, title="", width=None, height=None):
+        """Plot input power
+
+        actor_order is an array with the order in which the actors were registered.
+        """
+
         dfr = self.get_data_frame()
         in_cols = [s for s in dfr.columns if re.match("req_power[0-9]+", s)]
+
+        plot_dfr = dfr[in_cols]
+        # Rename the columns from "req_power0" to "A15" or whatever is
+        # in actor_order.  Note that we can do it just with an
+        # assignment because the columns are already sorted (i.e.:
+        # req_power0, req_power1...)
+        plot_dfr.columns = actor_order
 
         title = normalize_title("Input Power", title)
 
         ax = pre_plot_setup(width, height)
-        dfr[in_cols].plot(ax=ax)
+        plot_dfr.plot(ax=ax)
         post_plot_setup(ax, title=title)
 
-    def plot_output_power(self, title="", width=None, height=None):
-        """Plot output power"""
+    def plot_output_power(self, actor_order, title="", width=None, height=None):
+        """Plot output power
+
+        actor_order is an array with the order in which the actors were registered.
+        """
+
         dfr = self.get_data_frame()
         out_cols = [s for s in dfr.columns
                     if re.match("granted_power[0-9]+", s)]
 
+        # See the note in plot_input_power()
+        plot_dfr = dfr[out_cols]
+        plot_dfr.columns = actor_order
+
         title = normalize_title("Output Power", title)
 
         ax = pre_plot_setup(width, height)
-        dfr[out_cols].plot(ax=ax)
+        plot_dfr.plot(ax=ax)
         post_plot_setup(ax, title=title)
 
     def plot_inout_power(self, title="", width=None, height=None):

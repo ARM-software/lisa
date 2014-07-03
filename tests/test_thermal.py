@@ -98,6 +98,10 @@ class TestThermal(BaseTestThermal):
         matplotlib.pyplot.close('all')
 
 class TestThermalGovernor(BaseTestThermal):
+    def __init__(self, *args, **kwargs):
+        super(TestThermalGovernor, self).__init__(*args, **kwargs)
+        self.actor_order = ["GPU", "A15", "A7"]
+
     def test_do_txt_if_not_there(self):
         c = ThermalGovernor()
 
@@ -138,16 +142,16 @@ class TestThermalGovernor(BaseTestThermal):
         """Test plot_input_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        ThermalGovernor().plot_input_power()
-        ThermalGovernor().plot_input_power(title="Antutu")
+        ThermalGovernor().plot_input_power(self.actor_order)
+        ThermalGovernor().plot_input_power(self.actor_order, title="Antutu")
         matplotlib.pyplot.close('all')
 
     def test_plot_output_power(self):
         """Test plot_output_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        ThermalGovernor().plot_output_power()
-        ThermalGovernor().plot_output_power(title="Antutu")
+        ThermalGovernor().plot_output_power(self.actor_order)
+        ThermalGovernor().plot_output_power(self.actor_order, title="Antutu")
         matplotlib.pyplot.close('all')
 
     def test_plot_inout_power(self):
