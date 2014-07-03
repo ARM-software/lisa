@@ -12,7 +12,7 @@ class TestPIDController(BaseTestThermal):
 
         self.assertTrue(len(df) > 0)
         self.assertTrue("err_integral" in df.columns)
-        self.assertEquals(df["err"].iloc[0], 7)
+        self.assertEquals(df["err"].iloc[0], 10)
 
     def test_plot_controller(self):
         """Test PIDController.plot_controller()

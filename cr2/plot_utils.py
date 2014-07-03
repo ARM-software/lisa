@@ -114,7 +114,9 @@ def plot_temperature(thermal, thermal_gov, **kwords):
     """
 
     gov_dfr = thermal_gov.get_data_frame()
-    control_temp_series = (gov_dfr["currT"] + gov_dfr["deltaT"]) / 1000
+    current_temp = gov_dfr["current_temperature"]
+    delta_temp = gov_dfr["delta_temperature"]
+    control_temp_series = (current_temp +  delta_temp) / 1000
     thermal.plot_temperature(control_temperature=control_temp_series, **kwords)
 
 def plot_hist(data, title, bins, xlabel, xlim, ylim):

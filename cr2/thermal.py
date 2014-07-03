@@ -197,8 +197,7 @@ class ThermalGovernor(BaseThermal):
     def plot_input_power(self, title="", width=None, height=None):
         """Plot input power"""
         dfr = self.get_data_frame()
-        in_cols = [s for s in dfr.columns
-                   if re.match("P.*_in", s) and s != "Ptot_in"]
+        in_cols = [s for s in dfr.columns if re.match("req_power[0-9]+", s)]
 
         title = normalize_title("Input Power", title)
         self.plot_multivalue(in_cols, title, width, height)
@@ -207,7 +206,7 @@ class ThermalGovernor(BaseThermal):
         """Plot output power"""
         dfr = self.get_data_frame()
         out_cols = [s for s in dfr.columns
-                   if re.match("P.*_out", s) and s != "Ptot_out"]
+                    if re.match("granted_power[0-9]+", s)]
 
         title = normalize_title("Output Power", title)
         self.plot_multivalue(out_cols,

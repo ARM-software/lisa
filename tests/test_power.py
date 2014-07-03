@@ -58,7 +58,7 @@ class TestPower(BaseTestThermal):
         df = InPower().get_data_frame()
 
         self.assertTrue("load0" in df.columns)
-        self.assertEquals(df["load0"].iloc[0], 1)
+        self.assertEquals(df["load0"].iloc[0], 2)
 
     def test_inpower_get_all_freqs(self):
         """Test InPower.get_all_freqs()"""
@@ -66,13 +66,13 @@ class TestPower(BaseTestThermal):
 
         self.assertEquals(dfr["A15"].iloc[0], 1900)
         self.assertEquals(dfr["A7"].iloc[1], 1400)
-        self.assertEquals(dfr["A15"].iloc[13], 1800)
+        self.assertEquals(dfr["A15"].iloc[55], 1800)
 
     def test_inpower_get_load_data(self):
         """Test InPower.get_load_data()"""
         load_data = InPower().get_load_data(self.map_label)
 
-        self.assertEquals(load_data["A15"].iloc[0], 1 + 2 + 1 + 1)
+        self.assertEquals(load_data["A15"].iloc[0], 2 + 3 + 2 + 3)
         self.assertEquals(load_data["A7"].iloc[3], 100 + 100 + 100 + 100)
         self.assertEquals(load_data["A15"].iloc[0], load_data["A15"].iloc[1])
 

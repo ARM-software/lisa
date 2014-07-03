@@ -74,7 +74,7 @@ class TestThermal(BaseTestThermal):
         df = Thermal().get_data_frame()
 
         self.assertTrue("thermal_zone" in df.columns)
-        self.assertEquals(df["temp"].iloc[0], 29000)
+        self.assertEquals(df["temp"].iloc[0], 24000)
 
     def test_plot_temperature(self):
         """Test ThermalGovernor.plot_temperature()
@@ -117,11 +117,11 @@ class TestThermalGovernor(BaseTestThermal):
 
     def test_get_thermal_csv(self):
         ThermalGovernor().write_thermal_csv()
-        first_data_line = '720.741380,0,61,14,75,2608,5036,756,8400,8400,8511,50000,7000\n'
+        first_data_line = '523.424828,0,124,10,134,2718,5036,755,8509,8511,8511,47000,10000\n'
 
         with open("thermal.csv") as f:
             first_line = f.readline()
-            self.assertTrue(first_line.startswith("Time,Pgpu_in"))
+            self.assertTrue(first_line.startswith("Time,req_power0"))
 
             second_line = f.readline()
             self.assertEquals(second_line, first_data_line)
@@ -130,8 +130,8 @@ class TestThermalGovernor(BaseTestThermal):
         df = ThermalGovernor().get_data_frame()
 
         self.assertTrue(len(df) > 0)
-        self.assertEquals(df["currT"].iloc[0], 50000)
-        self.assertTrue("Ptot_out" in df.columns)
+        self.assertEquals(df["current_temperature"].iloc[0], 47000)
+        self.assertTrue("total_granted_power" in df.columns)
         self.assertFalse("time" in df.columns)
 
     def test_plot_input_power(self):
