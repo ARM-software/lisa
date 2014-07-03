@@ -183,7 +183,7 @@ class ThermalGovernor(BaseThermal):
     def __init__(self, path=None):
         super(ThermalGovernor, self).__init__(
             basepath=path,
-            unique_word="max_allocatable_power",
+            unique_word="thermal_power_allocator:",
         )
 
     def write_thermal_csv(self):
