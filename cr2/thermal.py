@@ -136,18 +136,6 @@ class BaseThermal(object):
 
         return self.data_frame
 
-    def plot_multivalue(self, values, title, width, height):
-        """Plot multiple values of the DataFrame
-
-        values is an array with the keys of the DataFrame to plot
-        """
-
-        dfr = self.get_data_frame()
-
-        ax = pre_plot_setup(width, height)
-        dfr[values].plot(ax=ax)
-        post_plot_setup(ax, title=title)
-
 class Thermal(BaseThermal):
     """Process the thermal framework data in a ftrace dump"""
     def __init__(self, path=None):
@@ -200,7 +188,10 @@ class ThermalGovernor(BaseThermal):
         in_cols = [s for s in dfr.columns if re.match("req_power[0-9]+", s)]
 
         title = normalize_title("Input Power", title)
-        self.plot_multivalue(in_cols, title, width, height)
+
+        ax = pre_plot_setup(width, height)
+        dfr[in_cols].plot(ax=ax)
+        post_plot_setup(ax, title=title)
 
     def plot_output_power(self, title="", width=None, height=None):
         """Plot output power"""
@@ -209,8 +200,10 @@ class ThermalGovernor(BaseThermal):
                     if re.match("granted_power[0-9]+", s)]
 
         title = normalize_title("Output Power", title)
-        self.plot_multivalue(out_cols,
-                             title, width, height)
+
+        ax = pre_plot_setup(width, height)
+        dfr[out_cols].plot(ax=ax)
+        post_plot_setup(ax, title=title)
 
     def plot_inout_power(self, title="", width=None, height=None):
         """Make multiple plots showing input and output power for each actor"""

@@ -3,7 +3,7 @@
 current directory's trace.dat"""
 
 from thermal import BaseThermal
-from plot_utils import normalize_title
+from plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
 class PIDController(BaseThermal):
     """Process the power allocator PID controller data in a ftrace dump"""
@@ -17,4 +17,8 @@ class PIDController(BaseThermal):
         """Plot a summary of the controller data"""
         title = normalize_title("PID", title)
 
-        self.plot_multivalue(["output", "p", "i", "d"], title, width, height)
+        dfr = self.get_data_frame()
+
+        ax = pre_plot_setup(width, height)
+        dfr[["output", "p", "i", "d"]].plot(ax=ax)
+        post_plot_setup(ax, title=title)
