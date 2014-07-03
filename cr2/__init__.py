@@ -5,7 +5,7 @@ from power import OutPower, InPower
 from thermal import Thermal, ThermalGovernor
 from results import CR2, get_results, combine_results
 
-def summary_plots(**kwords):
+def summary_plots(map_label, **kwords):
     """A summary of plots as similar as possible to what CompareRuns plots"""
     import plot_utils
 
@@ -30,9 +30,6 @@ def summary_plots(**kwords):
         title = kwords["title"]
     else:
         title = ""
-
-    # XXX This needs to be made generic
-    map_label = {"0000000f": "A7", "000000f0": "A15"}
 
     plot_utils.plot_temperature(thermal_data, gov_data, **kwords)
     inpower_data.plot_load(map_label, **kwords)
