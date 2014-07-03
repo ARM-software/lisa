@@ -153,7 +153,7 @@ class Thermal(BaseThermal):
     def __init__(self, path=None):
         super(Thermal, self).__init__(
             basepath=path,
-            unique_word="thermal_zone=",
+            unique_word="thermal_temperature:",
         )
 
     def plot_temperature(self, control_temperature=None, title="", width=None,
