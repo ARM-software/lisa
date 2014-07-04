@@ -73,6 +73,28 @@ class TestPower(BaseTestThermal):
         self.assertEquals(round(dfr.index[0], 6), 676.256284)
         self.assertEquals(dfr["cpus"].iloc[1], "0000000000000030")
 
+    def test_inpower_get_data_frame_asymmetric_clusters(self):
+        """Test that InPower.get_data_frame() can handle asymmetric clusters
+
+        That is 2 cpus in one cluster and 4 in another, like Juno
+        """
+        in_data = """     kworker/2:2-679   [002]   676.256261: thermal_power_actor_cpu_get_dyn_power:   cpus=00000000,0000000f freq=450000 raw_cpu_power=36 load={1 2 1 3} power=9
+     kworker/2:2-679   [002]   676.256271: thermal_power_actor_cpu_get_dyn_power:   cpus=00000000,00000030 freq=1900000 raw_cpu_power=1259 load={74 49} power=451
+"""
+
+        with open("trace.txt", "w") as fout:
+            fout.write(in_data)
+
+        dfr = InPower().get_data_frame()
+
+        self.assertEquals(dfr["load0"].iloc[0], 1)
+        self.assertEquals(dfr["load1"].iloc[0], 2)
+        self.assertEquals(dfr["load2"].iloc[0], 1)
+        self.assertEquals(dfr["load3"].iloc[0], 3)
+        self.assertEquals(dfr["load0"].iloc[1], 74)
+        self.assertEquals(dfr["load1"].iloc[1], 49)
+        self.assertEquals(dfr["load2"].iloc[1], 0)
+        self.assertEquals(dfr["load3"].iloc[1], 0)
 
     def test_inpower_get_all_freqs(self):
         """Test InPower.get_all_freqs()"""

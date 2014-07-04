@@ -10,15 +10,19 @@ from matplotlib import pyplot as plt
 
 from plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
-def trace_parser_explode_array(string):
+def trace_parser_explode_array(string, array_lengths):
     """Explode an array in the trace into individual elements for easy parsing
 
     Basically, turn "load={1 1 2 2}" into "load0=1 load1=1 load2=2
-    load3=2".
+    load3=2".  array_lengths is a dictionary of array names and their
+    expected length.  If we get array that's shorter than the expected
+    length, additional keys have to be introduced with value 0 to
+    compensate.  For example, "load={1 2}" with array_lengths being
+    {"load": 4} returns "load0=1 load1=2 load2=0 load3=0"
 
     """
 
-    while 1:
+    while True:
         match = re.search(r"[^ ]+={[^}]+}", string)
         if match is None:
             break
@@ -31,6 +35,11 @@ def trace_parser_explode_array(string):
         exploded_str = ""
         for (idx, val) in enumerate(vals_array):
             exploded_str += "{}{}={} ".format(col_basename, idx, val)
+
+        vals_added = len(vals_array)
+        if vals_added < array_lengths[col_basename]:
+            for idx in range(vals_added, array_lengths[col_basename]):
+                exploded_str += "{}{}=0 ".format(col_basename, idx)
 
         exploded_str = exploded_str[:-1]
         begin_idx = match.start()
@@ -81,16 +90,56 @@ class BaseThermal(object):
         with open(os.path.join(self.basepath, "trace.txt"), "w") as fout:
             fout.write(out)
 
+    def get_trace_array_lengths(self, fname):
+        """Calculate the lengths of all arrays in the trace
+
+        Returns a dict with the name of each array found in the trace
+        as keys and their corresponding length as value
+
+        """
+
+        pat_array = re.compile(r"([A-Za-z0-9_]+)={([^}]+)}")
+
+        ret = {}
+
+        with open(fname) as fin:
+            for line in fin:
+                if not re.search(self.unique_word, line):
+                    continue
+
+                while True:
+                    match = re.search(pat_array, line)
+                    if not match:
+                        break
+
+                    (array_name, array_elements) = match.groups()
+
+                    array_len = len(array_elements.split(' '))
+
+                    if array_name not in ret:
+                        ret[array_name] = array_len
+                    elif array_len > ret[array_name]:
+                        ret[array_name] = array_len
+
+                    line = line[match.end():]
+
+        return ret
+
     def parse_into_csv(self):
         """Create a csv representation of the thermal data and store
         it in self.data_csv"""
+
+        fin_fname = os.path.join(self.basepath, "trace.txt")
+
+        array_lengths = self.get_trace_array_lengths(fin_fname)
+
         pat_timestamp = re.compile(r"([0-9]+\.[0-9]+):")
         pat_data = re.compile(r"[A-Za-z0-9_]+=([^ {]+)")
         pat_header = re.compile(r"([A-Za-z0-9_]+)=[^ ]+")
         pat_empty_array = re.compile(r"[A-Za-z0-9_]+=\{\} ")
         header = ""
 
-        with open(os.path.join(self.basepath, "trace.txt")) as fin:
+        with open(fin_fname) as fin:
             for line in fin:
                 if not re.search(self.unique_word, line):
                     continue
@@ -106,7 +155,7 @@ class BaseThermal(object):
                 # Remove empty arrays from the trace
                 data_str = re.sub(pat_empty_array, r"", data_str)
 
-                data_str = trace_parser_explode_array(data_str)
+                data_str = trace_parser_explode_array(data_str, array_lengths)
 
                 if not header:
                     header = re.sub(pat_header, r"\1", data_str)

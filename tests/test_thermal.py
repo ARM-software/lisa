@@ -17,22 +17,46 @@ class TestThermalMethods(unittest.TestCase):
 
         line = "cpus=0000000f freq=1400000 raw_cpu_power=189 load={3 2 12 2} power=14"
         expected = "cpus=0000000f freq=1400000 raw_cpu_power=189 load0=3 load1=2 load2=12 load3=2 power=14"
+        array_lengths = {"load": 4}
 
-        self.assertEquals(thermal.trace_parser_explode_array(line), expected)
+        result = thermal.trace_parser_explode_array(line, array_lengths)
+        self.assertEquals(result, expected)
 
     def test_trace_parser_explode_array_nop(self):
         """trace_parser_explode_array() returns the same string if there's no array in it"""
 
         line = "cpus=0000000f freq=1400000 raw_cpu_power=189 load0=3 load1=2 load2=12 load3=2 power=14"
-        self.assertEquals(thermal.trace_parser_explode_array(line), line)
+        array_lengths = {"load": 0}
+
+        result = thermal.trace_parser_explode_array(line, array_lengths)
+        self.assertEquals(result, line)
 
     def test_trace_parser_explode_array_2(self):
         """trace_parser_explode_array() works if there's two arrays in the string"""
 
         line = "cpus=0000000f freq=1400000 load={3 2 12 2} power=14 req_power={10 7 2 34}"
         expected = "cpus=0000000f freq=1400000 load0=3 load1=2 load2=12 load3=2 power=14 req_power0=10 req_power1=7 req_power2=2 req_power3=34"
+        array_lengths = {'load': 4, 'req_power': 4}
 
-        self.assertEquals(thermal.trace_parser_explode_array(line), expected)
+        result = thermal.trace_parser_explode_array(line, array_lengths)
+        self.assertEquals(result, expected)
+
+    def test_trace_parser_explode_array_diff_lengths(self):
+        """trace_parser_explode_array() expands arrays that are shorter than
+the expected length
+
+        trace_parser_explode_array() has to be able to deal with an
+        array of size 2 if we tell it in other parts of the trace it
+        is four.
+
+        """
+
+        line = "cpus=0000000f freq=1400000 load={3 2} power=14"
+        expected = "cpus=0000000f freq=1400000 load0=3 load1=2 load2=0 load3=0 power=14"
+        array_lengths = {'load': 4}
+
+        result = thermal.trace_parser_explode_array(line, array_lengths)
+        self.assertEquals(result, expected)
 
 class BaseTestThermal(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
@@ -49,6 +73,23 @@ class TestThermalBase(utils_tests.SetupDirectory):
              [],
              *args,
              **kwargs)
+
+    def test_get_trace_array_lengths(self):
+        """Test InPower.get_trace_array_lengths()"""
+
+        in_data = """     kworker/4:1-397   [004]   720.741315: thermal_power_actor_cpu_get_dyn_power: cpus=000000f0 freq=1900000 raw_cpu_power=1259 load={1 2} power=61
+     kworker/4:1-397   [004]   720.741349: thermal_power_actor_cpu_get_dyn_power: cpus=0000000f freq=1400000 raw_cpu_power=189 load={1 3 4 89} power=14
+     kworker/4:1-397   [004]   720.841315: thermal_power_actor_cpu_get_dyn_power: cpus=000000f0 freq=1900000 raw_cpu_power=1259 load={1 2} power=61
+     kworker/4:1-397   [004]   720.841349: thermal_power_actor_cpu_get_dyn_power: cpus=0000000f freq=1400000 raw_cpu_power=189 load={} power=14
+"""
+        with open("trace.txt", "w") as fout:
+            fout.write(in_data)
+
+        base = thermal.BaseThermal(".", "thermal_power_actor_cpu_get_dyn_power")
+        lengths = base.get_trace_array_lengths("trace.txt")
+
+        self.assertEquals(len(lengths), 1)
+        self.assertEquals(lengths["load"], 4)
 
     def test_parse_into_csv_empty_array(self):
         """Test that trace that has an empty array creates valid csv"""
