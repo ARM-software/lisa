@@ -60,6 +60,20 @@ class TestPower(BaseTestThermal):
         self.assertTrue("load0" in df.columns)
         self.assertEquals(df["load0"].iloc[0], 2)
 
+    def test_inpower_big_cpumask(self):
+        """InPower.get_data_frame() is not confused by 64-bit cpumasks"""
+        in_data = """     kworker/2:2-679   [002]   676.256284: thermal_power_actor_cpu_get_dyn:  cpus=00000000,0000000f freq=261888 cdev_state=5 power=12
+     kworker/2:2-679   [002]   676.276200: thermal_power_actor_cpu_get_dyn:  cpus=00000000,00000030 freq=261888 cdev_state=5 power=0
+     kworker/2:2-679   [002]   676.416202: thermal_power_actor_cpu_get_dyn:  cpus=00000000,0000000f freq=261888 cdev_state=5 power=0
+        """
+        with open("trace.txt", "w") as fout:
+            fout.write(in_data)
+
+        dfr = InPower().get_data_frame()
+        self.assertEquals(round(dfr.index[0], 6), 676.256284)
+        self.assertEquals(dfr["cpus"].iloc[1], "0000000000000030")
+
+
     def test_inpower_get_all_freqs(self):
         """Test InPower.get_all_freqs()"""
         dfr = InPower().get_all_freqs(self.map_label)

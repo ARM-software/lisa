@@ -115,6 +115,7 @@ class BaseThermal(object):
                     self.data_csv = header
 
                 parsed_data = re.sub(pat_data, r"\1", data_str)
+                parsed_data = re.sub(r",", r"", parsed_data)
                 parsed_data = re.sub(r" ", r",", parsed_data)
 
                 parsed_data = timestamp + "," + parsed_data + "\n"
