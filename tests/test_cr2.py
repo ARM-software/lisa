@@ -24,6 +24,28 @@ class TestCR2(BaseTestThermal):
                           title="Foo")
         matplotlib.pyplot.close('all')
 
+    def test_summary_plots_bad_parameters(self):
+        """When summary_plots() receives bad parameters, it offers an understandable error"""
+
+        self.assertRaises(TypeError, cr2.summary_plots,
+                          (self.map_label, self.actor_order))
+
+        try:
+            cr2.summary_plots(self.map_label, self.actor_order)
+            self.fail()
+        except TypeError as exception:
+            pass
+
+        self.assertTrue("actor_order" in str(exception))
+
+        try:
+            cr2.summary_plots(self.actor_order, self.actor_order)
+            self.fail()
+        except TypeError as exception:
+            pass
+
+        self.assertTrue("map_label" in str(exception))
+
     def test_summary_other_dir(self):
         """Test summary_plots() with another directory"""
 
