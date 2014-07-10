@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import os, sys
+import shutil
 import tempfile
 import matplotlib
 import pandas as pd
@@ -12,7 +13,7 @@ import results
 class TestResults(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         super(TestResults, self).__init__(
-            ["results.csv"],
+            ["results.csv", "new_antutu_results.csv"],
             *args, **kwargs)
 
     def test_get_results(self):
@@ -36,6 +37,14 @@ class TestResults(utils_tests.SetupDirectory):
         results_frame = results.get_results(self.out_dir)
 
         self.assertEquals(len(results_frame.columns), 3)
+
+    def test_get_results_new_antutu(self):
+        """Test that the new antutu results are correctly parsed"""
+        shutil.move("new_antutu_results.csv", "results.csv")
+        results_frame = results.get_results()
+
+        self.assertEquals(results_frame["antutu"][0], 35549)
+        self.assertEquals(results_frame["antutu"][1], 35437)
 
     def test_combine_results(self):
         res1 = results.get_results()
