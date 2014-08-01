@@ -97,10 +97,11 @@ class BaseThermal(object):
         as keys and their corresponding length as value
 
         """
+        from collections import defaultdict
 
         pat_array = re.compile(r"([A-Za-z0-9_]+)={([^}]+)}")
 
-        ret = {}
+        ret = defaultdict(int)
 
         with open(fname) as fin:
             for line in fin:
@@ -116,9 +117,7 @@ class BaseThermal(object):
 
                     array_len = len(array_elements.split(' '))
 
-                    if array_name not in ret:
-                        ret[array_name] = array_len
-                    elif array_len > ret[array_name]:
+                    if array_len > ret[array_name]:
                         ret[array_name] = array_len
 
                     line = line[match.end():]
