@@ -138,6 +138,10 @@ class TestThermal(BaseTestThermal):
         th_data.plot_temperature(title="Antutu", ylim=[0, 60])
         matplotlib.pyplot.close('all')
 
+        _, ax = matplotlib.pyplot.subplots()
+        th_data.plot_temperature(ax=ax)
+        matplotlib.pyplot.close('all')
+
 class TestThermalGovernor(BaseTestThermal):
     def __init__(self, *args, **kwargs):
         super(TestThermalGovernor, self).__init__(*args, **kwargs)

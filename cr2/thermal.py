@@ -194,7 +194,7 @@ class Thermal(BaseThermal):
         )
 
     def plot_temperature(self, control_temperature=None, title="", width=None,
-                         height=None, ylim="range"):
+                         height=None, ylim="range", ax=None):
         """Plot the temperature.
 
         If control_temp is a pd.Series() representing the (possible)
@@ -206,14 +206,19 @@ class Thermal(BaseThermal):
         dfr = self.get_data_frame()
         title = normalize_title("Temperature", title)
 
-        ax = pre_plot_setup(width, height)
+        setup_plot = False
+        if not ax:
+            ax = pre_plot_setup(width, height)
+            setup_plot = True
+
         (dfr["temp"] / 1000).plot(ax=ax)
         if control_temperature is not None:
             control_temperature.plot(ax=ax, color="y", linestyle="--",
                            label="control temperature")
-        post_plot_setup(ax, title=title, ylim=ylim)
 
-        plt.legend()
+        if setup_plot:
+            post_plot_setup(ax, title=title, ylim=ylim)
+            plt.legend()
 
 class ThermalGovernor(BaseThermal):
     """Process the power allocator data in a ftrace dump"""
