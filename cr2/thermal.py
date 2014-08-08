@@ -176,8 +176,8 @@ class BaseThermal(object):
         if self.data_csv is "":
             self.data_frame = pd.DataFrame()
         else:
-            unordered_df = pd.read_csv(StringIO(self.data_csv))
-            self.data_frame = unordered_df.set_index("Time")
+            self.data_frame = pd.read_csv(StringIO(self.data_csv))
+            self.data_frame.set_index("Time", inplace=True)
 
 class Thermal(BaseThermal):
     """Process the thermal framework data in a ftrace dump"""
