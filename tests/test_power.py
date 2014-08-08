@@ -39,12 +39,12 @@ class TestPower(BaseTestThermal):
         # Make sure there are no NaNs in the middle of the array
         self.assertTrue(allfreqs["A15"]["A15_freq_out"].notnull().all())
 
-    def test_outpower_get_dataframe(self):
-        """Test OutPower.get_data_frame()"""
-        df = OutPower().get_data_frame()
+    def test_outpower_dataframe(self):
+        """Test that OutPower() creates a proper data_frame"""
+        outp = OutPower()
 
-        self.assertEquals(df["power"].iloc[0], 5036)
-        self.assertTrue("cdev_state" in df.columns)
+        self.assertEquals(outp.data_frame["power"].iloc[0], 5036)
+        self.assertTrue("cdev_state" in outp.data_frame.columns)
 
     def test_outpower_get_all_freqs(self):
         """Test OutPower.get_all_freqs()"""
@@ -54,14 +54,14 @@ class TestPower(BaseTestThermal):
         self.assertEquals(dfr["A7"].iloc[1], 1400)
 
     def test_inpower_get_dataframe(self):
-        """Test InPower.get_data_frame()"""
-        df = InPower().get_data_frame()
+        """Test that InPower() creates a proper data_frame()"""
+        inp = InPower()
 
-        self.assertTrue("load0" in df.columns)
-        self.assertEquals(df["load0"].iloc[0], 2)
+        self.assertTrue("load0" in inp.data_frame.columns)
+        self.assertEquals(inp.data_frame["load0"].iloc[0], 2)
 
     def test_inpower_big_cpumask(self):
-        """InPower.get_data_frame() is not confused by 64-bit cpumasks"""
+        """InPower()'s data_frame is not confused by 64-bit cpumasks"""
         in_data = """     kworker/2:2-679   [002]   676.256284: thermal_power_actor_cpu_get_dyn:  cpus=00000000,0000000f freq=261888 cdev_state=5 power=12
      kworker/2:2-679   [002]   676.276200: thermal_power_actor_cpu_get_dyn:  cpus=00000000,00000030 freq=261888 cdev_state=5 power=0
      kworker/2:2-679   [002]   676.416202: thermal_power_actor_cpu_get_dyn:  cpus=00000000,0000000f freq=261888 cdev_state=5 power=0
@@ -69,12 +69,12 @@ class TestPower(BaseTestThermal):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        dfr = InPower().get_data_frame()
-        self.assertEquals(round(dfr.index[0], 6), 676.256284)
-        self.assertEquals(dfr["cpus"].iloc[1], "0000000000000030")
+        inp = InPower()
+        self.assertEquals(round(inp.data_frame.index[0], 6), 676.256284)
+        self.assertEquals(inp.data_frame["cpus"].iloc[1], "0000000000000030")
 
-    def test_inpower_get_data_frame_asymmetric_clusters(self):
-        """Test that InPower.get_data_frame() can handle asymmetric clusters
+    def test_inpower_data_frame_asymmetric_clusters(self):
+        """Test that InPower()'s data_frame can handle asymmetric clusters
 
         That is 2 cpus in one cluster and 4 in another, like Juno
         """
@@ -85,16 +85,16 @@ class TestPower(BaseTestThermal):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        dfr = InPower().get_data_frame()
+        inp = InPower()
 
-        self.assertEquals(dfr["load0"].iloc[0], 1)
-        self.assertEquals(dfr["load1"].iloc[0], 2)
-        self.assertEquals(dfr["load2"].iloc[0], 1)
-        self.assertEquals(dfr["load3"].iloc[0], 3)
-        self.assertEquals(dfr["load0"].iloc[1], 74)
-        self.assertEquals(dfr["load1"].iloc[1], 49)
-        self.assertEquals(dfr["load2"].iloc[1], 0)
-        self.assertEquals(dfr["load3"].iloc[1], 0)
+        self.assertEquals(inp.data_frame["load0"].iloc[0], 1)
+        self.assertEquals(inp.data_frame["load1"].iloc[0], 2)
+        self.assertEquals(inp.data_frame["load2"].iloc[0], 1)
+        self.assertEquals(inp.data_frame["load3"].iloc[0], 3)
+        self.assertEquals(inp.data_frame["load0"].iloc[1], 74)
+        self.assertEquals(inp.data_frame["load1"].iloc[1], 49)
+        self.assertEquals(inp.data_frame["load2"].iloc[1], 0)
+        self.assertEquals(inp.data_frame["load3"].iloc[1], 0)
 
     def test_inpower_get_all_freqs(self):
         """Test InPower.get_all_freqs()"""

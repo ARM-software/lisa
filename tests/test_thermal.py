@@ -111,10 +111,10 @@ class TestThermalBase(utils_tests.SetupDirectory):
 
 class TestThermal(BaseTestThermal):
     def test_get_dataframe(self):
-        df = Thermal().get_data_frame()
+        dfr = Thermal().data_frame
 
-        self.assertTrue("thermal_zone" in df.columns)
-        self.assertEquals(df["temp"].iloc[0], 24000)
+        self.assertTrue("thermal_zone" in dfr.columns)
+        self.assertEquals(dfr["temp"].iloc[0], 24000)
 
     def test_plot_temperature(self):
         """Test ThermalGovernor.plot_temperature()
@@ -125,7 +125,7 @@ class TestThermal(BaseTestThermal):
         """
 
         th_data = Thermal()
-        dfr = th_data.get_data_frame()
+        dfr = th_data.data_frame
         ct_series = pd.Series([57, 57], index=(dfr.index[0], dfr.index[-1]))
 
         th_data.plot_temperature()
@@ -175,12 +175,12 @@ class TestThermalGovernor(BaseTestThermal):
             self.assertEquals(second_line, first_data_line)
 
     def test_get_dataframe(self):
-        df = ThermalGovernor().get_data_frame()
+        dfr = ThermalGovernor().data_frame
 
-        self.assertTrue(len(df) > 0)
-        self.assertEquals(df["current_temperature"].iloc[0], 47000)
-        self.assertTrue("total_granted_power" in df.columns)
-        self.assertFalse("time" in df.columns)
+        self.assertTrue(len(dfr) > 0)
+        self.assertEquals(dfr["current_temperature"].iloc[0], 47000)
+        self.assertTrue("total_granted_power" in dfr.columns)
+        self.assertFalse("time" in dfr.columns)
 
     def test_plot_input_power(self):
         """Test plot_input_power()
@@ -212,10 +212,9 @@ class TestThermalGovernor(BaseTestThermal):
         other_random_dir = tempfile.mkdtemp()
         os.chdir(other_random_dir)
 
-        t = ThermalGovernor(self.out_dir)
-        df = t.get_data_frame()
+        dfr = ThermalGovernor(self.out_dir).data_frame
 
-        self.assertTrue(len(df) > 0)
+        self.assertTrue(len(dfr) > 0)
         self.assertEquals(os.getcwd(), other_random_dir)
 
     def test_double_thermal(self):
@@ -228,7 +227,7 @@ class TestThermalGovernor(BaseTestThermal):
         """
 
         t = ThermalGovernor()
-        dfr = t.get_data_frame()
+        dfr = t.data_frame
         t.plot_inout_power()
 
 class TestEmptyThermalGovernor(unittest.TestCase):
@@ -263,5 +262,5 @@ CPU:7 [204600 EVENTS DROPPED]
         shutil.rmtree(self.out_dir)
 
     def test_empty_trace_txt(self):
-        df = ThermalGovernor().get_data_frame()
-        self.assertEquals(len(df), 0)
+        dfr = ThermalGovernor().data_frame
+        self.assertEquals(len(dfr), 0)

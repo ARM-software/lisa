@@ -60,13 +60,13 @@ class BaseThermal(object):
 
         self.basepath = basepath
         self.data_csv = ""
-        self.data_frame = None
         self.unique_word = unique_word
 
         if not os.path.isfile(os.path.join(basepath, "trace.txt")):
             self.__run_trace_cmd_report()
 
         self.__parse_into_csv()
+        self.__create_data_frame()
 
     def __run_trace_cmd_report(self):
         """Run "trace-cmd report > trace.txt".
@@ -171,18 +171,13 @@ class BaseThermal(object):
                 parsed_data = timestamp + "," + parsed_data + "\n"
                 self.data_csv += parsed_data
 
-    def get_data_frame(self):
-        """Return a pandas data frame for the run"""
-        if self.data_frame is not None:
-            return self.data_frame
-
+    def __create_data_frame(self):
+        """Create a pandas data frame for the run in self.data_frame"""
         if self.data_csv is "":
-            return pd.DataFrame()
-
-        unordered_df = pd.read_csv(StringIO(self.data_csv))
-        self.data_frame = unordered_df.set_index("Time")
-
-        return self.data_frame
+            self.data_frame = pd.DataFrame()
+        else:
+            unordered_df = pd.read_csv(StringIO(self.data_csv))
+            self.data_frame = unordered_df.set_index("Time")
 
 class Thermal(BaseThermal):
     """Process the thermal framework data in a ftrace dump"""
@@ -202,7 +197,6 @@ class Thermal(BaseThermal):
         plotted.
 
         """
-        dfr = self.get_data_frame()
         title = normalize_title("Temperature", title)
 
         setup_plot = False
@@ -211,7 +205,7 @@ class Thermal(BaseThermal):
             setup_plot = True
 
         temp_label = normalize_title("Temperature", legend_label)
-        (dfr["temp"] / 1000).plot(ax=ax, label=temp_label)
+        (self.data_frame["temp"] / 1000).plot(ax=ax, label=temp_label)
         if control_temperature is not None:
             ct_label = normalize_title("Control", legend_label)
             control_temperature.plot(ax=ax, color="y", linestyle="--",
@@ -240,7 +234,7 @@ class ThermalGovernor(BaseThermal):
         actor_order is an array with the order in which the actors were registered.
         """
 
-        dfr = self.get_data_frame()
+        dfr = self.data_frame
         in_cols = [s for s in dfr.columns if re.match("req_power[0-9]+", s)]
 
         plot_dfr = dfr[in_cols]
@@ -262,12 +256,11 @@ class ThermalGovernor(BaseThermal):
         actor_order is an array with the order in which the actors were registered.
         """
 
-        dfr = self.get_data_frame()
-        out_cols = [s for s in dfr.columns
+        out_cols = [s for s in self.data_frame.columns
                     if re.match("granted_power[0-9]+", s)]
 
         # See the note in plot_input_power()
-        plot_dfr = dfr[out_cols]
+        plot_dfr = self.data_frame[out_cols]
         plot_dfr.columns = actor_order
 
         title = normalize_title("Output Power", title)
@@ -278,7 +271,7 @@ class ThermalGovernor(BaseThermal):
 
     def plot_inout_power(self, title="", width=None, height=None):
         """Make multiple plots showing input and output power for each actor"""
-        dfr = self.get_data_frame()
+        dfr = self.data_frame
 
         actors = []
         for col in dfr.columns:

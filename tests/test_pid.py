@@ -6,13 +6,13 @@ from test_thermal import BaseTestThermal
 from cr2 import PIDController
 
 class TestPIDController(BaseTestThermal):
-    def test_get_dataframe(self):
-        """Test PIDController.get_data_frame()"""
-        df = PIDController().get_data_frame()
+    def test_dataframe(self):
+        """Test that PIDController() generates a valid data_frame"""
+        pid = PIDController()
 
-        self.assertTrue(len(df) > 0)
-        self.assertTrue("err_integral" in df.columns)
-        self.assertEquals(df["err"].iloc[0], 10)
+        self.assertTrue(len(pid.data_frame) > 0)
+        self.assertTrue("err_integral" in pid.data_frame.columns)
+        self.assertEquals(pid.data_frame["err"].iloc[0], 10)
 
     def test_plot_controller(self):
         """Test PIDController.plot_controller()

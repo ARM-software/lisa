@@ -90,7 +90,7 @@ class OutPower(BaseThermal):
         of the cpu.  Returned freqs are in KHz
         """
 
-        dfr = self.get_data_frame()
+        dfr = self.data_frame
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
@@ -108,7 +108,7 @@ class InPower(BaseThermal):
 
         mapping_label is a dictionary mapping cluster numbers to labels."""
 
-        dfr = self.get_data_frame()
+        dfr = self.data_frame
         load_cols = [s for s in dfr.columns if s.startswith("load")]
 
         load_series = dfr[load_cols[0]]
@@ -126,7 +126,7 @@ class InPower(BaseThermal):
         Frequencies are in KHz
         """
 
-        dfr = self.get_data_frame()
+        dfr = self.data_frame
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 

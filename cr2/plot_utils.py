@@ -119,9 +119,8 @@ def plot_temperature(thermal_dict, width=None, height=None, ylim="range"):
 
     for name, data in thermal_dict.iteritems():
         (thermal, gov) = data
-        gov_dfr = gov.get_data_frame()
-        current_temp = gov_dfr["current_temperature"]
-        delta_temp = gov_dfr["delta_temperature"]
+        current_temp = gov.data_frame["current_temperature"]
+        delta_temp = gov.data_frame["delta_temperature"]
         control_temp_series = (current_temp + delta_temp) / 1000
         thermal.plot_temperature(control_temperature=control_temp_series, ax=ax,
                                  legend_label=name)
@@ -164,8 +163,7 @@ def plot_power_hists(in_power, out_power, map_label, title=""):
 def plot_temperature_hist(thermal_data, title=""):
     """Plot a temperature histogram"""
 
-    dfr = thermal_data.get_data_frame()
-    temps = dfr["temp"] / 1000
+    temps = thermal_data.data_frame["temp"] / 1000
     title = normalize_title("Temperature", title)
     xlim = (0, temps.max())
 

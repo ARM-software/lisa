@@ -17,8 +17,6 @@ class PIDController(BaseThermal):
         """Plot a summary of the controller data"""
         title = normalize_title("PID", title)
 
-        dfr = self.get_data_frame()
-
         ax = pre_plot_setup(width, height)
-        dfr[["output", "p", "i", "d"]].plot(ax=ax)
+        self.data_frame[["output", "p", "i", "d"]].plot(ax=ax)
         post_plot_setup(ax, title=title)
