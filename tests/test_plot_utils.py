@@ -101,8 +101,9 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
 
         thrm = cr2.Thermal()
         gov = cr2.ThermalGovernor()
+        data = {"first": [thrm, gov], "second": [thrm, gov]}
 
-        plot_utils.plot_temperature(thrm, gov, title="Foo")
+        plot_utils.plot_temperature(data, ylim="default")
         matplotlib.pyplot.close('all')
 
     def test_plot_power_hists(self):

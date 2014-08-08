@@ -194,7 +194,7 @@ class Thermal(BaseThermal):
         )
 
     def plot_temperature(self, control_temperature=None, title="", width=None,
-                         height=None, ylim="range", ax=None):
+                         height=None, ylim="range", ax=None, legend_label=""):
         """Plot the temperature.
 
         If control_temp is a pd.Series() representing the (possible)
@@ -211,10 +211,12 @@ class Thermal(BaseThermal):
             ax = pre_plot_setup(width, height)
             setup_plot = True
 
-        (dfr["temp"] / 1000).plot(ax=ax)
+        temp_label = normalize_title("Temperature", legend_label)
+        (dfr["temp"] / 1000).plot(ax=ax, label=temp_label)
         if control_temperature is not None:
+            ct_label = normalize_title("Control", legend_label)
             control_temperature.plot(ax=ax, color="y", linestyle="--",
-                           label="control temperature")
+                           label=ct_label)
 
         if setup_plot:
             post_plot_setup(ax, title=title, ylim=ylim)

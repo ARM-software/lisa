@@ -103,21 +103,31 @@ def plot_allfreqs(in_power, out_power, map_label, title="", width=None, height=N
         dfr.plot(ax=ax)
         post_plot_setup(ax, title=this_title)
 
-def plot_temperature(thermal, thermal_gov, **kwords):
+def plot_temperature(thermal_dict, width=None, height=None, ylim="range"):
     """Plot temperatures
 
-    Extract the control_temp from the governor data and plot the
-    temperatures reported by the thermal framework.  The governor
-    doesn't track temperature when it's off, so the thermal framework
-    trace is more reliable.
+    thermal_dict is a dictionary with the first argument being the
+    label in the legend and the values a Thermal and ThermalGovernor
+    instance.  Extract the control_temp from the governor data and
+    plot the temperatures reported by the thermal framework.  The
+    governor doesn't track temperature when it's off, so the thermal
+    framework trace is more reliable.
 
     """
 
-    gov_dfr = thermal_gov.get_data_frame()
-    current_temp = gov_dfr["current_temperature"]
-    delta_temp = gov_dfr["delta_temperature"]
-    control_temp_series = (current_temp +  delta_temp) / 1000
-    thermal.plot_temperature(control_temperature=control_temp_series, **kwords)
+    ax = pre_plot_setup(width, height)
+
+    for name, data in thermal_dict.iteritems():
+        (thermal, gov) = data
+        gov_dfr = gov.get_data_frame()
+        current_temp = gov_dfr["current_temperature"]
+        delta_temp = gov_dfr["delta_temperature"]
+        control_temp_series = (current_temp + delta_temp) / 1000
+        thermal.plot_temperature(control_temperature=control_temp_series, ax=ax,
+                                 legend_label=name)
+
+    post_plot_setup(ax, title="Temperature", ylim=ylim)
+    plt.legend(loc="best")
 
 def plot_hist(data, title, bins, xlabel, xlim, ylim):
     """Plot a histogram"""

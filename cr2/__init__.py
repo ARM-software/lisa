@@ -50,7 +50,13 @@ def summary_plots(actor_order, map_label, **kwords):
     else:
         title = ""
 
-    plot_utils.plot_temperature(thermal_data, gov_data, **kwords)
+    plot_temp_kwords = kwords.copy()
+    if "title" in plot_temp_kwords:
+        del plot_temp_kwords["title"]
+
+    temperature_data = {title: [thermal_data, gov_data]}
+
+    plot_utils.plot_temperature(temperature_data, **plot_temp_kwords)
     inpower_data.plot_load(map_label, **kwords)
     plot_utils.plot_allfreqs(inpower_data, outpower_data, map_label, **kwords)
     pid_data.plot_controller(**kwords)
