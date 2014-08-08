@@ -66,6 +66,8 @@ class BaseThermal(object):
         if not os.path.isfile(os.path.join(basepath, "trace.txt")):
             self.__run_trace_cmd_report()
 
+        self.__parse_into_csv()
+
     def __run_trace_cmd_report(self):
         """Run "trace-cmd report > trace.txt".
 
@@ -124,7 +126,7 @@ class BaseThermal(object):
 
         return ret
 
-    def parse_into_csv(self):
+    def __parse_into_csv(self):
         """Create a csv representation of the thermal data and store
         it in self.data_csv"""
 
@@ -173,9 +175,6 @@ class BaseThermal(object):
         """Return a pandas data frame for the run"""
         if self.data_frame is not None:
             return self.data_frame
-
-        if not self.data_csv:
-            self.parse_into_csv()
 
         if self.data_csv is "":
             return pd.DataFrame()
@@ -232,9 +231,6 @@ class ThermalGovernor(BaseThermal):
 
     def write_thermal_csv(self):
         """Write the csv info in thermal.csv"""
-        if not self.data_csv:
-            self.parse_into_csv()
-
         with open("thermal.csv", "w") as fout:
             fout.write(self.data_csv)
 

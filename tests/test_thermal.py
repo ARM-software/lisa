@@ -103,7 +103,6 @@ class TestThermalBase(utils_tests.SetupDirectory):
             fout.write(in_data)
 
         base = thermal.BaseThermal(None, "thermal_power_actor_cpu_get_dyn_power")
-        base.parse_into_csv()
 
         data_csv_lines = base.data_csv.split('\n')
 
