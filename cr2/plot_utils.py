@@ -108,7 +108,7 @@ def plot_temperature(thermal, thermal_gov, **kwords):
 
     Extract the control_temp from the governor data and plot the
     temperatures reported by the thermal framework.  The governor
-    doesn't track temperature when its off, so the thermal framework
+    doesn't track temperature when it's off, so the thermal framework
     trace is more reliable.
 
     """
