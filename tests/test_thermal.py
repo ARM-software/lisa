@@ -217,19 +217,6 @@ class TestThermalGovernor(BaseTestThermal):
         self.assertTrue(len(dfr) > 0)
         self.assertEquals(os.getcwd(), other_random_dir)
 
-    def test_double_thermal(self):
-        """Make sure that multiple invocations of ThermalGovernor work fine
-
-        It should memoize the DataFrame() from the call to
-        get_data_frame() to the plot_temperature() one and the latter
-        shouldn't bomb
-
-        """
-
-        t = ThermalGovernor()
-        dfr = t.data_frame
-        t.plot_inout_power()
-
 class TestEmptyThermalGovernor(unittest.TestCase):
     def setUp(self):
         self.previous_dir = os.getcwd()
