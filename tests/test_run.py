@@ -14,3 +14,22 @@ class TestRun(BaseTestThermal):
         self.assertTrue(len(run.pid_controller.data_frame) > 0)
         self.assertTrue(len(run.in_power.data_frame) > 0)
         self.assertTrue(len(run.out_power.data_frame) > 0)
+
+    def test_run_normalize_time(self):
+        """Run().normalize_time() works accross all classes"""
+
+        run = Run()
+
+        prev_inpower_basetime = run.in_power.data_frame.index[0]
+        prev_inpower_last = run.in_power.data_frame.index[-1]
+
+        basetime = run.thermal.data_frame.index[0]
+        run.normalize_time(basetime)
+
+        self.assertEquals(round(run.thermal.data_frame.index[0], 7), 0)
+
+        exp_inpower_first = prev_inpower_basetime - basetime
+        self.assertEquals(round(run.in_power.data_frame.index[0] - exp_inpower_first, 7), 0)
+
+        exp_inpower_last = prev_inpower_last - basetime
+        self.assertEquals(round(run.in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
