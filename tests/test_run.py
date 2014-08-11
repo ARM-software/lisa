@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import matplotlib
+
 from test_thermal import BaseTestThermal
 from cr2 import Run
 
@@ -33,3 +35,12 @@ class TestRun(BaseTestThermal):
 
         exp_inpower_last = prev_inpower_last - basetime
         self.assertEquals(round(run.in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
+
+    def test_plot_power_hists(self):
+        """Test that plot_power_hists() doesn't bomb"""
+
+        run = Run()
+        map_label = {"0000000f": "A7", "000000f0": "A15"}
+
+        run.plot_power_hists(map_label)
+        matplotlib.pyplot.close('all')

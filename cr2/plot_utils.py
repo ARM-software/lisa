@@ -139,27 +139,6 @@ def plot_hist(data, title, bins, xlabel, xlim, ylim):
     data.hist(ax=ax, bins=bins)
     post_plot_setup(ax, title=title, xlabel=xlabel, xlim=xlim, ylim=ylim)
 
-def __plot_power_hists(power_inst, map_label, what, title):
-    """Helper function for plot_power_hists
-
-    power_obj is either an InPower() or OutPower() instance.  what is
-    a string: "in" or "out"
-
-    """
-    freqs = power_inst.get_all_freqs(map_label)
-    for actor in freqs:
-        this_title = "freq {} {}".format(what, actor)
-        this_title = normalize_title(this_title, title)
-        xlim = (0, freqs[actor].max())
-
-        plot_hist(freqs[actor], this_title, 20, "Frequency (KHz)", xlim, "default")
-
-def plot_power_hists(in_power, out_power, map_label, title=""):
-    """Plot histograms for each actor input and output power"""
-
-    __plot_power_hists(out_power, map_label, "out", title)
-    __plot_power_hists(in_power, map_label, "in", title)
-
 def plot_temperature_hist(thermal_data, title=""):
     """Plot a temperature histogram"""
 
