@@ -122,3 +122,13 @@ def plot_hist(data, title, bins, xlabel, xlim, ylim):
     ax = pre_plot_setup()
     data.hist(ax=ax, bins=bins)
     post_plot_setup(ax, title=title, xlabel=xlabel, xlim=xlim, ylim=ylim)
+
+def plot_load(runs, map_label, width=None, height=None):
+    """Make a multiplot of all the loads"""
+    axis = pre_plot_setup(width=width, height=height, ncols=len(runs))
+
+    for ax, run in zip(axis, runs):
+        run.in_power.plot_load(map_label, ax=ax)
+
+        title = normalize_title("Utilisation", run.name)
+        post_plot_setup(ax, title=title)

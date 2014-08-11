@@ -89,6 +89,10 @@ class TestPlotUtils(unittest.TestCase):
         plot_utils.plot_hist(data, "Foo", 20, "numbers", (0, 4), "default")
 
 class TestPlotUtilsNeedTrace(BaseTestThermal):
+    def __init__(self, *args, **kwargs):
+        super(TestPlotUtilsNeedTrace, self).__init__(*args, **kwargs)
+        self.map_label = {"0000000f": "A7", "000000f0": "A15"}
+
     def test_plot_temperature(self):
         """Test that plot_utils.plot_temperature() doesn't bomb"""
 
@@ -97,4 +101,14 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
         runs = [run1, run2]
 
         plot_utils.plot_temperature(runs, ylim="default")
+        matplotlib.pyplot.close('all')
+
+    def test_plot_load(self):
+        """Test that plot_utils.plot_load() doesn't bomb"""
+
+        run1 = cr2.Run(name="first")
+        run2 = cr2.Run(name="second")
+        runs = [run1, run2]
+
+        plot_utils.plot_load(runs, self.map_label, height=5)
         matplotlib.pyplot.close('all')
