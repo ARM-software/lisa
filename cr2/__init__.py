@@ -35,11 +35,6 @@ def summary_plots(actor_order, map_label, **kwords):
     else:
         path = None
 
-    run_data = Run(path=path)
-
-    basetime = run_data.thermal.data_frame.index[0]
-    run_data.normalize_time(basetime)
-
     if "width" not in kwords:
         kwords["width"] = 20
     if "height" not in kwords:
@@ -50,11 +45,16 @@ def summary_plots(actor_order, map_label, **kwords):
     else:
         title = ""
 
-    plot_temp_kwords = kwords.copy()
-    if "title" in plot_temp_kwords:
-        del plot_temp_kwords["title"]
+    kwords_wout_title = kwords.copy()
+    if "title" in kwords_wout_title:
+        del kwords_wout_title["title"]
 
-    plot_utils.plot_temperature([run_data], **plot_temp_kwords)
+    run_data = Run(path=path, name=title)
+
+    basetime = run_data.thermal.data_frame.index[0]
+    run_data.normalize_time(basetime)
+
+    plot_utils.plot_temperature([run_data], **kwords_wout_title)
     run_data.in_power.plot_load(map_label, **kwords)
     run_data.plot_allfreqs(map_label, **kwords)
     run_data.pid_controller.plot_controller(**kwords)
