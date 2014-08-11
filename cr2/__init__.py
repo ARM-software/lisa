@@ -35,16 +35,10 @@ def summary_plots(actor_order, map_label, **kwords):
     else:
         path = None
 
-    thermal_data = Thermal(path=path)
-    gov_data = ThermalGovernor(path=path)
-    inpower_data = InPower(path=path)
-    outpower_data = OutPower(path=path)
-    pid_data = PIDController(path=path)
+    run_data = Run(path=path)
 
-    basetime = thermal_data.data_frame.index[0]
-    for data_class in [thermal_data, gov_data, inpower_data, outpower_data,
-                       pid_data]:
-        data_class.normalize_time(basetime)
+    basetime = run_data.thermal.data_frame.index[0]
+    run_data.normalize_time(basetime)
 
     if "width" not in kwords:
         kwords["width"] = 20
@@ -60,13 +54,13 @@ def summary_plots(actor_order, map_label, **kwords):
     if "title" in plot_temp_kwords:
         del plot_temp_kwords["title"]
 
-    temperature_data = {title: [thermal_data, gov_data]}
+    temperature_data = {title: [run_data.thermal, run_data.thermal_governor]}
 
     plot_utils.plot_temperature(temperature_data, **plot_temp_kwords)
-    inpower_data.plot_load(map_label, **kwords)
-    plot_utils.plot_allfreqs(inpower_data, outpower_data, map_label, **kwords)
-    pid_data.plot_controller(**kwords)
-    gov_data.plot_input_power(actor_order, **kwords)
-    gov_data.plot_output_power(actor_order, **kwords)
-    plot_utils.plot_power_hists(inpower_data, outpower_data, map_label, title)
-    plot_utils.plot_temperature_hist(thermal_data, title)
+    run_data.in_power.plot_load(map_label, **kwords)
+    plot_utils.plot_allfreqs(run_data.in_power, run_data.out_power, map_label, **kwords)
+    run_data.pid_controller.plot_controller(**kwords)
+    run_data.thermal_governor.plot_input_power(actor_order, **kwords)
+    run_data.thermal_governor.plot_output_power(actor_order, **kwords)
+    plot_utils.plot_power_hists(run_data.in_power, run_data.out_power, map_label, title)
+    plot_utils.plot_temperature_hist(run_data.thermal, title)
