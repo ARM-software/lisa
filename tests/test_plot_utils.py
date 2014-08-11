@@ -46,7 +46,7 @@ class TestPlotUtils(unittest.TestCase):
     def test_set_ylim(self):
         """Test that set_ylim() doesn't bomb"""
 
-        ax = plot_utils.pre_plot_setup()
+        _, ax = matplotlib.pyplot.subplots()
 
         plot_utils.set_ylim(ax, "default")
         plot_utils.set_ylim(ax, (0, 5))
@@ -54,7 +54,7 @@ class TestPlotUtils(unittest.TestCase):
     def test_set_xlim(self):
         """Test that set_xlim() doesn't bomb"""
 
-        ax = plot_utils.pre_plot_setup()
+        _, ax = matplotlib.pyplot.subplots()
 
         plot_utils.set_xlim(ax, "default")
         plot_utils.set_xlim(ax, (0, 5))
@@ -72,7 +72,7 @@ class TestPlotUtils(unittest.TestCase):
     def test_post_plot_setup(self):
         """Test that post_plot_setup() doesn't bomb"""
 
-        ax = plot_utils.pre_plot_setup()
+        _, ax = matplotlib.pyplot.subplots()
 
         plot_utils.post_plot_setup(ax)
         plot_utils.post_plot_setup(ax, title="Foo")
