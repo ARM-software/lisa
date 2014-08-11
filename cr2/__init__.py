@@ -58,7 +58,7 @@ def summary_plots(actor_order, map_label, **kwords):
 
     plot_utils.plot_temperature(temperature_data, **plot_temp_kwords)
     run_data.in_power.plot_load(map_label, **kwords)
-    plot_utils.plot_allfreqs(run_data.in_power, run_data.out_power, map_label, **kwords)
+    run_data.plot_allfreqs(map_label, **kwords)
     run_data.pid_controller.plot_controller(**kwords)
     run_data.thermal_governor.plot_input_power(actor_order, **kwords)
     run_data.thermal_governor.plot_output_power(actor_order, **kwords)

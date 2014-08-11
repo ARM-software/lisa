@@ -45,3 +45,16 @@ class Run(object):
 
         _plot_power_hists(self.out_power, map_label, "out", title)
         _plot_power_hists(self.in_power, map_label, "in", title)
+
+    def plot_allfreqs(self, map_label, title="", width=None, height=None):
+        """Do allfreqs plots similar to those of CompareRuns"""
+        import power
+
+        all_freqs = power.get_all_freqs_data(self.in_power, self.out_power, map_label)
+
+        for label, dfr in all_freqs.iteritems():
+            this_title = plot_utils.normalize_title("allfreqs " + label, title)
+
+            ax = plot_utils.pre_plot_setup(width=width, height=height)
+            dfr.plot(ax=ax)
+            plot_utils.post_plot_setup(ax, title=this_title)

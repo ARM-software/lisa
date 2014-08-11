@@ -44,3 +44,12 @@ class TestRun(BaseTestThermal):
 
         run.plot_power_hists(map_label)
         matplotlib.pyplot.close('all')
+
+    def test_plot_allfreqs(self):
+        """Test that plot_allfreqs() doesn't bomb"""
+
+        run = Run()
+        map_label = {"0000000f": "A7", "000000f0": "A15"}
+
+        run.plot_allfreqs(map_label)
+        matplotlib.pyplot.close('all')

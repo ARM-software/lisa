@@ -86,16 +86,6 @@ class TestPlotUtils(unittest.TestCase):
         plot_utils.plot_hist(data, "Foo", 20, "numbers", (0, 4), "default")
 
 class TestPlotUtilsNeedTrace(BaseTestThermal):
-    def test_plot_allfreqs(self):
-        """Test that plot_allfreqs() doesn't bomb"""
-
-        inp = cr2.InPower()
-        outp = cr2.OutPower()
-        map_label = {"0000000f": "A7", "000000f0": "A15"}
-
-        plot_utils.plot_allfreqs(inp, outp, map_label)
-        matplotlib.pyplot.close('all')
-
     def test_plot_temperature(self):
         """Test that plot_utils.plot_temperature() doesn't bomb"""
 
