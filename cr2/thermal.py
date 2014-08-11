@@ -60,6 +60,7 @@ class BaseThermal(object):
 
         self.basepath = basepath
         self.data_csv = ""
+        self.data_frame = pd.DataFrame()
         self.unique_word = unique_word
 
         if not os.path.isfile(os.path.join(basepath, "trace.txt")):
