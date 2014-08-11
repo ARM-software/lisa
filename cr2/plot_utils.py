@@ -90,27 +90,24 @@ def post_plot_setup(ax, title="", xlabel=None, xlim="default", ylim="range"):
     set_ylim(ax, ylim)
     set_xlim(ax, xlim)
 
-def plot_temperature(thermal_dict, width=None, height=None, ylim="range"):
+def plot_temperature(runs, width=None, height=None, ylim="range"):
     """Plot temperatures
 
-    thermal_dict is a dictionary with the first argument being the
-    label in the legend and the values a Thermal and ThermalGovernor
-    instance.  Extract the control_temp from the governor data and
-    plot the temperatures reported by the thermal framework.  The
-    governor doesn't track temperature when it's off, so the thermal
-    framework trace is more reliable.
+    runs is an array of Run() instances.  Extract the control_temp
+    from the governor data and plot the temperatures reported by the
+    thermal framework.  The governor doesn't track temperature when
+    it's off, so the thermal framework trace is more reliable.
 
     """
 
     ax = pre_plot_setup(width, height)
 
-    for name, data in thermal_dict.iteritems():
-        (thermal, gov) = data
-        current_temp = gov.data_frame["current_temperature"]
-        delta_temp = gov.data_frame["delta_temperature"]
+    for run in runs:
+        current_temp = run.thermal_governor.data_frame["current_temperature"]
+        delta_temp = run.thermal_governor.data_frame["delta_temperature"]
         control_temp_series = (current_temp + delta_temp) / 1000
-        thermal.plot_temperature(control_temperature=control_temp_series, ax=ax,
-                                 legend_label=name)
+        run.thermal.plot_temperature(control_temperature=control_temp_series,
+                                     ax=ax, legend_label=run.name)
 
     post_plot_setup(ax, title="Temperature", ylim=ylim)
     plt.legend(loc="best")

@@ -54,9 +54,7 @@ def summary_plots(actor_order, map_label, **kwords):
     if "title" in plot_temp_kwords:
         del plot_temp_kwords["title"]
 
-    temperature_data = {title: [run_data.thermal, run_data.thermal_governor]}
-
-    plot_utils.plot_temperature(temperature_data, **plot_temp_kwords)
+    plot_utils.plot_temperature([run_data], **plot_temp_kwords)
     run_data.in_power.plot_load(map_label, **kwords)
     run_data.plot_allfreqs(map_label, **kwords)
     run_data.pid_controller.plot_controller(**kwords)

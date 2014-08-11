@@ -89,9 +89,9 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
     def test_plot_temperature(self):
         """Test that plot_utils.plot_temperature() doesn't bomb"""
 
-        thrm = cr2.Thermal()
-        gov = cr2.ThermalGovernor()
-        data = {"first": [thrm, gov], "second": [thrm, gov]}
+        run1 = cr2.Run(name="first")
+        run2 = cr2.Run(name="second")
+        runs = [run1, run2]
 
-        plot_utils.plot_temperature(data, ylim="default")
+        plot_utils.plot_temperature(runs, ylim="default")
         matplotlib.pyplot.close('all')
