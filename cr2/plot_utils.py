@@ -125,7 +125,11 @@ def plot_hist(data, title, bins, xlabel, xlim, ylim):
 
 def plot_load(runs, map_label, width=None, height=None):
     """Make a multiplot of all the loads"""
-    axis = pre_plot_setup(width=width, height=height, ncols=len(runs))
+    num_runs = len(runs)
+    axis = pre_plot_setup(width=width, height=height, ncols=num_runs)
+
+    if num_runs == 1:
+        axis = [axis]
 
     for ax, run in zip(axis, runs):
         run.in_power.plot_load(map_label, ax=ax)

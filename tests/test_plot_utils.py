@@ -112,3 +112,10 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
 
         plot_utils.plot_load(runs, self.map_label, height=5)
         matplotlib.pyplot.close('all')
+
+    def test_plot_load_single_run(self):
+        """plot_utils.plot_load() can be used with a single run"""
+        run = cr2.Run()
+
+        plot_utils.plot_load([run], self.map_label)
+        matplotlib.pyplot.close('all')
