@@ -24,21 +24,6 @@ class TestPower(BaseTestThermal):
         self.assertEquals(dfr_out["A15"].iloc[2], 2)
         self.assertEquals(dfr_out["A7"].iloc[1], 3)
 
-    def test_get_all_freqs_data(self):
-        """Test get_all_freqs_data()"""
-
-        inp = InPower()
-        outp = OutPower()
-
-        allfreqs = power.get_all_freqs_data(inp, outp, self.map_label)
-
-        self.assertEquals(allfreqs["A7"]["A7_freq_out"].iloc[1], 1400)
-        self.assertEquals(allfreqs["A7"]["A7_freq_in"].iloc[35], 1400)
-        self.assertEquals(allfreqs["A15"]["A15_freq_out"].iloc[0], 1900)
-
-        # Make sure there are no NaNs in the middle of the array
-        self.assertTrue(allfreqs["A15"]["A15_freq_out"].notnull().all())
-
     def test_outpower_dataframe(self):
         """Test that OutPower() creates a proper data_frame"""
         outp = OutPower()

@@ -6,6 +6,10 @@ from test_thermal import BaseTestThermal
 from cr2 import Run
 
 class TestRun(BaseTestThermal):
+    def __init__(self, *args, **kwargs):
+        super(TestRun, self).__init__(*args, **kwargs)
+        self.map_label = {"000000f0": "A15", "0000000f": "A7"}
+
     def test_run_has_all_classes(self):
         """The Run() class has members for all classes"""
 
@@ -35,6 +39,18 @@ class TestRun(BaseTestThermal):
 
         exp_inpower_last = prev_inpower_last - basetime
         self.assertEquals(round(run.in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
+
+    def test_get_all_freqs_data(self):
+        """Test get_all_freqs_data()"""
+
+        allfreqs = Run().get_all_freqs_data(self.map_label)
+
+        self.assertEquals(allfreqs["A7"]["A7_freq_out"].iloc[1], 1400)
+        self.assertEquals(allfreqs["A7"]["A7_freq_in"].iloc[35], 1400)
+        self.assertEquals(allfreqs["A15"]["A15_freq_out"].iloc[0], 1900)
+
+        # Make sure there are no NaNs in the middle of the array
+        self.assertTrue(allfreqs["A15"]["A15_freq_out"].notnull().all())
 
     def test_plot_power_hists(self):
         """Test that plot_power_hists() doesn't bomb"""

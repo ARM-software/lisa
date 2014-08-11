@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import pandas as pd
+
 from thermal import Thermal, ThermalGovernor
 from pid_controller import PIDController
 from power import InPower, OutPower
@@ -40,6 +42,22 @@ class Run(object):
         for attr in self.classes.iterkeys():
             getattr(self, attr).normalize_time(basetime)
 
+    def get_all_freqs_data(self, map_label):
+        """get a dict of DataFrames suitable for the allfreqs plot"""
+
+        in_freqs = self.in_power.get_all_freqs(map_label)
+        out_freqs = self.out_power.get_all_freqs(map_label)
+
+        ret_dict = {}
+        for label in map_label.values():
+            in_label = label + "_freq_in"
+            out_label = label + "_freq_out"
+
+            inout_freq_dict = {in_label: in_freqs[label], out_label: out_freqs[label]}
+            ret_dict[label] = pd.DataFrame(inout_freq_dict).fillna(method="pad")
+
+        return ret_dict
+
     def plot_power_hists(self, map_label, title=""):
         """Plot histograms for each actor input and output power"""
 
@@ -48,9 +66,7 @@ class Run(object):
 
     def plot_allfreqs(self, map_label, title="", width=None, height=None):
         """Do allfreqs plots similar to those of CompareRuns"""
-        import power
-
-        all_freqs = power.get_all_freqs_data(self.in_power, self.out_power, map_label)
+        all_freqs = self.get_all_freqs_data(map_label)
 
         for label, dfr in all_freqs.iteritems():
             this_title = plot_utils.normalize_title("allfreqs " + label, title)
