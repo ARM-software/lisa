@@ -141,6 +141,21 @@ class TestThermal(BaseTestThermal):
         th_data.plot_temperature(ax=ax)
         matplotlib.pyplot.close('all')
 
+    def test_normalize_time(self):
+        """BaseThermal.normalize_time() normalizes the time of the trace"""
+        thrm = thermal.Thermal()
+
+        last_prev_time = thrm.data_frame.index[-1]
+
+        basetime = thrm.data_frame.index[0]
+        thrm.normalize_time(basetime)
+
+        last_time = thrm.data_frame.index[-1]
+        expected_last_time = last_prev_time - basetime
+
+        self.assertEquals(round(thrm.data_frame.index[0], 7), 0)
+        self.assertEquals(round(last_time - expected_last_time, 7), 0)
+
 class TestThermalGovernor(BaseTestThermal):
     def __init__(self, *args, **kwargs):
         super(TestThermalGovernor, self).__init__(*args, **kwargs)

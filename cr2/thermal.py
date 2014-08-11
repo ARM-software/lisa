@@ -179,6 +179,12 @@ class BaseThermal(object):
             self.data_frame = pd.read_csv(StringIO(self.data_csv))
             self.data_frame.set_index("Time", inplace=True)
 
+    def normalize_time(self, basetime):
+        """Substract basetime from the Time of the data frame"""
+        self.data_frame.reset_index(inplace=True)
+        self.data_frame["Time"] = self.data_frame["Time"] - basetime
+        self.data_frame.set_index("Time", inplace=True)
+
 class Thermal(BaseThermal):
     """Process the thermal framework data in a ftrace dump"""
     def __init__(self, path=None):
