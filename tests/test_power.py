@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import matplotlib
 import pandas as pd
 
 from test_thermal import BaseTestThermal
@@ -99,4 +100,8 @@ class TestPower(BaseTestThermal):
 
     def test_inpower_plot_load(self):
         """Test that InPower.plot_load() doesn't explode"""
-        InPower().plot_load(self.map_label, title="Util")
+        inp = InPower()
+        inp.plot_load(self.map_label, title="Util")
+
+        _, ax = matplotlib.pyplot.subplots()
+        inp.plot_load(self.map_label, ax=ax)
