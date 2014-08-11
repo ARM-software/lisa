@@ -66,6 +66,9 @@ class TestPlotUtils(unittest.TestCase):
         plot_utils.pre_plot_setup(height=None, width=9)
         plot_utils.pre_plot_setup(3, 9)
 
+        axis = plot_utils.pre_plot_setup(ncols=2)
+        self.assertEquals(len(axis), 2)
+
     def test_post_plot_setup(self):
         """Test that post_plot_setup() doesn't bomb"""
 
