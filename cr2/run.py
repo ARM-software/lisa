@@ -33,9 +33,10 @@ class Run(object):
                "out_power": "OutPower",
     }
 
-    def __init__(self, path=None):
-        for name, class_name in self.classes.iteritems():
-            setattr(self, name, globals()[class_name](path))
+    def __init__(self, path=None, name=""):
+        self.name = name
+        for attr, class_name in self.classes.iteritems():
+            setattr(self, attr, globals()[class_name](path))
 
     def normalize_time(self, basetime):
         """Normalize the time of all the trace classes"""

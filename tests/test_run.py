@@ -21,6 +21,13 @@ class TestRun(BaseTestThermal):
         self.assertTrue(len(run.in_power.data_frame) > 0)
         self.assertTrue(len(run.out_power.data_frame) > 0)
 
+    def test_run_accepts_name(self):
+        """The Run() class has members for all classes"""
+
+        run = Run(name="foo")
+
+        self.assertEquals(run.name, "foo")
+
     def test_run_normalize_time(self):
         """Run().normalize_time() works accross all classes"""
 
