@@ -40,6 +40,11 @@ def summary_plots(actor_order, map_label, **kwords):
     outpower_data = OutPower(path=path)
     pid_data = PIDController(path=path)
 
+    basetime = thermal_data.data_frame.index[0]
+    for data_class in [thermal_data, gov_data, inpower_data, outpower_data,
+                       pid_data]:
+        data_class.normalize_time(basetime)
+
     if "width" not in kwords:
         kwords["width"] = 20
     if "height" not in kwords:
