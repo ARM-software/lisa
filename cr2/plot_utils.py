@@ -125,12 +125,3 @@ def plot_hist(data, title, bins, xlabel, xlim, ylim):
     ax = pre_plot_setup()
     data.hist(ax=ax, bins=bins)
     post_plot_setup(ax, title=title, xlabel=xlabel, xlim=xlim, ylim=ylim)
-
-def plot_temperature_hist(thermal_data, title=""):
-    """Plot a temperature histogram"""
-
-    temps = thermal_data.data_frame["temp"] / 1000
-    title = normalize_title("Temperature", title)
-    xlim = (0, temps.max())
-
-    plot_hist(temps, title, 30, "Temperature", xlim, "default")

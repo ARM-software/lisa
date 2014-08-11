@@ -63,4 +63,4 @@ def summary_plots(actor_order, map_label, **kwords):
     run_data.thermal_governor.plot_input_power(actor_order, **kwords)
     run_data.thermal_governor.plot_output_power(actor_order, **kwords)
     run_data.plot_power_hists(map_label, title)
-    plot_utils.plot_temperature_hist(run_data.thermal, title)
+    run_data.thermal.plot_temperature_hist(title)

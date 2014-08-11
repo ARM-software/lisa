@@ -8,7 +8,7 @@ from StringIO import StringIO
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from plot_utils import normalize_title, pre_plot_setup, post_plot_setup
+from plot_utils import normalize_title, pre_plot_setup, post_plot_setup, plot_hist
 
 def trace_parser_explode_array(string, array_lengths):
     """Explode an array in the trace into individual elements for easy parsing
@@ -221,6 +221,15 @@ class Thermal(BaseThermal):
         if setup_plot:
             post_plot_setup(ax, title=title, ylim=ylim)
             plt.legend()
+
+    def plot_temperature_hist(self, title=""):
+        """Plot a temperature histogram"""
+
+        temps = self.data_frame["temp"] / 1000
+        title = normalize_title("Temperature", title)
+        xlim = (0, temps.max())
+
+        plot_hist(temps, title, 30, "Temperature", xlim, "default")
 
 class ThermalGovernor(BaseThermal):
     """Process the power allocator data in a ftrace dump"""

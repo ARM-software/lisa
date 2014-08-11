@@ -95,11 +95,3 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
 
         plot_utils.plot_temperature(data, ylim="default")
         matplotlib.pyplot.close('all')
-
-    def test_plot_temperature_hist(self):
-        """Test that plot_temperature_hist() doesn't bomb"""
-
-        therm = cr2.Thermal()
-
-        plot_utils.plot_temperature_hist(therm, "Foo")
-        matplotlib.pyplot.close('all')
