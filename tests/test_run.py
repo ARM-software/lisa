@@ -59,12 +59,12 @@ class TestRun(BaseTestThermal):
         # Make sure there are no NaNs in the middle of the array
         self.assertTrue(allfreqs[0][1]["A15_freq_out"].notnull().all())
 
-    def test_plot_power_hists(self):
-        """Test that plot_power_hists() doesn't bomb"""
+    def test_plot_freq_hists(self):
+        """Test that plot_freq_hists() doesn't bomb"""
 
         run = Run()
 
-        run.plot_power_hists(self.map_label)
+        run.plot_freq_hists(self.map_label)
         matplotlib.pyplot.close('all')
 
     def test_plot_allfreqs(self):

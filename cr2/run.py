@@ -7,8 +7,8 @@ from pid_controller import PIDController
 from power import InPower, OutPower
 import plot_utils
 
-def _plot_power_hists(power_inst, map_label, what, title):
-    """Helper function for plot_power_hists
+def _plot_freq_hists(power_inst, map_label, what, title):
+    """Helper function for plot_freq_hists
 
     power_obj is either an InPower() or OutPower() instance.  what is
     a string: "in" or "out"
@@ -62,11 +62,11 @@ class Run(object):
 
         return ret
 
-    def plot_power_hists(self, map_label, title=""):
-        """Plot histograms for each actor input and output power"""
+    def plot_freq_hists(self, map_label, title=""):
+        """Plot histograms for each actor input and output frequency"""
 
-        _plot_power_hists(self.out_power, map_label, "out", title)
-        _plot_power_hists(self.in_power, map_label, "in", title)
+        _plot_freq_hists(self.out_power, map_label, "out", title)
+        _plot_freq_hists(self.in_power, map_label, "in", title)
 
     def plot_allfreqs(self, map_label, width=None, height=None, ax=None):
         """Do allfreqs plots similar to those of CompareRuns
