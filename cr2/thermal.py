@@ -268,7 +268,7 @@ class ThermalGovernor(BaseThermal):
         plot_dfr.plot(ax=ax)
         post_plot_setup(ax, title=title)
 
-    def plot_output_power(self, actor_order, title="", width=None, height=None):
+    def plot_output_power(self, actor_order, title="", width=None, height=None, ax=None):
         """Plot output power
 
         actor_order is an array with the order in which the actors were registered.
@@ -283,7 +283,9 @@ class ThermalGovernor(BaseThermal):
 
         title = normalize_title("Output Power", title)
 
-        ax = pre_plot_setup(width, height)
+        if not ax:
+            ax = pre_plot_setup(width, height)
+
         plot_dfr.plot(ax=ax)
         post_plot_setup(ax, title=title)
 

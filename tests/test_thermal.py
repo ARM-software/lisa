@@ -229,6 +229,10 @@ class TestThermalGovernor(BaseTestThermal):
         gov.plot_output_power(self.actor_order, title="Antutu")
         matplotlib.pyplot.close('all')
 
+        _, ax = matplotlib.pyplot.subplots()
+        gov.plot_output_power(self.actor_order, title="Antutu", ax=ax)
+        matplotlib.pyplot.close('all')
+
     def test_plot_inout_power(self):
         """Test plot_inout_power()
 
