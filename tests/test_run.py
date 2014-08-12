@@ -71,7 +71,11 @@ class TestRun(BaseTestThermal):
         """Test that plot_allfreqs() doesn't bomb"""
 
         run = Run()
-        map_label = {"0000000f": "A7", "000000f0": "A15"}
 
-        run.plot_allfreqs(map_label)
+        run.plot_allfreqs(self.map_label)
+        matplotlib.pyplot.close('all')
+
+        _, axis = matplotlib.pyplot.subplots(ncols=2)
+
+        run.plot_allfreqs(self.map_label, ax=axis)
         matplotlib.pyplot.close('all')
