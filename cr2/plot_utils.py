@@ -164,3 +164,14 @@ def plot_controller(runs, width=None, height=None):
 
     for ax, run in zip(axis, runs):
         run.pid_controller.plot_controller(title=run.name, ax=ax)
+
+def plot_input_power(runs, actor_order, width=None, height=None):
+    """Make a multicolumn plot of the input power of each run"""
+    num_runs = len(runs)
+    axis = pre_plot_setup(width=width, height=height, ncols=num_runs)
+
+    if num_runs == 1:
+        axis = [axis]
+
+    for ax, run in zip(axis, runs):
+        run.thermal_governor.plot_input_power(actor_order, title=run.name, ax=ax)

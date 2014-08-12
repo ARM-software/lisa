@@ -97,6 +97,7 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
     def __init__(self, *args, **kwargs):
         super(TestPlotUtilsNeedTrace, self).__init__(*args, **kwargs)
         self.map_label = {"0000000f": "A7", "000000f0": "A15"}
+        self.actor_order = ["GPU", "A15", "A7"]
 
     def test_plot_temperature(self):
         """Test that plot_utils.plot_temperature() doesn't bomb"""
@@ -150,4 +151,14 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
         runs = [run1, run2]
 
         plot_utils.plot_controller(runs, height=5)
+        matplotlib.pyplot.close('all')
+
+    def test_plot_input_power(self):
+        """plot_utils.plot_input_power() doesn't bomb"""
+
+        run1 = cr2.Run(name="first")
+        run2 = cr2.Run(name="second")
+        runs = [run1, run2]
+
+        plot_utils.plot_input_power(runs, self.actor_order, width=20)
         matplotlib.pyplot.close('all')
