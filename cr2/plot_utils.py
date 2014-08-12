@@ -50,7 +50,7 @@ def set_ylim(ax, ylim):
     """
     set_lim(ylim, ax.get_ylim, ax.set_ylim)
 
-def pre_plot_setup(width=None, height=None, ncols=1):
+def pre_plot_setup(width=None, height=None, ncols=1, nrows=1):
     """initialize a figure
 
     width and height are numbers.  This function should be called
@@ -68,7 +68,7 @@ def pre_plot_setup(width=None, height=None, ncols=1):
         if width is None:
             width = height * GOLDEN_RATIO
 
-    _, axis = plt.subplots(ncols=ncols, figsize=(width, height))
+    _, axis = plt.subplots(ncols=ncols, nrows=nrows, figsize=(width, height))
 
     return axis
 
