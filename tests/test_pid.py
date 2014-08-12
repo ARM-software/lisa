@@ -25,3 +25,7 @@ class TestPIDController(BaseTestThermal):
 
         pid.plot_controller(title="Antutu", width=20, height=5)
         matplotlib.pyplot.close('all')
+
+        _, ax = matplotlib.pyplot.subplots()
+        pid.plot_controller(ax=ax)
+        matplotlib.pyplot.close('all')
