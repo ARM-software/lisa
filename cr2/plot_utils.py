@@ -53,8 +53,9 @@ def set_ylim(ax, ylim):
 def pre_plot_setup(width=None, height=None, ncols=1, nrows=1):
     """initialize a figure
 
-    width and height are numbers.  This function should be called
-    before any calls to plot()
+    width and height are the height and width of each row of plots.
+    For 1x1 plots, that's the height and width of the plot.  This
+    function should be called before any calls to plot()
 
     """
 
@@ -67,6 +68,8 @@ def pre_plot_setup(width=None, height=None, ncols=1, nrows=1):
     else:
         if width is None:
             width = height * GOLDEN_RATIO
+
+    height *= nrows
 
     _, axis = plt.subplots(ncols=ncols, nrows=nrows, figsize=(width, height))
 
