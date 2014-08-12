@@ -204,19 +204,25 @@ class TestThermalGovernor(BaseTestThermal):
         self.assertFalse("time" in dfr.columns)
 
     def test_plot_input_power(self):
-        """Test plot_input_power()
+        """plot_input_power() doesn't bomb"""
+        gov = ThermalGovernor()
 
-        Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        ThermalGovernor().plot_input_power(self.actor_order)
-        ThermalGovernor().plot_input_power(self.actor_order, title="Antutu")
+        gov.plot_input_power(self.actor_order)
+        matplotlib.pyplot.close('all')
+
+        gov.plot_input_power(self.actor_order, title="Antutu")
         matplotlib.pyplot.close('all')
 
     def test_plot_output_power(self):
         """Test plot_output_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        ThermalGovernor().plot_output_power(self.actor_order)
-        ThermalGovernor().plot_output_power(self.actor_order, title="Antutu")
+        gov = ThermalGovernor()
+
+        gov.plot_output_power(self.actor_order)
+        matplotlib.pyplot.close('all')
+
+        gov.plot_output_power(self.actor_order, title="Antutu")
         matplotlib.pyplot.close('all')
 
     def test_plot_inout_power(self):
