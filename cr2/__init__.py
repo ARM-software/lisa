@@ -42,23 +42,20 @@ def summary_plots(actor_order, map_label, **kwords):
 
     if "title" in kwords:
         title = kwords["title"]
+        del kwords["title"]
     else:
         title = ""
-
-    kwords_wout_title = kwords.copy()
-    if "title" in kwords_wout_title:
-        del kwords_wout_title["title"]
 
     run_data = Run(path=path, name=title)
 
     basetime = run_data.thermal.data_frame.index[0]
     run_data.normalize_time(basetime)
 
-    plot_utils.plot_temperature([run_data], **kwords_wout_title)
-    plot_utils.plot_load([run_data], map_label, **kwords_wout_title)
-    plot_utils.plot_allfreqs([run_data], map_label, **kwords_wout_title)
-    plot_utils.plot_controller([run_data], **kwords_wout_title)
-    plot_utils.plot_input_power([run_data], actor_order, **kwords_wout_title)
-    plot_utils.plot_output_power([run_data], actor_order, **kwords_wout_title)
+    plot_utils.plot_temperature([run_data], **kwords)
+    plot_utils.plot_load([run_data], map_label, **kwords)
+    plot_utils.plot_allfreqs([run_data], map_label, **kwords)
+    plot_utils.plot_controller([run_data], **kwords)
+    plot_utils.plot_input_power([run_data], actor_order, **kwords)
+    plot_utils.plot_output_power([run_data], actor_order, **kwords)
     plot_utils.plot_freq_hists([run_data], map_label)
     plot_utils.plot_temperature_hist([run_data])
