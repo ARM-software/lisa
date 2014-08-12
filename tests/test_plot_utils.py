@@ -162,3 +162,13 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
 
         plot_utils.plot_input_power(runs, self.actor_order, width=20)
         matplotlib.pyplot.close('all')
+
+    def test_plot_output_power(self):
+        """plot_utils.plot_output_power() doesn't bomb"""
+
+        run1 = cr2.Run(name="first")
+        run2 = cr2.Run(name="second")
+        runs = [run1, run2]
+
+        plot_utils.plot_output_power(runs, self.actor_order, width=20)
+        matplotlib.pyplot.close('all')
