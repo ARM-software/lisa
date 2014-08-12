@@ -52,12 +52,12 @@ class TestRun(BaseTestThermal):
 
         allfreqs = Run().get_all_freqs_data(self.map_label)
 
-        self.assertEquals(allfreqs["A7"]["A7_freq_out"].iloc[1], 1400)
-        self.assertEquals(allfreqs["A7"]["A7_freq_in"].iloc[35], 1400)
-        self.assertEquals(allfreqs["A15"]["A15_freq_out"].iloc[0], 1900)
+        self.assertEquals(allfreqs[1][1]["A7_freq_out"].iloc[1], 1400)
+        self.assertEquals(allfreqs[1][1]["A7_freq_in"].iloc[35], 1400)
+        self.assertEquals(allfreqs[0][1]["A15_freq_out"].iloc[0], 1900)
 
         # Make sure there are no NaNs in the middle of the array
-        self.assertTrue(allfreqs["A15"]["A15_freq_out"].notnull().all())
+        self.assertTrue(allfreqs[0][1]["A15_freq_out"].notnull().all())
 
     def test_plot_power_hists(self):
         """Test that plot_power_hists() doesn't bomb"""

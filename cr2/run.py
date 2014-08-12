@@ -44,20 +44,23 @@ class Run(object):
             getattr(self, attr).normalize_time(basetime)
 
     def get_all_freqs_data(self, map_label):
-        """get a dict of DataFrames suitable for the allfreqs plot"""
+        """get an array of tuple of names and DataFrames suitable for the
+        allfreqs plot"""
 
         in_freqs = self.in_power.get_all_freqs(map_label)
         out_freqs = self.out_power.get_all_freqs(map_label)
 
-        ret_dict = {}
+        ret = []
         for label in map_label.values():
             in_label = label + "_freq_in"
             out_label = label + "_freq_out"
 
-            inout_freq_dict = {in_label: in_freqs[label], out_label: out_freqs[label]}
-            ret_dict[label] = pd.DataFrame(inout_freq_dict).fillna(method="pad")
+            inout_freq_dict = {in_label: in_freqs[label],
+                               out_label: out_freqs[label]}
+            dfr = pd.DataFrame(inout_freq_dict).fillna(method="pad")
+            ret.append((label, dfr))
 
-        return ret_dict
+        return ret
 
     def plot_power_hists(self, map_label, title=""):
         """Plot histograms for each actor input and output power"""
@@ -80,8 +83,7 @@ class Run(object):
             ax = [None] * len(all_freqs)
             setup_plot = True
 
-        for this_ax, label in zip(ax, all_freqs):
-            dfr = all_freqs[label]
+        for this_ax, (label, dfr) in zip(ax, all_freqs):
             this_title = plot_utils.normalize_title("allfreqs " + label, self.name)
 
             if setup_plot:
