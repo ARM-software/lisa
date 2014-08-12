@@ -70,6 +70,9 @@ def pre_plot_setup(width=None, height=None, ncols=1, nrows=1):
 
     _, axis = plt.subplots(ncols=ncols, nrows=nrows, figsize=(width, height))
 
+    # Needed for multirow blots to not overlap with each other
+    plt.tight_layout(h_pad=3.5)
+
     return axis
 
 def post_plot_setup(ax, title="", xlabel=None, xlim="default", ylim="range"):
@@ -136,3 +139,17 @@ def plot_load(runs, map_label, width=None, height=None):
 
         title = normalize_title("Utilisation", run.name)
         post_plot_setup(ax, title=title)
+
+def plot_allfreqs(runs, map_label, width=None, height=None):
+    """Make a multicolumn plots of the allfreqs plots of each run"""
+    num_runs = len(runs)
+    axis = pre_plot_setup(width=width, height=height, nrows=len(map_label),
+                          ncols=num_runs)
+
+    if num_runs == 1:
+        axis = [axis]
+    else:
+        axis = zip(*axis)
+
+    for ax, run in zip(axis, runs):
+        run.plot_allfreqs(map_label, ax=ax)
