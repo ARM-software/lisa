@@ -135,5 +135,9 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
         plot_utils.plot_allfreqs(runs, self.map_label, width=20)
         matplotlib.pyplot.close('all')
 
-        plot_utils.plot_allfreqs([run1], self.map_label, width=20)
+    def test_plot_allfreqs_single_run(self):
+        """plot_utils.plot_allfreqs() can be used with a single run"""
+        run = cr2.Run()
+
+        plot_utils.plot_allfreqs([run], self.map_label)
         matplotlib.pyplot.close('all')
