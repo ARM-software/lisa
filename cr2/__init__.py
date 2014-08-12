@@ -60,5 +60,5 @@ def summary_plots(actor_order, map_label, **kwords):
     plot_utils.plot_controller([run_data], **kwords_wout_title)
     plot_utils.plot_input_power([run_data], actor_order, **kwords_wout_title)
     plot_utils.plot_output_power([run_data], actor_order, **kwords_wout_title)
-    run_data.plot_freq_hists(map_label, title)
-    run_data.thermal.plot_temperature_hist(title)
+    plot_utils.plot_freq_hists([run_data], map_label)
+    plot_utils.plot_temperature_hist([run_data])

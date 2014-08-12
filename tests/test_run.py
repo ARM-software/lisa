@@ -64,7 +64,8 @@ class TestRun(BaseTestThermal):
 
         run = Run()
 
-        run.plot_freq_hists(self.map_label)
+        _, axis = matplotlib.pyplot.subplots(nrows=2)
+        run.plot_freq_hists(self.map_label, axis)
         matplotlib.pyplot.close('all')
 
     def test_plot_allfreqs(self):

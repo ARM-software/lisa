@@ -7,7 +7,7 @@ from pid_controller import PIDController
 from power import InPower, OutPower
 import plot_utils
 
-def _plot_freq_hists(power_inst, map_label, what, title):
+def _plot_freq_hists(power_inst, map_label, what, axis, title):
     """Helper function for plot_freq_hists
 
     power_obj is either an InPower() or OutPower() instance.  what is
@@ -15,13 +15,13 @@ def _plot_freq_hists(power_inst, map_label, what, title):
 
     """
     freqs = power_inst.get_all_freqs(map_label)
-    for actor in freqs:
+    for ax, actor in zip(axis, freqs):
         this_title = "freq {} {}".format(what, actor)
         this_title = plot_utils.normalize_title(this_title, title)
         xlim = (0, freqs[actor].max())
 
-        plot_utils.plot_hist(freqs[actor], this_title, 20, "Frequency (KHz)",
-                             xlim, "default")
+        plot_utils.plot_hist(freqs[actor], ax, this_title, 20,
+                             "Frequency (KHz)", xlim, "default")
 
 class Run(object):
     """A wrapper class that initializes all the classes of a given run"""
@@ -62,11 +62,17 @@ class Run(object):
 
         return ret
 
-    def plot_freq_hists(self, map_label, title=""):
-        """Plot histograms for each actor input and output frequency"""
+    def plot_freq_hists(self, map_label, ax):
+        """Plot histograms for each actor input and output frequency
 
-        _plot_freq_hists(self.out_power, map_label, "out", title)
-        _plot_freq_hists(self.in_power, map_label, "in", title)
+        ax is an array of axis, one for the input power and one for
+        the output power
+
+        """
+
+        num_actors = len(map_label)
+        _plot_freq_hists(self.out_power, map_label, "out", ax[0:num_actors], self.name)
+        _plot_freq_hists(self.in_power, map_label, "in", ax[num_actors:], self.name)
 
     def plot_allfreqs(self, map_label, width=None, height=None, ax=None):
         """Do allfreqs plots similar to those of CompareRuns

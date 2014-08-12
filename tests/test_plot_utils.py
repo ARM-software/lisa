@@ -91,7 +91,8 @@ class TestPlotUtils(unittest.TestCase):
         """Test that plost_hist doesn't bomb"""
         data = pd.Series([1, 1, 2, 4])
 
-        plot_utils.plot_hist(data, "Foo", 20, "numbers", (0, 4), "default")
+        _, ax = matplotlib.pyplot.subplots()
+        plot_utils.plot_hist(data, ax, "Foo", 20, "numbers", (0, 4), "default")
 
 class TestPlotUtilsNeedTrace(BaseTestThermal):
     def __init__(self, *args, **kwargs):
@@ -171,4 +172,32 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
         runs = [run1, run2]
 
         plot_utils.plot_output_power(runs, self.actor_order, width=20)
+        matplotlib.pyplot.close('all')
+
+    def test_plot_freq_hists(self):
+        """plot_utils.plot_freq_hists() doesn't bomb"""
+
+        run1 = cr2.Run(name="first")
+        run2 = cr2.Run(name="second")
+        runs = [run1, run2]
+
+        plot_utils.plot_freq_hists(runs, self.map_label)
+        matplotlib.pyplot.close('all')
+
+    def test_plot_freq_hists_single_run(self):
+        """plot_utils.plot_freq_hists() works with a single run"""
+
+        run = cr2.Run()
+
+        plot_utils.plot_freq_hists([run], self.map_label)
+        matplotlib.pyplot.close('all')
+
+    def test_plot_temperature_hist(self):
+        """plot_utils.plot_temperature_hist() doesn't bomb"""
+
+        run1 = cr2.Run(name="first")
+        run2 = cr2.Run(name="second")
+        runs = [run1, run2]
+
+        plot_utils.plot_temperature_hist(runs)
         matplotlib.pyplot.close('all')

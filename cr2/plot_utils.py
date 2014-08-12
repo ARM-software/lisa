@@ -118,14 +118,13 @@ def plot_temperature(runs, width=None, height=None, ylim="range"):
     post_plot_setup(ax, title="Temperature", ylim=ylim)
     plt.legend(loc="best")
 
-def plot_hist(data, title, bins, xlabel, xlim, ylim):
+def plot_hist(data, ax, title, bins, xlabel, xlim, ylim):
     """Plot a histogram"""
 
     mean = data.mean()
     std = data.std()
     title += " (mean = {:.2f}, std = {:.2f})".format(mean, std)
 
-    ax = pre_plot_setup()
     data.hist(ax=ax, bins=bins)
     post_plot_setup(ax, title=title, xlabel=xlabel, xlim=xlim, ylim=ylim)
 
@@ -186,3 +185,28 @@ def plot_output_power(runs, actor_order, width=None, height=None):
 
     for ax, run in zip(axis, runs):
         run.thermal_governor.plot_output_power(actor_order, title=run.name, ax=ax)
+
+def plot_freq_hists(runs, map_label):
+    """Plot frequency histograms of multiple runs"""
+    num_runs = len(runs)
+    nrows = 2 * len(map_label)
+    axis = pre_plot_setup(ncols=num_runs, nrows=nrows)
+
+    if num_runs == 1:
+        axis = [axis]
+    else:
+        axis = zip(*axis)
+
+    for ax, run in zip(axis, runs):
+        run.plot_freq_hists(map_label, ax=ax)
+
+def plot_temperature_hist(runs):
+    """Plot temperature histograms for all the runs"""
+    num_runs = len(runs)
+    axis = pre_plot_setup(ncols=num_runs)
+
+    if num_runs == 1:
+        axis = [axis]
+
+    for ax, run in zip(axis, runs):
+        run.thermal.plot_temperature_hist(ax, run.name)

@@ -144,7 +144,8 @@ class TestThermal(BaseTestThermal):
     def test_plot_temperature_hist(self):
         """Test that plot_temperature_hist() doesn't bomb"""
 
-        Thermal().plot_temperature_hist("Foo")
+        _, ax = matplotlib.pyplot.subplots()
+        Thermal().plot_temperature_hist(ax, "Foo")
         matplotlib.pyplot.close('all')
 
     def test_normalize_time(self):

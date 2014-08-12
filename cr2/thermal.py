@@ -222,14 +222,14 @@ class Thermal(BaseThermal):
             post_plot_setup(ax, title=title, ylim=ylim)
             plt.legend()
 
-    def plot_temperature_hist(self, title=""):
+    def plot_temperature_hist(self, ax, title):
         """Plot a temperature histogram"""
 
         temps = self.data_frame["temp"] / 1000
         title = normalize_title("Temperature", title)
         xlim = (0, temps.max())
 
-        plot_hist(temps, title, 30, "Temperature", xlim, "default")
+        plot_hist(temps, ax, title, 30, "Temperature", xlim, "default")
 
 class ThermalGovernor(BaseThermal):
     """Process the power allocator data in a ftrace dump"""
