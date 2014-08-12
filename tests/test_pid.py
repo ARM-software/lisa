@@ -18,7 +18,10 @@ class TestPIDController(BaseTestThermal):
         """Test PIDController.plot_controller()
 
         As it happens with all plot functions, just test that it doesn't explode"""
+        pid = PIDController()
 
-        PIDController().plot_controller()
-        PIDController().plot_controller(title="Antutu", width=20, height=5)
+        pid.plot_controller()
+        matplotlib.pyplot.close('all')
+
+        pid.plot_controller(title="Antutu", width=20, height=5)
         matplotlib.pyplot.close('all')
