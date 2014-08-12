@@ -141,3 +141,13 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
 
         plot_utils.plot_allfreqs([run], self.map_label)
         matplotlib.pyplot.close('all')
+
+    def test_plot_controller(self):
+        """plot_utils.plot_controller() doesn't bomb"""
+
+        run1 = cr2.Run(name="first")
+        run2 = cr2.Run(name="second")
+        runs = [run1, run2]
+
+        plot_utils.plot_controller(runs, height=5)
+        matplotlib.pyplot.close('all')

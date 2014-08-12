@@ -156,3 +156,14 @@ def plot_allfreqs(runs, map_label, width=None, height=None):
 
     for ax, run in zip(axis, runs):
         run.plot_allfreqs(map_label, ax=ax)
+
+def plot_controller(runs, width=None, height=None):
+    """Make a multicolumn plot of the pid controller of each run"""
+    num_runs = len(runs)
+    axis = pre_plot_setup(width=width, height=height, ncols=num_runs)
+
+    if num_runs == 1:
+        axis = [axis]
+
+    for ax, run in zip(axis, runs):
+        run.pid_controller.plot_controller(title=run.name, ax=ax)
