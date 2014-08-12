@@ -244,7 +244,7 @@ class ThermalGovernor(BaseThermal):
         with open("thermal.csv", "w") as fout:
             fout.write(self.data_csv)
 
-    def plot_input_power(self, actor_order, title="", width=None, height=None):
+    def plot_input_power(self, actor_order, title="", width=None, height=None, ax=None):
         """Plot input power
 
         actor_order is an array with the order in which the actors were registered.
@@ -262,7 +262,9 @@ class ThermalGovernor(BaseThermal):
 
         title = normalize_title("Input Power", title)
 
-        ax = pre_plot_setup(width, height)
+        if not ax:
+            ax = pre_plot_setup(width, height)
+
         plot_dfr.plot(ax=ax)
         post_plot_setup(ax, title=title)
 
