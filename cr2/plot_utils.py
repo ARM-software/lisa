@@ -138,10 +138,7 @@ def plot_load(runs, map_label, width=None, height=None):
         axis = [axis]
 
     for ax, run in zip(axis, runs):
-        run.in_power.plot_load(map_label, ax=ax)
-
-        title = normalize_title("Utilisation", run.name)
-        post_plot_setup(ax, title=title)
+        run.in_power.plot_load(map_label, title=run.name, ax=ax)
 
 def plot_allfreqs(runs, map_label, width=None, height=None):
     """Make a multicolumn plots of the allfreqs plots of each run"""

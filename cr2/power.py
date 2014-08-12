@@ -126,12 +126,9 @@ class InPower(BaseThermal):
         load_data = self.get_load_data(mapping_label)
         title = normalize_title("Utilisation", title)
 
-        setup_plot = False
         if not ax:
             ax = pre_plot_setup(width=width, height=height)
-            setup_plot = True
 
         load_data.plot(ax=ax)
 
-        if setup_plot:
-            post_plot_setup(ax, title=title)
+        post_plot_setup(ax, title=title)
