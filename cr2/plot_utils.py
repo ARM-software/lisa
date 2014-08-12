@@ -88,7 +88,7 @@ def post_plot_setup(ax, title="", xlabel=None, xlim="default", ylim="range"):
     """
 
     if xlabel is not None:
-        plt.xlabel(xlabel)
+        ax.set_xlabel(xlabel)
 
     if title:
         ax.set_title(title)
