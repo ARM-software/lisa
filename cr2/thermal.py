@@ -180,6 +180,11 @@ class BaseThermal(object):
             self.data_frame = pd.read_csv(StringIO(self.data_csv))
             self.data_frame.set_index("Time", inplace=True)
 
+    def write_csv(self, fname):
+        """Write the csv info in thermal.csv"""
+        with open(fname, "w") as fout:
+            fout.write(self.data_csv)
+
     def normalize_time(self, basetime):
         """Substract basetime from the Time of the data frame"""
         self.data_frame.reset_index(inplace=True)
@@ -238,11 +243,6 @@ class ThermalGovernor(BaseThermal):
             basepath=path,
             unique_word="thermal_power_allocator:",
         )
-
-    def write_thermal_csv(self):
-        """Write the csv info in thermal.csv"""
-        with open("thermal.csv", "w") as fout:
-            fout.write(self.data_csv)
 
     def plot_input_power(self, actor_order, title="", width=None, height=None, ax=None):
         """Plot input power

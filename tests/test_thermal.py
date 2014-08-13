@@ -116,6 +116,19 @@ class TestThermal(BaseTestThermal):
         self.assertTrue("thermal_zone" in dfr.columns)
         self.assertEquals(dfr["temp"].iloc[0], 24000)
 
+    def test_write_csv(self):
+        """BaseThermal().write_csv() creates a valid csv"""
+        fname = "thermal_gov.csv"
+        ThermalGovernor().write_csv(fname)
+        first_data_line = '523.424828,0,124,10,134,2718,5036,755,8509,8511,8511,47000,10000\n'
+
+        with open(fname) as f:
+            first_line = f.readline()
+            self.assertTrue(first_line.startswith("Time,req_power0"))
+
+            second_line = f.readline()
+            self.assertEquals(second_line, first_data_line)
+
     def test_plot_temperature(self):
         """Test ThermalGovernor.plot_temperature()
 
@@ -184,17 +197,6 @@ class TestThermalGovernor(BaseTestThermal):
         """Raise an IOError if there's no trace.dat and trace.txt"""
         os.remove("trace.dat")
         self.assertRaises(IOError, ThermalGovernor)
-
-    def test_get_thermal_csv(self):
-        ThermalGovernor().write_thermal_csv()
-        first_data_line = '523.424828,0,124,10,134,2718,5036,755,8509,8511,8511,47000,10000\n'
-
-        with open("thermal.csv") as f:
-            first_line = f.readline()
-            self.assertTrue(first_line.startswith("Time,req_power0"))
-
-            second_line = f.readline()
-            self.assertEquals(second_line, first_data_line)
 
     def test_get_dataframe(self):
         dfr = ThermalGovernor().data_frame
