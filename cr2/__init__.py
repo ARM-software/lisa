@@ -11,17 +11,8 @@ def summary_plots(actor_order, map_label, **kwords):
 
     This is a wrapper around compare_runs().  Use that instead."""
 
-    if "path" in kwords:
-        path = kwords["path"]
-        del kwords["path"]
-    else:
-        path = None
-
-    if "title" in kwords:
-        title = kwords["title"]
-        del kwords["title"]
-    else:
-        title = ""
+    path = kwords.pop("path", None)
+    title = kwords.pop("title", "")
 
     return compare_runs(actor_order, map_label, [(title, path)], **kwords)
 
