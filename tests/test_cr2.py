@@ -57,3 +57,10 @@ class TestCR2(BaseTestThermal):
 
         # Sanity check that the test actually ran from another directory
         self.assertEquals(os.getcwd(), other_random_dir)
+
+    def test_compare_runs(self):
+        """Basic compare_runs() functionality"""
+
+        cr2.compare_runs(self.actor_order, self.map_label,
+                        runs=[("new", "."), ("old", self.out_dir)])
+        matplotlib.pyplot.close('all')
