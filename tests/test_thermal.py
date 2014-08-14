@@ -118,16 +118,20 @@ class TestThermal(BaseTestThermal):
 
     def test_write_csv(self):
         """BaseThermal().write_csv() creates a valid csv"""
+        from csv import DictReader
+
         fname = "thermal_gov.csv"
         ThermalGovernor().write_csv(fname)
-        first_data_line = '523.424828,0,124,10,134,2718,5036,755,8509,8511,8511,47000,10000\n'
 
-        with open(fname) as f:
-            first_line = f.readline()
-            self.assertTrue(first_line.startswith("Time,req_power0"))
+        with open(fname) as fin:
+            csv_reader = DictReader(fin)
 
-            second_line = f.readline()
-            self.assertEquals(second_line, first_data_line)
+            self.assertTrue("Time" in csv_reader.fieldnames)
+            self.assertTrue("req_power0" in csv_reader.fieldnames)
+
+            first_data = csv_reader.next()
+            self.assertEquals(first_data["Time"], "523.424828")
+            self.assertEquals(first_data["req_power0"], "0")
 
     def test_plot_temperature(self):
         """Test ThermalGovernor.plot_temperature()
