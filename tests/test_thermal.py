@@ -1,9 +1,13 @@
 #!/usr/bin/python
 
 import unittest
-import os, sys
-import matplotlib, re, shutil, tempfile
+import matplotlib
+import os
 import pandas as pd
+import re
+import shutil
+import sys
+import tempfile
 
 import utils_tests
 from cr2 import Thermal, ThermalGovernor
