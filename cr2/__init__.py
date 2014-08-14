@@ -1,8 +1,5 @@
 #!/usr/bin/python
 
-from pid_controller import PIDController
-from power import OutPower, InPower
-from thermal import Thermal, ThermalGovernor
 from run import Run
 from results import CR2, get_results, combine_results
 
