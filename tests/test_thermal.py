@@ -91,8 +91,8 @@ class TestThermalBase(utils_tests.SetupDirectory):
         self.assertEquals(len(lengths), 1)
         self.assertEquals(lengths["load"], 4)
 
-    def test_parse_into_csv_empty_array(self):
-        """Test that trace that has an empty array creates valid csv"""
+    def test_parse_empty_array(self):
+        """Test that trace that has an empty array creates a valid DataFrame"""
 
         in_data = """     kworker/4:1-397   [004]   720.741315: thermal_power_actor_cpu_get_dyn_power: cpus=000000f0 freq=1900000 raw_cpu_power=1259 load={} power=61
      kworker/4:1-397   [004]   720.741349: thermal_power_actor_cpu_get_dyn_power: cpus=0000000f freq=1400000 raw_cpu_power=189 load={} power=14"""

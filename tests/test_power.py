@@ -57,7 +57,7 @@ class TestPower(BaseTestThermal):
 
         inp = InPower()
         self.assertEquals(round(inp.data_frame.index[0], 6), 676.256284)
-        self.assertEquals(inp.data_frame["cpus"].iloc[1], "0000000000000030")
+        self.assertEquals(inp.data_frame["cpus"].iloc[1], "00000000,00000030")
 
     def test_inpower_data_frame_asymmetric_clusters(self):
         """Test that InPower()'s data_frame can handle asymmetric clusters

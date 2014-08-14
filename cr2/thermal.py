@@ -4,7 +4,6 @@ directory's trace.dat"""
 
 import os
 import re
-from StringIO import StringIO
 import pandas as pd
 from matplotlib import pyplot as plt
 
@@ -59,15 +58,13 @@ class BaseThermal(object):
             basepath = "."
 
         self.basepath = basepath
-        self.data_csv = ""
         self.data_frame = pd.DataFrame()
         self.unique_word = unique_word
 
         if not os.path.isfile(os.path.join(basepath, "trace.txt")):
             self.__run_trace_cmd_report()
 
-        self.__parse_into_csv()
-        self.__create_data_frame()
+        self.__parse_into_dataframe()
 
     def __run_trace_cmd_report(self):
         """Run "trace-cmd report > trace.txt".
@@ -127,19 +124,19 @@ class BaseThermal(object):
 
         return ret
 
-    def __parse_into_csv(self):
-        """Create a csv representation of the thermal data and store
-        it in self.data_csv"""
+    def __parse_into_dataframe(self):
+        """parse the trace and create a pandas DataFrame"""
 
         fin_fname = os.path.join(self.basepath, "trace.txt")
 
         array_lengths = self.get_trace_array_lengths(fin_fname)
 
         pat_timestamp = re.compile(r"([0-9]+\.[0-9]+):")
-        pat_data = re.compile(r"[A-Za-z0-9_]+=([^ {]+)")
-        pat_header = re.compile(r"([A-Za-z0-9_]+)=[^ ]+")
+        pat_data_start = re.compile("[A-Za-z0-9_]+=")
         pat_empty_array = re.compile(r"[A-Za-z0-9_]+=\{\} ")
-        header = ""
+
+        parsed_data = []
+        time_array = []
 
         with open(fin_fname) as fin:
             for line in fin:
@@ -149,9 +146,10 @@ class BaseThermal(object):
                 line = line[:-1]
 
                 timestamp_match = re.search(pat_timestamp, line)
-                timestamp = timestamp_match.group(1)
+                timestamp = float(timestamp_match.group(1))
+                time_array.append(timestamp)
 
-                data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
+                data_start_idx = re.search(pat_data_start, line).start()
                 data_str = line[data_start_idx:]
 
                 # Remove empty arrays from the trace
@@ -159,31 +157,23 @@ class BaseThermal(object):
 
                 data_str = trace_parser_explode_array(data_str, array_lengths)
 
-                if not header:
-                    header = re.sub(pat_header, r"\1", data_str)
-                    header = re.sub(r" ", r",", header)
-                    header = "Time," + header + "\n"
-                    self.data_csv = header
+                line_data = {}
+                for field in data_str.split():
+                    (key, value) = field.split('=')
+                    try:
+                        value = int(value)
+                    except ValueError:
+                        pass
+                    line_data[key] = value
 
-                parsed_data = re.sub(pat_data, r"\1", data_str)
-                parsed_data = re.sub(r",", r"", parsed_data)
-                parsed_data = re.sub(r" ", r",", parsed_data)
+                parsed_data.append(line_data)
 
-                parsed_data = timestamp + "," + parsed_data + "\n"
-                self.data_csv += parsed_data
-
-    def __create_data_frame(self):
-        """Create a pandas data frame for the run in self.data_frame"""
-        if self.data_csv is "":
-            self.data_frame = pd.DataFrame()
-        else:
-            self.data_frame = pd.read_csv(StringIO(self.data_csv))
-            self.data_frame.set_index("Time", inplace=True)
+        time_idx = pd.Index(time_array, name="Time")
+        self.data_frame = pd.DataFrame(parsed_data, index=time_idx)
 
     def write_csv(self, fname):
         """Write the csv info in thermal.csv"""
-        with open(fname, "w") as fout:
-            fout.write(self.data_csv)
+        self.data_frame.to_csv(fname)
 
     def normalize_time(self, basetime):
         """Substract basetime from the Time of the data frame"""
