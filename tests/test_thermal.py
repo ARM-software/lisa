@@ -10,7 +10,7 @@ import sys
 import tempfile
 
 import utils_tests
-from cr2 import Thermal, ThermalGovernor
+import cr2
 sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
 import thermal
 
@@ -113,7 +113,7 @@ class TestThermalBase(utils_tests.SetupDirectory):
 
 class TestThermal(BaseTestThermal):
     def test_get_dataframe(self):
-        dfr = Thermal().data_frame
+        dfr = cr2.Run().thermal.data_frame
 
         self.assertTrue("thermal_zone" in dfr.columns)
         self.assertEquals(dfr["temp"].iloc[0], 24000)
@@ -123,7 +123,7 @@ class TestThermal(BaseTestThermal):
         from csv import DictReader
 
         fname = "thermal_gov.csv"
-        ThermalGovernor().write_csv(fname)
+        cr2.Run().thermal_governor.write_csv(fname)
 
         with open(fname) as fin:
             csv_reader = DictReader(fin)
@@ -143,7 +143,7 @@ class TestThermal(BaseTestThermal):
 
         """
 
-        th_data = Thermal()
+        th_data = cr2.Run().thermal
         dfr = th_data.data_frame
         ct_series = pd.Series([57, 57], index=(dfr.index[0], dfr.index[-1]))
 
@@ -164,12 +164,12 @@ class TestThermal(BaseTestThermal):
         """Test that plot_temperature_hist() doesn't bomb"""
 
         _, ax = matplotlib.pyplot.subplots()
-        Thermal().plot_temperature_hist(ax, "Foo")
+        cr2.Run().thermal.plot_temperature_hist(ax, "Foo")
         matplotlib.pyplot.close('all')
 
     def test_normalize_time(self):
         """BaseThermal.normalize_time() normalizes the time of the trace"""
-        thrm = thermal.Thermal()
+        thrm = cr2.Run().thermal
 
         last_prev_time = thrm.data_frame.index[-1]
 
@@ -187,25 +187,8 @@ class TestThermalGovernor(BaseTestThermal):
         super(TestThermalGovernor, self).__init__(*args, **kwargs)
         self.actor_order = ["GPU", "A15", "A7"]
 
-    def test_do_txt_if_not_there(self):
-        c = ThermalGovernor()
-
-        found = False
-        with open("trace.txt") as f:
-            for line in f:
-                if re.search("thermal", line):
-                    found = True
-                    break
-
-        self.assertTrue(found)
-
-    def test_fail_if_no_trace_dat(self):
-        """Raise an IOError if there's no trace.dat and trace.txt"""
-        os.remove("trace.dat")
-        self.assertRaises(IOError, ThermalGovernor)
-
     def test_get_dataframe(self):
-        dfr = ThermalGovernor().data_frame
+        dfr = cr2.Run().thermal_governor.data_frame
 
         self.assertTrue(len(dfr) > 0)
         self.assertEquals(dfr["current_temperature"].iloc[0], 47000)
@@ -214,7 +197,7 @@ class TestThermalGovernor(BaseTestThermal):
 
     def test_plot_input_power(self):
         """plot_input_power() doesn't bomb"""
-        gov = ThermalGovernor()
+        gov = cr2.Run().thermal_governor
 
         gov.plot_input_power(self.actor_order)
         matplotlib.pyplot.close('all')
@@ -230,7 +213,7 @@ class TestThermalGovernor(BaseTestThermal):
         """Test plot_output_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        gov = ThermalGovernor()
+        gov = cr2.Run().thermal_governor
 
         gov.plot_output_power(self.actor_order)
         matplotlib.pyplot.close('all')
@@ -246,20 +229,9 @@ class TestThermalGovernor(BaseTestThermal):
         """Test plot_inout_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        ThermalGovernor().plot_inout_power()
-        ThermalGovernor().plot_inout_power(title="Antutu")
+        cr2.Run().thermal_governor.plot_inout_power()
+        cr2.Run().thermal_governor.plot_inout_power(title="Antutu")
         matplotlib.pyplot.close('all')
-
-    def test_other_directory(self):
-        """ThermalGovernor can grab the trace.dat from other directories"""
-
-        other_random_dir = tempfile.mkdtemp()
-        os.chdir(other_random_dir)
-
-        dfr = ThermalGovernor(self.out_dir).data_frame
-
-        self.assertTrue(len(dfr) > 0)
-        self.assertEquals(os.getcwd(), other_random_dir)
 
 class TestEmptyThermalGovernor(unittest.TestCase):
     def setUp(self):
@@ -293,5 +265,5 @@ CPU:7 [204600 EVENTS DROPPED]
         shutil.rmtree(self.out_dir)
 
     def test_empty_trace_txt(self):
-        dfr = ThermalGovernor().data_frame
+        dfr = cr2.Run().thermal_governor.data_frame
         self.assertEquals(len(dfr), 0)

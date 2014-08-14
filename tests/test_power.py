@@ -4,7 +4,7 @@ import matplotlib
 import pandas as pd
 
 from test_thermal import BaseTestThermal
-from cr2 import OutPower, InPower
+import cr2
 import power
 
 class TestPower(BaseTestThermal):
@@ -27,21 +27,21 @@ class TestPower(BaseTestThermal):
 
     def test_outpower_dataframe(self):
         """Test that OutPower() creates a proper data_frame"""
-        outp = OutPower()
+        outp = cr2.Run().out_power
 
         self.assertEquals(outp.data_frame["power"].iloc[0], 5036)
         self.assertTrue("cdev_state" in outp.data_frame.columns)
 
     def test_outpower_get_all_freqs(self):
         """Test OutPower.get_all_freqs()"""
-        dfr = OutPower().get_all_freqs(self.map_label)
+        dfr = cr2.Run().out_power.get_all_freqs(self.map_label)
 
         self.assertEquals(dfr["A15"].iloc[0], 1900)
         self.assertEquals(dfr["A7"].iloc[1], 1400)
 
     def test_inpower_get_dataframe(self):
         """Test that InPower() creates a proper data_frame()"""
-        inp = InPower()
+        inp = cr2.Run().in_power
 
         self.assertTrue("load0" in inp.data_frame.columns)
         self.assertEquals(inp.data_frame["load0"].iloc[0], 2)
@@ -55,7 +55,7 @@ class TestPower(BaseTestThermal):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        inp = InPower()
+        inp = cr2.Run().in_power
         self.assertEquals(round(inp.data_frame.index[0], 6), 676.256284)
         self.assertEquals(inp.data_frame["cpus"].iloc[1], "00000000,00000030")
 
@@ -71,7 +71,7 @@ class TestPower(BaseTestThermal):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        inp = InPower()
+        inp = cr2.Run().in_power
 
         self.assertEquals(inp.data_frame["load0"].iloc[0], 1)
         self.assertEquals(inp.data_frame["load1"].iloc[0], 2)
@@ -84,7 +84,7 @@ class TestPower(BaseTestThermal):
 
     def test_inpower_get_all_freqs(self):
         """Test InPower.get_all_freqs()"""
-        dfr = InPower().get_all_freqs(self.map_label)
+        dfr = cr2.Run().in_power.get_all_freqs(self.map_label)
 
         self.assertEquals(dfr["A15"].iloc[0], 1900)
         self.assertEquals(dfr["A7"].iloc[1], 1400)
@@ -92,7 +92,7 @@ class TestPower(BaseTestThermal):
 
     def test_inpower_get_load_data(self):
         """Test InPower.get_load_data()"""
-        load_data = InPower().get_load_data(self.map_label)
+        load_data = cr2.Run().in_power.get_load_data(self.map_label)
 
         self.assertEquals(load_data["A15"].iloc[0], 2 + 3 + 2 + 3)
         self.assertEquals(load_data["A7"].iloc[3], 100 + 100 + 100 + 100)
@@ -100,7 +100,7 @@ class TestPower(BaseTestThermal):
 
     def test_inpower_plot_load(self):
         """Test that InPower.plot_load() doesn't explode"""
-        inp = InPower()
+        inp = cr2.Run().in_power
         inp.plot_load(self.map_label, title="Util")
 
         _, ax = matplotlib.pyplot.subplots()
