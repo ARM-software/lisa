@@ -72,8 +72,9 @@ class BaseThermal(object):
         Overwrites the contents of trace.txt if it exists."""
         from subprocess import check_output
 
-        if not os.path.isfile(os.path.join(self.basepath, "trace.dat")):
-            raise IOError("No such file or directory: trace.dat")
+        trace_fname = os.path.join(self.basepath, "trace.dat")
+        if not os.path.isfile(trace_fname):
+            raise IOError("No such file or directory: {}".format(trace_fname))
 
         previous_path = os.getcwd()
         os.chdir(self.basepath)

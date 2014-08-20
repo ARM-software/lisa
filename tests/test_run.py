@@ -45,9 +45,18 @@ class TestRun(BaseTestThermal):
         self.assertTrue(found)
 
     def test_fail_if_no_trace_dat(self):
-        """Raise an IOError if there's no trace.dat and trace.txt"""
+        """Raise an IOError with the path if there's no trace.dat and trace.txt"""
         os.remove("trace.dat")
         self.assertRaises(IOError, cr2.Run)
+
+        cwd = os.getcwd()
+
+        try:
+            cr2.Run(cwd)
+        except IOError as exception:
+            pass
+
+        self.assertTrue(cwd in str(exception))
 
     def test_other_directory(self):
         """Run() can grab the trace.dat from other directories"""
