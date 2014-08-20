@@ -76,17 +76,9 @@ class BaseThermal(object):
         if not os.path.isfile(trace_fname):
             raise IOError("No such file or directory: {}".format(trace_fname))
 
-        previous_path = os.getcwd()
-        os.chdir(self.basepath)
-
-        # This would better be done with a context manager (i.e.
-        # http://stackoverflow.com/a/13197763/970766)
-        try:
-            with open(os.devnull) as devnull:
-                out = check_output(["trace-cmd", "report"], stderr=devnull)
-
-        finally:
-            os.chdir(previous_path)
+        with open(os.devnull) as devnull:
+            out = check_output(["trace-cmd", "report", trace_fname],
+                               stderr=devnull)
 
         with open(os.path.join(self.basepath, "trace.txt"), "w") as fout:
             fout.write(out)
