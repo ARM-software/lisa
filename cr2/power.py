@@ -20,7 +20,7 @@ def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
 
     There has to be a more "pandas" way of doing this.
 
-    Example: XXX
+    Example:
 
     In [8]: dfr_in = pd.DataFrame({'cpus': ["000000f0", "0000000f", "000000f0", "0000000f"], 'freq': [1, 3, 2, 6]})
 
