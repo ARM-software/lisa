@@ -119,22 +119,3 @@ class InPower(BaseThermal):
         dfr = self.data_frame
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
-
-    def plot_load(self, mapping_label, title="", width=None, height=None, ax=None):
-        """plot the load of all the clusters, similar to how compare runs did it
-
-        the mapping_label has to be a dict whose keys are the cluster
-        numbers as found in the trace and values are the names that
-        will appear in the legend.
-
-        """
-
-        load_data = self.get_load_data(mapping_label)
-        title = normalize_title("Utilisation", title)
-
-        if not ax:
-            ax = pre_plot_setup(width=width, height=height)
-
-        load_data.plot(ax=ax)
-
-        post_plot_setup(ax, title=title)

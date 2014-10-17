@@ -109,6 +109,14 @@ class TestRun(BaseTestThermal):
         run.plot_freq_hists(self.map_label, axis)
         matplotlib.pyplot.close('all')
 
+    def test_plot_load(self):
+        """Test that plot_load() doesn't explode"""
+        run = cr2.Run()
+        run.plot_load(self.map_label, title="Util")
+
+        _, ax = matplotlib.pyplot.subplots()
+        run.plot_load(self.map_label, ax=ax)
+
     def test_plot_allfreqs(self):
         """Test that plot_allfreqs() doesn't bomb"""
 

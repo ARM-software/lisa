@@ -74,6 +74,25 @@ class Run(object):
         _plot_freq_hists(self.out_power, map_label, "out", ax[0:num_actors], self.name)
         _plot_freq_hists(self.in_power, map_label, "in", ax[num_actors:], self.name)
 
+    def plot_load(self, mapping_label, title="", width=None, height=None, ax=None):
+        """plot the load of all the clusters, similar to how compare runs did it
+
+        the mapping_label has to be a dict whose keys are the cluster
+        numbers as found in the trace and values are the names that
+        will appear in the legend.
+
+        """
+
+        load_data = self.in_power.get_load_data(mapping_label)
+        title = plot_utils.normalize_title("Utilisation", title)
+
+        if not ax:
+            ax = plot_utils.pre_plot_setup(width=width, height=height)
+
+        load_data.plot(ax=ax)
+
+        plot_utils.post_plot_setup(ax, title=title)
+
     def plot_allfreqs(self, map_label, width=None, height=None, ax=None):
         """Do allfreqs plots similar to those of CompareRuns
 

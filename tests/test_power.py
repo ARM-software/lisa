@@ -97,11 +97,3 @@ class TestPower(BaseTestThermal):
         self.assertEquals(load_data["A15"].iloc[0], 2 + 3 + 2 + 3)
         self.assertEquals(load_data["A7"].iloc[3], 100 + 100 + 100 + 100)
         self.assertEquals(load_data["A15"].iloc[0], load_data["A15"].iloc[1])
-
-    def test_inpower_plot_load(self):
-        """Test that InPower.plot_load() doesn't explode"""
-        inp = cr2.Run().in_power
-        inp.plot_load(self.map_label, title="Util")
-
-        _, ax = matplotlib.pyplot.subplots()
-        inp.plot_load(self.map_label, ax=ax)
