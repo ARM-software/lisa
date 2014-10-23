@@ -87,7 +87,7 @@ def get_results(dirname="."):
     result, that's what's used.  For benchmarks with FPS_* result,
     that's the score.  E.g. glbenchmark "score" is it's fps"""
 
-    res_dict = {}
+    res_dict = collections.defaultdict(dict)
 
     with open(os.path.join(dirname, "results.csv")) as fin:
         results = csv.reader(fin)
@@ -99,10 +99,7 @@ def get_results(dirname="."):
                 bench = row[0]
                 result = int(row[4])
 
-                if bench not in res_dict:
-                    res_dict[bench] = {run_number: result}
-                else:
-                    res_dict[bench][run_number] = result
+                res_dict[bench][run_number] = result
 
     for bench,val in res_dict.iteritems():
         ordered_dict = collections.OrderedDict(sorted(val.items()))
