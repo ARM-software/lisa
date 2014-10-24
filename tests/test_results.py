@@ -27,6 +27,7 @@ class TestResults(utils_tests.SetupDirectory):
         self.assertEquals(results_frame["t-rex_offscreen"]["power_allocator"][0], 1777)
         self.assertEquals(results_frame["geekbench"]["step_wise"][0], 8)
         self.assertEquals(results_frame["geekbench"]["power_allocator"][1], 1)
+        self.assertAlmostEquals(results_frame["thechase"]["step_wise"][0], 242.0522258138)
 
     def test_get_results_path(self):
         """results.get_results() can be given a directory for the results.csv"""
@@ -36,7 +37,7 @@ class TestResults(utils_tests.SetupDirectory):
 
         results_frame = results.get_results(self.out_dir)
 
-        self.assertEquals(len(results_frame.columns), 8)
+        self.assertEquals(len(results_frame.columns), 10)
 
     def test_combine_results(self):
         res1 = results.get_results()

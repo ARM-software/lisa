@@ -68,7 +68,7 @@ def get_run_number(metric):
     found = False
     run_number = None
 
-    if re.match("Overall_Score|score|FPS_", metric):
+    if re.match("Overall_Score|score|FPS", metric):
         found = True
 
         match = re.search("(.+)[ _](\d+)", metric)
@@ -103,7 +103,10 @@ def get_results(dirname="."):
             if is_result:
                 run_id = re.sub("_\d+", "", row[0])
                 bench = row[1]
-                result = int(row[4])
+                try:
+                    result = int(row[4])
+                except ValueError:
+                    result = float(row[4])
 
                 if bench in bench_dict:
                     if run_id in bench_dict[bench]:
