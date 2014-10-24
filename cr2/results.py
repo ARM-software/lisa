@@ -84,12 +84,15 @@ def get_run_number(metric):
 def get_results(dirname="."):
     """Return a pd.DataFrame with the results
 
-    The DataFrame has one row: "score" and as many columns as
-    benchmarks were found.  For benchmarks that have a score
-    result, that's what's used.  For benchmarks with FPS_* result,
-    that's the score.  E.g. glbenchmark "score" is it's fps"""
+    The DataFrame's rows are the scores.  The first column is the
+    benchmark name and the second the id within it.  For benchmarks
+    that have a score result, that's what's used.  For benchmarks with
+    FPS_* result, that's the score.  E.g. glbenchmarks "score" is it's
+    fps
 
-    res_dict = collections.defaultdict(dict)
+    """
+
+    bench_dict = collections.OrderedDict()
 
     with open(os.path.join(dirname, "results.csv")) as fin:
         results = csv.reader(fin)
@@ -98,35 +101,39 @@ def get_results(dirname="."):
             (is_result, run_number) = get_run_number(row[3])
 
             if is_result:
-                bench = row[0]
+                run_id = re.sub("_\d+", "", row[0])
+                bench = row[1]
                 result = int(row[4])
 
-                res_dict[bench][run_number] = result
+                if bench in bench_dict:
+                    if run_id in bench_dict[bench]:
+                        bench_dict[bench][run_id][run_number] = result
+                    else:
+                        bench_dict[bench][run_id] = {run_number: result}
+                else:
+                    bench_dict[bench] = {run_id: {run_number: result}}
 
-    for bench,val in res_dict.iteritems():
-        ordered_dict = collections.OrderedDict(sorted(val.items()))
-        res_dict[bench] = pd.Series(ordered_dict.values())
+    bench_dfrs = {}
+    for bench, run_id_dict in bench_dict.iteritems():
+        bench_dfrs[bench] = pd.DataFrame(run_id_dict)
 
-    return CR2(res_dict)
+    return CR2(pd.concat(bench_dfrs.values(), axis=1, keys=bench_dfrs.keys()))
 
-def combine_results(data, keys):
+def combine_results(data):
     """Combine two DataFrame results into one
 
     The data should be an array of results like the ones returned by
     get_results() or have the same structure.  The returned DataFrame
-    has two column indexes.  The first one is still the benchmark and
-    the second one is the key for the result.  keys must be an array
-    of strings, each of which describes the same element in the data
-    array.
+    has two column indexes.  The first one is the benchmark and the
+    second one is the key for the result.
 
     """
 
-    combined = pd.concat(data, axis=1, keys=keys)
+    res_dict = {}
+    for benchmark in data[0].columns.levels[0]:
+        concat_objs = [d[benchmark] for d in data]
+        res_dict[benchmark] = pd.concat(concat_objs, axis=1)
 
-    # Now we've got everything in the DataFrame but the first column
-    # index is the key for the result and the second one is the
-    # benchmark. Swap the column indexes.  (There *has* to be a better
-    # way of doing this)
-    combined = combined.stack([1, 1]).unstack(1).unstack()
+    combined = pd.concat(res_dict.values(), axis=1, keys=res_dict.keys())
 
     return CR2(combined)

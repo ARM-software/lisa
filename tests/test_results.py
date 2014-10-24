@@ -20,13 +20,13 @@ class TestResults(utils_tests.SetupDirectory):
         results_frame = results.get_results()
 
         self.assertEquals(type(results_frame), results.CR2)
-        self.assertEquals(len(results_frame.columns), 3)
-        self.assertEquals(results_frame["antutu"][0], 2)
-        self.assertEquals(results_frame["antutu"][1], 6)
-        self.assertEquals(results_frame["antutu"][2], 3)
-        self.assertEquals(results_frame["glbench_trex"][0], 740)
-        self.assertEquals(results_frame["geekbench"][0], 3)
-        self.assertEquals(results_frame["geekbench"][1], 4)
+        self.assertEquals(type(results_frame.columns), pd.core.index.MultiIndex)
+        self.assertEquals(results_frame["antutu"]["power_allocator"][0], 5)
+        self.assertEquals(results_frame["antutu"]["step_wise"][1], 9)
+        self.assertEquals(results_frame["antutu"]["step_wise"][2], 7)
+        self.assertEquals(results_frame["t-rex_offscreen"]["power_allocator"][0], 1777)
+        self.assertEquals(results_frame["geekbench"]["step_wise"][0], 8)
+        self.assertEquals(results_frame["geekbench"]["power_allocator"][1], 1)
 
     def test_get_results_path(self):
         """results.get_results() can be given a directory for the results.csv"""
@@ -36,28 +36,24 @@ class TestResults(utils_tests.SetupDirectory):
 
         results_frame = results.get_results(self.out_dir)
 
-        self.assertEquals(len(results_frame.columns), 3)
-
-    def test_get_results_new_antutu(self):
-        """Test that the new antutu results are correctly parsed"""
-        shutil.move("new_antutu_results.csv", "results.csv")
-        results_frame = results.get_results()
-
-        self.assertEquals(results_frame["antutu"][0], 35549)
-        self.assertEquals(results_frame["antutu"][1], 35437)
+        self.assertEquals(len(results_frame.columns), 8)
 
     def test_combine_results(self):
         res1 = results.get_results()
         res2 = results.get_results()
 
-        res2["antutu"][0] = 42
-        combined = results.combine_results([res1, res2], keys=["power_allocator", "ipa"])
+        # First split them
+        res1.drop('step_wise', axis=1, level=1, inplace=True)
+        res2.drop('power_allocator', axis=1, level=1, inplace=True)
+
+        # Now combine them again
+        combined = results.combine_results([res1, res2])
 
         self.assertEquals(type(combined), results.CR2)
-        self.assertEquals(combined["antutu"]["power_allocator"][0], 2)
-        self.assertEquals(combined["antutu"]["ipa"][0], 42)
-        self.assertEquals(combined["geekbench"]["power_allocator"][1], 4)
-        self.assertEquals(combined["glbench_trex"]["ipa"][2], 920)
+        self.assertEquals(combined["antutu"]["step_wise"][0], 4)
+        self.assertEquals(combined["antutu"]["power_allocator"][0], 5)
+        self.assertEquals(combined["geekbench"]["power_allocator"][1], 1)
+        self.assertEquals(combined["t-rex_offscreen"]["step_wise"][2], 424)
 
     def test_plot_results_benchmark(self):
         """Test CR2.plot_results_benchmark()
@@ -65,20 +61,16 @@ class TestResults(utils_tests.SetupDirectory):
         Can't test it, so just check that it doens't bomb
         """
 
-        r1 = results.get_results()
-        r2 = results.get_results()
-        r2["glbench_trex"].loc[1] = 28
-        r2["glbench_trex"].loc[2] = 28
-        combined = results.combine_results([r1, r2], ["r1", "r2"])
+        res = results.get_results()
 
-        combined.plot_results_benchmark("antutu")
-        combined.plot_results_benchmark("glbench_trex", title="Glbench TRex")
+        res.plot_results_benchmark("antutu")
+        res.plot_results_benchmark("t-rex_offscreen", title="Glbench TRex")
 
         (_, _, y_min, y_max) = matplotlib.pyplot.axis()
 
-        concat_data = pd.concat(combined["glbench_trex"][s] for s in combined["glbench_trex"])
-        data_min = min(concat_data)
-        data_max = max(concat_data)
+        trex_data = pd.concat(res["t-rex_offscreen"][s] for s in res["t-rex_offscreen"])
+        data_min = min(trex_data)
+        data_max = max(trex_data)
 
         # Fail if the axes are within the limits of the data.
         self.assertTrue(data_min > y_min)
@@ -100,11 +92,9 @@ class TestResults(utils_tests.SetupDirectory):
         Can't test it, so just check that it doens't bomb
         """
 
-        r1 = results.get_results()
-        r2 = results.get_results()
-        combined = results.combine_results([r1, r2], ["r1", "r2"])
+        res = results.get_results()
 
-        combined.plot_results()
+        res.plot_results()
         matplotlib.pyplot.close('all')
 
     def test_init_fig(self):
