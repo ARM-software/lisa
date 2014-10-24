@@ -90,6 +90,8 @@ class TestResults(utils_tests.SetupDirectory):
         self.assertEquals(results.get_run_number("score"), (True, 0))
         self.assertEquals(results.get_run_number("score 3"), (True, 3))
         self.assertEquals(results.get_run_number("FPS_1"), (True, 1))
+        self.assertEquals(results.get_run_number("Overall_Score"), (True, 0))
+        self.assertEquals(results.get_run_number("Overall_Score_2"), (True, 1))
         self.assertEquals(results.get_run_number("Memory_score")[0], False)
 
     def test_plot_results(self):

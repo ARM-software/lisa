@@ -71,9 +71,11 @@ def get_run_number(metric):
     if re.match("Overall_Score|score|FPS_", metric):
         found = True
 
-        match = re.search("[ _](\d+)", metric)
+        match = re.search("(.+)[ _](\d+)", metric)
         if match:
-            run_number = int(match.group(1))
+            run_number = int(match.group(2))
+            if match.group(1) == "Overall_Score":
+                run_number -= 1
         else:
             run_number = 0
 
