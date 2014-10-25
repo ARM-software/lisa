@@ -101,7 +101,7 @@ def get_results(dirname="."):
             (is_result, run_number) = get_run_number(row[3])
 
             if is_result:
-                run_id = re.sub("_\d+", "", row[0])
+                run_id = re.sub(r"_\d+", r"", row[0])
                 bench = row[1]
                 try:
                     result = int(row[4])
