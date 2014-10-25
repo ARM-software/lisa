@@ -51,11 +51,7 @@ def compare_runs(actor_order, map_label, runs, **kwords):
 
     run_data = []
     for run in runs:
-        this_run = Run(name=run[0], path=run[1])
-        basetime = this_run.thermal.data_frame.index[0]
-        this_run.normalize_time(basetime)
-
-        run_data.append(this_run)
+        run_data.append(Run(name=run[0], path=run[1]))
 
     plot_utils.plot_temperature(run_data, **kwords)
     plot_utils.plot_load(run_data, map_label, **kwords)

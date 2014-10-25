@@ -69,10 +69,24 @@ class TestRun(BaseTestThermal):
         self.assertTrue(len(dfr) > 0)
         self.assertEquals(os.getcwd(), other_random_dir)
 
+    def test_run_autonormalize_time(self):
+        """Run() normalizes by default"""
+
+        run = cr2.Run()
+
+        self.assertEquals(round(run.thermal.data_frame.index[0], 7), 0)
+
+    def test_run_dont_normalize_time(self):
+        """Run() doesn't normalize if asked not to"""
+
+        run = cr2.Run(normalize_time=False)
+
+        self.assertNotEquals(round(run.thermal.data_frame.index[0], 7), 0)
+
     def test_run_normalize_time(self):
         """Run().normalize_time() works accross all classes"""
 
-        run = cr2.Run()
+        run = cr2.Run(normalize_time=False)
 
         prev_inpower_basetime = run.in_power.data_frame.index[0]
         prev_inpower_last = run.in_power.data_frame.index[-1]

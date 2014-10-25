@@ -122,18 +122,18 @@ class TestThermal(BaseTestThermal):
         """BaseThermal().write_csv() creates a valid csv"""
         from csv import DictReader
 
-        fname = "thermal_gov.csv"
-        cr2.Run().thermal_governor.write_csv(fname)
+        fname = "thermal.csv"
+        cr2.Run().thermal.write_csv(fname)
 
         with open(fname) as fin:
             csv_reader = DictReader(fin)
 
             self.assertTrue("Time" in csv_reader.fieldnames)
-            self.assertTrue("req_power0" in csv_reader.fieldnames)
+            self.assertTrue("temp" in csv_reader.fieldnames)
 
             first_data = csv_reader.next()
-            self.assertEquals(first_data["Time"], "523.424828")
-            self.assertEquals(first_data["req_power0"], "0")
+            self.assertEquals(first_data["Time"], "0.0")
+            self.assertEquals(first_data["temp"], "24000")
 
     def test_plot_temperature(self):
         """Test ThermalGovernor.plot_temperature()
@@ -265,5 +265,5 @@ CPU:7 [204600 EVENTS DROPPED]
         shutil.rmtree(self.out_dir)
 
     def test_empty_trace_txt(self):
-        dfr = cr2.Run().thermal_governor.data_frame
+        dfr = cr2.Run(normalize_time=False).thermal_governor.data_frame
         self.assertEquals(len(dfr), 0)

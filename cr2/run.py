@@ -33,10 +33,15 @@ class Run(object):
                "out_power": "OutPower",
     }
 
-    def __init__(self, path=None, name=""):
+    def __init__(self, path=None, name="", normalize_time=True):
         self.name = name
+
         for attr, class_name in self.classes.iteritems():
             setattr(self, attr, globals()[class_name](path))
+
+        if normalize_time:
+            basetime = self.thermal.data_frame.index[0]
+            self.normalize_time(basetime)
 
     def normalize_time(self, basetime):
         """Normalize the time of all the trace classes"""

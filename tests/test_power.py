@@ -55,7 +55,7 @@ class TestPower(BaseTestThermal):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        inp = cr2.Run().in_power
+        inp = cr2.Run(normalize_time=False).in_power
         self.assertEquals(round(inp.data_frame.index[0], 6), 676.256284)
         self.assertEquals(inp.data_frame["cpus"].iloc[1], "00000000,00000030")
 
@@ -71,7 +71,7 @@ class TestPower(BaseTestThermal):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        inp = cr2.Run().in_power
+        inp = cr2.Run(normalize_time=False).in_power
 
         self.assertEquals(inp.data_frame["load0"].iloc[0], 1)
         self.assertEquals(inp.data_frame["load1"].iloc[0], 2)
