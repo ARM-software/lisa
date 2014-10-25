@@ -81,14 +81,17 @@ def get_run_number(metric):
 
     return (found, run_number)
 
-def get_results(dirname="."):
+def get_results(dirname=".", id=None):
     """Return a pd.DataFrame with the results
 
     The DataFrame's rows are the scores.  The first column is the
     benchmark name and the second the id within it.  For benchmarks
     that have a score result, that's what's used.  For benchmarks with
     FPS_* result, that's the score.  E.g. glbenchmarks "score" is it's
-    fps
+    fps.
+
+    An optional id argument can be passed.  If supplied, it overrides
+    the id in the results file.
 
     """
 
@@ -101,7 +104,11 @@ def get_results(dirname="."):
             (is_result, run_number) = get_run_number(row[3])
 
             if is_result:
-                run_id = re.sub(r"_\d+", r"", row[0])
+                if id:
+                    run_id = id
+                else:
+                    run_id = re.sub(r"_\d+", r"", row[0])
+
                 bench = row[1]
                 try:
                     result = int(row[4])

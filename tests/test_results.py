@@ -39,6 +39,11 @@ class TestResults(utils_tests.SetupDirectory):
 
         self.assertEquals(len(results_frame.columns), 10)
 
+    def test_get_results_id(self):
+        """get_results() optional id argument overrides the one in the results file"""
+        res = results.get_results(id="malkovich")
+        self.assertIsNotNone(res["antutu"]["malkovich"])
+
     def test_combine_results(self):
         res1 = results.get_results()
         res2 = results.get_results()
