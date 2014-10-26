@@ -55,10 +55,8 @@ class CR2(pd.DataFrame):
             title = benchmark.replace('_', ' ')
             title = title.title()
 
-        self.init_fig()
-        self[benchmark].plot(ax=self.ax, style="*-")
-        plt.title(title)
-        self.enlarge_axis(self[benchmark])
+        self[benchmark].plot(ax=self.ax, kind="bar", title=title)
+        plt.legend(bbox_to_anchor=(1.05, .5), loc=6)
 
     def plot_results(self):
         for bench in self.columns.levels[0]:
