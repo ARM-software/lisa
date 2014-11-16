@@ -40,8 +40,18 @@ class Run(object):
             setattr(self, attr, globals()[class_name](path))
 
         if normalize_time:
-            basetime = self.thermal.data_frame.index[0]
+            basetime = self.get_basetime()
             self.normalize_time(basetime)
+
+    def get_basetime(self):
+        """Returns the smallest time value of all classes,
+        returns 0 if the data frames of all classes are empty"""
+        basetimes = []
+
+        for attr in self.classes.iterkeys():
+            basetimes.append(getattr(self, attr).get_basetime())
+
+        return min(basetimes)
 
     def normalize_time(self, basetime):
         """Normalize the time of all the trace classes"""

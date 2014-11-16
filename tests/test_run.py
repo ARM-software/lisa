@@ -70,6 +70,25 @@ class TestRun(BaseTestThermal):
 
         self.assertNotEquals(round(run.thermal.data_frame.index[0], 7), 0)
 
+    def test_run_basetime(self):
+        """Test that basetime calculation is correct"""
+
+        run = cr2.Run(normalize_time=False)
+
+        basetime = run.thermal.data_frame.index[0]
+
+        self.assertEqual(run.get_basetime(), basetime)
+
+    def test_run_basetime_empty(self):
+        """Test that basetime is 0 if data frame of all data objects is empty"""
+
+        os.remove("trace.txt")
+        os.symlink("trace_empty.txt", "trace.txt")
+
+        run = cr2.Run(normalize_time=False)
+
+        self.assertEqual(run.get_basetime(), 0)
+
     def test_run_normalize_time(self):
         """Run().normalize_time() works accross all classes"""
 

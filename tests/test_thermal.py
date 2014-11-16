@@ -65,7 +65,7 @@ the expected length
 class BaseTestThermal(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         super(BaseTestThermal, self).__init__(
-             ["trace.txt"],
+             ["trace.txt", "trace_empty.txt"],
              *args,
              **kwargs)
 

@@ -170,9 +170,14 @@ class BaseThermal(object):
 
     def normalize_time(self, basetime):
         """Substract basetime from the Time of the data frame"""
-        self.data_frame.reset_index(inplace=True)
-        self.data_frame["Time"] = self.data_frame["Time"] - basetime
-        self.data_frame.set_index("Time", inplace=True)
+        if basetime:
+            self.data_frame.reset_index(inplace=True)
+            self.data_frame["Time"] = self.data_frame["Time"] - basetime
+            self.data_frame.set_index("Time", inplace=True)
+
+    def get_basetime(self):
+        """ Return the base time of the data frame"""
+        return self.data_frame.index[0] if not self.data_frame.empty else 0
 
 class Thermal(BaseThermal):
     """Process the thermal framework data in a ftrace dump"""
