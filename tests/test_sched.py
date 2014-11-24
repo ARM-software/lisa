@@ -85,6 +85,22 @@ class TestSchedCpuFrequency(BaseTestSched):
         self.assertEquals(dfr["state"].iloc[0], 600000)
         self.assertFalse("cpu_id" in dfr.columns)
 
+class TestGetFilters(BaseTestSched):
+
+    def test_get_filters(self):
+        """Test that Run::get_filters returns correct list of filters"""
+
+        run = cr2.Run()
+        classes = run.classes
+        filters = run.get_filters()
+        self.assertTrue(len(classes) == len(filters))
+        self.assertTrue(sorted(classes) == sorted(filters))
+
+        sched_classes = run.sched_classes
+        sched_filters = run.get_filters("sched")
+        self.assertTrue(len(sched_classes) == len(sched_filters))
+        self.assertTrue(sorted(sched_classes) == sorted(sched_filters))
+
 class TestNoSchedTraces(utils_tests.SetupDirectory):
 
     def __init__(self, *args, **kwargs):

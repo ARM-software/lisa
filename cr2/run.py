@@ -88,6 +88,19 @@ class Run(object):
 
         return min(basetimes)
 
+    def get_filters(self, key=""):
+        """Returns an array with the available filters.
+        If 'key' is specified, returns a subset of the available filters
+        that contain 'key' in their name (e.g., key="sched" returns
+        only the "sched" related filters)."""
+        filters = []
+
+        for c in self.classes:
+            if re.search(key, c):
+                filters.append(c)
+
+        return filters
+
     def normalize_time(self, basetime):
         """Normalize the time of all the trace classes"""
         for attr in self.classes.iterkeys():
