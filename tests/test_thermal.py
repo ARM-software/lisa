@@ -105,7 +105,7 @@ class TestThermalBase(utils_tests.SetupDirectory):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        base = thermal.BaseThermal(None, "thermal_power_actor_cpu_get_dyn_power")
+        base = thermal.BaseThermal(".", "thermal_power_actor_cpu_get_dyn_power")
         dfr = base.data_frame
 
         self.assertEquals(set(dfr.columns), expected_columns)
