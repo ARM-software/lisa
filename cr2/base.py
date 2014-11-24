@@ -131,13 +131,18 @@ class Base(object):
         parsed_data = []
         for data_str in self.data_array:
             data_dict = {}
+            prev_key = None
             for field in data_str.split():
+                if "=" not in field:
+                    data_dict[prev_key] += ' ' + field
+                    continue
                 (key, value) = field.split('=')
                 try:
                     value = int(value)
                 except ValueError:
                     pass
                 data_dict[key] = value
+                prev_key = key
             parsed_data.append(data_dict)
 
         time_idx = pd.Index(self.time_array, name="Time")

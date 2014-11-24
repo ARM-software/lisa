@@ -101,6 +101,19 @@ class TestGetFilters(BaseTestSched):
         self.assertTrue(len(sched_classes) == len(sched_filters))
         self.assertTrue(sorted(sched_classes) == sorted(sched_filters))
 
+class TestSpacedValueAttributes(BaseTestSched):
+
+    def test_spaced_value_attr(self):
+        """Test that Run object parses spaced value attributes correctly"""
+
+        with open("trace.txt", "a") as fout:
+            fout.write("       <...>-2971  [004]  6550.056871: sched_load_avg_task:  comm=AsyncTask #2 pid=6163 ")
+
+        dfr = cr2.Run().sched_load_avg_task.data_frame
+        self.assertTrue(len(dfr) == 2)
+        self.assertEquals(dfr["comm"].iloc[1], "AsyncTask #2")
+        self.assertEquals(dfr["pid"].iloc[1], 6163)
+
 class TestNoSchedTraces(utils_tests.SetupDirectory):
 
     def __init__(self, *args, **kwargs):
