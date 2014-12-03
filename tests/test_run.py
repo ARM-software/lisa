@@ -31,22 +31,9 @@ class TestRun(BaseTestThermal):
 
         self.assertEquals(run.name, "foo")
 
-    def test_do_txt_if_not_there(self):
-        """Create trace.txt if it's not there"""
-        cr2.Run()
-
-        found = False
-        with open("trace.txt") as f:
-            for line in f:
-                if re.search("thermal", line):
-                    found = True
-                    break
-
-        self.assertTrue(found)
-
     def test_fail_if_no_trace_dat(self):
         """Raise an IOError with the path if there's no trace.dat and trace.txt"""
-        os.remove("trace.dat")
+        os.remove("trace.txt")
         self.assertRaises(IOError, cr2.Run)
 
         cwd = os.getcwd()
