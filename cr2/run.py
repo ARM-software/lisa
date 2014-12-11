@@ -49,7 +49,13 @@ class Run(object):
         basetimes = []
 
         for attr in self.classes.iterkeys():
-            basetimes.append(getattr(self, attr).get_basetime())
+            try:
+                basetimes.append(getattr(self, attr).data_frame.index[0])
+            except IndexError:
+                pass
+
+        if len(basetimes) == 0:
+            return 0
 
         return min(basetimes)
 

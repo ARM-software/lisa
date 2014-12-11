@@ -3,6 +3,7 @@
 import matplotlib
 import os
 import re
+import shutil
 import tempfile
 
 from test_thermal import BaseTestThermal
@@ -88,6 +89,18 @@ class TestRun(BaseTestThermal):
         run = cr2.Run(normalize_time=False)
 
         self.assertEqual(run.get_basetime(), 0)
+
+    def test_run_normalize_some_tracepoints(self):
+        """Test that normalizing time works if not all the tracepoints are in the trace"""
+
+        os.remove("trace.txt")
+        shutil.move("trace_empty.txt", "trace.txt")
+        with open("trace.txt", "a") as fil:
+            fil.write("     kworker/4:1-1219  [004]   508.424826: thermal_temperature:  thermal_zone=exynos-therm id=0 temp_prev=24000 temp=24000")
+
+        run = cr2.Run()
+
+        self.assertEqual(run.thermal.data_frame.index[0], 0)
 
     def test_run_normalize_time(self):
         """Run().normalize_time() works accross all classes"""

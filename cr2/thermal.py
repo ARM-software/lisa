@@ -175,10 +175,6 @@ class BaseThermal(object):
             self.data_frame["Time"] = self.data_frame["Time"] - basetime
             self.data_frame.set_index("Time", inplace=True)
 
-    def get_basetime(self):
-        """ Return the base time of the data frame"""
-        return self.data_frame.index[0] if not self.data_frame.empty else 0
-
 class Thermal(BaseThermal):
     """Process the thermal framework data in a ftrace dump"""
     def __init__(self, path=None):
