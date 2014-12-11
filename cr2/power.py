@@ -5,7 +5,7 @@ directory's trace.dat"""
 from matplotlib import pyplot as plt
 import pandas as pd
 
-from thermal import BaseThermal
+from base import Base
 from plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
 def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
@@ -64,7 +64,7 @@ def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
 
     return pd.DataFrame(ret_series).fillna(method="pad")
 
-class OutPower(BaseThermal):
+class OutPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
     def __init__(self, path=None):
@@ -84,7 +84,7 @@ class OutPower(BaseThermal):
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
-class InPower(BaseThermal):
+class InPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
     def __init__(self, path=None):

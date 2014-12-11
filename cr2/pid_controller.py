@@ -2,10 +2,10 @@
 """Process the output of the power allocator's PID controller in the
 current directory's trace.dat"""
 
-from thermal import BaseThermal
+from base import Base
 from plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
-class PIDController(BaseThermal):
+class PIDController(Base):
     """Process the power allocator PID controller data in a ftrace dump"""
     def __init__(self, path=None):
         super(PIDController, self).__init__(
