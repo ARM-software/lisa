@@ -1,12 +1,10 @@
 #!/usr/bin/python
 
-import unittest
 import os
 import sys
-
+import unittest
 import utils_tests
 import cr2
-from cr2.base import Base
 from cr2.base import trace_parser_explode_array
 
 sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
@@ -14,7 +12,7 @@ sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
 class TestBaseMethods(unittest.TestCase):
     """Test simple methods that don't need to set up a directory"""
     def test_trace_parser_explode_array(self):
-        """Basic test of trace_parser_explode_array()"""
+        """TestBaseMethods: Basic test of trace_parser_explode_array()"""
 
         line = "cpus=0000000f freq=1400000 raw_cpu_power=189 load={3 2 12 2} power=14"
         expected = "cpus=0000000f freq=1400000 raw_cpu_power=189 load0=3 load1=2 load2=12 load3=2 power=14"
@@ -24,7 +22,7 @@ class TestBaseMethods(unittest.TestCase):
         self.assertEquals(result, expected)
 
     def test_trace_parser_explode_array_nop(self):
-        """trace_parser_explode_array() returns the same string if there's no array in it"""
+        """TestBaseMethods: trace_parser_explode_array() returns the same string if there's no array in it"""
 
         line = "cpus=0000000f freq=1400000 raw_cpu_power=189 load0=3 load1=2 load2=12 load3=2 power=14"
         array_lengths = {"load": 0}
@@ -33,7 +31,7 @@ class TestBaseMethods(unittest.TestCase):
         self.assertEquals(result, line)
 
     def test_trace_parser_explode_array_2(self):
-        """trace_parser_explode_array() works if there's two arrays in the string"""
+        """TestBaseMethods: trace_parser_explode_array() works if there's two arrays in the string"""
 
         line = "cpus=0000000f freq=1400000 load={3 2 12 2} power=14 req_power={10 7 2 34}"
         expected = "cpus=0000000f freq=1400000 load0=3 load1=2 load2=12 load3=2 power=14 req_power0=10 req_power1=7 req_power2=2 req_power3=34"
@@ -43,11 +41,10 @@ class TestBaseMethods(unittest.TestCase):
         self.assertEquals(result, expected)
 
     def test_trace_parser_explode_array_diff_lengths(self):
-        """trace_parser_explode_array() expands arrays that are shorter than the expected length
+        """TestBaseMethods: trace_parser_explode_array() expands arrays that are shorter than the expected length
 
-        trace_parser_explode_array() has to be able to deal with an
-        array of size 2 if we tell it in other parts of the trace it
-        is four.
+        trace_parser_explode_array() has to be able to deal with an array of
+        size 2 if we tell it in other parts of the trace it is four.
 
         """
 
@@ -67,35 +64,19 @@ class TestBase(utils_tests.SetupDirectory):
              *args,
              **kwargs)
 
-    def test_get_trace_array_lengths(self):
-        """TestBase: InPower.get_trace_array_lengths()"""
-
-        in_data = """     kworker/4:1-397   [004]   720.741315: thermal_power_actor_cpu_get_dyn_power: cpus=000000f0 freq=1900000 raw_cpu_power=1259 load={1 2} power=61
-     kworker/4:1-397   [004]   720.741349: thermal_power_actor_cpu_get_dyn_power: cpus=0000000f freq=1400000 raw_cpu_power=189 load={1 3 4 89} power=14
-     kworker/4:1-397   [004]   720.841315: thermal_power_actor_cpu_get_dyn_power: cpus=000000f0 freq=1900000 raw_cpu_power=1259 load={1 2} power=61
-     kworker/4:1-397   [004]   720.841349: thermal_power_actor_cpu_get_dyn_power: cpus=0000000f freq=1400000 raw_cpu_power=189 load={} power=14
-"""
-        with open("trace.txt", "w") as fout:
-            fout.write(in_data)
-
-        base = Base(".", "thermal_power_actor_cpu_get_dyn_power")
-        lengths = base.get_trace_array_lengths("trace.txt")
-
-        self.assertEquals(len(lengths), 1)
-        self.assertEquals(lengths["load"], 4)
-
     def test_parse_empty_array(self):
-        """TestBase: Test that trace that has an empty array creates a valid DataFrame"""
+        """TestBase: Trace with empty array creates a valid DataFrame"""
 
         in_data = """     kworker/4:1-397   [004]   720.741315: thermal_power_actor_cpu_get_dyn_power: cpus=000000f0 freq=1900000 raw_cpu_power=1259 load={} power=61
      kworker/4:1-397   [004]   720.741349: thermal_power_actor_cpu_get_dyn_power: cpus=0000000f freq=1400000 raw_cpu_power=189 load={} power=14"""
+
         expected_columns = set(["cpus", "freq", "raw_cpu_power", "power"])
 
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        base = Base(".", "thermal_power_actor_cpu_get_dyn_power")
-        dfr = base.data_frame
+        run = cr2.Run()
+        dfr = run.in_power.data_frame
 
         self.assertEquals(set(dfr.columns), expected_columns)
         self.assertEquals(dfr["power"].iloc[0], 61)
@@ -109,7 +90,7 @@ class TestBase(utils_tests.SetupDirectory):
         self.assertEquals(dfr["temp"].iloc[0], 24000)
 
     def test_write_csv(self):
-        """TestBase: Test that write_csv() creates a valid csv"""
+        """TestBase: Base::write_csv() creates a valid csv"""
         from csv import DictReader
 
         fname = "thermal.csv"
@@ -126,7 +107,7 @@ class TestBase(utils_tests.SetupDirectory):
             self.assertEquals(first_data["temp"], "24000")
 
     def test_normalize_time(self):
-        """TestBase: Test that normalize_time() normalizes the time of the trace"""
+        """TestBase: Base::normalize_time() normalizes the time of the trace"""
         thrm = cr2.Run().thermal
 
         last_prev_time = thrm.data_frame.index[-1]
@@ -139,4 +120,3 @@ class TestBase(utils_tests.SetupDirectory):
 
         self.assertEquals(round(thrm.data_frame.index[0], 7), 0)
         self.assertEquals(round(last_time - expected_last_time, 7), 0)
-

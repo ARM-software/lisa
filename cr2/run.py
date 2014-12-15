@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import os
+import re
 import pandas as pd
 
 from thermal import Thermal, ThermalGovernor
@@ -34,10 +36,16 @@ class Run(object):
     }
 
     def __init__(self, path=None, name="", normalize_time=True):
+        if path is None:
+            path = "."
         self.name = name
+        self.basepath = path
 
         for attr, class_name in self.classes.iteritems():
             setattr(self, attr, globals()[class_name](path))
+
+        self.__parse_trace_file()
+        self.__finalize_objects()
 
         if normalize_time:
             basetime = self.get_basetime()
@@ -63,6 +71,44 @@ class Run(object):
         """Normalize the time of all the trace classes"""
         for attr in self.classes.iterkeys():
             getattr(self, attr).normalize_time(basetime)
+
+    def __contains_unique_word(self, line):
+        for attr in self.classes.iterkeys():
+            if re.search(getattr(self, attr).unique_word, line):
+                return attr;
+        return None;
+
+    def __parse_trace_file(self):
+        """parse the trace and create a pandas DataFrame"""
+
+        fin_fname = os.path.join(self.basepath, "trace.txt")
+
+        pat_timestamp = re.compile(r"([0-9]+\.[0-9]+):")
+        pat_data_start = re.compile("[A-Za-z0-9_]+=")
+        pat_empty_array = re.compile(r"[A-Za-z0-9_]+=\{\} ")
+
+        with open(fin_fname) as fin:
+            for line in fin:
+                attr = self.__contains_unique_word(line)
+                if not attr:
+                    continue
+
+                line = line[:-1]
+
+                timestamp_match = re.search(pat_timestamp, line)
+                timestamp = float(timestamp_match.group(1))
+
+                data_start_idx = re.search(pat_data_start, line).start()
+                data_str = line[data_start_idx:]
+
+                # Remove empty arrays from the trace
+                data_str = re.sub(pat_empty_array, r"", data_str)
+
+                getattr(self, attr).append_data(timestamp, data_str)
+
+    def __finalize_objects(self):
+        for attr in self.classes.iterkeys():
+            getattr(self, attr).create_dataframe()
 
     def get_all_freqs_data(self, map_label):
         """get an array of tuple of names and DataFrames suitable for the

@@ -56,11 +56,11 @@ class Base(object):
         self.basepath = basepath
         self.data_frame = pd.DataFrame()
         self.unique_word = unique_word
+        self.data_array = []
+        self.time_array = []
 
         if not os.path.isfile(os.path.join(basepath, "trace.txt")):
             self.__run_trace_cmd_report()
-
-        self.__parse_into_dataframe()
 
     def __run_trace_cmd_report(self):
         """Run "trace-cmd report > trace.txt".
@@ -79,7 +79,7 @@ class Base(object):
         with open(os.path.join(self.basepath, "trace.txt"), "w") as fout:
             fout.write(out)
 
-    def get_trace_array_lengths(self, fname):
+    def __get_trace_array_lengths(self):
         """Calculate the lengths of all arrays in the trace
 
         Returns a dict with the name of each array found in the trace
@@ -92,73 +92,56 @@ class Base(object):
 
         ret = defaultdict(int)
 
-        with open(fname) as fin:
-            for line in fin:
-                if not re.search(self.unique_word, line):
-                    continue
+        line = self.data_array[0]
 
-                while True:
-                    match = re.search(pat_array, line)
-                    if not match:
-                        break
+        while True:
+                match = re.search(pat_array, line)
+                if not match:
+                    break
 
-                    (array_name, array_elements) = match.groups()
+                (array_name, array_elements) = match.groups()
 
-                    array_len = len(array_elements.split(' '))
+                array_len = len(array_elements.split(' '))
 
-                    if array_len > ret[array_name]:
-                        ret[array_name] = array_len
+                if array_len > ret[array_name]:
+                    ret[array_name] = array_len
 
-                    line = line[match.end():]
+                line = line[match.end():]
 
         return ret
 
-    def __parse_into_dataframe(self):
-        """parse the trace and create a pandas DataFrame"""
+    def append_data(self, time, data):
+        self.time_array.append(time)
+        self.data_array.append(data)
 
-        fin_fname = os.path.join(self.basepath, "trace.txt")
+    def create_dataframe(self):
+        if not self.time_array:
+            return
 
-        array_lengths = self.get_trace_array_lengths(fin_fname)
+        trace_arr_lengths = self.__get_trace_array_lengths()
 
-        pat_timestamp = re.compile(r"([0-9]+\.[0-9]+):")
-        pat_data_start = re.compile("[A-Za-z0-9_]+=")
-        pat_empty_array = re.compile(r"[A-Za-z0-9_]+=\{\} ")
+        if trace_arr_lengths.items():
+            for (idx, val) in enumerate(self.data_array):
+                expl_val = trace_parser_explode_array(val, trace_arr_lengths)
+                self.data_array[idx] = expl_val
 
         parsed_data = []
-        time_array = []
+        for data_str in self.data_array:
+            data_dict = {}
+            for field in data_str.split():
+                (key, value) = field.split('=')
+                try:
+                    value = int(value)
+                except ValueError:
+                    pass
+                data_dict[key] = value
+            parsed_data.append(data_dict)
 
-        with open(fin_fname) as fin:
-            for line in fin:
-                if not re.search(self.unique_word, line):
-                    continue
-
-                line = line[:-1]
-
-                timestamp_match = re.search(pat_timestamp, line)
-                timestamp = float(timestamp_match.group(1))
-                time_array.append(timestamp)
-
-                data_start_idx = re.search(pat_data_start, line).start()
-                data_str = line[data_start_idx:]
-
-                # Remove empty arrays from the trace
-                data_str = re.sub(pat_empty_array, r"", data_str)
-
-                data_str = trace_parser_explode_array(data_str, array_lengths)
-
-                line_data = {}
-                for field in data_str.split():
-                    (key, value) = field.split('=')
-                    try:
-                        value = int(value)
-                    except ValueError:
-                        pass
-                    line_data[key] = value
-
-                parsed_data.append(line_data)
-
-        time_idx = pd.Index(time_array, name="Time")
+        time_idx = pd.Index(self.time_array, name="Time")
         self.data_frame = pd.DataFrame(parsed_data, index=time_idx)
+
+        self.time_array[:] = []
+        self.data_array[:] = []
 
     def write_csv(self, fname):
         """Write the csv info in thermal.csv"""
@@ -166,7 +149,7 @@ class Base(object):
 
     def normalize_time(self, basetime):
         """Substract basetime from the Time of the data frame"""
-        if basetime:
+        if basetime and not self.data_frame.empty:
             self.data_frame.reset_index(inplace=True)
             self.data_frame["Time"] = self.data_frame["Time"] - basetime
             self.data_frame.set_index("Time", inplace=True)
