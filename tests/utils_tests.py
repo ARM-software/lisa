@@ -17,9 +17,9 @@ class SetupDirectory(unittest.TestCase):
         self.out_dir = tempfile.mkdtemp()
         os.chdir(self.out_dir)
 
-        for fname in self.files_to_copy:
-            src_fname = os.path.join(TESTS_DIRECTORY, fname)
-            shutil.copy(src_fname, self.out_dir)
+        for src_fname, dst_fname in self.files_to_copy:
+            src_fname = os.path.join(TESTS_DIRECTORY, src_fname)
+            shutil.copy(src_fname, os.path.join(self.out_dir, dst_fname))
 
     def tearDown(self):
         os.chdir(self.previous_dir)

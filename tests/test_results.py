@@ -13,7 +13,8 @@ import results
 class TestResults(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         super(TestResults, self).__init__(
-            ["results.csv", "new_antutu_results.csv"],
+            [("results.csv", "results.csv"),
+             ("new_antutu_results.csv", "new_antutu_results.csv")],
             *args, **kwargs)
 
     def test_get_results(self):
