@@ -8,6 +8,7 @@ import tempfile
 
 from test_thermal import BaseTestThermal
 import cr2
+import utils_tests
 
 class TestRun(BaseTestThermal):
     def __init__(self, *args, **kwargs):
@@ -80,28 +81,6 @@ class TestRun(BaseTestThermal):
 
         self.assertEqual(run.get_basetime(), basetime)
 
-    def test_run_basetime_empty(self):
-        """Test that basetime is 0 if data frame of all data objects is empty"""
-
-        os.remove("trace.txt")
-        os.symlink("trace_empty.txt", "trace.txt")
-
-        run = cr2.Run(normalize_time=False)
-
-        self.assertEqual(run.get_basetime(), 0)
-
-    def test_run_normalize_some_tracepoints(self):
-        """Test that normalizing time works if not all the tracepoints are in the trace"""
-
-        os.remove("trace.txt")
-        shutil.move("trace_empty.txt", "trace.txt")
-        with open("trace.txt", "a") as fil:
-            fil.write("     kworker/4:1-1219  [004]   508.424826: thermal_temperature:  thermal_zone=exynos-therm id=0 temp_prev=24000 temp=24000")
-
-        run = cr2.Run()
-
-        self.assertEqual(run.thermal.data_frame.index[0], 0)
-
     def test_run_normalize_time(self):
         """Run().normalize_time() works accross all classes"""
 
@@ -162,3 +141,29 @@ class TestRun(BaseTestThermal):
 
         run.plot_allfreqs(self.map_label, ax=axis)
         matplotlib.pyplot.close('all')
+
+class TestRunSched(utils_tests.SetupDirectory):
+    """Tests using a trace with only sched info and no (or partial) thermal"""
+
+    def __init__(self, *args, **kwargs):
+        super(TestRunSched, self).__init__(
+             [("trace_empty.txt", "trace.txt")],
+             *args,
+             **kwargs)
+
+    def test_run_basetime_empty(self):
+        """Test that basetime is 0 if data frame of all data objects is empty"""
+
+        run = cr2.Run(normalize_time=False)
+
+        self.assertEqual(run.get_basetime(), 0)
+
+    def test_run_normalize_some_tracepoints(self):
+        """Test that normalizing time works if not all the tracepoints are in the trace"""
+
+        with open("trace.txt", "a") as fil:
+            fil.write("     kworker/4:1-1219  [004]   508.424826: thermal_temperature:  thermal_zone=exynos-therm id=0 temp_prev=24000 temp=24000")
+
+        run = cr2.Run()
+
+        self.assertEqual(run.thermal.data_frame.index[0], 0)
