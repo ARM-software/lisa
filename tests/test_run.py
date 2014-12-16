@@ -147,7 +147,7 @@ class TestRunSched(utils_tests.SetupDirectory):
 
     def __init__(self, *args, **kwargs):
         super(TestRunSched, self).__init__(
-             [("trace_empty.txt", "trace.txt")],
+             [("trace_sched.txt", "trace.txt")],
              *args,
              **kwargs)
 
