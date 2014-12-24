@@ -1,0 +1,71 @@
+"""This module is reponsible for creating a layout
+of plots as a 2D axes and handling corener cases
+and deleting empty plots
+"""
+
+import matplotlib.pyplot as plt
+import AttrConf
+
+
+class PlotLayout(object):
+
+    """Cols is the number of columns to draw
+       rows are calculated as 1D - 2D transformation
+       the same transformation is used to index the
+       axes array
+    """
+
+    def __init__(self, cols, num_plots, **kwargs):
+
+        self.cols = cols
+        self._attr = {}
+        self.num_plots = num_plots
+        self.rows = (self.num_plots / self.cols) + 1
+        self.usecol = False
+        self.userow = False
+        self._set_defaults()
+
+        for key in kwargs:
+            setattr(self, "_" + key, kwargs[key])
+
+        self._attr["figure"], self._attr["axes"] = plt.subplots(
+            self.rows, self.cols, figsize=(
+                self._attr["width"] * self.cols,
+                self._attr["length"] * self.rows))
+        if self.rows == 1:
+            self.usecol = True
+        if self.cols == 1:
+            self.userow = True
+
+    def _set_defaults(self):
+        """set the default attrs"""
+        self._attr["width"] = AttrConf.WIDTH
+        self._attr["length"] = AttrConf.LENGTH
+
+    def get_2d(self, linear_val):
+        """Convert Linear to 2D coordinates"""
+        if self.usecol:
+            return linear_val % self.cols
+
+        if self.userow:
+            return linear_val % self.rows
+
+        val_x = linear_val % self.cols
+        val_y = linear_val / self.cols
+        return val_y, val_x
+
+    def finish(self, plot_index):
+        """Delete the empty cells"""
+        while plot_index < (self.rows * self.cols):
+            self._attr["figure"].delaxes(
+                self._attr["axes"][
+                    self.get_2d(plot_index)])
+            plot_index += 1
+
+    def get_axes(self):
+        """Get the axes for the plots"""
+        return self._attr["axes"]
+
+    def get_fig(self):
+        """Return the matplotlib figure object"""
+        return self._attr["figure"]

@@ -67,10 +67,12 @@ def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
 class OutPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
+    unique_word="thermal_power_actor_cpu_limit"
+    name="out_power"
     def __init__(self, path=None):
         super(OutPower, self).__init__(
             basepath=path,
-            unique_word="thermal_power_actor_cpu_limit",
+            unique_word=self.unique_word,
         )
 
     def get_all_freqs(self, mapping_label):
@@ -87,10 +89,12 @@ class OutPower(Base):
 class InPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
+    unique_word="thermal_power_actor_cpu_get"
+    name="in_power"
     def __init__(self, path=None):
         super(InPower, self).__init__(
             basepath=path,
-            unique_word="thermal_power_actor_cpu_get",
+            unique_word=self.unique_word,
         )
 
     def get_load_data(self, mapping_label):

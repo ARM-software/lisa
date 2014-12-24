@@ -11,10 +11,14 @@ from plot_utils import normalize_title, pre_plot_setup, post_plot_setup, plot_hi
 
 class Thermal(Base):
     """Process the thermal framework data in a ftrace dump"""
+
+    unique_word="thermal_temperature:"
+    name="thermal"
+
     def __init__(self, path=None):
         super(Thermal, self).__init__(
             basepath=path,
-            unique_word="thermal_temperature:",
+            unique_word=self.unique_word,
         )
 
     def plot_temperature(self, control_temperature=None, title="", width=None,
@@ -56,10 +60,13 @@ class Thermal(Base):
 
 class ThermalGovernor(Base):
     """Process the power allocator data in a ftrace dump"""
+
+    unique_word="thermal_power_allocator:"
+    name="thermal_governor"
     def __init__(self, path=None):
         super(ThermalGovernor, self).__init__(
             basepath=path,
-            unique_word="thermal_power_allocator:",
+            unique_word=self.unique_word,
         )
 
     def plot_input_power(self, actor_order, title="", width=None, height=None, ax=None):

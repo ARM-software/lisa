@@ -2,6 +2,7 @@
 
 from run import Run
 from results import CR2, get_results, combine_results
+from plotter.LinePlot import LinePlot
 
 def summary_plots(actor_order, map_label, **kwords):
     """A summary of plots for a given run
