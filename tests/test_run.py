@@ -20,11 +20,38 @@ class TestRun(BaseTestThermal):
 
         run = cr2.Run()
 
-        self.assertTrue(len(run.thermal.data_frame) > 0)
-        self.assertTrue(len(run.thermal_governor.data_frame) > 0)
-        self.assertTrue(len(run.pid_controller.data_frame) > 0)
-        self.assertTrue(len(run.in_power.data_frame) > 0)
-        self.assertTrue(len(run.out_power.data_frame) > 0)
+        for attr in run.classes.iterkeys():
+            self.assertTrue(hasattr(run, attr))
+
+    def test_run_has_all_classes_scope_all(self):
+        """The Run() class has members for all classes with scope=all"""
+
+        run = cr2.Run(scope="all")
+
+        for attr in run.classes.iterkeys():
+            self.assertTrue(hasattr(run, attr))
+
+    def test_run_has_all_classes_scope_thermal(self):
+        """The Run() class has only members for thermal classes with scope=thermal"""
+
+        run = cr2.Run(scope="thermal")
+
+        for attr in run.thermal_classes.iterkeys():
+            self.assertTrue(hasattr(run, attr))
+
+        for attr in run.sched_classes.iterkeys():
+            self.assertFalse(hasattr(run, attr))
+
+    def test_run_has_all_classes_scope_sched(self):
+        """The Run() class has only members for sched classes with scope=sched"""
+
+        run = cr2.Run(scope="sched")
+
+        for attr in run.thermal_classes.iterkeys():
+            self.assertFalse(hasattr(run, attr))
+
+        for attr in run.sched_classes.iterkeys():
+            self.assertTrue(hasattr(run, attr))
 
     def test_run_accepts_name(self):
         """The Run() class has members for all classes"""
@@ -147,7 +174,7 @@ class TestRunSched(utils_tests.SetupDirectory):
 
     def __init__(self, *args, **kwargs):
         super(TestRunSched, self).__init__(
-             [("trace_sched.txt", "trace.txt")],
+             [("trace_empty.txt", "trace.txt")],
              *args,
              **kwargs)
 

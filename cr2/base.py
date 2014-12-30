@@ -62,6 +62,9 @@ class Base(object):
         if not os.path.isfile(os.path.join(basepath, "trace.txt")):
             self.__run_trace_cmd_report()
 
+    def finalize_object(self):
+        pass
+
     def __run_trace_cmd_report(self):
         """Run "trace-cmd report > trace.txt".
 

@@ -7,6 +7,7 @@ import pandas as pd
 from thermal import Thermal, ThermalGovernor
 from pid_controller import PIDController
 from power import InPower, OutPower
+from sched import *
 import plot_utils
 
 def _plot_freq_hists(power_inst, map_label, what, axis, title):
@@ -28,18 +29,38 @@ def _plot_freq_hists(power_inst, map_label, what, axis, title):
 class Run(object):
     """A wrapper class that initializes all the classes of a given run"""
 
-    classes = {"thermal": "Thermal",
-               "thermal_governor": "ThermalGovernor",
-               "pid_controller": "PIDController",
-               "in_power": "InPower",
-               "out_power": "OutPower",
+    thermal_classes = {
+                "thermal": "Thermal",
+                "thermal_governor": "ThermalGovernor",
+                "pid_controller": "PIDController",
+                "in_power": "InPower",
+                "out_power": "OutPower",
     }
 
-    def __init__(self, path=None, name="", normalize_time=True):
+    sched_classes = {
+                "sched_load_avg_sched_group": "SchedLoadAvgSchedGroup",
+                "sched_load_avg_task": "SchedLoadAvgTask",
+                "sched_load_avg_cpu": "SchedLoadAvgCpu",
+                "sched_contrib_scale_factor": "SchedContribScaleFactor",
+                "sched_cpu_capacity": "SchedCpuCapacity",
+                "sched_cpu_frequency": "SchedCpuFrequency",
+    }
+
+    classes = {}
+
+    def __init__(self, path=None, name="", normalize_time=True, scope="all"):
+
         if path is None:
             path = "."
         self.name = name
         self.basepath = path
+
+        if scope == "thermal":
+            self.classes = dict(self.thermal_classes.items())
+        elif scope == "sched":
+            self.classes = dict(self.sched_classes.items())
+        else:
+            self.classes = dict(self.thermal_classes.items() + self.sched_classes.items())
 
         for attr, class_name in self.classes.iteritems():
             setattr(self, attr, globals()[class_name](path))
@@ -109,6 +130,7 @@ class Run(object):
     def __finalize_objects(self):
         for attr in self.classes.iterkeys():
             getattr(self, attr).create_dataframe()
+            getattr(self, attr).finalize_object()
 
     def get_all_freqs_data(self, map_label):
         """get an array of tuple of names and DataFrames suitable for the
