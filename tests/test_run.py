@@ -132,12 +132,12 @@ class TestRun(BaseTestThermal):
 
         allfreqs = cr2.Run().get_all_freqs_data(self.map_label)
 
-        self.assertEquals(allfreqs[1][1]["A7_freq_out"].iloc[1], 1400)
-        self.assertEquals(allfreqs[1][1]["A7_freq_in"].iloc[35], 1400)
-        self.assertEquals(allfreqs[0][1]["A15_freq_out"].iloc[0], 1900)
+        self.assertEquals(allfreqs[1][1]["A7_freq_out"].iloc[3], 1600)
+        self.assertEquals(allfreqs[1][1]["A7_freq_in"].iloc[1], 1500)
+        self.assertEquals(allfreqs[0][1]["A15_freq_out"].iloc[2], 1000)
 
         # Make sure there are no NaNs in the middle of the array
-        self.assertTrue(allfreqs[0][1]["A15_freq_out"].notnull().all())
+        self.assertTrue(allfreqs[0][1]["A15_freq_in"].notnull().all())
 
     def test_plot_freq_hists(self):
         """Test that plot_freq_hists() doesn't bomb"""

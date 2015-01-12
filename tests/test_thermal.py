@@ -63,7 +63,7 @@ class TestThermalGovernor(BaseTestThermal):
         dfr = cr2.Run().thermal_governor.data_frame
 
         self.assertTrue(len(dfr) > 0)
-        self.assertEquals(dfr["current_temperature"].iloc[0], 47000)
+        self.assertEquals(dfr["current_temperature"].iloc[0], 75724)
         self.assertTrue("total_granted_power" in dfr.columns)
         self.assertFalse("time" in dfr.columns)
 
