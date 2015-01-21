@@ -57,7 +57,19 @@ class Constraint(object):
         self._pivot = pivot
         self._column = column
         self._template = template
-        self.result = self._apply()
+        self._dup_resolved = False
+        self._data = self.populate_data_frame()
+
+        try:
+            self.result = self._apply()
+        except ValueError:
+            if not self._dup_resolved:
+                self._handle_duplicate_index()
+                try:
+                    self.result = self._apply()
+                except:
+                    raise ValueError("Unable to handle duplicates")
+
         self.run_index = run_index
 
     def _apply(self):
@@ -65,7 +77,7 @@ class Constraint(object):
            on the input column.
            Do we need pivot_val?
         """
-        data = self.get_data_frame()
+        data = self._data
         result = {}
 
         try:
@@ -93,12 +105,39 @@ class Constraint(object):
                     criterion = criterion & data[key].map(
                         lambda x: x in self._filters[key])
                     values = values[criterion]
+
             val_series = values[data[self._pivot] == pivot_val]
             result[pivot_val] = val_series
 
         return result
 
-    def get_data_frame(self):
+    def _handle_duplicate_index(self):
+        """Handle duplicate values in index"""
+        data = self._data
+        self._dup_resolved = True
+        index = data.index
+        new_index = index.values
+
+        dups = index.get_duplicates()
+        for dup in dups:
+            # Leave one of the values intact
+            dup_index_left = index.searchsorted(dup, side="left")
+            dup_index_right = index.searchsorted(dup, side="right") - 1
+            num_dups = dup_index_right - dup_index_left + 1
+            delta = (index[dup_index_right + 1] - dup) / num_dups
+
+            if delta > AttrConf.DUPLICATE_VALUE_MAX_DELTA:
+                delta = AttrConf.DUPLICATE_VALUE_MAX_DELTA
+
+            # Add a delta to the others
+            dup_index_left += 1
+            while dup_index_left <= dup_index_right:
+                new_index[dup_index_left] += delta
+                delta += delta
+                dup_index_left += 1
+        self._data = self._data.reindex(new_index)
+
+    def populate_data_frame(self):
         """Return the data frame"""
         data_container = getattr(
             self._cr2_run,
@@ -216,7 +255,6 @@ class ConstraintManager(object):
                     template,
                     run_idx,
                     self._filters))
-
 
     def get_all_pivots(self):
         """Return a union of the pivot values"""
