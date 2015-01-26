@@ -26,12 +26,20 @@ class PlotLayout(object):
         self._set_defaults()
 
         for key in kwargs:
-            setattr(self, "_" + key, kwargs[key])
+            self._attr[key] = kwargs[key]
+
+        # Scale the plots if there is a single plot
+        if num_plots == 1:
+           self._attr["width"] = int(self._attr["width"] * 2.5)
+           self._attr["length"] = int(self._attr["length"] * 1.25)
+           self.cols = 1
+           self.rows = 2
 
         self._attr["figure"], self._attr["axes"] = plt.subplots(
             self.rows, self.cols, figsize=(
                 self._attr["width"] * self.cols,
                 self._attr["length"] * self.rows))
+
         if self.rows == 1:
             self.usecol = True
         if self.cols == 1:
