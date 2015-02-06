@@ -34,7 +34,17 @@ class PlotLayout(object):
         self.cols = cols
         self._attr = {}
         self.num_plots = num_plots
-        self.rows = (self.num_plots / self.cols) + 1
+        self._single_plot = False
+        if self.num_plots == 0:
+            raise RuntimeError("No plots for the given constraints")
+
+        if self.num_plots < self.cols:
+            self.cols = self.num_plots
+        self.rows = (self.num_plots / self.cols)
+        # Avoid Extra Allocation (shows up in savefig!)
+        if self.num_plots % self.cols != 0:
+            self.rows += 1
+
         self.usecol = False
         self.userow = False
         self._set_defaults()
@@ -42,22 +52,21 @@ class PlotLayout(object):
         for key in kwargs:
             self._attr[key] = kwargs[key]
 
-        # Scale the plots if there is a single plot
+        # Scale the plots if there is a single plot and
+        # Set boolean variables
         if num_plots == 1:
-           self._attr["width"] = int(self._attr["width"] * 2.5)
-           self._attr["length"] = int(self._attr["length"] * 1.25)
-           self.cols = 1
-           self.rows = 2
+            self._attr["width"] = int(self._attr["width"] * 2.5)
+            self._attr["length"] = int(self._attr["length"] * 1.25)
+            self._single_plot = True
+        elif self.rows == 1:
+            self.usecol = True
+        elif self.cols == 1:
+            self.userow = True
 
         self._attr["figure"], self._attr["axes"] = plt.subplots(
             self.rows, self.cols, figsize=(
                 self._attr["width"] * self.cols,
                 self._attr["length"] * self.rows))
-
-        if self.rows == 1:
-            self.usecol = True
-        if self.cols == 1:
-            self.userow = True
 
     def _set_defaults(self):
         """set the default attrs"""
@@ -84,9 +93,12 @@ class PlotLayout(object):
                     self.get_2d(plot_index)])
             plot_index += 1
 
-    def get_axes(self):
+    def get_axis(self, plot_index):
         """Get the axes for the plots"""
-        return self._attr["axes"]
+        if self._single_plot:
+            return self._attr["axes"]
+        else:
+            return self._attr["axes"][self.get_2d(plot_index)]
 
     def get_fig(self):
         """Return the matplotlib figure object"""

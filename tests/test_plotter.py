@@ -3,6 +3,8 @@
 import unittest
 import matplotlib
 import pandas as pd
+import tempfile
+import os
 
 from test_thermal import BaseTestThermal
 import cr2
@@ -106,4 +108,25 @@ class TestPlotter(BaseTestThermal):
                     0]},
             pivot="cpus")
         l.view()
+        matplotlib.pyplot.close('all')
+
+    def test_plot_savefig(self):
+        """Tests plotter: savefig"""
+        run1 = cr2.Run(name="first")
+        run2 = cr2.Run(name="second")
+        l = cr2.LinePlot(
+            run1,
+            cr2.power.InPower,
+            column=[
+                "dynamic_power",
+                "load1"],
+            filters={
+                "cdev_state": [
+                    1,
+                    0]},
+            pivot="cpus")
+        png_file = tempfile.mktemp(dir="/tmp", suffix=".png")
+        l.savefig(png_file)
+        self.assertTrue(os.path.isfile(png_file))
+        os.remove(png_file)
         matplotlib.pyplot.close('all')

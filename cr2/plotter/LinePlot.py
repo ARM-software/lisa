@@ -72,6 +72,11 @@ class LinePlot(AbstractDataPlotter):
         self._constraints = self.c_mgr.constraints
         super(LinePlot, self).__init__()
 
+    def savefig(self, *args, **kwargs):
+        if self._fig == None:
+            self.view()
+        self._fig.savefig(*args, **kwargs)
+
     def view(self):
         """Displays the graph"""
         if self._attr["concat"]:
@@ -109,7 +114,6 @@ class LinePlot(AbstractDataPlotter):
             width=self._attr["width"],
             length=self._attr["length"])
 
-        axes = self._layout.get_axes()
         self._fig = self._layout.get_fig()
 
         legend = [None] * len(self._constraints)
@@ -122,7 +126,7 @@ class LinePlot(AbstractDataPlotter):
             plot_index = 0
             for pivot in pivot_vals:
                 if pivot in result:
-                    axis = axes[self._layout.get_2d(plot_index)]
+                    axis = self._layout.get_axis(plot_index)
                     line_2d_list = axis.plot(
                         result[pivot].index,
                         result[pivot].values,
@@ -130,7 +134,7 @@ class LinePlot(AbstractDataPlotter):
                         **self._attr["args_to_forward"])
                     legend[constraint_index] = line_2d_list[0]
                 else:
-                    axis = axes[self._layout.get_2d(plot_index)]
+                    axis = self._layout.get_axis(plot_index)
                     axis.plot([], [], **self._attr["args_to_forward"])
                 plot_index += 1
 
@@ -141,14 +145,12 @@ class LinePlot(AbstractDataPlotter):
         plot_index = 0
         for pivot_val in pivot_vals:
             if pivot_val != AttrConf.PIVOT_VAL:
-                axes[
-                    self._layout.get_2d(plot_index)].set_title( \
+                self._layout.get_axis(plot_index).set_title( \
                     self._attr["pivot"] + \
                     ":" + \
                     str(pivot_val))
             else:
-                axes[
-                    self._layout.get_2d(plot_index)].set_title( \
+                self._layout.get_axis(plot_index).set_title(
                     self._attr["column"])
             plot_index += 1
 
@@ -168,7 +170,6 @@ class LinePlot(AbstractDataPlotter):
             width=self._attr["width"],
             length=self._attr["length"])
 
-        axes = self._layout.get_axes()
         self._fig = self._layout.get_fig()
 
         pivot_index = 0
@@ -179,7 +180,7 @@ class LinePlot(AbstractDataPlotter):
             for constraint in self._constraints:
                 result = constraint.result
                 if pivot in result:
-                    axis = axes[self._layout.get_2d(plot_index)]
+                    axis = self._layout.get_axis(plot_index)
                     line_2d_list = axis.plot(
                         result[pivot].index,
                         result[pivot].values,
@@ -187,7 +188,7 @@ class LinePlot(AbstractDataPlotter):
                         **self._attr["args_to_forward"])
                     legend[pivot_index] = line_2d_list[0]
                 else:
-                    axis = axes[self._layout.get_2d(plot_index)]
+                    axis = self._layout.get_axis(plot_index)
                     axis.plot(
                         [],
                         [],
@@ -205,7 +206,7 @@ class LinePlot(AbstractDataPlotter):
         self._fig.legend(legend, legend_str)
         plot_index = 0
         for constraint in self._constraints:
-            axes[self._layout.get_2d(plot_index)].set_title(str(constraint))
+            self._layout.get_axis(plot_index).set_title(str(constraint))
             plot_index += 1
 
         self._layout.finish(len(self._constraints))

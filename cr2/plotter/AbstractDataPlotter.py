@@ -27,3 +27,8 @@ class AbstractDataPlotter(object):
     def view(self):
         """View the graph"""
         raise NotImplementedError("Method Not Implemented")
+
+    @abstractmethod
+    def savefig(self, path):
+        """Save the image as a file"""
+        raise NotImplementedError("Method Not Implemented")
