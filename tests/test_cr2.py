@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import os
+import re
 import matplotlib, tempfile
 
 import cr2
@@ -57,6 +58,23 @@ class TestCR2(BaseTestThermal):
 
         # Sanity check that the test actually ran from another directory
         self.assertEquals(os.getcwd(), other_random_dir)
+
+    def test_summary_plots_only_power_allocator_trace(self):
+        """Test that summary_plots() work if there is only power allocator
+        trace"""
+
+        # Strip out "thermal_temperature" from the trace
+        trace_out = ""
+        with open("trace.txt") as fin:
+            for line in fin:
+                if not re.search("thermal_temperature:", line):
+                    trace_out += line
+
+        with open("trace.txt", "w") as fout:
+            fout.write(trace_out)
+
+        cr2.summary_plots(self.actor_order, self.map_label)
+        matplotlib.pyplot.close('all')
 
     def test_compare_runs(self):
         """Basic compare_runs() functionality"""

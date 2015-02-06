@@ -125,9 +125,13 @@ def plot_temperature(runs, width=None, height=None, ylim="range"):
     for run in runs:
         current_temp = run.thermal_governor.data_frame["current_temperature"]
         delta_temp = run.thermal_governor.data_frame["delta_temperature"]
-        control_temp_series = (current_temp + delta_temp) / 1000
-        run.thermal.plot_temperature(control_temperature=control_temp_series,
-                                     ax=ax, legend_label=run.name)
+        control_series = (current_temp + delta_temp) / 1000
+
+        try:
+            run.thermal.plot_temperature(control_temperature=control_series,
+                                         ax=ax, legend_label=run.name)
+        except ValueError:
+            run.thermal_governor.plot_temperature(ax=ax, legend_label=run.name)
 
     post_plot_setup(ax, title="Temperature", ylim=ylim)
     plt.legend(loc="best")
@@ -216,7 +220,14 @@ def plot_freq_hists(runs, map_label):
 
 def plot_temperature_hist(runs):
     """Plot temperature histograms for all the runs"""
-    num_runs = len(runs)
+    num_runs = 0
+    for run in runs:
+        if len(run.thermal.data_frame):
+            num_runs += 1
+
+    if num_runs == 0:
+        return
+
     axis = pre_plot_setup(ncols=num_runs)
 
     if num_runs == 1:
