@@ -47,6 +47,9 @@ class Thermal(Base):
         """
         title = normalize_title("Temperature", title)
 
+        if len(self.data_frame) == 0:
+            raise ValueError("Empty DataFrame")
+
         setup_plot = False
         if not ax:
             ax = pre_plot_setup(width, height)

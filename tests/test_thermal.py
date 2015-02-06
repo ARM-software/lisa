@@ -139,3 +139,9 @@ CPU:7 [204600 EVENTS DROPPED]
     def test_empty_trace_txt(self):
         dfr = cr2.Run(normalize_time=False).thermal_governor.data_frame
         self.assertEquals(len(dfr), 0)
+
+    def test_empty_plot_temperature(self):
+        """run.thermal.plot_temperature() raises ValueError() on an empty
+        thermal trace"""
+        run = cr2.Run()
+        self.assertRaises(ValueError, run.thermal.plot_temperature)
