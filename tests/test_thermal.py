@@ -67,6 +67,16 @@ class TestThermalGovernor(BaseTestThermal):
         self.assertTrue("total_granted_power" in dfr.columns)
         self.assertFalse("time" in dfr.columns)
 
+    def test_plot_temperature(self):
+        """Test ThermalGovernor.plot_temperature()
+
+        Can't check that the graph is ok, so just see that the method doesn't blow up"""
+        gov = cr2.Run().thermal_governor
+
+        gov.plot_temperature()
+        gov.plot_temperature(legend_label="power allocator", ylim=(0, 72))
+        matplotlib.pyplot.close('all')
+
     def test_plot_input_power(self):
         """plot_input_power() doesn't bomb"""
         gov = cr2.Run().thermal_governor

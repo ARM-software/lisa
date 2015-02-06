@@ -86,6 +86,28 @@ class ThermalGovernor(Base):
             unique_word=self.unique_word,
         )
 
+    def plot_temperature(self, title="", width=None, height=None, ylim="range",
+                         ax=None, legend_label=""):
+        """Plot the temperature"""
+        dfr = self.data_frame
+        curr_temp = dfr["current_temperature"]
+        control_temp_series = (curr_temp + dfr["delta_temperature"]) / 1000
+        title = normalize_title("Temperature", title)
+
+        setup_plot = False
+        if not ax:
+            ax = pre_plot_setup(width, height)
+            setup_plot = True
+
+        temp_label = normalize_title("Temperature", legend_label)
+        (curr_temp / 1000).plot(ax=ax, label=temp_label)
+        control_temp_series.plot(ax=ax, color="y", linestyle="--",
+                                 label="control temperature")
+
+        if setup_plot:
+            post_plot_setup(ax, title=title, ylim=ylim)
+            plt.legend()
+
     def plot_input_power(self, actor_order, title="", width=None, height=None, ax=None):
         """Plot input power
 
