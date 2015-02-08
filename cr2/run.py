@@ -120,11 +120,11 @@ class Run(object):
         for attr in self.classes.iterkeys():
             getattr(self, attr).normalize_time(basetime)
 
-    def __contains_unique_word(self, line):
-        for attr in self.classes.iterkeys():
-            if getattr(self, attr).unique_word in line:
-                return attr;
-        return None;
+    def __contains_unique_word(self, line, unique_words):
+        for unique_word, trace_name in unique_words:
+            if unique_word in line:
+                return trace_name
+        return None
 
     def __parse_trace_file(self):
         """parse the trace and create a pandas DataFrame"""
@@ -135,9 +135,15 @@ class Run(object):
         pat_data_start = re.compile("[A-Za-z0-9_]+=")
         pat_empty_array = re.compile(r"[A-Za-z0-9_]+=\{\} ")
 
+        # Memoize the unique words to speed up parsing the trace file
+        unique_words = []
+        for trace_name in self.classes.iterkeys():
+            unique_word = getattr(self, trace_name).unique_word
+            unique_words.append((unique_word, trace_name))
+
         with open(fin_fname) as fin:
             for line in fin:
-                attr = self.__contains_unique_word(line)
+                attr = self.__contains_unique_word(line, unique_words)
                 if not attr:
                     continue
 
