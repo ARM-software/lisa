@@ -20,7 +20,7 @@ class TestRun(BaseTestThermal):
 
         run = cr2.Run()
 
-        for attr in run.classes.iterkeys():
+        for attr in run.class_definitions.iterkeys():
             self.assertTrue(hasattr(run, attr))
 
     def test_run_has_all_classes_scope_all(self):
@@ -28,7 +28,7 @@ class TestRun(BaseTestThermal):
 
         run = cr2.Run(scope="all")
 
-        for attr in run.classes.iterkeys():
+        for attr in run.class_definitions.iterkeys():
             self.assertTrue(hasattr(run, attr))
 
     def test_run_has_all_classes_scope_thermal(self):

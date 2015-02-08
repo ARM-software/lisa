@@ -60,8 +60,6 @@ class Run(object):
                 "sched_cpu_frequency": "SchedCpuFrequency",
     }
 
-    classes = {}
-
     def __init__(self, path=None, name="", normalize_time=True, scope="all"):
 
         if path is None:
@@ -70,14 +68,17 @@ class Run(object):
         self.basepath = path
 
         if scope == "thermal":
-            self.classes = dict(self.thermal_classes.items())
+            self.class_definitions = dict(self.thermal_classes.items())
         elif scope == "sched":
-            self.classes = dict(self.sched_classes.items())
+            self.class_definitions = dict(self.sched_classes.items())
         else:
-            self.classes = dict(self.thermal_classes.items() + self.sched_classes.items())
+            self.class_definitions = dict(self.thermal_classes.items() + self.sched_classes.items())
 
-        for attr, class_name in self.classes.iteritems():
-            setattr(self, attr, globals()[class_name](path))
+        self.trace_classes = []
+        for attr, class_name in self.class_definitions.iteritems():
+            trace_class = globals()[class_name](path)
+            setattr(self, attr, trace_class)
+            self.trace_classes.append(trace_class)
 
         self.__parse_trace_file()
         self.__finalize_objects()
@@ -91,9 +92,9 @@ class Run(object):
         returns 0 if the data frames of all classes are empty"""
         basetimes = []
 
-        for attr in self.classes.iterkeys():
+        for trace_class in self.trace_classes:
             try:
-                basetimes.append(getattr(self, attr).data_frame.index[0])
+                basetimes.append(trace_class.data_frame.index[0])
             except IndexError:
                 pass
 
@@ -109,7 +110,7 @@ class Run(object):
         only the "sched" related filters)."""
         filters = []
 
-        for c in self.classes:
+        for c in self.class_definitions:
             if re.search(key, c):
                 filters.append(c)
 
@@ -117,8 +118,8 @@ class Run(object):
 
     def normalize_time(self, basetime):
         """Normalize the time of all the trace classes"""
-        for attr in self.classes.iterkeys():
-            getattr(self, attr).normalize_time(basetime)
+        for trace_class in self.trace_classes:
+            trace_class.normalize_time(basetime)
 
     def __contains_unique_word(self, line, unique_words):
         for unique_word, trace_name in unique_words:
@@ -133,7 +134,7 @@ class Run(object):
 
         # Memoize the unique words to speed up parsing the trace file
         unique_words = []
-        for trace_name in self.classes.iterkeys():
+        for trace_name in self.class_definitions.iterkeys():
             unique_word = getattr(self, trace_name).unique_word
             unique_words.append((unique_word, trace_name))
 
@@ -157,9 +158,9 @@ class Run(object):
                 getattr(self, attr).append_data(timestamp, data_str)
 
     def __finalize_objects(self):
-        for attr in self.classes.iterkeys():
-            getattr(self, attr).create_dataframe()
-            getattr(self, attr).finalize_object()
+        for trace_class in self.trace_classes:
+            trace_class.create_dataframe()
+            trace_class.finalize_object()
 
     def get_all_freqs_data(self, map_label):
         """get an array of tuple of names and DataFrames suitable for the

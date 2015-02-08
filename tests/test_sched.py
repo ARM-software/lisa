@@ -91,7 +91,7 @@ class TestGetFilters(BaseTestSched):
         """Test that Run::get_filters returns correct list of filters"""
 
         run = cr2.Run()
-        classes = run.classes
+        classes = run.class_definitions
         filters = run.get_filters()
         self.assertTrue(len(classes) == len(filters))
         self.assertTrue(sorted(classes) == sorted(filters))
