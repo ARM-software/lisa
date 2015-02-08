@@ -122,7 +122,7 @@ class Run(object):
 
     def __contains_unique_word(self, line):
         for attr in self.classes.iterkeys():
-            if re.search(getattr(self, attr).unique_word, line):
+            if getattr(self, attr).unique_word in line:
                 return attr;
         return None;
 
