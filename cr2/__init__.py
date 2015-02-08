@@ -66,7 +66,7 @@ def compare_runs(actor_order, map_label, runs, **kwords):
 
     run_data = []
     for run in runs:
-        run_data.append(Run(name=run[0], path=run[1]))
+        run_data.append(Run(name=run[0], path=run[1], scope="thermal"))
 
     plot_utils.plot_temperature(run_data, **kwords)
     plot_utils.plot_load(run_data, map_label, **kwords)
