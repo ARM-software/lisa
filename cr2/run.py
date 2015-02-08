@@ -131,10 +131,6 @@ class Run(object):
 
         fin_fname = os.path.join(self.basepath, "trace.txt")
 
-        pat_timestamp = re.compile(r"([0-9]+\.[0-9]+):")
-        pat_data_start = re.compile("[A-Za-z0-9_]+=")
-        pat_empty_array = re.compile(r"[A-Za-z0-9_]+=\{\} ")
-
         # Memoize the unique words to speed up parsing the trace file
         unique_words = []
         for trace_name in self.classes.iterkeys():
@@ -149,14 +145,14 @@ class Run(object):
 
                 line = line[:-1]
 
-                timestamp_match = re.search(pat_timestamp, line)
+                timestamp_match = re.search(r"([0-9]+\.[0-9]+):", line)
                 timestamp = float(timestamp_match.group(1))
 
-                data_start_idx = re.search(pat_data_start, line).start()
+                data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
                 data_str = line[data_start_idx:]
 
                 # Remove empty arrays from the trace
-                data_str = re.sub(pat_empty_array, r"", data_str)
+                data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
 
                 getattr(self, attr).append_data(timestamp, data_str)
 
