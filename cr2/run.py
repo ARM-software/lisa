@@ -60,6 +60,8 @@ class Run(object):
                 "sched_cpu_frequency": "SchedCpuFrequency",
     }
 
+    class_definitions = {}
+
     def __init__(self, path=None, name="", normalize_time=True, scope="all"):
 
         if path is None:
@@ -68,11 +70,12 @@ class Run(object):
         self.basepath = path
 
         if scope == "thermal":
-            self.class_definitions = self.thermal_classes.copy()
+            self.class_definitions.update(self.thermal_classes.items())
         elif scope == "sched":
-            self.class_definitions = self.sched_classes.copy()
+            self.class_definitions.update(self.sched_classes.items())
         else:
-            self.class_definitions = dict(self.thermal_classes.items() + self.sched_classes.items())
+            self.class_definitions.update(self.thermal_classes.items() +
+                                          self.sched_classes.items())
 
         self.trace_classes = []
         for attr, class_name in self.class_definitions.iteritems():
@@ -102,6 +105,15 @@ class Run(object):
             return 0
 
         return min(basetimes)
+
+    @classmethod
+    def register_class(cls, cobject, scope="all"):
+        # Add the class to the classes dictionary
+        if scope == "all":
+            cls.class_definitions[cobject.name] = cobject.__name__
+        else:
+            getattr(cls, scope + "_classes")[cobject.name] = cobject.__name__
+        globals()[cobject.__name__] = cobject
 
     def get_filters(self, key=""):
         """Returns an array with the available filters.
