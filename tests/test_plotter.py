@@ -36,11 +36,11 @@ class TestPlotter(BaseTestThermal):
         run1 = cr2.Run(name="first")
         run2 = cr2.Run(name="second")
         l = cr2.LinePlot([run1,
-                                  run2],
-                                 [cr2.thermal.Thermal,
-                                  cr2.thermal.ThermalGovernor],
-                                 column=["temp",
-                                         "power_range"])
+                          run2],
+                         [cr2.thermal.Thermal,
+                          cr2.thermal.ThermalGovernor],
+                         column=["temp",
+                                 "power_range"])
         l.view()
         matplotlib.pyplot.close('all')
 
@@ -49,10 +49,10 @@ class TestPlotter(BaseTestThermal):
         run1 = cr2.Run(name="first")
         run2 = cr2.Run(name="second")
         l = cr2.LinePlot([run1,
-                                  run2],
-                                 [cr2.power.OutPower],
-                                 column=["power"],
-                                 filters={"cdev_state": [1]})
+                          run2],
+                         [cr2.power.OutPower],
+                         column=["power"],
+                         filters={"cdev_state": [1]})
         l.view()
         matplotlib.pyplot.close('all')
 
@@ -81,11 +81,12 @@ class TestPlotter(BaseTestThermal):
         run1 = cr2.Run(name="first")
         run2 = cr2.Run(name="second")
         l = cr2.LinePlot([run1,
-                                  run2],
-                                 [cr2.power.InPower,
-                                  cr2.power.OutPower],
-                                 column="power",
-                                 pivot="cpus")
+                          run2],
+                         [cr2.power.InPower,
+                          cr2.power.OutPower],
+                         column=["dynamic_power",
+                                 "power"],
+                         pivot="cpus")
         l.view()
         matplotlib.pyplot.close('all')
 
@@ -97,7 +98,7 @@ class TestPlotter(BaseTestThermal):
             run1,
             cr2.power.InPower,
             column=[
-                "power",
+                "dynamic_power",
                 "load1"],
             filters={
                 "cdev_state": [
