@@ -101,6 +101,8 @@ class LinePlot(AbstractDataPlotter):
         self._attr["filters"] = {}
         self._attr["style"] = True
         self._attr["pivot"] = AttrConf.PIVOT
+        self._attr["xlim"] = AttrConf.XLIM
+        self._attr["ylim"] = AttrConf.XLIM
         self._attr["args_to_forward"] = {}
 
     def _plot(self):
@@ -133,6 +135,10 @@ class LinePlot(AbstractDataPlotter):
                         color=cmap.cmap(constraint_index),
                         **self._attr["args_to_forward"])
                     legend[constraint_index] = line_2d_list[0]
+                    if self._attr["xlim"] != None:
+                        axis.set_xlim(self._attr["xlim"])
+                    if self._attr["ylim"] != None:
+                        axis.set_ylim(self._attr["ylim"])
                 else:
                     axis = self._layout.get_axis(plot_index)
                     axis.plot([], [], **self._attr["args_to_forward"])
@@ -186,6 +192,10 @@ class LinePlot(AbstractDataPlotter):
                         result[pivot].values,
                         color=cmap.cmap(pivot_index),
                         **self._attr["args_to_forward"])
+                    if self._attr["xlim"] != None:
+                        axis.set_xlim(self._attr["xlim"])
+                    if self._attr["ylim"] != None:
+                        axis.set_xlim(self._attr["ylim"])
                     legend[pivot_index] = line_2d_list[0]
                 else:
                     axis = self._layout.get_axis(plot_index)
