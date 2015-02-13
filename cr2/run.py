@@ -68,9 +68,9 @@ class Run(object):
         self.basepath = path
 
         if scope == "thermal":
-            self.class_definitions = dict(self.thermal_classes.items())
+            self.class_definitions = self.thermal_classes.copy()
         elif scope == "sched":
-            self.class_definitions = dict(self.sched_classes.items())
+            self.class_definitions = self.sched_classes.copy()
         else:
             self.class_definitions = dict(self.thermal_classes.items() + self.sched_classes.items())
 
