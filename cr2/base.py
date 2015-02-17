@@ -165,8 +165,8 @@ class Base(object):
         time_idx = pd.Index(self.time_array, name="Time")
         self.data_frame = pd.DataFrame(parsed_data, index=time_idx)
 
-        self.time_array[:] = []
-        self.data_array[:] = []
+        self.time_array = []
+        self.data_array = []
 
     def write_csv(self, fname):
         """Write the csv info in thermal.csv"""
