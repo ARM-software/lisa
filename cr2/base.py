@@ -109,9 +109,8 @@ class Base(object):
 
         ret = defaultdict(int)
 
-        line = self.data_array[0]
-
-        while True:
+        for line in self.data_array:
+            while True:
                 match = re.search(pat_array, line)
                 if not match:
                     break
@@ -124,6 +123,10 @@ class Base(object):
                     ret[array_name] = array_len
 
                 line = line[match.end():]
+
+            # Stop scanning if the trace doesn't have arrays
+            if len(ret) == 0:
+                break
 
         return ret
 

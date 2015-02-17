@@ -64,8 +64,9 @@ class TestPower(BaseTestThermal):
 
         That is 2 cpus in one cluster and 4 in another, like Juno
         """
-        in_data = """     kworker/2:2-679   [002]   676.256261: thermal_power_cpu_get:   cpus=00000000,0000000f freq=450000 raw_cpu_power=36 load={1 2 1 3} power=9
-     kworker/2:2-679   [002]   676.256271: thermal_power_cpu_get:   cpus=00000000,00000030 freq=1900000 raw_cpu_power=1259 load={74 49} power=451
+        in_data = """
+     kworker/2:2-679   [002]   676.256261: thermal_power_cpu_get:   cpus=00000000,00000030 freq=1900000 raw_cpu_power=1259 load={74 49} power=451
+     kworker/2:2-679   [002]   676.256271: thermal_power_cpu_get:   cpus=00000000,0000000f freq=450000 raw_cpu_power=36 load={1 2 1 3} power=9
 """
 
         with open("trace.txt", "w") as fout:
@@ -73,14 +74,14 @@ class TestPower(BaseTestThermal):
 
         inp = cr2.Run(normalize_time=False).in_power
 
-        self.assertEquals(inp.data_frame["load0"].iloc[0], 1)
-        self.assertEquals(inp.data_frame["load1"].iloc[0], 2)
-        self.assertEquals(inp.data_frame["load2"].iloc[0], 1)
-        self.assertEquals(inp.data_frame["load3"].iloc[0], 3)
-        self.assertEquals(inp.data_frame["load0"].iloc[1], 74)
-        self.assertEquals(inp.data_frame["load1"].iloc[1], 49)
-        self.assertEquals(inp.data_frame["load2"].iloc[1], 0)
-        self.assertEquals(inp.data_frame["load3"].iloc[1], 0)
+        self.assertEquals(inp.data_frame["load0"].iloc[0], 74)
+        self.assertEquals(inp.data_frame["load1"].iloc[0], 49)
+        self.assertEquals(inp.data_frame["load2"].iloc[0], 0)
+        self.assertEquals(inp.data_frame["load3"].iloc[0], 0)
+        self.assertEquals(inp.data_frame["load0"].iloc[1], 1)
+        self.assertEquals(inp.data_frame["load1"].iloc[1], 2)
+        self.assertEquals(inp.data_frame["load2"].iloc[1], 1)
+        self.assertEquals(inp.data_frame["load3"].iloc[1], 3)
 
     def test_inpower_get_all_freqs(self):
         """Test InPower.get_all_freqs()"""
