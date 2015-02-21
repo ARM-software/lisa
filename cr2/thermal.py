@@ -29,9 +29,8 @@ class Thermal(Base):
     unique_word="thermal_temperature:"
     name="thermal"
 
-    def __init__(self, path=None):
+    def __init__(self):
         super(Thermal, self).__init__(
-            basepath=path,
             unique_word=self.unique_word,
         )
 
@@ -80,9 +79,8 @@ class ThermalGovernor(Base):
 
     unique_word="thermal_power_allocator:"
     name="thermal_governor"
-    def __init__(self, path=None):
+    def __init__(self):
         super(ThermalGovernor, self).__init__(
-            basepath=path,
             unique_word=self.unique_word,
         )
 

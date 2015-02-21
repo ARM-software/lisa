@@ -83,7 +83,7 @@ class Run(object):
 
         self.trace_classes = []
         for attr, class_name in self.class_definitions.iteritems():
-            trace_class = globals()[class_name](path)
+            trace_class = globals()[class_name]()
             setattr(self, attr, trace_class)
             self.trace_classes.append(trace_class)
 

@@ -23,13 +23,12 @@ import re
 from cr2.run import Run
 
 
-def default_init(self, path=None):
+def default_init(self):
     """Default Constructor for the
        Dynamic MetaClass
     """
 
     super(type(self), self).__init__(
-        basepath=path,
         unique_word=self.unique_word,
     )
 

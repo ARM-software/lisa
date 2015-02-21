@@ -83,9 +83,8 @@ class OutPower(Base):
 
     unique_word="thermal_power_cpu_limit"
     name="out_power"
-    def __init__(self, path=None):
+    def __init__(self):
         super(OutPower, self).__init__(
-            basepath=path,
             unique_word=self.unique_word,
         )
 
@@ -105,9 +104,8 @@ class InPower(Base):
 
     unique_word="thermal_power_cpu_get"
     name="in_power"
-    def __init__(self, path=None):
+    def __init__(self):
         super(InPower, self).__init__(
-            basepath=path,
             unique_word=self.unique_word,
         )
 

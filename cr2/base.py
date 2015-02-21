@@ -63,11 +63,7 @@ class Base(object):
 
     Don't use directly, create a subclass that defines the unique_word
     you want to match in the output"""
-    def __init__(self, basepath, unique_word):
-        if basepath is None:
-            basepath = "."
-
-        self.basepath = basepath
+    def __init__(self, unique_word):
         self.data_frame = pd.DataFrame()
         self.unique_word = unique_word
         self.data_array = []

@@ -22,9 +22,8 @@ class SchedLoadAvgSchedGroup(Base):
     name="sched_load_avg_sched_group"
     _cpu_mask_column = "cpus"
 
-    def __init__(self, path=None):
+    def __init__(self):
         super(SchedLoadAvgSchedGroup, self).__init__(
-            basepath=path,
             unique_word=self.unique_word,
         )
 
@@ -40,9 +39,8 @@ class SchedLoadAvgTask(Base):
     unique_word="sched_load_avg_task:"
     name="sched_load_avg_task"
 
-    def __init__(self, path=None):
+    def __init__(self):
         super(SchedLoadAvgTask, self).__init__(
-            basepath=path,
             unique_word=self.unique_word,
         )
 
@@ -58,9 +56,8 @@ class SchedLoadAvgCpu(Base):
     unique_word="sched_load_avg_cpu:"
     name="sched_load_avg_cpu"
 
-    def __init__(self, path=None):
+    def __init__(self):
         super(SchedLoadAvgCpu, self).__init__(
-            basepath=path,
             unique_word=self.unique_word,
         )
 
@@ -69,9 +66,8 @@ class SchedContribScaleFactor(Base):
     unique_word="sched_contrib_scale_f:"
     name="sched_contrib_scale_factor"
 
-    def __init__(self, path=None):
+    def __init__(self):
         super(SchedContribScaleFactor, self).__init__(
-            basepath=path,
             unique_word=self.unique_word,
         )
 
@@ -80,9 +76,8 @@ class SchedCpuCapacity(Base):
     unique_word="sched_cpu_capacity:"
     name="sched_cpu_capacity"
 
-    def __init__(self, path=None):
+    def __init__(self):
         super(SchedCpuCapacity, self).__init__(
-            basepath=path,
             unique_word=self.unique_word,
         )
 
@@ -91,9 +86,8 @@ class SchedCpuFrequency(Base):
     unique_word="cpu_frequency:"
     name="sched_cpu_frequency"
 
-    def __init__(self, path=None):
+    def __init__(self):
         super(SchedCpuFrequency, self).__init__(
-            basepath=path,
             unique_word=self.unique_word,
         )
 
