@@ -83,10 +83,7 @@ classes are parsed.
 
     dynamic_classes = {}
 
-    def __init__(self, path=None, name="", normalize_time=True, scope="all"):
-
-        if path is None:
-            path = "."
+    def __init__(self, path=".", name="", normalize_time=True, scope="all"):
         self.name = name
         self.basepath = path
         self.class_definitions = self.dynamic_classes.copy()
