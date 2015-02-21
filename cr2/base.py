@@ -73,28 +73,8 @@ class Base(object):
         self.data_array = []
         self.time_array = []
 
-        if not os.path.isfile(os.path.join(basepath, "trace.txt")):
-            self.__run_trace_cmd_report()
-
     def finalize_object(self):
         pass
-
-    def __run_trace_cmd_report(self):
-        """Run "trace-cmd report > trace.txt".
-
-        Overwrites the contents of trace.txt if it exists."""
-        from subprocess import check_output
-
-        trace_fname = os.path.join(self.basepath, "trace.dat")
-        if not os.path.isfile(trace_fname):
-            raise IOError("No such file or directory: {}".format(trace_fname))
-
-        with open(os.devnull) as devnull:
-            out = check_output(["trace-cmd", "report", trace_fname],
-                               stderr=devnull)
-
-        with open(os.path.join(self.basepath, "trace.txt"), "w") as fout:
-            fout.write(out)
 
     def __get_trace_array_lengths(self):
         """Calculate the lengths of all arrays in the trace

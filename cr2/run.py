@@ -69,6 +69,9 @@ class Run(object):
         self.name = name
         self.basepath = path
 
+        if not os.path.isfile(os.path.join(path, "trace.txt")):
+            self.__run_trace_cmd_report()
+
         if scope == "thermal":
             self.class_definitions.update(self.thermal_classes.items())
         elif scope == "sched":
@@ -89,6 +92,23 @@ class Run(object):
         if normalize_time:
             basetime = self.get_basetime()
             self.normalize_time(basetime)
+
+    def __run_trace_cmd_report(self):
+        """Run "trace-cmd report > trace.txt".
+
+        Overwrites the contents of trace.txt if it exists."""
+        from subprocess import check_output
+
+        trace_fname = os.path.join(self.basepath, "trace.dat")
+        if not os.path.isfile(trace_fname):
+            raise IOError("No such file or directory: {}".format(trace_fname))
+
+        with open(os.devnull) as devnull:
+            out = check_output(["trace-cmd", "report", trace_fname],
+                               stderr=devnull)
+
+        with open(os.path.join(self.basepath, "trace.txt"), "w") as fout:
+            fout.write(out)
 
     def get_basetime(self):
         """Returns the smallest time value of all classes,
