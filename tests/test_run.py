@@ -86,6 +86,16 @@ class TestRun(BaseTestThermal):
         self.assertTrue(len(dfr) > 0)
         self.assertEquals(os.getcwd(), other_random_dir)
 
+    def test_run_arbitrary_trace_txt(self):
+        """Run() works if the trace is called something other than trace.txt"""
+        arbitrary_trace_name = "my_trace.txt"
+        shutil.move("trace.txt", arbitrary_trace_name)
+
+        dfr = cr2.Run(arbitrary_trace_name).thermal.data_frame
+
+        self.assertTrue(len(dfr) > 0)
+        self.assertFalse(os.path.exists("trace.txt"))
+
     def test_run_autonormalize_time(self):
         """Run() normalizes by default"""
 
@@ -219,3 +229,15 @@ class TestTraceDat(utils_tests.SetupDirectory):
                     break
 
         self.assertTrue(found)
+
+    def test_run_arbitrary_trace_dat(self):
+        """Run() works if asked to parse a binary trace with a filename other than trace.dat"""
+        arbitrary_trace_name = "my_trace.dat"
+        shutil.move("trace.dat", arbitrary_trace_name)
+
+        dfr = cr2.Run(arbitrary_trace_name).thermal.data_frame
+
+        self.assertTrue(os.path.exists("my_trace.txt"))
+        self.assertTrue(len(dfr) > 0)
+        self.assertFalse(os.path.exists("trace.dat"))
+        self.assertFalse(os.path.exists("trace.txt"))

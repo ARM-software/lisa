@@ -45,11 +45,14 @@ class Run(object):
 
 The run class can receive the following optional parameters.
 
-path contains the directory of the trace file.  If no path is given,
-it uses the current directory by default.  If the path contains a
-trace.txt, that is assumed to be the output of "trace-cmd report".  If
-path doesn't have a trace.txt but has a trace.dat, it runs trace-cmd
-report on the trace.dat, saves it in trace.txt and then uses that.
+path contains the path to the trace file.  If no path is given, it
+uses the current directory by default.  If path is a file, and ends in
+.dat, it's run through "trace-cmd report".  If it doesn't end in
+".dat", then it must be the output of a trace-cmd report run.  If path
+is a directory that contains a trace.txt, that is assumed to be the
+output of "trace-cmd report".  If path is a directory that doesn't
+have a trace.txt but has a trace.dat, it runs trace-cmd report on the
+trace.dat, saves it in trace.txt and then uses that.
 
 name is a string describing the trace.
 
@@ -85,11 +88,8 @@ classes are parsed.
 
     def __init__(self, path=".", name="", normalize_time=True, scope="all"):
         self.name = name
-        self.basepath = path
+        self.trace_path = self.__process_path(path)
         self.class_definitions = self.dynamic_classes.copy()
-
-        if not os.path.isfile(os.path.join(path, "trace.txt")):
-            self.__run_trace_cmd_report()
 
         if scope == "thermal":
             self.class_definitions.update(self.thermal_classes.items())
@@ -112,21 +112,42 @@ classes are parsed.
             basetime = self.get_basetime()
             self.normalize_time(basetime)
 
-    def __run_trace_cmd_report(self):
-        """Run "trace-cmd report > trace.txt".
+    def __process_path(self, basepath):
+        """Process the path and return the path to the trace text file"""
 
-        Overwrites the contents of trace.txt if it exists."""
+        if os.path.isfile(basepath):
+            if basepath.endswith(".dat"):
+                self.__run_trace_cmd_report(basepath)
+                trace_path = os.path.splitext(basepath)[0] + ".txt"
+            else:
+                trace_path = basepath
+        else:
+            trace_path = os.path.join(basepath, "trace.txt")
+            if not os.path.isfile(trace_path):
+                self.__run_trace_cmd_report(os.path.join(basepath, "trace.dat"))
+
+        return trace_path
+
+    def __run_trace_cmd_report(self, fname):
+        """Run "trace-cmd report fname > fname.txt".
+
+        The resulting trace is stored in a file with extension ".txt".
+        If fname is "my_trace.dat", the trace is stored in
+        "my_trace.txt".  The contents of the destination file are
+        overwritten if it exists.
+
+        """
         from subprocess import check_output
 
-        trace_fname = os.path.join(self.basepath, "trace.dat")
-        if not os.path.isfile(trace_fname):
-            raise IOError("No such file or directory: {}".format(trace_fname))
+        if not os.path.isfile(fname):
+            raise IOError("No such file or directory: {}".format(fname))
 
         with open(os.devnull) as devnull:
-            out = check_output(["trace-cmd", "report", trace_fname],
+            out = check_output(["trace-cmd", "report", fname],
                                stderr=devnull)
 
-        with open(os.path.join(self.basepath, "trace.txt"), "w") as fout:
+        trace_output = os.path.splitext(fname)[0] + ".txt"
+        with open(trace_output, "w") as fout:
             fout.write(out)
 
     def get_basetime(self):
@@ -181,15 +202,13 @@ classes are parsed.
     def __parse_trace_file(self):
         """parse the trace and create a pandas DataFrame"""
 
-        fin_fname = os.path.join(self.basepath, "trace.txt")
-
         # Memoize the unique words to speed up parsing the trace file
         unique_words = []
         for trace_name in self.class_definitions.iterkeys():
             unique_word = getattr(self, trace_name).unique_word
             unique_words.append((unique_word, trace_name))
 
-        with open(fin_fname) as fin:
+        with open(self.trace_path) as fin:
             for line in fin:
                 attr = self.__contains_unique_word(line, unique_words)
                 if not attr:
