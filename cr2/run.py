@@ -41,7 +41,28 @@ def _plot_freq_hists(power_inst, map_label, what, axis, title):
                              "Frequency (KHz)", xlim, "default")
 
 class Run(object):
-    """A wrapper class that initializes all the classes of a given run"""
+    """A wrapper class that initializes all the classes of a given run
+
+The run class can receive the following optional parameters.
+
+path contains the directory of the trace file.  If no path is given,
+it uses the current directory by default.  If the path contains a
+trace.txt, that is assumed to be the output of "trace-cmd report".  If
+path doesn't have a trace.txt but has a trace.dat, it runs trace-cmd
+report on the trace.dat, saves it in trace.txt and then uses that.
+
+name is a string describing the trace.
+
+normalize_time is used to make all traces start from time 0 (the
+default).  If normalize_time is False, the trace times are the same as
+in the trace file.
+
+scope can be used to limit the parsing done on the trace.  The default
+scope parses all the traces known to cr2.  If scope is thermal, only
+the thermal classes are parsed.  If scope is sched, only the sched
+classes are parsed.
+
+    """
 
     thermal_classes = {
                 "thermal": "Thermal",
