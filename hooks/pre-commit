@@ -12,4 +12,4 @@ set -e
 git diff-index --check --cached HEAD --
 
 # Run testsuite
-exec nosetests --processes=-1 --process-timeout=60
+exec nosetests
