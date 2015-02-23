@@ -21,8 +21,7 @@ class TestPlotter(BaseTestThermal):
         """Tests LinePlot with no pivot"""
         run1 = cr2.Run(name="first")
         l = cr2.LinePlot(run1, cr2.thermal.Thermal, column="temp")
-        l.view()
-        matplotlib.pyplot.close('all')
+        l.view(test=True)
 
     def test_plot_multi_run(self):
         """Tests LinePlot with no Pivot multi runs"""
@@ -30,8 +29,7 @@ class TestPlotter(BaseTestThermal):
         run2 = cr2.Run(name="second")
         l = cr2.LinePlot(
             [run1, run2], cr2.thermal.Thermal, column="temp")
-        l.view()
-        matplotlib.pyplot.close('all')
+        l.view(test=True)
 
     def test_plot_multi(self):
         """Tests LinePlot with no Pivot multi attrs"""
@@ -43,8 +41,7 @@ class TestPlotter(BaseTestThermal):
                           cr2.thermal.ThermalGovernor],
                          column=["temp",
                                  "power_range"])
-        l.view()
-        matplotlib.pyplot.close('all')
+        l.view(test=True)
 
     def test_plot_filter(self):
         """Tests LinePlot with no Pivot with filters"""
@@ -55,8 +52,7 @@ class TestPlotter(BaseTestThermal):
                          [cr2.power.OutPower],
                          column=["power"],
                          filters={"cdev_state": [1]})
-        l.view()
-        matplotlib.pyplot.close('all')
+        l.view(test=True)
 
     def test_plot_pivot(self):
         """Tests LinePlot with Pivot"""
@@ -66,8 +62,7 @@ class TestPlotter(BaseTestThermal):
             cr2.thermal.Thermal,
             column="temp",
             pivot="thermal_zone")
-        l.view()
-        matplotlib.pyplot.close('all')
+        l.view(test=True)
 
     def test_plot_multi_run_pivot(self):
         """Tests LinePlot with Pivot multi runs"""
@@ -75,8 +70,7 @@ class TestPlotter(BaseTestThermal):
         run2 = cr2.Run(name="second")
         l = cr2.LinePlot(
             [run1, run2], cr2.power.OutPower, column="power", pivot="cpus")
-        l.view()
-        matplotlib.pyplot.close('all')
+        l.view(test=True)
 
     def test_plot_multi_pivot(self):
         """Tests LinePlot with Pivot with multi attrs"""
@@ -89,8 +83,7 @@ class TestPlotter(BaseTestThermal):
                          column=["dynamic_power",
                                  "power"],
                          pivot="cpus")
-        l.view()
-        matplotlib.pyplot.close('all')
+        l.view(test=True)
 
     def test_plot_multi_pivot_filter(self):
         """Tests LinePlot with Pivot and filters"""
@@ -107,8 +100,7 @@ class TestPlotter(BaseTestThermal):
                     1,
                     0]},
             pivot="cpus")
-        l.view()
-        matplotlib.pyplot.close('all')
+        l.view(test=True)
 
     def test_plot_savefig(self):
         """Tests plotter: savefig"""
@@ -129,4 +121,3 @@ class TestPlotter(BaseTestThermal):
         l.savefig(png_file)
         self.assertTrue(os.path.isfile(png_file))
         os.remove(png_file)
-        matplotlib.pyplot.close('all')

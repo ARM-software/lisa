@@ -66,8 +66,7 @@ class TestDynamicEvents(BaseTestSched):
         cls = cr2.register_dynamic("DynamicEvent", "dynamic_test_key")
         r = cr2.Run(name="first")
         l = cr2.LinePlot(r, cls, column="load")
-        l.view()
-        matplotlib.pyplot.close('all')
+        l.view(test=True)
 
     def test_dynamic_event_scope(self):
 	"""Test the case when an "all" scope class is

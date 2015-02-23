@@ -45,8 +45,7 @@ rcuos/2-22 [001] 6550.018628: sched_load_avg_sg: cpus=00000004 load=2 utilizatio
             marker='o',
             linestyle='none',
             per_line=3)
-        l.view()
-        matplotlib.pyplot.close('all')
+        l.view(test=True)
 
     def test_plotter_triplicates(self):
 
@@ -80,5 +79,4 @@ rcuos/2-22 [001] 6550.018628: sched_load_avg_sg: cpus=00000004 load=2 utilizatio
             marker='o',
             linestyle='none',
             per_line=3)
-        l.view()
-        matplotlib.pyplot.close('all')
+        l.view(test=True)

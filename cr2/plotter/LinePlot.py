@@ -77,8 +77,13 @@ class LinePlot(AbstractDataPlotter):
             self.view()
         self._fig.savefig(*args, **kwargs)
 
-    def view(self):
+    def view(self, test=False):
         """Displays the graph"""
+
+        if test:
+            self._attr["style"] = True
+            AttrConf.MPL_STYLE["interactive"] = False
+
         if self._attr["concat"]:
             if self._attr["style"]:
                 with plt.rc_context(AttrConf.MPL_STYLE):
