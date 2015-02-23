@@ -60,7 +60,7 @@ class Run(object):
                 "sched_cpu_frequency": "SchedCpuFrequency",
     }
 
-    class_definitions = {}
+    dynamic_classes = {}
 
     def __init__(self, path=None, name="", normalize_time=True, scope="all"):
 
@@ -68,6 +68,7 @@ class Run(object):
             path = "."
         self.name = name
         self.basepath = path
+        self.class_definitions = self.dynamic_classes.copy()
 
         if not os.path.isfile(os.path.join(path, "trace.txt")):
             self.__run_trace_cmd_report()
@@ -130,7 +131,7 @@ class Run(object):
     def register_class(cls, cobject, scope="all"):
         # Add the class to the classes dictionary
         if scope == "all":
-            cls.class_definitions[cobject.name] = cobject.__name__
+            cls.dynamic_classes[cobject.name] = cobject.__name__
         else:
             getattr(cls, scope + "_classes")[cobject.name] = cobject.__name__
         globals()[cobject.__name__] = cobject
