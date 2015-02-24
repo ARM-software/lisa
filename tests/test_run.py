@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import tempfile
+import unittest
 
 from test_thermal import BaseTestThermal
 import cr2
@@ -194,3 +195,27 @@ class TestRunSched(utils_tests.SetupDirectory):
         run = cr2.Run()
 
         self.assertEqual(run.thermal.data_frame.index[0], 0)
+
+@unittest.skipUnless(utils_tests.trace_cmd_installed(),
+                     "trace-cmd not installed")
+class TestTraceDat(utils_tests.SetupDirectory):
+    """Test that trace.dat handling work"""
+    def __init__(self, *args, **kwargs):
+        super(TestTraceDat, self).__init__(
+            [("trace.dat", "trace.dat")],
+            *args, **kwargs)
+
+    def test_do_txt_if_not_there(self):
+        """Create trace.txt if it's not there"""
+        self.assertFalse(os.path.isfile("trace.txt"))
+
+        cr2.Run()
+
+        found = False
+        with open("trace.txt") as fin:
+            for line in fin:
+                if re.search("thermal", line):
+                    found = True
+                    break
+
+        self.assertTrue(found)
