@@ -107,7 +107,8 @@ class Constraint(object):
                     values = values[criterion]
 
             val_series = values[data[self._pivot] == pivot_val]
-            result[pivot_val] = val_series
+            if len(val_series) != 0:
+               result[pivot_val] = val_series
 
         return result
 
