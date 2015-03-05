@@ -200,7 +200,7 @@ class LinePlot(AbstractDataPlotter):
                     if self._attr["xlim"] != None:
                         axis.set_xlim(self._attr["xlim"])
                     if self._attr["ylim"] != None:
-                        axis.set_xlim(self._attr["ylim"])
+                        axis.set_ylim(self._attr["ylim"])
                     legend[pivot_index] = line_2d_list[0]
                 else:
                     axis = self._layout.get_axis(plot_index)
