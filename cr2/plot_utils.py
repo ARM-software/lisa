@@ -92,8 +92,9 @@ def pre_plot_setup(width=None, height=None, ncols=1, nrows=1):
 
     return axis
 
-def post_plot_setup(ax, title="", xlabel=None, xlim="default", ylim="range"):
-    """Set xlabel, title, xlim adn ylim of the plot
+def post_plot_setup(ax, title="", xlabel=None, ylabel=None, xlim="default",
+                    ylim="range"):
+    """Set xlabel, ylabel title, xlim and ylim of the plot
 
     This has to be called after calls to .plot().  The default ylim is
     to extend it by 10% because matplotlib default makes it hard
@@ -103,6 +104,9 @@ def post_plot_setup(ax, title="", xlabel=None, xlim="default", ylim="range"):
 
     if xlabel is not None:
         ax.set_xlabel(xlabel)
+
+    if ylabel is not None:
+        ax.set_ylabel(ylabel)
 
     if title:
         ax.set_title(title)
@@ -144,7 +148,8 @@ def plot_hist(data, ax, title, bins, xlabel, xlim, ylim):
     title += " (mean = {:.2f}, std = {:.2f})".format(mean, std)
 
     data.hist(ax=ax, bins=bins)
-    post_plot_setup(ax, title=title, xlabel=xlabel, xlim=xlim, ylim=ylim)
+    post_plot_setup(ax, title=title, xlabel=xlabel, ylabel="count", xlim=xlim,
+                    ylim=ylim)
 
 def plot_load(runs, map_label, width=None, height=None):
     """Make a multiplot of all the loads"""
