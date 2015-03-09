@@ -92,7 +92,7 @@ class TestPlotUtils(unittest.TestCase):
         data = pd.Series([1, 1, 2, 4])
 
         _, ax = matplotlib.pyplot.subplots()
-        plot_utils.plot_hist(data, ax, "Foo", 20, "numbers", (0, 4), "default")
+        plot_utils.plot_hist(data, ax, "Foo", "m", 20, "numbers", (0, 4), "default")
 
 class TestPlotUtilsNeedTrace(BaseTestThermal):
     def __init__(self, *args, **kwargs):

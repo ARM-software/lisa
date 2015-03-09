@@ -72,7 +72,7 @@ class Thermal(Base):
         title = normalize_title("Temperature", title)
         xlim = (0, temps.max())
 
-        plot_hist(temps, ax, title, 30, "Temperature", xlim, "default")
+        plot_hist(temps, ax, title, "C", 30, "Temperature", xlim, "default")
 
 class ThermalGovernor(Base):
     """Process the power allocator data in a ftrace dump"""

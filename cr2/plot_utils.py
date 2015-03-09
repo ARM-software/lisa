@@ -140,12 +140,13 @@ def plot_temperature(runs, width=None, height=None, ylim="range"):
     post_plot_setup(ax, title="Temperature", ylim=ylim)
     plt.legend(loc="best")
 
-def plot_hist(data, ax, title, bins, xlabel, xlim, ylim):
+def plot_hist(data, ax, title, unit, bins, xlabel, xlim, ylim):
     """Plot a histogram"""
 
     mean = data.mean()
     std = data.std()
-    title += " (mean = {:.2f}, std = {:.2f})".format(mean, std)
+    title += " (mean = {:.2f}{}, std = {:.2f})".format(mean, unit, std)
+    xlabel += " ({})".format(unit)
 
     data.hist(ax=ax, bins=bins)
     post_plot_setup(ax, title=title, xlabel=xlabel, ylabel="count", xlim=xlim,

@@ -37,8 +37,8 @@ def _plot_freq_hists(power_inst, map_label, what, axis, title):
         this_title = plot_utils.normalize_title(this_title, title)
         xlim = (0, freqs[actor].max())
 
-        plot_utils.plot_hist(freqs[actor], ax, this_title, 20,
-                             "Frequency (KHz)", xlim, "default")
+        plot_utils.plot_hist(freqs[actor], ax, this_title, "KHz", 20,
+                             "Frequency", xlim, "default")
 
 class Run(object):
     """A wrapper class that initializes all the classes of a given run
