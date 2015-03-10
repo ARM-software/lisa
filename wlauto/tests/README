@@ -1,0 +1,12 @@
+To run these tests you need to have nose package installed. You can get it from PyPI by using pip:
+
+        pip install nose
+
+Or, if you're on Ubuntu, you can get it from distribution repositories:
+
+        sudo apt-get install python-nose
+
+Once you have it, you can the tests by executing the follwing the project's top-level directory (the
+one with setup.py):
+
+        nosetests

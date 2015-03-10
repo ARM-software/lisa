@@ -1,0 +1,8 @@
+cyclictest binaries included here are part of the Linux kernel and are distributed
+under GPL version 2; The full text of the license may be viewed here:
+
+http://www.gnu.org/licenses/gpl-2.0.html
+
+Source for these binaries can be obtained here:
+
+http://git.kernel.org/cgit/linux/kernel/git/clrkwllms/rt-tests.git

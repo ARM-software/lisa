@@ -1,0 +1,28 @@
+from wlauto import Workload, Parameter
+
+
+class ${class_name}(Workload):
+
+    name = '${name}'
+    description = "This is an placeholder description"
+
+    parameters = [
+        # Workload parameters go here e.g.
+        Parameter('Example parameter', kind=int, allowed_values=[1,2,3], default=1, override=True, mandatory=False,
+                  description='This is an example parameter')
+    ]
+
+    def setup(self, context):
+        pass
+
+    def run(self, context):
+        pass
+
+    def update_result(self, context):
+        pass
+
+    def teardown(self, context):
+        pass
+
+    def validate(self):
+        pass

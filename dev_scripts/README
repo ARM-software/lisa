@@ -1,0 +1,23 @@
+This directory contains scripts that aid the development of Workload Automation.
+They were written to work as part of WA development environment and are not
+guarnteed to work if moved outside their current location. They should not be
+distributed as part of WA releases.
+
+Scripts
+-------
+
+:clean_install: Performs a clean install of WA from source. This will remove any
+                existing WA install (regardless of whether it was made from
+                source or through a tarball with pip).
+
+:clear_env: Clears ~/.workload_automation.
+
+:get_apk_versions: Prints out a table of APKs and their versons found under the
+                   path specified as the argument.
+
+:pep8: Runs pep8 code checker (must be installed) over wlauto with the correct 
+       settings for WA.
+
+:pylint: Runs pylint (must be installed) over wlauto with the correct settings
+         for WA.
+

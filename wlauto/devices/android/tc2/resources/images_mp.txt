@@ -1,0 +1,55 @@
+TITLE: Versatile Express Images Configuration File
+[IMAGES]
+TOTALIMAGES: 9                  ;Number of Images (Max: 32)
+NOR0UPDATE: AUTO                 ;Image Update:NONE/AUTO/FORCE
+NOR0ADDRESS: BOOT                ;Image Flash Address
+NOR0FILE: \SOFTWARE\$bm_image    ;Image File Name
+
+NOR1UPDATE: AUTO                 ;IMAGE UPDATE:NONE/AUTO/FORCE
+NOR1ADDRESS: 0x0E000000          ;Image Flash Address
+NOR1FILE: \SOFTWARE\kern_mp.bin  ;Image File Name
+NOR1LOAD: 0x80008000
+NOR1ENTRY: 0x80008000
+
+NOR2UPDATE: AUTO                 ;IMAGE UPDATE:NONE/AUTO/FORCE
+NOR2ADDRESS: 0x0E800000          ;Image Flash Address
+NOR2FILE: \SOFTWARE\mp_a7.dtb ;Image File Name for booting in A7 cluster
+NOR2LOAD: 0x84000000
+NOR2ENTRY: 0x84000000
+
+NOR3UPDATE: AUTO                 ;IMAGE UPDATE:NONE/AUTO/FORCE
+NOR3ADDRESS: 0x0E900000          ;Image Flash Address
+NOR3FILE: \SOFTWARE\mp_a15.dtb    ;Image File Name
+NOR3LOAD: 0x84000000
+NOR3ENTRY: 0x84000000
+
+NOR4UPDATE: AUTO                 ;IMAGE UPDATE:NONE/AUTO/FORCE
+NOR4ADDRESS: 0x0EA00000          ;Image Flash Address
+NOR4FILE: \SOFTWARE\mp_a7bc.dtb   ;Image File Name
+NOR4LOAD: 0x84000000
+NOR4ENTRY: 0x84000000
+
+NOR5UPDATE: AUTO                    ;IMAGE UPDATE:NONE/AUTO/FORCE
+NOR5ADDRESS: 0x0EB00000             ;Image Flash Address
+NOR5FILE: \SOFTWARE\mp_a15bc.dtb    ;Image File Name
+NOR5LOAD: 0x84000000
+NOR5ENTRY: 0x84000000
+
+NOR6UPDATE: AUTO                 ;IMAGE UPDATE:NONE/AUTO/FORCE
+NOR6ADDRESS: 0x0EC00000          ;Image Flash Address
+NOR6FILE: \SOFTWARE\init_mp.bin  ;Image File Name
+NOR6LOAD: 0x85000000
+NOR6ENTRY: 0x85000000
+
+NOR7UPDATE: AUTO                 ;IMAGE UPDATE:NONE/AUTO/FORCE
+NOR7ADDRESS: 0x0C000000          ;Image Flash Address
+NOR7FILE: \SOFTWARE\tc2_sec.bin   ;Image File Name
+NOR7LOAD: 0
+NOR7ENTRY: 0
+
+NOR8UPDATE: AUTO                 ;IMAGE UPDATE:NONE/AUTO/FORCE
+NOR8ADDRESS: 0x0D000000          ;Image Flash Address
+NOR8FILE: \SOFTWARE\tc2_uefi.bin   ;Image File Name
+NOR8LOAD: 0
+NOR8ENTRY: 0
+

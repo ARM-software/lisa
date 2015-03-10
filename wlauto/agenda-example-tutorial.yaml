@@ -1,0 +1,43 @@
+# This an agenda that is built-up during the explantion of the agenda features
+# in the documentation. This should work out-of-the box on most rooted Android 
+# devices.
+config:
+        project: governor_comparison
+        run_name: performance_vs_interactive
+
+        device: generic_android
+        reboot_policy: never
+
+        instrumentation: [coreutil, cpufreq]
+        coreutil:
+                threshold: 80
+        sysfs_extractor:
+                paths: [/proc/meminfo]
+        result_processors: [sqlite]
+        sqlite:
+                database: ~/my_wa_results.sqlite
+global:
+        iterations: 5
+sections:
+        - id: perf
+          runtime_params:
+                sysfile_values:
+                        /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor: performance
+        - id: inter
+          runtime_params:
+                sysfile_values:
+                        /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor: interactive
+workloads:
+        - id: 01_dhry
+          name: dhrystone
+          label: dhrystone_15over6
+          workload_params:
+                threads: 6
+                mloops: 15
+        - id: 02_memc
+          name: memcpy
+          instrumentation: [sysfs_extractor]
+        - id: 03_cycl
+          name: cyclictest
+          iterations: 10
+

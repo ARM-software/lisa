@@ -1,0 +1,35 @@
+The pmu_logger module provides the ability to periodically trace CCI PMU counters. The trace destinations can be ftrace buffer and/or kernel logs. This file gives a quick overview of the funcationality provided by the module and how to use it.
+
+The pmu_logger module creates a directory in the debugfs filesystem called cci_pmu_logger which can be used to enable/disable the counters and control the events that are counted.
+
+To configure the events being counted write the corresponding event id to the counter*  files. The list of CCI PMU events can be found at http://arminfo.emea.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0470d/CJHICFBF.html.
+
+The "period_jiffies" can be used to control the periodicity of tracing. It accepts values in kernel jiffies.
+
+To enable tracing, write a 1 to "control". To disable write another 1 to "control". The files "enable_console" and "enable_ftrace" control where the trace is written to. To check if the counters are currently running or not, you can read the control file.
+
+The current values of the counters can be read from the "values" file.
+
+Eg. To trace, A15 and A7 snoop hit rate every 10 jiffies the following command are required - 
+
+
+trace-cmd reset
+
+echo 0x63 > counter0
+echo 0x6A > counter1
+echo 0x83 > counter2
+echo 0x8A > counter3
+
+echo 10 > period_jiffies
+
+trace-cmd start -b 20000 -e "sched:sched_wakeup"
+
+echo 1 > control
+
+# perform the activity for which you would like to collect the CCI PMU trace.
+
+trace-cmd stop && trace-cmd extract
+
+echo 1 > control
+
+trace-cmd report trace.dat | grep print # shows the trace of the CCI PMU counters along with the cycle counter values.

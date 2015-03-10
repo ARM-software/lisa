@@ -1,0 +1,9 @@
+perf binaries included here are part of the Linux kernel and are distributed
+under GPL version 2; The full text of the license may be viewed here:
+
+http://www.gnu.org/licenses/gpl-2.0.html
+
+Source for these binaries is part of Linux Kernel source tree. This may be obtained
+from Linaro here:
+
+https://git.linaro.org/arm/big.LITTLE/mp.git

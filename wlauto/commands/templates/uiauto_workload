@@ -1,0 +1,35 @@
+from wlauto import UiAutomatorWorkload, Parameter
+
+
+class  ${class_name}(UiAutomatorWorkload):
+
+    name = '${name}'
+    description = "This is an placeholder description"
+
+    parameters = [
+        # Workload parameters go here e.g.
+        Parameter('Example parameter', kind=int, allowed_values=[1,2,3], default=1, override=True, mandatory=False,
+                  description='This is an example parameter')
+    ]
+
+    def setup(self, context):
+        super(${class_name}, self).setup(context)
+        # Perform any necessary setup before starting the UI automation
+        # e.g. copy files to the device, start apps, reset logs, etc.
+
+
+    def update_result(self, context):
+        pass
+        # Process workload execution artifacts to extract metrics
+        # and add them to the run result using
+        # context.result.add_metric()
+
+    def teardown(self, context):
+        super(${class_name}, self).teardown(context)
+        # Preform any necessary cleanup
+
+    def validate(self):
+        pass
+        # Validate inter-parameter assumptions etc
+
+

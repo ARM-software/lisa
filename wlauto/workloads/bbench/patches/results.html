@@ -1,0 +1,158 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1.dtd">
+<!--
+    Author: Anthony Gutierrez
+-->
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>University of Michigan - BBench 2.0</title>
+    <script type="text/javascript" src="bbench.js"></script>
+
+    <script type="text/javascript">
+        var numTimesToExecute = getURLParams("iterations");
+
+        function closeWindow() {
+            window.open('','_self','');
+            window.close();
+        }
+
+        function averageWarm(siteTimes) {
+            var sum = 0;
+
+            if (numTimesToExecute == 1)
+                return siteTimes[0];
+
+            for (i = 0; i < numTimesToExecute - 1; ++i)
+                sum = eval(sum + siteTimes[i]);
+
+            return (sum / (numTimesToExecute - 1));
+        }
+
+        function stdDevWarm(siteTimes) {
+            var avg = averageWarm(siteTimes)
+            var tmpArray = [];
+
+            if (numTimesToExecute == 1)
+                return 0;
+
+            for (i = 0; i < numTimesToExecute - 1; ++i)
+                tmpArray[i] = Math.pow((siteTimes[i] - avg), 2);
+
+            avg = averageWarm(tmpArray);
+
+            return Math.sqrt(avg);
+        }
+
+        function geoMean(avgTimes) {
+            var prod = 1;
+
+            for (i = 0; i < numWebsites; ++i)
+                prod = eval(prod * avgTimes[i]);
+
+            return Math.pow(prod, (1/numWebsites));
+        }
+    </script>
+</head>
+
+<body>
+    <img src="mich_engin.png" width="35%"/>
+    <h2>University of Michigan BBench version 2.0</h2>
+    <h3>Results</h3>
+
+    <script type="text/javascript">
+        var bbSiteColdTimes = [];
+        var bbSiteTimes = [];
+        var bbSiteAvgRunTime = [];
+        var bbSiteStdDev = [];
+        var bbSiteCoeffVar = [];
+        var bbSiteNames = ["amazon",
+                           "bbc",
+                           "cnn",
+                           "craigslist",
+                           "ebay",
+//                           "espn",
+                           "google",
+                           "msn",
+                           "slashdot",
+                           "twitter"];
+//                           "youtube"];
+
+        var windowURL = new Object();
+        var windowURL2 = new Object();
+        windowURL.value = window.location.href;
+        windowURL2.value = window.location.href;
+
+        for (j = 0; j < numWebsites; ++j) {
+
+            for (i = 0; i < numTimesToExecute; ++i) {
+                var site_time = getAndRemoveURLParams(windowURL, bbSiteNames[j]) - 0;
+                bbSiteTimes[i] = site_time;
+            }
+
+            bbSiteColdTimes[j] = bbSiteTimes[i - 1];
+            bbSiteAvgRunTime[j] = averageWarm(bbSiteTimes);
+            bbSiteStdDev[j] = stdDevWarm(bbSiteTimes);
+            bbSiteCoeffVar[j] = (bbSiteStdDev[j] / bbSiteAvgRunTime[j]) * 100;
+        }
+
+        var bbSiteAvgGeoMean = geoMean(bbSiteAvgRunTime);
+    </script>
+
+    <table border="1">
+        <script type="text/javascript">
+            document.write("<tr align=\"right\"><td>Site Name</td><td>Cold Start Time</td><td>Avg Warm Page Rendering Time (ms)</td><td>Std Dev of Warm Runs</td><td>%Coeff Var of Warm Runs</td>");
+            for (i = 0; i < numWebsites; ++i) {
+                document.write("<tr align=\"right\">");
+                document.write("<td>" + bbSiteNames[i] + "</td>");
+                document.write("<td>" + bbSiteColdTimes[i] + "</td>");
+                document.write("<td>" + bbSiteAvgRunTime[i].toFixed(2) + "</td>");
+                document.write("<td>" + bbSiteStdDev[i].toFixed(2) + "</td>");
+                document.write("<td>" + bbSiteCoeffVar[i].toFixed(2) + "</td>");
+                document.write("</tr>");
+            }
+        </script>
+    </table>
+
+    <br />
+
+    <table border="1">
+        <script type="text/javascript">
+            document.write("<tr><td>Geometric Mean of Average Warm Runs</td><td>" + bbSiteAvgGeoMean.toFixed(2)  + "</td></tr>");
+            console.log("metrics:" + "Mean = " + bbSiteAvgGeoMean.toFixed(2) + ":")
+        </script>
+    </table>
+
+    <h3>CSV version of the table:</h3>
+
+    <script type="text/javascript">
+        document.write("Site Name,Cold Start Time, Avg Warm Page Rendering Time (ms),Std Dev of Warm Runs,%Coeff Var of Warm Runs<br />");
+        for (i = 0; i < numWebsites; ++i) {
+            document.write(bbSiteNames[i] + ",");
+            document.write(bbSiteColdTimes[i] + ",");
+            document.write(bbSiteAvgRunTime[i].toFixed(2) + ",");
+            document.write(bbSiteStdDev[i].toFixed(2) + ",");
+            document.write(bbSiteCoeffVar[i].toFixed(2) + "<br />");
+            console.log("metrics:" + bbSiteNames[i] + "," + bbSiteColdTimes[i] + "," + bbSiteAvgRunTime[i].toFixed(2) + "," + bbSiteStdDev[i].toFixed(2) + "," + bbSiteCoeffVar[i].toFixed(2) + ":");
+        }
+
+        document.write("<h3>Individual Site Times:</h3>");
+        for (j = 0; j < numWebsites; ++j) {
+            for (i = 0; i < numTimesToExecute; ++i) {
+                var site_time = getAndRemoveURLParams(windowURL2, bbSiteNames[j]) - 0;
+                bbSiteTimes[i] = site_time;
+                document.write(bbSiteNames[j] + " load time: " + site_time + "<br />");
+            }
+            document.write("<br />");
+        }
+        setTimeout("window.location.href='http://localhost:3030/'", 1);
+    </script>
+
+    <p>
+        <b>Click the return button to go to the start page.</b>
+    </p>
+    <button onclick="window.location.href='index.html'">return</button>
+</body>
+
+</html>

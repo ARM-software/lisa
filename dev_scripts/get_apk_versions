@@ -1,0 +1,25 @@
+#!/usr/bin/env python
+import os
+import sys
+import argparse
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from wlauto.exceptions import WAError
+from wlauto.utils.misc import write_table
+from distmanagement.apk import get_aapt_path, get_apk_versions
+
+
+if __name__ == '__main__':
+    try:
+        aapt = get_aapt_path()
+        parser = argparse.ArgumentParser()
+        parser.add_argument('path', metavar='PATH', help='Location to look for APKs.')
+        args = parser.parse_args()
+
+        versions = get_apk_versions(args.path, aapt)
+        write_table([v.to_tuple() for v in versions], sys.stdout,
+                     align='<<<>>', headers=['path', 'package', 'name', 'version code', 'version name'])
+    except WAError, e:
+        logging.error(e)
+        sys.exit(1)

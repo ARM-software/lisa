@@ -1,0 +1,69 @@
+#!{{ device.binaries_directory.rstrip('/') }}/sh
+
+
+{% for sensor in sensors %}
+GET_{{ sensor.label }}="cat {{ sensor.filepath }}"
+{% endfor %}
+
+LAUNCH_COMMAND="am start -W -n {{ package }}/{{ activity }} {{ options }}"
+STOP_COMMAND="am force-stop {{ package }}"
+TEMP_FILE=tmp.txt
+
+TIME_RESULT=""
+{% for sensor in sensors %}
+{{ sensor.label }}=""
+{% endfor %}
+
+cd {{ device.working_directory }}
+
+# esc esc down down down ENTER (this should bring up the apps menu)
+input keyevent 111
+sleep 1
+input keyevent 111
+sleep 1
+input keyevent 20
+sleep 1
+input keyevent 20
+sleep 1
+input keyevent 20
+sleep 1
+input keyevent 66
+sleep 1
+
+# Warm up caches.
+$LAUNCH_COMMAND
+$STOP_COMMAND
+$LAUNCH_COMMAND
+$STOP_COMMAND
+$LAUNCH_COMMAND
+$STOP_COMMAND
+
+for i in $(busybox seq 1 {{ iterations }})
+do
+    {% for sensor in sensors %}
+    {{ sensor.label }}="${{ sensor.label }} `$GET_{{ sensor.label }}`"
+    {% endfor %}
+
+    $LAUNCH_COMMAND > $TEMP_FILE
+    
+    {% for sensor in sensors %}
+    {{ sensor.label }}="${{ sensor.label }} `$GET_{{ sensor.label }}`"
+    {% endfor %}
+
+    TIME=`busybox awk '{if($1~"TotalTime") print $2}' $TEMP_FILE`
+    TIME_RESULT="$TIME_RESULT $TIME"
+    {% if cleanup %}
+    rm $TEMP_FILE
+    {% endif %}
+
+    $STOP_COMMAND
+    sleep 2
+done
+
+{% for sensor in sensors %}
+echo ${{ sensor.label }} > {{ sensor.label }}.result
+{% endfor %}
+echo $TIME_RESULT > time.result
+# esc esc down down down ENTER (this should bring up the apps menu)
+input keyevent 111
+sleep 1

@@ -1,0 +1,96 @@
+BOARD: HBI0249
+TITLE: V2P-CA15_A7 Configuration File
+
+[DCCS]
+TOTALDCCS: 1                    ;Total Number of DCCS
+M0FILE: dbb_v110.ebf            ;DCC0 Filename
+M0MODE: MICRO                   ;DCC0 Programming Mode
+
+[FPGAS]
+TOTALFPGAS: 0                   ;Total Number of FPGAs
+
+[TAPS]
+TOTALTAPS: 3                    ;Total Number of TAPs
+T0NAME: STM32TMC                ;TAP0 Device Name
+T0FILE: NONE                    ;TAP0 Filename
+T0MODE: NONE                    ;TAP0 Programming Mode
+T1NAME: STM32CM3                ;TAP1 Device Name
+T1FILE: NONE                    ;TAP1 Filename
+T1MODE: NONE                    ;TAP1 Programming Mode
+T2NAME: CORTEXA15               ;TAP2 Device Name
+T2FILE: NONE      		;TAP2 Filename
+T2MODE: NONE                    ;TAP2 Programming Mode
+
+[OSCCLKS]
+TOTALOSCCLKS: 9                 ;Total Number of OSCCLKS
+OSC0: 50.0                      ;CPUREFCLK0 A15 CPU (20:1 - 1.0GHz)
+OSC1: 50.0                      ;CPUREFCLK1 A15 CPU (20:1 - 1.0GHz)
+OSC2: 40.0                      ;CPUREFCLK0 A7  CPU (20:1 - 800MHz)
+OSC3: 40.0                      ;CPUREFCLK1 A7  CPU (20:1 - 800MHz)
+OSC4: 40.0                      ;HSBM AXI (40MHz)
+OSC5: 23.75                     ;HDLCD (23.75MHz - TC PLL is in bypass)
+OSC6: 50.0                      ;SMB (50MHz)
+OSC7: 50.0                      ;SYSREFCLK (20:1 - 1.0GHz, ACLK - 500MHz)
+OSC8: 50.0                      ;DDR2 (8:1 - 400MHz)
+
+[SCC REGISTERS]
+TOTALSCCS: 33                   ;Total Number of SCC registers
+
+;SCC: 0x010 0x000003D0          ;Remap to NOR0
+SCC: 0x010 $SCC_0x010           ;Switch between NOR0/NOR1
+SCC: 0x01C 0xFF00FF00           ;CFGRW3  - SMC CS6/7 N/U
+SCC: 0x118 0x01CD1011           ;CFGRW17 - HDLCD PLL external bypass
+;SCC: 0x700 0x00320003           ;CFGRW48 - [25:24]Boot CPU [28]Boot Cluster (default CA7_0)
+SCC: 0x700 $SCC_0x700          	;CFGRW48 - [25:24]Boot CPU [28]Boot Cluster (default CA7_0)
+                                ;          Bootmon configuration:
+                                ;          [15]: A7 Event stream generation (default: disabled)
+                                ;          [14]: A15 Event stream generation (default: disabled)
+                                ;          [13]: Power down the non-boot cluster (default: disabled)
+                                ;          [12]: Use per-cpu mailboxes for power management (default: disabled)
+                                ;          [11]: A15 executes WFEs as nops (default: disabled)
+
+SCC: 0x400 0x33330c00           ;CFGREG41 - A15 configuration register 0 (Default 0x33330c80)
+                                ;       [29:28] SPNIDEN
+                                ;       [25:24] SPIDEN
+                                ;       [21:20] NIDEN
+                                ;       [17:16] DBGEN
+                                ;       [13:12] CFGTE
+                                ;       [9:8] VINITHI_CORE
+                                ;       [7] IMINLN
+                                ;       [3:0] CLUSTER_ID
+
+                                ;Set the CPU clock PLLs
+SCC: 0x120 0x022F1010           ;CFGRW19 - CA15_0 PLL control - 20:1 (lock OFF)
+SCC: 0x124 0x0011710D           ;CFGRW20 - CA15_0 PLL value
+SCC: 0x128 0x022F1010           ;CFGRW21 - CA15_1 PLL control - 20:1 (lock OFF)
+SCC: 0x12C 0x0011710D           ;CFGRW22 - CA15_1 PLL value
+SCC: 0x130 0x022F1010           ;CFGRW23 - CA7_0  PLL control - 20:1 (lock OFF)
+SCC: 0x134 0x0011710D           ;CFGRW24 - CA7_0  PLL value
+SCC: 0x138 0x022F1010           ;CFGRW25 - CA7_1  PLL control - 20:1 (lock OFF)
+SCC: 0x13C 0x0011710D           ;CFGRW26 - CA7_1  PLL value
+
+                                ;Power management interface
+SCC: 0xC00 0x00000005           ;Control: [0]PMI_EN [1]DBG_EN [2]SPC_SYSCFG
+SCC: 0xC04 0x060E0356           ;Latency in uS max: [15:0]DVFS [31:16]PWRUP
+SCC: 0xC08 0x00000000           ;Reserved
+SCC: 0xC0C 0x00000000           ;Reserved
+
+                                ;CA15 performance values: 0xVVVFFFFF
+SCC: 0xC10 0x384061A8           ;CA15 PERFVAL0,  900mV, 20,000*20= 500MHz
+SCC: 0xC14 0x38407530           ;CA15 PERFVAL1,  900mV, 25,000*20= 600MHz
+SCC: 0xC18 0x384088B8           ;CA15 PERFVAL2,  900mV, 30,000*20= 700MHz
+SCC: 0xC1C 0x38409C40           ;CA15 PERFVAL3,  900mV, 35,000*20= 800MHz
+SCC: 0xC20 0x3840AFC8           ;CA15 PERFVAL4,  900mV, 40,000*20= 900MHz
+SCC: 0xC24 0x3840C350           ;CA15 PERFVAL5,  900mV, 45,000*20=1000MHz
+SCC: 0xC28 0x3CF0D6D8           ;CA15 PERFVAL6,  975mV, 50,000*20=1100MHz
+SCC: 0xC2C 0x41A0EA60           ;CA15 PERFVAL7, 1050mV, 55,000*20=1200MHz
+
+                                ;CA7 performance values: 0xVVVFFFFF
+SCC: 0xC30 0x3840445C           ;CA7 PERFVAL0,  900mV, 10,000*20= 350MHz
+SCC: 0xC34 0x38404E20           ;CA7 PERFVAL1,  900mV, 15,000*20= 400MHz
+SCC: 0xC38 0x384061A8           ;CA7 PERFVAL2,  900mV, 20,000*20= 500MHz
+SCC: 0xC3C 0x38407530           ;CA7 PERFVAL3,  900mV, 25,000*20= 600MHz
+SCC: 0xC40 0x384088B8           ;CA7 PERFVAL4,  900mV, 30,000*20= 700MHz
+SCC: 0xC44 0x38409C40           ;CA7 PERFVAL5,  900mV, 35,000*20= 800MHz
+SCC: 0xC48 0x3CF0AFC8           ;CA7 PERFVAL6,  975mV, 40,000*20= 900MHz
+SCC: 0xC4C 0x41A0C350           ;CA7 PERFVAL7, 1050mV, 45,000*20=1000MHz

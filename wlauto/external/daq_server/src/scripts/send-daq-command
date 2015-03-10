@@ -1,0 +1,3 @@
+#!/usr/bin/env python
+from daqpower.client import run_send_command
+run_send_command()

@@ -1,0 +1,74 @@
+This directory contains external libraries and standalone utilities which have
+been written/modified to work with Workload Automation (and thus need to be
+included with WA rather than obtained from orignal sources).
+
+
+bbench_server
+=============
+
+This is a small sever that is used to detect when ``bbench`` workload has completed. 
+``bbench`` navigates though a bunch of web pages in a browser using javascript.
+It will cause the browser to sent a GET request to the port the bbench_server is
+listening on, indicating the end of workload.
+
+
+daq_server
+==========
+
+Contains Daq server files that will run on a Windows machine. Please refer to
+daq instrument documentation.
+
+
+louie (third party)
+=====
+
+Python package that is itself a fork (and now, a replacement for) pydispatcher.
+This library provides a signal dispatching mechanism. This has been modified for
+WA to add prioritization to callbacks.
+
+
+pmu_logger
+==========
+
+Source for the kernel driver that enable the logging of CCI counters to ftrace 
+on periodic basis. This driver is required by the ``cci_pmu_logger`` instrument.
+
+
+readenergy
+==========
+
+Outputs Juno internal energy/power/voltage/current measurments by reading APB
+regesiters from memory. This is used by ``juno_energy`` instrument.
+
+
+revent
+======
+
+This is a tool that is used to both record and playback key press and screen tap
+events. It is used to record UI manipulation for some workloads (such as games)
+where it is not possible to use the Android UI Automator.
+
+The tools is also included in binary form in wlauto/common/. In order to build 
+the tool from source, you will need to have Android NDK in your PATH.
+
+
+stacktracer.py (third party)
+==============
+
+A module based on an ActiveState recipe that allows tracing thread stacks during
+execution of a Python program. This is used through the ``--debug`` flag in WA
+to ease debuging multi-threaded parts of the code.
+
+
+terminalsize.py (third party)
+===============
+
+Implements a platform-agnostic way of determining terminal window size. Taken
+from a public Github gist.
+
+
+uiauto
+======
+
+Contains the utilities library for UI automation.
+

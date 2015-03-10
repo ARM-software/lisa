@@ -1,0 +1,25 @@
+TITLE: Versatile Express Images Configuration File
+
+[IMAGES]
+TOTALIMAGES: 4                   ;Number of Images (Max : 32)
+NOR0UPDATE: AUTO                 ;Image Update:NONE/AUTO/FORCE
+NOR0ADDRESS: BOOT                ;Image Flash Address
+NOR0FILE: \SOFTWARE\$bm_image    ;Image File Name
+
+NOR1UPDATE: AUTO                 ;IMAGE UPDATE:NONE/AUTO/FORCE
+NOR1ADDRESS: 0x00000000          ;Image Flash Address
+NOR1FILE: \SOFTWARE\kern_iks.bin  ;Image File Name
+NOR1LOAD: 0x80008000
+NOR1ENTRY: 0x80008000
+
+NOR2UPDATE: AUTO                 ;IMAGE UPDATE:NONE/AUTO/FORCE
+NOR2ADDRESS: 0x00000000          ;Image Flash Address
+NOR2FILE: \SOFTWARE\iks.dtb 	 ;Image File Name for booting in A7 cluster
+NOR2LOAD: 0x84000000
+NOR2ENTRY: 0x84000000
+
+NOR3UPDATE: AUTO                 ;IMAGE UPDATE:NONE/AUTO/FORCE
+NOR3ADDRESS: 0x00000000          ;Image Flash Address
+NOR3FILE: \SOFTWARE\init_iks.bin ;Image File Name
+NOR3LOAD: 0x90100000
+NOR3ENTRY: 0x90100000

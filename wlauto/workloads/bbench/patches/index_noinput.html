@@ -1,0 +1,56 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1.dtd">
+<!--
+    Author: Anthony Gutierrez
+-->
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>University of Michigan - BBench 2.0</title>
+    <script type="text/javascript" src="bbench.js"></script>
+    <script type="text/javascript" src="forms.js"></script>
+</head>
+
+<body onload="startTest(2,2000,500)">
+<!--
+<body>
+    <img src="mich_engin.png" width="35%"/>
+    <h2>University of Michigan BBench version 2.0</h2>
+
+    <form name="config_form">
+        <b>Number of iterations:</b> <input type="text" name="numIterations" value="5" size="4" onchange="setIters();">
+        <input type="button" value="-" name="iterPlusButton" onClick="document.config_form.numIterations.value=numItersDec(); return true;">
+        <input type="button" value="+" name="iterMinusButton" onClick="document.config_form.numIterations.value=numItersInc(); return true;">
+        (Number of times the page set is iterated through.)
+        <br/><br/>
+
+        <b>Scroll Delay (ms):</b> <input type="text" name="scrollDelay" value="0" size="8" onchange="setScrollDelay();">
+        <input type="button" value="-" name="scrollDelayPlusButton" onClick="document.config_form.scrollDelay.value=scrollDelayDec(); return true;">
+        <input type="button" value="+" name="scrollDelayMinusButton" onClick="document.config_form.scrollDelay.value=scrollDelayInc(); return true;">
+        (Number of milliseconds to pause before scrolling.)
+        <br/><br/>
+
+        <b>Scroll Size:</b> <input type="text" name="scrollSize" value="500" size="8" onchange="setScrollSize();">
+        <input type="button" value="-" name="scrollSizePlusButton" onClick="document.config_form.scrollSize.value=scrollSizeDec(); return true;">
+        <input type="button" value="+" name="scrollSizeMinusButton" onClick="document.config_form.scrollSize.value=scrollSizeInc(); return true;">
+        (Number of pixel to scroll.)
+        <br/><br/>
+    </form>
+
+    <p>
+        <b>Click on the start button to begin the benchmark.</b>
+    </p>
+    <button onclick="startTest(numIters, scrollDelay, scrollSize)">start</button>
+
+    <p>
+        If you use BBench in your work please cite our <a href="http://www.eecs.umich.edu/~atgutier/iiswc_2011.pdf">2011 IISWC paper</a>:<br/><br/>
+
+        A. Gutierrez, R.G. Dreslinksi, T.F. Wenisch, T. Mudge, A. Saidi, C. Emmons, and N. Paver. Full-System Analysis and Characterization
+        of Interactive Smartphone Applications. <i>IEEE International Symposium on Workload Characterization</i>, 2011.
+    </p>
+--!>
+</body>
+
+</html>
+
