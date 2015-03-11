@@ -576,7 +576,7 @@ which is perhaps ``initialize`` that gets invoked after the device has been
 initialised for the first time, and can be used to perform one-time setup (e.g.
 copying files to the device -- there is no point in doing that for each
 iteration). The full list of available methods can be found in
-:ref:`Signals Documentation <instrument_name_mapping>`.
+:ref:`Signals Documentation <instrumentation_method_map>`.
 
 
 Prioritization
