@@ -182,6 +182,9 @@ class GlbRunMonitor(threading.Thread):
         self.daemon = True
         self.run_ended = threading.Event()
         self.stop_event = threading.Event()
+        # Not using clear_logcat() because command collects directly, i.e. will
+        # ignore poller.
+        self.device.execute('logcat -c')
         if self.device.adb_name:
             self.command = ['adb', '-s', self.device.adb_name, 'logcat']
         else:
