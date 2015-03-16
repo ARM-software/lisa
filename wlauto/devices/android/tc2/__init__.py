@@ -834,6 +834,9 @@ class TC2Device(BigLittleDevice):
         target.expect(self.config.bootmon_prompt)
         target.sendline('fl linux initrd ' + self.config.initrd)
         target.expect(self.config.bootmon_prompt)
+        #Workaround TC2 bootmon serial issue for loading large initrd blob
+        target.sendline(' ')
+        target.expect(self.config.bootmon_prompt)
         target.sendline('fl linux boot ' + self.config.kernel + self.config.kernel_arguments)
 
 
