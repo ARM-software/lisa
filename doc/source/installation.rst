@@ -129,6 +129,7 @@ may not always have Internet access).
           headers to install. You can get those by installing ``python-dev``
           package in apt on Ubuntu (or the equivalent for your distribution).
 
+
 Installing
 ==========
 
@@ -142,3 +143,110 @@ If the above succeeds, try ::
 
 Hopefully, this should output something along the lines of "Workload Automation
 version $version".
+
+
+(Optional) Post Installation
+============================
+
+Some WA extensions have additional dependencies that need to be
+statisfied before they can be used. Not all of these can be provided with WA and
+so will need to be supplied by the user. They should be placed into
+``~/.workload_uatomation/dependencies/<extenion name>`` so that WA can find
+them (you may need to create the directory if it doesn't already exist). You
+only need to provide the dependencies for workloads you want to use.
+
+
+APK Files
+---------
+
+APKs are applicaton packages used by Android. These are necessary to install an
+application onto devices that do not have Google Play (e.g. devboards running
+AOSP). The following is a list of workloads that will need one, including the
+version(s) for which UI automation has been tested. Automation may also work
+with other versions (especially if it's only a minor or revision difference --
+major version differens are more likely to contain incompatible UI changes) but
+this has not been tested.
+
+================ ============================================ ========================= ============ ============
+workload         package                                      name                      version code version name
+================ ============================================ ========================= ============ ============
+andebench        com.eembc.coremark                           AndEBench                       v1383a         1383
+angrybirds       com.rovio.angrybirds                         Angry Birds                      2.1.1         2110
+angrybirds_rio   com.rovio.angrybirdsrio                      Angry Birds                      1.3.2         1320
+anomaly2         com.elevenbitstudios.anomaly2Benchmark       A2 Benchmark                       1.1           50
+antutu           com.antutu.ABenchMark                        AnTuTu Benchmark                   5.3      5030000
+antutu           com.antutu.ABenchMark                        AnTuTu Benchmark                 3.3.2         3322
+antutu           com.antutu.ABenchMark                        AnTuTu Benchmark                 4.0.3      4000300
+benchmarkpi      gr.androiddev.BenchmarkPi                    BenchmarkPi                       1.11            5
+caffeinemark     com.flexycore.caffeinemark                   CaffeineMark                     1.2.4            9
+castlebuilder    com.ettinentertainment.castlebuilder         Castle Builder                     1.0            1
+castlemaster     com.alphacloud.castlemaster                  Castle Master                     1.09          109
+cfbench          eu.chainfire.cfbench                         CF-Bench                           1.2            7
+citadel          com.epicgames.EpicCitadel                    Epic Citadel                      1.07       901107
+dungeondefenders com.trendy.ddapp                             Dungeon Defenders                 5.34           34
+facebook         com.facebook.katana                          Facebook                           3.4       258880
+geekbench        ca.primatelabs.geekbench2                    Geekbench 2                      2.2.7       202007
+geekbench        com.primatelabs.geekbench3                   Geekbench 3                      3.0.0          135
+glb_corporate    net.kishonti.gfxbench                        GFXBench                         3.0.0            1
+glbenchmark      com.glbenchmark.glbenchmark25                GLBenchmark 2.5                    2.5            4
+glbenchmark      com.glbenchmark.glbenchmark27                GLBenchmark 2.7                    2.7            1
+gunbros2         com.glu.gunbros2                             GunBros2                         1.2.2          122
+ironman          com.gameloft.android.ANMP.GloftIMHM          Iron Man 3                       1.3.1         1310
+krazykart        com.polarbit.sg2.krazyracers                 Krazy Kart Racing                1.2.7          127
+linpack          com.greenecomputing.linpackpro               Linpack Pro for Android          1.2.9           31
+nenamark         se.nena.nenamark2                            NenaMark2                          2.4            5
+peacekeeper      com.android.chrome                           Chrome                    18.0.1025469      1025469
+peacekeeper      org.mozilla.firefox                          Firefox                           23.0   2013073011
+quadrant         com.aurorasoftworks.quadrant.ui.professional Quadrant Professional              2.0      2000000
+realracing3      com.ea.games.r3_row                          Real Racing 3                    1.3.5         1305
+smartbench       com.smartbench.twelve                        Smartbench 2012                  1.0.0            5
+sqlite           com.redlicense.benchmark.sqlite              RL Benchmark                       1.3            5
+templerun        com.imangi.templerun                         Temple Run                       1.0.8           11
+thechase         com.unity3d.TheChase                         The Chase                          1.0            1
+truckerparking3d com.tapinator.truck.parking.bus3d            Truck Parking 3D                   2.5            7
+vellamo          com.quicinc.vellamo                          Vellamo                            3.0         3001
+vellamo          com.quicinc.vellamo                          Vellamo                          2.0.3         2003
+videostreaming   tw.com.freedi.youtube.player                 FREEdi YT Player                2.1.13           79
+================ ============================================ ========================= ============ ============
+
+Gaming Workloads
+----------------
+
+Some workloads (games, demos, etc) cannot be automated using Android's
+UIAutomator framework because they render the entire UI inside a single OpenGL
+surface. For these, an interaction session needs to be recorded so that it can
+be played back by WA. These recordings are device-specific, so they would need
+to be done for each device you're planning to use. The tool for doing is
+``revent`` and it is packaged with WA. You can find instructions on how to use
+it :ref:`here <revent_files_creation>`.
+
+This is the list of workloads that rely on such recordings:
+
++------------------+
+| angrybirds       |
++------------------+
+| angrybirds_rio   |
++------------------+
+| anomaly2         |
++------------------+
+| castlebuilder    |
++------------------+
+| castlemastera    |
++------------------+
+| citadel          |
++------------------+
+| dungeondefenders |
++------------------+
+| gunbros2         |
++------------------+
+| ironman          |
++------------------+
+| krazykart        |
++------------------+
+| realracing3      |
++------------------+
+| templerun        |
++------------------+
+| truckerparking3d |
++------------------+
+
