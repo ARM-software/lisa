@@ -61,13 +61,13 @@ Instrument method realive to other callbacks registered for the signal (within t
 level, callbacks are invoked in the order they were registered). The table below shows the mapping
 of the prifix to the corresponding priority:
 
-=========== ===
+=========== ========
 prefix      priority
-=========== ===
-very_fast\_  20
-fast\_       10
-normal\_      0
-slow\_      -10
-very_slow\_ -20
-=========== ===
+=========== ========
+very_fast\_       20
+fast\_            10
+normal\_           0
+slow\_           -10
+very_slow\_      -20
+=========== ========
 

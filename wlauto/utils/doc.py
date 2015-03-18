@@ -174,6 +174,8 @@ def format_simple_table(rows, headers=None, align='>', show_borders=True, border
 
     cols = zip(*rows)
     col_widths = [max(map(len, c)) for c in cols]
+    if headers:
+        col_widths = [max(len(h), cw) for h, cw in zip(headers, col_widths)]
     row_format = ' '.join(['{:%s%s}' % (align[i], w) for i, w in enumerate(col_widths)])
     row_format += '\n'
 
