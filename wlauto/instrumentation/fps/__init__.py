@@ -80,10 +80,16 @@ class FpsInstrument(Instrument):
                               'except on loading screens, menus, etc, which '
                               'should not contribute to FPS calculation. '),
         Parameter('keep_raw', kind=boolean, default=False,
-                  description='If set to True, this will keep the raw dumpsys output '
+                  description='If set to ``True``, this will keep the raw dumpsys output '
                               'in the results directory (this is maily used for debugging) '
                               'Note: frames.csv with collected frames data will always be '
                               'generated regardless of this setting.'),
+        Parameter('generate_csv', kind=boolean, default=True,
+                  description='If set to ``True``, this will produce temporal fps data '
+                              'in the results directory, in a file named fps.csv '
+                              'Note: fps data will appear as discrete step-like values '
+                              'in order to produce a more meainingfull representation,'
+                              'a rolling mean can be applied.'),
         Parameter('crash_check', kind=boolean, default=True,
                   description="""
                   Specifies wither the instrument should check for crashed content by examining
@@ -111,6 +117,7 @@ class FpsInstrument(Instrument):
         super(FpsInstrument, self).__init__(device, **kwargs)
         self.collector = None
         self.outfile = None
+        self.fps_outfile = None
         self.is_enabled = True
 
     def validate(self):
@@ -124,6 +131,7 @@ class FpsInstrument(Instrument):
     def setup(self, context):
         workload = context.workload
         if hasattr(workload, 'view'):
+            self.fps_outfile = os.path.join(context.output_directory, 'fps.csv')
             self.outfile = os.path.join(context.output_directory, 'frames.csv')
             self.collector = LatencyCollector(self.outfile, self.device, workload.view or '', self.keep_raw, self.logger)
             self.device.execute(self.clear_command)
@@ -145,7 +153,10 @@ class FpsInstrument(Instrument):
         if self.is_enabled:
             data = pd.read_csv(self.outfile)
             if not data.empty:  # pylint: disable=maybe-no-member
-                self._update_stats(context, data)
+                per_frame_fps = self._update_stats(context, data)
+                if self.generate_csv:
+                    per_frame_fps.to_csv(self.fps_outfile, index=False, header=True)
+                    context.add_artifact('fps', path='fps.csv', kind='data')
             else:
                 context.result.add_metric('FPS', float('nan'))
                 context.result.add_metric('frame_count', 0)
@@ -175,7 +186,8 @@ class FpsInstrument(Instrument):
         # drop values lower than drop_threshold FPS as real in-game frame
         # rate is unlikely to drop below that (except on loading screens
         # etc, which should not be factored in frame rate calculation).
-        keep_filter = (1.0 / (vsyncs_to_compose * (vsync_interval / 1e9))) > self.drop_threshold
+        per_frame_fps = (1.0 / (vsyncs_to_compose * (vsync_interval / 1e9)))
+        keep_filter = per_frame_fps > self.drop_threshold
         filtered_vsyncs_to_compose = vsyncs_to_compose[keep_filter]
         if not filtered_vsyncs_to_compose.empty:
             total_vsyncs = filtered_vsyncs_to_compose.sum()
@@ -200,6 +212,8 @@ class FpsInstrument(Instrument):
             context.result.add_metric('frame_count', 0)
             context.result.add_metric('janks', 0)
             context.result.add_metric('not_at_vsync', 0)
+        per_frame_fps.name = 'fps'
+        return per_frame_fps
 
 
 class LatencyCollector(threading.Thread):
