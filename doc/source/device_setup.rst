@@ -363,11 +363,11 @@ A typical ``device_config`` inside ``config.py`` may look something like
 .. code-block:: python
 
         device_config = dict(
-                'host'='192.168.0.7',
-                'username'='guest',
-                'password'='guest',
-                'core_names'=['a7', 'a7', 'a7', 'a15', 'a15'],
-                'core_clusters'=[0, 0, 0, 1, 1],
+                host='192.168.0.7',
+                username='guest',
+                password='guest',
+                core_names=['a7', 'a7', 'a7', 'a15', 'a15'],
+                core_clusters=[0, 0, 0, 1, 1],
                 # ...
         )
 
