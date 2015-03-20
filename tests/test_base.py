@@ -81,6 +81,26 @@ class TestBase(utils_tests.SetupDirectory):
         self.assertEquals(set(dfr.columns), expected_columns)
         self.assertEquals(dfr["power"].iloc[0], 61)
 
+    def test_parse_values_concatenation(self):
+        """TestBase: Trace with space separated values created a valid DataFrame"""
+
+        in_data = """     rcu_preempt-7     [000]    73.604532: sched_stat_runtime:   comm=Space separated taskname pid=7 runtime=262875 [ns] vruntime=17096359856 [ns]"""
+
+        expected_columns = set(["comm", "pid", "runtime", "vruntime"])
+
+        with open("trace.txt", "w") as fout:
+            fout.write(in_data)
+
+        cr2.register_dynamic('sched_stat_runtime', 'sched_stat_runtime')
+        run = cr2.Run()
+        dfr = run.sched_stat_runtime.data_frame
+
+        self.assertEquals(set(dfr.columns), expected_columns)
+        self.assertEquals(dfr["comm"].iloc[0], "Space separated taskname")
+        self.assertEquals(dfr["pid"].iloc[0], 7)
+        self.assertEquals(dfr["runtime"].iloc[0], 262875)
+        self.assertEquals(dfr["vruntime"].iloc[0], 17096359856)
+
     def test_get_dataframe(self):
         """TestBase: Thermal.data_frame["thermal_zone"] exists and
            Thermal.data_frame["temp"][0] = 24000"""

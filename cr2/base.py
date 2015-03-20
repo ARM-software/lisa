@@ -127,6 +127,9 @@ class Base(object):
             prev_key = None
             for field in data_str.split():
                 if "=" not in field:
+                    # Concatenation is supported only for "string" values
+                    if type(data_dict[prev_key]) is not str:
+                        continue
                     data_dict[prev_key] += ' ' + field
                     continue
                 (key, value) = field.split('=')
