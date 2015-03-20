@@ -136,6 +136,7 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         self._is_ready = False
         self._just_rebooted = False
         self._is_rooted = None
+        self._is_root_user = False
         self._available_frequencies = {}
         self._available_governors = {}
         self._available_governor_tunables = {}
@@ -757,6 +758,16 @@ class LinuxDevice(BaseLinuxDevice):
     @property
     def is_rooted(self):
         if self._is_rooted is None:
+            # First check if the user is root
+            try:
+                self.execute('test $(id -u) = 0')
+                self._is_root_user = True
+                self._is_rooted = True
+                return self._is_rooted
+            except DeviceError:
+                self._is_root_user = False
+
+            # Otherwise, check if the user has sudo rights
             try:
                 self.execute('ls /', as_root=True)
                 self._is_rooted = True
@@ -852,6 +863,9 @@ class LinuxDevice(BaseLinuxDevice):
                 raise DeviceError('Cannot execute in background with as_root=True unless user is root.')
             return self.shell.background(command)
         else:
+            # If we're already the root user, don't bother with sudo
+            if self._is_root_user:
+                as_root = False
             return self.shell.execute(command, timeout, check_exit_code, as_root, strip_colors)
 
     def kick_off(self, command):
