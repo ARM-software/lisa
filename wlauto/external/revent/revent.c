@@ -81,8 +81,8 @@ typedef struct {
 } replay_event_t;
 
 typedef struct {
-    int num_fds;
-    int num_events;
+    size_t num_fds;
+    size_t num_events;
     int *fds;
     replay_event_t *events;
 } replay_buffer_t;
