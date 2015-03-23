@@ -14,6 +14,7 @@
 */
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -65,24 +66,25 @@ typedef enum  {
 
 typedef struct {
     revent_mode_t mode;
-    int record_time;
-    int device_number;
+    int32_t record_time;
+    int32_t device_number;
     char *file;
 } revent_args_t;
 
 typedef struct {
-    size_t id_pathc;                                        /* Count of total paths so far. */
+    int32_t id_pathc;                                        /* Count of total paths so far. */
     char   id_pathv[INPDEV_MAX_DEVICES][INPDEV_MAX_PATH];   /* List of paths matching pattern. */
 } inpdev_t;
 
 typedef struct {
-    int dev_idx;
+    int32_t dev_idx;
+    int32_t _padding;
     struct input_event event;
 } replay_event_t;
 
 typedef struct {
-    size_t num_fds;
-    size_t num_events;
+    int32_t num_fds;
+    int32_t num_events;
     int *fds;
     replay_event_t *events;
 } replay_buffer_t;
@@ -117,9 +119,9 @@ off_t get_file_size(const char *filename) {
 
 int inpdev_init(inpdev_t **inpdev, int devid)
 {
-    int i;
+    int32_t i;
     int fd;
-    int num_devices;
+    int32_t num_devices;
 
     *inpdev = malloc(sizeof(inpdev_t));
     (*inpdev)->id_pathc = 0;
@@ -193,8 +195,8 @@ void dump(const char *logfile)
     int *fds = malloc(sizeof(int)*nfds);
     if (!fds) die("out of memory\n");
 
-    int len;
-    int i;
+    int32_t len;
+    int32_t i;
     char buf[INPDEV_MAX_PATH];
 
     inpdev_t *inpdev = malloc(sizeof(inpdev_t));
@@ -213,7 +215,7 @@ void dump(const char *logfile)
     struct input_event ev;
     int count = 0;
     while(1) {
-        int idx;
+        int32_t idx;
         rb = read(fdin, &idx, sizeof(idx));
         if (rb != sizeof(idx)) break;
         rb = read(fdin, &ev, sizeof(ev));
@@ -251,14 +253,13 @@ int replay_buffer_init(replay_buffer_t **buffer, const char *logfile)
     if (!buff->fds) 
         die("out of memory\n");
 
-    int len, i;
+    int32_t len, i;
     char path_buff[256]; // should be more than enough
     for (i = 0; i < buff->num_fds; i++) {
         memset(path_buff, 0, sizeof(path_buff));
         rb = read(fdin, &len, sizeof(len));
         if (rb!=sizeof(len)) 
             die("problems reading eventlog\n");
-
         rb = read(fdin, &path_buff[0], len);
         if (rb != len) 
             die("problems reading eventlog\n");
@@ -270,20 +271,20 @@ int replay_buffer_init(replay_buffer_t **buffer, const char *logfile)
 
     struct timeval start_time;
     replay_event_t rep_ev;
-    buff->num_events = 0;
+    i = 0;
     while(1) {
-        int idx;
         rb = read(fdin, &rep_ev, sizeof(rep_ev));
         if (rb < (int)sizeof(rep_ev)) 
             break;
 
-        if (buff->num_events == 0) {
+        if (i == 0) {
             start_time = rep_ev.event.time;
         }
         timersub(&(rep_ev.event.time), &start_time, &(rep_ev.event.time));
-        memcpy(&(buff->events[buff->num_events]), &rep_ev, sizeof(rep_ev));
-        buff->num_events++;
+        memcpy(&(buff->events[i]), &rep_ev, sizeof(rep_ev));
+        i++;
     }
+    buff->num_events = i - 1;
     close(fdin);
     return 0;
 }
@@ -298,7 +299,7 @@ int replay_buffer_close(replay_buffer_t *buff)
 
 int replay_buffer_play(replay_buffer_t *buff)
 {
-    int i = 0, rb;
+    int32_t i = 0, rb;
     struct timeval start_time, now, desired_time, last_event_delta, delta;
     memset(&last_event_delta, 0, sizeof(struct timeval));
     gettimeofday(&start_time, NULL);
@@ -316,7 +317,7 @@ int replay_buffer_play(replay_buffer_t *buff)
             usleep(d);
         }
 
-        int idx = (buff->events[i]).dev_idx;
+        int32_t idx = (buff->events[i]).dev_idx;
         struct input_event ev = (buff->events[i]).event;
         while((i < buff->num_events) && !timercmp(&ev.time, &last_event_delta, !=)) {
             rb = write(buff->fds[idx], &ev, sizeof(ev));
@@ -351,9 +352,10 @@ void record(inpdev_t *inpdev, int delay, const char *logfile)
     fd_set readfds;
     FILE* fdout;
     struct input_event ev;
-    int i;
-    int maxfd = 0;
-    int keydev=0;
+    int32_t i;
+    int32_t _padding = 0xdeadbeef;
+    int32_t maxfd = 0;
+    int32_t keydev=0;
 
     int* fds = malloc(sizeof(int)*inpdev->id_pathc);
     if (!fds) die("out of memory\n");
@@ -363,7 +365,7 @@ void record(inpdev_t *inpdev, int delay, const char *logfile)
 
     fwrite(&inpdev->id_pathc, sizeof(inpdev->id_pathc), 1, fdout);
     for (i=0; i<inpdev->id_pathc; i++) {
-        int len = strlen(inpdev->id_pathv[i]);
+        int32_t len = strlen(inpdev->id_pathv[i]);
         fwrite(&len, sizeof(len), 1, fdout);
         fwrite(inpdev->id_pathv[i], len, 1, fdout);
     }
@@ -387,7 +389,7 @@ void record(inpdev_t *inpdev, int delay, const char *logfile)
         /* wait for input */
         tout.tv_sec = delay;
         tout.tv_usec = 0;
-        int r = select(maxfd+1, &readfds, NULL, NULL, &tout);
+        int32_t r = select(maxfd+1, &readfds, NULL, NULL, &tout);
         /* dprintf("got %d (err %d)\n", r, errno); */
         if (!r) break;
         if (FD_ISSET(STDIN_FILENO, &readfds)) {
@@ -399,10 +401,12 @@ void record(inpdev_t *inpdev, int delay, const char *logfile)
             ev.value = 0;
             gettimeofday(&ev.time, NULL);
             fwrite(&keydev, sizeof(keydev), 1, fdout);
+            fwrite(&_padding, sizeof(_padding), 1, fdout);
             fwrite(&ev, sizeof(ev), 1, fdout);
             memset(&ev, 0, sizeof(ev)); // SYN
             gettimeofday(&ev.time, NULL);
             fwrite(&keydev, sizeof(keydev), 1, fdout);
+            fwrite(&_padding, sizeof(_padding), 1, fdout);
             fwrite(&ev, sizeof(ev), 1, fdout);
             dprintf("added fake return exiting...\n");
             break;
@@ -420,6 +424,7 @@ void record(inpdev_t *inpdev, int delay, const char *logfile)
                 if (ev.type == EV_KEY && ev.code == KEY_ENTER && ev.value == 1)
                     keydev = i;
                 fwrite(&i, sizeof(i), 1, fdout);
+                fwrite(&_padding, sizeof(_padding), 1, fdout);
                 fwrite(&ev, sizeof(ev), 1, fdout);
                 count++;
             }
