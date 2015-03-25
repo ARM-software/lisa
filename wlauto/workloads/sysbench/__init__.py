@@ -17,9 +17,10 @@
 
 import os
 
-from wlauto import Workload, Parameter, File
-from wlauto.exceptions import WorkloadError
+from wlauto import Workload, Parameter, Executable
+from wlauto.exceptions import WorkloadError, ConfigError
 from wlauto.utils.misc import parse_value
+from wlauto.utils.types import boolean, numeric
 
 
 class Sysbench(Workload):
@@ -43,27 +44,50 @@ class Sysbench(Workload):
        * database server performance
 
 
-    See: http://sysbench.sourceforge.net/docs/
+    See: https://github.com/akopytov/sysbench
 
     """
 
     parameters = [
-        Parameter('timeout', kind=int, default=300),
-        Parameter('test', kind=str, default='cpu'),
-        Parameter('num_threads', kind=int, default=8),
-        Parameter('max_requests', kind=int, default=2000),
+        Parameter('timeout', kind=int, default=300,
+                  description='timeout for workload exectution (adjust from default '
+                              'if running on a slow device and/or specifying a large value for '
+                              '``max_requests``'),
+        Parameter('test', kind=str, default='cpu',
+                  allowed_values=['fileio', 'cpu', 'memory', 'threads', 'mutex'],
+                  description='sysbench test to run'),
+        Parameter('num_threads', kind=int, default=8,
+                  description='The number of threads sysbench will launch'),
+        Parameter('max_requests', kind=int, default=2000,
+                  description='The limit for the total number of requests'),
+        Parameter('file_test_mode', default=None,
+                  allowed_values=['seqwr', 'seqrewr', 'seqrd', 'rndrd', 'rndwr', 'rndrw'],
+                  description='File test mode to use. this should only be specfied if ``test`` is '
+                              '``"fileio"``; if that is the case and ``file_test_mode`` is not specified, '
+                              'it will default to ``"seqwr"`` (please see sysbench documentation for '
+                              'explanation of various modes).'),
+        Parameter('cmd_params', kind=str, default='',
+                  description='Additional parameters to be passed to sysbench as a single stiring'),
+        Parameter('force_install', kind=boolean, default=True,
+                  description='Always install binary found on the host, even if already installed on device'),
     ]
 
-    def __init__(self, device, **kwargs):
-        super(Sysbench, self).__init__(device)
+    def validate(self):
+        if self.test == 'fileio' and not self.file_test_mode:
+            self.logger.debug('Test is "fielio" and no file_test_mode specified -- using default.')
+            self.file_test_mode = 'seqwr'
+        elif self.test != 'fileio' and self.file_test_mode:
+            raise ConfigError('file_test_mode must not be specified unless test is "fileio"')
+
+    def init_resources(self, context):
+        self.on_host_binary = context.resolver.get(Executable(self, 'armeabi', 'sysbench'), strict=False)
+
+    def setup(self, context):
         self.command = self._build_command(test=self.test,
                                            num_threads=self.num_threads,
                                            max_requests=self.max_requests)
         self.results_file = self.device.path.join(self.device.working_directory, 'sysbench_result.txt')
-
-    def setup(self, context):
-        self._check_executable(context)
-        self.device.execute('am start -n com.android.browser/.BrowserActivity about:blank ')
+        self._check_executable()
 
     def run(self, context):
         self.device.execute(self.command, timeout=self.timeout)
@@ -71,41 +95,79 @@ class Sysbench(Workload):
     def update_result(self, context):
         host_results_file = os.path.join(context.output_directory, 'sysbench_result.txt')
         self.device.pull_file(self.results_file, host_results_file)
+        context.add_iteration_artifact('sysbench_output', kind='raw', path=host_results_file)
 
         with open(host_results_file) as fh:
-            in_summary = False
-            metric_prefix = ''
-            for line in fh:
-                if line.startswith('Test execution summary:'):
-                    in_summary = True
-                elif in_summary:
-                    if not line.strip():
-                        break  # end of summary section
-                    parts = [p.strip() for p in line.split(':') if p.strip()]
-                    if len(parts) == 2:
-                        metric = metric_prefix + parts[0]
-                        value, units = parse_value(parts[1])
-                        context.result.add_metric(metric, value, units)
-                    elif len(parts) == 1:
-                        metric_prefix = line.strip() + ' '
-                    else:
-                        self.logger.warn('Could not parse line: "{}"'.format(line.rstrip('\n')))
-        context.add_iteration_artifact('sysbench_output', kind='raw', path='sysbench_result.txt')
+            find_line_with('response time:', fh)
+            extract_response_time_metric('min', fh.next(), context.result)
+            extract_response_time_metric('avg', fh.next(), context.result)
+            extract_response_time_metric('max', fh.next(), context.result)
+            extract_response_time_metric('approx.  95 percentile', fh.next(), context.result)
+            find_line_with('Threads fairness:', fh)
+            extract_threads_fairness_metric('events', fh.next(), context.result)
+            extract_threads_fairness_metric('execution time', fh.next(), context.result)
 
     def teardown(self, context):
-        self.device.execute('am force-stop com.android.browser')
         self.device.delete_file(self.results_file)
 
-    def _check_executable(self, context):
-        if self.device.is_installed('sysbench'):
+    def _check_executable(self):
+        if self.device.is_installed('sysbench') and not self.force_install:
+            self.logger.debug('sysbench found on device')
             return
-        path = context.resolver.get(File(owner=self, path='sysbench'))
-        if not path:
+        if not self.on_host_binary:
             raise WorkloadError('sysbench binary is not installed on the device, and it does not found in dependencies on the host.')
-        self.device.install(path)
+        self.device.install(self.on_host_binary)
 
     def _build_command(self, **parameters):
         param_strings = ['--{}={}'.format(k.replace('_', '-'), v)
                          for k, v in parameters.iteritems()]
-        sysbench_command = 'sysbench {} run'.format(' '.join(param_strings))
+        if self.file_test_mode:
+            param_strings.append('--file-test-mode={}'.format(self.file_test_mode))
+        sysbench_command = 'sysbench {} {} run'.format(' '.join(param_strings), self.cmd_params)
         return 'cd {} && {} > sysbench_result.txt'.format(self.device.working_directory, sysbench_command)
+
+
+# Utility functions
+
+def find_line_with(text, fh):
+    for line in fh:
+        if text in line:
+            return
+    message = 'Could not extract sysbench results from {}; did not see "{}"'
+    raise WorkloadError(message.format(fh.name, text))
+
+
+def extract_response_time_metric(metric, line, result):
+    try:
+        name, value_part = [part.strip() for part in line.split(':')]
+        if name != metric:
+            message = 'Name mismatch: expected "{}", got "{}"'
+            raise WorkloadError(message.format(metric, name.strip()))
+        idx = -1
+        while value_part[idx - 1].isalpha() and idx:  # assumes at least one char of units
+            idx -= 1
+        if not idx:
+            raise WorkloadError('Could not parse value "{}"'.format(value_part))
+        value = numeric(value_part[:idx])
+        units = value_part[idx:]
+        result.add_metric('response time ' + metric,
+                          value, units, lower_is_better=True)
+    except Exception as e:
+        message = 'Could not extract sysbench metric "{}"; got "{}"'
+        raise WorkloadError(message.format(metric, e))
+
+
+def extract_threads_fairness_metric(metric, line, result):
+    try:
+        name_part, value_part = [part.strip() for part in line.split(':')]
+        name = name_part.split('(')[0].strip()
+        if name != metric:
+            message = 'Name mismatch: expected "{}", got "{}"'
+            raise WorkloadError(message.format(metric, name))
+        avg, stddev = [numeric(v) for v in value_part.split('/')]
+        result.add_metric('thread fairness {} avg'.format(metric), avg)
+        result.add_metric('thread fairness {} stddev'.format(metric),
+                          stddev, lower_is_better=True)
+    except Exception as e:
+        message = 'Could not extract sysbench metric "{}"; got "{}"'
+        raise WorkloadError(message.format(metric, e))
