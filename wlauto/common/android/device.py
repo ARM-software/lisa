@@ -472,6 +472,12 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
             self.pull_file('/proc/version', context.host_working_directory)
         self._update_versions(version_file, props)
         context.add_run_artifact('device_version', version_file, 'export')
+
+        dumpsys_window_file = os.path.join(context.host_working_directory, 'window.dumpsys')
+        dumpsys_window_output = self.execute('dumpsys window')
+        with open(dumpsys_window_file, 'w') as wfh:
+            wfh.write(dumpsys_window_output)
+        context.add_run_artifact('dumpsys_window', dumpsys_window_file, 'meta')
         return props
 
     def getprop(self, prop=None):
