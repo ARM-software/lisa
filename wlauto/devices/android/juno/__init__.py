@@ -25,7 +25,7 @@ from wlauto import BigLittleDevice, Parameter
 from wlauto.exceptions import DeviceError
 from wlauto.utils.serial_port import open_serial_connection, pulse_dtr
 from wlauto.utils.android import adb_connect, adb_disconnect, adb_list_devices
-from wlauto.utils.uefi import UefiMenu
+from wlauto.utils.uefi import UefiMenu, UefiConfig
 
 
 AUTOSTART_MESSAGE = 'Press Enter to stop auto boot...'
@@ -51,9 +51,6 @@ class Juno(BigLittleDevice):
                   description="""Specifies the number of times the device will attempt to recover
                                  (normally, with a hard reset) if it detects that something went wrong."""),
 
-        # VExpress flasher expects a device to have these:
-        Parameter('uefi_entry', default='WA',
-                  description='The name of the entry to use (will be created if does not exist).'),
         Parameter('microsd_mount_point', default='/media/JUNO',
                   description='Location at which the device\'s MicroSD card will be mounted.'),
         Parameter('port', default='/dev/ttyS0', description='Serial port on which the device is connected.'),
@@ -61,12 +58,28 @@ class Juno(BigLittleDevice):
         Parameter('timeout', kind=int, default=300, description='Serial connection timeout.'),
         Parameter('core_names', default=['a53', 'a53', 'a53', 'a53', 'a57', 'a57'], override=True),
         Parameter('core_clusters', default=[0, 0, 0, 0, 1, 1], override=True),
+
+        # VExpress flasher expects a device to have these:
+        Parameter('uefi_entry', default='WA',
+                  description='The name of the entry to use (will be created if does not exist).'),
+        Parameter('uefi_config', kind=UefiConfig,
+                  description='''Specifies the configuration for the UEFI entry for his device. In an
+                                 entry specified by ``uefi_entry`` parameter doesn't exist in UEFI menu,
+                                 it will be created using this config. This configuration will also be
+                                 used, when flashing new images.''',
+                  default={
+                      'image_name': 'Image',
+                      'image_args': 'console=ttyAMA0,115200 '
+                                    'earlyprintk=pl011,0x7ff80000 '
+                                    'verbose debug init=/init '
+                                    'root=/dev/sda1 rw ip=dhcp rootwait',
+                      'fdt_support': True,
+                  }
+                  ),
     ]
 
     short_delay = 1
     firmware_prompt = 'Cmd>'
-    # this is only used  if there is no UEFI entry and one has to be created.
-    kernel_arguments = 'console=ttyAMA0,115200 earlyprintk=pl011,0x7ff80000 verbose debug init=/init root=/dev/sda1 rw ip=dhcp rootwait'
 
     def boot(self, **kwargs):
         self.logger.debug('Resetting the device.')
@@ -83,8 +96,7 @@ class Juno(BigLittleDevice):
             except LookupError:
                 self.logger.debug('{} UEFI entry not found.'.format(self.uefi_entry))
                 self.logger.debug('Attempting to create one using default flasher configuration.')
-                self.flasher.image_args = self.kernel_arguments
-                self.flasher.create_uefi_enty(self, menu)
+                menu.create_entry(self.uefi_entry, self.uefi_config)
                 menu.select(self.uefi_entry)
             self.logger.debug('Waiting for the Android prompt.')
             target.expect(self.android_prompt, timeout=self.timeout)

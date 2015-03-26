@@ -17,11 +17,32 @@
 import re
 import time
 import logging
+from copy import copy
 
+from wlauto.exceptions import ConfigError
 from wlauto.utils.serial_port import TIMEOUT
+from wlauto.utils.types import boolean
 
 
 logger = logging.getLogger('UEFI')
+
+
+class UefiConfig(object):
+
+    def __init__(self, config_dict):
+        if isinstance(config_dict, UefiConfig):
+            self.__dict__ = copy(config_dict.__dict__)
+        else:
+            try:
+                self.image_name = config_dict['image_name']
+                self.image_args = config_dict['image_args']
+                self.fdt_support = boolean(config_dict['fdt_support'])
+            except KeyError as e:
+                raise ConfigError('Missing mandatory parameter for UEFI entry config: "{}"'.format(e))
+            self.initrd = config_dict.get('initrd')
+            self.fdt_path = config_dict.get('fdt_path')
+            if self.fdt_path and not self.fdt_support:
+                raise ConfigError('FDT path has been specfied for UEFI entry, when FDT support is "False"')
 
 
 class UefiMenu(object):
@@ -58,7 +79,7 @@ class UefiMenu(object):
         self.conn.sendline('')
         time.sleep(self.load_delay)
 
-    def create_entry(self, name, image, args, fdt_support, initrd=None, fdt_path=None):
+    def create_entry(self, name, config):
         """Create a new UEFI entry using the parameters. The menu is assumed
         to be at the top level. Upon return, the menu will be at the top level."""
         logger.debug('Creating UEFI entry {}'.format(name))
@@ -66,19 +87,19 @@ class UefiMenu(object):
         self.select('Boot Manager')
         self.select('Add Boot Device Entry')
         self.select('NOR Flash')
-        self.enter(image)
-        self.enter('y' if fdt_support else 'n')
-        if initrd:
+        self.enter(config.image_name)
+        self.enter('y' if config.fdt_support else 'n')
+        if config.initrd:
             self.enter('y')
-            self.enter(initrd)
+            self.enter(config.initrd)
         else:
             self.enter('n')
-        self.enter(args)
+        self.enter(config.image_args)
         self.enter(name)
 
-        if fdt_path:
+        if config.fdt_path:
             self.select('Update FDT path')
-            self.enter(fdt_path)
+            self.enter(config.fdt_path)
 
         self.select('Return to main menu')
 

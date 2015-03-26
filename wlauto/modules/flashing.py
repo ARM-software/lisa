@@ -20,12 +20,11 @@ import tarfile
 import tempfile
 import shutil
 
-from wlauto import Module, Parameter
+from wlauto import Module
 from wlauto.exceptions import ConfigError, DeviceError
 from wlauto.utils.android import fastboot_flash_partition, fastboot_command
 from wlauto.utils.serial_port import open_serial_connection
 from wlauto.utils.uefi import UefiMenu
-from wlauto.utils.types import boolean
 from wlauto.utils.misc import merge_dicts
 
 
@@ -140,19 +139,6 @@ class VersatileExpressFlasher(Flasher):
 
     name = 'vexpress'
 
-    parameters = [
-        Parameter('image_name', default='Image',
-                  description='The name of the kernel image to boot.'),
-        Parameter('image_args', default=None,
-                  description='Kernel arguments with which the image will be booted.'),
-        Parameter('fdt_support', kind=boolean, default=True,
-                  description='Specifies whether the image has device tree support.'),
-        Parameter('initrd', default=None,
-                  description='If the kernel image uses an INITRD, this can be used to specify it.'),
-        Parameter('fdt_path', default=None,
-                  description='If specified, this will be set as the FDT path.'),
-    ]
-
     def flash(self, image_bundle=None, images=None):
         device = self.owner
         if not hasattr(device, 'port') or not hasattr(device, 'microsd_mount_point'):
@@ -178,17 +164,9 @@ class VersatileExpressFlasher(Flasher):
             if menu.has_option(device.uefi_entry):
                 self.logger.debug('Deleting existing device entry.')
                 menu.delete_entry(device.uefi_entry)
-            self.create_uefi_enty(device, menu)
+            menu.create_entry(device.uefi_entry, device.uefi_config)
             menu.select(device.uefi_entry)
             target.expect(device.android_prompt, timeout=device.timeout)
-
-    def create_uefi_enty(self, device, menu):
-        menu.create_entry(device.uefi_entry,
-                          self.image_name,
-                          self.image_args,
-                          self.fdt_support,
-                          self.initrd,
-                          self.fdt_path)
 
     def deploy_images(self, device, image_bundle=None, images=None):
         try:
