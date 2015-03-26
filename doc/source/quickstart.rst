@@ -2,7 +2,7 @@
 Quickstart
 ==========
 
-This sections will show you how to quickly start running workloads using
+This guide will show you how to quickly start running workloads using
 Workload Automation 2.
 
 
@@ -22,13 +22,20 @@ environment variable is set, or that ``adb`` is in your ``PATH``.
 In addition to the base Python 2.7 install, you will also need to have ``pip``
 (Python's package manager) installed as well. This is usually a separate package.
 
-Once you have the pre-requisites and a tarball with the workload automation package,
+.. note:: For Linux, SSH is also required.
+
+Once you have the prerequisites and a tarball with the workload automation package,
 you can install it with pip::
 
-        sudo pip install wlauto-2.2.0dev.tar.gz
+        sudo pip install wlauto-$versiondev.tar.gz
 
-This will install Workload Automation on your system, along with the Python
-packages it depends on.
+Where $version is the current version of WA.
+
+.. note:: If you downloaded the Workload Automation source code from GitHub, open
+          the README.rst file to start the setup process. A wlauto tarball will
+          be created under the dist directory once the process is complete. 
+
+This will install Workload Automation on your system, along with other dependencies.
 
 (Optional) Verify installation
 -------------------------------
@@ -52,15 +59,23 @@ For more details, please see the :doc:`installation` section.
 Configure Your Device
 =====================
 
-Out of the box, WA is configured to work with a generic Android device through
-``adb``. If you only have one device listed when you execute ``adb devices``,
-and your device has a standard Android configuration, then no extra configuration
-is required (if your device is connected via network, you will have to manually execute
-``adb connect <device ip>`` so that it appears in the device listing).
+Locate the device configuration file, config.py, under the
+~/.workload_automation directory. Then adjust the device 
+configuration settings accordingly to the device you are using.
 
-If you have  multiple devices connected, you will need to tell WA which one you
-want it to use. You can do that by setting ``adb_name`` in device configuration inside
-``~/.workload_automation/config.py``\ , e.g.
+Android
+-------
+
+By default, the device is set to 'generic_android'. WA is configured to work 
+with a generic Android device through ``adb``. If you only have one device listed 
+when you execute ``adb devices``, and your device has a standard Android 
+configuration, then no extra configuration is required.
+
+However, if your device is connected via network, you will have to manually execute
+``adb connect <device ip>`` so that it appears in the device listing.
+
+If you have multiple devices connected, you will need to tell WA which one you
+want it to use. You can do that by setting ``adb_name`` in device_config section.
 
 .. code-block:: python
 
@@ -73,10 +88,73 @@ want it to use. You can do that by setting ``adb_name`` in device configuration 
 
         # ...
 
-This should give you basic functionality. If your device has non-standard
-Android configuration (e.g. it's a development board) or your need some advanced
-functionality (e.g. big.LITTLE tuning parameters), additional configuration may
-be required. Please see the :doc:`device_setup` section for more details.
+Linux
+-----
+
+First, set the device to 'generic_linux'
+
+.. code-block:: python
+
+        # ...
+          device = 'generic_linux'
+        # ...
+
+Find the device_config section and add these parameters
+
+.. code-block:: python
+
+        # ...
+
+        device_config = dict(
+                host = '192.168.0.100',
+                username = 'root',
+                password = 'password'
+                # ...
+        )
+
+        # ...
+
+Parameters:
+
+- Host is the IP of your target Linux device
+- Username is the user for the device
+- Password is the password for the device
+
+Enabling and Disabling Instrumentation
+---------------------------------------
+
+Some instrumentation tools are enabled after your initial install of WA.
+
+.. note:: Some Linux devices may not be able to run certain instruments
+          provided by WA (e.g. cpufreq is disabled or unsupported by the 
+          device). 
+
+As a start, keep the 'execution_time' instrument enabled while commenting out
+the rest to disable them.
+
+.. code-block:: python
+
+        # ...
+
+        Instrumentation = [
+                # Records the time it took to run the workload
+                'execution_time',
+
+                # Collects /proc/interrupts before and after execution and does a diff.
+                # 'interrupts',
+
+                # Collects the contents of/sys/devices/system/cpu before and after execution and does a diff.
+                # 'cpufreq',
+
+                # ...
+        )
+
+
+
+This should give you basic functionality. If you are working with a development 
+board or you need some advanced functionality (e.g. big.LITTLE tuning parameters), 
+additional configuration may be required. Please see the :doc:`device_setup` 
+section for more details.
 
 
 Running Your First Workload
@@ -155,8 +233,35 @@ This agenda
   the config.py.
 - Disables execution_time instrument, if it is enabled in the config.py
 
-There is a lot more that could be done with an agenda. Please see :doc:`agenda`
-section for details.
+An agenda can be created in a text editor and saved as a YAML file. Please make note of
+where you have saved the agenda.
+
+Please see :doc:`agenda` section for more options.
 
 .. _YAML: http://en.wikipedia.org/wiki/YAML
 
+Examples
+========
+
+These examples show some useful options with the ``wa run`` command.
+
+To run your own agenda::
+    
+    wa run <path/to/agenda> (e.g. wa run ~/myagenda.yaml)
+
+To redirect the output to a different directory other than wa_output::
+    
+    wa run dhrystone -d my_output_directory
+
+To use a different config.py file::
+    
+    wa run -c myconfig.py dhrystone
+
+To use the same output directory but override existing contents to
+store new dhrystone results::
+    
+    wa run -f dhrystone
+
+To display verbose output while running memcpy::
+
+    wa run --verbose memcpy
