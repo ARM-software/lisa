@@ -697,6 +697,17 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         if number > max_cores:
             message = 'Attempting to set the number of active {} to {}; maximum is {}'
             raise ValueError(message.format(core, number, max_cores))
+
+        if not number:
+            # make sure at least one other core is enabled to avoid trying to
+            # hotplug everything.
+            for i, c in enumerate(self.core_names):
+                if c != core:
+                    self.enable_cpu(i)
+                    break
+            else:  # did not find one
+                raise ValueError('Cannot hotplug all cpus on the device!')
+
         for i in xrange(0, number):
             self.enable_cpu(core_ids[i])
         for i in xrange(number, max_cores):
