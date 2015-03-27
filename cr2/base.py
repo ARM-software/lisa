@@ -63,7 +63,7 @@ class Base(object):
 
     Don't use directly, create a subclass that defines the unique_word
     you want to match in the output"""
-    def __init__(self, unique_word):
+    def __init__(self, unique_word, parse_raw=False):
         self.data_frame = pd.DataFrame()
         self.unique_word = unique_word
         self.data_array = []
@@ -71,6 +71,7 @@ class Base(object):
         self.comm_array = []
         self.pid_array = []
         self.cpu_array = []
+        self.parse_raw = parse_raw
 
     def finalize_object(self):
         pass

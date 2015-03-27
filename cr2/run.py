@@ -88,7 +88,7 @@ classes are parsed.
 
     def __init__(self, path=".", name="", normalize_time=True, scope="all"):
         self.name = name
-        self.trace_path = self.__process_path(path)
+        self.trace_path, self.trace_path_raw = self.__process_path(path)
         self.class_definitions = self.dynamic_classes.copy()
 
         if scope == "thermal":
@@ -106,6 +106,7 @@ classes are parsed.
             self.trace_classes.append(trace_class)
 
         self.__parse_trace_file()
+        self.__parse_trace_file(raw=True)
         self.__finalize_objects()
 
         if normalize_time:
@@ -116,39 +117,71 @@ classes are parsed.
         """Process the path and return the path to the trace text file"""
 
         if os.path.isfile(basepath):
+            trace_txt = os.path.splitext(basepath)[0]
+            raw_trace_path = trace_txt + ".raw.txt"
+            trace_path = trace_txt + ".txt"
+
             if basepath.endswith(".dat"):
                 self.__run_trace_cmd_report(basepath)
-                trace_path = os.path.splitext(basepath)[0] + ".txt"
-            else:
+
+            elif basepath.endswith(".txt"):
                 trace_path = basepath
+                if not os.path.isfile(raw_trace_path):
+                    raw_trace_path = None
         else:
             trace_path = os.path.join(basepath, "trace.txt")
-            if not os.path.isfile(trace_path):
-                self.__run_trace_cmd_report(os.path.join(basepath, "trace.dat"))
+            raw_trace_path = os.path.join(basepath, "trace.raw.txt")
+            dat_file = os.path.join(basepath, "trace.dat")
 
-        return trace_path
+            if not os.path.isfile(trace_path):
+                self.__run_trace_cmd_report(dat_file)
+
+            # The condition below handles the the following cases
+            # trace.dat and trace.txt are both present
+            # We can still generate the trace.raw.txt
+            if not os.path.isfile(raw_trace_path):
+                if os.path.isfile(dat_file):
+                    self.__run_trace_cmd_report(dat_file)
+                else:
+                    raw_trace_path = None
+
+        return trace_path, raw_trace_path
 
     def __run_trace_cmd_report(self, fname):
-        """Run "trace-cmd report fname > fname.txt".
+        """Run "trace-cmd report fname > fname.txt"
+           and "trace-cmd report -R fname > fname.raw.txt"
 
-        The resulting trace is stored in a file with extension ".txt".
-        If fname is "my_trace.dat", the trace is stored in
-        "my_trace.txt".  The contents of the destination file are
-        overwritten if it exists.
+        The resulting traces are stored in files with extension ".txt"
+        and ".raw.txt" respectively.  If fname is "my_trace.dat", the
+        trace is stored in "my_trace.txt" and "my_trace.raw.txt".  The
+        contents of the destination files are overwritten if they
+        exist.
 
         """
         from subprocess import check_output
 
+        cmd = ["trace-cmd", "report"]
+
         if not os.path.isfile(fname):
             raise IOError("No such file or directory: {}".format(fname))
 
-        with open(os.devnull) as devnull:
-            out = check_output(["trace-cmd", "report", fname],
-                               stderr=devnull)
-
+        raw_trace_output = os.path.splitext(fname)[0] + ".raw.txt"
         trace_output = os.path.splitext(fname)[0] + ".txt"
+        cmd.append(fname)
+
+        with open(os.devnull) as devnull:
+            out = check_output(cmd, stderr=devnull)
+
+            # Add the -R flag to the trace-cmd
+            # for raw parsing
+            cmd.insert(-1, "-R")
+            raw_out = check_output(cmd, stderr=devnull)
+
         with open(trace_output, "w") as fout:
             fout.write(out)
+
+        with open(raw_trace_output, "w") as fout:
+            fout.write(raw_out)
 
     def get_basetime(self):
         """Returns the smallest time value of all classes,
@@ -199,16 +232,29 @@ classes are parsed.
                 return trace_name
         return None
 
-    def __parse_trace_file(self):
+    def __parse_trace_file(self, raw=False):
         """parse the trace and create a pandas DataFrame"""
 
         # Memoize the unique words to speed up parsing the trace file
         unique_words = []
         for trace_name in self.class_definitions.iterkeys():
+            parse_raw = getattr(self, trace_name).parse_raw
+
+            if parse_raw != raw:
+                continue
+
             unique_word = getattr(self, trace_name).unique_word
             unique_words.append((unique_word, trace_name))
 
-        with open(self.trace_path) as fin:
+        if raw:
+                if self.trace_path_raw != None:
+                    trace_file = self.trace_path_raw
+                else:
+                    return
+        else:
+            trace_file = self.trace_path
+
+        with open(trace_file) as fin:
             for line in fin:
                 attr = self.__contains_unique_word(line, unique_words)
                 if not attr:

@@ -95,6 +95,9 @@ class TestRun(BaseTestThermal):
 
         self.assertTrue(len(dfr) > 0)
         self.assertFalse(os.path.exists("trace.txt"))
+        # As there is no raw trace requested. The mytrace.raw.txt
+        # Should not have been generated
+        self.assertFalse(os.path.exists("mytrace.raw.txt"))
 
     def test_run_autonormalize_time(self):
         """Run() normalizes by default"""
@@ -180,6 +183,69 @@ class TestRun(BaseTestThermal):
         run.plot_allfreqs(self.map_label, ax=axis)
         matplotlib.pyplot.close('all')
 
+@unittest.skipUnless(utils_tests.trace_cmd_installed(),
+                     "trace-cmd not installed")
+class TestRunRawDat(utils_tests.SetupDirectory):
+
+    def __init__(self, *args, **kwargs):
+        super(TestRunRawDat, self).__init__(
+             [("raw_trace.dat", "trace.dat")],
+             *args,
+             **kwargs)
+
+    def test_raw_dat(self):
+        """Tests an event that relies on raw parsing"""
+
+        cr2.register_dynamic("SchedSwitch", "sched_switch", parse_raw=True)
+        run = cr2.Run()
+        self.assertTrue(hasattr(run, "sched_switch"))
+        self.assertTrue(len(run.sched_switch.data_frame) > 0)
+        self.assertTrue("prev_comm" in run.sched_switch.data_frame.columns)
+
+    def test_raw_dat_arb_name(self):
+        """Tests an event that relies on raw parsing with arbitrary .dat file name"""
+
+        arbitrary_name = "my_trace.dat"
+        shutil.move("trace.dat", arbitrary_name)
+
+        cr2.register_dynamic("SchedSwitch", "sched_switch", parse_raw=True)
+        run = cr2.Run(arbitrary_name)
+        self.assertTrue(os.path.isfile("my_trace.raw.txt"))
+        self.assertTrue(hasattr(run, "sched_switch"))
+        self.assertTrue(len(run.sched_switch.data_frame) > 0)
+
+class TestRunRawBothTxt(utils_tests.SetupDirectory):
+
+    def __init__(self, *args, **kwargs):
+        super(TestRunRawBothTxt, self).__init__(
+             [("raw_trace.txt", "trace.txt"),
+              ("raw_trace.raw.txt", "trace.raw.txt")],
+             *args,
+             **kwargs)
+
+    def test_both_txt_files(self):
+        """test raw parsing for txt files"""
+
+        self.assertFalse(os.path.isfile("trace.dat"))
+        cr2.register_dynamic("SchedSwitch", "sched_switch", parse_raw=True)
+        run = cr2.Run()
+        self.assertTrue(hasattr(run, "sched_switch"))
+        self.assertTrue(len(run.sched_switch.data_frame) > 0)
+
+    def test_both_txt_arb_name(self):
+        """Test raw parsing for txt files arbitrary name"""
+
+        arbitrary_name = "my_trace.txt"
+        arbitrary_name_raw = "my_trace.raw.txt"
+
+        shutil.move("trace.txt", arbitrary_name)
+        shutil.move("trace.raw.txt", arbitrary_name_raw)
+
+        cr2.register_dynamic("SchedSwitch", "sched_switch", parse_raw=True)
+        run = cr2.Run(arbitrary_name)
+        self.assertTrue(hasattr(run, "sched_switch"))
+        self.assertTrue(len(run.sched_switch.data_frame) > 0)
+
 class TestRunSched(utils_tests.SetupDirectory):
     """Tests using a trace with only sched info and no (or partial) thermal"""
 
@@ -230,6 +296,19 @@ class TestTraceDat(utils_tests.SetupDirectory):
 
         self.assertTrue(found)
 
+    def test_do_raw_txt_if_not_there(self):
+        """Create trace.raw.txt if it's not there"""
+        self.assertFalse(os.path.isfile("trace.raw.txt"))
+
+        cr2.Run()
+
+        found = False
+        with open("trace.raw.txt") as fin:
+            for line in fin:
+                if re.search("thermal", line):
+                    found = True
+                    break
+
     def test_run_arbitrary_trace_dat(self):
         """Run() works if asked to parse a binary trace with a filename other than trace.dat"""
         arbitrary_trace_name = "my_trace.dat"
@@ -238,6 +317,8 @@ class TestTraceDat(utils_tests.SetupDirectory):
         dfr = cr2.Run(arbitrary_trace_name).thermal.data_frame
 
         self.assertTrue(os.path.exists("my_trace.txt"))
+        self.assertTrue(os.path.exists("my_trace.raw.txt"))
         self.assertTrue(len(dfr) > 0)
         self.assertFalse(os.path.exists("trace.dat"))
         self.assertFalse(os.path.exists("trace.txt"))
+        self.assertFalse(os.path.exists("trace.raw.txt"))

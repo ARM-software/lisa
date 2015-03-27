@@ -30,6 +30,7 @@ def default_init(self):
 
     super(type(self), self).__init__(
         unique_word=self.unique_word,
+        parse_raw=self.parse_raw
     )
 
 
@@ -55,7 +56,8 @@ def _get_name(name):
     return re.sub('(?!^)([A-Z]+)', r'_\1', name).lower()
 
 
-def register_dynamic(class_name, unique_word, scope="all"):
+def register_dynamic(class_name, unique_word, scope="all",
+                     parse_raw=False):
     """Create a Dynamic Type and register
        it with the cr2 Framework"""
 
@@ -63,7 +65,8 @@ def register_dynamic(class_name, unique_word, scope="all"):
         class_name, (Base,), {
             "__init__": default_init,
             "unique_word": unique_word,
-            "name": _get_name(class_name)
+            "name": _get_name(class_name),
+            "parse_raw" : parse_raw
         }
     )
     Run.register_class(dyn_class, scope)
