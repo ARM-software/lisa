@@ -70,7 +70,8 @@ class TestBase(utils_tests.SetupDirectory):
         in_data = """     kworker/4:1-397   [004]   720.741315: thermal_power_cpu_get: cpus=000000f0 freq=1900000 raw_cpu_power=1259 load={} power=61
      kworker/4:1-397   [004]   720.741349: thermal_power_cpu_get: cpus=0000000f freq=1400000 raw_cpu_power=189 load={} power=14"""
 
-        expected_columns = set(["cpus", "freq", "raw_cpu_power", "power"])
+        expected_columns = set(["__comm", "__pid", "__cpu", "cpus", "freq",
+                                "raw_cpu_power", "power"])
 
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
@@ -86,7 +87,7 @@ class TestBase(utils_tests.SetupDirectory):
 
         in_data = """     rcu_preempt-7     [000]    73.604532: sched_stat_runtime:   comm=Space separated taskname pid=7 runtime=262875 [ns] vruntime=17096359856 [ns]"""
 
-        expected_columns = set(["comm", "pid", "runtime", "vruntime"])
+        expected_columns = set(["__comm", "__pid", "__cpu", "comm", "pid", "runtime", "vruntime"])
 
         with open("trace.txt", "w") as fout:
             fout.write(in_data)

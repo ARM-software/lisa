@@ -68,6 +68,9 @@ class Base(object):
         self.unique_word = unique_word
         self.data_array = []
         self.time_array = []
+        self.comm_array = []
+        self.pid_array = []
+        self.cpu_array = []
 
     def finalize_object(self):
         pass
@@ -106,8 +109,11 @@ class Base(object):
 
         return ret
 
-    def append_data(self, time, data):
+    def append_data(self, time, comm, pid, cpu, data):
         self.time_array.append(time)
+        self.comm_array.append(comm)
+        self.pid_array.append(pid)
+        self.cpu_array.append(cpu)
         self.data_array.append(data)
 
     def create_dataframe(self):
@@ -122,8 +128,9 @@ class Base(object):
                 self.data_array[idx] = expl_val
 
         parsed_data = []
-        for data_str in self.data_array:
-            data_dict = {}
+        for (comm, pid, cpu, data_str) in zip(self.comm_array, self.pid_array,
+                                              self.cpu_array, self.data_array):
+            data_dict = {"__comm": comm, "__pid": pid, "__cpu": cpu}
             prev_key = None
             for field in data_str.split():
                 if "=" not in field:
@@ -145,6 +152,9 @@ class Base(object):
         self.data_frame = pd.DataFrame(parsed_data, index=time_idx)
 
         self.time_array = []
+        self.comm_array = []
+        self.pid_array = []
+        self.cpu_array = []
         self.data_array = []
 
     def write_csv(self, fname):

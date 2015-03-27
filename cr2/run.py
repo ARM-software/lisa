@@ -216,8 +216,12 @@ classes are parsed.
 
                 line = line[:-1]
 
-                timestamp_match = re.search(r"([0-9]+\.[0-9]+):", line)
-                timestamp = float(timestamp_match.group(1))
+                special_fields_match = re.search(r"^\s+([^ ]+)-(\d+)\s+\[(\d+)\]\s+([0-9]+\.[0-9]+):",
+                                                 line)
+                comm = special_fields_match.group(1)
+                pid = int(special_fields_match.group(2))
+                cpu = int(special_fields_match.group(3))
+                timestamp = float(special_fields_match.group(4))
 
                 data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
                 data_str = line[data_start_idx:]
@@ -225,7 +229,8 @@ classes are parsed.
                 # Remove empty arrays from the trace
                 data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
 
-                getattr(self, attr).append_data(timestamp, data_str)
+                getattr(self, attr).append_data(timestamp, comm, pid, cpu,
+                                                data_str)
 
     def __finalize_objects(self):
         for trace_class in self.trace_classes:
