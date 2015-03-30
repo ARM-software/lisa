@@ -92,7 +92,8 @@ class TestBase(utils_tests.SetupDirectory):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        cr2.register_dynamic('sched_stat_runtime', 'sched_stat_runtime')
+        cr2.register_dynamic('sched_stat_runtime', 'sched_stat_runtime',
+                             scope="sched")
         run = cr2.Run()
         dfr = run.sched_stat_runtime.data_frame
 
