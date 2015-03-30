@@ -246,6 +246,9 @@ classes are parsed.
             unique_word = getattr(self, trace_name).unique_word
             unique_words.append((unique_word, trace_name))
 
+        if len(unique_words) == 0:
+            return
+
         if raw:
                 if self.trace_path_raw != None:
                     trace_file = self.trace_path_raw
