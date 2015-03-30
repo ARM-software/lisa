@@ -85,14 +85,14 @@ class TestBase(utils_tests.SetupDirectory):
     def test_parse_values_concatenation(self):
         """TestBase: Trace with space separated values created a valid DataFrame"""
 
-        in_data = """     rcu_preempt-7     [000]    73.604532: sched_stat_runtime:   comm=Space separated taskname pid=7 runtime=262875 [ns] vruntime=17096359856 [ns]"""
+        in_data = """     rcu_preempt-7     [000]    73.604532: my_sched_stat_runtime:   comm=Space separated taskname pid=7 runtime=262875 [ns] vruntime=17096359856 [ns]"""
 
         expected_columns = set(["__comm", "__pid", "__cpu", "comm", "pid", "runtime", "vruntime"])
 
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        cr2.register_dynamic('sched_stat_runtime', 'sched_stat_runtime',
+        cr2.register_dynamic('sched_stat_runtime', 'my_sched_stat_runtime',
                              scope="sched")
         run = cr2.Run()
         dfr = run.sched_stat_runtime.data_frame
