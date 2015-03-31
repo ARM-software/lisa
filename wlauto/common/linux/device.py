@@ -804,7 +804,9 @@ class LinuxDevice(BaseLinuxDevice):
 
     def initialize(self, context, *args, **kwargs):
         self.execute('mkdir -p {}'.format(self.local_binaries_directory))
+        self.execute('mkdir -p {}'.format(self.binaries_directory))
         self.execute('export PATH={}:$PATH'.format(self.local_binaries_directory))
+        self.execute('export PATH={}:$PATH'.format(self.binaries_directory))
         super(LinuxDevice, self).initialize(context, *args, **kwargs)
 
     # Power control
@@ -938,8 +940,12 @@ class LinuxDevice(BaseLinuxDevice):
     install_executable = install  # compatibility
 
     def uninstall(self, name):
-        path = self.path.join(self.local_binaries_directory, name)
-        self.delete_file(path)
+        if self.is_rooted:
+            path = self.path.join(self.binaries_directory, name)
+            self.delete_file(path, as_root=True)
+        else:
+            path = self.path.join(self.local_binaries_directory, name)
+            self.delete_file(path)
 
     uninstall_executable = uninstall  # compatibility
 
