@@ -250,3 +250,19 @@ This is the list of workloads that rely on such recordings:
 | truckerparking3d |
 +------------------+
 
+(Optional) Uninstalling
+=======================
+
+If you have installed Workload Automation via ``pip`` and wish to remove it, run this command to
+uninstall it::
+    
+    sudo pip uninstall wlauto
+
+.. Note:: This will *not* remove any user configuration (e.g. the ~/.workload_automation directory)
+
+(Optional) Upgrading
+====================
+
+To upgrade Workload Automation to the latest version via ``pip``, run::
+    
+    sudo pip install --upgrade --no-deps wlauto

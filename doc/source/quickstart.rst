@@ -265,3 +265,23 @@ store new dhrystone results::
 To display verbose output while running memcpy::
 
     wa run --verbose memcpy
+
+Uninstall
+=========
+
+If you have installed Workload Automation via ``pip``, then run this command to
+uninstall it::
+
+    sudo pip uninstall wlauto
+
+
+.. Note:: It will *not* remove any user configuration (e.g. the ~/.workload_automation 
+          directory).
+
+Upgrade
+=======
+
+To upgrade Workload Automation to the latest version via ``pip``, run::
+    
+    sudo pip install --upgrade --no-deps wlauto
+
