@@ -196,7 +196,7 @@ class TestRunRawDat(utils_tests.SetupDirectory):
     def test_raw_dat(self):
         """Tests an event that relies on raw parsing"""
 
-        cr2.register_dynamic("SchedSwitch", "sched_switch", parse_raw=True)
+        cr2.register_dynamic("SchedSwitch", "sched_switch", scope="sched", parse_raw=True)
         run = cr2.Run()
         self.assertTrue(hasattr(run, "sched_switch"))
         self.assertTrue(len(run.sched_switch.data_frame) > 0)
@@ -208,7 +208,7 @@ class TestRunRawDat(utils_tests.SetupDirectory):
         arbitrary_name = "my_trace.dat"
         shutil.move("trace.dat", arbitrary_name)
 
-        cr2.register_dynamic("SchedSwitch", "sched_switch", parse_raw=True)
+        cr2.register_dynamic("SchedSwitch", "sched_switch", scope="sched", parse_raw=True)
         run = cr2.Run(arbitrary_name)
         self.assertTrue(os.path.isfile("my_trace.raw.txt"))
         self.assertTrue(hasattr(run, "sched_switch"))
@@ -227,7 +227,7 @@ class TestRunRawBothTxt(utils_tests.SetupDirectory):
         """test raw parsing for txt files"""
 
         self.assertFalse(os.path.isfile("trace.dat"))
-        cr2.register_dynamic("SchedSwitch", "sched_switch", parse_raw=True)
+        cr2.register_dynamic("SchedSwitch", "sched_switch", scope="sched", parse_raw=True)
         run = cr2.Run()
         self.assertTrue(hasattr(run, "sched_switch"))
         self.assertTrue(len(run.sched_switch.data_frame) > 0)
@@ -241,7 +241,7 @@ class TestRunRawBothTxt(utils_tests.SetupDirectory):
         shutil.move("trace.txt", arbitrary_name)
         shutil.move("trace.raw.txt", arbitrary_name_raw)
 
-        cr2.register_dynamic("SchedSwitch", "sched_switch", parse_raw=True)
+        cr2.register_dynamic("SchedSwitch", "sched_switch", scope="sched", parse_raw=True)
         run = cr2.Run(arbitrary_name)
         self.assertTrue(hasattr(run, "sched_switch"))
         self.assertTrue(len(run.sched_switch.data_frame) > 0)
