@@ -341,7 +341,7 @@ def _init_common(env):
     logger.debug('ANDROID_HOME: {}'.format(env.android_home))
     build_tools_directory = os.path.join(env.android_home, 'build-tools')
     if not os.path.isdir(build_tools_directory):
-        msg = 'ANDROID_HOME ({}) does not appear to have valid Android SKD install (cannot find build-tools)'
+        msg = 'ANDROID_HOME ({}) does not appear to have valid Android SDK install (cannot find build-tools)'
         raise HostError(msg.format(env.android_home))
     versions = os.listdir(build_tools_directory)
     for version in reversed(sorted(versions)):
