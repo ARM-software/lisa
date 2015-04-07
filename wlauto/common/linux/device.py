@@ -812,8 +812,8 @@ class LinuxDevice(BaseLinuxDevice):
     # Power control
 
     def reset(self):
-        self._is_ready = False
         self.execute('reboot', as_root=True)
+        self._is_ready = False
 
     def hard_reset(self):
         super(LinuxDevice, self).hard_reset()
