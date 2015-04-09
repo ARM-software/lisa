@@ -1,5 +1,6 @@
-# Taken from
+# Adapted from
 # https://gist.github.com/jtriley/1108174
+# pylint: disable=bare-except,unpacking-non-sequence
 import os
 import shlex
 import struct
@@ -30,6 +31,7 @@ def get_terminal_size():
 
 
 def _get_terminal_size_windows():
+    # pylint: disable=unused-variable,redefined-outer-name,too-many-locals
     try:
         from ctypes import windll, create_string_buffer
         # stdin handle is -10
@@ -88,5 +90,5 @@ def _get_terminal_size_linux():
 
 if __name__ == "__main__":
     sizex, sizey = get_terminal_size()
-    print  'width =', sizex, 'height =', sizey
+    print 'width =', sizex, 'height =', sizey
 

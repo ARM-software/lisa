@@ -18,11 +18,11 @@ import sys
 import subprocess
 from cStringIO import StringIO
 
-from terminalsize import get_terminal_size  # pylint: disable=import-error
 from wlauto import Command, ExtensionLoader, settings
 from wlauto.utils.doc import (get_summary, get_description, get_type_name, format_column, format_body,
                               format_paragraph, indent, strip_inlined_text)
 from wlauto.utils.misc import get_pager
+from wlauto.utils.terminalsize import get_terminal_size
 
 
 class ShowCommand(Command):
@@ -39,6 +39,7 @@ class ShowCommand(Command):
                                          be shown.''')
 
     def execute(self, args):
+        # pylint: disable=unpacking-non-sequence
         ext_loader = ExtensionLoader(packages=settings.extension_packages, paths=settings.extension_paths)
         extension = ext_loader.get_extension_class(args.name)
         out = StringIO()
