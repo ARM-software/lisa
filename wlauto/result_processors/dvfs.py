@@ -64,6 +64,8 @@ class DVFS(ResultProcessor):
 
     def initialize(self, context):  # pylint: disable=R0912
         self.device = context.device
+        if not self.device.has('cpuidle'):
+            raise ConfigError('Device does not appear to have cpuidle capability; is the right module installed?')
         if not self.device.core_names:
             message = 'Device does not specify its core types (core_names/core_clusters not set in device_config).'
             raise ResultProcessorError(message)
@@ -94,9 +96,9 @@ class DVFS(ResultProcessor):
         for cluster, cores_list in enumerate(listof_cores_clusters):
             self.corename_of_clusters.append(self.device.core_names[total_cores])
             if self.device.scheduler != 'iks':
-                self.idlestate_description.update(self.device.get_cpuidle_states(total_cores))
+                self.idlestate_description.update({s.id: s.desc for s in self.device.get_cpuidle_states(total_cores)})
             else:
-                self.idlestate_description.update(self.device.get_cpuidle_states())
+                self.idlestate_description.update({s.id: s.desc for s in self.device.get_cpuidle_states()})
             total_cores += len(cores_list)
             self.numberofcores_in_cluster.append(len(cores_list))
             for i in range(current_cores, total_cores):

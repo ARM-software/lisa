@@ -27,7 +27,7 @@ from wlauto.core.resource import NO_ONE
 from wlauto.exceptions import ConfigError, DeviceError, TimeoutError, DeviceNotRespondingError
 from wlauto.common.resources import Executable
 from wlauto.utils.cpuinfo import Cpuinfo
-from wlauto.utils.misc import convert_new_lines, escape_double_quotes
+from wlauto.utils.misc import convert_new_lines, escape_double_quotes, ranges_to_list
 from wlauto.utils.ssh import SshShell
 from wlauto.utils.types import boolean, list_of_strings
 
@@ -77,11 +77,13 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
 
     runtime_parameters = [
         RuntimeParameter('sysfile_values', 'get_sysfile_values', 'set_sysfile_values', value_name='params'),
-        CoreParameter('${core}_cores', 'get_number_of_active_cores', 'set_number_of_active_cores',
+        CoreParameter('${core}_cores', 'get_number_of_online_cpus', 'set_number_of_online_cpus',
                       value_name='number'),
         CoreParameter('${core}_min_frequency', 'get_core_min_frequency', 'set_core_min_frequency',
                       value_name='freq'),
         CoreParameter('${core}_max_frequency', 'get_core_max_frequency', 'set_core_max_frequency',
+                      value_name='freq'),
+        CoreParameter('${core}_frequency', 'get_core_cur_frequency', 'set_core_cur_frequency',
                       value_name='freq'),
         CoreParameter('${core}_governor', 'get_core_governor', 'set_core_governor',
                       value_name='governor'),
@@ -90,17 +92,9 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
     ]
 
     @property
-    def active_cpus(self):
+    def online_cpus(self):
         val = self.get_sysfile_value('/sys/devices/system/cpu/online')
-        cpus = re.findall(r"([\d]\-[\d]|[\d])", val)
-        active_cpus = []
-        for cpu in cpus:
-            if '-' in cpu:
-                lo, hi = cpu.split('-')
-                active_cpus.extend(range(int(lo), int(hi) + 1))
-            else:
-                active_cpus.append(int(cpu))
-        return active_cpus
+        return ranges_to_list(val)
 
     @property
     def number_of_cores(self):
@@ -309,6 +303,66 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         for pid in self.get_pids_of(process_name):
             self.kill(pid, signal=signal, as_root=as_root)
 
+    def get_online_cpus(self, c):
+        if isinstance(c, int):  # assume c == cluster
+            return [i for i in self.online_cpus if self.core_clusters[i] == c]
+        elif isinstance(c, basestring):  # assume c == core
+            return [i for i in self.online_cpus if self.core_names[i] == c]
+        else:
+            raise ValueError(c)
+
+    def get_number_of_online_cpus(self, c):
+        return len(self.get_online_cpus(c))
+
+    def set_number_of_online_cpus(self, core, number):
+        core_ids = [i for i, c in enumerate(self.core_names) if c == core]
+        max_cores = len(core_ids)
+        if number > max_cores:
+            message = 'Attempting to set the number of active {} to {}; maximum is {}'
+            raise ValueError(message.format(core, number, max_cores))
+        for i in xrange(0, number):
+            self.enable_cpu(core_ids[i])
+        for i in xrange(number, max_cores):
+            self.disable_cpu(core_ids[i])
+
+    # hotplug
+
+    def enable_cpu(self, cpu):
+        """
+        Enable the specified core.
+
+        :param cpu: CPU core to enable. This must be the full name as it
+                    appears in sysfs, e.g. "cpu0".
+
+        """
+        self.hotplug_cpu(cpu, online=True)
+
+    def disable_cpu(self, cpu):
+        """
+        Disable the specified core.
+
+        :param cpu: CPU core to disable. This must be the full name as it
+                    appears in sysfs, e.g. "cpu0".
+        """
+        self.hotplug_cpu(cpu, online=False)
+
+    def hotplug_cpu(self, cpu, online):
+        """
+        Hotplug the specified CPU either on or off.
+        See https://www.kernel.org/doc/Documentation/cpu-hotplug.txt
+
+        :param cpu: The CPU for which the governor is to be set. This must be
+                    the full name as it appears in sysfs, e.g. "cpu0".
+        :param online: CPU will be enabled if this value bool()'s to True, and
+                       will be disabled otherwise.
+
+        """
+        if isinstance(cpu, int):
+            cpu = 'cpu{}'.format(cpu)
+        status = 1 if online else 0
+        sysfile = '/sys/devices/system/cpu/{}/online'.format(cpu)
+        self.set_sysfile_value(sysfile, status)
+
     # cpufreq
 
     def list_available_cpu_governors(self, cpu):
@@ -425,58 +479,27 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
                 message += 'Available tunables are: {}'.format(valid_tunables)
                 raise ConfigError(message)
 
-    def enable_cpu(self, cpu):
-        """
-        Enable the specified core.
-
-        :param cpu: CPU core to enable. This must be the full name as it
-                    appears in sysfs, e.g. "cpu0".
-
-        """
-        self.hotplug_cpu(cpu, online=True)
-
-    def disable_cpu(self, cpu):
-        """
-        Disable the specified core.
-
-        :param cpu: CPU core to disable. This must be the full name as it
-                    appears in sysfs, e.g. "cpu0".
-        """
-        self.hotplug_cpu(cpu, online=False)
-
-    def hotplug_cpu(self, cpu, online):
-        """
-        Hotplug the specified CPU either on or off.
-        See https://www.kernel.org/doc/Documentation/cpu-hotplug.txt
-
-        :param cpu: The CPU for which the governor is to be set. This must be
-                    the full name as it appears in sysfs, e.g. "cpu0".
-        :param online: CPU will be enabled if this value bool()'s to True, and
-                       will be disabled otherwise.
-
-        """
-        if isinstance(cpu, int):
-            cpu = 'cpu{}'.format(cpu)
-        status = 1 if online else 0
-        sysfile = '/sys/devices/system/cpu/{}/online'.format(cpu)
-        self.set_sysfile_value(sysfile, status)
+    def list_available_core_frequencies(self, core):
+        cpu = self.get_core_online_cpu(core)
+        return self.list_available_cpu_frequencies(cpu)
 
     def list_available_cpu_frequencies(self, cpu):
         """Returns a list of frequencies supported by the cpu or an empty list
         if not could be found."""
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
-        if cpu not in self._available_frequencies:
-            try:
-                cmd = 'cat /sys/devices/system/cpu/{}/cpufreq/scaling_available_frequencies'.format(cpu)
-                output = self.execute(cmd)
-                self._available_frequencies[cpu] = map(int, output.strip().split())  # pylint: disable=E1103
-            except DeviceError:
-                # we return an empty list because on some devices scaling_available_frequencies
-                # is not generated. So we are returing an empty list as an indication
-                # http://adrynalyne-teachtofish.blogspot.co.uk/2011/11/how-to-enable-scalingavailablefrequenci.html
-                self._available_frequencies[cpu] = []
-        return self._available_frequencies[cpu]
+        try:
+            cmd = 'cat /sys/devices/system/cpu/{}/cpufreq/scaling_available_frequencies'.format(cpu)
+            output = self.execute(cmd)
+            available_frequencies = map(int, output.strip().split())  # pylint: disable=E1103
+        except DeviceError:
+            # On some devices scaling_available_frequencies  is not generated.
+            # http://adrynalyne-teachtofish.blogspot.co.uk/2011/11/how-to-enable-scalingavailablefrequenci.html
+            # Fall back to parsing stats/time_in_state
+            cmd = 'cat /sys/devices/system/cpu/{}/cpufreq/stats/time_in_state'.format(cpu)
+            out_iter = iter(self.execute(cmd).strip().split())
+            available_frequencies = map(int, reversed([f for f, _ in zip(out_iter, out_iter)]))
+        return available_frequencies
 
     def get_cpu_min_frequency(self, cpu):
         """
@@ -519,6 +542,52 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
                                                                                         available_frequencies))
             sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_min_freq'.format(cpu)
             self.set_sysfile_value(sysfile, value)
+        except ValueError:
+            raise ValueError('value must be an integer; got: "{}"'.format(value))
+
+    def get_cpu_frequency(self, cpu):
+        """
+        Returns the current frequency currently set for the specified CPU.
+
+        Warning, this method does not check if the cpu is online or not. It will
+        try to read the current frequency and the following exception will be
+        raised ::
+
+        :raises: DeviceError if for some reason the frequency could not be read.
+
+        """
+        sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_cur_freq'.format(cpu)
+        return self.get_sysfile_value(sysfile)
+
+    def set_cpu_frequency(self, cpu, frequency):
+        """
+        Set's the minimum value for CPU frequency. Actual frequency will
+        depend on the Governor used and may vary during execution. The value should be
+        either an int or a string representing an integer. The Value must also be
+        supported by the device. The available frequencies can be obtained by calling
+        get_available_frequencies() or examining
+
+        /sys/devices/system/cpu/cpuX/cpufreq/scaling_available_frequencies
+
+        on the device.
+
+        :raises: ConfigError if the frequency is not supported by the CPU.
+        :raises: DeviceError if, for some reason, frequency could not be set.
+
+        """
+        if isinstance(cpu, int):
+            cpu = 'cpu{}'.format(cpu)
+        available_frequencies = self.list_available_cpu_frequencies(cpu)
+        try:
+            value = int(frequency)
+            if available_frequencies and value not in available_frequencies:
+                raise ConfigError('Can\'t set {} frequency to {}\nmust be in {}'.format(cpu,
+                                                                                        value,
+                                                                                        available_frequencies))
+            if self.get_cpu_governor(cpu) != 'userspace':
+                raise ConfigError('Can\'t set {} frequency; governor must be "userspace"'.format(cpu))
+            sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_setspeed'.format(cpu)
+            self.set_sysfile_value(sysfile, value, verify=False)
         except ValueError:
             raise ValueError('value must be an integer; got: "{}"'.format(value))
 
@@ -567,20 +636,6 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         except ValueError:
             raise ValueError('value must be an integer; got: "{}"'.format(value))
 
-    def get_cpuidle_states(self, cpu=0):
-        """
-        Return map of cpuidle states with their descriptive names.
-        """
-        if isinstance(cpu, int):
-            cpu = 'cpu{}'.format(cpu)
-        cpuidle_states = {}
-        statere = re.compile('^\s*state\d+\s*$')
-        output = self.execute("ls /sys/devices/system/cpu/{}/cpuidle".format(cpu))
-        for entry in output.split():
-            if statere.match(entry):
-                cpuidle_states[entry] = self.get_sysfile_value("/sys/devices/system/cpu/{}/cpuidle/{}/desc".format(cpu, entry))
-        return cpuidle_states
-
     # Core- and cluster-level mapping for the above cpu-level APIs above. The
     # APIs make the following assumptions, which were True for all devices that
     # existed at the time of writing:
@@ -599,68 +654,88 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
             raise ValueError('No active clusters for core {}'.format(core))
         return clusters
 
-    def get_cluster_cpu(self, cluster):
+    def get_cluster_active_cpu(self, cluster):
         """Returns the first *active* cpu for the cluster. If the entire cluster
         has been hotplugged, this will raise a ``ValueError``."""
         cpu_indexes = set([i for i, c in enumerate(self.core_clusters) if c == cluster])
-        active_cpus = sorted(list(cpu_indexes.intersection(self.active_cpus)))
+        active_cpus = sorted(list(cpu_indexes.intersection(self.online_cpus)))
         if not active_cpus:
             raise ValueError('All cpus for cluster {} are offline'.format(cluster))
         return active_cpus[0]
 
-    def list_available_cluster_governors(self, cluster):
-        return self.list_available_cpu_governors(self.get_cluster_cpu(cluster))
-
-    def get_cluster_governor(self, cluster):
-        return self.get_cpu_governor(self.get_cluster_cpu(cluster))
-
-    def set_cluster_governor(self, cluster, governor, **tunables):
-        return self.set_cpu_governor(self.get_cluster_cpu(cluster), governor, **tunables)
-
-    def list_available_cluster_governor_tunables(self, cluster):
-        return self.list_available_cpu_governor_tunables(self.get_cluster_cpu(cluster))
-
-    def get_cluster_governor_tunables(self, cluster):
-        return self.get_cpu_governor_tunables(self.get_cluster_cpu(cluster))
-
-    def set_cluster_governor_tunables(self, cluster, governor, **tunables):
-        return self.set_cpu_governor_tunables(self.get_cluster_cpu(cluster), governor, **tunables)
-
-    def get_cluster_min_frequency(self, cluster):
-        return self.get_cpu_min_frequency(self.get_cluster_cpu(cluster))
-
-    def set_cluster_min_frequency(self, cluster, freq):
-        return self.set_cpu_min_frequency(self.get_cluster_cpu(cluster), freq)
-
-    def get_cluster_max_frequency(self, cluster):
-        return self.get_cpu_max_frequency(self.get_cluster_cpu(cluster))
-
-    def set_cluster_max_frequency(self, cluster, freq):
-        return self.set_cpu_max_frequency(self.get_cluster_cpu(cluster), freq)
-
-    def get_core_cpu(self, core):
-        for cluster in self.get_core_clusters(core):
-            try:
-                return self.get_cluster_cpu(cluster)
-            except ValueError:
-                pass
-        raise ValueError('No active CPUs found for core {}'.format(core))
-
     def list_available_core_governors(self, core):
-        return self.list_available_cpu_governors(self.get_core_cpu(core))
+        cpu = self.get_core_online_cpu(core)
+        return self.list_available_cpu_governors(cpu)
+
+    def list_available_cluster_governors(self, cluster):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.list_available_cpu_governors(cpu)
 
     def get_core_governor(self, core):
-        return self.get_cpu_governor(self.get_core_cpu(core))
+        cpu = self.get_core_online_cpu(core)
+        return self.get_cpu_governor(cpu)
 
     def set_core_governor(self, core, governor, **tunables):
         for cluster in self.get_core_clusters(core):
             self.set_cluster_governor(cluster, governor, **tunables)
 
+    def get_cluster_governor(self, cluster):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.get_cpu_governor(cpu)
+
+    def set_cluster_governor(self, cluster, governor, **tunables):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.set_cpu_governor(cpu, governor, **tunables)
+
+    def list_available_cluster_governor_tunables(self, cluster):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.list_available_cpu_governor_tunables(cpu)
+
+    def get_cluster_governor_tunables(self, cluster):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.get_cpu_governor_tunables(cpu)
+
+    def set_cluster_governor_tunables(self, cluster, governor, **tunables):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.set_cpu_governor_tunables(cpu, governor, **tunables)
+
+    def get_cluster_min_frequency(self, cluster):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.get_cpu_min_frequency(cpu)
+
+    def set_cluster_min_frequency(self, cluster, freq):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.set_cpu_min_frequency(cpu, freq)
+
+    def get_cluster_cur_frequency(self, cluster):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.get_cpu_cur_frequency(cpu)
+
+    def set_cluster_cur_frequency(self, cluster, freq):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.set_cpu_frequency(cpu, freq)
+
+    def get_cluster_max_frequency(self, cluster):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.get_cpu_max_frequency(cpu)
+
+    def set_cluster_max_frequency(self, cluster, freq):
+        cpu = self.get_cluster_active_cpu(cluster)
+        return self.set_cpu_max_frequency(cpu, freq)
+
+    def get_core_online_cpu(self, core):
+        for cluster in self.get_core_clusters(core):
+            try:
+                return self.get_cluster_active_cpu(cluster)
+            except ValueError:
+                pass
+        raise ValueError('No active CPUs found for core {}'.format(core))
+
     def list_available_core_governor_tunables(self, core):
-        return self.list_available_cpu_governor_tunables(self.get_core_cpu(core))
+        return self.list_available_cpu_governor_tunables(self.get_core_online_cpu(core))
 
     def get_core_governor_tunables(self, core):
-        return self.get_cpu_governor_tunables(self.get_core_cpu(core))
+        return self.get_cpu_governor_tunables(self.get_core_online_cpu(core))
 
     def set_core_governor_tunables(self, core, tunables):
         for cluster in self.get_core_clusters(core):
@@ -668,14 +743,21 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
             self.set_cluster_governor_tunables(cluster, governor, **tunables)
 
     def get_core_min_frequency(self, core):
-        return self.get_cpu_min_frequency(self.get_core_cpu(core))
+        return self.get_cpu_min_frequency(self.get_core_online_cpu(core))
 
     def set_core_min_frequency(self, core, freq):
         for cluster in self.get_core_clusters(core):
             self.set_cluster_min_frequency(cluster, freq)
 
+    def get_core_cur_frequency(self, core):
+        return self.get_cpu_cur_frequency(self.get_core_online_cpu(core))
+
+    def set_core_cur_frequency(self, core, freq):
+        for cluster in self.get_core_clusters(core):
+            self.set_cluster_cur_frequency(cluster, freq)
+
     def get_core_max_frequency(self, core):
-        return self.get_cpu_max_frequency(self.get_core_cpu(core))
+        return self.get_cpu_max_frequency(self.get_core_online_cpu(core))
 
     def set_core_max_frequency(self, core, freq):
         for cluster in self.get_core_clusters(core):

@@ -42,7 +42,7 @@ class Juno(BigLittleDevice):
 
     has_gpu = True
 
-    modules = [
+    core_modules = [
         'vexpress',
     ]
 
@@ -142,9 +142,6 @@ class Juno(BigLittleDevice):
         # Currently, reboot is not working in Android on Juno, so
         # perfrom a ahard reset instead
         self.hard_reset()
-
-    def get_cpuidle_states(self, cpu=0):
-        return {}
 
     def hard_reset(self):
         self.disconnect()
