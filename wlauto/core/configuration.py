@@ -155,6 +155,22 @@ class WorkloadRunSpec(object):
         del d['_section']
         return d
 
+    def copy(self):
+        other = WorkloadRunSpec()
+        other.id = self.id
+        other.number_of_iterations = self.number_of_iterations
+        other.workload_name = self.workload_name
+        other.label = self.label
+        other.section_id = self.section_id
+        other.boot_parameters = copy(self.boot_parameters)
+        other.runtime_parameters = copy(self.runtime_parameters)
+        other.workload_parameters = copy(self.workload_parameters)
+        other.instrumentation = copy(self.instrumentation)
+        other.flash = copy(self.flash)
+        other._section = self._section  # pylint: disable=protected-access
+        other.enabled = self.enabled
+        return other
+
     def __str__(self):
         return '{} {}'.format(self.id, self.label)
 
