@@ -24,7 +24,7 @@ from collections import OrderedDict
 from wlauto.core.bootstrap import settings
 from wlauto.exceptions import ValidationError, ConfigError
 from wlauto.utils.misc import isiterable, ensure_directory_exists as _d, get_article
-from wlauto.utils.types import identifier
+from wlauto.utils.types import identifier, integer, boolean
 
 
 class AttributeCollection(object):
@@ -128,8 +128,14 @@ class Param(object):
 
     """
 
+    # Mapping for kind conversion; see docs for convert_types below
+    kind_map = {
+        int: integer,
+        bool: boolean,
+    }
+
     def __init__(self, name, kind=None, mandatory=None, default=None, override=False,
-                 allowed_values=None, description=None, constraint=None, global_alias=None):
+                 allowed_values=None, description=None, constraint=None, global_alias=None, convert_types=True):
         """
         Create a new Parameter object.
 
@@ -162,10 +168,17 @@ class Param(object):
                              that old extension settings names still work. This should not be used for
                              new parameters.
 
+        :param convert_types: If ``True`` (the default), will automatically convert ``kind`` values from
+                              native Python types to WA equivalents. This allows more ituitive interprestation
+                              of parameter values, e.g. the string ``"false"`` being interpreted as ``False``
+                              when specifed as the value for a boolean Parameter.
+
         """
         self.name = identifier(name)
         if kind is not None and not callable(kind):
             raise ValueError('Kind must be callable.')
+        if convert_types and kind in self.kind_map:
+            kind = self.kind_map[kind]
         self.kind = kind
         self.mandatory = mandatory
         self.default = default
