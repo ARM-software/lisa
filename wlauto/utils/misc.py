@@ -33,9 +33,9 @@ import traceback
 import logging
 import random
 from datetime import datetime, timedelta
-from operator import mul
+from operator import mul, itemgetter
 from StringIO import StringIO
-from itertools import cycle
+from itertools import cycle, groupby
 from functools import partial
 from distutils.spawn import find_executable
 
@@ -744,3 +744,46 @@ def open_file(filepath):
         return subprocess.call(['open', filepath])
     else:  # assume Linux or similar running a freedesktop-compliant GUI
         return subprocess.call(['xdg-open', filepath])
+
+
+def ranges_to_list(ranges_string):
+    """Converts a sysfs-style ranges string, e.g. ``"0,2-4"``, into a list ,e.g ``[0,2,3,4]``"""
+    values = []
+    for rg in ranges_string.split(','):
+        if '-' in rg:
+            first, last = map(int, rg.split('-'))
+            values.extend(xrange(first, last + 1))
+        else:
+            values.append(int(rg))
+    return values
+
+
+def list_to_ranges(values):
+    """Converts a list, e.g ``[0,2,3,4]``, into a sysfs-style ranges string, e.g. ``"0,2-4"``"""
+    range_groups = []
+    for _, g in groupby(enumerate(values), lambda (i, x): i - x):
+        range_groups.append(map(itemgetter(1), g))
+    range_strings = []
+    for group in range_groups:
+        if len(group) == 1:
+            range_strings.append(str(group[0]))
+        else:
+            range_strings.append('{}-{}'.format(group[0], group[-1]))
+    return ','.join(range_strings)
+
+
+def list_to_mask(values, base=0x0):
+    """Converts the specified list of integer values into
+    a bit mask for those values. Optinally, the list can be
+    applied to an existing mask."""
+    for v in values:
+        base |= (1 << v)
+    return base
+
+
+def mask_to_list(mask):
+    """Converts the specfied integer bitmask into a list of
+    indexes of bits that are set in the mask."""
+    size = len(bin(mask)) - 2  # because of "0b"
+    return [size - i - 1 for i in xrange(size)
+            if mask & (1 << size - i - 1)]
