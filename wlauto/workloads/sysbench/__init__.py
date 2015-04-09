@@ -20,7 +20,7 @@ import os
 from wlauto import Workload, Parameter, Executable
 from wlauto.exceptions import WorkloadError, ConfigError
 from wlauto.utils.misc import parse_value
-from wlauto.utils.types import boolean, numeric
+from wlauto.utils.types import numeric
 
 
 class Sysbench(Workload):
@@ -58,8 +58,11 @@ class Sysbench(Workload):
                   description='sysbench test to run'),
         Parameter('num_threads', kind=int, default=8,
                   description='The number of threads sysbench will launch'),
-        Parameter('max_requests', kind=int, default=2000,
-                  description='The limit for the total number of requests'),
+        Parameter('max_requests', kind=int, default=None,
+                  description='The limit for the total number of requests.'),
+        Parameter('max_time', kind=int, default=None,
+                  description='''The limit for the total execution time. If neither this nor
+                                 ``max_requests`` is specified, this will default to 30 seconds.'''),
         Parameter('file_test_mode', default=None,
                   allowed_values=['seqwr', 'seqrewr', 'seqrd', 'rndrd', 'rndwr', 'rndrw'],
                   description='File test mode to use. This should only be specified if ``test`` is '
@@ -67,13 +70,16 @@ class Sysbench(Workload):
                               'it will default to ``"seqwr"`` (please see sysbench documentation for '
                               'explanation of various modes).'),
         Parameter('cmd_params', kind=str, default='',
-                  description='Additional parameters to be passed to sysbench as a single string'),
-        Parameter('force_install', kind=boolean, default=True,
-                  description='Always install the sysbench binary found on the host, even if'
-                              'it is already installed on device'),
+                  description='Additional parameters to be passed to sysbench as a single stiring'),
+        Parameter('force_install', kind=bool, default=True,
+                  description='Always install binary found on the host, even if already installed on device'),
+        Parameter('taskset_mask', kind=int, default=0,
+                  description='Always install binary found on the host, even if already installed on device'),
     ]
 
     def validate(self):
+        if (self.max_requests is None) and (self.max_time is None):
+            self.max_time = 30
         if self.test == 'fileio' and not self.file_test_mode:
             self.logger.debug('Test is "fileio" and no file_test_mode specified -- using default.')
             self.file_test_mode = 'seqwr'
@@ -84,9 +90,13 @@ class Sysbench(Workload):
         self.on_host_binary = context.resolver.get(Executable(self, 'armeabi', 'sysbench'), strict=False)
 
     def setup(self, context):
-        self.command = self._build_command(test=self.test,
-                                           num_threads=self.num_threads,
-                                           max_requests=self.max_requests)
+        params = dict(test=self.test,
+                      num_threads=self.num_threads)
+        if self.max_requests:
+            params['max_requests'] = self.max_requests
+        if self.max_time:
+            params['max_time'] = self.max_time
+        self.command = self._build_command(**params)
         self.results_file = self.device.path.join(self.device.working_directory, 'sysbench_result.txt')
         self._check_executable()
 
@@ -99,11 +109,14 @@ class Sysbench(Workload):
         context.add_iteration_artifact('sysbench_output', kind='raw', path=host_results_file)
 
         with open(host_results_file) as fh:
+            find_line_with('General statistics:', fh)
+            extract_metric('total time', fh.next(), context.result)
+            extract_metric('total number of events', fh.next(), context.result, lower_is_better=False)
             find_line_with('response time:', fh)
-            extract_response_time_metric('min', fh.next(), context.result)
-            extract_response_time_metric('avg', fh.next(), context.result)
-            extract_response_time_metric('max', fh.next(), context.result)
-            extract_response_time_metric('approx.  95 percentile', fh.next(), context.result)
+            extract_metric('min', fh.next(), context.result, 'response time ')
+            extract_metric('avg', fh.next(), context.result, 'response time ')
+            extract_metric('max', fh.next(), context.result, 'response time ')
+            extract_metric('approx.  95 percentile', fh.next(), context.result)
             find_line_with('Threads fairness:', fh)
             extract_threads_fairness_metric('events', fh.next(), context.result)
             extract_threads_fairness_metric('execution time', fh.next(), context.result)
@@ -125,7 +138,11 @@ class Sysbench(Workload):
         if self.file_test_mode:
             param_strings.append('--file-test-mode={}'.format(self.file_test_mode))
         sysbench_command = 'sysbench {} {} run'.format(' '.join(param_strings), self.cmd_params)
-        return 'cd {} && {} > sysbench_result.txt'.format(self.device.working_directory, sysbench_command)
+        if self.taskset_mask:
+            taskset_string = 'busybox taskset 0x{:x} '.format(self.taskset_mask)
+        else:
+            taskset_string = ''
+        return 'cd {} && {} {} > sysbench_result.txt'.format(self.device.working_directory, taskset_string, sysbench_command)
 
 
 # Utility functions
@@ -138,7 +155,7 @@ def find_line_with(text, fh):
     raise WorkloadError(message.format(fh.name, text))
 
 
-def extract_response_time_metric(metric, line, result):
+def extract_metric(metric, line, result, prefix='', lower_is_better=True):
     try:
         name, value_part = [part.strip() for part in line.split(':')]
         if name != metric:
@@ -151,11 +168,11 @@ def extract_response_time_metric(metric, line, result):
             raise WorkloadError('Could not parse value "{}"'.format(value_part))
         value = numeric(value_part[:idx])
         units = value_part[idx:]
-        result.add_metric('response time ' + metric,
-                          value, units, lower_is_better=True)
+        result.add_metric(prefix + metric,
+                          value, units, lower_is_better=lower_is_better)
     except Exception as e:
         message = 'Could not extract sysbench metric "{}"; got "{}"'
-        raise WorkloadError(message.format(metric, e))
+        raise WorkloadError(message.format(prefix + metric, e))
 
 
 def extract_threads_fairness_metric(metric, line, result):
