@@ -151,6 +151,7 @@ class ExecutionContext(object):
         self.run_artifacts = copy(self.default_run_artifacts)
         self.job_iteration_counts = defaultdict(int)
         self.aborted = False
+        self.runner = None
         if settings.agenda:
             self.run_artifacts.append(Artifact('agenda',
                                                os.path.join(self.host_working_directory,
@@ -511,6 +512,7 @@ class Runner(object):
         self._send(signal.RUN_END)
 
     def _initialize_run(self):
+        self.context.runner = self
         self.context.run_info.start_time = datetime.utcnow()
         self._connect_to_device()
         self.logger.info('Initializing device')
