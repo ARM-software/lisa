@@ -1,0 +1,688 @@
+#pylint: disable=attribute-defined-outside-init,access-member-before-definition,redefined-outer-name
+from __future__ import division
+import os
+import math
+from tempfile import mktemp
+from base64 import b64encode
+from copy import deepcopy
+from collections import Counter, namedtuple
+
+try:
+    import jinja2
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import_error = None
+except ImportError as e:
+    import_error = e
+    jinja2 = None
+    pd = None
+    plt = None
+    np = None
+
+from wlauto import Instrument, Parameter, File
+from wlauto.exceptions import ConfigError, InstrumentError, DeviceError
+from wlauto.instrumentation import instrument_is_installed
+from wlauto.utils.types import caseless_string, list_of_ints
+from wlauto.utils.misc import list_to_mask
+
+FREQ_TABLE_FILE = 'frequency_power_perf_data.csv'
+CPUS_TABLE_FILE = 'cap_power.csv'
+IDLE_TABLE_FILE = 'idle_power_perf_data.csv'
+REPORT_TEMPLATE_FILE = 'report.template'
+EM_TEMPLATE_FILE = 'em.template'
+
+IdlePowerState = namedtuple('IdlePowerState', ['power'])
+CapPowerState = namedtuple('CapPowerState', ['cap', 'power'])
+
+
+class EnergyModel(object):
+
+    def __init__(self):
+        self.big_cluster_idle_states = []
+        self.little_cluster_idle_states = []
+        self.big_cluster_cap_states = []
+        self.little_cluster_cap_states = []
+        self.big_core_idle_states = []
+        self.little_core_idle_states = []
+        self.big_core_cap_states = []
+        self.little_core_cap_states = []
+
+    def add_cap_entry(self, cluster, perf, clust_pow, core_pow):
+        if cluster == 'big':
+            self.big_cluster_cap_states.append(CapPowerState(perf, clust_pow))
+            self.big_core_cap_states.append(CapPowerState(perf, core_pow))
+        elif cluster == 'little':
+            self.little_cluster_cap_states.append(CapPowerState(perf, clust_pow))
+            self.little_core_cap_states.append(CapPowerState(perf, core_pow))
+        else:
+            raise ValueError('Unexpected cluster: {}'.format(cluster))
+
+    def add_cluster_idle(self, cluster, values):
+        for value in values:
+            if cluster == 'big':
+                self.big_cluster_idle_states.append(IdlePowerState(value))
+            elif cluster == 'little':
+                self.little_cluster_idle_states.append(IdlePowerState(value))
+            else:
+                raise ValueError('Unexpected cluster: {}'.format(cluster))
+
+    def add_core_idle(self, cluster, values):
+        for value in values:
+            if cluster == 'big':
+                self.big_core_idle_states.append(IdlePowerState(value))
+            elif cluster == 'little':
+                self.little_core_idle_states.append(IdlePowerState(value))
+            else:
+                raise ValueError('Unexpected cluster: {}'.format(cluster))
+
+
+class PowerPerformanceAnalysis(object):
+
+    def __init__(self, data):
+        self.summary = {}
+        big_freqs = data[data.cluster == 'big'].frequency.unique()
+        little_freqs = data[data.cluster == 'little'].frequency.unique()
+        self.summary['frequency'] = max(set(big_freqs).intersection(set(little_freqs)))
+
+        big_sc = data[(data.cluster == 'big') &
+                      (data.frequency == self.summary['frequency']) &
+                      (data.cpus == 1)]
+        little_sc = data[(data.cluster == 'little') &
+                         (data.frequency == self.summary['frequency']) &
+                         (data.cpus == 1)]
+        self.summary['performance_ratio'] = big_sc.performance.item() / little_sc.performance.item()
+        self.summary['power_ratio'] = big_sc.power.item() / little_sc.power.item()
+        self.summary['max_performance'] = data[data.cpus == 1].performance.max()
+        self.summary['max_power'] = data[data.cpus == 1].power.max()
+
+
+low_filter = np.vectorize(lambda x: x > 0 and x or 0)
+
+
+def build_energy_model(freq_power_table, cpus_power, idle_power, first_cluster_idle_state):
+    # pylint: disable=too-many-locals
+    em = EnergyModel()
+    idle_power_sc = idle_power[idle_power.cpus == 1]
+    perf_data = get_normalized_single_core_data(freq_power_table)
+
+    for cluster in ['little', 'big']:
+        cluster_cpus_power = cpus_power[cluster].dropna()
+        cluster_power = cluster_cpus_power['cluster'].apply(int)
+        core_power = (cluster_cpus_power['1'] - cluster_power).apply(int)
+        performance = (perf_data[perf_data.cluster == cluster].performance_norm * 1024 / 100).apply(int)
+        for perf, clust_pow, core_pow in zip(performance, cluster_power, core_power):
+            em.add_cap_entry(cluster, perf, clust_pow, core_pow)
+
+        all_idle_power = idle_power_sc[idle_power_sc.cluster == cluster].power.values
+        # CORE idle states
+        # We want the delta of each state w.r.t. the power
+        # consumption of the shallowest one at this level (core_ref)
+        idle_core_power = low_filter(all_idle_power[:first_cluster_idle_state] -
+                                     all_idle_power[first_cluster_idle_state - 1])
+        # CLUSTER idle states
+        # We want the absolute value of each idle state
+        idle_cluster_power = low_filter(all_idle_power[first_cluster_idle_state - 1:])
+        em.add_cluster_idle(cluster, idle_cluster_power)
+        em.add_core_idle(cluster, idle_core_power)
+
+    return em
+
+
+def generate_em_c_file(em, big_core, little_core, em_template_file, outfile):
+    with open(em_template_file) as fh:
+        em_template = jinja2.Template(fh.read())
+    em_text = em_template.render(
+        big_core=big_core,
+        little_core=little_core,
+        em=em,
+    )
+    with open(outfile, 'w') as wfh:
+        wfh.write(em_text)
+    return em_text
+
+
+def generate_report(freq_power_table, cpus_table, idle_power_table,
+                    report_template_file, device_name, em_text, outfile):
+    # pylint: disable=too-many-locals
+    cap_power_analysis = PowerPerformanceAnalysis(freq_power_table)
+    single_core_norm = get_normalized_single_core_data(freq_power_table)
+    cap_power_plot = get_cap_power_plot(single_core_norm)
+    idle_power_plot = get_idle_power_plot(idle_power_table)
+
+    fig, axes = plt.subplots(1, 2)
+    fig.set_size_inches(16, 8)
+    for i, cluster in enumerate(reversed(cpus_table.columns.levels[0])):
+        plot_cpus_table(cpus_table[cluster].dropna(), axes[i], cluster)
+    cpus_plot_data = get_figure_data(fig)
+
+    with open(report_template_file) as fh:
+        report_template = jinja2.Template(fh.read())
+    html = report_template.render(
+        device_name=device_name,
+        freq_power_table=freq_power_table.set_index(['cluster', 'cpus', 'frequency']).to_html(),
+        cap_power_analysis=cap_power_analysis,
+        cap_power_plot=get_figure_data(cap_power_plot),
+        idle_power_table=idle_power_table.set_index(['cluster', 'cpus', 'state']).to_html(),
+        idle_power_plot=get_figure_data(idle_power_plot),
+        cpus_table=cpus_table.to_html(),
+        cpus_plot=cpus_plot_data,
+        em_text=em_text,
+    )
+    with open(outfile, 'w') as wfh:
+        wfh.write(html)
+    return html
+
+
+def wa_result_to_power_perf_table(df, performance_metric, index):
+    table = df.pivot_table(index=index + ['iteration'],
+                           columns='metric', values='value').reset_index()
+    result_mean = table.groupby(index).mean()
+    result_std = table.groupby(index).std()
+    result_std.columns = [c + ' std' for c in result_std.columns]
+    result_count = table.groupby(index).count()
+    result_count.columns = [c + ' count' for c in result_count.columns]
+    count_sqrt = result_count.apply(lambda x: x.apply(math.sqrt))
+    count_sqrt.columns = result_std.columns  # match column names for division
+    result_error = 1.96 * result_std / count_sqrt  # 1.96 == 95% confidence interval
+    result_error.columns = [c + ' error' for c in result_mean.columns]
+
+    result = pd.concat([result_mean, result_std, result_count, result_error], axis=1)
+    del result['iteration']
+    del result['iteration std']
+    del result['iteration count']
+    del result['iteration error']
+
+    updated_columns = []
+    for column in result.columns:
+        if column == performance_metric:
+            updated_columns.append('performance')
+        elif column == performance_metric + ' std':
+            updated_columns.append('performance_std')
+        elif column == performance_metric + ' error':
+            updated_columns.append('performance_error')
+        else:
+            updated_columns.append(column.replace(' ', '_'))
+    result.columns = updated_columns
+    result = result[sorted(result.columns)]
+    result.reset_index(inplace=True)
+
+    return result
+
+
+def get_figure_data(fig, fmt='png'):
+    tmp = mktemp()
+    fig.savefig(tmp, format=fmt, bbox_inches='tight')
+    with open(tmp, 'rb') as fh:
+        image_data = b64encode(fh.read())
+    os.remove(tmp)
+    return image_data
+
+
+def get_normalized_single_core_data(data):
+    finite_power = np.isfinite(data.power)
+    finite_perf = np.isfinite(data.performance)
+    data_single_core = data[(data.cpus == 1) & finite_perf & finite_power].copy()
+    data_single_core['performance_norm'] = (data_single_core.performance /
+                                            data_single_core.performance.max() * 100).apply(int)
+    data_single_core['power_norm'] = (data_single_core.power /
+                                      data_single_core.power.max() * 100).apply(int)
+    return data_single_core
+
+
+def get_cap_power_plot(data_single_core):
+    big_single_core = data_single_core[(data_single_core.cluster == 'big') &
+                                       (data_single_core.cpus == 1)]
+    little_single_core = data_single_core[(data_single_core.cluster == 'little') &
+                                          (data_single_core.cpus == 1)]
+
+    fig, axes = plt.subplots(1, 1, figsize=(12, 8))
+    axes.plot(big_single_core.performance_norm,
+              big_single_core.power_norm,
+              marker='o')
+    axes.plot(little_single_core.performance_norm,
+              little_single_core.power_norm,
+              marker='o')
+    axes.set_xlim(0, 105)
+    axes.set_ylim(0, 105)
+    axes.set_xlabel('Performance (Normalized)')
+    axes.set_ylabel('Power (Normalized)')
+    axes.grid()
+    axes.legend(['big cluster', 'little cluster'], loc=0)
+    return fig
+
+
+def get_idle_power_plot(df):
+    fig, axes = plt.subplots(1, 2, figsize=(15, 7))
+    for cluster, ax in zip(['big', 'little'], axes):
+        data = df[df.cluster == cluster].pivot_table(index=['state'], columns='cpus', values='power')
+        err = df[df.cluster == cluster].pivot_table(index=['state'], columns='cpus', values='power_error')
+        data.plot(kind='bar', ax=ax, rot=30, yerr=err)
+        ax.set_title('{} cluster'.format(cluster))
+        ax.set_xlim(-1, len(data.columns) - 0.5)
+        ax.set_ylabel('Power (mW)')
+    return fig
+
+
+def get_cpus_power_table(data, index):
+    power_table = data[[index, 'cluster', 'cpus', 'power']].pivot_table(index=index,
+                                                                        columns=['cluster', 'cpus'],
+                                                                        values='power')
+    for cluster in power_table.columns.levels[0]:
+        power_table[cluster, 0] = (power_table[cluster, 1] -
+                                   (power_table[cluster, 2] -
+                                    power_table[cluster, 1]))
+
+    # re-order columns and rename colum '0' to  'cluster'
+    power_table = power_table[sorted(power_table.columns,
+                                     cmp=lambda x, y: cmp(y[0], x[0]) or cmp(x[1], y[1]))]
+    old_levels = power_table.columns.levels
+    power_table.columns.set_levels([old_levels[0], list(map(str, old_levels[1])[:-1]) + ['cluster']],
+                                   inplace=True)
+    return power_table
+
+
+def plot_cpus_table(cpus_table, ax, cluster):
+    cpus_table.T.plot(ax=ax, marker='o')
+    ax.set_title('{} cluster'.format(cluster))
+    ax.set_xticklabels(cpus_table.columns)
+    ax.set_xticks(range(0, 5))
+    ax.set_xlim(-0.5, len(cpus_table.columns) - 0.5)
+    ax.set_ylabel('Power (mW)')
+    ax.grid(True)
+
+
+class EnergyModelInstrument(Instrument):
+
+    name = 'energy_model'
+    desicription = """
+    Generates a power mode for the device based on specified workload.
+
+    This insturment will execute the workload specified by the agenda (currently, only ``sysbench`` is
+    supported) and will use the resulting performance and power measurments to generate a power mode for
+    the device.
+
+    This instrument requires certain features to be present in the kernel:
+
+    1. cgroups and cpusets must be enabled.
+    2. cpufreq and userspace governor must be enabled.
+    3. cpuidle must be enabled.
+
+    """
+
+    parameters = [
+        Parameter('device_name', kind=caseless_string,
+                  description="""The name of the device to be used in  generating the model. If not specified,
+                                 ``device.name`` will be used. """),
+        Parameter('big_core', kind=caseless_string,
+                  description="""The name of the "big" core in the big.LITTLE system; must match
+                                 one of the values in ``device.core_names``. """),
+        Parameter('performance_metric', kind=caseless_string, mandatory=True,
+                  description="""Metric to be used as the performance indicator."""),
+        Parameter('power_metric', kind=caseless_string, mandatory=True,
+                  description="""Metric to be used as the power indicator. The value may contain a
+                                 ``{core}`` format specifier that will be replaced with names of big
+                                 and little cores to drive the name of the metric for that cluster."""),
+        Parameter('power_scaling_factor', kind=float, default=1.0,
+                  description="""Power model specfies power in milliWatts. This is a scaling factor that
+                                 power_metric values will be multiplied by to get milliWatts."""),
+        Parameter('big_frequencies', kind=list_of_ints,
+                  description="""List of frequencies to be used for big cores. These frequencies must
+                                 be supported by the cores. If this is not specified, all available
+                                 frequencies for the core (as read from cpufreq) will be used."""),
+        Parameter('little_frequencies', kind=list_of_ints,
+                  description="""List of frequencies to be used for little cores. These frequencies must
+                                 be supported by the cores. If this is not specified, all available
+                                 frequencies for the core (as read from cpufreq) will be used."""),
+
+        Parameter('idle_workload', kind=str, default='idle',
+                  description="Workload to be used while measuring idle power."),
+        Parameter('idle_workload_params', kind=dict, default={},
+                  description="Parameter to pass to the idle workload."),
+        Parameter('first_cluster_idle_state', kind=int, default=-1,
+                  description='''The index of the first cluster idle state on the device. Previous states
+                                 are assumed to be core idles. The default is ``-1``, i.e. only the last
+                                 idle state is assumed to affect the entire cluster.'''),
+    ]
+
+    def validate(self):
+        if import_error:
+            message = 'energy_model instrument requires pandas, jinja2 and matplotlib Python packages to be installed; got: "{}"'
+            raise InstrumentError(message.format(import_error.message))
+        for capability in ['cgroups', 'cpuidle']:
+            if not self.device.has(capability):
+                message = 'The Device does not appear to support {}; does it have the right module installed?'
+                raise ConfigError(message.format(capability))
+        device_cores = set(self.device.core_names)
+        if not device_cores:
+            raise ConfigError('The Device does not appear to have core_names configured.')
+        elif len(device_cores) != 2:
+            raise ConfigError('The Device does not appear to be a big.LITTLE device.')
+        if self.big_core and self.big_core not in self.device.core_names:
+            raise ConfigError('Specified big_core "{}" is in divice {}'.format(self.big_core, self.device.name))
+        if not self.big_core:
+            self.big_core = self.device.core_names[-1]  # the last core is usually "big" in existing big.LITTLE devices
+        if not self.device_name:
+            self.device_name = self.device.name
+
+    def initialize(self, context):
+        self.report_template_file = context.resolver.get(File(self, REPORT_TEMPLATE_FILE))
+        self.em_template_file = context.resolver.get(File(self, EM_TEMPLATE_FILE))
+        self.little_core = (set(self.device.core_names) - set([self.big_core])).pop()
+        self.perform_runtime_validation()
+        self.enable_all_cores()
+        self.configure_clusters()
+        self.discover_idle_states()
+        self.disable_thermal_management()
+        self.initialize_job_queue(context)
+        self.initialize_result_tracking()
+
+    def setup(self, context):
+        if not context.spec.label.startswith('idle_'):
+            return
+        for idle_state in self.get_device_idle_states(self.measured_cluster):
+            if idle_state.id == context.spec.idle_state_id:
+                idle_state.disable = 0
+            else:
+                idle_state.disable = 1
+
+    def on_iteration_start(self, context):
+        self.setup_measurement(context.spec.cluster)
+
+    # slow to make sure power results have been generated
+    def slow_update_result(self, context):
+        spec = context.result.spec
+        cluster = spec.cluster
+        seen_perf = False
+        seen_power = False
+        is_freq_iteration = spec.label.startswith('freq_')
+        for metric in context.result.metrics:
+            if metric.name == self.performance_metric:
+                metric_name = 'performance'
+                metric_value = metric.value
+                seen_perf = True
+            elif ((cluster == 'big' and metric.name == self.big_power_metric) or
+                  (cluster == 'little' and metric.name == self.little_power_metric)):
+                metric_name = 'power'
+                metric_value = metric.value * self.power_scaling_factor
+                seen_power = True
+            else:
+                metric_name = None
+                metric_value = None
+            if metric_name:
+                if is_freq_iteration:
+                    self.freq_data.append([
+                        cluster,
+                        spec.num_cpus,
+                        spec.frequency,
+                        context.result.iteration,
+                        metric_name,
+                        metric_value,
+                    ])
+                else:
+                    self.idle_data.append([
+                        cluster,
+                        spec.num_cpus,
+                        spec.idle_state_id,
+                        spec.idle_state_desc,
+                        context.result.iteration,
+                        metric_name,
+                        metric_value,
+                    ])
+        if not (seen_power and (seen_perf or not is_freq_iteration)):
+            message = 'Incomplete results for {} iteration{}'
+            raise InstrumentError(message.format(context.result.spec.id, context.current_iteration))
+
+    def before_overall_results_processing(self, context):
+        # pylint: disable=too-many-locals
+        if not self.idle_data or not self.freq_data:
+            self.logger.warning('Run aborted early; not generating energy_model.')
+            return
+        output_directory = os.path.join(context.output_directory, 'energy_model')
+        os.makedirs(output_directory)
+
+        df = pd.DataFrame(self.idle_data, columns=['cluster', 'cpus', 'state_id',
+                                                   'state', 'iteration', 'metric', 'value'])
+        idle_power_table = wa_result_to_power_perf_table(df, '', index=['cluster', 'cpus', 'state'])
+        idle_output = os.path.join(output_directory, IDLE_TABLE_FILE)
+        with open(idle_output, 'w') as wfh:
+            idle_power_table.to_csv(wfh, index=False)
+        context.add_artifact('idle_power_table', idle_output, 'export')
+
+        df = pd.DataFrame(self.freq_data,
+                          columns=['cluster', 'cpus', 'frequency', 'iteration', 'metric', 'value'])
+        freq_power_table = wa_result_to_power_perf_table(df, self.performance_metric,
+                                                         index=['cluster', 'cpus', 'frequency'])
+        freq_output = os.path.join(output_directory, FREQ_TABLE_FILE)
+        with open(freq_output, 'w') as wfh:
+            freq_power_table.to_csv(wfh, index=False)
+        context.add_artifact('freq_power_table', freq_output, 'export')
+
+        cpus_table = get_cpus_power_table(freq_power_table, 'frequency')
+        cpus_output = os.path.join(output_directory, CPUS_TABLE_FILE)
+        with open(cpus_output, 'w') as wfh:
+            cpus_table.to_csv(wfh)
+        context.add_artifact('cpus_table', cpus_output, 'export')
+
+        em = build_energy_model(freq_power_table, cpus_table, idle_power_table, self.first_cluster_idle_state)
+        em_file = os.path.join(output_directory, '{}_em.c'.format(self.device_name))
+        em_text = generate_em_c_file(em, self.big_core, self.little_core,
+                                     self.em_template_file, em_file)
+        context.add_artifact('em', em_file, 'data')
+
+        report_file = os.path.join(output_directory, 'report.html')
+        generate_report(freq_power_table, cpus_table, idle_power_table,
+                        self.report_template_file, self.device_name, em_text,
+                        report_file)
+        context.add_artifact('pm_report', report_file, 'export')
+
+    def initialize_result_tracking(self):
+        self.freq_data = []
+        self.idle_data = []
+        self.big_power_metric = self.power_metric.format(core=self.big_core)
+        self.little_power_metric = self.power_metric.format(core=self.little_core)
+
+    def configure_clusters(self):
+        self.measured_cores = None
+        self.measuring_cores = None
+        self.cpuset = self.device.get_cgroup_controller('cpuset')
+        self.cpuset.create_group('big', self.big_cpus, [0])
+        self.cpuset.create_group('little', self.little_cpus, [0])
+        for cluster in set(self.device.core_clusters):
+            self.device.set_cluster_governor(cluster, 'userspace')
+
+    def discover_idle_states(self):
+        online_cpu = self.device.get_online_cpus(self.big_core)[0]
+        self.big_idle_states = self.device.get_cpuidle_states(online_cpu)
+        online_cpu = self.device.get_online_cpus(self.little_core)[0]
+        self.little_idle_states = self.device.get_cpuidle_states(online_cpu)
+        if not (len(self.big_idle_states) >= 2 and len(self.little_idle_states) >= 2):
+            raise DeviceError('There do not appeart to be at least two idle states '
+                              'on at least one of the clusters.')
+
+    def setup_measurement(self, measured):
+        measuring = 'big' if measured == 'little' else 'little'
+        self.measured_cluster = measured
+        self.measuring_cluster = measuring
+        self.measured_cpus = self.big_cpus
+        self.measuring_cpus = self.little_cpus
+        self.reset()
+
+    def reset(self):
+        self.enable_all_cores()
+        self.enable_all_idle_states()
+        self.reset_cgroups()
+        self.cpuset.move_all_tasks_to(self.measuring_cluster)
+        server_process = 'adbd' if self.device.platform == 'android' else 'sshd'
+        server_pids = self.device.get_pids_of(server_process)
+        self.cpuset.root.add_tasks(server_pids)
+        for pid in server_pids:
+            self.device.execute('busybox taskset -p 0x{:x} {}'.format(list_to_mask(self.measuring_cpus), pid))
+
+    def enable_all_cores(self):
+        counter = Counter(self.device.core_names)
+        for core, number in counter.iteritems():
+            self.device.set_number_of_online_cpus(core, number)
+        self.big_cpus = self.device.get_online_cpus(self.big_core)
+        self.little_cpus = self.device.get_online_cpus(self.little_core)
+
+    def enable_all_idle_states(self):
+        for state in self.big_idle_states:
+            state.disable = 0
+        for state in self.little_idle_states:
+            state.disable = 0
+
+    def reset_cgroups(self):
+        self.big_cpus = self.device.get_online_cpus(self.big_core)
+        self.little_cpus = self.device.get_online_cpus(self.little_core)
+        self.cpuset.big.set(self.big_cpus, 0)
+        self.cpuset.little.set(self.little_cpus, 0)
+
+    def perform_runtime_validation(self):
+        if not self.device.is_rooted:
+            raise InstrumentError('the device must be rooted to generate energy models')
+        if 'userspace' not in self.device.list_available_cluster_governors(0):
+            raise InstrumentError('userspace cpufreq governor must be enabled')
+
+        error_message = 'Frequency {} is not supported by {} cores'
+        available_frequencies = self.device.list_available_core_frequencies(self.big_core)
+        if self.big_frequencies:
+            for freq in self.big_frequencies:
+                if freq not in available_frequencies:
+                    raise ConfigError(error_message.format(freq, self.big_core))
+        else:
+            self.big_frequencies = available_frequencies
+        available_frequencies = self.device.list_available_core_frequencies(self.little_core)
+        if self.little_frequencies:
+            for freq in self.little_frequencies:
+                if freq not in available_frequencies:
+                    raise ConfigError(error_message.format(freq, self.little_core))
+        else:
+            self.little_frequencies = available_frequencies
+
+    def initialize_job_queue(self, context):
+        old_specs = []
+        for job in context.runner.job_queue:
+            if job.spec not in old_specs:
+                old_specs.append(job.spec)
+        new_specs = self.get_cluster_specs(old_specs, 'big', context)
+        new_specs.extend(self.get_cluster_specs(old_specs, 'little', context))
+
+        # Update config to refect jobs that will actually run.
+        context.config.workload_specs = new_specs
+        config_file = os.path.join(context.host_working_directory, 'run_config.json')
+        with open(config_file, 'wb') as wfh:
+            context.config.serialize(wfh)
+
+        context.runner.init_queue(new_specs)
+
+    def get_cluster_specs(self, old_specs, cluster, context):
+        core = self.get_core_name(cluster)
+        number_of_cpus = sum([1 for c in self.device.core_names if c == core])
+
+        cluster_frequencies = self.get_frequencies_param(cluster)
+        if not cluster_frequencies:
+            raise InstrumentError('Could not read available frequencies for {}'.format(core))
+
+        idle_states = self.get_device_idle_states(cluster)
+        new_specs = []
+        for state in idle_states:
+            for num_cpus in xrange(1, number_of_cpus + 1):
+                spec = old_specs[0].copy()
+                spec.workload_name = self.idle_workload
+                spec.workload_parameters = self.idle_workload_params
+                spec.idle_state_id = state.id
+                spec.idle_state_desc = state.desc
+                spec.runtime_parameters['{}_cores'.format(core)] = num_cpus
+                spec.cluster = cluster
+                spec.num_cpus = num_cpus
+                spec.id = '{}_idle_{}_{}'.format(cluster, state.id, num_cpus)
+                spec.label = 'idle_{}'.format(cluster)
+                spec.number_of_iterations = old_specs[0].number_of_iterations
+                spec.load(self.device, context.config.ext_loader)
+                spec.workload.init_resources(context)
+                spec.workload.validate()
+                new_specs.append(spec)
+        for old_spec in old_specs:
+            if old_spec.workload_name != 'sysbench':
+                raise ConfigError('Only sysbench workload currently supported for energy_model generation.')
+            for freq in cluster_frequencies:
+                for num_cpus in xrange(1, number_of_cpus + 1):
+                    spec = old_spec.copy()
+                    spec.runtime_parameters['{}_frequency'.format(core)] = freq
+                    spec.runtime_parameters['{}_cores'.format(core)] = num_cpus
+                    spec.id = '{}_{}_{}'.format(cluster, num_cpus, freq)
+                    spec.label = 'freq_{}_{}'.format(cluster, spec.label)
+                    spec.workload_parameters['taskset_mask'] = list_to_mask(self.get_cpus(cluster))
+                    spec.workload_parameters['num_threads'] = len(self.get_cpus(cluster))
+                    spec.cluster = cluster
+                    spec.num_cpus = num_cpus
+                    spec.frequency = freq
+                    spec.load(self.device, context.config.ext_loader)
+                    spec.workload.init_resources(context)
+                    spec.workload.validate()
+                    new_specs.append(spec)
+        return new_specs
+
+    def disable_thermal_management(self):
+        if self.device.file_exists('/sys/class/thermal'):
+            tzone_paths = self.device.execute('ls /sys/class/thermal/thermal_zone*')
+            for tzpath in tzone_paths.strip().split():
+                mode_file = '{}/mode'.format(tzpath)
+                if self.device.file_exists(mode_file):
+                    self.device.set_sysfile_value(mode_file, 'disabled')
+
+    def get_device_idle_states(self, cluster):
+        if cluster == 'big':
+            return self.big_idle_states
+        else:
+            return self.little_idle_states
+
+    def get_core_name(self, cluster):
+        if cluster == 'big':
+            return self.big_core
+        else:
+            return self.little_core
+
+    def get_cpus(self, cluster):
+        if cluster == 'big':
+            return self.big_cpus
+        else:
+            return self.little_cpus
+
+    def get_frequencies_param(self, cluster):
+        if cluster == 'big':
+            return self.big_frequencies
+        else:
+            return self.little_frequencies
+
+
+if __name__ == '__main__':
+    import sys
+    indir, outdir = sys.argv[1], sys.argv[2]
+    device_name = 'odroidxu3'
+    big_core = 'a15'
+    little_core = 'a7'
+    first_cluster_idle_state = -1
+
+    this_dir = os.path.dirname(__file__)
+    report_template_file = os.path.join(this_dir, REPORT_TEMPLATE_FILE)
+    em_template_file = os.path.join(this_dir, EM_TEMPLATE_FILE)
+
+    freq_power_table = pd.read_csv(os.path.join(indir, FREQ_TABLE_FILE))
+    cpus_table = pd.read_csv(os.path.join(indir, CPUS_TABLE_FILE),
+                             header=range(2), index_col=0)
+    idle_power_table = pd.read_csv(os.path.join(indir, IDLE_TABLE_FILE))
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+    report_file = os.path.join(outdir, 'report.html')
+    em_file = os.path.join(outdir, '{}_em.c'.format(device_name))
+
+    em = build_energy_model(freq_power_table, cpus_table,
+                            idle_power_table, first_cluster_idle_state)
+    em_text = generate_em_c_file(em, big_core, little_core,
+                                 em_template_file, em_file)
+    generate_report(freq_power_table, cpus_table, idle_power_table,
+                    report_template_file, device_name, em_text,
+                    report_file)

@@ -1,0 +1,51 @@
+static struct idle_state idle_states_cluster_{{ little_core|lower }}[] = {
+	{% for entry in em.little_cluster_idle_states -%}
+	 { .power = {{ entry.power }}, },
+	{% endfor %}
+	};
+
+static struct idle_state idle_states_cluster_{{ big_core|lower }}[] = {
+	{% for entry in em.big_cluster_idle_states -%}
+	 { .power = {{ entry.power }}, },
+	{% endfor %}
+	};
+
+static struct capacity_state cap_states_cluster_{{ little_core|lower }}[] = {
+	/* Power per cluster */
+	{% for entry in em.little_cluster_cap_states -%}
+	 { .cap = {{ entry.cap }}, .power = {{ entry.power }}, },
+	{% endfor %}
+	};
+
+static struct capacity_state cap_states_cluster_{{ big_core|lower }}[] = {
+	/* Power per cluster */
+	{% for entry in em.big_cluster_cap_states -%}
+	 { .cap = {{ entry.cap }}, .power = {{ entry.power }}, },
+	{% endfor %}
+	};
+
+static struct idle_state idle_states_core_{{ little_core|lower }}[] = {
+	{% for entry in em.little_core_idle_states -%}
+	 { .power = {{ entry.power }}, },
+	{% endfor %}
+	};
+
+static struct idle_state idle_states_core_{{ big_core|lower }}[] = {
+	{% for entry in em.big_core_idle_states -%}
+	 { .power = {{ entry.power }}, },
+	{% endfor %}
+	};
+
+static struct capacity_state cap_states_core_{{ little_core|lower }}[] = {
+	/* Power per cpu */
+	{% for entry in em.little_core_cap_states -%}
+	 { .cap = {{ entry.cap }}, .power = {{ entry.power }}, },
+	{% endfor %}
+	}
+
+static struct capacity_state cap_states_core_{{ big_core|lower }}[] = {
+	/* Power per cpu */
+	{% for entry in em.big_core_cap_states -%}
+	 { .cap = {{ entry.cap }}, .power = {{ entry.power }}, },
+	{% endfor %}
+	};

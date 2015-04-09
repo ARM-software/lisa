@@ -1,0 +1,123 @@
+<html>
+<body>
+	<style>   
+		.toggle-box {
+		  display: none;
+		}
+
+		.toggle-box + label {
+		  cursor: pointer;
+		  display: block;
+		  font-weight: bold;
+		  line-height: 21px;
+		  margin-bottom: 5px;
+		}
+
+		.toggle-box + label + div {
+		  display: none;
+		  margin-bottom: 10px;
+		}
+
+		.toggle-box:checked + label + div {
+		  display: block;
+		}
+
+		.toggle-box + label:before {
+		  background-color: #4F5150;
+		  -webkit-border-radius: 10px;
+		  -moz-border-radius: 10px;
+		  border-radius: 10px;
+		  color: #FFFFFF;
+		  content: "+";
+		  display: block;
+		  float: left;
+		  font-weight: bold;
+		  height: 20px;
+		  line-height: 20px;
+		  margin-right: 5px;
+		  text-align: center;
+		  width: 20px;
+		}
+
+		.toggle-box:checked + label:before {
+		  content: "\2212";
+		} 
+
+		.document {
+			width: 800px;
+			margin-left:auto;
+			margin-right:auto;
+		}
+
+		img {
+			margin-left:auto;
+			margin-right:auto;
+		}
+
+		h1.title {
+			text-align: center;
+		}
+	</style>
+
+	<div class="document">
+		<h1 class="title">{{ device_name }} Energy Model Report</h1>
+
+		<h2>Power/Performance Analysis</h2>
+		<div>
+			<h3>Summary</h3>
+			At {{ cap_power_analysis.summary['frequency']|round(2) }} Hz<br />
+			big is {{ cap_power_analysis.summary['performance_ratio']|round(2) }} times faster<br />
+			big consumes {{ cap_power_analysis.summary['power_ratio']|round(2) }} times more power<br />
+			<br />
+			max performance: {{ cap_power_analysis.summary['max_performance']|round(2) }}<br />
+			max power:  {{ cap_power_analysis.summary['max_power']|round(2) }}<br />
+		</div>
+	
+		<div>
+			<h3>Single Core Power/Perfromance Plot</h3>
+			These are the traditional power-performance curves for the single-core runs.
+			<img align="middle" width="600px" src="data:image/png;base64,{{ cap_power_plot }}" />
+		</div>
+
+		<div>
+			<input class="toggle-box" id="freq_table" type="checkbox" >
+			<label for="freq_table">Expand view all power/performance data</label>
+			<div>
+				{{ freq_power_table }}
+			</div>
+		</div>
+
+		<div>
+			<h3>CPUs Power Plot</h3>
+			Each line correspond to the cluster running at a different OPP. Each
+			point corresponds to the average power with a certain number of CPUs
+			executing. To get the contribution of the cluster we have to extend the
+			lines on the left (what it would be the average power of just the cluster).
+			<img align="middle" width="600px" src="data:image/png;base64,{{ cpus_plot }}" />
+		</div>
+
+		<div>
+			<input class="toggle-box" id="cpus_table" type="checkbox" >
+			<label for="cpus_table">Expand view CPUS power data</label>
+			<div>
+				{{ cpus_table }}
+			</div>
+		</div>
+		<div>
+			<h3>Idle Power</h3>
+			<img align="middle" width="600px" src="data:image/png;base64,{{ idle_power_plot }}" />
+		</div>
+
+		<div>
+			<input class="toggle-box" id="idle_power_table" type="checkbox" >
+			<label for="idle_power_table">Expand view idle power data</label>
+			<div>
+				{{ idle_power_table }}
+			</div>
+		</div>
+	</div>
+</body>
+</html>
+
+<!-- vim: ft=htmljinja 
+-->
