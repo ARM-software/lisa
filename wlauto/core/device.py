@@ -36,7 +36,7 @@ from contextlib import contextmanager
 
 from wlauto.core.extension import Extension, ExtensionMeta, AttributeCollection, Parameter
 from wlauto.exceptions import DeviceError, ConfigError
-from wlauto.utils.types import list_of_strings, list_of_integers
+from wlauto.utils.types import list_of_integers, list_of, caseless_string
 
 
 __all__ = ['RuntimeParameter', 'CoreParameter', 'Device', 'DeviceMeta']
@@ -137,7 +137,7 @@ class Device(Extension):
     __metaclass__ = DeviceMeta
 
     parameters = [
-        Parameter('core_names', kind=list_of_strings, mandatory=True, default=None,
+        Parameter('core_names', kind=list_of(caseless_string), mandatory=True, default=None,
                   description="""
                   This is a list of all cpu cores on the device with each
                   element being the core type, e.g. ``['a7', 'a7', 'a15']``. The

@@ -53,6 +53,14 @@ def boolean(value):
     return bool(value)
 
 
+def integer(value):
+    """Handles conversions for string respresentations of binary, octal and hex."""
+    if isinstance(value, basestring):
+        return int(value, 0)
+    else:
+        return int(value)
+
+
 def numeric(value):
     """
     Returns the value as number (int if possible, or float otherwise), or
@@ -140,6 +148,31 @@ def list_of_bools(value, interpret_strings=True):
         return map(bool, value)
 
 
+def list_of(type_):
+    """Generates a "list of" callable for the specified type. The callable
+    attempts to convert all elements in the passed value to the specifed
+    ``type_``, raising ``ValueError`` on error."""
+    def __init__(self, values):
+        list.__init__(self, map(type_, values))
+
+    def append(self, value):
+        list.append(self, type_(value))
+
+    def extend(self, other):
+        list.extend(self, map(type_, other))
+
+    def __setitem__(self, idx, value):
+        list.__setitem__(self, idx, type_(value))
+
+    return type('list_of_{}s'.format(type_.__name__),
+                (list, ), {
+                    "__init__": __init__,
+                    "__setitem__": __setitem__,
+                    "append": append,
+                    "extend": extend,
+    })
+
+
 regex_type = type(re.compile(''))
 
 
@@ -174,3 +207,24 @@ def counter(name=None):
     __counters[name] += 1
     value = __counters[name]
     return value
+
+
+class caseless_string(str):
+    """
+    Just like built-in Python string except case-insensitive on comparisons. However, the
+    case is preserved otherwise.
+
+    """
+
+    def __eq__(self, other):
+        if isinstance(other, basestring):
+            other = other.lower()
+        return self.lower() == other
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __cmp__(self, other):
+        if isinstance(basestring, other):
+            other = other.lower()
+        return cmp(self.lower(), other)
