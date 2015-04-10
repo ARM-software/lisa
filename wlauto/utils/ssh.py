@@ -83,7 +83,10 @@ class TelnetConnection(pxssh.pxssh):
 
 class SshShell(object):
 
-    def __init__(self, timeout=10):
+    default_password_prompt = '[sudo] password'
+
+    def __init__(self, password_prompt=None, timeout=10):
+        self.password_prompt = password_prompt if password_prompt is not None else  self.default_password_prompt
         self.timeout = timeout
         self.conn = None
 
@@ -135,7 +138,7 @@ class SshShell(object):
             if log:
                 logger.debug(command)
             self.conn.sendline(command)
-            index = self.conn.expect_exact(['[sudo] password', TIMEOUT], timeout=0.5)
+            index = self.conn.expect_exact([self.password_prompt, TIMEOUT], timeout=0.5)
             if index == 0:
                 self.conn.sendline(self.password)
             timed_out = not self.conn.prompt(timeout)

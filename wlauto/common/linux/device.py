@@ -744,6 +744,8 @@ class LinuxDevice(BaseLinuxDevice):
         Parameter('password', description='Password for the account on the device (for password-based auth).'),
         Parameter('keyfile', description='Keyfile to be used for key-based authentication.'),
         Parameter('port', kind=int, description='SSH port number on the device.'),
+        Parameter('password_prompt', default='[sudo] password',
+                  description='Prompt presented by sudo when requesting the password.'),
 
         Parameter('use_telnet', kind=boolean, default=False,
                   description='Optionally, telnet may be used instead of ssh, though this is discouraged.'),
@@ -793,7 +795,7 @@ class LinuxDevice(BaseLinuxDevice):
         self._is_rooted = None
 
     def validate(self):
-        if not self.password and not self.keyfile:
+        if self.password is None and not self.keyfile:
             raise ConfigError('Either a password or a keyfile must be provided.')
         if self.working_directory is None:  # pylint: disable=access-member-before-definition
             if self.username == 'root':
@@ -823,7 +825,7 @@ class LinuxDevice(BaseLinuxDevice):
         self.reset()
 
     def connect(self):  # NOQA pylint: disable=R0912
-        self.shell = SshShell(timeout=self.default_timeout)
+        self.shell = SshShell(password_prompt=self.password_prompt, timeout=self.default_timeout)
         self.shell.login(self.host, self.username, self.password, self.keyfile, self.port, telnet=self.use_telnet)
         self._is_ready = True
 
