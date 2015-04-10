@@ -168,7 +168,11 @@ class SshShell(object):
         return output
 
     def _scp(self, source, dest, timeout=30):
-        port_string = '-P {}'.format(self.port) if self.port else ''
+        # NOTE: the version of scp in Ubuntu 12.04 occasionally (and bizarrely)
+        # fails to connect to a device if port is explicitly specified using -P
+        # option, even if it is the default port, 22. To minimize this problem,
+        # only specify -P for scp if the port is *not* the default.
+        port_string = '-P {}'.format(self.port) if (self.port and self.port != 22) else ''
         keyfile_string = '-i {}'.format(self.keyfile) if self.keyfile else ''
         command = '{} -r {} {} {} {}'.format(scp, keyfile_string, port_string, source, dest)
         pass_string = ''

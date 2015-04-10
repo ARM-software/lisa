@@ -16,6 +16,8 @@
 # pylint: disable=E1101
 import os
 import re
+import time
+import socket
 from collections import namedtuple
 from subprocess import CalledProcessError
 
@@ -743,12 +745,14 @@ class LinuxDevice(BaseLinuxDevice):
         Parameter('username', mandatory=True, description='User name for the account on the device.'),
         Parameter('password', description='Password for the account on the device (for password-based auth).'),
         Parameter('keyfile', description='Keyfile to be used for key-based authentication.'),
-        Parameter('port', kind=int, description='SSH port number on the device.'),
+        Parameter('port', kind=int, default=22, description='SSH port number on the device.'),
         Parameter('password_prompt', default='[sudo] password',
                   description='Prompt presented by sudo when requesting the password.'),
 
         Parameter('use_telnet', kind=boolean, default=False,
                   description='Optionally, telnet may be used instead of ssh, though this is discouraged.'),
+        Parameter('boot_timeout', kind=int, default=120,
+                  description='How long to try to connect to the device after a reboot.'),
 
         Parameter('working_directory', default=None,
                   description='''
@@ -823,6 +827,19 @@ class LinuxDevice(BaseLinuxDevice):
 
     def boot(self, **kwargs):
         self.reset()
+        self.logger.debug('Waiting for device...')
+        start_time = time.time()
+        while (time.time() - start_time) < self.boot_timeout:
+            try:
+                s = socket.create_connection((self.host, self.port), timeout=5)
+                s.close()
+                break
+            except socket.timeout:
+                pass
+            except socket.error:
+                time.sleep(5)
+        else:
+            raise DeviceError('Could not connect to {} after reboot'.format(self.host))
 
     def connect(self):  # NOQA pylint: disable=R0912
         self.shell = SshShell(password_prompt=self.password_prompt, timeout=self.default_timeout)

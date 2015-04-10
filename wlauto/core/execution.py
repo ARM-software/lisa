@@ -511,13 +511,7 @@ class Runner(object):
 
     def _initialize_run(self):
         self.context.run_info.start_time = datetime.utcnow()
-        if self.context.reboot_policy.perform_initial_boot:
-            self.logger.info('\tBooting device')
-            with self._signal_wrap('INITIAL_BOOT'):
-                self._reboot_device()
-        else:
-            self.logger.info('Connecting to device')
-            self.device.connect()
+        self._connect_to_device()
         self.logger.info('Initializing device')
         self.device.initialize(self.context)
 
@@ -528,6 +522,24 @@ class Runner(object):
 
         if instrumentation.check_failures():
             raise InstrumentError('Detected failure(s) during instrumentation initialization.')
+
+    def _connect_to_device(self):
+        if self.context.reboot_policy.perform_initial_boot:
+            try:
+                self.device.connect()
+            except DeviceError:  # device may be offline
+                if self.device.can('reset_power'):
+                    self.device.hard_reset()
+                else:
+                    raise DeviceError('Cannot connect to device for initial reboot; '
+                                      'and device does not support hard reset.')
+            else:  # successfully connected
+                self.logger.info('\tBooting device')
+                with self._signal_wrap('INITIAL_BOOT'):
+                    self._reboot_device()
+        else:
+            self.logger.info('Connecting to device')
+            self.device.connect()
 
     def _init_job(self):
         self.current_job.result.status = IterationResult.RUNNING
