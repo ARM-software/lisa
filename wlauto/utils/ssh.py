@@ -86,7 +86,7 @@ class SshShell(object):
     default_password_prompt = '[sudo] password'
 
     def __init__(self, password_prompt=None, timeout=10):
-        self.password_prompt = password_prompt if password_prompt is not None else  self.default_password_prompt
+        self.password_prompt = password_prompt if password_prompt is not None else self.default_password_prompt
         self.timeout = timeout
         self.conn = None
 
