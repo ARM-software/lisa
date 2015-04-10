@@ -15,16 +15,23 @@ Operating System
 
 WA runs on a native Linux install. It was tested with Ubuntu 12.04,
 but any recent Linux distribution should work. It should run on either
-32bit or 64bit OS, provided the correct version of Android (see below)
+32-bit or 64-bit OS, provided the correct version of Android (see below)
 was installed. Officially, **other environments are not supported**. WA
 has been known to run on Linux Virtual machines and in Cygwin environments,
-though additional configuration maybe required in both cases (known issues
+though additional configuration may be required in both cases (known issues
 include makings sure USB/serial connections are passed to the VM, and wrong
 python/pip binaries being picked up in Cygwin). WA *should* work on other
 Unix-based systems such as BSD or Mac OS X, but it has not been tested
 in those environments. WA *does not* run on Windows (though it should be
 possible to get limited functionality with minimal porting effort).
 
+.. Note:: If you plan to run Workload Automation on Linux devices only,
+          SSH is required, and Android SDK is optional if you wish
+          to run WA on Android devices at a later time. Then follow the
+          steps to install the necessary python packages to set up WA.
+
+          However, you would be starting off with a limited number of
+          workloads that will run on Linux devices.
 
 Android SDK
 -----------
@@ -32,8 +39,8 @@ Android SDK
 You need to have the Android SDK with at least one platform installed.
 To install it, download the ADT Bundle from here_.  Extract it
 and add ``<path_to_android_sdk>/sdk/platform-tools`` and ``<path_to_android_sdk>/sdk/tools``
-to your ``PATH``.  To test that you've installed it properly run ``adb
-version``, the output should be similar to this::
+to your ``PATH``.  To test that you've installed it properly, run ``adb
+version``. The output should be similar to this::
 
         $$ adb version
         Android Debug Bridge version 1.0.31
@@ -57,7 +64,7 @@ the install location of the SDK (i.e. ``<path_to_android_sdk>/sdk``).
 Python
 ------
 
-Workload Automation 2 requires Python 2.7 (Python 3 is not supported, at the moment).
+Workload Automation 2 requires Python 2.7 (Python 3 is not supported at the moment).
 
 
 pip
@@ -132,6 +139,10 @@ may not always have Internet access).
 
 Installing
 ==========
+
+.. note:: If you downloaded the Workload Automation source code from GitHub, open
+          the README.rst file to start the setup process. A wlauto tarball will
+          be created under the dist directory once the process is complete.
 
 Download the tarball and run pip::
 
