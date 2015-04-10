@@ -50,7 +50,7 @@ class Sysbench(Workload):
 
     parameters = [
         Parameter('timeout', kind=int, default=300,
-                  description='timeout for workload exectution (adjust from default '
+                  description='timeout for workload execution (adjust from default '
                               'if running on a slow device and/or specifying a large value for '
                               '``max_requests``'),
         Parameter('test', kind=str, default='cpu',
@@ -62,19 +62,20 @@ class Sysbench(Workload):
                   description='The limit for the total number of requests'),
         Parameter('file_test_mode', default=None,
                   allowed_values=['seqwr', 'seqrewr', 'seqrd', 'rndrd', 'rndwr', 'rndrw'],
-                  description='File test mode to use. this should only be specfied if ``test`` is '
+                  description='File test mode to use. This should only be specified if ``test`` is '
                               '``"fileio"``; if that is the case and ``file_test_mode`` is not specified, '
                               'it will default to ``"seqwr"`` (please see sysbench documentation for '
                               'explanation of various modes).'),
         Parameter('cmd_params', kind=str, default='',
-                  description='Additional parameters to be passed to sysbench as a single stiring'),
+                  description='Additional parameters to be passed to sysbench as a single string'),
         Parameter('force_install', kind=boolean, default=True,
-                  description='Always install binary found on the host, even if already installed on device'),
+                  description='Always install the sysbench binary found on the host, even if'
+                              'it is already installed on device'),
     ]
 
     def validate(self):
         if self.test == 'fileio' and not self.file_test_mode:
-            self.logger.debug('Test is "fielio" and no file_test_mode specified -- using default.')
+            self.logger.debug('Test is "fileio" and no file_test_mode specified -- using default.')
             self.file_test_mode = 'seqwr'
         elif self.test != 'fileio' and self.file_test_mode:
             raise ConfigError('file_test_mode must not be specified unless test is "fileio"')
@@ -115,7 +116,7 @@ class Sysbench(Workload):
             self.logger.debug('sysbench found on device')
             return
         if not self.on_host_binary:
-            raise WorkloadError('sysbench binary is not installed on the device, and it does not found in dependencies on the host.')
+            raise WorkloadError('sysbench binary is not installed on the device, and it is not found on the host.')
         self.device.install(self.on_host_binary)
 
     def _build_command(self, **parameters):
