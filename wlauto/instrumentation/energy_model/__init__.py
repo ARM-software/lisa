@@ -23,7 +23,7 @@ except ImportError as e:
 from wlauto import Instrument, Parameter, File
 from wlauto.exceptions import ConfigError, InstrumentError, DeviceError
 from wlauto.instrumentation import instrument_is_installed
-from wlauto.utils.types import caseless_string, list_of_ints
+from wlauto.utils.types import caseless_string, list_or_caseless_string, list_of_ints
 from wlauto.utils.misc import list_to_mask
 
 FREQ_TABLE_FILE = 'frequency_power_perf_data.csv'
@@ -319,7 +319,7 @@ class EnergyModelInstrument(Instrument):
                                  one of the values in ``device.core_names``. """),
         Parameter('performance_metric', kind=caseless_string, mandatory=True,
                   description="""Metric to be used as the performance indicator."""),
-        Parameter('power_metric', kind=caseless_string, mandatory=True,
+        Parameter('power_metric', kind=list_or_caseless_string, mandatory=True,
                   description="""Metric to be used as the power indicator. The value may contain a
                                  ``{core}`` format specifier that will be replaced with names of big
                                  and little cores to drive the name of the metric for that cluster."""),
@@ -393,45 +393,32 @@ class EnergyModelInstrument(Instrument):
     def slow_update_result(self, context):
         spec = context.result.spec
         cluster = spec.cluster
-        seen_perf = False
-        seen_power = False
         is_freq_iteration = spec.label.startswith('freq_')
+        perf_metric = 0
+        power_metric = 0
         for metric in context.result.metrics:
             if metric.name == self.performance_metric:
-                metric_name = 'performance'
-                metric_value = metric.value
-                seen_perf = True
-            elif ((cluster == 'big' and metric.name == self.big_power_metric) or
-                  (cluster == 'little' and metric.name == self.little_power_metric)):
-                metric_name = 'power'
-                metric_value = metric.value * self.power_scaling_factor
-                seen_power = True
-            else:
-                metric_name = None
-                metric_value = None
-            if metric_name:
-                if is_freq_iteration:
-                    self.freq_data.append([
-                        cluster,
-                        spec.num_cpus,
-                        spec.frequency,
-                        context.result.iteration,
-                        metric_name,
-                        metric_value,
-                    ])
-                else:
-                    self.idle_data.append([
-                        cluster,
-                        spec.num_cpus,
-                        spec.idle_state_id,
-                        spec.idle_state_desc,
-                        context.result.iteration,
-                        metric_name,
-                        metric_value,
-                    ])
-        if not (seen_power and (seen_perf or not is_freq_iteration)):
+                perf_metric = metric.value
+            elif (cluster == 'big') and metric.name in self.big_power_metrics:
+                power_metric += metric.value * self.power_scaling_factor
+            elif (cluster == 'little') and metric.name in self.little_power_metrics:
+                power_metric += metric.value * self.power_scaling_factor
+
+        if not (power_metric and (perf_metric or not is_freq_iteration)):
             message = 'Incomplete results for {} iteration{}'
             raise InstrumentError(message.format(context.result.spec.id, context.current_iteration))
+
+        if is_freq_iteration:
+            index_matter = [cluster, spec.num_cpus,
+                            spec.frequency, context.result.iteration]
+            data = self.freq_data
+        else:
+            index_matter = [cluster, spec.num_cpus,
+                            spec.idle_state_id, spec.idle_state_desc, context.result.iteration]
+            data = self.idle_data
+
+        data.append(index_matter + ['performance', perf_metric])
+        data.append(index_matter + ['{}_power'.format(self.get_core_name(cluster)), power_metric])
 
     def before_overall_results_processing(self, context):
         # pylint: disable=too-many-locals
@@ -479,8 +466,12 @@ class EnergyModelInstrument(Instrument):
     def initialize_result_tracking(self):
         self.freq_data = []
         self.idle_data = []
-        self.big_power_metric = self.power_metric.format(core=self.big_core)
-        self.little_power_metric = self.power_metric.format(core=self.little_core)
+        if isinstance(self.power_metric, basestring):
+            self.big_power_metrics = [self.power_metric.format(core=self.big_core)]
+            self.little_power_metrics = [self.power_metric.format(core=self.little_core)]
+        else:
+            self.big_power_metrics = [pm.format(core=self.big_core) for pm in self.power_metric]
+            self.little_power_metrics = [pm.format(core=self.little_core) for pm in self.power_metric]
 
     def configure_clusters(self):
         self.measured_cores = None

@@ -96,6 +96,21 @@ def list_or_string(value):
             return str(value)
 
 
+def list_or_caseless_string(value):
+    """
+    If the value is a string, at will be kept as a string, otherwise it will be interpreted
+    as a list. If that is not possible, it will be interpreted as a string.
+
+    """
+    if isinstance(value, basestring):
+        return caseless_string(value)
+    else:
+        try:
+            return map(caseless_string, value)
+        except ValueError:
+            return caseless_string(value)
+
+
 def list_of_strs(value):
     """
     Value must be iterable. All elements will be converted to strings.
