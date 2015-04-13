@@ -304,8 +304,8 @@ class ExtensionLoader(object):
                 for module in walk_modules(package):
                     self._load_module(module)
         except ImportError as e:
-            message = 'Problem loading extensions from extra packages: {}'
-            raise LoaderError(message.format(e.message))
+            message = 'Problem loading extensions from package {}: {}'
+            raise LoaderError(message.format(package, e.message))
 
     def _load_from_paths(self, paths, ignore_paths):
         self.logger.debug('Loading from paths.')
@@ -333,6 +333,9 @@ class ExtensionLoader(object):
                             self.logger.warn('Got: {}'.format(e))
                         else:
                             raise LoaderError('Failed to load {}'.format(filepath), sys.exc_info())
+                    except Exception as e:
+                        message = 'Problem loading extensions from {}: {}'
+                        raise LoaderError(message.format(filepath, e))
 
     def _load_module(self, module):  # NOQA pylint: disable=too-many-branches
         self.logger.debug('Checking module %s', module.__name__)
