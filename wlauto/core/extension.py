@@ -139,9 +139,7 @@ class Param(object):
         :param kind: The type of parameter this is. This must be a callable that takes an arbitrary
                      object and converts it to the expected type, or raised ``ValueError`` if such
                      conversion is not possible. Most Python standard types -- ``str``, ``int``, ``bool``, etc. --
-                     can be used here (though for ``bool``, ``wlauto.utils.misc.as_bool`` is preferred
-                     as it intuitively handles strings like ``'false'``). This defaults to ``str`` if
-                     not specified.
+                     can be used here. This defaults to ``str`` if not specified.
         :param mandatory: If set to ``True``, then a non-``None`` value for this parameter *must* be
                           provided on extension object construction, otherwise ``ConfigError`` will be
                           raised.
