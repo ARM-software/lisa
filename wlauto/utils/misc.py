@@ -701,3 +701,16 @@ def unique(alist):
         if item not in result:
             result.append(item)
     return result
+
+
+def open_file(filepath):
+    """
+    Open the specified file path with the associated launcher in an OS-agnostic way.
+
+    """
+    if os.name == 'nt':  # Windows
+        return os.startfile(filepath)  # pylint: disable=no-member
+    elif sys.platform == 'darwin':  # Mac OSX
+        return subprocess.call(['open', filepath])
+    else:  # assume Linux or similar running a freedesktop-compliant GUI
+        return subprocess.call(['xdg-open', filepath])
