@@ -77,8 +77,7 @@ class SqliteResultProcessor(ResultProcessor):
 
     name = 'sqlite'
     description = """
-    Stores results in an sqlite database. The following settings may be
-    specified in config.py:
+    Stores results in an sqlite database.
 
     This may be used accumulate results of multiple runs in a single file.
 
