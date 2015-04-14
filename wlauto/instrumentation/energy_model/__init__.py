@@ -495,8 +495,8 @@ class EnergyModelInstrument(Instrument):
         measuring = 'big' if measured == 'little' else 'little'
         self.measured_cluster = measured
         self.measuring_cluster = measuring
-        self.measured_cpus = self.big_cpus
-        self.measuring_cpus = self.little_cpus
+        self.measured_cpus = self.big_cpus if measured == 'big' else self.little_cpus
+        self.measuring_cpus = self.little_cpus if measured == 'big' else self.big_cpus
         self.reset()
 
     def reset(self):
