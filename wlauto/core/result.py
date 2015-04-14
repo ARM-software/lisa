@@ -191,12 +191,13 @@ class RunResult(object):
         else:
             return self.UNKNOWN  # should never happen
 
-    def __init__(self, run_info):
+    def __init__(self, run_info, output_directory=None):
         self.info = run_info
         self.iteration_results = []
         self.artifacts = []
         self.events = []
         self.non_iteration_errors = False
+        self.output_directory = output_directory
 
 
 class RunEvent(object):
@@ -255,6 +256,7 @@ class IterationResult(object):
         self.workload = spec.workload
         self.iteration = None
         self.status = self.NOT_STARTED
+        self.output_directory = None
         self.events = []
         self.metrics = []
         self.artifacts = []

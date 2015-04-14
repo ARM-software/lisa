@@ -133,7 +133,7 @@ class ExecutionContext(object):
 
     @property
     def result(self):
-        return getattr(self.current_job, 'result', None)
+        return getattr(self.current_job, 'result', self.run_result)
 
     def __init__(self, device, config):
         self.device = device
@@ -172,17 +172,18 @@ class ExecutionContext(object):
         self.output_directory = self.run_output_directory
         self.resolver = ResourceResolver(self.config)
         self.run_info = RunInfo(self.config)
-        self.run_result = RunResult(self.run_info)
+        self.run_result = RunResult(self.run_info, self.run_output_directory)
 
     def next_job(self, job):
         """Invoked by the runner when starting a new iteration of workload execution."""
         self.current_job = job
         self.job_iteration_counts[self.spec.id] += 1
-        self.current_job.result.iteration = self.current_iteration
         if not self.aborted:
             outdir_name = '_'.join(map(str, [self.spec.label, self.spec.id, self.current_iteration]))
             self.output_directory = _d(os.path.join(self.run_output_directory, outdir_name))
             self.iteration_artifacts = [wa for wa in self.workload.artifacts]
+        self.current_job.result.iteration = self.current_iteration
+        self.current_job.result.output_directory = self.output_directory
 
     def end_job(self):
         if self.current_job.result.status == IterationResult.ABORTED:
