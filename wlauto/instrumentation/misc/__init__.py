@@ -35,7 +35,7 @@ from subprocess import CalledProcessError
 
 from wlauto import Instrument, Parameter
 from wlauto.core import signal
-from wlauto.exceptions import DeviceError
+from wlauto.exceptions import DeviceError, ConfigError
 from wlauto.utils.misc import diff_tokens, write_table, check_output, as_relative
 from wlauto.utils.misc import ensure_file_directory_exists as _f
 from wlauto.utils.misc import ensure_directory_exists as _d
@@ -64,6 +64,13 @@ class SysfsExtractor(Instrument):
                   description="""A list of paths to be pulled from the device. These could be directories
                                 as well as files.""",
                   global_alias='sysfs_extract_dirs'),
+        Parameter('use_tmpfs', kind=bool, default=None,
+                  description="""
+                  Specifies whether tmpfs should be used to cache sysfile trees and then pull them down
+                  as a tarball. This is significantly faster then just copying the directory trees from
+                  the device directly, bur requres root and may not work on all devices. Defaults to
+                  ``True`` if the device is rooted and ``False`` if it is not.
+                  """),
         Parameter('tmpfs_mount_point', default=None,
                   description="""Mount point for tmpfs partition used to store snapshots of paths."""),
         Parameter('tmpfs_size', default='32m',
@@ -71,7 +78,12 @@ class SysfsExtractor(Instrument):
     ]
 
     def initialize(self, context):
-        if self.device.is_rooted:
+        if not self.device.is_rooted and self.use_tmpfs:  # pylint: disable=access-member-before-definition
+            raise ConfigError('use_tempfs must be False for an unrooted device.')
+        elif self.use_tmpfs is None:  # pylint: disable=access-member-before-definition
+            self.use_tmpfs = self.device.is_rooted
+
+        if self.use_tmpfs:
             self.on_device_before = self.device.path.join(self.tmpfs_mount_point, 'before')
             self.on_device_after = self.device.path.join(self.tmpfs_mount_point, 'after')
 
@@ -94,7 +106,7 @@ class SysfsExtractor(Instrument):
             for d in self.paths
         ]
 
-        if self.device.is_rooted:
+        if self.use_tmpfs:
             for d in self.paths:
                 before_dir = self.device.path.join(self.on_device_before,
                                                    self.device.path.dirname(as_relative(d)))
@@ -108,7 +120,7 @@ class SysfsExtractor(Instrument):
                 self.device.execute('mkdir -p {}'.format(after_dir), as_root=True)
 
     def slow_start(self, context):
-        if self.device.is_rooted:
+        if self.use_tmpfs:
             for d in self.paths:
                 dest_dir = self.device.path.join(self.on_device_before, as_relative(d))
                 if '*' in dest_dir:
@@ -120,19 +132,19 @@ class SysfsExtractor(Instrument):
                 self.device.pull_file(dev_dir, before_dir)
 
     def slow_stop(self, context):
-        if self.device.is_rooted:
+        if self.use_tmpfs:
             for d in self.paths:
                 dest_dir = self.device.path.join(self.on_device_after, as_relative(d))
                 if '*' in dest_dir:
                     dest_dir = self.device.path.dirname(dest_dir)
                 self.device.execute('busybox cp -Hr {} {}'.format(d, dest_dir),
                                     as_root=True, check_exit_code=False)
-        else:  # not rooted
+        else:  # not using tmpfs
             for dev_dir, after_dir in zip(self.paths, self.after_dirs):
                 self.device.pull_file(dev_dir, after_dir)
 
     def update_result(self, context):
-        if self.device.is_rooted:
+        if self.use_tmpfs:
             on_device_tarball = self.device.path.join(self.device.working_directory, self.tarname)
             on_host_tarball = self.device.path.join(context.output_directory, self.tarname)
             self.device.execute('busybox tar czf {} -C {} .'.format(on_device_tarball, self.tmpfs_mount_point),
@@ -155,7 +167,7 @@ class SysfsExtractor(Instrument):
         self._one_time_setup_done = []
 
     def finalize(self, context):
-        if self.device.is_rooted:
+        if self.use_tmpfs:
             try:
                 self.device.execute('umount {}'.format(self.tmpfs_mount_point), as_root=True)
             except (DeviceError, CalledProcessError):
@@ -274,7 +286,7 @@ class DynamicFrequencyInstrument(SysfsExtractor):
 
     def setup(self, context):
         self.paths = ['/sys/devices/system/cpu']
-        if self.device.is_rooted:
+        if self.use_tmpfs:
             self.paths.append('/sys/class/devfreq/*')  # the '*' would cause problems for adb pull.
         super(DynamicFrequencyInstrument, self).setup(context)
 
