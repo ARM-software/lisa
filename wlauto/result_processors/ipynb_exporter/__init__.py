@@ -119,7 +119,7 @@ class IPythonNotebookExporter(ResultProcessor):
         if self.notebook_directory and not os.path.isdir(self.notebook_directory):
             raise ConfigError('notebook_directory {} does not exist'.format(self.notebook_directory))
 
-        if self.show_pdf and not self.convert_to_pdf: #pylint: disable=E0203
+        if self.show_pdf and not self.convert_to_pdf:  # pylint: disable=E0203
             self.convert_to_pdf = True
             self.logger.debug('Assuming "convert_to_pdf" as "show_pdf" is set')
 
@@ -173,7 +173,7 @@ class IPythonNotebookExporter(ResultProcessor):
 
         kernel_manager.shutdown_kernel()
 
-    def run_cell(self, kernel_client, cell): # pylint: disable=R0201
+    def run_cell(self, kernel_client, cell):  # pylint: disable=R0201
         """Run a cell of a notebook in an ipython kernel and return its output"""
         kernel_client.shell_channel.execute(cell.input)
 
