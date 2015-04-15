@@ -21,6 +21,7 @@ class Xe503c12Chormebook(LinuxDevice):
 
     name = "XE503C12"
     description = 'A developer-unlocked Samsung XE503C12 running sshd.'
+    platform = 'chromeos'
 
     parameters = [
         Parameter('core_names', default=['a15', 'a15', 'a15', 'a15'], override=True),
@@ -28,6 +29,7 @@ class Xe503c12Chormebook(LinuxDevice):
         Parameter('username', default='chronos', override=True),
         Parameter('password', default='', override=True),
         Parameter('password_prompt', default='Password:', override=True),
+        Parameter('binaries_directory', default='/home/chronos/bin', override=True),
     ]
 
     abi = 'armeabi'
