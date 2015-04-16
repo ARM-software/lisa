@@ -40,6 +40,8 @@ if IPython and (IPython.version_info[0] == 2):
 
     NotebookNode = IPython.nbformat.v3.NotebookNode
 
+    IPYTHON_NBCONVERT = ['ipython', 'nbconvert', '--to=latex', '--post=PDF']
+
 elif IPython:
     # Unsupported IPython version
     IPython_ver_str = ".".join([str(n) for n in IPython.version_info])
@@ -120,11 +122,8 @@ def generate_pdf(nbbasename, output_directory):
     prev_dir = os.getcwd()
     os.chdir(output_directory)
 
-    ipython_nbconvert = ['ipython', 'nbconvert', '--to=latex', '--post=PDF',
-                         nbbasename]
-
     with open(os.devnull, 'w') as devnull:
-        subprocess.check_call(ipython_nbconvert, stderr=devnull)
+        subprocess.check_call(IPYTHON_NBCONVERT + [nbbasename], stderr=devnull)
 
     os.chdir(prev_dir)
 
