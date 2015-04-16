@@ -202,9 +202,11 @@ def parse_telemetry_results(filepath):
 
 
 def special_average(values):
-    """Like Geometric mean but for negative numbers!"""
+    """Overall score calculation. Tries to accound for large differences
+    between different pages."""
     negs = [v < 0 for v in values]
-    abs_logs = [math.log(av, 10) for av in map(abs, values)]
+    abs_logs = [(av and math.log(av, 10) or av)
+                for av in map(abs, values)]
     signed_logs = []
     for lv, n in zip(abs_logs, negs):
         if n:
