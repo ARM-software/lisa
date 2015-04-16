@@ -21,9 +21,9 @@ from wlauto.core.result import IterationResult
 from wlauto.exceptions import ResultProcessorError
 
 try:
-    import pynotify
+    import notify2
 except ImportError:
-    pynotify = None
+    notify2 = None
 
 
 class NotifyProcessor(ResultProcessor):
@@ -41,10 +41,10 @@ class NotifyProcessor(ResultProcessor):
         if sys.platform != 'linux2':
             raise ResultProcessorError('Notifications are only supported in linux')
 
-        if not pynotify:
-            raise ResultProcessorError('pynotify not installed.  Please install the python-notify package')
+        if not notify2:
+            raise ResultProcessorError('notify2 not installed.  Please install the notify2 package')
 
-        pynotify.init("Workload Automation")
+        notify2.init("Workload Automation")
 
     def process_run_result(self, result, context):
         num_iterations = sum(context.job_iteration_counts.values())
@@ -61,7 +61,7 @@ class NotifyProcessor(ResultProcessor):
         summary = 'Workload Automation run finised'
         body = 'Ran a total of {} iterations: '.format(num_iterations)
         body += ', '.join(score_board)
-        notification = pynotify.Notification(summary, body)
+        notification = notify2.Notification(summary, body)
 
         if not notification.show():
             self.logger.warning('Notification failed to show')
