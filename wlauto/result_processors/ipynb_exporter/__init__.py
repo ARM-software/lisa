@@ -207,7 +207,7 @@ class IPythonNotebookExporter(ResultProcessor):
                 out.evalue = content["evalue"]
                 out.traceback = content["traceback"]
             else:
-                raise ValueError("Unknown msg_type %s".format(msg_type))
+                raise ValueError("Unknown msg_type {}".format(msg_type))
 
             outs.append(out)
 
