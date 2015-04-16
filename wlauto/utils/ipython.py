@@ -48,7 +48,7 @@ elif IPython:
 
 def run_cell(kernel_client, cell):
     """Run a cell of a notebook in an ipython kernel and return its output"""
-    kernel_client.shell_channel.execute(cell.input)
+    kernel_client.execute(cell.input)
 
     outs = []
     while True:
