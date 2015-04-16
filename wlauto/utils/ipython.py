@@ -30,15 +30,15 @@ except ImportError as import_error:
 
 if IPython and (IPython.version_info[0] == 2):
     import IPython.kernel
-    import IPython.nbformat.current
+    import IPython.nbformat.v3
 
     def read_notebook(notebook_in):
-        return IPython.nbformat.current.reads_json(notebook_in)
+        return IPython.nbformat.v3.reads_json(notebook_in)
 
     def write_notebook(notebook, fout):
-        IPython.nbformat.current.write(notebook, fout, 'json')
+        IPython.nbformat.v3.nbjson.JSONWriter().write(notebook, fout)
 
-    NotebookNode = IPython.nbformat.current.NotebookNode
+    NotebookNode = IPython.nbformat.v3.NotebookNode
 
 elif IPython:
     # Unsupported IPython version
