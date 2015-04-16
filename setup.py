@@ -78,6 +78,7 @@ params = dict(
         'other': ['jinja2', 'pandas>=0.13.1'],
         'test': ['nose'],
         'mongodb': ['pymongo'],
+        'notify': ['notify2'],
         'doc': ['sphinx'],
     },
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
