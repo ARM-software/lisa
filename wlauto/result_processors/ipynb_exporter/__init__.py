@@ -18,19 +18,12 @@
 from datetime import datetime
 import os
 import shutil
-import subprocess
 import webbrowser
 
 from wlauto import File, Parameter, ResultProcessor
 from wlauto.exceptions import ConfigError, ResultProcessorError
+import wlauto.utils.ipython as ipython
 from wlauto.utils.misc import open_file
-
-try:
-    import IPython.kernel as ipython_kernel
-    import IPython.nbformat.current as ipython_nbformat
-except ImportError:
-    ipython_kernel = None
-    ipython_nbformat = None
 
 try:
     import jinja2
@@ -105,9 +98,8 @@ class IPythonNotebookExporter(ResultProcessor):
         self.nbbasename = datetime.now().strftime(nbbasename_template)
 
     def validate(self):
-        if not ipython_kernel:
-            msg = '{} requires ipython package to be installed'.format(self.name)
-            raise ResultProcessorError(msg)
+        if ipython.import_error_str:
+            raise ResultProcessorError(ipython.import_error_str)
 
         if not jinja2:
             msg = '{} requires python-jinja2 package to be installed'.format(self.name)
@@ -129,7 +121,8 @@ class IPythonNotebookExporter(ResultProcessor):
             self.open_notebook()
 
         if self.convert_to_pdf:
-            self.generate_pdf(context.run_output_directory)
+            ipython.generate_pdf(self.nbbasename,
+                                 context.run_output_directory)
             if self.show_pdf:
                 self.open_pdf()
 
@@ -139,100 +132,22 @@ class IPythonNotebookExporter(ResultProcessor):
             template = jinja2.Template(fin.read())
 
         notebook_in = template.render(result=result, context=context)
-        notebook = ipython_nbformat.reads(notebook_in, 'json')
+        notebook = ipython.read_notebook(notebook_in)
 
-        self.run_notebook(notebook)
+        ipython.run_notebook(notebook)
 
         self.notebook_file = os.path.join(context.run_output_directory,
                                           self.nbbasename)
         with open(self.notebook_file, 'w') as wfh:
-            ipython_nbformat.write(notebook, wfh, 'json')
+            ipython.write_notebook(notebook, wfh)
 
         if self.notebook_directory:
             shutil.copy(self.notebook_file,
                         os.path.join(self.notebook_directory))
 
-    def run_notebook(self, notebook):
-        """Run the notebook"""
-
-        kernel_manager = ipython_kernel.KernelManager()
-        kernel_manager.start_kernel(stderr=open(os.devnull, 'w'))
-        kernel_client = kernel_manager.client()
-        kernel_client.start_channels()
-
-        for sheet in notebook.worksheets:
-            for (prompt_number, cell) in enumerate(sheet.cells, 1):
-                if cell.cell_type != "code":
-                    continue
-
-                cell.outputs = self.run_cell(kernel_client, cell)
-
-                cell.prompt_number = prompt_number
-                if cell.outputs:
-                    cell.outputs[0]["prompt_number"] = prompt_number
-
-        kernel_manager.shutdown_kernel()
-
-    def run_cell(self, kernel_client, cell):  # pylint: disable=R0201
-        """Run a cell of a notebook in an ipython kernel and return its output"""
-        kernel_client.shell_channel.execute(cell.input)
-
-        outs = []
-        while True:
-            msg = kernel_client.get_iopub_msg()
-
-            msg_type = msg["msg_type"]
-            content = msg["content"]
-            out = ipython_nbformat.NotebookNode(output_type=msg_type)
-
-            if msg_type == "status":
-                if content["execution_state"] == "idle":
-                    break
-                else:
-                    continue
-            elif msg_type == "pyin":
-                continue
-            elif msg_type == "stream":
-                out.stream = content["name"]
-                out.text = content["data"]
-            elif msg_type in ("display_data", "pyout"):
-                for mime, data in content["data"].iteritems():
-                    if mime == "text/plain":
-                        attr = "text"
-                    else:
-                        attr = mime.split("/")[-1]
-                    setattr(out, attr, data)
-            elif msg_type == "pyerr":
-                out.ename = content["ename"]
-                out.evalue = content["evalue"]
-                out.traceback = content["traceback"]
-            else:
-                raise ValueError("Unknown msg_type {}".format(msg_type))
-
-            outs.append(out)
-
-        return outs
-
     def open_notebook(self):
         """Open the notebook in a browser"""
         webbrowser.open(self.notebook_url.rstrip('/') + '/' + self.nbbasename)
-
-    def generate_pdf(self, output_directory):
-        """Generate a PDF from the ipython notebook"""
-        # ipython nbconvert generates the pdf and other temporary files in the
-        # current directory.  Move to the results directory to avoid polluting a
-        # random directory
-
-        prev_dir = os.getcwd()
-        os.chdir(output_directory)
-
-        ipython_nbconvert = ['ipython', 'nbconvert', '--to=latex', '--post=PDF',
-                             self.nbbasename]
-
-        with open(os.devnull, 'w') as devnull:
-            subprocess.check_call(ipython_nbconvert, stderr=devnull)
-
-        os.chdir(prev_dir)
 
     def open_pdf(self):
         """Open the PDF"""
