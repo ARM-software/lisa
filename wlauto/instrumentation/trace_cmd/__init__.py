@@ -126,7 +126,7 @@ class TraceCmdInstrument(Instrument):
                   This will be subtracted form the buffer size until set succeeds or size is reduced to
                   1MB.
                   """),
-        Parameter('buffer_size_file', default='/d/tracing/buffer_size_kb',
+        Parameter('buffer_size_file', default='/sys/kernel/debug/tracing/buffer_size_kb',
                   description="""
                   Path to the debugs file that may be used to set ftrace buffer size. This should need
                   to be modified for the vast majority devices.
