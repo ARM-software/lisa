@@ -639,7 +639,7 @@ class RunConfiguration(object):
         for param, ext in ga.iteritems():
             for name in [ext.name] + [a.name for a in ext.aliases]:
                 self._load_default_config_if_necessary(name)
-                self._raw_config[name][param.name] = value
+                self._raw_config[identifier(name)][param.name] = value
 
     def _set_run_config_item(self, name, value):
         item = self._general_config_map[name]
@@ -653,12 +653,12 @@ class RunConfiguration(object):
     def _set_raw_dict(self, name, value, default_config=None):
         existing_config = self._raw_config.get(name, default_config or {})
         new_config = _merge_config_dicts(existing_config, value)
-        self._raw_config[name] = new_config
+        self._raw_config[identifier(name)] = new_config
 
     def _set_raw_list(self, name, value):
         old_value = self._raw_config.get(name, [])
         new_value = merge_lists(old_value, value, duplicates='last')
-        self._raw_config[name] = new_value
+        self._raw_config[identifier(name)] = new_value
 
     def _finalize_config_list(self, attr_name):
         """Note: the name is somewhat misleading. This finalizes a list
@@ -680,6 +680,7 @@ class RunConfiguration(object):
         self.device_config = config
 
     def _load_default_config_if_necessary(self, name):
+        name = identifier(name)
         if name not in self._raw_config:
             self._raw_config[name] = self.ext_loader.get_default_config(name)
 
