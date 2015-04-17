@@ -48,6 +48,32 @@ elif IPython:
     import_error_str = 'Unsupported IPython version {}'.format(IPython_ver_str)
 
 
+def parse_valid_output(msg):
+    """Parse a valid result from an execution of a cell in an ipython kernel"""
+    msg_type = msg["msg_type"]
+    content = msg["content"]
+    out = NotebookNode(output_type=msg_type)
+
+    if msg_type == "stream":
+        out.stream = content["name"]
+        out.text = content["data"]
+    elif msg_type in ("display_data", "pyout"):
+        for mime, data in content["data"].iteritems():
+            if mime == "text/plain":
+                attr = "text"
+            else:
+                attr = mime.split("/")[-1]
+            setattr(out, attr, data)
+    elif msg_type == "pyerr":
+        out.ename = content["ename"]
+        out.evalue = content["evalue"]
+        out.traceback = content["traceback"]
+    else:
+        raise ValueError("Unknown msg_type {}".format(msg_type))
+
+    return out
+
+
 def run_cell(kernel_client, cell):
     """Run a cell of a notebook in an ipython kernel and return its output"""
     kernel_client.execute(cell.input)
@@ -57,36 +83,14 @@ def run_cell(kernel_client, cell):
     while True:
         msg = kernel_client.get_iopub_msg()
 
-        msg_type = msg["msg_type"]
-        content = msg["content"]
-        out = NotebookNode(output_type=msg_type)
-
-        if msg_type == "status":
-            if content["execution_state"] == "idle" and input_acknowledged:
+        if msg["msg_type"] == "status":
+            if msg["content"]["execution_state"] == "idle" and input_acknowledged:
                 break
-            else:
-                continue
-        elif msg_type == "pyin":
+        elif msg["msg_type"] == "pyin":
             input_acknowledged = True
-            continue
-        elif msg_type == "stream":
-            out.stream = content["name"]
-            out.text = content["data"]
-        elif msg_type in ("display_data", "pyout"):
-            for mime, data in content["data"].iteritems():
-                if mime == "text/plain":
-                    attr = "text"
-                else:
-                    attr = mime.split("/")[-1]
-                setattr(out, attr, data)
-        elif msg_type == "pyerr":
-            out.ename = content["ename"]
-            out.evalue = content["evalue"]
-            out.traceback = content["traceback"]
         else:
-            raise ValueError("Unknown msg_type {}".format(msg_type))
-
-        outs.append(out)
+            out = parse_valid_output(msg)
+            outs.append(out)
 
     return outs
 
