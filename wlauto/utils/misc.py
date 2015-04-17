@@ -397,7 +397,7 @@ def get_meansd(values):
     if not values:
         return float('nan'), float('nan')
     mean = sum(values) / len(values)
-    sd = math.sqrt(sum([v ** 2 for v in values]) / len(values) - mean ** 2)
+    sd = math.sqrt(sum([(v - mean) ** 2 for v in values]) / len(values))
     return mean, sd
 
 
