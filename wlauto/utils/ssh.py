@@ -42,8 +42,7 @@ def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeou
         conn = pxssh.pxssh()
     try:
         if keyfile:
-            conn.SSH_OPTS += ' -i {}'.format(keyfile)
-            conn.login(host, username, port=port, login_timeout=timeout)
+            conn.login(host, username, ssh_key=keyfile, port=port, login_timeout=timeout)
         else:
             conn.login(host, username, password, port=port, login_timeout=timeout)
     except EOF:
