@@ -52,6 +52,7 @@ def run_cell(kernel_client, cell):
     """Run a cell of a notebook in an ipython kernel and return its output"""
     kernel_client.execute(cell.input)
 
+    input_acknowledged = False
     outs = []
     while True:
         msg = kernel_client.get_iopub_msg()
@@ -61,11 +62,12 @@ def run_cell(kernel_client, cell):
         out = NotebookNode(output_type=msg_type)
 
         if msg_type == "status":
-            if content["execution_state"] == "idle":
+            if content["execution_state"] == "idle" and input_acknowledged:
                 break
             else:
                 continue
         elif msg_type == "pyin":
+            input_acknowledged = True
             continue
         elif msg_type == "stream":
             out.stream = content["name"]
