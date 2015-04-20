@@ -18,10 +18,6 @@ import os
 import re
 import pandas as pd
 
-from thermal import Thermal, ThermalGovernor
-from pid_controller import PIDController
-from power import InPower, OutPower
-from sched import *
 import plot_utils
 
 def _plot_freq_hists(power_inst, map_label, what, axis, title):
@@ -67,22 +63,9 @@ classes are parsed.
 
     """
 
-    thermal_classes = {
-                "thermal": "Thermal",
-                "thermal_governor": "ThermalGovernor",
-                "pid_controller": "PIDController",
-                "in_power": "InPower",
-                "out_power": "OutPower",
-    }
+    thermal_classes = {}
 
-    sched_classes = {
-                "sched_load_avg_sched_group": "SchedLoadAvgSchedGroup",
-                "sched_load_avg_task": "SchedLoadAvgTask",
-                "sched_load_avg_cpu": "SchedLoadAvgCpu",
-                "sched_contrib_scale_factor": "SchedContribScaleFactor",
-                "sched_cpu_capacity": "SchedCpuCapacity",
-                "sched_cpu_frequency": "SchedCpuFrequency",
-    }
+    sched_classes = {}
 
     dynamic_classes = {}
 

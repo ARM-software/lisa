@@ -20,6 +20,7 @@ from matplotlib import pyplot as plt
 import pandas as pd
 
 from base import Base
+from cr2.run import Run
 from plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
 def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
@@ -99,6 +100,8 @@ class OutPower(Base):
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
+Run.register_class(OutPower, "thermal")
+
 class InPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
@@ -135,3 +138,5 @@ class InPower(Base):
         dfr = self.data_frame
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
+
+Run.register_class(InPower, "thermal")

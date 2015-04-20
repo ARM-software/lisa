@@ -17,6 +17,7 @@
 current directory's trace.dat"""
 
 from base import Base
+from cr2.run import Run
 from plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
 class PIDController(Base):
@@ -38,3 +39,5 @@ class PIDController(Base):
 
         self.data_frame[["output", "p", "i", "d"]].plot(ax=ax)
         post_plot_setup(ax, title=title)
+
+Run.register_class(PIDController, "thermal")

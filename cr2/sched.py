@@ -15,6 +15,8 @@
 #
 
 from base import Base
+from cr2.dynamic import register_dynamic
+from cr2.run import Run
 
 class SchedLoadAvgSchedGroup(Base):
     """Corresponds to Linux kernel trace event sched_load_avg_sched_group"""
@@ -34,6 +36,8 @@ class SchedLoadAvgSchedGroup(Base):
         if self._cpu_mask_column in self.data_frame.columns:
             self.data_frame[self._cpu_mask_column] = self.data_frame[self._cpu_mask_column].apply('{:0>8}'.format)
 
+Run.register_class(SchedLoadAvgSchedGroup, "sched")
+
 class SchedLoadAvgTask(Base):
     """Corresponds to Linux kernel trace event sched_load_avg_task"""
     unique_word="sched_load_avg_task:"
@@ -51,35 +55,11 @@ class SchedLoadAvgTask(Base):
 
         return df[df['comm'].str.contains(key)].values.tolist()
 
-class SchedLoadAvgCpu(Base):
-    """Corresponds to Linux kernel trace event sched_load_avg_cpu"""
-    unique_word="sched_load_avg_cpu:"
-    name="sched_load_avg_cpu"
+Run.register_class(SchedLoadAvgTask, "sched")
 
-    def __init__(self):
-        super(SchedLoadAvgCpu, self).__init__(
-            unique_word=self.unique_word,
-        )
-
-class SchedContribScaleFactor(Base):
-    """Corresponds to Linux kernel trace event sched_contrib_scale_factor"""
-    unique_word="sched_contrib_scale_f:"
-    name="sched_contrib_scale_factor"
-
-    def __init__(self):
-        super(SchedContribScaleFactor, self).__init__(
-            unique_word=self.unique_word,
-        )
-
-class SchedCpuCapacity(Base):
-    """Corresponds to Linux kernel trace event sched_cpu_capacity"""
-    unique_word="sched_cpu_capacity:"
-    name="sched_cpu_capacity"
-
-    def __init__(self):
-        super(SchedCpuCapacity, self).__init__(
-            unique_word=self.unique_word,
-        )
+register_dynamic("SchedLoadAvgCpu", "sched_load_avg_cpu:", "sched")
+register_dynamic("SchedContribScaleFactor", "sched_contrib_scale_f:", "sched")
+register_dynamic("SchedCpuCapacity", "sched_cpu_capacity:", "sched")
 
 class SchedCpuFrequency(Base):
     """Corresponds to Linux kernel trace event power/cpu_frequency"""
@@ -97,3 +77,5 @@ class SchedCpuFrequency(Base):
         classes
         """
         self.data_frame.rename(columns={'cpu_id':'cpu'}, inplace=True)
+
+Run.register_class(SchedCpuFrequency, "sched")

@@ -21,6 +21,7 @@ import re
 from matplotlib import pyplot as plt
 
 from base import Base
+from cr2.run import Run
 from plot_utils import normalize_title, pre_plot_setup, post_plot_setup, plot_hist
 
 class Thermal(Base):
@@ -73,6 +74,8 @@ class Thermal(Base):
         xlim = (0, temps.max())
 
         plot_hist(temps, ax, title, "C", 30, "Temperature", xlim, "default")
+
+Run.register_class(Thermal, "thermal")
 
 class ThermalGovernor(Base):
     """Process the power allocator data in a ftrace dump"""
@@ -165,3 +168,5 @@ class ThermalGovernor(Base):
             cols = ["P" + actor + "_in", "P" + actor + "_out"]
             this_title = normalize_title(actor, title)
             dfr[cols].plot(title=this_title)
+
+Run.register_class(ThermalGovernor, "thermal")

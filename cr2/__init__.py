@@ -19,6 +19,15 @@ from results import CR2, get_results, combine_results
 from plotter.LinePlot import LinePlot
 from dynamic import register_dynamic, register_class
 
+# Load all the modules to make sure all classes are registered with Run
+import os
+for fname in os.listdir(os.path.dirname(__file__)):
+    import_name, extension = os.path.splitext(fname)
+    if (extension == ".py") and (fname != "__init__.py"):
+        __import__("cr2.{}".format(import_name))
+
+del fname, import_name, extension
+
 def summary_plots(actor_order, map_label, **kwords):
     """A summary of plots for a given run
 
