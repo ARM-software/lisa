@@ -28,19 +28,36 @@ except ImportError as import_error:
     else:
         import_error_str = import_error.message
 
+# The current code generates notebooks version 3
+NBFORMAT_VERSION = 3
+
 if IPython and (IPython.version_info[0] == 2):
     import IPython.kernel
     import IPython.nbformat.v3
 
     def read_notebook(notebook_in):
-        return IPython.nbformat.v3.reads_json(notebook_in)
+        return IPython.nbformat.v3.reads_json(notebook_in)  # pylint: disable=E1101
 
     def write_notebook(notebook, fout):
-        IPython.nbformat.v3.nbjson.JSONWriter().write(notebook, fout)
+        IPython.nbformat.v3.nbjson.JSONWriter().write(notebook, fout)  # pylint: disable=E1101
 
-    NotebookNode = IPython.nbformat.v3.NotebookNode
+    NotebookNode = IPython.nbformat.v3.NotebookNode  # pylint: disable=E1101
 
     IPYTHON_NBCONVERT = ['ipython', 'nbconvert', '--to=latex', '--post=PDF']
+
+elif IPython and (IPython.version_info[0] == 3):
+    import IPython.kernel
+    import IPython.nbformat
+
+    def read_notebook(notebook_in):
+        return IPython.nbformat.reads(notebook_in, NBFORMAT_VERSION)  # pylint: disable=E1101
+
+    def write_notebook(notebook, fout):
+        IPython.nbformat.write(notebook, fout)  # pylint: disable=E1101
+
+    NotebookNode = IPython.nbformat.NotebookNode  # pylint: disable=E1101
+
+    IPYTHON_NBCONVERT = ['ipython', 'nbconvert', '--to=pdf']
 
 elif IPython:
     # Unsupported IPython version
@@ -48,43 +65,57 @@ elif IPython:
     import_error_str = 'Unsupported IPython version {}'.format(IPython_ver_str)
 
 
+def parse_valid_output(msg):
+    """Parse a valid result from an execution of a cell in an ipython kernel"""
+    msg_type = msg["msg_type"]
+    if msg_type == 'error':
+        msg_type = 'pyerr'
+    elif msg_type == 'execute_result':
+        msg_type = 'pyout'
+
+    content = msg["content"]
+    out = NotebookNode(output_type=msg_type)
+
+    if msg_type == "stream":
+        out.stream = content["name"]
+        try:
+            out.text = content['data']
+        except KeyError:
+            out.text = content['text']
+    elif msg_type in ("display_data", "pyout"):
+        for mime, data in content["data"].iteritems():
+            if mime == "text/plain":
+                attr = "text"
+            else:
+                attr = mime.split("/")[-1]
+            setattr(out, attr, data)
+    elif msg_type == "pyerr":
+        out.ename = content["ename"]
+        out.evalue = content["evalue"]
+        out.traceback = content["traceback"]
+    else:
+        raise ValueError("Unknown msg_type {}".format(msg_type))
+
+    return out
+
+
 def run_cell(kernel_client, cell):
     """Run a cell of a notebook in an ipython kernel and return its output"""
     kernel_client.execute(cell.input)
 
+    input_acknowledged = False
     outs = []
     while True:
         msg = kernel_client.get_iopub_msg()
 
-        msg_type = msg["msg_type"]
-        content = msg["content"]
-        out = NotebookNode(output_type=msg_type)
-
-        if msg_type == "status":
-            if content["execution_state"] == "idle":
+        if msg["msg_type"] == "status":
+            if msg["content"]["execution_state"] == "idle" and input_acknowledged:
                 break
-            else:
-                continue
-        elif msg_type == "pyin":
-            continue
-        elif msg_type == "stream":
-            out.stream = content["name"]
-            out.text = content["data"]
-        elif msg_type in ("display_data", "pyout"):
-            for mime, data in content["data"].iteritems():
-                if mime == "text/plain":
-                    attr = "text"
-                else:
-                    attr = mime.split("/")[-1]
-                setattr(out, attr, data)
-        elif msg_type == "pyerr":
-            out.ename = content["ename"]
-            out.evalue = content["evalue"]
-            out.traceback = content["traceback"]
+        elif msg["msg_type"] in ('pyin', 'execute_input'):
+            input_acknowledged = True
         else:
-            raise ValueError("Unknown msg_type {}".format(msg_type))
-
-        outs.append(out)
+            out = parse_valid_output(msg)
+            outs.append(out)
 
     return outs
 
@@ -105,7 +136,7 @@ def run_notebook(notebook):
             cell.outputs = run_cell(kernel_client, cell)
 
             cell.prompt_number = prompt_number
-            if cell.outputs:
+            if cell.outputs and cell.outputs[0]['output_type'] == 'pyout':
                 cell.outputs[0]["prompt_number"] = prompt_number
 
     kernel_manager.shutdown_kernel()
