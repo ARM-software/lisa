@@ -106,6 +106,7 @@ import wlauto.core.signal as signal
 from wlauto.core.extension import Extension
 from wlauto.exceptions import WAError, DeviceNotRespondingError, TimeoutError
 from wlauto.utils.misc import get_traceback, isiterable
+from wlauto.utils.types import identifier
 
 
 logger = logging.getLogger('instrumentation')
@@ -191,7 +192,7 @@ def is_installed(instrument):
         if instrument in [i.__class__ for i in installed]:
             return True
     else:  # assume string
-        if instrument in [i.name for i in installed]:
+        if identifier(instrument) in [identifier(i.name) for i in installed]:
             return True
     return False
 
@@ -300,7 +301,7 @@ def get_instrument(inst):
     if isinstance(inst, Instrument):
         return inst
     for installed_inst in installed:
-        if installed_inst.name == inst:
+        if identifier(installed_inst.name) == identifier(inst):
             return installed_inst
     raise ValueError('Instrument {} is not installed'.format(inst))
 
