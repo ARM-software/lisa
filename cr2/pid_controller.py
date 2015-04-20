@@ -21,6 +21,9 @@ from plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
 class PIDController(Base):
     """Process the power allocator PID controller data in a ftrace dump"""
+
+    name = "pid_controller"
+
     def __init__(self):
         super(PIDController, self).__init__(
             unique_word="thermal_power_allocator_pid",
