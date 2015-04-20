@@ -14,7 +14,7 @@ import utils_tests
 class TestRun(BaseTestThermal):
     def __init__(self, *args, **kwargs):
         super(TestRun, self).__init__(*args, **kwargs)
-        self.map_label = {"000000f0": "A15", "0000000f": "A7"}
+        self.map_label = {"00000000,00000006": "A57", "00000000,00000039": "A53"}
 
     def test_run_has_all_classes(self):
         """The Run() class has members for all classes"""
@@ -146,12 +146,12 @@ class TestRun(BaseTestThermal):
 
         allfreqs = cr2.Run().get_all_freqs_data(self.map_label)
 
-        self.assertEquals(allfreqs[1][1]["A7_freq_out"].iloc[3], 1600)
-        self.assertEquals(allfreqs[1][1]["A7_freq_in"].iloc[1], 1500)
-        self.assertEquals(allfreqs[0][1]["A15_freq_out"].iloc[2], 1000)
+        self.assertEquals(allfreqs[1][1]["A53_freq_out"].iloc[3], 850)
+        self.assertEquals(allfreqs[1][1]["A53_freq_in"].iloc[1], 850)
+        self.assertEquals(allfreqs[0][1]["A57_freq_out"].iloc[2], 1100)
 
         # Make sure there are no NaNs in the middle of the array
-        self.assertTrue(allfreqs[0][1]["A15_freq_in"].notnull().all())
+        self.assertTrue(allfreqs[0][1]["A57_freq_in"].notnull().all())
 
     def test_plot_freq_hists(self):
         """Test that plot_freq_hists() doesn't bomb"""

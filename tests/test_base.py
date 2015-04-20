@@ -105,11 +105,11 @@ class TestBase(utils_tests.SetupDirectory):
 
     def test_get_dataframe(self):
         """TestBase: Thermal.data_frame["thermal_zone"] exists and
-           Thermal.data_frame["temp"][0] = 24000"""
+           it contains a known value"""
         dfr = cr2.Run().thermal.data_frame
 
         self.assertTrue("thermal_zone" in dfr.columns)
-        self.assertEquals(dfr["temp"].iloc[0], 75885)
+        self.assertEquals(dfr["temp"].iloc[0], 68786)
 
     def test_write_csv(self):
         """TestBase: Base::write_csv() creates a valid csv"""
@@ -126,7 +126,7 @@ class TestBase(utils_tests.SetupDirectory):
 
             first_data = csv_reader.next()
             self.assertEquals(first_data["Time"], "0.0")
-            self.assertEquals(first_data["temp"], "75885")
+            self.assertEquals(first_data["temp"], "68786")
 
     def test_normalize_time(self):
         """TestBase: Base::normalize_time() normalizes the time of the trace"""

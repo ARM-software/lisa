@@ -10,8 +10,8 @@ from test_thermal import BaseTestThermal
 class TestCR2(BaseTestThermal):
     def __init__(self, *args, **kwargs):
         super(TestCR2, self).__init__(*args, **kwargs)
-        self.map_label = {"0000000f": "A7", "000000f0": "A15"}
-        self.actor_order = ["GPU", "A15", "A7"]
+        self.map_label = {"00000000,00000039": "A53", "00000000,00000006": "A57"}
+        self.actor_order = ["GPU", "A57", "A53"]
 
     def test_summary_plots(self):
         """Test summary_plots()
