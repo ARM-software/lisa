@@ -11,7 +11,9 @@ from wlauto.utils.misc import check_output, get_null, get_meansd
 from wlauto.utils.types import numeric, identifier
 
 
-RESULT_REGEX = re.compile(r'RESULT (\w+): ([^=]+)\s*=\s*\[([^\]]+)\]\s*(\S+)')
+RESULT_REGEX = re.compile(r'RESULT ([^:]+): ([^=]+)\s*=\s*' # preamble and test/metric name
+                          r'(\[([^\]]+)\]|(\S+))' # value
+                          r'\s*(\S+)')  # units
 
 
 class Telemetry(Workload):
@@ -195,8 +197,11 @@ def parse_telemetry_results(filepath):
                 result = TelemetryResult()
                 result.kind = match.group(1)
                 result.url = match.group(2)
-                result.values = map(numeric, match.group(3).split(','))
-                result.units = match.group(4)
+                if match.group(4):
+                    result.values = map(numeric, match.group(4).split(','))
+                else:
+                    result.values = [numeric(match.group(5))]
+                result.units = match.group(6)
                 results.append(result)
     return results
 
