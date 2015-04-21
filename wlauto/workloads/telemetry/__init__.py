@@ -11,8 +11,8 @@ from wlauto.utils.misc import check_output, get_null, get_meansd
 from wlauto.utils.types import numeric, identifier
 
 
-RESULT_REGEX = re.compile(r'RESULT ([^:]+): ([^=]+)\s*=\s*' # preamble and test/metric name
-                          r'(\[([^\]]+)\]|(\S+))' # value
+RESULT_REGEX = re.compile(r'RESULT ([^:]+): ([^=]+)\s*=\s*'  # preamble and test/metric name
+                          r'(\[([^\]]+)\]|(\S+))'  # value
                           r'\s*(\S+)')  # units
 
 
@@ -117,7 +117,7 @@ class Telemetry(Workload):
 
     def run(self, context):
         self.logger.debug(self.command)
-        self.raw_output, _ = check_output(self.command, shell=True, timeout=self.run_timeout)
+        self.raw_output, _ = check_output(self.command, shell=True, timeout=self.run_timeout, ignore=1)
 
     def update_result(self, context):
         if not self.raw_output:
