@@ -141,8 +141,8 @@ class TestRun(BaseTestThermal):
 
         run = cr2.Run(normalize_time=False)
 
-        prev_inpower_basetime = run.in_power.data_frame.index[0]
-        prev_inpower_last = run.in_power.data_frame.index[-1]
+        prev_inpower_basetime = run.cpu_in_power.data_frame.index[0]
+        prev_inpower_last = run.cpu_in_power.data_frame.index[-1]
 
         basetime = run.thermal.data_frame.index[0]
         run.normalize_time(basetime)
@@ -150,10 +150,10 @@ class TestRun(BaseTestThermal):
         self.assertEquals(round(run.thermal.data_frame.index[0], 7), 0)
 
         exp_inpower_first = prev_inpower_basetime - basetime
-        self.assertEquals(round(run.in_power.data_frame.index[0] - exp_inpower_first, 7), 0)
+        self.assertEquals(round(run.cpu_in_power.data_frame.index[0] - exp_inpower_first, 7), 0)
 
         exp_inpower_last = prev_inpower_last - basetime
-        self.assertEquals(round(run.in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
+        self.assertEquals(round(run.cpu_in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
 
     def test_get_all_freqs_data(self):
         """Test get_all_freqs_data()"""

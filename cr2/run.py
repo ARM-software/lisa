@@ -23,7 +23,7 @@ import plot_utils
 def _plot_freq_hists(power_inst, map_label, what, axis, title):
     """Helper function for plot_freq_hists
 
-    power_obj is either an InPower() or OutPower() instance.  what is
+    power_obj is either an CpuInPower() or CpuOutPower() instance.  what is
     a string: "in" or "out"
 
     """
@@ -273,17 +273,17 @@ classes are parsed.
         """get an array of tuple of names and DataFrames suitable for the
         allfreqs plot"""
 
-        in_freqs = self.in_power.get_all_freqs(map_label)
-        out_freqs = self.out_power.get_all_freqs(map_label)
+        cpu_in_freqs = self.cpu_in_power.get_all_freqs(map_label)
+        cpu_out_freqs = self.cpu_out_power.get_all_freqs(map_label)
 
         ret = []
         for label in map_label.values():
             in_label = label + "_freq_in"
             out_label = label + "_freq_out"
 
-            inout_freq_dict = {in_label: in_freqs[label],
-                               out_label: out_freqs[label]}
-            dfr = pd.DataFrame(inout_freq_dict).fillna(method="pad")
+            cpu_inout_freq_dict = {in_label: cpu_in_freqs[label],
+                                   out_label: cpu_out_freqs[label]}
+            dfr = pd.DataFrame(cpu_inout_freq_dict).fillna(method="pad")
             ret.append((label, dfr))
 
         return ret
@@ -297,8 +297,8 @@ classes are parsed.
         """
 
         num_actors = len(map_label)
-        _plot_freq_hists(self.out_power, map_label, "out", ax[0:num_actors], self.name)
-        _plot_freq_hists(self.in_power, map_label, "in", ax[num_actors:], self.name)
+        _plot_freq_hists(self.cpu_out_power, map_label, "out", ax[0:num_actors], self.name)
+        _plot_freq_hists(self.cpu_in_power, map_label, "in", ax[num_actors:], self.name)
 
     def plot_load(self, mapping_label, title="", width=None, height=None, ax=None):
         """plot the load of all the clusters, similar to how compare runs did it
@@ -309,7 +309,7 @@ classes are parsed.
 
         """
 
-        load_data = self.in_power.get_load_data(mapping_label)
+        load_data = self.cpu_in_power.get_load_data(mapping_label)
         title = plot_utils.normalize_title("Utilisation", title)
 
         if not ax:

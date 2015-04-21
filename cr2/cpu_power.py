@@ -9,7 +9,7 @@
 # copies and copies may only be made to the extent permitted
 # by a licensing agreement from ARM Limited.
 # ----------------------------------------------------------------
-# File:        power.py
+# File:        cpu_power.py
 # ----------------------------------------------------------------
 # $
 #
@@ -79,13 +79,13 @@ def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
 
     return pd.DataFrame(ret_series).fillna(method="pad")
 
-class OutPower(Base):
+class CpuOutPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
     unique_word="thermal_power_cpu_limit"
-    name="out_power"
+    name="cpu_out_power"
     def __init__(self):
-        super(OutPower, self).__init__(
+        super(CpuOutPower, self).__init__(
             unique_word=self.unique_word,
         )
 
@@ -100,15 +100,15 @@ class OutPower(Base):
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
-Run.register_class(OutPower, "thermal")
+Run.register_class(CpuOutPower, "thermal")
 
-class InPower(Base):
+class CpuInPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
     unique_word="thermal_power_cpu_get"
-    name="in_power"
+    name="cpu_in_power"
     def __init__(self):
-        super(InPower, self).__init__(
+        super(CpuInPower, self).__init__(
             unique_word=self.unique_word,
         )
 
@@ -139,4 +139,4 @@ class InPower(Base):
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
-Run.register_class(InPower, "thermal")
+Run.register_class(CpuInPower, "thermal")

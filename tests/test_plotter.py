@@ -63,7 +63,7 @@ class TestPlotter(BaseTestThermal):
         run2 = cr2.Run(name="second")
         l = cr2.LinePlot([run1,
                           run2],
-                         [cr2.power.OutPower],
+                         [cr2.cpu_power.CpuOutPower],
                          column=["power"],
                          filters={"cdev_state": [1]})
         l.view(test=True)
@@ -83,7 +83,7 @@ class TestPlotter(BaseTestThermal):
         run1 = cr2.Run(name="first")
         run2 = cr2.Run(name="second")
         l = cr2.LinePlot(
-            [run1, run2], cr2.power.OutPower, column="power", pivot="cpus")
+            [run1, run2], cr2.cpu_power.CpuOutPower, column="power", pivot="cpus")
         l.view(test=True)
 
     def test_plot_multi_pivot(self):
@@ -92,8 +92,8 @@ class TestPlotter(BaseTestThermal):
         run2 = cr2.Run(name="second")
         l = cr2.LinePlot([run1,
                           run2],
-                         [cr2.power.InPower,
-                          cr2.power.OutPower],
+                         [cr2.cpu_power.CpuInPower,
+                          cr2.cpu_power.CpuOutPower],
                          column=["dynamic_power",
                                  "power"],
                          pivot="cpus")
@@ -105,7 +105,7 @@ class TestPlotter(BaseTestThermal):
         run2 = cr2.Run(name="second")
         l = cr2.LinePlot(
             run1,
-            cr2.power.InPower,
+            cr2.cpu_power.CpuInPower,
             column=[
                 "dynamic_power",
                 "load1"],
@@ -122,7 +122,7 @@ class TestPlotter(BaseTestThermal):
         run2 = cr2.Run(name="second")
         l = cr2.LinePlot(
             run1,
-            cr2.power.InPower,
+            cr2.cpu_power.CpuInPower,
             column=[
                 "dynamic_power",
                 "load1"],

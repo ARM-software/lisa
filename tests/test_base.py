@@ -91,7 +91,7 @@ class TestBase(utils_tests.SetupDirectory):
             fout.write(in_data)
 
         run = cr2.Run()
-        dfr = run.in_power.data_frame
+        dfr = run.cpu_in_power.data_frame
 
         self.assertEquals(set(dfr.columns), expected_columns)
         self.assertEquals(dfr["power"].iloc[0], 61)
