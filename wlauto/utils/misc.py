@@ -73,9 +73,19 @@ class TimeoutError(Exception):
         return '\n'.join([self.message, 'OUTPUT:', self.output or ''])
 
 
-def check_output(command, timeout=None, **kwargs):
+def check_output(command, timeout=None, ignore=None, **kwargs):
     """This is a version of subprocess.check_output that adds a timeout parameter to kill
     the subprocess if it does not return within the specified time."""
+    # pylint: disable=too-many-branches
+    if ignore is None:
+        ignore = []
+    elif isinstance(ignore, int):
+        ignore = [ignore]
+    elif not isinstance(ignore, list):
+        message = 'Invalid value for ignore parameter: "{}"; must be an int or a list'
+        raise ValueError(message.format(ignore))
+    if 'stdout' in kwargs:
+        raise ValueError('stdout argument not allowed, it will be overridden.')
 
     def callback(pid):
         try:
@@ -84,8 +94,6 @@ def check_output(command, timeout=None, **kwargs):
         except OSError:
             pass  # process may have already terminated.
 
-    if 'stdout' in kwargs:
-        raise ValueError('stdout argument not allowed, it will be overridden.')
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                preexec_fn=preexec_function, **kwargs)
 
@@ -103,7 +111,7 @@ def check_output(command, timeout=None, **kwargs):
     if retcode:
         if retcode == -9:  # killed, assume due to timeout callback
             raise TimeoutError(command, output='\n'.join([output, error]))
-        else:
+        elif retcode not in ignore:
             raise subprocess.CalledProcessError(retcode, command, output='\n'.join([output, error]))
     return output, error
 
