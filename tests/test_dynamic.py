@@ -8,7 +8,7 @@
 # copies and copies may only be made to the extent permitted
 # by a licensing agreement from ARM Limited.
 # ----------------------------------------------------------------
-# File:        tests_dynamic.py
+# File:        test_dynamic.py
 # ----------------------------------------------------------------
 # $
 #
