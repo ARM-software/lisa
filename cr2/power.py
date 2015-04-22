@@ -92,7 +92,7 @@ class OutPower(Base):
         """get a DataFrame with the maximum frequencies allowed by the governor
 
         mapping_label must be a dictionary that maps cpumasks to name
-        of the cpu.  Returned freqs are in KHz
+        of the cpu.  Returned freqs are in MHz
         """
 
         dfr = self.data_frame
@@ -129,7 +129,7 @@ class InPower(Base):
     def get_all_freqs(self, mapping_label):
         """get a DataFrame with the "in" frequencies as seen by the governor
 
-        Frequencies are in KHz
+        Frequencies are in MHz
         """
 
         dfr = self.data_frame
