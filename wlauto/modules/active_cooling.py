@@ -21,6 +21,7 @@ from wlauto.utils.serial_port import open_serial_connection
 class MbedFanActiveCooling(Module):
 
     name = 'mbed-fan'
+    description = 'Controls a cooling fan via an mbed connected to a serial port.'
 
     capabilities = ['active_cooling']
 
@@ -52,6 +53,14 @@ class MbedFanActiveCooling(Module):
 class OdroidXU3ctiveCooling(Module):
 
     name = 'odroidxu3-fan'
+    description = """
+    Enabled active cooling by controling the fan an Odroid XU3
+
+    .. note:: depending on the kernel used, it may not be possible to turn the fan
+              off completely; in such situations, the fan will be set to its minimum
+              speed.
+
+    """
 
     capabilities = ['active_cooling']
 

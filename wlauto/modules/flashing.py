@@ -59,6 +59,7 @@ class FastbootFlasher(Flasher):
     name = 'fastboot'
     description = """
     Enables automated flashing of images using the fastboot utility.
+
     To use this flasher, a set of image files to be flused are required.
     In addition a mapping between partitions and image file is required. There are two ways
     to specify those requirements:
@@ -138,6 +139,20 @@ class FastbootFlasher(Flasher):
 class VersatileExpressFlasher(Flasher):
 
     name = 'vexpress'
+    description = """
+    Enables flashing of kernels and firmware to ARM Versatile Express devices.
+
+    This modules enables flashing of image bundles or individual images to ARM
+    Versatile Express-based devices (e.g. JUNO) via host-mounted MicroSD on the
+    board.
+
+    The bundle, if specified, must reflect the directory structure of the MicroSD
+    and will be extracted directly into the location it is mounted on the host. The
+    images, if  specified, must be a dict mapping the absolute path of the image on
+    the host to the destination path within the board's MicroSD; the destination path
+    may be either absolute, or relative to the MicroSD mount location.
+
+    """
 
     def flash(self, image_bundle=None, images=None):
         device = self.owner

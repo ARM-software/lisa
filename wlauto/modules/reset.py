@@ -24,6 +24,9 @@ class NetioSwitchReset(Module):
 
     #pylint: disable=E1101
     name = 'netio_switch'
+    description = """
+    Enables hard reset of devices connected to a Netio ethernet power switch
+    """
     capabilities = ['reset_power']
 
     parameters = [
