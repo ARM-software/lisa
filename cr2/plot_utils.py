@@ -166,7 +166,7 @@ def plot_load(runs, map_label, width=None, height=None):
 def plot_allfreqs(runs, map_label, width=None, height=None):
     """Make a multicolumn plots of the allfreqs plots of each run"""
     num_runs = len(runs)
-    axis = pre_plot_setup(width=width, height=height, nrows=len(map_label),
+    axis = pre_plot_setup(width=width, height=height, nrows=len(map_label) + 1,
                           ncols=num_runs)
 
     if num_runs == 1:
