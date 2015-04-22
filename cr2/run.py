@@ -286,6 +286,12 @@ classes are parsed.
             dfr = pd.DataFrame(cpu_inout_freq_dict).fillna(method="pad")
             ret.append((label, dfr))
 
+        inout_freq_dict = {"gpu_freq_in": self.devfreq_in_power.get_all_freqs(),
+                           "gpu_freq_out": self.devfreq_out_power.get_all_freqs()
+                       }
+        dfr = pd.DataFrame(inout_freq_dict).fillna(method="pad")
+        ret.append(("GPU", dfr))
+
         return ret
 
     def plot_freq_hists(self, map_label, ax):
