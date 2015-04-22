@@ -316,6 +316,10 @@ classes are parsed.
         """
 
         load_data = self.cpu_in_power.get_load_data(mapping_label)
+        gpu_data = pd.DataFrame({"GPU":
+                                 self.devfreq_in_power.data_frame["load"]})
+        load_data = pd.concat([load_data, gpu_data], axis=1)
+        load_data = load_data.fillna(method="pad")
         title = plot_utils.normalize_title("Utilisation", title)
 
         if not ax:
