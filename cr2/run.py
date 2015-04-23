@@ -20,20 +20,20 @@ import pandas as pd
 
 import plot_utils
 
-def _plot_freq_hists(power_inst, map_label, what, axis, title):
+def _plot_freq_hists(allfreqs, what, axis, title):
     """Helper function for plot_freq_hists
 
-    power_obj is either an CpuInPower() or CpuOutPower() instance.  what is
-    a string: "in" or "out"
+    allfreqs is the output of a *Power().get_all_freqs() (for example,
+    CpuInPower.get_all_freqs() or DevfreqOutPower.get_all_freqs()).  what
+    is a string: "in" or "out"
 
     """
-    freqs = power_inst.get_all_freqs(map_label)
-    for ax, actor in zip(axis, freqs):
+    for ax, actor in zip(axis, allfreqs):
         this_title = "freq {} {}".format(what, actor)
         this_title = plot_utils.normalize_title(this_title, title)
-        xlim = (0, freqs[actor].max())
+        xlim = (0, allfreqs[actor].max())
 
-        plot_utils.plot_hist(freqs[actor], ax, this_title, "KHz", 20,
+        plot_utils.plot_hist(allfreqs[actor], ax, this_title, "KHz", 20,
                              "Frequency", xlim, "default")
 
 class Run(object):
@@ -302,9 +302,14 @@ classes are parsed.
 
         """
 
-        num_actors = len(map_label)
-        _plot_freq_hists(self.cpu_out_power, map_label, "out", ax[0:num_actors], self.name)
-        _plot_freq_hists(self.cpu_in_power, map_label, "in", ax[num_actors:], self.name)
+        num_cpu_actors = len(map_label)
+        in_base_idx = len(ax) / 2
+        cpu_out_allfreqs = self.cpu_out_power.get_all_freqs(map_label)
+        _plot_freq_hists(cpu_out_allfreqs, "out", ax[0:num_cpu_actors],
+                         self.name)
+
+        cpu_in_allfreqs = self.cpu_in_power.get_all_freqs(map_label)
+        _plot_freq_hists(cpu_in_allfreqs, "in", ax[in_base_idx:], self.name)
 
     def plot_load(self, mapping_label, title="", width=None, height=None, ax=None):
         """plot the load of all the clusters, similar to how compare runs did it
