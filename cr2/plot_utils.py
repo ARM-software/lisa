@@ -213,7 +213,7 @@ def plot_output_power(runs, actor_order, width=None, height=None):
 def plot_freq_hists(runs, map_label):
     """Plot frequency histograms of multiple runs"""
     num_runs = len(runs)
-    nrows = 2 * len(map_label)
+    nrows = 2 * (len(map_label) + 1)
     axis = pre_plot_setup(ncols=num_runs, nrows=nrows)
 
     if num_runs == 1:

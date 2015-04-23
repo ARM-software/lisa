@@ -23,9 +23,9 @@ import plot_utils
 def _plot_freq_hists(allfreqs, what, axis, title):
     """Helper function for plot_freq_hists
 
-    allfreqs is the output of a *Power().get_all_freqs() (for example,
-    CpuInPower.get_all_freqs() or DevfreqOutPower.get_all_freqs()).  what
-    is a string: "in" or "out"
+    allfreqs is the output of a Cpu*Power().get_all_freqs() (for
+    example, CpuInPower.get_all_freqs()).  what is a string: "in" or
+    "out"
 
     """
     for ax, actor in zip(axis, allfreqs):
@@ -302,14 +302,20 @@ classes are parsed.
 
         """
 
-        num_cpu_actors = len(map_label)
         in_base_idx = len(ax) / 2
-        cpu_out_allfreqs = self.cpu_out_power.get_all_freqs(map_label)
-        _plot_freq_hists(cpu_out_allfreqs, "out", ax[0:num_cpu_actors],
-                         self.name)
 
-        cpu_in_allfreqs = self.cpu_in_power.get_all_freqs(map_label)
-        _plot_freq_hists(cpu_in_allfreqs, "in", ax[in_base_idx:], self.name)
+        out_allfreqs = (self.cpu_out_power.get_all_freqs(map_label),
+                        self.devfreq_out_power.get_all_freqs(),
+                        ax[0:in_base_idx])
+        in_allfreqs = (self.cpu_in_power.get_all_freqs(map_label),
+                       self.devfreq_in_power.get_all_freqs(),
+                       ax[in_base_idx:])
+
+        for cpu_allfreqs, devfreq_freqs, axis in (out_allfreqs, in_allfreqs):
+            devfreq_freqs.name = "GPU"
+            allfreqs = pd.concat([cpu_allfreqs, devfreq_freqs], axis=1)
+            allfreqs.fillna(method="pad", inplace=True)
+            _plot_freq_hists(allfreqs, "out", axis, self.name)
 
     def plot_load(self, mapping_label, title="", width=None, height=None, ax=None):
         """plot the load of all the clusters, similar to how compare runs did it
