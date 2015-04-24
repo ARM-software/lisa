@@ -265,7 +265,7 @@ classes are parsed.
 
                 line = line[:-1]
 
-                special_fields_match = re.search(r"^\s+([^ ]+)-(\d+)\s+\[(\d+)\]\s+([0-9]+\.[0-9]+):",
+                special_fields_match = re.search(r"^\s+([^\[]+)-(\d+)\s+\[(\d+)\]\s+([0-9]+\.[0-9]+):",
                                                  line)
                 comm = special_fields_match.group(1)
                 pid = int(special_fields_match.group(2))

@@ -82,6 +82,46 @@ class TestBase(utils_tests.SetupDirectory):
         self.assertEquals(set(dfr.columns), expected_columns)
         self.assertEquals(dfr["power"].iloc[0], 61)
 
+    def test_parse_special_fields(self):
+        """TestBase: Task name, PID, CPU and timestamp are properly paresed """
+
+        events = {
+                '1001.456789' : { 'task': 'rcu_preempt',       'pid': 1123, 'cpu': 001 },
+                '1002.456789' : { 'task': 'rs:main',           'pid': 2123, 'cpu': 002 },
+                '1003.456789' : { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 003 },
+                '1004.456789' : { 'task': 'kworker/1:1H',      'pid': 4123, 'cpu': 004 },
+                '1005.456789' : { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 005 },
+        }
+
+        in_data = """"""
+        for timestamp in sorted(events):
+            in_data+="{0:>16s}-{1:d} [{2:04d}] {3:s}: event0:   tag=value\n".\
+                    format(
+                        events[timestamp]['task'],
+                        events[timestamp]['pid'],
+                        events[timestamp]['cpu'],
+                        timestamp
+                        )
+
+        expected_columns = set(["__comm", "__pid", "__cpu", "tag"])
+
+        with open("trace.txt", "w") as fout:
+            fout.write(in_data)
+
+        cr2.register_dynamic('Event0', 'event0', scope="sched")
+        run = cr2.Run()
+        dfr = run.event0.data_frame
+
+        self.assertEquals(set(dfr.columns), expected_columns)
+
+        for idx in range(len(events)):
+            timestap = str( dfr.index[idx]+float(events.keys()[0]))
+            self.assertTrue(timestamp in events)
+            self.assertEquals(dfr["__comm"].iloc[idx], events[timestap]['task'])
+            self.assertEquals(dfr["__pid"].iloc[idx],  events[timestap]['pid'])
+            self.assertEquals(dfr["__cpu"].iloc[idx],  events[timestap]['cpu'])
+
+
     def test_parse_values_concatenation(self):
         """TestBase: Trace with space separated values created a valid DataFrame"""
 
