@@ -15,6 +15,7 @@
 
 import os
 import subprocess
+from distutils.version import StrictVersion
 
 import_error_str = ''
 try:
@@ -31,38 +32,37 @@ except ImportError as import_error:
 # The current code generates notebooks version 3
 NBFORMAT_VERSION = 3
 
-if IPython and (IPython.version_info[0] == 2):
-    import IPython.kernel
-    import IPython.nbformat.v3
 
-    def read_notebook(notebook_in):
-        return IPython.nbformat.v3.reads_json(notebook_in)  # pylint: disable=E1101
+if IPython:
+    if StrictVersion(IPython.__version__) >= StrictVersion('3.0.0'):
+        import IPython.kernel
+        import IPython.nbformat
 
-    def write_notebook(notebook, fout):
-        IPython.nbformat.v3.nbjson.JSONWriter().write(notebook, fout)  # pylint: disable=E1101
+        def read_notebook(notebook_in):
+            return IPython.nbformat.reads(notebook_in, NBFORMAT_VERSION)  # pylint: disable=E1101
 
-    NotebookNode = IPython.nbformat.v3.NotebookNode  # pylint: disable=E1101
+        def write_notebook(notebook, fout):
+            IPython.nbformat.write(notebook, fout)  # pylint: disable=E1101
 
-    IPYTHON_NBCONVERT = ['ipython', 'nbconvert', '--to=latex', '--post=PDF']
+        NotebookNode = IPython.nbformat.NotebookNode  # pylint: disable=E1101
 
-elif IPython and (IPython.version_info[0] == 3):
-    import IPython.kernel
-    import IPython.nbformat
+        IPYTHON_NBCONVERT = ['ipython', 'nbconvert', '--to=pdf']
+    elif StrictVersion(IPython.__version__) >= StrictVersion('2.0.0'):
+        import IPython.kernel
+        import IPython.nbformat.v3
 
-    def read_notebook(notebook_in):
-        return IPython.nbformat.reads(notebook_in, NBFORMAT_VERSION)  # pylint: disable=E1101
+        def read_notebook(notebook_in):
+            return IPython.nbformat.v3.reads_json(notebook_in)  # pylint: disable=E1101
 
-    def write_notebook(notebook, fout):
-        IPython.nbformat.write(notebook, fout)  # pylint: disable=E1101
+        def write_notebook(notebook, fout):
+            IPython.nbformat.v3.nbjson.JSONWriter().write(notebook, fout)  # pylint: disable=E1101
 
-    NotebookNode = IPython.nbformat.NotebookNode  # pylint: disable=E1101
+        NotebookNode = IPython.nbformat.v3.NotebookNode  # pylint: disable=E1101
 
-    IPYTHON_NBCONVERT = ['ipython', 'nbconvert', '--to=pdf']
-
-elif IPython:
-    # Unsupported IPython version
-    IPython_ver_str = ".".join([str(n) for n in IPython.version_info])
-    import_error_str = 'Unsupported IPython version {}'.format(IPython_ver_str)
+        IPYTHON_NBCONVERT = ['ipython', 'nbconvert', '--to=latex', '--post=PDF']
+    else:
+        # Unsupported IPython version
+        import_error_str = 'Unsupported IPython version {}'.format(IPython.__version__)
 
 
 def parse_valid_output(msg):
