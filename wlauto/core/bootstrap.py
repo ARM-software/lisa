@@ -151,19 +151,20 @@ def init_environment(env_root, dep_dir, extension_paths, overwrite_existing=Fals
     for path in extension_paths:
         os.makedirs(path)
 
-    # If running with sudo on POSIX, change the ownership to the real user.
-    real_user = os.getenv('SUDO_USER')
-    if real_user:
-        import pwd  # done here as module won't import on win32
-        user_entry = pwd.getpwnam(real_user)
-        uid, gid = user_entry.pw_uid, user_entry.pw_gid
-        os.chown(env_root, uid, gid)
-        # why, oh why isn't there a recusive=True option for os.chown?
-        for root, dirs, files in os.walk(env_root):
-            for d in dirs:
-                os.chown(os.path.join(root, d), uid, gid)
-            for f in files:  # pylint: disable=W0621
-                os.chown(os.path.join(root, f), uid, gid)
+    if os.getenv('USER') == 'root':
+        # If running with sudo on POSIX, change the ownership to the real user.
+        real_user = os.getenv('SUDO_USER')
+        if real_user:
+            import pwd  # done here as module won't import on win32
+            user_entry = pwd.getpwnam(real_user)
+            uid, gid = user_entry.pw_uid, user_entry.pw_gid
+            os.chown(env_root, uid, gid)
+            # why, oh why isn't there a recusive=True option for os.chown?
+            for root, dirs, files in os.walk(env_root):
+                for d in dirs:
+                    os.chown(os.path.join(root, d), uid, gid)
+                for f in files:  # pylint: disable=W0621
+                    os.chown(os.path.join(root, f), uid, gid)
 
 
 _env_root = os.getenv('WA_USER_DIRECTORY', os.path.join(_user_home, '.workload_automation'))
