@@ -530,7 +530,8 @@ class Runner(object):
                 self.device.connect()
             except DeviceError:  # device may be offline
                 if self.device.can('reset_power'):
-                    self.device.hard_reset()
+                    with self._signal_wrap('INITIAL_BOOT'):
+                        self.device.hard_reset()
                 else:
                     raise DeviceError('Cannot connect to device for initial reboot; '
                                       'and device does not support hard reset.')
