@@ -374,9 +374,10 @@ class ExtensionLoader(object):
         store = self._get_store(ext)
         store[key] = obj
         for alias in obj.aliases:
-            if alias in self.extensions or alias in self.aliases:
+            alias_id = identifier(alias.name)
+            if alias_id in self.extensions or alias_id in self.aliases:
                 raise LoaderError('{} {} already exists.'.format(ext.name, obj.name))
-            self.aliases[alias.name] = alias
+            self.aliases[alias_id] = alias
 
         # Update global aliases list. If a global alias is already in the list,
         # then make sure this extension is in the same parent/child hierarchy
