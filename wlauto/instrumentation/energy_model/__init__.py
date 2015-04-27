@@ -97,7 +97,7 @@ class PowerPerformanceAnalysis(object):
         self.summary['max_power'] = data[data.cpus == 1].power.max()
 
 
-low_filter = np.vectorize(lambda x: x > 0 and x or 0)
+low_filter = np.vectorize(lambda x: x > 0 and x or 0)  # pylint: disable=no-member
 
 
 def build_energy_model(freq_power_table, cpus_power, idle_power, first_cluster_idle_state):
@@ -220,8 +220,8 @@ def get_figure_data(fig, fmt='png'):
 
 
 def get_normalized_single_core_data(data):
-    finite_power = np.isfinite(data.power)
-    finite_perf = np.isfinite(data.performance)
+    finite_power = np.isfinite(data.power)  # pylint: disable=no-member
+    finite_perf = np.isfinite(data.performance)  # pylint: disable=no-member
     data_single_core = data[(data.cpus == 1) & finite_perf & finite_power].copy()
     data_single_core['performance_norm'] = (data_single_core.performance /
                                             data_single_core.performance.max() * 100).apply(int)
