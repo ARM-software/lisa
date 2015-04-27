@@ -27,6 +27,10 @@ power_allocator_1,antutu,1,RAM_Speed_3,5,
 power_allocator_1,antutu,1,2D_graphics_3,2,
 power_allocator_1,antutu,1,3D_graphics_3,2,
 power_allocator_1,antutu,1,execution_time,1234.026520967,seconds
+power_allocator_1,antutu,1,FPS,nan,
+power_allocator_1,antutu,1,frame_count,0,
+power_allocator_1,antutu,1,janks,0,
+power_allocator_1,antutu,1,not_at_vsync,0,
 power_allocator_2,egypt_offscreen,1,Frames_0,6,frames
 power_allocator_2,egypt_offscreen,1,FPS_0,652,fps
 power_allocator_2,egypt_offscreen,1,Frames_1,6,frames
@@ -34,6 +38,10 @@ power_allocator_2,egypt_offscreen,1,FPS_1,555,fps
 power_allocator_2,egypt_offscreen,1,Frames_2,5,frames
 power_allocator_2,egypt_offscreen,1,FPS_2,790,fps
 power_allocator_2,egypt_offscreen,1,execution_time,1234.440778971,seconds
+power_allocator_2,egypt_offscreen,1,FPS,60.0000024,
+power_allocator_2,egypt_offscreen,1,frame_count,0,
+power_allocator_2,egypt_offscreen,1,janks,0,
+power_allocator_2,egypt_offscreen,1,not_at_vsync,0,
 power_allocator_3,t-rex_offscreen,1,Frames_0,4,frames
 power_allocator_3,t-rex_offscreen,1,FPS_0,1777,fps
 power_allocator_3,t-rex_offscreen,1,Frames_1,3,frames
@@ -41,6 +49,10 @@ power_allocator_3,t-rex_offscreen,1,FPS_1,397,fps
 power_allocator_3,t-rex_offscreen,1,Frames_2,9,frames
 power_allocator_3,t-rex_offscreen,1,FPS_2,512,fps
 power_allocator_3,t-rex_offscreen,1,execution_time,4321.995774984,seconds
+power_allocator_3,t-rex_offscreen,1,FPS,60.0000024,
+power_allocator_3,t-rex_offscreen,1,frame_count,0,
+power_allocator_3,t-rex_offscreen,1,janks,0,
+power_allocator_3,t-rex_offscreen,1,not_at_vsync,0,
 power_allocator_4,geekbench,1,score,3,
 power_allocator_4,geekbench,1,multicore_score,2,
 power_allocator_4,geekbench,1,Integer_score,4,
@@ -66,6 +78,10 @@ power_allocator_4,geekbench,1,Floating Point_multicore_score 2,6,
 power_allocator_4,geekbench,1,Memory_score 2,6,
 power_allocator_4,geekbench,1,Memory_multicore_score 2,3,
 power_allocator_4,geekbench,1,execution_time,1234.685024023,seconds
+power_allocator_4,geekbench,1,FPS,nan,
+power_allocator_4,geekbench,1,frame_count,0,
+power_allocator_4,geekbench,1,janks,0,
+power_allocator_4,geekbench,1,not_at_vsync,0,
 power_allocator_6,thechase,1,execution_time,600.09159112,seconds
 power_allocator_6,thechase,1,FPS,491.6156693693,
 power_allocator_6,thechase,1,frame_count,1,

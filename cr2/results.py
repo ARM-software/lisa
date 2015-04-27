@@ -129,7 +129,8 @@ def get_results(dirname=".", id=None):
 
                 if bench in bench_dict:
                     if run_id in bench_dict[bench]:
-                        bench_dict[bench][run_id][run_number] = result
+                        if run_number not in bench_dict[bench][run_id]:
+                            bench_dict[bench][run_id][run_number] = result
                     else:
                         bench_dict[bench][run_id] = {run_number: result}
                 else:
