@@ -161,13 +161,19 @@ class Agenda(object):
         self._assign_id_if_needed(w, 'workload')
         return AgendaWorkloadEntry(**w)
 
-    def _load(self, source):
-        raw = self._load_raw_from_source(source)
+    def _load(self, source):  # pylint: disable=too-many-branches
+        try:
+            raw = self._load_raw_from_source(source)
+        except ValueError as e:
+            name = getattr(source, 'name', '')
+            raise ConfigError('Error parsing agenda {}: {}'.format(name, e))
         if not isinstance(raw, dict):
             message = '{} does not contain a valid agenda structure; top level must be a dict.'
             raise ConfigError(message.format(self.filepath))
         for k, v in raw.iteritems():
             if k == 'config':
+                if not isinstance(v, dict):
+                    raise ConfigError('Invalid agenda: "config" entry must be a dict')
                 self.config = v
             elif k == 'global':
                 self.global_ = AgendaGlobalEntry(**v)
@@ -237,7 +243,13 @@ def dict_representer(dumper, data):
 
 
 def dict_constructor(loader, node):
-    return OrderedDict(loader.construct_pairs(node))
+    pairs = loader.construct_pairs(node)
+    seen_keys = set()
+    for k, _ in pairs:
+        if k in seen_keys:
+            raise ValueError('Duplicate entry: {}'.format(k))
+        seen_keys.add(k)
+    return OrderedDict(pairs)
 
 
 yaml.add_representer(OrderedDict, dict_representer)
