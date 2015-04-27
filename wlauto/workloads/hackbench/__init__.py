@@ -21,12 +21,12 @@ import re
 
 hackbench_results_txt = 'hackbench_results.txt'
 
-grp_regex = re.compile(r'(?P<group>(\d+) groups)')
-fd_regex = re.compile(r'(?P<fd>(\d+) file descriptors)')
-msg_regex = re.compile(r'(?P<message>(\d+) messages)')
-bytes_regex = re.compile(r'(?P<bytes>(\d+) bytes)')
-time_regex = re.compile(r'(Time: (\d+.*))')
-
+regex_map = {"total_groups": (re.compile(r'(\d+) groups'), "groups"),
+             "total_fd": (re.compile(r'(\d+) file descriptors'), "file_descriptors"),
+             "total_messages": (re.compile(r'(\d+) messages'), "messages"),
+             "total_bytes": (re.compile(r'(\d+) bytes'), "bytes"),
+             "test_time": (re.compile(r'Time: (\d+.*)'), "seconds")
+            }
 
 class Hackbench(Workload):
 
@@ -41,23 +41,22 @@ class Hackbench(Workload):
 
     parameters = [
         # Workload parameters go here e.g.
-        Parameter('datasize', kind=int, default=100, override=True, mandatory=False,
-                  description='Message size in bytes.'),
-        Parameter('groups', kind=int, default=10, override=True, mandatory=False,
-                  description='Number of groups.'),
-        Parameter('loops', kind=int, default=100, override=True, mandatory=False,
-                  description='Number of loops.'),
-        Parameter('fds', kind=int, default=40, override=True, mandatory=False,
-                  description='Number of file descriptors.'),
-        Parameter('extra_params', kind=str, default='', override=True, mandatory=False,
+        Parameter('datasize', kind=int, default=100, description='Message size in bytes.'),
+        Parameter('groups', kind=int, default=10, description='Number of groups.'),
+        Parameter('loops', kind=int, default=100, description='Number of loops.'),
+        Parameter('fds', kind=int, default=40, description='Number of file descriptors.'),
+        Parameter('extra_params', kind=str, default='',
                   description='Extra parameters to pass in. See the hackbench man page'
-                              ' or type `hackbench --help` for list of options.')
+                              ' or type `hackbench --help` for list of options.'),
+        Parameter('duration', kind=int, default=30, description='Test duration in seconds.')
     ]
 
     def setup(self, context):
+        timeout_buf = 10
         self.command = '{} -s {} -g {} -l {} {} > {}'
         self.device_binary = None
         self.hackbench_result = os.path.join(self.device.working_directory, hackbench_results_txt)
+        self.run_timeout = self.duration + timeout_buf
 
         self.binary_name = 'hackbench'
         if not self.device.is_installed(self.binary_name):
@@ -70,38 +69,17 @@ class Hackbench(Workload):
                                            self.loops, self.extra_params, self.hackbench_result)
 
     def run(self, context):
-        self.device.execute(self.command)
+        self.device.execute(self.command, timeout=self.run_timeout)
 
     def update_result(self, context):
-        group_label = 'groups'
-        fd_label = 'file_descriptors'
-        msg_label = 'messages'
-        bytes_label = 'bytes'
-        time_label = 'time'
-
         self.device.pull_file(self.hackbench_result, context.output_directory)
 
         with open(os.path.join(context.output_directory, hackbench_results_txt)) as hackbench_file:
             for line in hackbench_file:
-                group_match = grp_regex.search(line)
-                if group_match:
-                    context.result.add_metric(group_label, int(group_match.group(2)), group_label)
-
-                fd_match = fd_regex.search(line)
-                if fd_match:
-                    context.result.add_metric(fd_label, int(fd_match.group(2)), fd_label)
-
-                msg_match = msg_regex.search(line)
-                if msg_match:
-                    context.result.add_metric(msg_label, int(msg_match.group(2)), msg_label)
-
-                bytes_match = bytes_regex.search(line)
-                if bytes_match:
-                    context.result.add_metric(bytes_label, int(bytes_match.group(2)), bytes_label)
-
-                time_match = time_regex.search(line)
-                if time_match:
-                    context.result.add_metric(time_label, float(time_match.group(2)), 'seconds')
+                for label, (regex, units) in regex_map.iteritems():
+                    match = regex.search(line)
+                    if match:
+                        context.result.add_metric(label, float(match.group(1)), units)
 
     def teardown(self, context):
         self.device.uninstall_executable(self.binary_name)
@@ -109,4 +87,3 @@ class Hackbench(Workload):
 
     def validate(self):
         pass
-
