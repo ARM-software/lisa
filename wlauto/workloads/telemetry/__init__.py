@@ -3,6 +3,8 @@ import os
 import re
 import csv
 import math
+import shutil
+from zipfile import is_zipfile, ZipFile
 from collections import defaultdict
 
 from wlauto import Workload, Parameter
@@ -14,6 +16,7 @@ from wlauto.utils.types import numeric, identifier
 RESULT_REGEX = re.compile(r'RESULT ([^:]+): ([^=]+)\s*=\s*'  # preamble and test/metric name
                           r'(\[([^\]]+)\]|(\S+))'  # value
                           r'\s*(\S+)')  # units
+TRACE_REGEX = re.compile(r'Trace saved as ([^\n]+)')
 
 
 class Telemetry(Workload):
@@ -119,7 +122,7 @@ class Telemetry(Workload):
         self.logger.debug(self.command)
         self.raw_output, _ = check_output(self.command, shell=True, timeout=self.run_timeout, ignore=1)
 
-    def update_result(self, context):
+    def update_result(self, context):  # pylint: disable=too-many-locals
         if not self.raw_output:
             self.logger.warning('Did not get run_benchmark output.')
             return
@@ -128,7 +131,7 @@ class Telemetry(Workload):
             wfh.write(self.raw_output)
         context.add_artifact('telemetry-raw', raw_outfile, kind='raw')
 
-        results = parse_telemetry_results(raw_outfile)
+        results, artifacts = parse_telemetry_results(raw_outfile)
         csv_outfile = os.path.join(context.output_directory, 'telemetry.csv')
         averages = defaultdict(list)
         with open(csv_outfile, 'wb') as wfh:
@@ -146,6 +149,17 @@ class Telemetry(Workload):
 
         for kind, values in averages.iteritems():
             context.result.add_metric(kind, special_average(values), lower_is_better=True)
+
+        for idx, artifact in enumerate(artifacts):
+            wa_path = os.path.join(context.output_directory,
+                                   os.path.basename(artifact))
+            shutil.copy(artifact, wa_path)
+            context.add_artifact('telemetry_trace_{}'.format(idx), path=wa_path, kind='data')
+
+            if is_zipfile(wa_path):
+                zf = ZipFile(wa_path)
+                zf.extractall(context.output_directory)
+                zf.close()
 
     def teardown(self, context):
         pass
@@ -190,6 +204,7 @@ class TelemetryResult(object):
 
 def parse_telemetry_results(filepath):
     results = []
+    artifacts = []
     with open(filepath) as fh:
         for line in fh:
             match = RESULT_REGEX.search(line)
@@ -203,7 +218,10 @@ def parse_telemetry_results(filepath):
                     result.values = [numeric(match.group(5))]
                 result.units = match.group(6)
                 results.append(result)
-    return results
+            match = TRACE_REGEX.search(line)
+            if match:
+                artifacts.append(match.group(1))
+    return results, artifacts
 
 
 def special_average(values):
