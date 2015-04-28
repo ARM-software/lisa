@@ -243,3 +243,6 @@ class caseless_string(str):
         if isinstance(basestring, other):
             other = other.lower()
         return cmp(self.lower(), other)
+
+    def format(self, *args, **kwargs):
+        return caseless_string(super(caseless_string, self).format(*args, **kwargs))
