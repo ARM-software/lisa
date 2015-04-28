@@ -16,6 +16,10 @@
 
 from run import Run
 from plotter.LinePlot import LinePlot
+try:
+    from cr2.plotter.ILinePlot import ILinePlot
+except ImportError:
+    pass
 from dynamic import register_dynamic, register_class
 
 # Load all the modules to make sure all classes are registered with Run
