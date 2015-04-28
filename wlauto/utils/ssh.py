@@ -149,7 +149,8 @@ class SshShell(object):
             timed_out = not self.conn.prompt(timeout)
             # the regex removes line breaks potentiall introduced when writing
             # command to shell.
-            command_index = re.sub(r' \r([^\n])', r'\1', self.conn.before).find(command)
+            output = re.sub(r' \r([^\n])', r'\1', self.conn.before)
+            command_index = output.find(command)
             while not timed_out and command_index == -1:
                 # In case of a "premature" timeout (i.e. timeout, but no hang,
                 # so command completes afterwards), there may be a prompt from
@@ -157,9 +158,9 @@ class SshShell(object):
                 # checks for this case by making sure that the original command
                 # is present in the serial output and waiting for the next
                 # prompt if it is not.
-                timed_out = not self.conn.prompt(timeout)
-                command_index = re.sub(r' \r([^\n])', r'\1', self.conn.before).find(command)
-            output = self.conn.before[command_index + len(command):].strip()
+                output = re.sub(r' \r([^\n])', r'\1', self.conn.before)
+                command_index = output.find(command)
+            output = output[command_index + len(command):].strip()
         if timed_out:
             raise TimeoutError(command, output)
         if strip_colors:
