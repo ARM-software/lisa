@@ -937,7 +937,9 @@ class LinuxDevice(BaseLinuxDevice):
 
     def file_exists(self, filepath):
         output = self.execute('if [ -e \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
-        return boolean(output.strip())  # pylint: disable=maybe-no-member
+        # output from ssh my contain part of the expression in the buffer,
+        # split out everything except the last word.
+        return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
 
     def listdir(self, path, as_root=False, **kwargs):
         contents = self.execute('ls -1 {}'.format(path), as_root=as_root)
