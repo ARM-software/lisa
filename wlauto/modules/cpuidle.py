@@ -98,7 +98,8 @@ class Cpuidle(Module):
         states_dir = self.device.path.join(self.device.path.dirname(self.root_path), cpu, 'cpuidle')
         idle_states = []
         for state in self.device.listdir(states_dir):
-            idle_states.append(CpuidleState(self.device, self.device.path.join(states_dir, state)))
+            if state.startswith('state'):
+                idle_states.append(CpuidleState(self.device, self.device.path.join(states_dir, state)))
         return idle_states
 
     def _on_device_init(self, context):  # pylint: disable=unused-argument
