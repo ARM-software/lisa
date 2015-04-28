@@ -2,6 +2,7 @@
 from __future__ import division
 import os
 import math
+import time
 from tempfile import mktemp
 from base64 import b64encode
 from copy import deepcopy
@@ -319,10 +320,18 @@ class EnergyModelInstrument(Instrument):
                                  one of the values in ``device.core_names``. """),
         Parameter('performance_metric', kind=caseless_string, mandatory=True,
                   description="""Metric to be used as the performance indicator."""),
-        Parameter('power_metric', kind=list_or_caseless_string, mandatory=True,
+        Parameter('power_metric', kind=list_or_caseless_string,
                   description="""Metric to be used as the power indicator. The value may contain a
                                  ``{core}`` format specifier that will be replaced with names of big
-                                 and little cores to drive the name of the metric for that cluster."""),
+                                 and little cores to drive the name of the metric for that cluster.
+                                 Ether this or ``energy_metric`` must be specified but not both."""),
+        Parameter('energy_metric', kind=list_or_caseless_string,
+                  description="""Metric to be used as the energy indicator. The value may contain a
+                                 ``{core}`` format specifier that will be replaced with names of big
+                                 and little cores to drive the name of the metric for that cluster.
+                                 this metric will be used to derive power by deviding through by
+                                 execution time. Either this or ``power_metric`` must be specified, but
+                                 not both."""),
         Parameter('power_scaling_factor', kind=float, default=1.0,
                   description="""Power model specfies power in milliWatts. This is a scaling factor that
                                  power_metric values will be multiplied by to get milliWatts."""),
@@ -334,7 +343,6 @@ class EnergyModelInstrument(Instrument):
                   description="""List of frequencies to be used for little cores. These frequencies must
                                  be supported by the cores. If this is not specified, all available
                                  frequencies for the core (as read from cpufreq) will be used."""),
-
         Parameter('idle_workload', kind=str, default='idle',
                   description="Workload to be used while measuring idle power."),
         Parameter('idle_workload_params', kind=dict, default={},
@@ -354,6 +362,8 @@ class EnergyModelInstrument(Instrument):
                 message = 'The Device does not appear to support {}; does it have the right module installed?'
                 raise ConfigError(message.format(capability))
         device_cores = set(self.device.core_names)
+        if (self.power_metric and self.energy_metric) or not (self.power_metric or self.energy_metric):
+            raise ConfigError('Either power_metric or energy_metric must be specified (but not both).')
         if not device_cores:
             raise ConfigError('The Device does not appear to have core_names configured.')
         elif len(device_cores) != 2:
@@ -386,6 +396,12 @@ class EnergyModelInstrument(Instrument):
             else:
                 idle_state.disable = 1
 
+    def fast_start(self, context):  # pylint: disable=unused-argument
+        self.start_time = time.time()
+
+    def fast_stop(self, context):  # pylint: disable=unused-argument
+        self.run_time = time.time() - self.start_time
+
     def on_iteration_start(self, context):
         self.setup_measurement(context.spec.cluster)
 
@@ -403,6 +419,10 @@ class EnergyModelInstrument(Instrument):
                 power_metric += metric.value * self.power_scaling_factor
             elif (cluster == 'little') and metric.name in self.little_power_metrics:
                 power_metric += metric.value * self.power_scaling_factor
+            elif (cluster == 'big') and metric.name in self.big_energy_metrics:
+                power_metric += metric.value / self.run_time * self.power_scaling_factor
+            elif (cluster == 'little') and metric.name in self.little_energy_metrics:
+                power_metric += metric.value / self.run_time * self.power_scaling_factor
 
         if not (power_metric and (perf_metric or not is_freq_iteration)):
             message = 'Incomplete results for {} iteration{}'
@@ -466,12 +486,24 @@ class EnergyModelInstrument(Instrument):
     def initialize_result_tracking(self):
         self.freq_data = []
         self.idle_data = []
-        if isinstance(self.power_metric, basestring):
-            self.big_power_metrics = [self.power_metric.format(core=self.big_core)]
-            self.little_power_metrics = [self.power_metric.format(core=self.little_core)]
-        else:
-            self.big_power_metrics = [pm.format(core=self.big_core) for pm in self.power_metric]
-            self.little_power_metrics = [pm.format(core=self.little_core) for pm in self.power_metric]
+        self.big_power_metrics = []
+        self.little_power_metrics = []
+        self.big_energy_metrics = []
+        self.little_energy_metrics = []
+        if self.power_metric:
+            if isinstance(self.power_metric, basestring):
+                self.big_power_metrics = [self.power_metric.format(core=self.big_core)]
+                self.little_power_metrics = [self.power_metric.format(core=self.little_core)]
+            else:
+                self.big_power_metrics = [pm.format(core=self.big_core) for pm in self.power_metric]
+                self.little_power_metrics = [pm.format(core=self.little_core) for pm in self.power_metric]
+        else:  # must be energy_metric
+            if isinstance(self.energy_metric, basestring):
+                self.big_energy_metrics = [self.energy_metric.format(core=self.big_core)]
+                self.little_energy_metrics = [self.energy_metric.format(core=self.little_core)]
+            else:
+                self.big_energy_metrics = [em.format(core=self.big_core) for em in self.energy_metric]
+                self.little_energy_metrics = [em.format(core=self.little_core) for em in self.energy_metric]
 
     def configure_clusters(self):
         self.measured_cores = None
