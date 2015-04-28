@@ -26,7 +26,8 @@ regex_map = {"total_groups": (re.compile(r'(\d+) groups'), "groups"),
              "total_messages": (re.compile(r'(\d+) messages'), "messages"),
              "total_bytes": (re.compile(r'(\d+) bytes'), "bytes"),
              "test_time": (re.compile(r'Time: (\d+.*)'), "seconds")
-            }
+             }
+
 
 class Hackbench(Workload):
 

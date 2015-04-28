@@ -23,11 +23,12 @@ results_txt = 'ebizzy_results.txt'
 record_regex = re.compile(r'(?P<record>\d+) records/s')
 result_regex = re.compile(r'(?P<metric>\D+)(?P<value>\d+.*\b)(?P<unit>\S+)')
 
+
 class Ebizzy(Workload):
 
     name = 'ebizzy'
     description = """
-    ebizzy is designed to generate a workload resembling common web 
+    ebizzy is designed to generate a workload resembling common web
     application server workloads.  It is highly threaded, has a large in-memory
     working set with low locality, and allocates and deallocates memory frequently.
     When running most efficiently, it will max out the CPU.
@@ -64,7 +65,6 @@ class Ebizzy(Workload):
 
         self.command = self.command.format(self.device_binary, self.threads, self.seconds,
                                            self.chunks, self.extra_params, self.ebizzy_results)
-
 
     def run(self, context):
         self.device.execute(self.command, timeout=self.run_timeout)
