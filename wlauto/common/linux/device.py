@@ -244,36 +244,10 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
     # Process query and control
 
     def get_pids_of(self, process_name):
-        """Returns a list of PIDs of all processes with the specified name."""
-        result = self.execute('ps {}'.format(process_name[-15:]), check_exit_code=False).strip()
-        if result and 'not found' not in result:
-            return [int(x.split()[1]) for x in result.split('\n')[1:]]
-        else:
-            return []
+        raise NotImplementedError()
 
     def ps(self, **kwargs):
-        """
-        Returns the list of running processes on the device. Keyword arguments may
-        be used to specify simple filters for columns.
-
-        Added in version 2.1.4
-
-        """
-        lines = iter(convert_new_lines(self.execute('ps')).split('\n'))
-        lines.next()  # header
-        result = []
-        for line in lines:
-            parts = line.split()
-            if parts:
-                result.append(PsEntry(*(parts[0:1] + map(int, parts[1:5]) + parts[5:])))
-        if not kwargs:
-            return result
-        else:
-            filtered_result = []
-            for entry in result:
-                if all(getattr(entry, k) == v for k, v in kwargs.iteritems()):
-                    filtered_result.append(entry)
-            return filtered_result
+        raise NotImplementedError()
 
     def kill(self, pid, signal=None, as_root=False):  # pylint: disable=W0221
         """
@@ -992,6 +966,35 @@ class LinuxDevice(BaseLinuxDevice):
         self._check_ready()
         command = 'sh -c "{}" 1>/dev/null 2>/dev/null &'.format(escape_double_quotes(command))
         return self.shell.execute(command)
+
+    def get_pids_of(self, process_name):
+        """Returns a list of PIDs of all processes with the specified name."""
+        # result should be a column of PIDs with the first row as "PID" header
+        result = self.execute('ps -C {} -o pid'.format(process_name), check_exit_code=False).strip().split()
+        if len(result) >= 2:  # at least one row besides the header
+            return result[1:]
+        else:
+            return []
+
+    def ps(self, **kwargs):
+        command = 'ps -eo user,pid,ppid,vsize,rss,wchan,pcpu,state,fname'
+        lines = iter(convert_new_lines(self.execute(command)).split('\n'))
+        lines.next()  # header
+
+        result = []
+        for line in lines:
+            parts = line.split()
+            if parts:
+                result.append(PsEntry(*(parts[0:1] + map(int, parts[1:5]) + parts[5:])))
+
+        if not kwargs:
+            return result
+        else:
+            filtered_result = []
+            for entry in result:
+                if all(getattr(entry, k) == v for k, v in kwargs.iteritems()):
+                    filtered_result.append(entry)
+            return filtered_result
 
     # File management
 

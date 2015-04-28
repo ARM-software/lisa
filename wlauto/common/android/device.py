@@ -24,7 +24,7 @@ import threading
 from subprocess import CalledProcessError
 
 from wlauto.core.extension import Parameter
-from wlauto.common.linux.device import BaseLinuxDevice
+from wlauto.common.linux.device import BaseLinuxDevice, PsEntry
 from wlauto.exceptions import DeviceError, WorkerThreadError, TimeoutError, DeviceNotRespondingError
 from wlauto.utils.misc import convert_new_lines
 from wlauto.utils.types import boolean, regex
@@ -456,6 +456,38 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
             pass
         else:
             raise ValueError('Background command exited before timeout; got "{}"'.format(output))
+
+    def get_pids_of(self, process_name):
+        """Returns a list of PIDs of all processes with the specified name."""
+        result = self.execute('ps {}'.format(process_name[-15:]), check_exit_code=False).strip()
+        if result and 'not found' not in result:
+            return [int(x.split()[1]) for x in result.split('\n')[1:]]
+        else:
+            return []
+
+    def ps(self, **kwargs):
+        """
+        Returns the list of running processes on the device. Keyword arguments may
+        be used to specify simple filters for columns.
+
+        Added in version 2.1.4
+
+        """
+        lines = iter(convert_new_lines(self.execute('ps')).split('\n'))
+        lines.next()  # header
+        result = []
+        for line in lines:
+            parts = line.split()
+            if parts:
+                result.append(PsEntry(*(parts[0:1] + map(int, parts[1:5]) + parts[5:])))
+        if not kwargs:
+            return result
+        else:
+            filtered_result = []
+            for entry in result:
+                if all(getattr(entry, k) == v for k, v in kwargs.iteritems()):
+                    filtered_result.append(entry)
+            return filtered_result
 
     def get_properties(self, context):
         """Captures and saves the information from /system/build.prop and /proc/version"""
