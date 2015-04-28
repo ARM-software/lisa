@@ -18,14 +18,17 @@
 import time
 
 from wlauto import Workload, Parameter
-from wlauto.exceptions import WorkloadError
+from wlauto.exceptions import WorkloadError, ConfigError
 
 
 class IdleWorkload(Workload):
 
     name = 'idle'
     description = """
-    Stop Android and sleep for the specified duration before restarting it.
+    Do nothing for the specified duration.
+
+    On android devices, this may optionally stop the Android run time, if
+    ``stop_android`` is set to ``True``.
 
     .. note:: This workload requires the device to be rooted.
 
@@ -34,23 +37,33 @@ class IdleWorkload(Workload):
     parameters = [
         Parameter('duration', kind=int, default=20,
                   description='Specifies the duration, in seconds, of this workload.'),
+        Parameter('stop_android', kind=bool, default=False,
+                  description='Specifies whether the Android run time should be stopped. '
+                              '(Can be set only for Android devices).'),
     ]
 
     def setup(self, context):
-        if not self.device.is_rooted:
-            raise WorkloadError('Idle workload requires the device to be rooted.')
+        if self.stop_android:
+            if not self.device.platform == 'android':
+                raise ConfigError('stop_android can only be set for Android devices')
+            if not self.device.is_rooted:
+                raise WorkloadError('Idle workload requires the device to be rooted in order to stop Android.')
 
     def run(self, context):
-        self.device.execute('stop && sleep {} && start'.format(self.duration), as_root=True)
-
-    def update_result(self, context):
-        pass
+        self.logger.debug('idling...')
+        if self.stop_android:
+            timeout = self.duration + 10
+            self.device.execute('stop && sleep {} && start'.format(self.duration),
+                                timeout=timeout, as_root=True)
+        else:
+            time.sleep(self.duration)
 
     def teardown(self, context):
-        self.logger.debug('Waiting for Android restart to complete...')
-        # Wait for the boot animation to start and then to finish.
-        while self.device.execute('getprop init.svc.bootanim').strip() == 'stopped':
-            time.sleep(0.2)
-        while self.device.execute('getprop init.svc.bootanim').strip() == 'running':
-            time.sleep(1)
+        if self.stop_android:
+            self.logger.debug('Waiting for Android restart to complete...')
+            # Wait for the boot animation to start and then to finish.
+            while self.device.execute('getprop init.svc.bootanim').strip() == 'stopped':
+                time.sleep(0.2)
+            while self.device.execute('getprop init.svc.bootanim').strip() == 'running':
+                time.sleep(1)
 
