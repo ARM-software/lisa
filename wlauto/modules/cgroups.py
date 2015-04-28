@@ -135,6 +135,12 @@ class CpusetController(CgroupController):
 class Cgroups(Module):
 
     name = 'cgroups'
+    description = """
+    Adds cgroups query and manupution APIs to a Device interface.
+
+    Currently, only cpusets controller is supported.
+
+    """
     capabilities = ['cgroups']
 
     controllers = [

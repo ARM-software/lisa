@@ -78,6 +78,10 @@ class CpuidleState(object):
 class Cpuidle(Module):
 
     name = 'cpuidle'
+    description = """
+    Adds cpuidle state query and manupution APIs to a Device interface.
+
+    """
     capabilities = ['cpuidle']
 
     root_path = '/sys/devices/system/cpu/cpuidle'
