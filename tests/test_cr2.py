@@ -90,6 +90,24 @@ class TestCR2(BaseTestThermal):
         cr2.summary_plots(self.actor_order, self.map_label)
         matplotlib.pyplot.close('all')
 
+    def test_summary_plots_no_gpu(self):
+        """summary_plots() works if there is no GPU trace"""
+
+        # Strip out devfreq traces
+        trace_out = ""
+        with open("trace.txt") as fin:
+            for line in fin:
+                if ("thermal_power_devfreq_get_power:" not in line) and \
+                   ("thermal_power_devfreq_limit:" not in line):
+                    trace_out += line
+
+        with open("trace.txt", "w") as fout:
+            fout.write(trace_out)
+
+        cr2.summary_plots(self.actor_order, self.map_label)
+        matplotlib.pyplot.close('all')
+
+
     def test_compare_runs(self):
         """Basic compare_runs() functionality"""
 

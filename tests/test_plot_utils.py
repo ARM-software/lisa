@@ -114,6 +114,29 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
         self.map_label = {"00000000,00000039": "A53", "00000000,00000006": "A57"}
         self.actor_order = ["GPU", "A57", "A53"]
 
+    def test_number_freq_plots(self):
+        """Calculate the number of frequency plots correctly"""
+        trace_out = ""
+
+        run = cr2.Run()
+        self.assertEquals(plot_utils.number_freq_plots([run], self.map_label),
+                          3)
+
+        # Strip out devfreq traces
+        with open("trace.txt") as fin:
+            for line in fin:
+                if ("thermal_power_devfreq_get_power:" not in line) and \
+                   ("thermal_power_devfreq_limit:" not in line):
+                    trace_out += line
+
+        with open("trace.txt", "w") as fout:
+            fout.write(trace_out)
+
+        # Without devfreq there should only be two plots
+        run = cr2.Run()
+        self.assertEquals(plot_utils.number_freq_plots([run], self.map_label),
+                          2)
+
     def test_plot_temperature(self):
         """Test that plot_utils.plot_temperature() doesn't bomb"""
 

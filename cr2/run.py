@@ -286,11 +286,18 @@ classes are parsed.
             dfr = pd.DataFrame(cpu_inout_freq_dict).fillna(method="pad")
             ret.append((label, dfr))
 
-        inout_freq_dict = {"gpu_freq_in": self.devfreq_in_power.get_all_freqs(),
-                           "gpu_freq_out": self.devfreq_out_power.get_all_freqs()
-                       }
-        dfr = pd.DataFrame(inout_freq_dict).fillna(method="pad")
-        ret.append(("GPU", dfr))
+        try:
+            gpu_freq_in_data = self.devfreq_in_power.get_all_freqs()
+            gpu_freq_out_data = self.devfreq_out_power.get_all_freqs()
+        except KeyError:
+            gpu_freq_in_data = gpu_freq_out_data = None
+
+        if gpu_freq_in_data is not None:
+            inout_freq_dict = {"gpu_freq_in": gpu_freq_in_data,
+                               "gpu_freq_out": gpu_freq_out_data
+                           }
+            dfr = pd.DataFrame(inout_freq_dict).fillna(method="pad")
+            ret.append(("GPU", dfr))
 
         return ret
 
@@ -304,16 +311,25 @@ classes are parsed.
 
         in_base_idx = len(ax) / 2
 
+        try:
+            devfreq_out_all_freqs = self.devfreq_out_power.get_all_freqs()
+            devfreq_in_all_freqs = self.devfreq_in_power.get_all_freqs()
+        except KeyError:
+            devfreq_out_all_freqs = None
+            devfreq_in_all_freqs = None
+
         out_allfreqs = (self.cpu_out_power.get_all_freqs(map_label),
-                        self.devfreq_out_power.get_all_freqs(),
-                        ax[0:in_base_idx])
+                        devfreq_out_all_freqs, ax[0:in_base_idx])
         in_allfreqs = (self.cpu_in_power.get_all_freqs(map_label),
-                       self.devfreq_in_power.get_all_freqs(),
-                       ax[in_base_idx:])
+                       devfreq_in_all_freqs, ax[in_base_idx:])
 
         for cpu_allfreqs, devfreq_freqs, axis in (out_allfreqs, in_allfreqs):
-            devfreq_freqs.name = "GPU"
-            allfreqs = pd.concat([cpu_allfreqs, devfreq_freqs], axis=1)
+            if devfreq_freqs is not None:
+                devfreq_freqs.name = "GPU"
+                allfreqs = pd.concat([cpu_allfreqs, devfreq_freqs], axis=1)
+            else:
+                allfreqs = cpu_allfreqs
+
             allfreqs.fillna(method="pad", inplace=True)
             _plot_freq_hists(allfreqs, "out", axis, self.name)
 
@@ -327,9 +343,13 @@ classes are parsed.
         """
 
         load_data = self.cpu_in_power.get_load_data(mapping_label)
-        gpu_data = pd.DataFrame({"GPU":
-                                 self.devfreq_in_power.data_frame["load"]})
-        load_data = pd.concat([load_data, gpu_data], axis=1)
+        try:
+            gpu_data = pd.DataFrame({"GPU":
+                                     self.devfreq_in_power.data_frame["load"]})
+            load_data = pd.concat([load_data, gpu_data], axis=1)
+        except KeyError:
+            pass
+
         load_data = load_data.fillna(method="pad")
         title = plot_utils.normalize_title("Utilisation", title)
 

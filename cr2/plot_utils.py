@@ -114,6 +114,25 @@ def post_plot_setup(ax, title="", xlabel=None, ylabel=None, xlim="default",
     set_ylim(ax, ylim)
     set_xlim(ax, xlim)
 
+def number_freq_plots(runs, map_label):
+    """Calculate the number of plots needed for allfreq plots and frequency
+    histogram plots
+
+    """
+    num_cpu_plots = len(map_label)
+
+    has_devfreq_data = False
+    for run in runs:
+        if len(run.devfreq_in_power.data_frame) > 0:
+            has_devfreq_data = True
+            break
+
+    num_freq_plots = num_cpu_plots
+    if has_devfreq_data:
+        num_freq_plots += 1
+
+    return num_freq_plots
+
 def plot_temperature(runs, width=None, height=None, ylim="range"):
     """Plot temperatures
 
@@ -166,7 +185,9 @@ def plot_load(runs, map_label, width=None, height=None):
 def plot_allfreqs(runs, map_label, width=None, height=None):
     """Make a multicolumn plots of the allfreqs plots of each run"""
     num_runs = len(runs)
-    axis = pre_plot_setup(width=width, height=height, nrows=len(map_label) + 1,
+    nrows = number_freq_plots(runs, map_label)
+
+    axis = pre_plot_setup(width=width, height=height, nrows=nrows,
                           ncols=num_runs)
 
     if num_runs == 1:
@@ -213,7 +234,7 @@ def plot_output_power(runs, actor_order, width=None, height=None):
 def plot_freq_hists(runs, map_label):
     """Plot frequency histograms of multiple runs"""
     num_runs = len(runs)
-    nrows = 2 * (len(map_label) + 1)
+    nrows = 2 * number_freq_plots(runs, map_label)
     axis = pre_plot_setup(ncols=num_runs, nrows=nrows)
 
     if num_runs == 1:
