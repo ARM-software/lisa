@@ -65,7 +65,7 @@ class Topology(object):
         """
 
         if level_name == "all":
-            return self.flatten()
+            return [self.flatten()]
         else:
             return self._levels[level_name]
 
