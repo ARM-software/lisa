@@ -23,7 +23,7 @@ class Serializer(json.JSONEncoder):
     def default(self, o):  # pylint: disable=E0202
         if isinstance(o, Serializable):
             return o.serialize()
-        if isinstance(o, Enum.EnumEntry):
+        if isinstance(o, EnumEntry):
             return o.name
         return json.JSONEncoder.default(self, o)
 
@@ -58,6 +58,18 @@ class DaqServerResponse(Serializable):
         return '{} {}'.format(self.status, self.message or '')
 
 
+class EnumEntry(object):
+
+    def __init__(self, name):
+        self.name = name
+
+    def __str__(self):
+        return self.name
+
+    def __cmp__(self, other):
+        return cmp(self.name, str(other))
+
+
 class Enum(object):
     """
     Assuming MyEnum = Enum('A', 'B'),
@@ -74,17 +86,9 @@ class Enum(object):
 
     """
 
-    class EnumEntry(object):
-        def __init__(self, name):
-            self.name = name
-        def __str__(self):
-            return self.name
-        def __cmp__(self, other):
-            return cmp(self.name, str(other))
-
     def __init__(self, *args):
         for a in args:
-            setattr(self, a, self.EnumEntry(a))
+            setattr(self, a, EnumEntry(a))
 
     def __call__(self, value):
         if value not in self.__dict__:

@@ -258,7 +258,7 @@ if __name__ == '__main__':
     output_directory = sys.argv[1]
     duration = float(sys.argv[2])
 
-    print "Avialable devices:", list_availabe_devices()
+    print "Avialable devices:", list_available_devices()
     runner = DaqRunner(dev_config, output_directory)
     runner.start()
     time.sleep(duration)
