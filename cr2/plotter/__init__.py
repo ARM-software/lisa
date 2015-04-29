@@ -17,3 +17,21 @@
 
 import pandas as pd
 from LinePlot import LinePlot
+import AttrConf
+
+
+def register_forwarding_arg(arg_name):
+    """Allows the user to register args to
+       be forwarded to matplotlib
+    """
+    if arg_name not in AttrConf.ARGS_TO_FORWARD:
+        AttrConf.ARGS_TO_FORWARD.append(arg_name)
+
+def unregister_forwarding_arg(arg_name):
+    """Unregisters arg_name from being passed to
+       plotter matplotlib calls
+    """
+    try:
+        AttrConf.ARGS_TO_FORWARD.remove(arg_name)
+    except ValueError:
+        pass
