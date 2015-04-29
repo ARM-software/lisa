@@ -19,6 +19,7 @@ from cr2.plotter.PlotLayout import PlotLayout
 from cr2.stats import StatConf
 from cr2.stats.Indexer import get_unified_indexer
 import numpy as np
+import math
 
 
 class Correlator(object):
@@ -38,6 +39,7 @@ class Correlator(object):
         self.indexer = get_unified_indexer([first.indexer, second.indexer])
         self._corrfunc = corrfunc
         self.corr_graphs = {}
+        self._shift = self._align_top_level()
 
     def _resample(self, series, delta=StatConf.DELTA_DEFAULT):
         """Internal method to resample the series
@@ -69,7 +71,10 @@ class Correlator(object):
         """
         result_1 = self._first_agg.aggregate(level=level)
         result_2 = self._second_agg.aggregate(level=level)
+
+
         corr_output = []
+        weights = []
 
         for group_id, result_group in enumerate(result_1):
             series_x = result_group
@@ -79,13 +84,17 @@ class Correlator(object):
                 series_x = self._resample(series_x)
                 series_y = self._resample(series_y)
 
-            front_x, front_y = align(series_x, series_y, mode="front")
-            front_corr = front_x.corr(front_y)
-            back_x, back_y = align(series_x, series_y, mode="back")
-            back_corr = back_x.corr(back_y)
-            corr_output.append(max(back_corr, front_corr))
+            series_x, series_y = shift_series(series_x, series_y, self._shift)
+            corr_output.append(self._correlate(series_x, series_y))
+            weights.append(len(series_x[series_x != 0]) + len(series_y[series_y != 0]))
 
-        return corr_output
+        total = 0
+        for weight, corr in zip(weights, corr_output):
+            if math.isnan(corr):
+                continue
+            total += (weight * corr) / sum(weights)
+
+        return corr_output, total
 
 
     def plot(self, level, per_line=3):
@@ -107,35 +116,59 @@ class Correlator(object):
             s_x = self._resample(s_x)
             s_y = self._resample(s_y)
 
+            s_x, s_y = shift_series(s_x, s_y, self._shift)
+
             ymax = 1.25 + max(max(s_x.values), max(s_y.values)) + 1
             ymin = min(min(s_x.values), min(s_y.values)) - 1
             ylim = [ymin, ymax]
+            ylim = [-1, 3]
 
             axis = layout.get_axis(plot_index)
-            front_x, front_y = align(s_x, s_y, mode="front")
-            front_corr = front_x.corr(front_y)
-            back_x, back_y = align(s_x, s_y, mode="back")
-            back_corr = back_x.corr(back_y)
 
-            if front_corr > back_corr:
-                axis.plot(front_x.index, front_x.values)
-                axis.plot(front_y.index, front_y.values)
-            else:
-                axis.plot(back_x.index, back_x.values)
-                axis.plot(back_y.index, back_y.values)
+            axis.plot(s_x.index, s_x.values, marker = "o", linestyle = "none")
+            axis.plot(s_y.index, s_y.values, marker = "x", linestyle = "none")
 
             axis.set_ylim(ylim)
             plot_index += 1
         layout.finish(plot_index)
 
     def _correlate(self, s_x, s_y):
-        """Correlation function"""
 
         if self._corrfunc != None:
             f = self._corrfunc
             return f(s_x, s_y)
         else:
             return s_x.corr(s_y)
+
+    def _align_top_level(self):
+        """Temporary function to plot data. Expected to be
+        implemented in plotter
+        """
+
+        result_1 = self._first_agg.aggregate(level="all")
+        result_2 = self._second_agg.aggregate(level="all")
+
+        s_x = self._resample(result_1[0])
+        s_y = self._resample(result_2[0])
+
+
+        front_x, front_y, front_shift = align(s_x, s_y, mode="front")
+        front_corr = self._correlate(front_x, front_y)
+
+        back_x, back_y, back_shift = align(s_x, s_y, mode="back")
+        back_corr = self._correlate(back_x, back_y)
+
+        if math.isnan(back_corr):
+            back_corr = 0
+        if math.isnan(front_corr):
+            front_corr = 0
+
+        if front_corr >= back_corr:
+            return front_shift
+        else:
+            return back_shift
+
+
 
 def align(s_x, s_y, mode="front"):
     """Function to align the input series"""
@@ -144,7 +177,7 @@ def align(s_x, s_y, mode="front"):
     p_y = np.flatnonzero(s_y)
 
     if not len(p_x) or not len(p_y):
-        return s_x, s_y
+        return s_x, s_y, 0
 
     if mode == "front":
         p_x = p_x[0]
@@ -154,9 +187,15 @@ def align(s_x, s_y, mode="front"):
         p_x = p_x[-1]
         p_y = p_y[-1]
 
-    if p_x > p_y:
-        s_y = s_y.shift(p_x - p_y)
+    shift = p_x - p_y
+
+    s_x, s_y = shift_series(s_x, s_y, shift)
+    return s_x, s_y, shift
+
+def shift_series(s_x, s_y, shift):
+    if shift > 0:
+        s_y = s_y.shift(shift)
     else:
-        s_x = s_x.shift(p_y - p_x)
+        s_x = s_x.shift(-1 * shift)
 
     return s_x, s_y
