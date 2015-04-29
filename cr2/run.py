@@ -255,7 +255,11 @@ classes are parsed.
                 cpu = int(special_fields_match.group(3))
                 timestamp = float(special_fields_match.group(4))
 
-                data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
+                try:
+                    data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
+                except AttributeError:
+                    continue
+
                 data_str = line[data_start_idx:]
 
                 # Remove empty arrays from the trace

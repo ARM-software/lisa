@@ -198,6 +198,15 @@ class TestRun(BaseTestThermal):
         run.plot_allfreqs(self.map_label, ax=axis)
         matplotlib.pyplot.close('all')
 
+    def test_messed_up_line(self):
+        """Test that cr2.Run() doesn't bomb for messed up lines"""
+
+        with open("trace.txt", "a") as fout:
+            fout.write("     kworker/4:1-1219  [004]   508.424826: thermal_temperature:  my messed up line thermal_zone=exynos-therm id=0 temp_prev=24000 temp=24000")
+
+        run = cr2.Run()
+        self.assertTrue(len(run.thermal.data_frame) > 0)
+
 @unittest.skipUnless(utils_tests.trace_cmd_installed(),
                      "trace-cmd not installed")
 class TestRunRawDat(utils_tests.SetupDirectory):
