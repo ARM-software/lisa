@@ -55,18 +55,25 @@ class PlotLayout(object):
         # Scale the plots if there is a single plot and
         # Set boolean variables
         if num_plots == 1:
-            self._attr["width"] = int(self._attr["width"] * 2.5)
-            self._attr["length"] = int(self._attr["length"] * 1.25)
             self._single_plot = True
+            self._scale_plot()
         elif self.rows == 1:
             self.usecol = True
         elif self.cols == 1:
             self.userow = True
+            self._scale_plot()
 
         self._attr["figure"], self._attr["axes"] = plt.subplots(
             self.rows, self.cols, figsize=(
                 self._attr["width"] * self.cols,
                 self._attr["length"] * self.rows))
+
+    def _scale_plot(self):
+        """Scale the graph in one
+           plot per line use case"""
+
+        self._attr["width"] = int(self._attr["width"] * 2.5)
+        self._attr["length"] = int(self._attr["length"] * 1.25)
 
     def _set_defaults(self):
         """set the default attrs"""
