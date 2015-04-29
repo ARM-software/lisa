@@ -675,7 +675,7 @@ class RunConfiguration(object):
 
     def _finalize_device_config(self):
         self._load_default_config_if_necessary(self.device)
-        config = _merge_config_dicts(self._raw_config.get(self.device),
+        config = _merge_config_dicts(self._raw_config.get(self.device, {}),
                                      self._raw_config.get('device_config', {}),
                                      list_duplicates='all')
         self.device_config = config

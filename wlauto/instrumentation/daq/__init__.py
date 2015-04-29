@@ -20,6 +20,7 @@ import os
 import sys
 import csv
 from collections import OrderedDict
+from multiprocessing import Process, Queue
 
 from wlauto import Instrument, Parameter
 from wlauto.exceptions import ConfigError, InstrumentError
@@ -209,7 +210,11 @@ class Daq(Instrument):
 
     def _execute_command(self, command, **kwargs):
         # pylint: disable=E1101
-        result = daq.execute_command(self.server_config, command, **kwargs)
+        q = Queue()
+        p = Process(target=_send_daq_command, args=(q, self.server_config, command), kwargs=kwargs)
+        p.start()
+        result = q.get()
+        p.join()
         if result.status == daq.Status.OK:
             pass  # all good
         elif result.status == daq.Status.OKISH:
@@ -219,3 +224,8 @@ class Daq(Instrument):
         else:
             raise InstrumentError('DAQ: Unexpected result: {} - {}'.format(result.status, result.message))
         return result.data
+
+
+def _send_daq_command(q, *args, **kwargs):
+    result = daq.execute_command(*args, **kwargs)
+    q.put(result)
