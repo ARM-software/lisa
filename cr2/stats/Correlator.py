@@ -26,7 +26,7 @@ class Correlator(object):
        runs
     """
 
-    def __init__(self, first, second):
+    def __init__(self, first, second, corrfunc=None):
         """
             Args:
                 first (stat.Aggregator): First Aggregator
@@ -36,6 +36,7 @@ class Correlator(object):
         self._first_agg = first
         self._second_agg = second
         self.indexer = get_unified_indexer([first.indexer, second.indexer])
+        self._corrfunc = corrfunc
         self.corr_graphs = {}
 
     def _resample(self, series, delta=StatConf.DELTA_DEFAULT):
@@ -127,6 +128,14 @@ class Correlator(object):
             plot_index += 1
         layout.finish(plot_index)
 
+    def _correlate(self, s_x, s_y):
+        """Correlation function"""
+
+        if self._corrfunc != None:
+            f = self._corrfunc
+            return f(s_x, s_y)
+        else:
+            return s_x.corr(s_y)
 
 def align(s_x, s_y, mode="front"):
     """Function to align the input series"""
