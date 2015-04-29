@@ -151,6 +151,10 @@ class LinePlot(AbstractDataPlotter):
 
             constraint_index += 1
 
+        for l_idx, legend_line in enumerate(legend):
+            if not legend_line:
+                del legend[l_idx]
+                del legend_str[l_idx]
         self._fig.legend(legend, legend_str)
 
         plot_index = 0
