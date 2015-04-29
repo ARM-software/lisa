@@ -77,3 +77,17 @@ def residency_sum(series):
 
 
     return duration
+
+def binary_correlate(series_x, series_y):
+    """Function to Correlate binary Data"""
+
+    if len(series_x) != len(series_y):
+        raise ValueError("Cannot compute binary correlation for \
+                          unequal vectors")
+
+    agree = len(series_x[series_x == series_y])
+    disagree = len(series_x[series_x != series_y])
+
+    return (agree - disagree) / float(len(series_x))
+
+
