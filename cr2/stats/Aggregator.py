@@ -169,7 +169,7 @@ class MultiTriggerAggregator(AbstractAggregator):
         """
 
         for trigger in self._triggers:
-            for node in self.topology.get_level("all"):
+            for node in self.topology.flatten():
                 result_df = trigger.generate(node)
                 self._add_result(node, result_df, trigger.value)
 
