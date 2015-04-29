@@ -53,6 +53,8 @@ class EnergyProbe(Instrument):
                   description="""The value of shunt resistors. This is a mandatory parameter."""),
         Parameter('labels', kind=list, default=[],
                   description="""Meaningful labels for each of the monitored rails."""),
+        Parameter('device_entry', kind=str, default='/dev/ttyACM0',
+                  description="""Path to /dev entry for the energy probe (it should be /dev/ttyACMx)"""),
     ]
 
     MAX_CHANNELS = 3
@@ -84,7 +86,7 @@ class EnergyProbe(Instrument):
         rstring = ""
         for i, rval in enumerate(self.resistor_values):
             rstring += '-r {}:{} '.format(i, rval)
-        self.command = 'caiman -l {} {}'.format(rstring, self.output_directory)
+        self.command = 'caiman -d {} -l {} {}'.format(self.device_entry, rstring, self.output_directory)
         os.makedirs(self.output_directory)
 
     def start(self, context):
