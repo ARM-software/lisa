@@ -135,6 +135,7 @@ class SshShell(object):
 
     def _execute_and_wait_for_prompt(self, command, timeout=None, as_root=False, strip_colors=True, log=True):
         timeout = self.timeout if timeout is None else timeout
+        self.conn.prompt(0.1) # clear an existing prompt if there is one.
         if as_root:
             command = "sudo -- sh -c '{}'".format(escape_single_quotes(command))
             if log:
@@ -154,15 +155,6 @@ class SshShell(object):
             # command to shell.
             output = re.sub(r' \r([^\n])', r'\1', self.conn.before)
             command_index = output.find(command)
-            while not timed_out and command_index == -1:
-                # In case of a "premature" timeout (i.e. timeout, but no hang,
-                # so command completes afterwards), there may be a prompt from
-                # the previous command completion in the serial output. This
-                # checks for this case by making sure that the original command
-                # is present in the serial output and waiting for the next
-                # prompt if it is not.
-                output = re.sub(r' \r([^\n])', r'\1', self.conn.before)
-                command_index = output.find(command)
             output = output[command_index + len(command):].strip()
         if timed_out:
             raise TimeoutError(command, output)
