@@ -339,6 +339,8 @@ def _merge_two_lists(base, other, duplicates='all', dict_type=dict):  # pylint: 
     elif duplicates == 'first':
         base_norm = normalize(base, dict_type)
         merged_list = normalize(base, dict_type)
+        for v in base_norm:
+            _check_remove_item(merged_list, v)
         for v in normalize(other, dict_type):
             if not _check_remove_item(merged_list, v):
                 if v not in base_norm:
@@ -351,9 +353,12 @@ def _merge_two_lists(base, other, duplicates='all', dict_type=dict):  # pylint: 
             if not _check_remove_item(merged_list, v):
                 if v not in other_norm:
                     merged_list.append(v)
-        return merged_list + other_norm
+        for v in other_norm:
+            if not _check_remove_item(merged_list, v):
+                merged_list.append(v)
+        return merged_list
     else:
-        raise ValueError('Unexpected value for list duplcates argument: {}. '.format(duplicates) +
+        raise ValueError('Unexpected value for list duplicates argument: {}. '.format(duplicates) +
                          'Must be in {"all", "first", "last"}.')
 
 

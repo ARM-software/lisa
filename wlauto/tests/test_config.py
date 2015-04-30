@@ -167,6 +167,13 @@ class ConfigTest(TestCase):
         self.config.finalize()
         assert_equal(self.config.instrumentation['list_params']['param'], [0.1, 0.1, 0.1])
 
+    def test_remove_instrument(self):
+        self.config.load_config({'instrumentation': ['list_params']})
+        a = Agenda('{config: {instrumentation: [~list_params] }}')
+        self.config.set_agenda(a)
+        self.config.finalize()
+        assert_equal(self.config.instrumentation, {})
+
     def test_global_instrumentation(self):
         self.config.load_config({'instrumentation': ['global_instrument']})
         ws = AgendaWorkloadEntry(id='a', iterations=1, name='linpack', instrumentation=['local_instrument'])
