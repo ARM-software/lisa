@@ -22,7 +22,7 @@ from unittest import TestCase
 from nose.tools import assert_equal, assert_in, raises
 
 from wlauto.core.bootstrap import ConfigLoader
-from wlauto.core.agenda import AgendaWorkloadEntry, AgendaGlobalEntry
+from wlauto.core.agenda import AgendaWorkloadEntry, AgendaGlobalEntry, Agenda
 from wlauto.core.configuration import RunConfiguration
 from wlauto.exceptions import ConfigError
 
@@ -33,24 +33,35 @@ BAD_CONFIG_TEXT = """device = 'TEST
 device_config = 'TEST-CONFIG'"""
 
 
+LIST_PARAMS_AGENDA_TEXT = """
+config:
+    instrumentation: [list_params]
+    list_params:
+        param: [0.1, 0.1, 0.1]
+workloads:
+    - dhrystone
+"""
+
+
 class MockExtensionLoader(object):
 
     def __init__(self):
         self.aliases = {}
         self.global_param_aliases = {}
-        self.extensions = {}
+        self.extensions = {
+            'defaults_workload': DefaultsWorkload(),
+            'list_params': ListParamstrument(),
+        }
 
     def get_extension_class(self, name, kind=None):  # pylint: disable=unused-argument
-        if name == 'defaults_workload':
-            return DefaultsWorkload()
-        else:
-            return NamedMock(name)
+        return self.extensions.get(name, NamedMock(name))
 
     def resolve_alias(self, name):
         return name, {}
 
     def get_default_config(self, name):  # pylint: disable=unused-argument
-        return {}
+        ec = self.get_extension_class(name)
+        return {p.name: p.default for p in ec.parameters}
 
     def has_extension(self, name):
         return name in self.aliases or name in self.extensions
@@ -86,6 +97,14 @@ class DefaultsWorkload(object):
         self.name = 'defaults_workload'
         self.parameters = [NamedMock('param')]
         self.parameters[0].default = [1, 2]
+
+
+class ListParamstrument(object):
+
+    def __init__(self):
+        self.name = 'list_params'
+        self.parameters = [NamedMock('param')]
+        self.parameters[0].default = []
 
 
 class ConfigLoaderTest(TestCase):
@@ -141,6 +160,12 @@ class ConfigTest(TestCase):
         self.config.set_agenda(MockAgenda(ws))
         spec = self.config.workload_specs[0]
         assert_equal(spec.workload_parameters, {'param': [3]})
+
+    def test_exetension_params_lists(self):
+        a = Agenda(LIST_PARAMS_AGENDA_TEXT)
+        self.config.set_agenda(a)
+        self.config.finalize()
+        assert_equal(self.config.instrumentation['list_params']['param'], [0.1, 0.1, 0.1])
 
     def test_global_instrumentation(self):
         self.config.load_config({'instrumentation': ['global_instrument']})

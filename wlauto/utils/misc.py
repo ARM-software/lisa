@@ -313,7 +313,23 @@ def merge_lists(*args, **kwargs):
 
 
 def _merge_two_lists(base, other, duplicates='all', dict_type=dict):  # pylint: disable=R0912
-    """Merge lists, normalizing their entries."""
+    """
+    Merge lists, normalizing their entries.
+
+    parameters:
+
+        :base, other: the two lists to be merged. ``other`` will be merged on
+                      top of base.
+        :duplicates: Indicates the strategy of handling entries that appear
+                     in both lists. ``all`` will keep occurrences from both
+                     lists; ``first`` will only keep occurrences from
+                     ``base``; ``last`` will only keep occurrences from
+                     ``other``;
+
+                     .. note:: duplicate entries that appear in the *same* list
+                               will never be removed.
+
+    """
     if duplicates == 'all':
         merged_list = []
         for v in normalize(base, dict_type) + normalize(other, dict_type):
@@ -321,20 +337,21 @@ def _merge_two_lists(base, other, duplicates='all', dict_type=dict):  # pylint: 
                 merged_list.append(v)
         return merged_list
     elif duplicates == 'first':
-        merged_list = []
-        for v in normalize(base + other, dict_type):
+        base_norm = normalize(base, dict_type)
+        merged_list = normalize(base, dict_type)
+        for v in normalize(other, dict_type):
             if not _check_remove_item(merged_list, v):
-                if v not in merged_list:
-                    merged_list.append(v)
+                if v not in base_norm:
+                    merged_list.append(v)  # pylint: disable=no-member
         return merged_list
     elif duplicates == 'last':
+        other_norm = normalize(other, dict_type)
         merged_list = []
-        for v in normalize(base + other, dict_type):
+        for v in normalize(base, dict_type):
             if not _check_remove_item(merged_list, v):
-                if v in merged_list:
-                    del merged_list[merged_list.index(v)]
-                merged_list.append(v)
-        return merged_list
+                if v not in other_norm:
+                    merged_list.append(v)
+        return merged_list + other_norm
     else:
         raise ValueError('Unexpected value for list duplcates argument: {}. '.format(duplicates) +
                          'Must be in {"all", "first", "last"}.')
