@@ -42,10 +42,12 @@ class CgroupController(object):
         if self.mount_point in [e.mount_point for e in mounted]:
             self.logger.debug('controller is already mounted.')
         else:
-            self.device.execute('mkdir -p {} 2>/dev/null'.format(self.mount_point))
+            self.device.execute('mkdir -p {} 2>/dev/null'.format(self.mount_point),
+                                as_root=True)
             self.device.execute('mount -t cgroup -o {} {} {}'.format(self.kind,
                                                                      self.mount_name,
-                                                                     self.mount_point))
+                                                                     self.mount_point),
+                                as_root=True)
 
 
 class CpusetGroup(object):
@@ -58,7 +60,7 @@ class CpusetGroup(object):
             self.directory = controller.mount_point
         else:
             self.directory = self.device.path.join(controller.mount_point, name)
-            self.device.execute('mkdir -p {}'.format(self.directory))
+            self.device.execute('mkdir -p {}'.format(self.directory), as_root=True)
         self.cpus_file = self.device.path.join(self.directory, 'cpuset.cpus')
         self.mems_file = self.device.path.join(self.directory, 'cpuset.mems')
         self.tasks_file = self.device.path.join(self.directory, 'tasks')
@@ -165,7 +167,8 @@ class Cgroups(Module):
     def _on_device_init(self, context):  # pylint: disable=unused-argument
         mounted = self.device.list_file_systems()
         if self.cgroup_root not in [e.mount_point for e in mounted]:
-            self.device.execute('mount -t tmpfs {} {}'.format('cgroup_root', self.cgroup_root))
+            self.device.execute('mount -t tmpfs {} {}'.format('cgroup_root', self.cgroup_root),
+                                as_root=True)
         else:
             self.logger.debug('cgroup_root already mounted at {}'.format(self.cgroup_root))
         for controller in self.controllers:
