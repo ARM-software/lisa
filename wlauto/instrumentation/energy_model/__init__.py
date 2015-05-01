@@ -11,6 +11,8 @@ from collections import Counter, namedtuple
 try:
     import jinja2
     import pandas as pd
+    import matplotlib
+    matplotlib.use('AGG')
     import matplotlib.pyplot as plt
     import numpy as np
     import_error = None
