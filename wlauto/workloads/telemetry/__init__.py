@@ -1,3 +1,18 @@
+#    Copyright 2015 ARM Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 # pylint: disable=attribute-defined-outside-init
 import os
 import re
@@ -165,10 +180,19 @@ class Telemetry(Workload):
         pass
 
     def build_command(self):
+        device_opts = ''
         if self.device.platform == 'chromeos':
-            device_opts = '--remote={} --browser=cros-chrome'.format(self.device.host)
+            if '--remote' not in self.run_benchmark_params:
+                device_opts += '--remote={} '.format(self.device.host)
+            if '--browser' not in self.run_benchmark_params:
+                device_opts += '--browser=cros-chrome '
+        elif self.device.platform == 'android':
+            if '--device' not in self.run_benchmark_params and self.device.adb_name:
+                device_opts += '--device={} '.format(self.device.adb_name)
+            if '--browser' not in self.run_benchmark_params:
+                device_opts += '--browser=android-webview-shell '
         else:
-            raise WorkloadError('Currently, telemetry workload supports only ChromeOS devices.')
+            raise WorkloadError('Currently, telemetry workload supports only ChromeOS or Android devices.')
         return '{} {} {} {}'.format(self.run_benchmark_path,
                                     self.test,
                                     device_opts,
