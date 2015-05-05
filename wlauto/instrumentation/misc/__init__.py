@@ -173,7 +173,8 @@ class SysfsExtractor(Instrument):
             except (DeviceError, CalledProcessError):
                 # assume a directory but not mount point
                 pass
-            self.device.execute('rm -rf {}'.format(self.tmpfs_mount_point), as_root=True)
+            self.device.execute('rm -rf {}'.format(self.tmpfs_mount_point),
+                                as_root=True, check_exit_code=False)
 
     def validate(self):
         if not self.tmpfs_mount_point:  # pylint: disable=access-member-before-definition
