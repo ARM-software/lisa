@@ -16,7 +16,29 @@
 stats framework
 """
 
+import numpy as np
+from cr2.stats.Trigger import Trigger
+
 WINDOW_SIZE = 0.0001
+
+# Trigger Values
+SCHED_SWITCH_IN = 1
+SCHED_SWITCH_OUT = -1
+NO_EVENT = 0
+
+# Field Names
+CPU_FIELD = "__cpu"
+NEXT_PID_FIELD = "next_pid"
+PREV_PID_FIELD = "prev_pid"
+
+
+def select_window(series, window):
+    start, stop = window
+    ix = series.index
+    selector = ((ix >= start) & (ix <= stop))
+    window_series = series[selector]
+    return window_series
+
 
 def window_filt_cum_sum(series):
     """The following actions are done on the
@@ -33,25 +55,44 @@ def window_filt_cum_sum(series):
             pandas.Series
     """
 
-    prev = None
+    start = None
     for index, value in series.iteritems():
-        if value != 0:
-            if prev is None:
-                prev = index
+
+        if value == SCHED_SWITCH_IN:
+            if start == None:
                 continue
 
-            if index - prev < WINDOW_SIZE:
-                if series[prev] == -1:
-                    series[prev] = 0
-                    series[index] = 0
-                    prev = None
-            else:
-                prev = index
+            if index - start < WINDOW_SIZE:
+                series[start] = NO_EVENT
+                series[index] = NO_EVENT
+            start = None
 
+        if value == SCHED_SWITCH_OUT:
+            start = index
 
     return series.cumsum()
 
-def residency_sum(series):
+def num_edges_sum(series, window, value):
+
+    start = None
+    for index, val in series.iteritems():
+
+        if val == SCHED_SWITCH_IN:
+            if start == None:
+                continue
+
+            if index - start < WINDOW_SIZE:
+                series[start] = NO_EVENT
+                series[index] = NO_EVENT
+            start = None
+
+        if val == SCHED_SWITCH_OUT:
+            start = index
+
+    series = select_window(series, window)
+    return len(series[series == value])
+
+def residency_sum(series, window=None):
     """The input series is processed for
     intervals between a 1 and -1 in order
     to track additive residency of a task
@@ -59,17 +100,26 @@ def residency_sum(series):
 
         Args:
             series (pandas.Series)
+            window (start, stop): A start stop
+                tuple to process only a section of the
+                series
         Returns:
             float (scalar)
     """
 
+    if window:
+        start, stop = window
+        ix = series.index
+        selector = ((ix >= start) & (ix <= stop))
+        series = series[selector]
+
     duration = 0
     start = None
     for index, value in series.iteritems():
-        if value == 1:
+        if value == SCHED_SWITCH_IN:
             start = index
 
-        if value == -1:
+        if value == SCHED_SWITCH_OUT:
             if start is not None:
                 duration += index - start
 
@@ -77,6 +127,14 @@ def residency_sum(series):
 
 
     return duration
+
+def total_duration(series):
+    """Aggregator function that returns the
+    total execution duration
+    """
+
+    index = series.index.values
+    return index[-1] - index[0]
 
 def binary_correlate(series_x, series_y):
     """Function to Correlate binary Data"""
@@ -90,4 +148,97 @@ def binary_correlate(series_x, series_y):
 
     return (agree - disagree) / float(len(series_x))
 
+
+
+def get_pids_for_process(run, execname, cls=None):
+    """Returns the pids for a given process
+
+    Args:
+        run (cr2.Run): A cr2.Run object with a sched_switch
+            event
+        execname (str): The name of the process
+        cls (cr2.Base): The SchedSwitch event class
+
+    Returns:
+        The list of pids (unique) for the execname
+
+    """
+
+    if not cls:
+        try:
+            df = run.sched_switch.data_frame
+        except AttributeError:
+            raise ValueError("SchedSwitch event not found in run")
+    else:
+        event = getattr(run, cls.name)
+        df = event.data_frame
+
+    mask = df["__comm"].apply(lambda x : True if x.startswith(execname) else False)
+    return list(np.unique(df[mask]["__pid"].values))
+
+
+def sched_triggers(run, pid, sched_switch_class):
+    """Returns the list of sched_switch triggers
+
+
+    Args:
+        run (cr2.Run): A run object with SchedSwitch event
+        pid (int): pid of the associated task
+        sched_switch_class (cr2.Base): The SchedSwitch class
+
+    Returns:
+        Lits of triggers
+        [0] = switch_in_trigger
+        [1] = switch_out_trigger
+    """
+
+    if not hasattr(run, "sched_switch"):
+        raise ValueError("SchedSwitch event not found in run")
+
+    triggers = []
+    triggers.append(sched_switch_in_trigger(run, pid, sched_switch_class))
+    triggers.append(sched_switch_out_trigger(run, pid, sched_switch_class))
+    return triggers
+
+def sched_switch_in_trigger(run, pid, sched_switch_class):
+    """
+    Args:
+        run (cr2.Run): A run object with SchedSwitch event
+        pid (int): pid of the associated task
+        sched_switch_class (cr2.Base): The SchedSwitch class
+
+
+    Returns:
+        Trigger on the SchedSwitch: IN
+    """
+
+    task_in = {}
+    task_in[NEXT_PID_FIELD] = pid
+
+    return Trigger(run,
+                   sched_switch_class,              # cr2 Event Class
+                   task_in,                         # Filter Dictionary
+                   SCHED_SWITCH_IN,                 # Trigger Value
+                   CPU_FIELD)                       # Primary Pivot
+
+def sched_switch_out_trigger(run, pid, sched_switch_class):
+    """
+    Args:
+        run (cr2.Run): A run object with SchedSwitch event
+        pid (int): pid of the associated task
+        sched_switch_class (cr2.Base): The SchedSwitch class
+
+
+    Returns:
+        Trigger on the SchedSwitch: OUT
+    """
+
+    task_out = {}
+    task_out[PREV_PID_FIELD] = pid
+
+    return Trigger(run,
+                   sched_switch_class,              # cr2 Event Class
+                   task_out,                        # Filter Dictionary
+                   SCHED_SWITCH_OUT,                # Trigger Value
+                   CPU_FIELD)                       # Primary Pivot
 
