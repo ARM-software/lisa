@@ -34,9 +34,17 @@ class Topology(object):
        but can be used generically as well
     """
 
-    def __init__(self):
+    def __init__(self, clusters=[]):
         self._levels = {}
         self._nodes = set()
+
+        if len(clusters):
+            self.add_to_level("cluster", clusters)
+            cpu_level = []
+            for node in self.flatten():
+                cpu_level.append([node])
+            self.add_to_level("cpu", cpu_level)
+
 
     def add_to_level(self, level_name, level_vals):
         """Add a group to a level
