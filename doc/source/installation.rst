@@ -261,6 +261,22 @@ This is the list of workloads that rely on such recordings:
 | truckerparking3d |
 +------------------+
 
+.. _assets_repository:
+
+Maintaining Centralized Assets Repository
+-----------------------------------------
+
+If there are multiple users within an organization that may need to deploy
+assets for WA extensions, that organization may wish to maintain a centralized
+repository of assets that individual WA installs will be able to automatically
+retrieve asset files from as they are needed. This repository can be any
+directory on a network filer that mirrors the structure of
+``~/.workload_automation/dependencies``, i.e. has a subdirectories named after
+the extensions which assets they contain. Individual WA installs can then set
+``remote_assets_path`` setting in their config to point to the local mount of
+that location.
+
+
 (Optional) Uninstalling
 =======================
 

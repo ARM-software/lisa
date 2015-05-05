@@ -136,6 +136,12 @@ Available Settings
    All three values should be Python `old-style format strings`_ specifying which
    `log record attributes`_ should be displayed.
 
+.. confval:: remote_assets_path
+
+   Path to the local mount of a network assets repository. See
+   :ref:`assets_repository`.
+
+
 There are also a couple of settings are used to provide additional metadata
 for a run. These may get picked up by instruments or result processors to 
 attach  context to results.
