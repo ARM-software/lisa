@@ -107,7 +107,7 @@ class Telemetry(Workload):
 
     def validate(self):
         ret = os.system('{} > {} 2>&1'.format(self.run_benchmark_path, get_null()))
-        if ret == 0xff00:  # is it supposed to be 0xff?
+        if ret > 255:
             pass  # telemetry found and appears to be installed properly.
         elif ret == 127:
             raise WorkloadError('run_benchmarks not found (did you specify correct run_benchmarks_path?)')
