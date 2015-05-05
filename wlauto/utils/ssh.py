@@ -17,6 +17,7 @@
 import logging
 import subprocess
 import re
+import threading
 
 import pxssh
 from pexpect import EOF, TIMEOUT, spawn
@@ -88,6 +89,7 @@ class SshShell(object):
         self.password_prompt = password_prompt if password_prompt is not None else self.default_password_prompt
         self.timeout = timeout
         self.conn = None
+        self.lock = threading.Lock()
 
     def login(self, host, username, password=None, keyfile=None, port=None, timeout=None, telnet=False):
         # pylint: disable=attribute-defined-outside-init
@@ -118,13 +120,14 @@ class SshShell(object):
         return subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)
 
     def execute(self, command, timeout=None, check_exit_code=True, as_root=False, strip_colors=True):
-        output = self._execute_and_wait_for_prompt(command, timeout, as_root, strip_colors)
-        if check_exit_code:
-            exit_code = int(self._execute_and_wait_for_prompt('echo $?', strip_colors=strip_colors, log=False))
-            if exit_code:
-                message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
-                raise DeviceError(message.format(exit_code, command, output))
-        return output
+        with self.lock:
+            output = self._execute_and_wait_for_prompt(command, timeout, as_root, strip_colors)
+            if check_exit_code:
+                exit_code = int(self._execute_and_wait_for_prompt('echo $?', strip_colors=strip_colors, log=False))
+                if exit_code:
+                    message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
+                    raise DeviceError(message.format(exit_code, command, output))
+            return output
 
     def logout(self):
         logger.debug('Logging out {}@{}'.format(self.username, self.host))
