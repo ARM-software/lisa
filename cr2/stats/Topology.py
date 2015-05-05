@@ -77,6 +77,13 @@ class Topology(object):
         else:
             return self._levels[level_name]
 
+    def get_index(self, level, node):
+        """Return the index of the node in the
+        level's list of nodes"""
+
+        nodes = self.get_level(level)
+        return nodes.index(node)
+
     def __iter__(self):
         return self._levels.__iter__()
 
