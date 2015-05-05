@@ -126,8 +126,8 @@ class Correlator(object):
 
             axis = layout.get_axis(plot_index)
 
-            axis.plot(s_x.index, s_x.values, marker = "o", linestyle = "none")
-            axis.plot(s_y.index, s_y.values, marker = "x", linestyle = "none")
+            axis.plot(s_x.index, s_x.values)
+            axis.plot(s_y.index, s_y.values)
 
             axis.set_ylim(ylim)
             plot_index += 1
