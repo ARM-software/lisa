@@ -143,11 +143,11 @@ class MultiTriggerAggregator(AbstractAggregator):
 
         for group in level_groups:
             group = listify(group)
-            level_res = self._aggfunc(self._result[group[0]])
+            level_res = self._aggfunc(self._result[group[0]], **kwargs)
 
             for node in group[1:]:
                 if self._aggfunc is not None:
-                    node_res = self._aggfunc(self._result[node])
+                    node_res = self._aggfunc(self._result[node], **kwargs)
                 else:
                     node_res = self._result[node]
 

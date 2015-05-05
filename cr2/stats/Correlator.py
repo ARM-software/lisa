@@ -27,7 +27,7 @@ class Correlator(object):
        runs
     """
 
-    def __init__(self, first, second, corrfunc=None):
+    def __init__(self, first, second, **kwargs):
         """
             Args:
                 first (stat.Aggregator): First Aggregator
@@ -37,7 +37,8 @@ class Correlator(object):
         self._first_agg = first
         self._second_agg = second
         self.indexer = get_unified_indexer([first.indexer, second.indexer])
-        self._corrfunc = corrfunc
+        self._corrfunc = kwargs.pop("corrfunc", None)
+        self._agg_kwargs = kwargs
         self.corr_graphs = {}
         self._shift = self._align_top_level()
 
@@ -69,8 +70,8 @@ class Correlator(object):
                 for each group in the level
 
         """
-        result_1 = self._first_agg.aggregate(level=level)
-        result_2 = self._second_agg.aggregate(level=level)
+        result_1 = self._first_agg.aggregate(level=level, **self._agg_kwargs)
+        result_2 = self._second_agg.aggregate(level=level, **self._agg_kwargs)
 
 
         corr_output = []
@@ -103,8 +104,8 @@ class Correlator(object):
         """
 
         num_plots = self._first_agg.topology.level_span(level)
-        result_1 = self._first_agg.aggregate(level=level)
-        result_2 = self._second_agg.aggregate(level=level)
+        result_1 = self._first_agg.aggregate(level=level, **self._agg_kwargs)
+        result_2 = self._second_agg.aggregate(level=level, **self._agg_kwargs)
         layout = PlotLayout(per_line, num_plots)
 
         plot_index = 0
