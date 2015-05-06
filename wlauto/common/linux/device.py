@@ -972,7 +972,7 @@ class LinuxDevice(BaseLinuxDevice):
         # result should be a column of PIDs with the first row as "PID" header
         result = self.execute('ps -C {} -o pid'.format(process_name), check_exit_code=False).strip().split()
         if len(result) >= 2:  # at least one row besides the header
-            return result[1:]
+            return map(int, result[1:])
         else:
             return []
 

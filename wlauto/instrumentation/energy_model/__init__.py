@@ -540,8 +540,12 @@ class EnergyModelInstrument(Instrument):
         self.cpuset.move_all_tasks_to(self.measuring_cluster)
         server_process = 'adbd' if self.device.platform == 'android' else 'sshd'
         server_pids = self.device.get_pids_of(server_process)
-        self.cpuset.root.add_tasks(server_pids)
-        for pid in server_pids:
+        children_ps = [e for e in self.device.ps()
+                       if e.ppid in server_pids and e.name != 'sshd']
+        children_pids = [e.pid for e in children_ps]
+        pids_to_move = server_pids + children_pids
+        self.cpuset.root.add_tasks(pids_to_move)
+        for pid in pids_to_move:
             self.device.execute('busybox taskset -p 0x{:x} {}'.format(list_to_mask(self.measuring_cpus), pid))
 
     def enable_all_cores(self):
