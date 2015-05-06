@@ -315,7 +315,7 @@ class Spec2000(Workload):
         fastest_freq = 0
         for cpu_type in cpu_types:
             try:
-                idx = self.device.get_core_cpu(cpu_type)
+                idx = self.device.get_core_online_cpu(cpu_type)
                 freq = self.device.get_cpu_max_frequency(idx)
                 if freq > fastest_freq:
                     fastest_freq = freq
