@@ -135,7 +135,7 @@ class SshShell(object):
 
     def _execute_and_wait_for_prompt(self, command, timeout=None, as_root=False, strip_colors=True, log=True):
         timeout = self.timeout if timeout is None else timeout
-        self.conn.prompt(0.1) # clear an existing prompt if there is one.
+        self.conn.prompt(0.1)  # clear an existing prompt if there is one.
         if as_root:
             command = "sudo -- sh -c '{}'".format(escape_single_quotes(command))
             if log:
