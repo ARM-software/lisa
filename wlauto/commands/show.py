@@ -48,9 +48,14 @@ class ShowCommand(Command):
         text = out.getvalue()
         pager = get_pager()
         if len(text.split('\n')) > term_height and pager:
-            sp = subprocess.Popen(pager, stdin=subprocess.PIPE)
-            sp.communicate(text)
+            try:
+                sp = subprocess.Popen(pager, stdin=subprocess.PIPE)
+                sp.communicate(text)
+            except OSError:
+                self.logger.warning('Could not use PAGER "{}"'.format(pager))
+                sys.stdout.write(text)
         else:
+            sys.stdout.write(text)
             sys.stdout.write(text)
 
 
