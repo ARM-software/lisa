@@ -643,7 +643,11 @@ class EnergyModelInstrument(Instrument):
                     spec.id = '{}_{}_{}'.format(cluster, num_cpus, freq)
                     spec.label = 'freq_{}_{}'.format(cluster, spec.label)
                     spec.workload_parameters['taskset_mask'] = list_to_mask(self.get_cpus(cluster))
-                    spec.workload_parameters['num_threads'] = len(self.get_cpus(cluster))
+                    spec.workload_parameters['num_threads'] = len(num_cpus)
+                    # max_requests set to an arbitrary high values to make sure
+                    # sysbench runs for full duriation even on highly
+                    # performant cores.
+                    spec.workload_parameters['max_requests'] = 10000000
                     spec.cluster = cluster
                     spec.num_cpus = num_cpus
                     spec.frequency = freq
