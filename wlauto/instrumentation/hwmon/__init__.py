@@ -82,13 +82,15 @@ class HwmonInstrument(Instrument):
 
         self.sensors = []
 
-    def setup(self, context):
+    def initialize(self, context):
         self.sensors = []
         self.logger.debug('Searching for HWMON sensors.')
         discovered_sensors = discover_sensors(self.device, self.sensor_kinds.keys())
         for sensor in sorted(discovered_sensors, key=lambda s: HWMON_SENSOR_PRIORITIES.index(s.kind)):
             self.logger.debug('Adding {}'.format(sensor.filepath))
             self.sensors.append(sensor)
+
+    def setup(self, context):
         for sensor in self.sensors:
             sensor.clear_readings()
 
