@@ -56,7 +56,6 @@ class ShowCommand(Command):
                 sys.stdout.write(text)
         else:
             sys.stdout.write(text)
-            sys.stdout.write(text)
 
 
 def format_extension(extension, out, width):
