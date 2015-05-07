@@ -64,12 +64,15 @@ public class UiAutomation extends BaseUiAutomation {
                     waitForVersion4Results();
                     viewDetails();
                     extractResults();
+
                     iteration++;
                     if (iteration >= times) {
                         break;
                     }
+
                     returnToTestScreen(version);
 		    dismissRateDialogIfNecessary();
+		    testAgain();
             }
         } else { // version earlier than 4.0.3
             dismissReleaseNotesDialogIfNecessary();
@@ -111,7 +114,7 @@ public class UiAutomation extends BaseUiAutomation {
     public boolean dismissRateDialogIfNecessary() throws Exception {
         UiSelector selector = new UiSelector();
         UiObject closeButton = new UiObject(selector.text("NOT NOW"));
-        if (closeButton.waitForExists(TimeUnit.SECONDS.toMillis(initialTimeoutSeconds))) {
+        if (closeButton.waitForExists(1)) {  // dialog should already be there.
             closeButton.click();
             sleep(1); // diaglog dismissal
             return true;
@@ -138,8 +141,6 @@ public class UiAutomation extends BaseUiAutomation {
         test.click();
         sleep(1); // possible tab transtion
     }
-
-
 
     public void hitTest() throws Exception {
         UiSelector selector = new UiSelector();
@@ -252,6 +253,9 @@ public class UiAutomation extends BaseUiAutomation {
         getUiDevice().pressBack();
         if (version.equals("5.3.0"))
             getUiDevice().pressBack();
+    }
+
+    public void testAgain() throws Exception {
         UiSelector selector = new UiSelector();
         UiObject retestButton = new UiObject(selector.text("Test Again")
                                                      .className("android.widget.Button"));
