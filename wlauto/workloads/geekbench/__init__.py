@@ -92,7 +92,7 @@ class Geekbench(AndroidUiAutoBenchmark):
         super(Geekbench, self).__init__(device, **kwargs)
         self.uiauto_params['version'] = self.version
         self.uiauto_params['times'] = self.times
-        self.run_timeout = 3 * 60 * self.times
+        self.run_timeout = 5 * 60 * self.times
 
     def init_resources(self, context):
         self.apk_file = context.resolver.get(wlauto.common.android.resources.ApkFile(self), version=self.version)
