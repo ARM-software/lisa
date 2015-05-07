@@ -30,19 +30,12 @@ NO_EVENT = 0
 CPU_FIELD = "__cpu"
 NEXT_PID_FIELD = "next_pid"
 PREV_PID_FIELD = "prev_pid"
+TASK_RUNNING = 1
+TASK_NOT_RUNNING = 0
 
-
-def select_window(series, window):
-    start, stop = window
-    ix = series.index
-    selector = ((ix >= start) & (ix <= stop))
-    window_series = series[selector]
-    return window_series
-
-
-def window_filt_cum_sum(series):
+def csum(series, window=None, filter_gaps=False):
     """The following actions are done on the
-    input series
+    input series if filter_gaps is set as True
 
         * A sched_out of duration < WindowSize
           is filtered out
@@ -51,10 +44,19 @@ def window_filt_cum_sum(series):
 
         Args:
             series (pandas.Series)
+            window (tuple)
+            filter_gaps (boolean)
         Returns:
             pandas.Series
     """
 
+    if filter_gaps:
+        series = filter_small_gaps(series)
+
+    series = series.cumsum()
+    return select_window(series, window)
+
+def filter_small_gaps(series):
     start = None
     for index, value in series.iteritems():
 
@@ -70,27 +72,22 @@ def window_filt_cum_sum(series):
         if value == SCHED_SWITCH_OUT:
             start = index
 
-    return series.cumsum()
+    return series
 
-def num_edges_sum(series, window, value):
 
-    start = None
-    for index, val in series.iteritems():
+def select_window(series, window):
+    """Library Function to select a portion of
+       pandas time series
+    """
 
-        if val == SCHED_SWITCH_IN:
-            if start == None:
-                continue
+    if not window:
+        return series
 
-            if index - start < WINDOW_SIZE:
-                series[start] = NO_EVENT
-                series[index] = NO_EVENT
-            start = None
-
-        if val == SCHED_SWITCH_OUT:
-            start = index
-
-    series = select_window(series, window)
-    return len(series[series == value])
+    start, stop = window
+    ix = series.index
+    selector = ((ix >= start) & (ix <= stop))
+    window_series = series[selector]
+    return window_series
 
 def residency_sum(series, window=None):
     """The input series is processed for
@@ -107,12 +104,7 @@ def residency_sum(series, window=None):
             float (scalar)
     """
 
-    if window:
-        start, stop = window
-        ix = series.index
-        selector = ((ix >= start) & (ix <= stop))
-        series = series[selector]
-
+    series = select_window(series, window)
     duration = 0
     start = None
     for index, value in series.iteritems():
@@ -147,8 +139,6 @@ def binary_correlate(series_x, series_y):
     disagree = len(series_x[series_x != series_y])
 
     return (agree - disagree) / float(len(series_x))
-
-
 
 def get_pids_for_process(run, execname, cls=None):
     """Returns the pids for a given process
