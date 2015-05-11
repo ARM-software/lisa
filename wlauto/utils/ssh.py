@@ -134,7 +134,6 @@ class SshShell(object):
         self.conn.logout()
 
     def _execute_and_wait_for_prompt(self, command, timeout=None, as_root=False, strip_colors=True, log=True):
-        timeout = self.timeout if timeout is None else timeout
         self.conn.prompt(0.1)  # clear an existing prompt if there is one.
         if as_root:
             command = "sudo -- sh -c '{}'".format(escape_single_quotes(command))
@@ -144,14 +143,14 @@ class SshShell(object):
             index = self.conn.expect_exact([self.password_prompt, TIMEOUT], timeout=0.5)
             if index == 0:
                 self.conn.sendline(self.password)
-            timed_out = not self.conn.prompt(timeout)
+            timed_out = self._wait_for_prompt(timeout)
             output = re.sub(r'.*?{}'.format(re.escape(command)), '', self.conn.before, 1).strip()
         else:
             if log:
                 logger.debug(command)
             self.conn.sendline(command)
-            timed_out = not self.conn.prompt(timeout)
-            # the regex removes line breaks potentiall introduced when writing
+            timed_out = self._wait_for_prompt(timeout)
+            # the regex removes line breaks potential introduced when writing
             # command to shell.
             output = re.sub(r' \r([^\n])', r'\1', self.conn.before)
             command_index = output.find(command)
@@ -161,6 +160,14 @@ class SshShell(object):
         if strip_colors:
             output = strip_bash_colors(output)
         return output
+
+    def _wait_for_prompt(self, timeout=None):
+        if timeout:
+            return not self.conn.prompt(timeout)
+        else:  # cannot timeout; wait forever
+            while not self.conn.prompt(self.timeout):
+                pass
+            return False
 
     def _scp(self, source, dest, timeout=30):
         # NOTE: the version of scp in Ubuntu 12.04 occasionally (and bizarrely)
