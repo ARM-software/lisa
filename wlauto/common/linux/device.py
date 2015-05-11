@@ -486,6 +486,8 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         :raises: DeviceError if for some reason the frequency could not be read.
 
         """
+        if isinstance(cpu, int):
+            cpu = 'cpu{}'.format(cpu)
         sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_min_freq'.format(cpu)
         return self.get_sysfile_value(sysfile)
 
@@ -533,17 +535,19 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_cur_freq'.format(cpu)
         return self.get_sysfile_value(sysfile)
 
-    def set_cpu_frequency(self, cpu, frequency):
+    def set_cpu_frequency(self, cpu, frequency, exact=True):
         """
         Set's the minimum value for CPU frequency. Actual frequency will
         depend on the Governor used and may vary during execution. The value should be
-        either an int or a string representing an integer. The Value must also be
-        supported by the device. The available frequencies can be obtained by calling
+        either an int or a string representing an integer.
+
+        If ``exact`` flag is set (the default), the Value must also be supported by
+        the device. The available frequencies can be obtained by calling
         get_available_frequencies() or examining
 
         /sys/devices/system/cpu/cpuX/cpufreq/scaling_available_frequencies
 
-        on the device.
+        on the device (if it exists).
 
         :raises: ConfigError if the frequency is not supported by the CPU.
         :raises: DeviceError if, for some reason, frequency could not be set.
@@ -551,19 +555,20 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         """
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
-        available_frequencies = self.list_available_cpu_frequencies(cpu)
         try:
             value = int(frequency)
-            if available_frequencies and value not in available_frequencies:
-                raise ConfigError('Can\'t set {} frequency to {}\nmust be in {}'.format(cpu,
-                                                                                        value,
-                                                                                        available_frequencies))
+            if exact:
+                available_frequencies = self.list_available_cpu_frequencies(cpu)
+                if available_frequencies and value not in available_frequencies:
+                    raise ConfigError('Can\'t set {} frequency to {}\nmust be in {}'.format(cpu,
+                                                                                            value,
+                                                                                            available_frequencies))
             if self.get_cpu_governor(cpu) != 'userspace':
                 raise ConfigError('Can\'t set {} frequency; governor must be "userspace"'.format(cpu))
             sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_setspeed'.format(cpu)
             self.set_sysfile_value(sysfile, value, verify=False)
         except ValueError:
-            raise ValueError('value must be an integer; got: "{}"'.format(value))
+            raise ValueError('frequency must be an integer; got: "{}"'.format(value))
 
     def get_cpu_max_frequency(self, cpu):
         """
