@@ -166,6 +166,34 @@ def get_pids_for_process(run, execname, cls=None):
     mask = df["__comm"].apply(lambda x : True if x.startswith(execname) else False)
     return list(np.unique(df[mask]["__pid"].values))
 
+def get_task_name(run, pid, cls=None):
+    """Returns the execname for pid
+
+    Args:
+        run (cr2.Run): A cr2.Run object with a sched_switch
+            event
+        pid (str): The name of the process
+        cls (cr2.Base): The SchedSwitch event class
+
+    Returns:
+        The execname for the PID
+
+    """
+
+    if not cls:
+        try:
+            df = run.sched_switch.data_frame
+        except AttributeError:
+           raise ValueError("SchedSwitch event not found in run")
+    else:
+        event = getattr(run, cls.name)
+        df = event.data_frame
+
+    df = df[df["__pid"] == pid]
+    if not len(df):
+        return ""
+    else:
+        return df["__comm"].values[0]
 
 def sched_triggers(run, pid, sched_switch_class):
     """Returns the list of sched_switch triggers
