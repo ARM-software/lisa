@@ -120,6 +120,9 @@ instrumentation = [
 # Specifies how results will be processed and presented.                                           #
 #                                                                                                  #
 result_processors = [
+    # Creates a status.txt that provides a summary status for the run
+    'status',
+
     # Creates a results.txt file for each iteration that lists all collected metrics
     # in "name = value (units)" format
     'standard',
@@ -132,7 +135,7 @@ result_processors = [
     # all in the .csv format. Summary metrics are defined on per-worklod basis
     # are typically things like overall scores. The contents of summary.csv are
     # always a subset of the contents of results.csv (if it is generated).
-    'summary_csv',
+    #'summary_csv',
 
     # Creates a results.csv that contains metrics for all iterations of all workloads
     # in the JSON format
