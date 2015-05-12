@@ -76,6 +76,8 @@ class PowerLoadtest(Workload):
             raise WorkloadError(message.format(self.name))
         self.command = self._build_command()
         self.raw_output = None
+        # make sure no other test is running
+        self.device.execute('killall -9 autotest', check_exit_code=False)
 
     def run(self, context):
         self.logger.debug(self.command)
