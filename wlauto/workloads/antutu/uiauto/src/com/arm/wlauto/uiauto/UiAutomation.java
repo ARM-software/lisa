@@ -53,7 +53,7 @@ public class UiAutomation extends BaseUiAutomation {
 
         if (version.equals("4.0.3") || version.equals("5.3.0")){
             int iteration = 0;
-	    dismissNewVersionNotificationIfNecessary();
+            dismissNewVersionNotificationIfNecessary();
             hitTestButton();
             while (true) {
                     if (version.equals("5.3.0"))
@@ -71,8 +71,8 @@ public class UiAutomation extends BaseUiAutomation {
                     }
 
                     returnToTestScreen(version);
-		    dismissRateDialogIfNecessary();
-		    testAgain();
+                    dismissRateDialogIfNecessary();
+                    testAgain();
             }
         } else { // version earlier than 4.0.3
             dismissReleaseNotesDialogIfNecessary();
@@ -114,14 +114,18 @@ public class UiAutomation extends BaseUiAutomation {
     public boolean dismissRateDialogIfNecessary() throws Exception {
         UiSelector selector = new UiSelector();
         UiObject closeButton = new UiObject(selector.text("NOT NOW"));
-        if (closeButton.waitForExists(1)) {  // dialog should already be there.
+        boolean dismissed = false;
+        // Sometimes, dismissing the dialog the first time does not work properly --
+        // it starts to disappear but is then immediately re-created; so may need to
+        // dismiss it as long as keeps popping up.
+        while (closeButton.waitForExists(2)) { 
             closeButton.click();
             sleep(1); // diaglog dismissal
-            return true;
-        } else {
-            return false;
-        }
+            dismissed = true;
+        } 
+        return dismissed;
     }
+
     public void hitTestButton() throws Exception {
         UiSelector selector = new UiSelector();
         UiObject test = new UiObject(selector.text("Test")
@@ -215,7 +219,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     public void extractSectionResults() throws Exception {
         UiSelector selector = new UiSelector();
-	Set<String> processedMetrics = new HashSet<String>();
+        Set<String> processedMetrics = new HashSet<String>();
 
         actuallyExtractSectionResults(processedMetrics);
         UiScrollable resultsList = new UiScrollable(selector.className("android.widget.ScrollView"));
@@ -252,13 +256,23 @@ public class UiAutomation extends BaseUiAutomation {
     public void returnToTestScreen(String version) throws Exception {
         getUiDevice().pressBack();
         if (version.equals("5.3.0"))
+        {
+            UiSelector selector = new UiSelector();
+            UiObject detailsButton = new UiObject(new UiSelector().className("android.widget.Button")
+                                                                  .text("Details"));
+            sleep(1);
             getUiDevice().pressBack();
+        }
     }
 
     public void testAgain() throws Exception {
         UiSelector selector = new UiSelector();
         UiObject retestButton = new UiObject(selector.text("Test Again")
                                                      .className("android.widget.Button"));
+        if (!retestButton.waitForExists(TimeUnit.SECONDS.toMillis(2))) {
+            getUiDevice().pressBack();
+            retestButton.waitForExists(TimeUnit.SECONDS.toMillis(2));
+        }
         retestButton.clickAndWaitForNewWindow();
     }
 
