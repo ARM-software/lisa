@@ -15,6 +15,7 @@ try:
     matplotlib.use('AGG')
     import matplotlib.pyplot as plt
     import numpy as np
+    low_filter = np.vectorize(lambda x: x > 0 and x or 0)  # pylint: disable=no-member
     import_error = None
 except ImportError as e:
     import_error = e
@@ -22,6 +23,7 @@ except ImportError as e:
     pd = None
     plt = None
     np = None
+    low_filter = None
 
 from wlauto import Instrument, Parameter, File
 from wlauto.exceptions import ConfigError, InstrumentError, DeviceError
@@ -98,9 +100,6 @@ class PowerPerformanceAnalysis(object):
         self.summary['power_ratio'] = big_sc.power.item() / little_sc.power.item()
         self.summary['max_performance'] = data[data.cpus == 1].performance.max()
         self.summary['max_power'] = data[data.cpus == 1].power.max()
-
-
-low_filter = np.vectorize(lambda x: x > 0 and x or 0)  # pylint: disable=no-member
 
 
 def build_energy_model(freq_power_table, cpus_power, idle_power, first_cluster_idle_state):
