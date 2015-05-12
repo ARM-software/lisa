@@ -25,8 +25,10 @@ A lot of these are intened to stpecify type conversions declaratively in place l
 is not the best language to use for configuration.
 
 """
+import os
 import re
 import math
+import shlex
 from collections import defaultdict
 
 from wlauto.utils.misc import isiterable, to_identifier
@@ -246,3 +248,31 @@ class caseless_string(str):
 
     def format(self, *args, **kwargs):
         return caseless_string(super(caseless_string, self).format(*args, **kwargs))
+
+
+class arguments(list):
+    """
+    Represents command line arguments to be passed to a program.
+
+    """
+
+    def __init__(self, value=None):
+        if isiterable(value):
+            super(arguments, self).__init__(map(str, value))
+        elif isinstance(value, basestring):
+            posix = os.name != 'nt'
+            super(arguments, self).__init__(shlex.split(value, posix=posix))
+        elif value is None:
+            super(arguments, self).__init__()
+        else:
+            super(arguments, self).__init__([str(value)])
+
+    def append(self, value):
+        return super(arguments, self).append(str(value))
+
+    def extend(self, values):
+        return super(arguments, self).extend(map(str, values))
+
+    def __str__(self):
+        return ' '.join(self)
+
