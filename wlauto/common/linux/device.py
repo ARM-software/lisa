@@ -860,8 +860,6 @@ class LinuxDevice(BaseLinuxDevice):
         self._is_rooted = None
 
     def validate(self):
-        if self.password is None and not self.keyfile:
-            raise ConfigError('Either a password or a keyfile must be provided.')
         if self.working_directory is None:  # pylint: disable=access-member-before-definition
             if self.username == 'root':
                 self.working_directory = '/root/wa'  # pylint: disable=attribute-defined-outside-init
