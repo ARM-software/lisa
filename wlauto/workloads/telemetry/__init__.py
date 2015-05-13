@@ -19,11 +19,17 @@ import re
 import csv
 import math
 import shutil
+import json
 from zipfile import is_zipfile, ZipFile
 from collections import defaultdict
 
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+
 from wlauto import Workload, Parameter
-from wlauto.exceptions import WorkloadError
+from wlauto.exceptions import WorkloadError, ConfigError
 from wlauto.utils.misc import check_output, get_null, get_meansd
 from wlauto.utils.types import numeric, identifier
 
@@ -32,6 +38,9 @@ RESULT_REGEX = re.compile(r'RESULT ([^:]+): ([^=]+)\s*=\s*'  # preamble and test
                           r'(\[([^\]]+)\]|(\S+))'  # value
                           r'\s*(\S+)')  # units
 TRACE_REGEX = re.compile(r'Trace saved as ([^\n]+)')
+
+# Trace event that signifies rendition of a Frame
+FRAME_EVENT = 'SwapBuffersLatency'
 
 
 class Telemetry(Workload):
@@ -65,8 +74,8 @@ class Telemetry(Workload):
         use cases separate.
       - Run on non-Chrome browsers for comparative studies.
 
-    This instrument runs  telemetry via its ``run_benchmarks`` script (which
-    must be in PATH or specified using ``run_benchmarks_path`` parameter) and
+    This instrument runs  telemetry via its ``run_benchmark`` script (which
+    must be in PATH or specified using ``run_benchmark_path`` parameter) and
     parses metrics from the resulting output.
 
     **device setup**
@@ -90,44 +99,28 @@ class Telemetry(Workload):
                   """),
         Parameter('run_benchmark_params', default='',
                   description="""
-                  Additional paramters to be passed to ``run_benchmarks``.
+                  Additional paramters to be passed to ``run_benchmark``.
                   """),
         Parameter('run_timeout', kind=int, default=900,
                   description="""
                   Timeout for execution of the test.
                   """),
+        Parameter('extract_fps', kind=bool, default=False,
+                  description="""
+                  if ``True``, FPS for the run will be computed from the trace (must be enabled).
+                  """),
     ]
-
-    summary_metrics = ['cold_times',
-                       'commit_charge',
-                       'cpu_utilization',
-                       'processes',
-                       'resident_set_size_peak_size_browser',
-                       'resident_set_size_peak_size_gpu',
-                       'vm_final_size_browser',
-                       'vm_final_size_gpu',
-                       'vm_final_size_renderer',
-                       'vm_final_size_total',
-                       'vm_peak_size_browser',
-                       'vm_peak_size_gpu',
-                       'vm_private_dirty_final_browser',
-                       'vm_private_dirty_final_gpu',
-                       'vm_private_dirty_final_renderer',
-                       'vm_private_dirty_final_total',
-                       'vm_resident_set_size_final_size_browser',
-                       'vm_resident_set_size_final_size_gpu',
-                       'vm_resident_set_size_final_size_renderer',
-                       'vm_resident_set_size_final_size_total',
-                       'warm_times']
 
     def validate(self):
         ret = os.system('{} > {} 2>&1'.format(self.run_benchmark_path, get_null()))
         if ret > 255:
             pass  # telemetry found and appears to be installed properly.
         elif ret == 127:
-            raise WorkloadError('run_benchmarks not found (did you specify correct run_benchmarks_path?)')
+            raise WorkloadError('run_benchmark not found (did you specify correct run_benchmark_path?)')
         else:
-            raise WorkloadError('Unexected error from run_benchmarks: {}'.format(ret))
+            raise WorkloadError('Unexected error from run_benchmark: {}'.format(ret))
+        if self.extract_fps and 'trace' not in self.run_benchmark_params:
+            raise ConfigError('"trace" profiler must be enabled in order to extract FPS for Telemetry')
 
     def setup(self, context):
         self.raw_output = None
@@ -166,15 +159,21 @@ class Telemetry(Workload):
             context.result.add_metric(kind, special_average(values), lower_is_better=True)
 
         for idx, artifact in enumerate(artifacts):
-            wa_path = os.path.join(context.output_directory,
-                                   os.path.basename(artifact))
-            shutil.copy(artifact, wa_path)
-            context.add_artifact('telemetry_trace_{}'.format(idx), path=wa_path, kind='data')
+            if is_zipfile(artifact):
+                zf = ZipFile(artifact)
+                for item in zf.infolist():
+                    zf.extract(item, context.output_directory)
+                    zf.close()
+                    context.add_artifact('telemetry_trace_{}'.format(idx), path=item.filename, kind='data')
+            else:  # not a zip archive
+                wa_path = os.path.join(context.output_directory,
+                                       os.path.basename(artifact))
+                shutil.copy(artifact, wa_path)
+                context.add_artifact('telemetry_artifact_{}'.format(idx), path=wa_path, kind='data')
 
-            if is_zipfile(wa_path):
-                zf = ZipFile(wa_path)
-                zf.extractall(context.output_directory)
-                zf.close()
+        if self.extract_fps:
+            self.logger.debug('Extracting FPS...')
+            _extract_fps(context)
 
     def teardown(self, context):
         pass
@@ -197,6 +196,29 @@ class Telemetry(Workload):
                                     self.test,
                                     device_opts,
                                     self.run_benchmark_params)
+
+
+def _extract_fps(context):
+    trace_files = [a.path for a in context.iteration_artifacts
+                   if a.name.startswith('telemetry_trace_')]
+    for tf in trace_files:
+        name = os.path.splitext(os.path.basename(tf))[0]
+        fps_file = os.path.join(context.output_directory, name + '-fps.csv')
+        with open(tf) as fh:
+            data = json.load(fh)
+            events = pd.Series([e['ts'] for e in data['traceEvents'] if
+                                FRAME_EVENT == e['name']])
+            fps = (1000000 / (events - events.shift(1)))
+            fps.index = events
+            df = fps.dropna().reset_index()
+            df.columns = ['timestamp', 'fps']
+            with open(fps_file, 'w') as wfh:
+                df.to_csv(wfh, index=False)
+            context.add_artifact('{}_fps'.format(name), fps_file, kind='data')
+            context.result.add_metric('{} FPS'.format(name), df.fps.mean(),
+                                      units='fps')
+            context.result.add_metric('{} FPS (std)'.format(name), df.fps.std(),
+                                      units='fps', lower_is_better=True)
 
 
 class TelemetryResult(object):
