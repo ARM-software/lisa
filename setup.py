@@ -23,7 +23,10 @@ try:
 except ImportError:
     from distutils.core import setup
 
-sys.path.insert(0, './wlauto/core/')
+
+wlauto_dir = os.path.join(os.path.dirname(__file__), 'wlauto')
+
+sys.path.insert(0, os.path.join(wlauto_dir, 'core'))
 from version import get_wa_version
 
 # happends if falling back to distutils
@@ -38,7 +41,7 @@ except OSError:
 packages = []
 data_files = {}
 source_dir = os.path.dirname(__file__)
-for root, dirs, files in os.walk('wlauto'):
+for root, dirs, files in os.walk(wlauto_dir):
     rel_dir = os.path.relpath(root, source_dir)
     data = []
     if '__init__.py' in files:
