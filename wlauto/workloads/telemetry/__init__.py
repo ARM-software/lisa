@@ -20,6 +20,8 @@ import csv
 import math
 import shutil
 import json
+import urllib
+import stat
 from zipfile import is_zipfile, ZipFile
 from collections import defaultdict
 
@@ -41,6 +43,8 @@ TRACE_REGEX = re.compile(r'Trace saved as ([^\n]+)')
 
 # Trace event that signifies rendition of a Frame
 FRAME_EVENT = 'SwapBuffersLatency'
+
+TELEMETRY_ARCHIVE_URL = 'http://storage.googleapis.com/chromium-telemetry/snapshots/telemetry.zip'
 
 
 class Telemetry(Workload):
@@ -87,7 +91,7 @@ class Telemetry(Workload):
     """
 
     parameters = [
-        Parameter('run_benchmark_path', default='run_benchmark',
+        Parameter('run_benchmark_path', default=None,
                   description="""
                   This is the path to run_benchmark script which runs a
                   Telemetry benchmark. If not specified, the assumption will be
@@ -121,6 +125,7 @@ class Telemetry(Workload):
             raise WorkloadError('Unexected error from run_benchmark: {}'.format(ret))
         if self.extract_fps and 'trace' not in self.run_benchmark_params:
             raise ConfigError('"trace" profiler must be enabled in order to extract FPS for Telemetry')
+        self._resovlve_run_benchmark_path()
 
     def setup(self, context):
         self.raw_output = None
@@ -175,9 +180,6 @@ class Telemetry(Workload):
             self.logger.debug('Extracting FPS...')
             _extract_fps(context)
 
-    def teardown(self, context):
-        pass
-
     def build_command(self):
         device_opts = ''
         if self.device.platform == 'chromeos':
@@ -196,6 +198,25 @@ class Telemetry(Workload):
                                     self.test,
                                     device_opts,
                                     self.run_benchmark_params)
+
+    def _resovlve_run_benchmark_path(self):
+        # pylint: disable=access-member-before-definition
+        if self.run_benchmark_path:
+            if not os.path.exists(self.run_bencmark_path):
+                raise ConfigError('run_benchmark path "{}" does not exist'.format(self.run_benchmark_path))
+        else:
+            self.run_benchmark_path = os.path.join(self.dependencies_directory, 'telemetry', 'run_benchmark')
+            self.logger.debug('run_benchmark_path not specified using {}'.format(self.run_benchmark_path))
+            if not os.path.exists(self.run_benchmark_path):
+                self.logger.debug('Telemetry not found locally; downloading...')
+                local_archive = os.path.join(self.dependencies_directory, 'telemetry.zip')
+                urllib.urlretrieve(TELEMETRY_ARCHIVE_URL, local_archive)
+                zf = ZipFile(local_archive)
+                zf.extractall(self.dependencies_directory)
+            if not os.path.exists(self.run_benchmark_path):
+                raise WorkloadError('Could not download and extract Telemetry')
+            old_mode = os.stat(self.run_benchmark_path).st_mode
+            os.chmod(self.run_benchmark_path, old_mode | stat.S_IXUSR)
 
 
 def _extract_fps(context):
