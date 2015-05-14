@@ -192,6 +192,9 @@ class ExecutionContext(object):
         self.current_job = None
         self.output_directory = self.run_output_directory
 
+    def add_metric(self, *args, **kwargs):
+        self.result.add_metric(*args, **kwargs)
+
     def add_artifact(self, name, path, kind, *args, **kwargs):
         if self.current_job is None:
             self.add_run_artifact(name, path, kind, *args, **kwargs)

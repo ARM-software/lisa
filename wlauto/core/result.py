@@ -261,8 +261,8 @@ class IterationResult(object):
         self.metrics = []
         self.artifacts = []
 
-    def add_metric(self, name, value, units=None, lower_is_better=False):
-        self.metrics.append(Metric(name, value, units, lower_is_better))
+    def add_metric(self, name, value, units=None, lower_is_better=False, classifiers=None):
+        self.metrics.append(Metric(name, value, units, lower_is_better, classifiers))
 
     def has_metric(self, name):
         for metric in self.metrics:
@@ -300,14 +300,18 @@ class Metric(object):
                   has no units (e.g. it's a count or a standardised score).
     :param lower_is_better: Boolean flag indicating where lower values are
                             better than higher ones. Defaults to False.
+    :param classifiers: A set of key-value pairs to further classify this metric
+                        beyond current iteration (e.g. this can be used to identify
+                        sub-tests).
 
     """
 
-    def __init__(self, name, value, units=None, lower_is_better=False):
+    def __init__(self, name, value, units=None, lower_is_better=False, classifiers=None):
         self.name = name
         self.value = numeric(value)
         self.units = units
         self.lower_is_better = lower_is_better
+        self.classifiers = classifiers or {}
 
     def to_dict(self):
         return self.__dict__

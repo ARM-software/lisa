@@ -125,7 +125,7 @@ class Telemetry(Workload):
             raise WorkloadError('Unexected error from run_benchmark: {}'.format(ret))
         if self.extract_fps and 'trace' not in self.run_benchmark_params:
             raise ConfigError('"trace" profiler must be enabled in order to extract FPS for Telemetry')
-        self._resovlve_run_benchmark_path()
+        self._resolve_run_benchmark_path()
 
     def setup(self, context):
         self.raw_output = None
@@ -133,7 +133,7 @@ class Telemetry(Workload):
 
     def run(self, context):
         self.logger.debug(self.command)
-        self.raw_output, _ = check_output(self.command, shell=True, timeout=self.run_timeout, ignore=1)
+        self.raw_output, _ = check_output(self.command, shell=True, timeout=self.run_timeout, ignore=range(256))
 
     def update_result(self, context):  # pylint: disable=too-many-locals
         if not self.raw_output:
@@ -158,10 +158,12 @@ class Telemetry(Workload):
                 context.result.add_metric(name_template.format('sd'), result.std,
                                           result.units, lower_is_better=True)
                 writer.writerows(result.rows)
-            context.add_artifact('telemetry', csv_outfile, kind='data')
 
-        for kind, values in averages.iteritems():
-            context.result.add_metric(kind, special_average(values), lower_is_better=True)
+                for i, value in enumerate(result.values, 1):
+                    context.add_metric(result.kind, value, units=result.units,
+                                       classifiers={'url': result.url, 'time': i})
+
+            context.add_artifact('telemetry', csv_outfile, kind='data')
 
         for idx, artifact in enumerate(artifacts):
             if is_zipfile(artifact):
@@ -199,10 +201,10 @@ class Telemetry(Workload):
                                     device_opts,
                                     self.run_benchmark_params)
 
-    def _resovlve_run_benchmark_path(self):
+    def _resolve_run_benchmark_path(self):
         # pylint: disable=access-member-before-definition
         if self.run_benchmark_path:
-            if not os.path.exists(self.run_bencmark_path):
+            if not os.path.exists(self.run_benchmark_path):
                 raise ConfigError('run_benchmark path "{}" does not exist'.format(self.run_benchmark_path))
         else:
             self.run_benchmark_path = os.path.join(self.dependencies_directory, 'telemetry', 'run_benchmark')
@@ -289,21 +291,6 @@ def parse_telemetry_results(filepath):
             if match:
                 artifacts.append(match.group(1))
     return results, artifacts
-
-
-def special_average(values):
-    """Overall score calculation. Tries to accound for large differences
-    between different pages."""
-    negs = [v < 0 for v in values]
-    abs_logs = [(av and math.log(av, 10) or av)
-                for av in map(abs, values)]
-    signed_logs = []
-    for lv, n in zip(abs_logs, negs):
-        if n:
-            signed_logs.append(-lv)
-        else:
-            signed_logs.append(lv)
-    return get_meansd(signed_logs)[0]
 
 
 if __name__ == '__main__':

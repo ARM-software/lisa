@@ -24,7 +24,9 @@ import os
 import csv
 import json
 
-from wlauto import ResultProcessor, settings
+from wlauto import ResultProcessor, Parameter
+from wlauto.exceptions import ConfigError
+from wlauto.utils.types import list_of_strings
 
 
 class StandardProcessor(ResultProcessor):
@@ -63,15 +65,50 @@ class CsvReportProcessor(ResultProcessor):
 
     name = 'csv'
 
+    parameters = [
+        Parameter('use_all_classifiers', kind=bool, default=False,
+                  description="""
+                  If set to ``True``, this will add a column for every classifier
+                  that features in at least one collected metric.
+
+                  .. note:: This cannot be ``True`` if ``extra_columns`` is set.
+
+                  """),
+        Parameter('extra_columns', kind=list_of_strings,
+                  description="""
+                  List of classifiers to use as columns.
+
+                   .. note:: This cannot be set if ``use_all_classifiers`` is ``True``.
+
+                  """),
+    ]
+
+    def validate(self):
+        if self.use_all_classifiers and self.extra_columns:
+            raise ConfigError('extra_columns cannot be specified when use_all_classifiers is True')
+
     def process_run_result(self, result, context):
-        outfile = os.path.join(settings.output_directory, 'results.csv')
+        if self.use_all_classifiers:
+            classifiers = set([])
+            for ir in result.iteration_results:
+                for metric in ir.metrics:
+                    classifiers.update(metric.classifiers.keys())
+            extra_columns = list(classifiers)
+        elif self.extra_columns:
+            extra_columns = self.extra_columns
+        else:
+            extra_columns = []
+
+        outfile = os.path.join(context.run_output_directory, 'results.csv')
         with open(outfile, 'wb') as wfh:
             writer = csv.writer(wfh)
-            writer.writerow(['id', 'workload', 'iteration', 'metric', 'value', 'units'])
-            for result in result.iteration_results:
-                for metric in result.metrics:
-                    row = [result.id, result.spec.label, result.iteration,
-                           metric.name, str(metric.value), metric.units or '']
+            writer.writerow(['id', 'workload', 'iteration', 'metric', ] +
+                            extra_columns + ['value', 'units'])
+            for ir in result.iteration_results:
+                for metric in ir.metrics:
+                    row = ([ir.id, ir.spec.label, ir.iteration, metric.name] +
+                           [str(metric.classifiers.get(c) or '') for c in extra_columns] +
+                           [str(metric.value), metric.units or ''])
                     writer.writerow(row)
         context.add_artifact('run_result_csv', 'results.csv', 'export')
 
@@ -86,7 +123,7 @@ class JsonReportProcessor(ResultProcessor):
     name = 'json'
 
     def process_run_result(self, result, context):
-        outfile = os.path.join(settings.output_directory, 'results.json')
+        outfile = os.path.join(context.run_output_directory, 'results.json')
         with open(outfile, 'wb') as wfh:
             output = []
             for result in result.iteration_results:
@@ -111,7 +148,7 @@ class SummaryCsvProcessor(ResultProcessor):
     name = 'summary_csv'
 
     def process_run_result(self, result, context):
-        outfile = os.path.join(settings.output_directory, 'summary.csv')
+        outfile = os.path.join(context.run_output_directory, 'summary.csv')
         with open(outfile, 'wb') as wfh:
             writer = csv.writer(wfh)
             writer.writerow(['id', 'workload', 'iteration', 'metric', 'value', 'units'])
