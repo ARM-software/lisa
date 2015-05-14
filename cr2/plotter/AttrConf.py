@@ -84,7 +84,7 @@ ARGS_TO_FORWARD = [
     "linestyle",
     "linewidth"]
 
-HTML_WIDTH = 1050
+HTML_WIDTH =  900
 HTML_HEIGHT = 400
 DYGRAPH_LIB_URL = "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined.js"
 try:
