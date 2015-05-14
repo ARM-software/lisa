@@ -320,9 +320,10 @@ class RemoteFilerGetter(ResourceGetter):
                 for candidate in os.listdir(alternate_location):
                     if candidate.lower() == filename.lower():
                         return os.path.join(alternate_location, candidate)
-            for candidate in os.listdir(location):
-                if candidate.lower() == filename.lower():
-                    return os.path.join(location, candidate)
+            if os.path.isdir(location):
+                for candidate in os.listdir(location):
+                    if candidate.lower() == filename.lower():
+                        return os.path.join(location, candidate)
         else:
             raise ValueError('Unexpected resource type: {}'.format(resource.name))
 
