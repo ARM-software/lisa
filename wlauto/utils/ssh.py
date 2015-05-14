@@ -120,7 +120,7 @@ class SshShell(object):
         self.host = host
         self.username = username
         self.password = password
-        self.keyfile = check_keyfile(keyfile)
+        self.keyfile = check_keyfile(keyfile) if keyfile else keyfile
         self.port = port
         timeout = self.timeout if timeout is None else timeout
         self.conn = ssh_get_shell(host, username, password, self.keyfile, port, timeout, telnet)
