@@ -42,6 +42,14 @@ workloads:
     - dhrystone
 """
 
+INSTRUMENTATION_AGENDA_TEXT = """
+config:
+    instrumentation: [execution_time]
+workloads:
+    - dhrystone
+    - name: angrybirds
+      instrumentation: [fsp]
+"""
 
 class MockExtensionLoader(object):
 
@@ -166,6 +174,13 @@ class ConfigTest(TestCase):
         self.config.set_agenda(a)
         self.config.finalize()
         assert_equal(self.config.instrumentation['list_params']['param'], [0.1, 0.1, 0.1])
+
+    def test_instrumentation_specification(self):
+        a = Agenda(INSTRUMENTATION_AGENDA_TEXT)
+        self.config.set_agenda(a)
+        self.config.finalize()
+        assert_equal(self.config.workload_specs[0].instrumentation, ['execution_time'])
+        assert_equal(self.config.workload_specs[1].instrumentation, ['fsp', 'execution_time'])
 
     def test_remove_instrument(self):
         self.config.load_config({'instrumentation': ['list_params']})

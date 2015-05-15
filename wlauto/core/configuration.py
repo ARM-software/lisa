@@ -686,7 +686,8 @@ class RunConfiguration(object):
             default_config = self.ext_loader.get_default_config(extname)
             ext_config[extname] = self._raw_config.get(identifier(extname), default_config)
         list_name = '_global_{}'.format(attr_name)
-        setattr(self, list_name, raw_list)
+        global_list = self._raw_config.get(list_name, [])
+        setattr(self, list_name, global_list)
         setattr(self, attr_name, ext_config)
 
     def _finalize_device_config(self):
