@@ -57,9 +57,17 @@ class SchedLoadAvgTask(Base):
 
 Run.register_class(SchedLoadAvgTask, "sched")
 
-register_dynamic("SchedLoadAvgCpu", "sched_load_avg_cpu:", "sched")
-register_dynamic("SchedContribScaleFactor", "sched_contrib_scale_f:", "sched")
-register_dynamic("SchedCpuCapacity", "sched_cpu_capacity:", "sched")
+SchedLoadAvgCpu = register_dynamic("SchedLoadAvgCpu",
+                                   "sched_load_avg_cpu:",
+                                   "sched")
+
+SchedContribScaleFactor = register_dynamic("SchedContribScaleFactor",
+                                           "sched_contrib_scale_f:",
+                                           "sched")
+
+SchedCpuCapacity = register_dynamic("SchedCpuCapacity",
+                                    "sched_cpu_capacity:",
+                                    "sched")
 
 class SchedCpuFrequency(Base):
     """Corresponds to Linux kernel trace event power/cpu_frequency"""
