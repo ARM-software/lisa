@@ -84,6 +84,10 @@ class Topology(object):
         nodes = self.get_level(level)
         return nodes.index(node)
 
+    def get_node(self, level, index):
+        nodes = self.get_level(level)
+        return nodes[index]
+
     def __iter__(self):
         return self._levels.__iter__()
 
