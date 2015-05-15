@@ -146,17 +146,11 @@ class Telemetry(Workload):
 
         results, artifacts = parse_telemetry_results(raw_outfile)
         csv_outfile = os.path.join(context.output_directory, 'telemetry.csv')
-        averages = defaultdict(list)
         with open(csv_outfile, 'wb') as wfh:
             writer = csv.writer(wfh)
             writer.writerow(['kind', 'url', 'iteration', 'value', 'units'])
             for result in results:
                 name_template = identifier('{}_{}_{{}}'.format(result.url, result.kind))
-                averages[result.kind].append(result.average)
-                context.result.add_metric(name_template.format('avg'), result.average,
-                                          result.units, lower_is_better=True)
-                context.result.add_metric(name_template.format('sd'), result.std,
-                                          result.units, lower_is_better=True)
                 writer.writerows(result.rows)
 
                 for i, value in enumerate(result.values, 1):
