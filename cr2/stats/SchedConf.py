@@ -118,9 +118,15 @@ def residency_sum(series, window=None):
             float (scalar)
     """
 
+    running = series.cumsum()
     series = select_window(series, window)
     duration = 0
-    start = None
+
+    if running[series.index.values[0]] == TASK_RUNNING:
+        start = series.index.values[0]
+    else:
+        start = None
+
     for index, value in series.iteritems():
         if value == SCHED_SWITCH_IN:
             start = index
@@ -131,6 +137,8 @@ def residency_sum(series, window=None):
 
             start = None
 
+    if start is not None:
+        duration += series.index.values[-1] - start
 
     return duration
 
