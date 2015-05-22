@@ -32,6 +32,7 @@ NEXT_PID_FIELD = "next_pid"
 PREV_PID_FIELD = "prev_pid"
 TASK_RUNNING = 1
 TASK_NOT_RUNNING = 0
+TIME_INVAL = -1
 
 def csum(series, window=None, filter_gaps=False):
     """The following actions are done on the
@@ -140,6 +141,39 @@ def total_duration(series):
 
     index = series.index.values
     return index[-1] - index[0]
+
+def first_time(series, value, window=None):
+    """Return the first index where the
+       series == value
+
+       if no such index is found
+       +inf is returned
+    """
+
+    series = select_window(series, window)
+    series = series[series == value]
+
+    if not len(series):
+        return [float("inf")]
+
+    return [series.index.values[0]]
+
+
+def last_time(series, value, window=None):
+    """Return the first index where the
+       series == value
+
+       if no such index is found
+       TIME_INVAL is returned
+    """
+
+    series = select_window(series, window)
+    series = series[series == value]
+    if not len(series):
+        return [TIME_INVAL]
+
+    return [series.index.values[-1]]
+
 
 def binary_correlate(series_x, series_y):
     """Function to Correlate binary Data"""
