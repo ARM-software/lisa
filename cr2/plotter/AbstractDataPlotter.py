@@ -13,12 +13,14 @@
 # $
 #
 """This is the template class that all Plotters inherit"""
-from abc import abstractmethod
+from abc import abstractmethod, ABCMeta
 # pylint: disable=R0921
 # pylint: disable=R0903
 
 
 class AbstractDataPlotter(object):
+
+    __metaclass__ = ABCMeta
 
     """This is an Abstract Data Plotting Class defining an interface
        for the various Plotting Classes"""
@@ -32,3 +34,4 @@ class AbstractDataPlotter(object):
     def savefig(self, path):
         """Save the image as a file"""
         raise NotImplementedError("Method Not Implemented")
+
