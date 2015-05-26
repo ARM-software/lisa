@@ -47,7 +47,7 @@ class ILinePlot(AbstractDataPlotter):
        concat, Draws all the graphs on a single plot
     """
 
-    def __init__(self, runs, templates, **kwargs):
+    def __init__(self, runs, templates=None, **kwargs):
         # Default keys, each can be overridden in kwargs
         self._attr = {}
         self.runs = runs
@@ -56,6 +56,7 @@ class ILinePlot(AbstractDataPlotter):
         self._layout = None
         self._constraints = []
 
+        self._check_data()
         for key in kwargs:
             self._attr[key] = kwargs[key]
 

@@ -14,6 +14,9 @@
 #
 """This is the template class that all Plotters inherit"""
 from abc import abstractmethod, ABCMeta
+from pandas import DataFrame
+from Utils import listify
+from functools import reduce
 # pylint: disable=R0921
 # pylint: disable=R0903
 
@@ -35,3 +38,16 @@ class AbstractDataPlotter(object):
         """Save the image as a file"""
         raise NotImplementedError("Method Not Implemented")
 
+    def _check_data(self):
+        """Internal function to check the received data"""
+
+        data = listify(self.runs)
+
+        if len(data):
+            mask = map(lambda x: isinstance(x, DataFrame), data)
+            data_frame = reduce(lambda x, y: x and y, mask)
+            if not data_frame and not self.templates:
+                raise ValueError(
+                    "Cannot understand data. Accepted DataFormats are pandas.DataFrame and cr2.Run (with templates)")
+        else:
+            raise ValueError("Empty Data received")

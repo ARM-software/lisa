@@ -138,8 +138,17 @@ class Constraint(object):
                 dup_index_left += 1
         self._data = self._data.reindex(new_index)
 
+    def _uses_cr2_run(self):
+        if not self._template:
+            return False
+        else:
+            return True
+
     def populate_data_frame(self):
         """Return the data frame"""
+        if not self._uses_cr2_run():
+            return self._cr2_run
+
         data_container = getattr(
             self._cr2_run,
             Utils.decolonize(
@@ -163,6 +172,9 @@ class Constraint(object):
         return list(pivot_vals)
 
     def __repr__(self):
+        if not self._uses_cr2_run():
+            return "DataFrame " + str(self.run_index) + ":" + self._column
+
         return "Run " + str(self.run_index) + ":" + \
             self._template.name + ":" + self._column
 
