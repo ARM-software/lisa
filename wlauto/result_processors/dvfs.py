@@ -102,7 +102,7 @@ class DVFS(ResultProcessor):
             total_cores += len(cores_list)
             self.numberofcores_in_cluster.append(len(cores_list))
             for i in range(current_cores, total_cores):
-                if i in self.device.active_cpus:
+                if i in self.device.online_cpus:
                     self.minimum_frequency_cluster.append(int(self.device.get_cpu_min_frequency("cpu{}".format(i))))
                     break
             current_cores = total_cores
