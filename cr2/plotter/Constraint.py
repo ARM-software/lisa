@@ -172,6 +172,10 @@ class Constraint(object):
         return list(pivot_vals)
 
     def __repr__(self):
+
+        if hasattr(self._cr2_run, "name"):
+            return self._cr2_run.name + ": " +  self._column
+
         if not self._uses_cr2_run():
             return "DataFrame " + str(self.run_index) + ":" + self._column
 
