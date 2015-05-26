@@ -150,7 +150,6 @@ class Telemetry(Workload):
             writer = csv.writer(wfh)
             writer.writerow(['kind', 'url', 'iteration', 'value', 'units'])
             for result in results:
-                name_template = identifier('{}_{}_{{}}'.format(result.url, result.kind))
                 writer.writerows(result.rows)
 
                 for i, value in enumerate(result.values, 1):
