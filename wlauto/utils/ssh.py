@@ -107,6 +107,7 @@ def check_keyfile(keyfile):
 class SshShell(object):
 
     default_password_prompt = '[sudo] password'
+    max_cancel_attempts = 5
 
     def __init__(self, password_prompt=None, timeout=10):
         self.password_prompt = password_prompt if password_prompt is not None else self.default_password_prompt
@@ -156,6 +157,15 @@ class SshShell(object):
         logger.debug('Logging out {}@{}'.format(self.username, self.host))
         self.conn.logout()
 
+    def cancel_running_command(self):
+        # simulate impatiently hitting ^C until command prompt appears
+        logger.debug('Sending ^C')
+        for _ in xrange(self.max_cancel_attempts):
+            self.conn.sendline(chr(3))
+            if self.conn.prompt(0.1):
+                return True
+        return False
+
     def _execute_and_wait_for_prompt(self, command, timeout=None, as_root=False, strip_colors=True, log=True):
         self.conn.prompt(0.1)  # clear an existing prompt if there is one.
         if as_root:
@@ -179,6 +189,7 @@ class SshShell(object):
             command_index = output.find(command)
             output = output[command_index + len(command):].strip()
         if timed_out:
+            self.cancel_running_command()
             raise TimeoutError(command, output)
         if strip_colors:
             output = strip_bash_colors(output)
