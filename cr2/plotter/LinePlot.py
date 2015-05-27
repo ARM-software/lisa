@@ -144,6 +144,11 @@ class LinePlot(AbstractDataPlotter):
                         **self._attr["args_to_forward"])
 
                     if self._attr["fill"]:
+                        drawstyle = line_2d_list[0].get_drawstyle()
+                        # This has been fixed in upstream matplotlib
+                        if drawstyle.startswith("steps"):
+                            raise UserWarning("matplotlib does not support fill for step plots")
+
                         xdat, ydat = line_2d_list[0].get_data(orig=False)
                         axis.fill_between(xdat,
                             axis.get_ylim()[0],
@@ -221,6 +226,12 @@ class LinePlot(AbstractDataPlotter):
                     legend[pivot_index] = line_2d_list[0]
 
                     if self._attr["fill"]:
+
+                        drawstyle = line_2d_list[0].get_drawstyle()
+                        if drawstyle.startswith("steps"):
+                            # This has been fixed in upstream matplotlib
+                            raise UserWarning("matplotlib does not support fill for step plots")
+
                         xdat, ydat = line_2d_list[0].get_data(orig=False)
                         axis.fill_between(xdat,
                             axis.get_ylim()[0],
