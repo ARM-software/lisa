@@ -84,7 +84,8 @@ ARGS_TO_FORWARD = [
     "markersize",
     "markevery",
     "linestyle",
-    "linewidth"]
+    "linewidth",
+    "drawstyle"]
 
 HTML_WIDTH =  900
 HTML_HEIGHT = 400
