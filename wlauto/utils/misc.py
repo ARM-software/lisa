@@ -81,7 +81,7 @@ def check_output(command, timeout=None, ignore=None, **kwargs):
         ignore = []
     elif isinstance(ignore, int):
         ignore = [ignore]
-    elif not isinstance(ignore, list):
+    elif not isinstance(ignore, list) and ignore != 'all':
         message = 'Invalid value for ignore parameter: "{}"; must be an int or a list'
         raise ValueError(message.format(ignore))
     if 'stdout' in kwargs:
@@ -111,7 +111,7 @@ def check_output(command, timeout=None, ignore=None, **kwargs):
     if retcode:
         if retcode == -9:  # killed, assume due to timeout callback
             raise TimeoutError(command, output='\n'.join([output, error]))
-        elif retcode not in ignore:
+        elif ignore != 'all' and retcode not in ignore:
             raise subprocess.CalledProcessError(retcode, command, output='\n'.join([output, error]))
     return output, error
 

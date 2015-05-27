@@ -133,7 +133,7 @@ class Telemetry(Workload):
 
     def run(self, context):
         self.logger.debug(self.command)
-        self.raw_output, _ = check_output(self.command, shell=True, timeout=self.run_timeout, ignore=range(256))
+        self.raw_output, _ = check_output(self.command, shell=True, timeout=self.run_timeout, ignore='all')
 
     def update_result(self, context):  # pylint: disable=too-many-locals
         if not self.raw_output:
