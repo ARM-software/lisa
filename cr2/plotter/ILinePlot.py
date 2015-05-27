@@ -93,6 +93,7 @@ class ILinePlot(AbstractDataPlotter):
         self._attr["pivot"] = AttrConf.PIVOT
         self._attr["drawstyle"] = None
         self._attr["step_plot"] = False
+        self._attr["fill"] = AttrConf.FILL
 
     def _plot(self):
         """Internal Method called to draw the plot"""
@@ -100,7 +101,8 @@ class ILinePlot(AbstractDataPlotter):
 
         self._layout = ILinePlotGen(self._attr["per_line"],
                                     len(pivot_vals),
-                                    step_plot=self._attr["step_plot"])
+                                    step_plot=self._attr["step_plot"],
+                                    fill=self._attr["fill"])
         plot_index = 0
 
         for pivot in pivot_vals:

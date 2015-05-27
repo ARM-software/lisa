@@ -22,6 +22,8 @@ PIVOT_VAL = "__CR2_DEFAULT_PIVOT_VAL"
 DUPLICATE_VALUE_MAX_DELTA = 0.000001
 XLIM = None
 YLIM = None
+FILL = False
+ALPHA = 0.75
 
 MPL_STYLE = {
     'axes.axisbelow': True,

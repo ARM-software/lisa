@@ -106,6 +106,7 @@
             rangeSelectorHeight: 50,
             stepPlot: t_info.step_plot,
             logscale: t_info.logscale,
+            fillGraph: t_info.fill_graph,
             labelsDiv: t_info.name + "_legend",
             errorBars: false
 

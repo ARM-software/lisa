@@ -109,17 +109,15 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
             self._end_row()
         display(HTML(self.html()))
 
-    def __init__(self, cols, num_plots, step_plot=False):
+    def __init__(self, cols, num_plots, **kwargs):
         """
             Args:
                 cols (int): Number of plots in a single line
                 num_plots (int): Total Number of Plots
-                step_plot (bool, default=False): Draw step-post
-                    plots
         """
 
         self._cols = cols
-        self._attr = {}
+        self._attr = kwargs
         self._html = []
         self._js = []
         self.num_plots = num_plots
@@ -137,10 +135,8 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         if self.num_plots % self._cols != 0:
             self._rows += 1
 
-        self._attr = {}
         self._attr["width"] = AttrConf.HTML_WIDTH
         self._attr["height"] = AttrConf.HTML_HEIGHT
-        self._attr["step_plot"] = step_plot
         self._init_html()
         self._init_js()
 
@@ -155,6 +151,7 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         fig_params["logscale"] = False
         fig_params["title"] = title
         fig_params["step_plot"] = self._attr["step_plot"]
+        fig_params["fill_graph"] = self._attr["fill"]
 
         json_file = os.path.join(AttrConf.PLOTTER_STATIC_DATA_DIR, fig_name + ".json")
         fh = open(json_file, "w")
