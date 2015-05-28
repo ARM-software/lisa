@@ -23,5 +23,13 @@ def instrument_is_installed(instrument):
     return instrumentation.is_installed(instrument)
 
 
+def instrument_is_enabled(instrument):
+    """Returns ``True`` if the specified instrument is installed and is currently
+    enabled, and ``False`` other wise. The insturment maybe specified either
+    as a name or a subclass (or instance of subclass) of
+    :class:`wlauto.core.Instrument`."""
+    return instrumentation.is_enabled(instrument)
+
+
 def clear_instrumentation():
     instrumentation.installed = []

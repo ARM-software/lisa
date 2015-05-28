@@ -197,6 +197,18 @@ def is_installed(instrument):
     return False
 
 
+def is_enabled(instrument):
+    if isinstance(instrument, Instrument) or isinstance(instrument, type):
+        name = instrument.name
+    else:  # assume string
+        name = instrument
+    try:
+        installed_instrument = get_instrument(name)
+        return installed_instrument.is_enabled
+    except ValueError:
+        return False
+
+
 failures_detected = False
 
 

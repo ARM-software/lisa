@@ -21,7 +21,7 @@ from nose.tools import assert_equal, raises, assert_true, assert_false
 
 from wlauto import Instrument
 from wlauto.core import signal, instrumentation
-from wlauto.instrumentation import instrument_is_installed, clear_instrumentation
+from wlauto.instrumentation import instrument_is_installed, instrument_is_enabled, clear_instrumentation
 
 
 class MockInstrument(Instrument):
@@ -177,6 +177,16 @@ class InstrumentationTest(TestCase):
         assert_equal(instrument2.before, 1)
         assert_equal(instrument2.after, 1)
         assert_equal(instrument2.result, 1)
+
+    def test_check_enabled(self):
+        instrument = _instantiate(MockInstrument)
+        instrumentation.install(instrument)
+        instrumentation.enable(instrument)
+        assert_true(instrument_is_enabled(instrument))
+        assert_true(instrument_is_enabled(instrument.name))
+        instrumentation.disable(instrument)
+        assert_false(instrument_is_enabled(instrument))
+        assert_false(instrument_is_enabled(instrument.name))
 
     def test_local_instrument(self):
         global counter
