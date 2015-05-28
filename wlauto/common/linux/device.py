@@ -853,6 +853,10 @@ class LinuxDevice(BaseLinuxDevice):
                 self._is_rooted = False
         return self._is_rooted
 
+    @property
+    def abi(self):
+        return self.execute('uname -m')
+
     def __init__(self, *args, **kwargs):
         super(LinuxDevice, self).__init__(*args, **kwargs)
         self.shell = None
