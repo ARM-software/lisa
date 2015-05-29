@@ -198,6 +198,37 @@ class TestRun(BaseTestThermal):
         run.plot_allfreqs(self.map_label, ax=axis)
         matplotlib.pyplot.close('all')
 
+    def test_trace_metadata(self):
+        """Test if metadata gets populated correctly"""
+
+        expected_metadata = {}
+        expected_metadata["version"] = "6"
+        expected_metadata["cpus"] = "6"
+
+        run = cr2.Run()
+        for key, value in expected_metadata.items():
+            self.assertTrue(hasattr(run, "_" + key))
+            self.assertEquals(getattr(run, "_" + key), value)
+
+    def test_missing_metadata(self):
+        """Test if cr2.Run() works with a trace missing metadata info"""
+        lines = []
+
+        with open("trace.txt", "r") as fil:
+            lines += fil.readlines()
+            lines = lines[7:]
+            fil.close()
+
+        with open("trace.txt", "w") as fil:
+            fil.write("".join(lines))
+            fil.close()
+
+        run = cr2.Run()
+        self.assertEquals(run._cpus, None)
+        self.assertEquals(run._version, None)
+        self.assertTrue(len(run.thermal.data_frame) > 0)
+
+
 @unittest.skipUnless(utils_tests.trace_cmd_installed(),
                      "trace-cmd not installed")
 class TestRunRawDat(utils_tests.SetupDirectory):

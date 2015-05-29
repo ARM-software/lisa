@@ -215,6 +215,62 @@ classes are parsed.
                 return trace_name
         return None
 
+
+    def __populate_metadata(self, trace_fh, unique_words):
+        """Populates trace metadata"""
+
+        # Meta Data as expected to be found in the parsed trace header
+        metadata_keys = [ "version", "cpus" ]
+
+        for key in metadata_keys:
+            setattr(self, "_" + key, None)
+
+        while metadata_keys:
+            line = trace_fh.readline()
+
+            #The trace has been exhausted
+            if not line:
+                return
+
+            match = re.search(r"^\b(" + "|".join(metadata_keys) + r")\b\s*=\s*([0-9]+)", line);
+            if match:
+                setattr(self, "_" + match.group(1), match.group(2))
+                metadata_keys.remove(match.group(1))
+
+            # Reached a valid trace line, abort metadata population
+            elif self.__populate_data_from_line(line, unique_words):
+                return
+
+    def __populate_data_from_line(self, line, unique_words):
+        """Append to trace data from a txt trace line"""
+
+        attr = self.__contains_unique_word(line, unique_words)
+        if not attr:
+            return False
+
+        line = line[:-1]
+
+        special_fields_match = re.search(r"^\s+([^\[]+)-(\d+)\s+\[(\d+)\]\s+([0-9]+\.[0-9]+):",
+                                                 line)
+        comm = special_fields_match.group(1)
+        pid = int(special_fields_match.group(2))
+        cpu = int(special_fields_match.group(3))
+        timestamp = float(special_fields_match.group(4))
+
+        try:
+            data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
+        except AttributeError:
+            return False
+
+        data_str = line[data_start_idx:]
+
+        # Remove empty arrays from the trace
+        data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
+
+        getattr(self, attr).append_data(timestamp, comm, pid, cpu,
+                                                data_str)
+        return True
+
     def __parse_trace_file(self, raw=False):
         """parse the trace and create a pandas DataFrame"""
 
@@ -241,32 +297,10 @@ classes are parsed.
             trace_file = self.trace_path
 
         with open(trace_file) as fin:
+            self.__populate_metadata(fin, unique_words)
+
             for line in fin:
-                attr = self.__contains_unique_word(line, unique_words)
-                if not attr:
-                    continue
-
-                line = line[:-1]
-
-                special_fields_match = re.search(r"^\s+([^\[]+)-(\d+)\s+\[(\d+)\]\s+([0-9]+\.[0-9]+):",
-                                                 line)
-                comm = special_fields_match.group(1)
-                pid = int(special_fields_match.group(2))
-                cpu = int(special_fields_match.group(3))
-                timestamp = float(special_fields_match.group(4))
-
-                try:
-                    data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
-                except AttributeError:
-                    continue
-
-                data_str = line[data_start_idx:]
-
-                # Remove empty arrays from the trace
-                data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
-
-                getattr(self, attr).append_data(timestamp, comm, pid, cpu,
-                                                data_str)
+                self.__populate_data_from_line(line, unique_words)
 
     def __finalize_objects(self):
         for trace_class in self.trace_classes:
