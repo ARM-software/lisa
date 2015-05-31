@@ -83,3 +83,23 @@ ARGS_TO_FORWARD = [
     "markevery",
     "linestyle",
     "linewidth"]
+
+HTML_WIDTH = 1050
+HTML_HEIGHT = 400
+DYGRAPH_LIB_URL = "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined.js"
+try:
+    import IPython
+    import os
+    ip = IPython.get_ipython()
+    if not ip:
+        PLOTTER_IPYTHON = False
+    else:
+        PLOTTER_IPYTHON = True
+        PLOTTER_IPYTHON_PROFILE_DIR = ip.config.ProfileDir["location"]
+        PLOTTER_STATIC_DATA_DIR = os.path.join(
+            PLOTTER_IPYTHON_PROFILE_DIR,
+            "static", "plotter_data")
+        if not os.path.isdir(PLOTTER_STATIC_DATA_DIR):
+            os.mkdir(PLOTTER_STATIC_DATA_DIR)
+except:
+    PLOTTER_IPYTHON = False
