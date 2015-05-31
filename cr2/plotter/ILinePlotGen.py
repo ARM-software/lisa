@@ -35,28 +35,6 @@ class ILinePlotGen(object):
        axes array
     """
 
-    fig_json = {}
-
-    @classmethod
-    def get_json(cls, key):
-        """Return the json for the given
-           Plot
-        """
-
-        return cls.fig_json[key]
-
-    @classmethod
-    def get_graphs(cls):
-        """Return json string for the fraph data"""
-
-        return json.dumps(cls.fig_json.keys())
-
-    @classmethod
-    def delete_graph(cls, key):
-        """Delete the specified Graph"""
-
-        del cls.fig_json[key]
-
     def _add_lib(self):
         """Add Library String"""
         lib_str = '<script src="{0}"></script>'.format(
@@ -68,7 +46,7 @@ class ILinePlotGen(object):
 
         width = int(self._attr["width"] / self._cols)
 
-        cell = '<td style="border-style: hidden;"><div id="{0}" style="width: \
+        cell = '<td style="border-style: hidden;"><div class="ilineplot" id="{0}" style="width: \
 {1}px; height: {2}px;"></div></td>'.format(fig_name,
                                            width,
                                            self._attr["height"])
@@ -178,7 +156,10 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         fig_params["title"] = title
         fig_params["step_plot"] = self._attr["step_plot"]
 
-        ILinePlotGen.fig_json[fig_name] = json.dumps(fig_params)
+        json_file = os.path.join(AttrConf.PLOTTER_STATIC_DATA_DIR, fig_name + ".json")
+        fh = open(json_file, "w")
+        json.dump(fig_params, fh)
+        fh.close()
 
     def finish(self):
         """Called when the Plotting is finished"""

@@ -24,6 +24,8 @@ from cr2.plotter.AbstractDataPlotter import AbstractDataPlotter
 from cr2.plotter.ColorMap import ColorMap
 import pandas as pd
 
+if not AttrConf.PLOTTER_IPYTHON:
+    raise ImportError("Ipython Environment not Found")
 
 class ILinePlot(AbstractDataPlotter):
 

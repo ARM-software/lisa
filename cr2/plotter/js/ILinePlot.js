@@ -77,53 +77,20 @@
     }
 
     function generate() {
-        var kernel = IPython.notebook.kernel;
-        if (kernel)
-            kernel.execute("cr2.ILinePlotGen.get_graphs()", list_callback, {
-                silent: false
-            });
-    }
+        $("div.ilineplot").each(function() {
 
-    function delete_orphan_graph(graph_name) {
-        var kernel = IPython.notebook.kernel;
-        if (kernel)
-            kernel.execute(
-                "cr2.ILinePlotGen.delete_graph(' + graph_name + ')");
+            if ($(this).attr("graph_plotted") == undefined) {
+                var json_file = "/static/plotter_data/" + this.id + ".json";
+                $.getJSON( json_file, function( data ) {
+                    create_graph(data);
+                });
+                $(this).attr("graph_plotted", true);
+            }
+      });
     }
-
-    function graph_json_handler(out) {
-        var json = out.content.data['text/plain'];
-        var t_info = JSON.parse(eval(json));
-        create_graph(t_info);
-    }
-
-    function list_json_handler(out) {
-        var json = out.content.data['text/plain'];
-        var graph_list = JSON.parse(eval(json));
-        build_graphs(graph_list);
-        return graph_list;
-    }
-
-    var graph_callback = {
-        'iopub': {
-            'output': graph_json_handler
-        }
-    };
-    var list_callback = {
-        'iopub': {
-            'output': list_json_handler
-        }
-    };
 
     function create_graph(t_info) {
         var tabular = convertToDataTable(t_info.data, t_info.index_col);
-
-        var elem = document.getElementById(t_info.name);
-        if (elem == null) {
-            //Delete waste graphs here
-            delete_orphan_graph(t_info.name);
-            return;
-        }
 
         new Dygraph(document.getElementById(t_info.name), tabular.data, {
             legend: 'always',
@@ -145,13 +112,14 @@
         })
     }
 
-    $([IPython.events]).on("status_started.Kernel", function() {
+    $([IPython.events]).on('notebook_loaded.Notebook', function() {
         $.getScript(
             "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined.js",
             function() {
-                generate()
+                generate();
             });
     });
 
-    generate();
+   if (typeof(Dygraph) != "undefined")
+       generate();
 </script>
