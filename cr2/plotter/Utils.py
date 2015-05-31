@@ -123,3 +123,53 @@ def iplot_install(module_name):
         required_resources.append(required_resource_path)
 
     return required_resources
+
+def get_trace_event_data(run):
+    """
+        Args:
+            cr2.Run: A cr2.Run object
+
+        Returns:
+            A list of objects that can be
+            consumed by EventPlot to plot task
+            residency like kernelshark
+    """
+
+    data = []
+    pmap = {}
+
+    data_frame = run.sched_switch.data_frame
+
+    idx = 0
+    end_idx = data_frame.index.values[-1]
+    procs = {}
+
+    for index, row in data_frame.iterrows():
+        prev_pid = row["prev_pid"]
+        next_pid = row["next_pid"]
+        next_comm = row["next_comm"]
+
+        if prev_pid in pmap.keys():
+            idx = pmap[prev_pid]["idx"]
+            data[idx]["end"] = index
+            del pmap[prev_pid]
+
+        if next_pid in pmap.keys():
+            raise ValueError("Malformed data for PID: {}".format(next_pid))
+
+        if next_pid != 0 and not next_comm.startswith("migration"):
+            name = "{}-{}".format(next_comm, next_pid)
+            data.append({"id": idx,
+                         "start": index,
+                         "lane": row["__cpu"],
+                         "name": name})
+            pmap[next_pid] = {}
+            pmap[next_pid]["idx"] = len(data) - 1
+            procs[name] = 1
+            idx += 1
+
+    for idx, value in enumerate(data):
+        if not "end" in value.keys():
+            data[idx]["end"] = end_idx
+
+    return data, procs.keys()

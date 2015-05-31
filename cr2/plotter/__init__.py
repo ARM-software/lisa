@@ -18,6 +18,12 @@
 import pandas as pd
 from LinePlot import LinePlot
 import AttrConf
+try:
+    import EventPlot
+except ImportError:
+    pass
+import Utils
+import cr2
 
 
 def register_forwarding_arg(arg_name):
@@ -35,3 +41,15 @@ def unregister_forwarding_arg(arg_name):
         AttrConf.ARGS_TO_FORWARD.remove(arg_name)
     except ValueError:
         pass
+
+def plot_trace(trace_dir):
+    """Creates a kernelshark like plot of the trace file"""
+
+    if not AttrConf.PLOTTER_IPYTHON:
+        raise RuntimeError("plot_trace needs ipython environment")
+
+    cls = cr2.register_dynamic("SchedSwitch", "sched_switch", parse_raw=True)
+    run = cr2.Run(trace_dir)
+    data, procs = Utils.get_trace_event_data(run)
+    trace_graph = EventPlot.EventPlot(data, procs, "CPU: ", int(run._cpus))
+    trace_graph.view()
