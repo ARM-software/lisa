@@ -18,6 +18,7 @@ from run import Run
 from plotter.LinePlot import LinePlot
 try:
     from cr2.plotter.ILinePlot import ILinePlot
+    from cr2.plotter.EventPlot import EventPlot
 except ImportError:
     pass
 from dynamic import register_dynamic, register_class

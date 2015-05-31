@@ -94,7 +94,10 @@ IPLOT_RESOURCES = {
     "ILinePlot": [
         "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined.js",
         "js/ILinePlot.js"],
-}
+    "EventPlot": [
+        "http://d3js.org/d3.v3.min.js",
+        "http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js",
+        "js/EventPlot.js"]}
 
 try:
     import IPython

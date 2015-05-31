@@ -1,0 +1,57 @@
+.d3-tip {
+  line-height: 1;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border-radius: 2px;
+  position: absolute !important;
+  z-index: 99999;
+}
+
+.d3-tip:after {
+  box-sizing: border-box;
+  pointer-events: none;
+  display: inline;
+  font-size: 10px;
+  width: 100%;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.6);
+  content: "\25BC";
+  position: absolute !important;
+  z-index: 99999;
+  text-align: center;
+}
+
+.d3-tip.n:after {
+  margin: -1px 0 0 0;
+  top: 100%;
+  left: 0;
+}
+
+.chart {
+  shape-rendering: crispEdges;
+}
+
+.mini text {
+  font: 9px sans-serif;
+}
+
+.main text {
+  font: 12px sans-serif;
+}
+
+.axis line, .axis path {
+  stroke: black;
+}
+
+.miniItem {
+  stroke-width: 8;
+}
+
+.brush .extent {
+
+  stroke: #000;
+  fill-opacity: .125;
+  shape-rendering: crispEdges;
+}
+
