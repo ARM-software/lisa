@@ -307,3 +307,39 @@ def sched_switch_out_trigger(run, pid, sched_switch_class):
                    SCHED_SWITCH_OUT,                # Trigger Value
                    CPU_FIELD)                       # Primary Pivot
 
+
+def trace_event(series, window=None):
+    """This aggregator returns a list of events
+       of the type:
+
+        {
+            "start" : <start_time>,
+             "end"   " <end_time>
+        }
+
+    """
+    rects = []
+    running = series.cumsum()
+    series = select_window(series, window)
+
+    if running[series.index.values[0]] == TASK_RUNNING:
+        start = series.index.values[0]
+        rects.append({"start": start})
+    else:
+        start = None
+
+    for index, value in series.iteritems():
+        if value == SCHED_SWITCH_IN:
+            start = index
+            rects.append({"start": start})
+
+        if value == SCHED_SWITCH_OUT:
+            if start is not None:
+                rects[-1]["end"] = index
+
+            start = None
+
+    if start is not None:
+        rects[-1]["end"] = series.index.values[-1]
+
+    return rects
