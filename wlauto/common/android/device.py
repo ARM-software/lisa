@@ -351,24 +351,14 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
         Updated in version 2.1.5 with ``with_name`` parameter.
 
         """
+        self._ensure_binaries_directory_is_writable()
         executable_name = with_name or os.path.basename(filepath)
         on_device_file = self.path.join(self.working_directory, executable_name)
         on_device_executable = self.path.join(self.binaries_directory, executable_name)
         self.push_file(filepath, on_device_file)
-        matched = []
-        for entry in self.list_file_systems():
-            if self.binaries_directory.rstrip('/').startswith(entry.mount_point):
-                matched.append(entry)
-
-        if matched:
-            entry = sorted(matched, key=lambda x: len(x.mount_point))[-1]
-            if 'rw' not in entry.options:
-                self.execute('mount -o rw,remount {} {}'.format(entry.device, entry.mount_point), as_root=True)
-            self.execute('cp {} {}'.format(on_device_file, on_device_executable), as_root=True)
-            self.execute('chmod 0777 {}'.format(on_device_executable), as_root=True)
-            return on_device_executable
-        else:
-            raise DeviceError('Could not find mount point for binaries directory {}'.format(self.binaries_directory))
+        self.execute('cp {} {}'.format(on_device_file, on_device_executable), as_root=self.is_rooted)
+        self.execute('chmod 0777 {}'.format(on_device_executable), as_root=self.is_rooted)
+        return on_device_executable
 
     def uninstall(self, package):
         self._check_ready()
@@ -382,11 +372,8 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
 
         """
         on_device_executable = self.path.join(self.binaries_directory, executable_name)
-        for entry in self.list_file_systems():
-            if entry.mount_point == '/system':
-                if 'rw' not in entry.options:
-                    self.execute('mount -o rw,remount {} /system'.format(entry.device), as_root=True)
-        self.delete_file(on_device_executable)
+        self._ensure_binaries_directory_is_writable()
+        self.delete_file(on_device_executable, as_root=self.is_rooted)
 
     def execute(self, command, timeout=default_timeout, check_exit_code=True, background=False,
                 as_root=False, busybox=False, **kwargs):
@@ -636,6 +623,18 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
                 props['gcc_version'] = match.group(2).strip()
             else:
                 self.logger.warning('Could not parse version string.')
+
+    def _ensure_binaries_directory_is_writable(self):
+        matched = []
+        for entry in self.list_file_systems():
+            if self.binaries_directory.rstrip('/').startswith(entry.mount_point):
+                matched.append(entry)
+        if matched:
+            entry = sorted(matched, key=lambda x: len(x.mount_point))[-1]
+            if 'rw' not in entry.options:
+                self.execute('mount -o rw,remount {} {}'.format(entry.device, entry.mount_point), as_root=True)
+        else:
+            raise DeviceError('Could not find mount point for binaries directory {}'.format(self.binaries_directory))
 
 
 class _LogcatPoller(threading.Thread):
