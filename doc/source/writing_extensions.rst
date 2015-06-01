@@ -1,3 +1,5 @@
+.. _writing_extensions:
+
 ==================
 Writing Extensions
 ==================
