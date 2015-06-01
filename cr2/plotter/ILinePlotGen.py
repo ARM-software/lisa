@@ -23,8 +23,13 @@ import json
 import os
 from IPython.display import display, HTML
 
+
 if not AttrConf.PLOTTER_IPYTHON:
     raise ImportError("No Ipython Environment found")
+
+# Install resources
+from cr2.plotter import Utils
+RESOURCES = Utils.iplot_install("ILinePlot")
 
 
 class ILinePlotGen(object):

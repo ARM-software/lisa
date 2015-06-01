@@ -89,7 +89,13 @@ ARGS_TO_FORWARD = [
 
 HTML_WIDTH =  900
 HTML_HEIGHT = 400
-DYGRAPH_LIB_URL = "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined.js"
+
+IPLOT_RESOURCES = {
+    "ILinePlot": [
+        "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined.js",
+        "js/ILinePlot.js"],
+}
+
 try:
     import IPython
     import os
@@ -102,7 +108,15 @@ try:
         PLOTTER_STATIC_DATA_DIR = os.path.join(
             PLOTTER_IPYTHON_PROFILE_DIR,
             "static", "plotter_data")
+        PLOTTER_SCRIPTS_DIR = "plotter_scripts"
+        PLOTTER_SCRIPTS_PATH = os.path.join(
+            PLOTTER_IPYTHON_PROFILE_DIR,
+            "static",
+            PLOTTER_SCRIPTS_DIR)
+
         if not os.path.isdir(PLOTTER_STATIC_DATA_DIR):
             os.mkdir(PLOTTER_STATIC_DATA_DIR)
+        if not os.path.isdir(PLOTTER_SCRIPTS_PATH):
+            os.mkdir(PLOTTER_SCRIPTS_PATH)
 except:
     PLOTTER_IPYTHON = False
