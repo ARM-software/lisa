@@ -478,19 +478,13 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
 
     def get_properties(self, context):
         """Captures and saves the information from /system/build.prop and /proc/version"""
-        props = {}
+        props = super(AndroidDevice, self).get_properties(context)
         props['android_id'] = self.get_android_id()
         buildprop_file = os.path.join(context.host_working_directory, 'build.prop')
         if not os.path.isfile(buildprop_file):
             self.pull_file('/system/build.prop', context.host_working_directory)
         self._update_build_properties(buildprop_file, props)
         context.add_run_artifact('build_properties', buildprop_file, 'export')
-
-        version_file = os.path.join(context.host_working_directory, 'version')
-        if not os.path.isfile(version_file):
-            self.pull_file('/proc/version', context.host_working_directory)
-        self._update_versions(version_file, props)
-        context.add_run_artifact('device_version', version_file, 'export')
 
         dumpsys_window_file = os.path.join(context.host_working_directory, 'window.dumpsys')
         dumpsys_window_output = self.execute('dumpsys window')

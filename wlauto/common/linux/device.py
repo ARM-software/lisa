@@ -72,6 +72,24 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
                  be set for non-IKS device (i.e. ``scheduler != 'iks'``). If left unset for IKS devices,
                  it will default to ``800000``, i.e. 800MHz.
                  """),
+        Parameter('property_files', kind=list_of_strings,
+                  default=[
+                      '/etc/arch-release',
+                      '/etc/debian_version',
+                      '/etc/lsb-release',
+                      '/proc/config.gz',
+                      '/proc/cpuinfo',
+                      '/proc/version',
+                      '/proc/zconfig',
+                      '/sys/kernel/debug/sched_features',
+                      '/sys/kernel/hmp',
+                  ],
+                  description='''
+                  A list of paths to files containing static OS properties. These will be pulled into the
+                  __meta directory in output for each run in order to provide information about the platfrom.
+                  These paths do not have to exist and will be ignored if the path is not present on a
+                  particular device.
+                  '''),
 
     ]
 
@@ -156,6 +174,15 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
             else:
                 self.busybox = 'busybox'
         self.init(context, *args, **kwargs)
+
+    def get_properties(self, context):
+        for propfile in self.property_files:
+            if not self.file_exists(propfile):
+                continue
+            normname = propfile.lstrip(self.path.sep).replace(self.path.sep, '.')
+            outfile = os.path.join(context.host_working_directory, normname)
+            self.pull_file(propfile, outfile)
+        return {}
 
     def get_sysfile_value(self, sysfile, kind=None):
         """
@@ -823,14 +850,6 @@ class LinuxDevice(BaseLinuxDevice):
                   '''),
         Parameter('binaries_directory', default='/usr/local/bin',
                   description='Location of executable binaries on this device (must be in PATH).'),
-        Parameter('property_files', kind=list_of_strings,
-                  default=['/proc/version', '/etc/debian_version', '/etc/lsb-release', '/etc/arch-release'],
-                  description='''
-                  A list of paths to files containing static OS properties. These will be pulled into the
-                  __meta directory in output for each run in order to provide information about the platfrom.
-                  These paths do not have to exist and will be ignored if the path is not present on a
-                  particular device.
-                  '''),
     ]
 
     @property
@@ -1098,13 +1117,4 @@ class LinuxDevice(BaseLinuxDevice):
 
     def ensure_screen_is_on(self):
         pass  # TODO
-
-    def get_properties(self, context):
-        for propfile in self.property_files:
-            if not self.file_exists(propfile):
-                continue
-            normname = propfile.lstrip(self.path.sep).replace(self.path.sep, '.')
-            outfile = os.path.join(context.host_working_directory, normname)
-            self.pull_file(propfile, outfile)
-        return {}
 
