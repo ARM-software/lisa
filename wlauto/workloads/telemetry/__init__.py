@@ -99,7 +99,7 @@ class Telemetry(Workload):
                   """),
         Parameter('test', default='page_cycler.top_10_mobile',
                   description="""
-                  Specifies with of the the telemetry tests is to be run.
+                  Specifies the telemetry test to run.
                   """),
         Parameter('run_benchmark_params', default='',
                   description="""
