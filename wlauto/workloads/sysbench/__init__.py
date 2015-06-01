@@ -96,9 +96,9 @@ class Sysbench(Workload):
             params['max_requests'] = self.max_requests
         if self.max_time:
             params['max_time'] = self.max_time
-        self.command = self._build_command(**params)
         self.results_file = self.device.path.join(self.device.working_directory, 'sysbench_result.txt')
         self._check_executable()
+        self.command = self._build_command(**params)
 
     def run(self, context):
         self.device.execute(self.command, timeout=self.timeout)
@@ -125,6 +125,7 @@ class Sysbench(Workload):
         self.device.delete_file(self.results_file)
 
     def _check_executable(self):
+        self.on_device_binary = self.device.path.join(self.device.binaries_directory, 'sysbench')
         if self.device.is_installed('sysbench') and not self.force_install:
             self.logger.debug('sysbench found on device')
             return
@@ -137,7 +138,7 @@ class Sysbench(Workload):
                          for k, v in parameters.iteritems()]
         if self.file_test_mode:
             param_strings.append('--file-test-mode={}'.format(self.file_test_mode))
-        sysbench_command = 'sysbench {} {} run'.format(' '.join(param_strings), self.cmd_params)
+        sysbench_command = '{} {} {} run'.format(self.on_device_binary, ' '.join(param_strings), self.cmd_params)
         if self.taskset_mask:
             taskset_string = 'busybox taskset 0x{:x} '.format(self.taskset_mask)
         else:
