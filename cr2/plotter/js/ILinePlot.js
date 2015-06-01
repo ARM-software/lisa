@@ -12,8 +12,8 @@
  * ----------------------------------------------------------------
  * $
  */
-<script type="text/javascript">
-    function convertToDataTable(d, index_col) {
+var ILinePlot = ( function() {
+   var convertToDataTable = function (d, index_col) {
 
         var columns = _.keys(d);
         var out = [];
@@ -61,35 +61,17 @@
         return {
             data: out,
             labels: labels
-        };
-    }
-
-    function build_graphs(graph_list) {
-        var kernel = IPython.notebook.kernel;
-        if (kernel) {
-            graph_list.map(function(fig_div) {
-                kernel.execute("cr2.ILinePlotGen.get_json('" +
-                    fig_div + "')", graph_callback, {
-                        silent: false
-                    });
-            });
         }
-    }
+    };
 
-    function generate() {
-        $("div.ilineplot").each(function() {
+    var generate = function(div_name) {
+        var json_file = "/static/plotter_data/" + div_name + ".json";
+            $.getJSON( json_file, function( data ) {
+                create_graph(data);
+            });
+    };
 
-            if ($(this).attr("graph_plotted") == undefined) {
-                var json_file = "/static/plotter_data/" + this.id + ".json";
-                $.getJSON( json_file, function( data ) {
-                    create_graph(data);
-                });
-                $(this).attr("graph_plotted", true);
-            }
-      });
-    }
-
-    function create_graph(t_info) {
+    var create_graph = function(t_info) {
         var tabular = convertToDataTable(t_info.data, t_info.index_col);
 
         new Dygraph(document.getElementById(t_info.name), tabular.data, {
@@ -111,16 +93,10 @@
             errorBars: false
 
         })
-    }
+    };
 
-    $([IPython.events]).on('notebook_loaded.Notebook', function() {
-        $.getScript(
-            "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined.js",
-            function() {
-                generate();
-            });
-    });
+    return {
+        generate: generate
+    };
 
-   if (typeof(Dygraph) != "undefined")
-       generate();
-</script>
+}());

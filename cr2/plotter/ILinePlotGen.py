@@ -40,21 +40,22 @@ class ILinePlotGen(object):
        axes array
     """
 
-    def _add_lib(self):
-        """Add Library String"""
-        lib_str = '<script src="{0}"></script>'.format(
-            AttrConf.DYGRAPH_LIB_URL)
-        self._html.append(lib_str)
-
     def _add_graph_cell(self, fig_name):
         """Add a HTML table cell to hold the plot"""
 
         width = int(self._attr["width"] / self._cols)
 
+        div_js = """
+            <script>require(""" + str(RESOURCES) + """, function () {;
+                ILinePlot.generate('""" + fig_name + """');
+            });
+            </script>
+        """
+
         cell = '<td style="border-style: hidden;"><div class="ilineplot" id="{0}" style="width: \
-{1}px; height: {2}px;"></div></td>'.format(fig_name,
+{1}px; height: {2}px;">{3}</div></td>'.format(fig_name,
                                            width,
-                                           self._attr["height"])
+                                           self._attr["height"], div_js)
 
         self._html.append(cell)
 
@@ -91,7 +92,6 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         """Initialize HTML code for the plots"""
 
         width = self._attr["width"]
-        self._add_lib()
         table = '<table style="width: {0}px; border-style: hidden;">'.format(
             width)
         self._html.append(table)
@@ -112,7 +112,6 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
                 self._add_legend_cell(l_fig)
 
             self._end_row()
-        display(HTML(self.html()))
 
     def __init__(self, cols, num_plots, **kwargs):
         """
@@ -124,7 +123,6 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         self._cols = cols
         self._attr = kwargs
         self._html = []
-        self._js = []
         self.num_plots = num_plots
         self._fig_map = {}
         self._fig_index = 0
@@ -143,7 +141,6 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         self._attr["width"] = AttrConf.HTML_WIDTH
         self._attr["height"] = AttrConf.HTML_HEIGHT
         self._init_html()
-        self._init_js()
 
     def add_plot(self, plot_num, data_frame, title=""):
         """Add a plot to for a corresponding index"""
@@ -171,22 +168,7 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         for fig_idx in self._fig_map.keys():
             figs.append(self._fig_map[fig_idx])
 
-        display(HTML(self.js()))
-
-    def _init_js(self):
-        """Initialize Javascript for the plots"""
-
-        base_dir = os.path.dirname(os.path.realpath(__file__))
-        js_file = os.path.join(base_dir, "js/ILinePlot.js")
-
-        js_fh = open(js_file, 'r')
-        self._js = js_fh.readlines()
-        js_fh.close()
-
-    def js(self):
-        """Return the raw js text"""
-
-        return "\n".join(self._js)
+        display(HTML(self.html()))
 
     def html(self):
         """Return the raw HTML text"""
