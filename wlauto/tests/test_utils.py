@@ -17,11 +17,11 @@
 # pylint: disable=R0201
 from unittest import TestCase
 
-from nose.tools import raises, assert_equal  # pylint: disable=E0611
+from nose.tools import raises, assert_equal, assert_not_equal  # pylint: disable=E0611
 
 from wlauto.utils.android import check_output
 from wlauto.utils.misc import merge_dicts, TimeoutError
-from wlauto.utils.types import list_or_integer, list_or_bool
+from wlauto.utils.types import list_or_integer, list_or_bool, caseless_string, arguments
 
 
 class TestCheckOutput(TestCase):
@@ -69,4 +69,17 @@ class TestTypes(TestCase):
         assert_equal(list_or_integer([1, '2', 3]), [1, 2, 3])
         assert_equal(list_or_integer('0xF'), [15,])
         assert_equal(list_or_bool('False'), [False,])
+
+    def test_caseless_string(self):
+        cs1 = caseless_string('TeSt')
+        assert_equal(cs1, 'TeSt')
+        assert_equal('test', cs1)
+        assert_equal(cs1[0], 'T')
+        assert_not_equal(cs1[0], 't')
+        assert_not_equal(cs1, 'test2')
+
+    def test_arguments(self):
+        assert_equal(arguments('--foo 7 --bar "fizz buzz"'),
+                     ['--foo', '7', '--bar', 'fizz buzz'])
+        assert_equal(arguments(['test', 42]), ['test', '42'])
 
