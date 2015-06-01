@@ -523,9 +523,9 @@ def load_class(classpath):
 def get_pager():
     """Returns the name of the system pager program."""
     pager = os.getenv('PAGER')
-    if not pager:
+    if pager is None:
         pager = find_executable('less')
-    if not pager:
+    if pager is None:
         pager = find_executable('more')
     return pager
 
