@@ -179,9 +179,15 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         for propfile in self.property_files:
             if not self.file_exists(propfile):
                 continue
-            normname = propfile.lstrip(self.path.sep).replace(self.path.sep, '.')
-            outfile = os.path.join(context.host_working_directory, normname)
-            self.pull_file(propfile, outfile)
+            try:
+                normname = propfile.lstrip(self.path.sep).replace(self.path.sep, '.')
+                outfile = os.path.join(context.host_working_directory, normname)
+                self.pull_file(propfile, outfile)
+            except DeviceError:
+                # We pull these files "opportunistically", so if a pull fails
+                # (e.g. we don't have permissions to read the file), just note
+                # it quietly (not as an error/warning) and move on.
+                self.logger.debug('Could not pull property file "{}"'.format(propfile))
         return {}
 
     def get_sysfile_value(self, sysfile, kind=None):
@@ -972,15 +978,18 @@ class LinuxDevice(BaseLinuxDevice):
 
         """
         self._check_ready()
-        if background:
-            if as_root and self.username != 'root':
-                raise DeviceError('Cannot execute in background with as_root=True unless user is root.')
-            return self.shell.background(command)
-        else:
-            # If we're already the root user, don't bother with sudo
-            if self._is_root_user:
-                as_root = False
-            return self.shell.execute(command, timeout, check_exit_code, as_root, strip_colors)
+        try:
+            if background:
+                if as_root and self.username != 'root':
+                    raise DeviceError('Cannot execute in background with as_root=True unless user is root.')
+                return self.shell.background(command)
+            else:
+                # If we're already the root user, don't bother with sudo
+                if self._is_root_user:
+                    as_root = False
+                return self.shell.execute(command, timeout, check_exit_code, as_root, strip_colors)
+        except CalledProcessError as e:
+            raise DeviceError(e)
 
     def kick_off(self, command):
         """
@@ -1026,22 +1035,28 @@ class LinuxDevice(BaseLinuxDevice):
 
     def push_file(self, source, dest, as_root=False, timeout=default_timeout):  # pylint: disable=W0221
         self._check_ready()
-        if not as_root or self.username == 'root':
-            self.shell.push_file(source, dest, timeout=timeout)
-        else:
-            tempfile = self.path.join(self.working_directory, self.path.basename(dest))
-            self.shell.push_file(source, tempfile, timeout=timeout)
-            self.shell.execute('cp -r {} {}'.format(tempfile, dest), timeout=timeout, as_root=True)
+        try:
+            if not as_root or self.username == 'root':
+                self.shell.push_file(source, dest, timeout=timeout)
+            else:
+                tempfile = self.path.join(self.working_directory, self.path.basename(dest))
+                self.shell.push_file(source, tempfile, timeout=timeout)
+                self.shell.execute('cp -r {} {}'.format(tempfile, dest), timeout=timeout, as_root=True)
+        except CalledProcessError as e:
+            raise DeviceError(e)
 
     def pull_file(self, source, dest, as_root=False, timeout=default_timeout):  # pylint: disable=W0221
         self._check_ready()
-        if not as_root or self.username == 'root':
-            self.shell.pull_file(source, dest, timeout=timeout)
-        else:
-            tempfile = self.path.join(self.working_directory, self.path.basename(source))
-            self.shell.execute('cp -r {} {}'.format(source, tempfile), timeout=timeout, as_root=True)
-            self.shell.execute('chown -R {} {}'.format(self.username, tempfile), timeout=timeout, as_root=True)
-            self.shell.pull_file(tempfile, dest, timeout=timeout)
+        try:
+            if not as_root or self.username == 'root':
+                self.shell.pull_file(source, dest, timeout=timeout)
+            else:
+                tempfile = self.path.join(self.working_directory, self.path.basename(source))
+                self.shell.execute('cp -r {} {}'.format(source, tempfile), timeout=timeout, as_root=True)
+                self.shell.execute('chown -R {} {}'.format(self.username, tempfile), timeout=timeout, as_root=True)
+                self.shell.pull_file(tempfile, dest, timeout=timeout)
+        except CalledProcessError as e:
+            raise DeviceError(e)
 
     def delete_file(self, filepath, as_root=False):  # pylint: disable=W0221
         self.execute('rm -rf {}'.format(filepath), as_root=as_root)

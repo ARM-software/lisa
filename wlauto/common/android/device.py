@@ -290,13 +290,16 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
 
         """
         self._check_ready()
-        if not as_root:
-            adb_command(self.adb_name, "push '{}' '{}'".format(source, dest), timeout=timeout)
-        else:
-            device_tempfile = self.path.join(self.file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute('mkdir -p {}'.format(self.path.dirname(device_tempfile)))
-            adb_command(self.adb_name, "push '{}' '{}'".format(source, device_tempfile), timeout=timeout)
-            self.execute('cp {} {}'.format(device_tempfile, dest), as_root=True)
+        try:
+            if not as_root:
+                adb_command(self.adb_name, "push '{}' '{}'".format(source, dest), timeout=timeout)
+            else:
+                device_tempfile = self.path.join(self.file_transfer_cache, source.lstrip(self.path.sep))
+                self.execute('mkdir -p {}'.format(self.path.dirname(device_tempfile)))
+                adb_command(self.adb_name, "push '{}' '{}'".format(source, device_tempfile), timeout=timeout)
+                self.execute('cp {} {}'.format(device_tempfile, dest), as_root=True)
+        except CalledProcessError as e:
+            raise DeviceError(e)
 
     def pull_file(self, source, dest, as_root=False, timeout=default_timeout):  # pylint: disable=W0221
         """
@@ -304,13 +307,16 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
 
         """
         self._check_ready()
-        if not as_root:
-            adb_command(self.adb_name, "pull '{}' '{}'".format(source, dest), timeout=timeout)
-        else:
-            device_tempfile = self.path.join(self.file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute('mkdir -p {}'.format(self.path.dirname(device_tempfile)))
-            self.execute('cp {} {}'.format(source, device_tempfile), as_root=True)
-            adb_command(self.adb_name, "pull '{}' '{}'".format(device_tempfile, dest), timeout=timeout)
+        try:
+            if not as_root:
+                adb_command(self.adb_name, "pull '{}' '{}'".format(source, dest), timeout=timeout)
+            else:
+                device_tempfile = self.path.join(self.file_transfer_cache, source.lstrip(self.path.sep))
+                self.execute('mkdir -p {}'.format(self.path.dirname(device_tempfile)))
+                self.execute('cp {} {}'.format(source, device_tempfile), as_root=True)
+                adb_command(self.adb_name, "pull '{}' '{}'".format(device_tempfile, dest), timeout=timeout)
+        except CalledProcessError as e:
+            raise DeviceError(e)
 
     def delete_file(self, filepath, as_root=False):  # pylint: disable=W0221
         self._check_ready()
