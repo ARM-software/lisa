@@ -20,7 +20,7 @@ from unittest import TestCase
 from nose.tools import raises, assert_equal, assert_not_equal  # pylint: disable=E0611
 
 from wlauto.utils.android import check_output
-from wlauto.utils.misc import merge_dicts, TimeoutError
+from wlauto.utils.misc import merge_dicts, merge_lists, TimeoutError
 from wlauto.utils.types import list_or_integer, list_or_bool, caseless_string, arguments
 
 
@@ -55,6 +55,12 @@ class TestMerge(TestCase):
         assert_equal(result['a'], [1, 3, 2, 4, 5])
         result = merge_dicts(base, other, list_duplicates='last')
         assert_equal(result['a'], [1, 2, 3, 4, 5])
+
+    def test_merge_lists(self):
+        result = merge_lists([1, 2, 3], 7)
+        assert_equal(result, [1, 2, 3, 7])
+        result = merge_lists([1, 2, 3], 1, duplicates='last')
+        assert_equal(result, [2, 3, 1])
 
     @raises(ValueError)
     def test_type_mismatch(self):

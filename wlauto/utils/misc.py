@@ -330,6 +330,10 @@ def _merge_two_lists(base, other, duplicates='all', dict_type=dict):  # pylint: 
                                will never be removed.
 
     """
+    if not isiterable(base):
+        base = [base]
+    if not isiterable(other):
+        other = [other]
     if duplicates == 'all':
         merged_list = []
         for v in normalize(base, dict_type) + normalize(other, dict_type):
