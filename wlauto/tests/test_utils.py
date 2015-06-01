@@ -21,6 +21,7 @@ from nose.tools import raises, assert_equal  # pylint: disable=E0611
 
 from wlauto.utils.android import check_output
 from wlauto.utils.misc import merge_dicts, TimeoutError
+from wlauto.utils.types import list_or_integer, list_or_bool
 
 
 class TestCheckOutput(TestCase):
@@ -60,4 +61,12 @@ class TestMerge(TestCase):
         base = {'a': [1, 2, 3]}
         other = {'a': 'test'}
         merge_dicts(base, other, match_types=True)
+
+
+class TestTypes(TestCase):
+
+    def test_list_or_conversion(self):
+        assert_equal(list_or_integer([1, '2', 3]), [1, 2, 3])
+        assert_equal(list_or_integer('0xF'), [15,])
+        assert_equal(list_or_bool('False'), [False,])
 

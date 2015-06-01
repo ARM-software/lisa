@@ -197,13 +197,11 @@ class Spec2000(Workload):
         if self.force_extract_assets:
             self.force_push_assets = True
         if self.benchmarks is None:  # pylint: disable=access-member-before-definition
-            self.benchmarks = 'all'
-        if isinstance(self.benchmarks, basestring):
-            if self.benchmarks == 'all':
-                self.benchmarks = self.loaded_benchmarks.keys()
-            else:
-                self.benchmarks = [self.benchmarks]
+            self.benchmarks = ['all']
         for benchname in self.benchmarks:
+            if benchname == 'all':
+                self.benchmarks = self.loaded_benchmarks.keys()
+                break
             if benchname not in self.loaded_benchmarks:
                 raise ConfigError('Unknown SPEC benchmark: {}'.format(benchname))
         if self.mode == 'speed':

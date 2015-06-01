@@ -492,19 +492,11 @@ class EnergyModelInstrument(Instrument):
         self.big_energy_metrics = []
         self.little_energy_metrics = []
         if self.power_metric:
-            if isinstance(self.power_metric, basestring):
-                self.big_power_metrics = [self.power_metric.format(core=self.big_core)]
-                self.little_power_metrics = [self.power_metric.format(core=self.little_core)]
-            else:
-                self.big_power_metrics = [pm.format(core=self.big_core) for pm in self.power_metric]
-                self.little_power_metrics = [pm.format(core=self.little_core) for pm in self.power_metric]
+            self.big_power_metrics = [pm.format(core=self.big_core) for pm in self.power_metric]
+            self.little_power_metrics = [pm.format(core=self.little_core) for pm in self.power_metric]
         else:  # must be energy_metric
-            if isinstance(self.energy_metric, basestring):
-                self.big_energy_metrics = [self.energy_metric.format(core=self.big_core)]
-                self.little_energy_metrics = [self.energy_metric.format(core=self.little_core)]
-            else:
-                self.big_energy_metrics = [em.format(core=self.big_core) for em in self.energy_metric]
-                self.little_energy_metrics = [em.format(core=self.little_core) for em in self.energy_metric]
+            self.big_energy_metrics = [em.format(core=self.big_core) for em in self.energy_metric]
+            self.little_energy_metrics = [em.format(core=self.little_core) for em in self.energy_metric]
 
     def configure_clusters(self):
         self.measured_cores = None

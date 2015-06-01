@@ -83,36 +83,6 @@ def numeric(value):
     return fvalue
 
 
-def list_or_string(value):
-    """
-    If the value is a string, at will be kept as a string, otherwise it will be interpreted
-    as a list. If that is not possible, it will be interpreted as a string.
-
-    """
-    if isinstance(value, basestring):
-        return value
-    else:
-        try:
-            return list(value)
-        except ValueError:
-            return str(value)
-
-
-def list_or_caseless_string(value):
-    """
-    If the value is a string, at will be kept as a string, otherwise it will be interpreted
-    as a list. If that is not possible, it will be interpreted as a string.
-
-    """
-    if isinstance(value, basestring):
-        return caseless_string(value)
-    else:
-        try:
-            return map(caseless_string, value)
-        except ValueError:
-            return caseless_string(value)
-
-
 def list_of_strs(value):
     """
     Value must be iterable. All elements will be converted to strings.
@@ -188,6 +158,60 @@ def list_of(type_):
                     "append": append,
                     "extend": extend,
     })
+
+
+def list_or_string(value):
+    """
+    Converts the value into a list of strings. If the value is not iterable,
+    a one-element list with stringified value will be returned.
+
+    """
+    if isinstance(value, basestring):
+        return [value]
+    else:
+        try:
+            return list(value)
+        except ValueError:
+            return [str(value)]
+
+
+def list_or_caseless_string(value):
+    """
+    Converts the value into a list of ``caseless_string``'s. If the value is not iterable
+    a one-element list with stringified value will be returned.
+
+    """
+    if isinstance(value, basestring):
+        return [caseless_string(value)]
+    else:
+        try:
+            return map(caseless_string, value)
+        except ValueError:
+            return [caseless_string(value)]
+
+
+def list_or(type_):
+    """
+    Generator for "list or" types. These take either a single value or a list values
+    and return a list of the specfied ``type_`` performing the conversion on the value
+    (if a single value is specified) or each of the elemented of the specified list.
+
+    """
+    list_type = list_of(type_)
+
+    class list_or_type(list_type):
+        def __init__(self, value):
+            # pylint: disable=non-parent-init-called,super-init-not-called
+            if isiterable(value):
+                list_type.__init__(self, value)
+            else:
+                list_type.__init__(self, [value])
+    return list_or_type
+
+
+list_or_integer = list_or(integer)
+list_or_number = list_or(numeric)
+list_or_bool = list_or(boolean)
 
 
 regex_type = type(re.compile(''))
