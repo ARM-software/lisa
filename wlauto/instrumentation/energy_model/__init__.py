@@ -634,7 +634,7 @@ class EnergyModelInstrument(Instrument):
                     spec.id = '{}_{}_{}'.format(cluster, num_cpus, freq)
                     spec.label = 'freq_{}_{}'.format(cluster, spec.label)
                     spec.workload_parameters['taskset_mask'] = list_to_mask(self.get_cpus(cluster))
-                    spec.workload_parameters['num_threads'] = len(num_cpus)
+                    spec.workload_parameters['num_threads'] = num_cpus
                     # max_requests set to an arbitrary high values to make sure
                     # sysbench runs for full duriation even on highly
                     # performant cores.
@@ -649,7 +649,7 @@ class EnergyModelInstrument(Instrument):
         return new_specs
 
     def disable_thermal_management(self):
-        if self.device.file_exists('/sys/class/thermal'):
+        if self.device.file_exists('/sys/class/thermal/thermal_zone0'):
             tzone_paths = self.device.execute('ls /sys/class/thermal/thermal_zone*')
             for tzpath in tzone_paths.strip().split():
                 mode_file = '{}/mode'.format(tzpath)
