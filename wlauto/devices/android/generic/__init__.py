@@ -20,11 +20,12 @@ from wlauto import AndroidDevice, Parameter
 class GenericDevice(AndroidDevice):
     name = 'generic_android'
     description = """
-    Generic Android device. Use this if you do not have a device file for
-    your device.
+    A generic Android device interface. Use this if you do not have an interface
+    for your device.
 
-    This implements the minimum functionality that should be supported by
-    all android devices.
+    This should allow basic WA functionality on most Android devices using adb over
+    USB. Some additional configuration may be required for some WA extensions
+    (e.g. configuring ``core_names`` and ``core_clusters``).
 
     """
 
