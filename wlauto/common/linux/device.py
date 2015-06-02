@@ -78,6 +78,7 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
                       '/etc/debian_version',
                       '/etc/lsb-release',
                       '/proc/config.gz',
+                      '/proc/cmdline',
                       '/proc/cpuinfo',
                       '/proc/version',
                       '/proc/zconfig',
