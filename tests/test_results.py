@@ -53,6 +53,17 @@ class TestResults(utils_tests.SetupDirectory):
 
         self.assertEquals(len(results_frame.columns), 10)
 
+    def test_get_results_filename(self):
+        """results.get_results() can be given a specific filename"""
+
+        old_path = os.path.join(self.out_dir, "results.csv")
+        new_path = os.path.join(self.out_dir, "new_results.csv")
+        os.rename(old_path, new_path)
+
+        results_frame = results.get_results(new_path)
+
+        self.assertEquals(len(results_frame.columns), 10)
+
     def test_get_results_id(self):
         """get_results() optional id argument overrides the one in the results file"""
         res = results.get_results(id="malkovich")

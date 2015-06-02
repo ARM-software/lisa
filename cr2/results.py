@@ -93,7 +93,7 @@ def get_run_number(metric):
 
     return (found, run_number)
 
-def get_results(dirname=".", id=None):
+def get_results(path=".", id=None):
     """Return a pd.DataFrame with the results
 
     The DataFrame's rows are the scores.  The first column is the
@@ -109,7 +109,10 @@ def get_results(dirname=".", id=None):
 
     bench_dict = collections.OrderedDict()
 
-    with open(os.path.join(dirname, "results.csv")) as fin:
+    if os.path.isdir(path):
+        path = os.path.join(path, "results.csv")
+
+    with open(path) as fin:
         results = csv.reader(fin)
 
         for row in results:
