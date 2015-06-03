@@ -36,6 +36,7 @@ class CpuStatesProcessor(ResultProcessor):
               at least ``power:cpu_idle`` and ``power:cpu_frequency`` events.
               Reporting should also be enabled (it is by default) as
               ``cpustate`` parses the text version of the trace.
+              Finally, the device should have ``cpuidle`` module installed.
 
     This generates two reports for the run:
 
