@@ -31,7 +31,7 @@ TRACE_MARKER_STOP = 'TRACE_MARKER_STOP'
 
 class TraceCmdEvent(object):
     """
-    A single trace-cmd event. This will appear in the trace cmd report in the format
+    A single trace-cmd event. This will appear in the trace cmd report in the format ::
 
           <idle>-0     [000]  3284.126993: sched_rq_runnable_load: cpu=0 load=54
              |           |         |              |                |___________|
