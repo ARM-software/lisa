@@ -447,7 +447,7 @@ class EnergyModelInstrument(Instrument):
                 power_metric = spec.num_cpus * (power_metric / self.number_of_cpus[cluster])
 
         data.append(index_matter + ['performance', perf_metric])
-        data.append(index_matter + ['{}_power'.format(self.get_core_name(cluster)), power_metric])
+        data.append(index_matter + ['power', power_metric])
 
     def before_overall_results_processing(self, context):
         # pylint: disable=too-many-locals
