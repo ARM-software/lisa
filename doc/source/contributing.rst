@@ -2,9 +2,9 @@
 Contributing Code
 =================
 
-We welcome code contributions via GitHub pull requests to the official WA
-repository. To help with maintainability of the code line we ask that the code
-uses a coding style consistent with the rest of WA code. Briefly, it is
+We welcome code contributions via GitHub pull requests.To help with
+maintainability of the code line we ask that the code uses a coding style
+consistent with the rest of WA code. Briefly, it is
 
 - `PEP8 <https://www.python.org/dev/peps/pep-0008/>`_ with line length and block
   comment rules relaxed (the wrapper for PEP8 checker inside ``dev_scripts`` 
