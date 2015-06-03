@@ -1,3 +1,19 @@
+#    Copyright 2015 ARM Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
 #pylint: disable=attribute-defined-outside-init,access-member-before-definition,redefined-outer-name
 from __future__ import division
 import os
@@ -352,6 +368,9 @@ class EnergyModelInstrument(Instrument):
                   description='''The index of the first cluster idle state on the device. Previous states
                                  are assumed to be core idles. The default is ``-1``, i.e. only the last
                                  idle state is assumed to affect the entire cluster.'''),
+        Parameter('no_hotplug', kind=bool, default=False,
+                  description='''This options allows running the instrument without hotpluging cores on and off.
+                                 Disabling hotplugging will most likely produce a less accurate power model.'''),
     ]
 
     def validate(self):
@@ -377,6 +396,7 @@ class EnergyModelInstrument(Instrument):
             self.device_name = self.device.name
 
     def initialize(self, context):
+        self.number_of_cpus = {}
         self.report_template_file = context.resolver.get(File(self, REPORT_TEMPLATE_FILE))
         self.em_template_file = context.resolver.get(File(self, EM_TEMPLATE_FILE))
         self.little_core = (set(self.device.core_names) - set([self.big_core])).pop()
@@ -437,9 +457,13 @@ class EnergyModelInstrument(Instrument):
             index_matter = [cluster, spec.num_cpus,
                             spec.idle_state_id, spec.idle_state_desc, context.result.iteration]
             data = self.idle_data
+            if self.no_hotplug:
+                # due to that fact that hotpluging was disabled, power has to be artificially scaled
+                # to the number of cores that should have been active if hotplugging had occurred.
+                power_metric = spec.num_cpus * (power_metric / self.number_of_cpus[cluster])
 
         data.append(index_matter + ['performance', perf_metric])
-        data.append(index_matter + ['{}_power'.format(self.get_core_name(cluster)), power_metric])
+        data.append(index_matter + ['power', power_metric])
 
     def before_overall_results_processing(self, context):
         # pylint: disable=too-many-locals
@@ -598,7 +622,7 @@ class EnergyModelInstrument(Instrument):
 
     def get_cluster_specs(self, old_specs, cluster, context):
         core = self.get_core_name(cluster)
-        number_of_cpus = sum([1 for c in self.device.core_names if c == core])
+        self.number_of_cpus[cluster] = sum([1 for c in self.device.core_names if c == core])
 
         cluster_frequencies = self.get_frequencies_param(cluster)
         if not cluster_frequencies:
@@ -607,13 +631,14 @@ class EnergyModelInstrument(Instrument):
         idle_states = self.get_device_idle_states(cluster)
         new_specs = []
         for state in idle_states:
-            for num_cpus in xrange(1, number_of_cpus + 1):
+            for num_cpus in xrange(1, self.number_of_cpus[cluster] + 1):
                 spec = old_specs[0].copy()
                 spec.workload_name = self.idle_workload
                 spec.workload_parameters = self.idle_workload_params
                 spec.idle_state_id = state.id
                 spec.idle_state_desc = state.desc
-                spec.runtime_parameters['{}_cores'.format(core)] = num_cpus
+                if not self.no_hotplug:
+                    spec.runtime_parameters['{}_cores'.format(core)] = num_cpus
                 spec.cluster = cluster
                 spec.num_cpus = num_cpus
                 spec.id = '{}_idle_{}_{}'.format(cluster, state.id, num_cpus)
@@ -627,10 +652,11 @@ class EnergyModelInstrument(Instrument):
             if old_spec.workload_name != 'sysbench':
                 raise ConfigError('Only sysbench workload currently supported for energy_model generation.')
             for freq in cluster_frequencies:
-                for num_cpus in xrange(1, number_of_cpus + 1):
+                for num_cpus in xrange(1, self.number_of_cpus[cluster] + 1):
                     spec = old_spec.copy()
                     spec.runtime_parameters['{}_frequency'.format(core)] = freq
-                    spec.runtime_parameters['{}_cores'.format(core)] = num_cpus
+                    if not self.no_hotplug:
+                        spec.runtime_parameters['{}_cores'.format(core)] = num_cpus
                     spec.id = '{}_{}_{}'.format(cluster, num_cpus, freq)
                     spec.label = 'freq_{}_{}'.format(cluster, spec.label)
                     spec.workload_parameters['taskset_mask'] = list_to_mask(self.get_cpus(cluster))
