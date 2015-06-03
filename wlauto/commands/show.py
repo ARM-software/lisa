@@ -98,7 +98,7 @@ def format_extension_parameters(extension, out, width, shift=4):
             param_text += indent('allowed values: {}\n'.format(', '.join(map(str, param.allowed_values))))
         elif param.constraint:
             param_text += indent('constraint: {}\n'.format(get_type_name(param.constraint)))
-        if param.default:
+        if param.default is not None:
             param_text += indent('default: {}\n'.format(param.default))
         param_texts.append(indent(param_text, shift))
 
