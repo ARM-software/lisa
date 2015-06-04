@@ -60,6 +60,7 @@ class CciPmuLogger(Instrument):
 
     parameters = [
         Parameter('events', kind=list, default=DEFAULT_EVENTS,
+                  global_alias='cci_pmu_events',
                   description="""
                   A list of strings, each representing an event to be counted. The length
                   of the list cannot exceed the number of PMU counters available (4 in CCI-400).
@@ -67,14 +68,17 @@ class CciPmuLogger(Instrument):
                   clusters will be counted by default.  E.g. ``['0x63', '0x83']``.
                   """),
         Parameter('event_labels', kind=list, default=[],
+                  global_alias='cci_pmu_event_labels',
                   description="""
                   A list of labels to be used when reporting PMU counts. If specified,
                   this must be of the same length as ``cci_pmu_events``. If not specified,
                   events will be labeled "event_<event_number>".
                   """),
         Parameter('period', kind=int, default=10,
+                  global_alias='cci_pmu_period',
                   description='The period (in jiffies) between counter reads.'),
         Parameter('install_module', kind=boolean, default=True,
+                  global_alias='cci_pmu_install_module',
                   description="""
                   Specifies whether pmu_logger has been compiled as a .ko module that needs
                   to be installed by the instrument. (.ko binary must be in {}). If this is set

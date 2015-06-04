@@ -69,15 +69,18 @@ class PerfInstrument(Instrument):
 
     parameters = [
         Parameter('events', kind=list_of_strs, default=['migrations', 'cs'],
+                  global_alias='perf_events',
                   constraint=(lambda x: x, 'must not be empty.'),
                   description="""Specifies the events to be counted."""),
         Parameter('optionstring', kind=arguments, default='-a',
+                  global_alias='perf_options',
                   description="""Specifies options to be used for the perf command. This
                   may be a list of option strings, in which case, multiple instances of perf
                   will be kicked off -- one for each option string. This may be used to e.g.
                   collected different events from different big.LITTLE clusters.
                   """),
         Parameter('labels', kind=list_of_strs, default=None,
+                  global_alias='perf_labels',
                   description="""Provides labels for pref output. If specified, the number of
                   labels must match the number of ``optionstring``\ s.
                   """),

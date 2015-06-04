@@ -199,18 +199,6 @@ logging = {
 #hwmon_sensors = ['energy', 'temp']
 
 ####################################################################################################
-##################################### streamline configuration #####################################
-
-# The port number on which gatord will listen
-#port = 8080
-
-# Enabling/disabling the run of 'streamline -analyze' on the captured data.
-#streamline_analyze = True
-
-# Enabling/disabling the generation of a CSV report
-#streamline_report_csv = True
-
-####################################################################################################
 ###################################### trace-cmd configuration #####################################
 
 # trace-cmd events to be traced. The events can be found by rooting on the device then type

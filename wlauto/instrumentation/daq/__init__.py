@@ -92,33 +92,42 @@ class Daq(Instrument):
 
     parameters = [
         Parameter('server_host', kind=str, default='localhost',
+                  global_alias='daq_server_host',
                   description='The host address of the machine that runs the daq Server which the '
                               'insturment communicates with.'),
         Parameter('server_port', kind=int, default=56788,
+                  global_alias='daq_server_port',
                   description='The port number for daq Server in which daq insturment communicates '
                               'with.'),
         Parameter('device_id', kind=str, default='Dev1',
+                  global_alias='daq_device_id',
                   description='The ID under which the DAQ is registered with the driver.'),
         Parameter('v_range', kind=float, default=2.5,
+                  global_alias='daq_v_range',
                   description='Specifies the voltage range for the SOC voltage channel on the DAQ '
                               '(please refer to :ref:`daq_setup` for details).'),
         Parameter('dv_range', kind=float, default=0.2,
+                  global_alias='daq_dv_range',
                   description='Specifies the voltage range for the resistor voltage channel on '
                               'the DAQ (please refer to :ref:`daq_setup` for details).'),
         Parameter('sampling_rate', kind=int, default=10000,
+                  global_alias='daq_sampling_rate',
                   description='DAQ sampling rate. DAQ will take this many samples each '
                               'second. Please note that this maybe limitted by your DAQ model '
                               'and then number of ports you\'re measuring (again, see '
                               ':ref:`daq_setup`)'),
         Parameter('resistor_values', kind=list, mandatory=True,
+                  global_alias='daq_resistor_values',
                   description='The values of resistors (in Ohms) across which the voltages are measured on '
                               'each port.'),
         Parameter('channel_map', kind=list_of_ints, default=(0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23),
+                  global_alias='daq_channel_map',
                   description='Represents mapping from  logical AI channel number to physical '
                               'connector on the DAQ (varies between DAQ models). The default '
                               'assumes DAQ 6363 and similar with AI channels on connectors '
                               '0-7 and 16-23.'),
         Parameter('labels', kind=list_of_strs,
+                  global_alias='daq_labels',
                   description='List of port labels. If specified, the lenght of the list must match '
                               'the length of ``resistor_values``. Defaults to "PORT_<pnum>", where '
                               '"pnum" is the number of the port.')
