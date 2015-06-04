@@ -63,6 +63,7 @@ class HwmonInstrument(Instrument):
 
     parameters = [
         Parameter('sensors', kind=list_of_strs, default=['energy', 'temp'],
+                  global_alias='hwmon_sensors',
                   description='The kinds of sensors hwmon instrument will look for')
     ]
 
