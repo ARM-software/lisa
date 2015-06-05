@@ -90,7 +90,7 @@ class CpuStatesProcessor(ResultProcessor):
                   reports will be similar to the overall report, except they won't mention
                   the workload name or iteration number (as that is implied by their location).
                   """),
-        Parameter('user_ratios', kind=bool, default=False,
+        Parameter('use_ratios', kind=bool, default=False,
                   description="""
                   By default proportional values will be reported as percentages, if this
                   flag is enabled, they will be reported as ratios instead.
