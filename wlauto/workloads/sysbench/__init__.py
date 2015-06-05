@@ -74,7 +74,7 @@ class Sysbench(Workload):
         Parameter('force_install', kind=bool, default=True,
                   description='Always install binary found on the host, even if already installed on device'),
         Parameter('taskset_mask', kind=int, default=0,
-                  description='Always install binary found on the host, even if already installed on device'),
+                  description='The processes spawned by sysbench will be pinned to cores as specified by this parameter'),
     ]
 
     def validate(self):
