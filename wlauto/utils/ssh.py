@@ -147,10 +147,14 @@ class SshShell(object):
         with self.lock:
             output = self._execute_and_wait_for_prompt(command, timeout, as_root, strip_colors)
             if check_exit_code:
-                exit_code = int(self._execute_and_wait_for_prompt('echo $?', strip_colors=strip_colors, log=False))
-                if exit_code:
-                    message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
-                    raise DeviceError(message.format(exit_code, command, output))
+                exit_code_text = self._execute_and_wait_for_prompt('echo $?', strip_colors=strip_colors, log=False)
+                try:
+                    exit_code = int(exit_code_text.split()[0])
+                    if exit_code:
+                        message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
+                        raise DeviceError(message.format(exit_code, command, output))
+                except ValueError:
+                    logger.warning('Could not get exit code for "{}",\ngot: "{}"'.format(command, exit_code_text))
             return output
 
     def logout(self):
