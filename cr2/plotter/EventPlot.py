@@ -44,7 +44,7 @@ class EventPlot(AbstractDataPlotter):
     """EventPlot Class that extends
        AbstractDataPlotter"""
 
-    def __init__(self, data, keys, lane_prefix, num_lanes):
+    def __init__(self, data, keys, lane_prefix, num_lanes, summary=True):
         """
             Args:
                 data: Data of the format:
@@ -71,6 +71,7 @@ class EventPlot(AbstractDataPlotter):
         graph["data"] = data
         graph["keys"] = keys
         graph["lanes"] = self._get_lanes(lane_prefix, num_lanes)
+        graph["showSummary"] = summary
 
         # Write the graph data to the JSON File
         json_file = os.path.join(
