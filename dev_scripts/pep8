@@ -1,8 +1,13 @@
 #!/bin/bash
 
+DEFAULT_DIRS=(
+	wlauto
+	wlauto/external/daq_server/src/daqpower
+)
+
 EXCLUDE=wlauto/external/,wlauto/tests
 EXCLUDE_COMMA=wlauto/core/bootstrap.py,wlauto/workloads/geekbench/__init__.py
-IGNORE=E501,E265,E266,W391
+IGNORE=E501,E265,E266,W391,E401,E402,E731
 
 if ! hash pep8 2>/dev/null; then
 	echo "pep8 not found in PATH"
@@ -13,7 +18,9 @@ fi
 if [[ "$1" == "" ]]; then
 	THIS_DIR="`dirname \"$0\"`"
 	pushd $THIS_DIR/.. > /dev/null
-	pep8 --exclude=$EXCLUDE,$EXCLUDE_COMMA --ignore=$IGNORE wlauto
+	for dir in "${DEFAULT_DIRS[@]}"; do
+		pep8 --exclude=$EXCLUDE,$EXCLUDE_COMMA --ignore=$IGNORE $dir
+	done
 	pep8 --exclude=$EXCLUDE --ignore=$IGNORE,E241 $(echo "$EXCLUDE_COMMA" | sed 's/,/ /g')
 	popd > /dev/null
 else

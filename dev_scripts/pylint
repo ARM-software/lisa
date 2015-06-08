@@ -1,5 +1,10 @@
 #!/bin/bash
 
+DEFAULT_DIRS=(
+	wlauto
+	wlauto/external/daq_server/src/daqpower
+)
+
 target=$1
 
 compare_versions() {
@@ -40,7 +45,9 @@ fi
 THIS_DIR="`dirname \"$0\"`"
 if [[ "$target" == "" ]]; then
 	pushd $THIS_DIR/.. > /dev/null
-	pylint --rcfile extras/pylintrc wlauto
+	for dir in "${DEFAULT_DIRS[@]}"; do
+		pylint --rcfile extras/pylintrc $dir
+	done
 	popd > /dev/null
 else
 	pylint --rcfile $THIS_DIR/../extras/pylintrc $target
