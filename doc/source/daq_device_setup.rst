@@ -68,6 +68,12 @@ varies between models.
           possible to use any other configuration (e.g. ports 1, 2 and 5).
 
 
+As an example, the following illustration shows the wiring of PORT0 (using AI/0
+and AI/1 channels) on a DAQ USB-6210
+
+.. image:: daq-wiring.png
+   :scale: 70 %
+
 Setting up NI-DAQmx driver on a Windows Machine
 -----------------------------------------------
 
