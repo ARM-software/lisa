@@ -162,13 +162,17 @@ def extract_metric(metric, line, result, prefix='', lower_is_better=True):
         if name != metric:
             message = 'Name mismatch: expected "{}", got "{}"'
             raise WorkloadError(message.format(metric, name.strip()))
+        if not value_part or not value_part[0].isdigit():
+            raise ValueError('value part does not start with a digit: {}'.format(value_part))
         idx = -1
-        while value_part[idx - 1].isalpha() and idx:  # assumes at least one char of units
-            idx -= 1
-        if not idx:
-            raise WorkloadError('Could not parse value "{}"'.format(value_part))
-        value = numeric(value_part[:idx])
-        units = value_part[idx:]
+        if not value_part[idx].isdigit():  # units detected at the end of the line
+            while not value_part[idx - 1].isdigit():
+                idx -= 1
+            value = numeric(value_part[:idx])
+            units = value_part[idx:]
+        else:
+            value = numeric(value_part)
+            units = None
         result.add_metric(prefix + metric,
                           value, units, lower_is_better=lower_is_better)
     except Exception as e:
