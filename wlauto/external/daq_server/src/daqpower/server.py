@@ -367,7 +367,7 @@ class DaqFactory(Factory):
         if self.transfer_sessions:
             reactor.callLater(self.check_alive_period, self.pulse)
 
-    def perfrom_cleanup(self):
+    def perform_cleanup(self):
         """
         Cleanup and old uncollected data files to recover disk space.
 
