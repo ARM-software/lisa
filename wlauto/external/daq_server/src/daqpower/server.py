@@ -20,8 +20,9 @@ import os
 import sys
 import argparse
 import shutil
+import socket
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from zope.interface import implements
 from twisted.protocols.basic import LineReceiver
@@ -326,14 +327,17 @@ class DaqFactory(Factory):
     check_alive_period = 5 * 60
     max_transfer_lifetime = 30 * 60
 
-    def __init__(self, server):
+    def __init__(self, server, cleanup_period=24 * 60 * 60, cleanup_after_days=5):
         self.server = server
+        self.cleanup_period = cleanup_period
+        self.cleanup_threshold = timedelta(cleanup_after_days)
         self.transfer_sessions = {}
 
     def buildProtocol(self, addr):
         proto = DaqControlProtocol(self.server)
         proto.factory = self
         reactor.callLater(self.check_alive_period, self.pulse)
+        reactor.callLater(self.cleanup_period, self.perform_cleanup)
         return proto
 
     def clientConnectionLost(self, connector, reason):
@@ -362,6 +366,25 @@ class DaqFactory(Factory):
                 self.transferComplete(session, message.format(session, conn.getHost().port))
         if self.transfer_sessions:
             reactor.callLater(self.check_alive_period, self.pulse)
+
+    def perfrom_cleanup(self):
+        """
+        Cleanup and old uncollected data files to recover disk space.
+
+        """
+        log.msg('Performing cleanup of the output directory...')
+        base_directory = self.server.base_output_directory
+        current_time = datetime.now()
+        for entry in os.listdir(base_directory):
+            entry_path = os.path.join(base_directory, entry)
+            entry_ctime = datetime.fromtimestamp(os.path.getctime(entry_path))
+            existence_time = current_time - entry_ctime
+            if existence_time > self.cleanup_threshold:
+                log.debug('Removing {} (existed for {})'.format(entry, existence_time))
+                shutil.rmtree(entry_path)
+            else:
+                log.debug('Keeping {} (existed for {})'.format(entry, existence_time))
+        log.msg('Cleanup complete.')
 
     def __str__(self):
         return '<DAQ {}>'.format(self.server)
@@ -461,6 +484,13 @@ def run_server():
     parser.add_argument('-d', '--directory', help='Working directory', metavar='DIR', default='.')
     parser.add_argument('-p', '--port', help='port the server will listen on.',
                         metavar='PORT', default=45677, type=int)
+    parser.add_argument('-c', '--cleanup-after', type=int, default=5, metavar='DAYS',
+                        help="""
+                        Sever will perodically clean up data files that are older than the number of
+                        days specfied by this parameter.
+                        """)
+    parser.add_argument('--cleanup-period', type=int, default=1, metavar='DAYS',
+                        help='Specifies how ofte the server will attempt to clean up old files.')
     parser.add_argument('--debug', help='Run in debug mode (no DAQ connected).',
                         action='store_true', default=False)
     parser.add_argument('--verbose', help='Produce verobose output.', action='store_true', default=False)
@@ -477,9 +507,16 @@ def run_server():
     else:
         log.start_logging('INFO')
 
+    # days to seconds
+    cleanup_period = args.cleanup_period * 24 * 60 * 60
+
     server = DaqServer(args.directory)
-    reactor.listenTCP(args.port, DaqFactory(server)).getHost()
-    hostname = socket.gethostbyname(socket.gethostname())
+    factory = DaqFactory(server, cleanup_period, args.cleanup_after)
+    reactor.listenTCP(args.port, factory).getHost()
+    try:
+        hostname = socket.gethostbyname(socket.gethostname())
+    except socket.gaierror:
+        hostname = 'localhost'
     log.info('Listening on {}:{}'.format(hostname, args.port))
     reactor.run()
 
