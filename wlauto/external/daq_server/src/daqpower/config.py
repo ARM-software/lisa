@@ -44,9 +44,9 @@ class DeviceConfiguration(Serializable):
     def __init__(self, **kwargs):  # pylint: disable=W0231
         try:
             self.device_id = kwargs.pop('device_id') or self.default_device_id
-            self.v_range = float(kwargs.pop('v_range')  or self.default_v_range)
+            self.v_range = float(kwargs.pop('v_range') or self.default_v_range)
             self.dv_range = float(kwargs.pop('dv_range') or self.default_dv_range)
-            self.sampling_rate = int(kwargs.pop('sampling_rate')  or self.default_sampling_rate)
+            self.sampling_rate = int(kwargs.pop('sampling_rate') or self.default_sampling_rate)
             self.resistor_values = kwargs.pop('resistor_values') or []
             self.channel_map = kwargs.pop('channel_map') or self.default_channel_map
             self.labels = (kwargs.pop('labels') or
@@ -98,7 +98,7 @@ class UpdateDeviceConfig(argparse.Action):
         setting = option_string.strip('-').replace('-', '_')
         if setting not in DeviceConfiguration.valid_settings:
             raise ConfigurationError('Unkown option: {}'.format(option_string))
-        setattr(namespace._device_config, setting, values)
+        setattr(namespace._device_config, setting, values)  # pylint: disable=protected-access
 
 
 class UpdateServerConfig(argparse.Action):

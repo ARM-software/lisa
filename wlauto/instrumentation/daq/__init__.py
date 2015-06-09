@@ -134,8 +134,8 @@ class Daq(Instrument):
     ]
 
     def initialize(self, context):
-        devices = self._execute_command('list_devices')
-        if not devices:
+        status, devices = self._execute_command('list_devices')
+        if status == daq.Status.OK and not devices:
             raise InstrumentError('DAQ: server did not report any devices registered with the driver.')
         self._results = OrderedDict()
 
@@ -235,7 +235,7 @@ class Daq(Instrument):
             raise InstrumentError('DAQ: {}'.format(result.message))
         else:
             raise InstrumentError('DAQ: Unexpected result: {} - {}'.format(result.status, result.message))
-        return result.data
+        return (result.status, result.data)
 
 
 def _send_daq_command(q, *args, **kwargs):

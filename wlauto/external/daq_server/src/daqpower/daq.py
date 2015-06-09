@@ -42,7 +42,7 @@ Port 0
 :sampling_rate: The rate at which DAQ takes a sample from each channel.
 
 """
-# pylint: disable=F0401,E1101,W0621
+# pylint: disable=F0401,E1101,W0621,no-name-in-module
 import os
 import sys
 import csv
@@ -52,23 +52,41 @@ from Queue import Queue, Empty
 
 import numpy
 
-from PyDAQmx import Task
-from PyDAQmx.DAQmxFunctions import DAQmxGetSysDevNames
+from PyDAQmx import Task, DAQError
+try:
+    from PyDAQmx.DAQmxFunctions import DAQmxGetSysDevNames
+    CAN_ENUMERATE_DEVICES = True
+except ImportError:  # earlier driver version
+    DAQmxGetSysDevNames = None
+    CAN_ENUMERATE_DEVICES = False
+
 from PyDAQmx.DAQmxTypes import int32, byref, create_string_buffer
 from PyDAQmx.DAQmxConstants import (DAQmx_Val_Diff, DAQmx_Val_Volts, DAQmx_Val_GroupByScanNumber, DAQmx_Val_Auto,
-                                    DAQmx_Val_Acquired_Into_Buffer, DAQmx_Val_Rising, DAQmx_Val_ContSamps)
+                                    DAQmx_Val_Rising, DAQmx_Val_ContSamps)
+
+try:
+    from PyDAQmx.DAQmxConstants import DAQmx_Val_Acquired_Into_Buffer
+    callbacks_supported = True
+except ImportError:  # earlier driver version
+    DAQmx_Val_Acquired_Into_Buffer = None
+    callbacks_supported = False
+
 
 from daqpower import log
 
+
 def list_available_devices():
     """Returns the list of DAQ devices visible to the driver."""
-    bufsize = 2048  # Should be plenty for all but the most pathalogical of situations.
-    buf = create_string_buffer('\000' * bufsize)
-    DAQmxGetSysDevNames(buf, bufsize)
-    return buf.value.split(',')
+    if DAQmxGetSysDevNames:
+        bufsize = 2048  # Should be plenty for all but the most pathalogical of situations.
+        buf = create_string_buffer('\000' * bufsize)
+        DAQmxGetSysDevNames(buf, bufsize)
+        return buf.value.split(',')
+    else:
+        return []
 
 
-class ReadSamplesTask(Task):
+class ReadSamplesBaseTask(Task):
 
     def __init__(self, config, consumer):
         Task.__init__(self)
@@ -93,11 +111,27 @@ class ReadSamplesTask(Task):
                               DAQmx_Val_Rising,
                               DAQmx_Val_ContSamps,
                               self.config.sampling_rate)
+
+
+class ReadSamplesCallbackTask(ReadSamplesBaseTask):
+    """
+    More recent verisons of the driver (on Windows) support callbacks
+
+    """
+
+    def __init__(self, config, consumer):
+        ReadSamplesBaseTask.__init__(self, config, consumer)
         # register callbacks
         self.AutoRegisterEveryNSamplesEvent(DAQmx_Val_Acquired_Into_Buffer, self.config.sampling_rate // 2, 0)
         self.AutoRegisterDoneEvent(0)
 
     def EveryNCallback(self):
+        # Note to future self: do NOT try to "optimize" this but re-using the same array and just
+        # zeroing it out each time. The writes happen asynchronously and if your zero it out too soon,
+        # you'll see a whole bunch of 0.0's in the output. If you wanna go down that route, you'll need
+        # cycler through several arrays and have the code that's actually doing the writing zero them out
+        # mark them as available to be used by this call. But, honestly, numpy array allocation does not
+        # appear to be a bottleneck at the moment, so the current solution is "good enough".
         samples_buffer = numpy.zeros((self.sample_buffer_size,), dtype=numpy.float64)
         self.ReadAnalogF64(DAQmx_Val_Auto, 0.0, DAQmx_Val_GroupByScanNumber, samples_buffer,
                            self.sample_buffer_size, byref(self.samples_read), None)
@@ -105,6 +139,51 @@ class ReadSamplesTask(Task):
 
     def DoneCallback(self, status):  # pylint: disable=W0613,R0201
         return 0  # The function should return an integer
+
+
+class ReadSamplesThreadedTask(ReadSamplesBaseTask):
+    """
+    Earlier verisons of the driver (on CentOS) do not support callbacks. So need
+    to create a thread to periodically poll the buffer
+
+    """
+
+    def __init__(self, config, consumer):
+        ReadSamplesBaseTask.__init__(self, config, consumer)
+        self.poller = DaqPoller(self)
+
+    def StartTask(self):
+        ReadSamplesBaseTask.StartTask(self)
+        self.poller.start()
+
+    def StopTask(self):
+        self.poller.stop()
+        ReadSamplesBaseTask.StopTask(self)
+
+
+class DaqPoller(threading.Thread):
+
+    def __init__(self, task, wait_period=1):
+        super(DaqPoller, self).__init__()
+        self.task = task
+        self.wait_period = wait_period
+        self._stop_signal = threading.Event()
+        self.samples_buffer = numpy.zeros((self.task.sample_buffer_size,), dtype=numpy.float64)
+
+    def run(self):
+        while not self._stop_signal.is_set():
+            # Note to future self: see the comment inside EventNCallback() above
+            samples_buffer = numpy.zeros((self.task.sample_buffer_size,), dtype=numpy.float64)
+            try:
+                self.task.ReadAnalogF64(DAQmx_Val_Auto, self.wait_period, DAQmx_Val_GroupByScanNumber, samples_buffer,
+                                        self.task.sample_buffer_size, byref(self.task.samples_read), None)
+            except DAQError:
+                pass
+            self.task.consumer.write((samples_buffer, self.task.samples_read.value))
+
+    def stop(self):
+        self._stop_signal.set()
+        self.join()
 
 
 class AsyncWriter(threading.Thread):
@@ -220,7 +299,10 @@ class DaqRunner(object):
     def __init__(self, config, output_directory):
         self.config = config
         self.processor = SampleProcessor(config.resistor_values, output_directory, config.labels)
-        self.task = ReadSamplesTask(config, self.processor)
+        if callbacks_supported:
+            self.task = ReadSamplesCallbackTask(config, self.processor)
+        else:
+            self.task = ReadSamplesThreadedTask(config, self.processor)
         self.is_running = False
 
     def start(self):

@@ -18,7 +18,6 @@
 from __future__ import division
 import os
 import sys
-import socket
 import argparse
 import shutil
 import time
@@ -37,11 +36,13 @@ from daqpower import log
 from daqpower.config import DeviceConfiguration
 from daqpower.common import DaqServerRequest, DaqServerResponse, Status
 try:
-    from daqpower.daq import DaqRunner,  list_available_devices
-except ImportError:
+    from daqpower.daq import DaqRunner, list_available_devices, CAN_ENUMERATE_DEVICES
+    __import_error = None
+except ImportError as e:
     # May be using debug mode.
+    __import_error = e
     DaqRunner = None
-    list_available_devices = lambda : ['Dev1']
+    list_available_devices = lambda: ['Dev1']
 
 
 class ProtocolError(Exception):
@@ -68,7 +69,7 @@ class DummyDaqRunner(object):
         log.info('runner started')
         for i in xrange(self.config.number_of_ports):
             rows = [['power', 'voltage']] + [[random.gauss(1.0, 1.0), random.gauss(1.0, 0.1)]
-                                             for j in xrange(self.num_rows)]
+                                             for _ in xrange(self.num_rows)]
             with open(self.get_port_file_path(self.config.labels[i]), 'wb') as wfh:
                 writer = csv.writer(wfh)
                 writer.writerows(rows)
@@ -139,7 +140,7 @@ class DaqServer(object):
         else:
             raise ProtocolError('Stop called before a session has been configured.')
 
-    def list_devices(self):
+    def list_devices(self):  # pylint: disable=no-self-use
         return list_available_devices()
 
     def list_ports(self):
@@ -205,7 +206,10 @@ class DaqControlProtocol(LineReceiver):  # pylint: disable=W0223
         try:
             request = DaqServerRequest.deserialize(line)
         except Exception, e:  # pylint: disable=W0703
-            self.sendError('Received bad request ({}: {})'.format(e.__class__.__name__, e.message))
+            # PyDAQmx exceptions use "mess" rather than the standard "message"
+            # to pass errors...
+            message = getattr(e, 'mess', e.message)
+            self.sendError('Received bad request ({}: {})'.format(e.__class__.__name__, message))
         else:
             self.processRequest(request)
 
@@ -269,8 +273,12 @@ class DaqControlProtocol(LineReceiver):  # pylint: disable=W0223
             self.sendError('Invalid pull request; port id not provided.')
 
     def list_devices(self, request):
-        devices = self.daq_server.list_devices()
-        self.sendResponse(Status.OK, data={'devices': devices})
+        if CAN_ENUMERATE_DEVICES:
+            devices = self.daq_server.list_devices()
+            self.sendResponse(Status.OK, data={'devices': devices})
+        else:
+            message = "Server does not support DAQ device enumration"
+            self.sendResponse(Status.OKISH, message=message)
 
     def list_ports(self, request):
         port_labels = self.daq_server.list_ports()
@@ -303,7 +311,7 @@ class DaqControlProtocol(LineReceiver):  # pylint: disable=W0223
 
     def sendLine(self, line):
         log.info('Responding: {}'.format(line))
-        LineReceiver.sendLine(self, line.replace('\r\n',''))
+        LineReceiver.sendLine(self, line.replace('\r\n', ''))
 
     def _initiate_file_transfer(self, filepath):
         sender_factory = FileSenderFactory(filepath, self.factory)
@@ -463,7 +471,7 @@ def run_server():
         DaqRunner = DummyDaqRunner
     else:
         if not DaqRunner:
-            raise ImportError('DaqRunner')
+            raise __import_error  # pylint: disable=raising-bad-type
     if args.verbose or args.debug:
         log.start_logging('DEBUG')
     else:
@@ -471,7 +479,8 @@ def run_server():
 
     server = DaqServer(args.directory)
     reactor.listenTCP(args.port, DaqFactory(server)).getHost()
-    hostname = socket.gethostbyname(socket.gethostname())
+    #hostname = socket.gethostbyname(socket.gethostname())
+    hostname = '192.168.108.131'
     log.info('Listening on {}:{}'.format(hostname, args.port))
     reactor.run()
 

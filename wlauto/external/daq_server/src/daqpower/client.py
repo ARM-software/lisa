@@ -128,10 +128,11 @@ class CommandExecutorProtocol(Protocol):
                 response.message = 'No ports were returned.'
 
     def processDevicesResponse(self, response):
-        if 'devices' not in response.data:
-            self.errorOut('Response did not containt devices data: {} ({}).'.format(response, response.data))
-        ports = response.data['devices']
-        response.data = ports
+        if response.status == Status.OK:
+            if 'devices' not in response.data:
+                self.errorOut('Response did not containt devices data: {} ({}).'.format(response, response.data))
+            devices = response.data['devices']
+            response.data = devices
 
     def sendPullRequest(self, port_id):
         self.sendRequest('pull', port_id=port_id)
@@ -167,7 +168,7 @@ class CommandExecutorProtocol(Protocol):
 class CommandExecutorFactory(ClientFactory):
 
     protocol = CommandExecutorProtocol
-    wait_delay  = 1
+    wait_delay = 1
 
     def __init__(self, config, command, timeout=10, retries=1):
         self.config = config
@@ -186,19 +187,19 @@ class CommandExecutorFactory(ClientFactory):
                 os.makedirs(self.output_directory)
 
     def buildProtocol(self, addr):
-        protocol =  CommandExecutorProtocol(self.command, self.timeout, self.retries)
+        protocol = CommandExecutorProtocol(self.command, self.timeout, self.retries)
         protocol.factory = self
         return protocol
 
     def initiateFileTransfer(self, filename, port):
         log.debug('Downloading {} from port {}'.format(filename, port))
         filepath = os.path.join(self.output_directory, filename)
-        session  = FileReceiverFactory(filepath, self)
+        session = FileReceiverFactory(filepath, self)
         connector = reactor.connectTCP(self.config.host, port, session)
         self.transfers_in_progress[session] = connector
 
     def transferComplete(self, session):
-        connector =  self.transfers_in_progress[session]
+        connector = self.transfers_in_progress[session]
         log.debug('Transfer on port {} complete.'.format(connector.port))
         del self.transfers_in_progress[session]
 
@@ -321,7 +322,7 @@ def execute_command(server_config, command, **kwargs):
         #       so in the long run, we need to do this properly and get the FDs
         #       from the reactor.
         after_fds = _get_open_fds()
-        for fd in (after_fds - before_fds):
+        for fd in after_fds - before_fds:
             try:
                 os.close(int(fd[1:]))
             except OSError:
@@ -338,8 +339,7 @@ def _get_open_fds():
     if os.name == 'posix':
         import subprocess
         pid = os.getpid()
-        procs = subprocess.check_output(
-            [ "lsof", '-w', '-Ff', "-p", str( pid ) ] )
+        procs = subprocess.check_output(["lsof", '-w', '-Ff', "-p", str(pid)])
         return set(procs.split())
     else:
         # TODO: Implement the Windows equivalent.
@@ -362,7 +362,7 @@ def run_send_command():
     else:
         log.start_logging('INFO', fmt='%(levelname)-8s %(message)s')
 
-    if  args.command == 'configure':
+    if args.command == 'configure':
         args.device_config.validate()
         command = Command(args.command, config=args.device_config)
     elif args.command == 'get_data':
