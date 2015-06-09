@@ -95,7 +95,7 @@ class Daq(Instrument):
                   global_alias='daq_server_host',
                   description='The host address of the machine that runs the daq Server which the '
                               'insturment communicates with.'),
-        Parameter('server_port', kind=int, default=56788,
+        Parameter('server_port', kind=int, default=45677,
                   global_alias='daq_server_port',
                   description='The port number for daq Server in which daq insturment communicates '
                               'with.'),
