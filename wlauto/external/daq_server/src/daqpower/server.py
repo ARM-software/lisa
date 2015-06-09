@@ -479,8 +479,7 @@ def run_server():
 
     server = DaqServer(args.directory)
     reactor.listenTCP(args.port, DaqFactory(server)).getHost()
-    #hostname = socket.gethostbyname(socket.gethostname())
-    hostname = '192.168.108.131'
+    hostname = socket.gethostbyname(socket.gethostname())
     log.info('Listening on {}:{}'.format(hostname, args.port))
     reactor.run()
 
