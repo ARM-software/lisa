@@ -124,6 +124,12 @@ class ExecutionContext(object):
             return None
 
     @property
+    def job_status(self):
+        if not self.current_job:
+            return None
+        return self.current_job.result.status
+
+    @property
     def workload(self):
         return getattr(self.spec, 'workload', None)
 
