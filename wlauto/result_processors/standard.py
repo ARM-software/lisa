@@ -67,6 +67,7 @@ class CsvReportProcessor(ResultProcessor):
 
     parameters = [
         Parameter('use_all_classifiers', kind=bool, default=False,
+                  global_alias='use_all_classifiers',
                   description="""
                   If set to ``True``, this will add a column for every classifier
                   that features in at least one collected metric.
