@@ -649,7 +649,7 @@ class EnergyModelInstrument(Instrument):
                 spec.workload.validate()
                 new_specs.append(spec)
         for old_spec in old_specs:
-            if old_spec.workload_name in ['sysbench', 'dhrystone']:
+            if old_spec.workload_name not in ['sysbench', 'dhrystone']:
                 raise ConfigError('Only sysbench and dhrystone workloads currently supported for energy_model generation.')
             for freq in cluster_frequencies:
                 for num_cpus in xrange(1, self.number_of_cpus[cluster] + 1):
