@@ -626,6 +626,10 @@ class Runner(object):
         self.context.end_job()
 
     def _finalize_run(self):
+        self.logger.info('Finalizing workloads')
+        for workload_spec in self.context.config.workload_specs:
+            workload_spec.workload.finalize(self.context)
+
         self.logger.info('Finalizing.')
         self._send(signal.RUN_FIN)
 
