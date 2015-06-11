@@ -649,8 +649,8 @@ class EnergyModelInstrument(Instrument):
                 spec.workload.validate()
                 new_specs.append(spec)
         for old_spec in old_specs:
-            if old_spec.workload_name != 'sysbench':
-                raise ConfigError('Only sysbench workload currently supported for energy_model generation.')
+            if old_spec.workload_name in ['sysbench', 'dhrystone']:
+                raise ConfigError('Only sysbench and dhrystone workloads currently supported for energy_model generation.')
             for freq in cluster_frequencies:
                 for num_cpus in xrange(1, self.number_of_cpus[cluster] + 1):
                     spec = old_spec.copy()
@@ -660,11 +660,12 @@ class EnergyModelInstrument(Instrument):
                     spec.id = '{}_{}_{}'.format(cluster, num_cpus, freq)
                     spec.label = 'freq_{}_{}'.format(cluster, spec.label)
                     spec.workload_parameters['taskset_mask'] = list_to_mask(self.get_cpus(cluster))
-                    spec.workload_parameters['num_threads'] = num_cpus
-                    # max_requests set to an arbitrary high values to make sure
-                    # sysbench runs for full duriation even on highly
-                    # performant cores.
-                    spec.workload_parameters['max_requests'] = 10000000
+                    spec.workload_parameters['threads'] = num_cpus
+                    if old_spec.workload_name == 'sysbench':
+                        # max_requests set to an arbitrary high values to make sure
+                        # sysbench runs for full duriation even on highly
+                        # performant cores.
+                        spec.workload_parameters['max_requests'] = 10000000
                     spec.cluster = cluster
                     spec.num_cpus = num_cpus
                     spec.frequency = freq

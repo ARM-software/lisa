@@ -59,15 +59,22 @@ class Dhrystone(Workload):
         Parameter('delay', kind=int, default=0,
                   description=('The delay, in seconds, between kicking off of dhrystone '
                                'threads (if ``threads`` > 1).')),
+        Parameter('taskset_mask', kind=int, default=0,
+                  description='The processes spawned by sysbench will be pinned to cores as specified by this parameter'),
     ]
 
     def setup(self, context):
         host_exe = os.path.join(this_dir, 'dhrystone')
         self.device_exe = self.device.install(host_exe)
         execution_mode = '-l {}'.format(self.mloops) if self.mloops else '-r {}'.format(self.duration)
-        self.command = '{} {} -t {} -d {}'.format(self.device_exe,
-                                                  execution_mode,
-                                                  self.threads, self.delay)
+        if self.taskset_mask:
+            taskset_string = 'busybox taskset 0x{:x} '.format(self.taskset_mask)
+        else:
+            taskset_string = ''
+        self.command = '{}{} {} -t {} -d {}'.format(taskset_string,
+                                                    self.device_exe,
+                                                    execution_mode,
+                                                    self.threads, self.delay)
         self.timeout = self.duration and self.duration + self.delay * self.threads + 10 or 300
 
     def run(self, context):
@@ -79,6 +86,8 @@ class Dhrystone(Workload):
             wfh.write(self.output)
         score_count = 0
         dmips_count = 0
+        total_score = 0
+        total_dmips = 0
         for line in self.output.split('\n'):
             match = self.time_regex.search(line)
             if match:
@@ -90,6 +99,7 @@ class Dhrystone(Workload):
                     value = int(match.group('score'))
                     context.result.add_metric(metric, value)
                     score_count += 1
+                    total_score += value
                 else:
                     match = self.dmips_regex.search(line)
                     if match:
@@ -97,6 +107,9 @@ class Dhrystone(Workload):
                         value = int(match.group('score'))
                         context.result.add_metric(metric, value)
                         dmips_count += 1
+                        total_dmips += value
+        context.result.add_metric('total DMIPS', total_dmips)
+        context.result.add_metric('total score', total_score)
 
     def teardown(self, context):
         self.device.uninstall_executable('dhrystone')

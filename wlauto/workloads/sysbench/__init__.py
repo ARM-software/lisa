@@ -56,8 +56,11 @@ class Sysbench(Workload):
         Parameter('test', kind=str, default='cpu',
                   allowed_values=['fileio', 'cpu', 'memory', 'threads', 'mutex'],
                   description='sysbench test to run'),
-        Parameter('num_threads', kind=int, default=8,
+        Parameter('threads', kind=int, default=8,
                   description='The number of threads sysbench will launch'),
+        Parameter('num_threads', kind=int, default=None,
+                  description='The number of threads sysbench will launch, overrides '
+                              ' ``threads`` (old parameter name)'),
         Parameter('max_requests', kind=int, default=None,
                   description='The limit for the total number of requests.'),
         Parameter('max_time', kind=int, default=None,
@@ -78,6 +81,8 @@ class Sysbench(Workload):
     ]
 
     def validate(self):
+        if not self.num_threads:
+            self.num_threads = self.threads
         if (self.max_requests is None) and (self.max_time is None):
             self.max_time = 30
         if self.test == 'fileio' and not self.file_test_mode:
