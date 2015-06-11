@@ -27,7 +27,7 @@ from wlauto.core.resource import NO_ONE
 from wlauto.exceptions import ConfigError, DeviceError, TimeoutError, DeviceNotRespondingError
 from wlauto.common.resources import Executable
 from wlauto.utils.cpuinfo import Cpuinfo
-from wlauto.utils.misc import convert_new_lines, escape_double_quotes, ranges_to_list
+from wlauto.utils.misc import convert_new_lines, escape_double_quotes, ranges_to_list, ABI_MAP
 from wlauto.utils.ssh import SshShell
 from wlauto.utils.types import boolean, list_of_strings
 
@@ -111,6 +111,18 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
     ]
 
     @property
+    def abi(self):
+        if not self._abi:
+            val = self.execute('uname -m').strip()
+            for abi, architectures in ABI_MAP.iteritems():
+                if val in architectures:
+                    self._abi = abi
+                    break
+            else:
+                self._abi = val
+        return self._abi
+
+    @property
     def online_cpus(self):
         val = self.get_sysfile_value('/sys/devices/system/cpu/online')
         return ranges_to_list(val)
@@ -158,6 +170,7 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         self._number_of_cores = None
         self._written_sysfiles = []
         self._cpuinfo = None
+        self._abi = None
 
     def validate(self):
         if len(self.core_names) != len(self.core_clusters):
@@ -878,10 +891,6 @@ class LinuxDevice(BaseLinuxDevice):
             except DeviceError:
                 self._is_rooted = False
         return self._is_rooted
-
-    @property
-    def abi(self):
-        return self.execute('uname -m')
 
     def __init__(self, *args, **kwargs):
         super(LinuxDevice, self).__init__(*args, **kwargs)

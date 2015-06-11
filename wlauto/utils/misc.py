@@ -43,6 +43,13 @@ import yaml
 from dateutil import tz
 
 
+# ABI --> architectures list
+ABI_MAP = {
+    'armeabi': ['armeabi', 'armv7', 'armv7l', 'armv7el', 'armv7lh'],
+    'arm64': ['arm64', 'armv8'],
+}
+
+
 def preexec_function():
     # Ignore the SIGINT signal by setting the handler to the standard
     # signal handler SIG_IGN.

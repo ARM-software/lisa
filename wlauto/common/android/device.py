@@ -97,10 +97,6 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
         return self._is_rooted
 
     @property
-    def abi(self):
-        return self.getprop()['ro.product.cpu.abi'].split('-')[0]
-
-    @property
     def supported_eabi(self):
         props = self.getprop()
         result = [props['ro.product.cpu.abi']]
