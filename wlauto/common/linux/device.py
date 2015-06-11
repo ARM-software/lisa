@@ -113,7 +113,7 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
     @property
     def abi(self):
         if not self._abi:
-            val = self.execute('uname -m').strip()
+            val = self.execute('uname -m', busybox=True).strip()
             for abi, architectures in ABI_MAP.iteritems():
                 if val in architectures:
                     self._abi = abi
