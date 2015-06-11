@@ -74,6 +74,19 @@ def filter_small_gaps(series):
 
     return series
 
+def first_cpu(series, window=None):
+    """This aggreator returns the time of
+    the first switch in event in the series
+    This is returned as a vector of unit length
+    so that it can be aggregated and reduced across
+    nodes to find the first cpu of a task
+    """
+    series = select_window(series, window)
+    series = series[series == SCHED_SWITCH_IN]
+    if len(series):
+        return [series.index.values[0]]
+    else:
+        return [float("inf")]
 
 def select_window(series, window):
     """Library Function to select a portion of
