@@ -326,20 +326,29 @@ The Workload class defines the following interface::
 
         def init_resources(self, context):
             pass
-            
-        def setup(self, context):
-            raise NotImplementedError()
-
-        def run(self, context):
-            raise NotImplementedError()
-
-        def update_result(self, context):
-            raise NotImplementedError()
-
-        def teardown(self, context):
-            raise NotImplementedError()
 
         def validate(self):
+            pass
+            
+        def initialize(self, context):
+            pass
+
+        def setup(self, context):
+            pass
+
+        def setup(self, context):
+            pass
+
+        def run(self, context):
+            pass
+
+        def update_result(self, context):
+            pass
+
+        def teardown(self, context):
+            pass
+
+        def finalize(self, context):
             pass
 
 .. note:: Please see :doc:`conventions` section for notes on how to interpret
@@ -350,8 +359,23 @@ The interface should be implemented as follows
     :name: This identifies the workload (e.g. it used to specify it in the
            agenda_.
     :init_resources: This method may be optionally override to implement dynamic
-                     resource discovery for the workload.
-                     **Added in version 2.1.3**
+                     resource discovery for the workload. This method executes 
+                     early on, before the device has been initialized, so it
+                     should only be used to initialize resources that do not
+                     depend on the device to resolve. This method is executed
+                     once per run for each workload instance.
+    :validate: This method can be used to validate any assumptions your workload
+               makes about the environment (e.g. that required files are
+               present, environment variables are set, etc) and should raise
+               a :class:`wlauto.exceptions.WorkloadError` if that is not the
+               case. The base class implementation only makes sure sure that 
+               the name attribute has been set.
+    :initialize: This method will be executed exactly once per run (no matter
+                 how many instances of the workload there are). It will run
+                 after the device has been initialized, so it may be used to
+                 perform device-dependent initialization that does not need to 
+                 be repeated on each iteration (e.g. as installing executables
+                 required by the workload on the device).
     :setup: Everything that needs to be in place for workload execution should
             be done in this method. This includes copying files to the device,
             starting up an application, configuring communications channels,
@@ -373,13 +397,11 @@ The interface should be implemented as follows
                     to the result (see below).
     :teardown: This could be used to perform any cleanup you may wish to do,
                e.g. Uninstalling applications, deleting file on the device, etc.
+    :finalize: This is the complement to ``initialize``. This will be executed
+               exactly once at the end of the run. This should be used to
+               perform any final clean up (e.g. uninstalling binaries installed
+               in the ``initialize``).
 
-    :validate: This method can be used to validate any assumptions your workload
-               makes about the environment (e.g. that required files are
-               present, environment variables are set, etc) and should raise
-               a :class:`wlauto.exceptions.WorkloadError` if that is not the
-               case. The base class implementation only makes sure sure that 
-               the name attribute has been set.
 
 .. _agenda: agenda.html
 
