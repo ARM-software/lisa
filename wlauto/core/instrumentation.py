@@ -288,9 +288,15 @@ def install(instrument):
             attr = getattr(instrument, attr_name)
             if not callable(attr):
                 raise ValueError('Attribute {} not callable in {}.'.format(attr_name, instrument))
-            arg_num = len(inspect.getargspec(attr).args)
-            if not arg_num == 2:
-                raise ValueError('{} must take exactly 2 arguments; {} given.'.format(attr_name, arg_num))
+            argspec = inspect.getargspec(attr)
+            arg_num = len(argspec.args)
+            # Instrument callbacks will be passed exactly two arguments: self
+            # (the instrument instance to which the callback is bound) and
+            # context. However, we also allow callbacks to capture the context
+            # in variable arguments (declared as "*args" in the definition).
+            if arg_num > 2 or (arg_num < 2 and argspec.varargs is None):
+                message = '{} must take exactly positional arguments; {} given.'
+                raise ValueError(message.format(attr_name, arg_num))
 
             logger.debug('\tConnecting %s to %s', attr.__name__, SIGNAL_MAP[stripped_attr_name])
             mc = ManagedCallback(instrument, attr)
@@ -378,6 +384,12 @@ class Instrument(Extension):
         self.device = device
         self.is_enabled = True
         self.is_broken = False
+
+    def initialize(self, context):  # pylint: disable=arguments-differ
+        pass
+
+    def finalize(self, context):  # pylint: disable=arguments-differ
+        pass
 
     def __str__(self):
         return self.name

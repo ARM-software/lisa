@@ -27,7 +27,7 @@ from wlauto.core.execution import BySpecRunner, ByIterationRunner
 from wlauto.exceptions import DeviceError
 from wlauto.core.configuration import WorkloadRunSpec, RebootPolicy
 from wlauto.core.instrumentation import Instrument
-from wlauto.core.device import Device
+from wlauto.core.device import Device, DeviceMeta
 from wlauto.core import instrumentation, signal
 from wlauto.core.workload import Workload
 from wlauto.core.result import IterationResult
@@ -61,7 +61,36 @@ class Mock(object):
         pass
 
 
+class BadDeviceMeta(DeviceMeta):
+
+    @classmethod
+    def _implement_virtual(mcs, cls, bases):
+        """
+        This version of _implement_virtual does not inforce "call global virutals only once"
+        policy, so that intialize() and finalize() my be invoked multiple times to test that
+        the errors they generated are handled correctly.
+
+        """
+        # pylint: disable=cell-var-from-loop,unused-argument
+        methods = {}
+        for vmname in mcs.virtual_methods:
+            clsmethod = getattr(cls, vmname, None)
+            if clsmethod:
+                basemethods = [getattr(b, vmname) for b in bases if hasattr(b, vmname)]
+                methods[vmname] = [bm for bm in basemethods if bm != clsmethod]
+                methods[vmname].append(clsmethod)
+                def generate_method_wrapper(vname):
+                    name__ = vmname
+                    def wrapper(self, *args, **kwargs):
+                        for dm in methods[name__]:
+                            dm(self, *args, **kwargs)
+                    return wrapper
+                setattr(cls, vmname, generate_method_wrapper(vmname))
+
+
 class BadDevice(Device):
+
+    __metaclass__ = BadDeviceMeta
 
     def __init__(self, when_to_fail, exception=DeviceError):
         #pylint: disable=super-init-not-called

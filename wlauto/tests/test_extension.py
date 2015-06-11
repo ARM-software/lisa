@@ -220,6 +220,63 @@ class ExtensionMetaTest(TestCase):
         assert_equal(acid.v2, 2)
         assert_equal(acid.vv2, 2)
 
+    def test_initialization(self):
+        class MyExt(Extension):
+            name = 'myext'
+            values = {'a': 0}
+            def __init__(self, *args, **kwargs):
+                super(MyExt, self).__init__(*args, **kwargs)
+                self.instance_init = 0
+            def initialize(self):
+                self.values['a'] += 1
+
+        class MyChildExt(MyExt):
+            name = 'mychildext'
+            def initialize(self):
+                self.instance_init += 1
+
+        ext = _instantiate(MyChildExt)
+        ext.initialize()
+
+        assert_equal(MyExt.values['a'], 1)
+        assert_equal(ext.instance_init, 1)
+
+    def test_initialization_happens_once(self):
+        class MyExt(Extension):
+            name = 'myext'
+            values = {'a': 0}
+            def __init__(self, *args, **kwargs):
+                super(MyExt, self).__init__(*args, **kwargs)
+                self.instance_init = 0
+                self.instance_validate = 0
+            def initialize(self):
+                self.values['a'] += 1
+            def validate(self):
+                self.instance_validate += 1
+
+        class MyChildExt(MyExt):
+            name = 'mychildext'
+            def initialize(self):
+                self.instance_init += 1
+            def validate(self):
+                self.instance_validate += 1
+
+        ext1 = _instantiate(MyExt)
+        ext2 = _instantiate(MyExt)
+        ext3 = _instantiate(MyChildExt)
+        ext1.initialize()
+        ext2.initialize()
+        ext3.initialize()
+        ext1.validate()
+        ext2.validate()
+        ext3.validate()
+
+        assert_equal(MyExt.values['a'], 1)
+        assert_equal(ext1.instance_init, 0)
+        assert_equal(ext3.instance_init, 1)
+        assert_equal(ext1.instance_validate, 1)
+        assert_equal(ext3.instance_validate, 2)
+
 
 class ParametersTest(TestCase):
 

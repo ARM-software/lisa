@@ -392,7 +392,8 @@ class ExtensionMeta(type):
         ('core_modules', str, ListCollection),
     ]
 
-    virtual_methods = ['validate']
+    virtual_methods = ['validate', 'initialize', 'finalize']
+    global_virtuals = ['initialize', 'finalize']
 
     def __new__(mcs, clsname, bases, attrs):
         mcs._propagate_attributes(bases, attrs)
@@ -441,13 +442,13 @@ class ExtensionMeta(type):
 
             super(cls, self).vmname()
 
-        .. note:: current implementation imposes a restriction in that
-                  parameters into the function *must* be passed as keyword
-                  arguments. There *must not* be positional arguments on
-                  virutal method invocation.
+        This also ensures that the methods that have beend identified as
+        "globally virtual" are executed exactly once per WA execution, even if
+        invoked through instances of different subclasses
 
         """
         methods = {}
+        called_globals = set()
         for vmname in mcs.virtual_methods:
             clsmethod = getattr(cls, vmname, None)
             if clsmethod:
@@ -455,11 +456,24 @@ class ExtensionMeta(type):
                 methods[vmname] = [bm for bm in basemethods if bm != clsmethod]
                 methods[vmname].append(clsmethod)
 
-                def wrapper(self, __name=vmname, **kwargs):
-                    for dm in methods[__name]:
-                        dm(self, **kwargs)
+                def generate_method_wrapper(vname):  # pylint: disable=unused-argument
+                    # this creates a closure with the method name so that it
+                    # does not need to be passed to the wrapper as an argument,
+                    # leaving the wrapper to accept exactly the same set of
+                    # arguments as the method it is wrapping.
+                    name__ = vmname  # pylint: disable=cell-var-from-loop
 
-                setattr(cls, vmname, wrapper)
+                    def wrapper(self, *args, **kwargs):
+                        for dm in methods[name__]:
+                            if name__ in mcs.global_virtuals:
+                                if dm not in called_globals:
+                                    dm(self, *args, **kwargs)
+                                    called_globals.add(dm)
+                            else:
+                                dm(self, *args, **kwargs)
+                    return wrapper
+
+                setattr(cls, vmname, generate_method_wrapper(vmname))
 
 
 class Extension(object):
@@ -538,6 +552,12 @@ class Extension(object):
             raise ValidationError('Name not set for {}'.format(self._classname))
         for param in self.parameters:
             param.validate(self)
+
+    def initialize(self, *args, **kwargs):
+        pass
+
+    def finalize(self, *args, **kwargs):
+        pass
 
     def check_artifacts(self, context, level):
         """

@@ -527,6 +527,10 @@ class Runner(object):
         self.logger.info('Initializing device')
         self.device.initialize(self.context)
 
+        self.logger.info('Initializing workloads')
+        for workload_spec in self.context.config.workload_specs:
+            workload_spec.workload.initialize(self.context)
+
         props = self.device.get_properties(self.context)
         self.context.run_info.device_properties = props
         self.result_manager.initialize(self.context)

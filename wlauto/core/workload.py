@@ -53,18 +53,25 @@ class Workload(Extension):
 
     def init_resources(self, context):
         """
-        May be optionally overridden by concrete instances in order to discover and initialise
-        necessary resources. This method will be invoked at most once during the execution:
-        before running any workloads, and before invocation of ``validate()``, but after it is
-        clear that this workload will run (i.e. this method will not be invoked for workloads
-        that have been discovered but have not been scheduled run in the agenda).
+        This method may be used to perform early resource discovery and initialization. This is invoked
+        during the initial loading stage and before the device is ready, so cannot be used for any
+        device-dependent initialization. This method is invoked before the workload instance is
+        validated.
+
+        """
+        pass
+
+    def initialize(self, context):  # pylint: disable=arguments-differ
+        """
+        This method should be used to perform once-per-run initialization of a workload instance, i.e.,
+        unlike ``setup()`` it will not be invoked on each iteration.
 
         """
         pass
 
     def setup(self, context):
         """
-        Perform the setup necessary to run the workload, such as copying the necessry files
+        Perform the setup necessary to run the workload, such as copying the necessary files
         to the device, configuring the environments, etc.
 
         This is also the place to perform any on-device checks prior to attempting to execute
@@ -87,6 +94,9 @@ class Workload(Extension):
 
     def teardown(self, context):
         """ Perform any final clean up for the Workload. """
+        pass
+
+    def finalize(self, context):  # pylint: disable=arguments-differ
         pass
 
     def __str__(self):
