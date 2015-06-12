@@ -1,0 +1,26 @@
+{
+	"tasks" : {
+		"thread" : {
+			"instance" : 2,
+			"loop" : -1,
+			"phases" : {
+				"light" : {
+					"loop" : 600,
+					"run" : 1000,
+					"timer" : { "ref" : "unique", "period" : 10000 }
+				},
+				"heavy" : {
+					"loop" : 600,
+					"run" : 7000,
+					"timer" : { "ref" : "unique", "period" : 10000 }
+				}
+			}
+		}
+	},
+	"global" : {
+		"duration" : 60,
+		"default_policy" : "SCHED_OTHER",
+		"calibration" : "CPU0"
+	}
+}
+

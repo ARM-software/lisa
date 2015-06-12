@@ -1,0 +1,186 @@
+{
+    "tasks": {
+        "ThreadA": {
+            "exec": 5000,
+            "period": 24000,
+            "priority": -19,
+            "cpus": [
+                0
+            ],
+            "lock_order": [
+                "r0",
+                "trig1"
+            ],
+            "resources": {
+                "r0": {
+                    "duration": 1000
+                },
+                "trig1": {
+                    "duration": 0
+                }
+            }
+        },
+        "ThreadB": {
+            "priority": -16,
+            "phases": {
+                "phase1": {
+                    "exec": 300,
+                    "period": 24000,
+                    "sleep": false,
+                    "loop": 1,
+                    "lock_order": [
+                        "wait1",
+                        "r0",
+                        "trig2"
+                    ],
+                    "resources": {
+                        "wait1": {
+                            "duration": 0,
+                            "access": [
+                                "trig1_mutex"
+                            ]
+                        },
+                        "r0": {
+                            "duration": 300
+                        },
+                        "trig2": {
+                            "duration": 0
+                        }
+                    }
+                },
+                "phase2": {
+                    "exec": 4000,
+                    "period": 24000,
+                    "loop": 2,
+                    "sleep": false,
+                    "lock_order": [
+                        "wait1",
+                        "r0",
+                        "trig2"
+                    ],
+                    "resources": {
+                        "wait1": {
+                            "duration": 0,
+                            "access": [
+                                "trig1_mutex"
+                            ]
+                        },
+                        "r0": {
+                            "duration": 300
+                        },
+                        "trig2": {
+                            "duration": 0
+                        }
+                    }
+                }
+            }
+        },
+        "ThreadC": {
+            "exec": 1150,
+            "period": 24000,
+            "priority": -2,
+            "sleep": false,
+            "lock_order": [
+                "wait2",
+                "r0",
+                "sync3"
+            ],
+            "resources": {
+                "wait2": {
+                    "duration": 0,
+                    "access": [
+                        "trig2_mutex"
+                    ]
+                },
+                "r0": {
+                    "duration": 1000
+                },
+                "sync3": {
+                    "duration": 0,
+                    "access": [
+                        "trig3_mutex"
+                    ]
+                }
+            }
+        },
+        "ThreadD": {
+            "exec": 300,
+            "period": 24000,
+            "deadline": 24000,
+            "priority": -2,
+            "sleep": false,
+            "lock_order": [
+                "wait3",
+                "r0",
+                "trig3"
+            ],
+            "resources": {
+                "wait3": {
+                    "duration": 0,
+                    "access": [
+                        "trig3_mutex"
+                    ]
+                },
+                "r0": {
+                    "duration": 300
+                },
+                "trig3": {
+                    "duration": 0,
+                    "access": [
+                        "trig3_mutex"
+                    ]
+                }
+            }
+        }
+    },
+    "resources": {
+        "trig1_mutex": {
+            "type": "mutex"
+        },
+        "wait1": {
+            "type": "wait"
+        },
+        "trig1": {
+            "type": "signal",
+            "target": "wait1"
+        },
+        "trig2_mutex": {
+            "type": "mutex"
+        },
+        "wait2": {
+            "type": "wait"
+        },
+        "trig2": {
+            "type": "signal",
+            "target": "wait2"
+        },
+        "trig3_mutex": {
+            "type": "mutex"
+        },
+        "wait3": {
+            "type": "wait"
+        },
+        "trig3": {
+            "type": "signal",
+            "target": "wait3"
+        },
+        "sync3": {
+            "type": "sync",
+            "target": "wait3"
+        },
+        "r0": {
+            "type": "run"
+        }
+    },
+    "global": {
+        "default_policy": "SCHED_OTHER",
+        "duration": 5,
+        "ftrace": true,
+        "gnuplot": false,
+        "logdir": "/root/wa",
+        "log_basename": "rt-app",
+        "lock_pages": true,
+        "frag": 1,
+        "calibration": "CPU1"
+    }
+}
