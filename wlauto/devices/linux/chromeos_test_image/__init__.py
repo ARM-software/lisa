@@ -49,6 +49,8 @@ class ChromeOsDevice(LinuxDevice):
     ]
 
     def initialize(self, context, *args, **kwargs):
-        self.uninstall('busybox')  # busybox that comes with chromeos is missing some usefull utilities
-        super(ChromeOsDevice, self).initialize(context, *args, **kwargs)
+        if self.busybox == 'busybox':
+            self.logger.debug('Busybox already installed on the device: replacing with wa version')
+            self.uninstall('busybox')
+            self.busybox = self.deploy_busybox(context)
 
