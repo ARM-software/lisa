@@ -295,7 +295,7 @@ def install(instrument):
             # context. However, we also allow callbacks to capture the context
             # in variable arguments (declared as "*args" in the definition).
             if arg_num > 2 or (arg_num < 2 and argspec.varargs is None):
-                message = '{} must take exactly positional arguments; {} given.'
+                message = '{} must take exactly 2 positional arguments; {} given.'
                 raise ValueError(message.format(attr_name, arg_num))
 
             logger.debug('\tConnecting %s to %s', attr.__name__, SIGNAL_MAP[stripped_attr_name])
