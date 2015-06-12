@@ -58,6 +58,10 @@ class SysfsExtractor(Instrument):
     mount_command = 'mount -t tmpfs -o size={} tmpfs {}'
     extract_timeout = 30
     tarname = 'sysfs.tar.gz'
+    DEVICE_PATH = 0
+    BEFORE_PATH = 1
+    AFTER_PATH = 2
+    DIFF_PATH = 3
 
     parameters = [
         Parameter('paths', kind=list_of_strings, mandatory=True,
@@ -93,18 +97,19 @@ class SysfsExtractor(Instrument):
                                     as_root=True)
 
     def setup(self, context):
-        self.before_dirs = [
+        before_dirs = [
             _d(os.path.join(context.output_directory, 'before', self._local_dir(d)))
             for d in self.paths
         ]
-        self.after_dirs = [
+        after_dirs = [
             _d(os.path.join(context.output_directory, 'after', self._local_dir(d)))
             for d in self.paths
         ]
-        self.diff_dirs = [
+        diff_dirs = [
             _d(os.path.join(context.output_directory, 'diff', self._local_dir(d)))
             for d in self.paths
         ]
+        self.device_and_host_paths = zip(self.paths, before_dirs, after_dirs, diff_dirs)
 
         if self.use_tmpfs:
             for d in self.paths:
@@ -128,7 +133,7 @@ class SysfsExtractor(Instrument):
                 self.device.execute('busybox cp -Hr {} {}'.format(d, dest_dir),
                                     as_root=True, check_exit_code=False)
         else:  # not rooted
-            for dev_dir, before_dir in zip(self.paths, self.before_dirs):
+            for dev_dir, before_dir, _, _ in self.device_and_host_paths:
                 self.device.pull_file(dev_dir, before_dir)
 
     def slow_stop(self, context):
@@ -140,7 +145,7 @@ class SysfsExtractor(Instrument):
                 self.device.execute('busybox cp -Hr {} {}'.format(d, dest_dir),
                                     as_root=True, check_exit_code=False)
         else:  # not using tmpfs
-            for dev_dir, after_dir in zip(self.paths, self.after_dirs):
+            for dev_dir, _, after_dir, _ in self.device_and_host_paths:
                 self.device.pull_file(dev_dir, after_dir)
 
     def update_result(self, context):
@@ -156,11 +161,13 @@ class SysfsExtractor(Instrument):
             self.device.delete_file(on_device_tarball)
             os.remove(on_host_tarball)
 
-        for after_dir in self.after_dirs:
-            if not os.listdir(after_dir):
+        for paths in self.device_and_host_paths:
+            after_dir = paths[self.AFTER_PATH]
+            dev_dir = paths[self.DEVICE_PATH].strip('*')  # remove potential trailing '*'
+            if not os.listdir(after_dir) and self.device.listdir(dev_dir)[0]:
                 self.logger.error('sysfs files were not pulled from the device.')
-                return
-        for diff_dir, before_dir, after_dir in zip(self.diff_dirs, self.before_dirs, self.after_dirs):
+                self.device_and_host_paths.remove(paths)  # Path is removed to skip diffing it
+        for _, before_dir, after_dir, diff_dir in self.device_and_host_paths:
             _diff_sysfs_dirs(before_dir, after_dir, diff_dir)
 
     def teardown(self, context):
