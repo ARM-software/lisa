@@ -92,7 +92,7 @@ def get_run_number(metric):
 
     return (found, run_number)
 
-def get_results(path=".", id=None):
+def get_results(path=".", name=None):
     """Return a pd.DataFrame with the results
 
     The DataFrame's rows are the scores.  The first column is the
@@ -101,8 +101,8 @@ def get_results(path=".", id=None):
     FPS_* result, that's the score.  E.g. glbenchmarks "score" is it's
     fps.
 
-    An optional id argument can be passed.  If supplied, it overrides
-    the id in the results file.
+    An optional name argument can be passed.  If supplied, it overrides
+    the name in the results file.
 
     """
 
@@ -118,8 +118,8 @@ def get_results(path=".", id=None):
             (is_result, run_number) = get_run_number(row[3])
 
             if is_result:
-                if id:
-                    run_id = id
+                if name:
+                    run_id = name
                 else:
                     run_id = re.sub(r"_\d+", r"", row[0])
 
