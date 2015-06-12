@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # $Copyright:
 # ----------------------------------------------------------------
 # This confidential and proprietary software may be used only as
@@ -13,20 +12,20 @@
 # ----------------------------------------------------------------
 # $
 #
-"""Compare runs 2
+"""Parse the results from a Workload Automation run and show it in a
+"pretty" table
 
-Second version of the compare runs script, to compare two traces of
-the power allocator governor"""
+"""
 
 import os
 import collections, csv, re
 import pandas as pd
 from matplotlib import pyplot as plt
 
-class CR2(pd.DataFrame):
+class Result(pd.DataFrame):
     """A DataFrame-like class for storing benchmark results"""
     def __init__(self, *args, **kwargs):
-        super(CR2, self).__init__(*args, **kwargs)
+        super(Result, self).__init__(*args, **kwargs)
         self.ax = None
 
     def init_fig(self):
@@ -143,7 +142,8 @@ def get_results(path=".", id=None):
     for bench, run_id_dict in bench_dict.iteritems():
         bench_dfrs[bench] = pd.DataFrame(run_id_dict)
 
-    return CR2(pd.concat(bench_dfrs.values(), axis=1, keys=bench_dfrs.keys()))
+    return Result(pd.concat(bench_dfrs.values(), axis=1,
+                            keys=bench_dfrs.keys()))
 
 def combine_results(data):
     """Combine two DataFrame results into one
@@ -162,4 +162,4 @@ def combine_results(data):
 
     combined = pd.concat(res_dict.values(), axis=1, keys=res_dict.keys())
 
-    return CR2(combined)
+    return Result(combined)

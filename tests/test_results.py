@@ -22,7 +22,7 @@ import pandas as pd
 
 import utils_tests
 sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
-import results
+from cr2.wa import Result, get_results, combine_results
 
 class TestResults(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
@@ -31,9 +31,9 @@ class TestResults(utils_tests.SetupDirectory):
             *args, **kwargs)
 
     def test_get_results(self):
-        results_frame = results.get_results()
+        results_frame = get_results()
 
-        self.assertEquals(type(results_frame), results.CR2)
+        self.assertEquals(type(results_frame), Result)
         self.assertEquals(type(results_frame.columns), pd.core.index.MultiIndex)
         self.assertEquals(results_frame["antutu"]["power_allocator"][0], 5)
         self.assertEquals(results_frame["antutu"]["step_wise"][1], 9)
@@ -44,55 +44,55 @@ class TestResults(utils_tests.SetupDirectory):
         self.assertAlmostEquals(results_frame["thechase"]["step_wise"][0], 242.0522258138)
 
     def test_get_results_path(self):
-        """results.get_results() can be given a directory for the results.csv"""
+        """get_results() can be given a directory for the results.csv"""
 
         other_random_dir = tempfile.mkdtemp()
         os.chdir(other_random_dir)
 
-        results_frame = results.get_results(self.out_dir)
+        results_frame = get_results(self.out_dir)
 
         self.assertEquals(len(results_frame.columns), 10)
 
     def test_get_results_filename(self):
-        """results.get_results() can be given a specific filename"""
+        """get_results() can be given a specific filename"""
 
         old_path = os.path.join(self.out_dir, "results.csv")
         new_path = os.path.join(self.out_dir, "new_results.csv")
         os.rename(old_path, new_path)
 
-        results_frame = results.get_results(new_path)
+        results_frame = get_results(new_path)
 
         self.assertEquals(len(results_frame.columns), 10)
 
     def test_get_results_id(self):
         """get_results() optional id argument overrides the one in the results file"""
-        res = results.get_results(id="malkovich")
+        res = get_results(id="malkovich")
         self.assertIsNotNone(res["antutu"]["malkovich"])
 
     def test_combine_results(self):
-        res1 = results.get_results()
-        res2 = results.get_results()
+        res1 = get_results()
+        res2 = get_results()
 
         # First split them
         res1.drop('step_wise', axis=1, level=1, inplace=True)
         res2.drop('power_allocator', axis=1, level=1, inplace=True)
 
         # Now combine them again
-        combined = results.combine_results([res1, res2])
+        combined = combine_results([res1, res2])
 
-        self.assertEquals(type(combined), results.CR2)
+        self.assertEquals(type(combined), Result)
         self.assertEquals(combined["antutu"]["step_wise"][0], 4)
         self.assertEquals(combined["antutu"]["power_allocator"][0], 5)
         self.assertEquals(combined["geekbench"]["power_allocator"][1], 1)
         self.assertEquals(combined["t-rex_offscreen"]["step_wise"][2], 424)
 
     def test_plot_results_benchmark(self):
-        """Test CR2.plot_results_benchmark()
+        """Test Result.plot_results_benchmark()
 
         Can't test it, so just check that it doens't bomb
         """
 
-        res = results.get_results()
+        res = get_results()
 
         res.plot_results_benchmark("antutu")
         res.plot_results_benchmark("t-rex_offscreen", title="Glbench TRex")
@@ -109,25 +109,27 @@ class TestResults(utils_tests.SetupDirectory):
         matplotlib.pyplot.close('all')
 
     def test_get_run_number(self):
-        self.assertEquals(results.get_run_number("score_2"), (True, 2))
-        self.assertEquals(results.get_run_number("score"), (True, 0))
-        self.assertEquals(results.get_run_number("score 3"), (True, 3))
-        self.assertEquals(results.get_run_number("FPS_1"), (True, 1))
-        self.assertEquals(results.get_run_number("Overall_Score"), (True, 0))
-        self.assertEquals(results.get_run_number("Overall_Score_2"), (True, 1))
-        self.assertEquals(results.get_run_number("Memory_score")[0], False)
+        from cr2.wa.results import get_run_number
+
+        self.assertEquals(get_run_number("score_2"), (True, 2))
+        self.assertEquals(get_run_number("score"), (True, 0))
+        self.assertEquals(get_run_number("score 3"), (True, 3))
+        self.assertEquals(get_run_number("FPS_1"), (True, 1))
+        self.assertEquals(get_run_number("Overall_Score"), (True, 0))
+        self.assertEquals(get_run_number("Overall_Score_2"), (True, 1))
+        self.assertEquals(get_run_number("Memory_score")[0], False)
 
     def test_plot_results(self):
-        """Test CR2.plot_results()
+        """Test Result.plot_results()
 
         Can't test it, so just check that it doens't bomb
         """
 
-        res = results.get_results()
+        res = get_results()
 
         res.plot_results()
         matplotlib.pyplot.close('all')
 
     def test_init_fig(self):
-        r1 = results.get_results()
+        r1 = get_results()
         r1.init_fig()

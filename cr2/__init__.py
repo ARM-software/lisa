@@ -15,7 +15,6 @@
 #
 
 from run import Run
-from results import CR2, get_results, combine_results
 from plotter.LinePlot import LinePlot
 from dynamic import register_dynamic, register_class
 
