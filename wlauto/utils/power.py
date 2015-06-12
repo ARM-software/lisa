@@ -330,7 +330,10 @@ class ParallelStats(object):
                 if not self.use_ratios:
                     time_pc *= 100
                 if n:
-                    running_time_pc = time / running_time
+                    if running_time:
+                        running_time_pc = time / running_time
+                    else:
+                        running_time_pc = 0
                     if not self.use_ratios:
                         running_time_pc *= 100
                 else:
