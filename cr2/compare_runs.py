@@ -40,10 +40,10 @@ def compare_runs(actor_order, map_label, runs, **kwords):
 
     """
 
-    if type(actor_order) is not list:
+    if not isinstance(actor_order, list):
         raise TypeError("actor_order has to be an array")
 
-    if type(map_label) is not dict:
+    if not isinstance(map_label, dict):
         raise TypeError("map_label has to be a dict")
 
     if "width" not in kwords:
