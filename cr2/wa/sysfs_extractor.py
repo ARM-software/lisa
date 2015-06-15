@@ -14,6 +14,7 @@
 #
 
 import os
+import pandas as pd
 import re
 
 class SysfsExtractor(object):
@@ -62,3 +63,17 @@ class SysfsExtractor(object):
                     ret[property_name] = contents
 
         return ret
+
+    def pretty_print_in_ipython(self):
+        """Print parameters extracted from sysfs from a WA run in a pretty HTML table.
+
+        This won't work if the code is not running in an ipython notebook."""
+
+        from IPython.display import display, HTML
+
+        params = self.get_parameters()
+
+        params_items = [(key, [value]) for key, value in sorted(params.items())]
+        dfr = pd.DataFrame.from_items(params_items, orient="index",
+                                      columns=["Value"])
+        display(HTML(dfr.to_html(header=False)))

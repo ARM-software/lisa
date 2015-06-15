@@ -14,3 +14,4 @@
 #
 
 from cr2.wa.results import Result, get_results, combine_results
+from cr2.wa.sysfs_extractor import SysfsExtractor

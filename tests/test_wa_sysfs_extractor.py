@@ -18,6 +18,8 @@ import subprocess
 
 import utils_tests
 
+import cr2.wa
+
 class TestWASysfsExtractor(utils_tests.SetupDirectory):
     """Test the WA specific interface to get parameters from a sysfs extractor"""
     def __init__(self, *args, **kwargs):
@@ -33,11 +35,14 @@ class TestWASysfsExtractor(utils_tests.SetupDirectory):
     def test_get_parameters(self):
         """Test that we can get the parameters of a sysfs extractor output"""
 
-        from cr2.wa.sysfs_extractor import SysfsExtractor
-
         os.chdir("..")
-        thermal_params = SysfsExtractor(self.out_dir).get_parameters()
+        thermal_params = cr2.wa.SysfsExtractor(self.out_dir).get_parameters()
         self.assertEquals(thermal_params["cdev0_weight"], 1024)
         self.assertEquals(thermal_params["cdev1_weight"], 768)
         self.assertEquals(thermal_params["trip_point_0_temp"], 72000)
         self.assertEquals(thermal_params["policy"], "power_allocator")
+
+    def test_print_thermal_params(self):
+        """Test that printing the thermal params doesn't bomb"""
+
+        cr2.wa.SysfsExtractor(".").pretty_print_in_ipython()
