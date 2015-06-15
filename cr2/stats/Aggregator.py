@@ -127,7 +127,7 @@ class MultiTriggerAggregator(AbstractAggregator):
                 result = [result_1, result_2]
         """
 
-        level = kwargs.get("level", "all")
+        level = kwargs.pop("level", "all")
 
         # This function is a hot spot in the code. It is
         # worth considering a memoize decorator to cache
