@@ -15,6 +15,7 @@
 
 import cr2.plot_utils
 import cr2.run
+import cr2.wa
 
 def compare_runs(actor_order, map_label, runs, **kwords):
     """A side by side comparison of multiple runs
@@ -52,8 +53,9 @@ def compare_runs(actor_order, map_label, runs, **kwords):
         kwords["height"] = 5
 
     run_data = []
-    for run in runs:
-        run_data.append(cr2.Run(name=run[0], path=run[1], scope="thermal"))
+    for name, path in runs:
+        run_data.append(cr2.Run(name=name, path=path, scope="thermal"))
+        cr2.wa.SysfsExtractor(path).pretty_print_in_ipython()
 
     cr2.plot_utils.plot_temperature(run_data, **kwords)
     cr2.plot_utils.plot_load(run_data, map_label, **kwords)
