@@ -59,4 +59,6 @@ class TestCopyRight(unittest.TestCase):
 
         for fname in files_in_repo.split():
             if os.path.splitext(fname)[1] == ".py":
-                self.assertTrue(copyright_is_valid(fname))
+                if not copyright_is_valid(fname):
+                    print("Invalid copyright in {}".format(fname))
+                    self.fail()
