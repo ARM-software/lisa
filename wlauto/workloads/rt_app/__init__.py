@@ -192,7 +192,6 @@ class RtApp(Workload):
             if crit_match:
                 crit_count += 1
 
-        context.result.add_metric('total_tasks', self.task_count, 'tasks')
         context.result.add_metric('error_count', error_count, 'count')
         context.result.add_metric('crit_count', crit_count, 'count')
 
