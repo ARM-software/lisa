@@ -31,7 +31,12 @@ class SysfsExtractor(object):
         self.properties = ["integral_cutoff", "k_d", "k_i", "k_po", "k_pu",
                            "policy", "sustainable_power"]
 
-        for fname in os.listdir(self.thermal_path):
+        try:
+            sysfs_files = os.listdir(self.thermal_path)
+        except OSError:
+            sysfs_files = []
+
+        for fname in sysfs_files:
             if re.search(r"cdev\d+_weight", fname):
                 self.properties.append(fname)
             elif re.search(r"trip_point_\d+_temp", fname):
@@ -51,6 +56,9 @@ class SysfsExtractor(object):
 
         for property_name in self.properties:
             property_path = os.path.join(self.thermal_path, property_name)
+
+            if not os.path.isfile(property_path):
+                continue
 
             with open(property_path) as fin:
                 contents = fin.read()
@@ -72,6 +80,10 @@ class SysfsExtractor(object):
         from IPython.display import display, HTML
 
         params = self.get_parameters()
+
+        # Don't print anything if we couldn't find any parameters
+        if len(params) == 0:
+            return
 
         params_items = [(key, [value]) for key, value in sorted(params.items())]
         dfr = pd.DataFrame.from_items(params_items, orient="index",

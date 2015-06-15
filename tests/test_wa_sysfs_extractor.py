@@ -15,6 +15,7 @@
 
 import os
 import subprocess
+import unittest
 
 import utils_tests
 
@@ -46,3 +47,14 @@ class TestWASysfsExtractor(utils_tests.SetupDirectory):
         """Test that printing the thermal params doesn't bomb"""
 
         cr2.wa.SysfsExtractor(".").pretty_print_in_ipython()
+
+class TestWASysfsExtractorFailMode(unittest.TestCase):
+    """Test the failure modes of the Workload Automation sysfs extractor"""
+
+    def test_get_params_invalid_directory(self):
+        """An invalid directory for cr2.wa.SysfsExtractor doesn't bomb"""
+
+        sysfs_extractor = cr2.wa.SysfsExtractor(".")
+        self.assertEquals(sysfs_extractor.get_parameters(), {})
+
+        sysfs_extractor.pretty_print_in_ipython()
