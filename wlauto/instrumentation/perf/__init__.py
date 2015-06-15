@@ -167,13 +167,3 @@ class PerfInstrument(Instrument):
                                                self._get_device_outfile(label))
         return command
 
-
-class CCIPerfEvent(object):
-
-    def __init__(self, name, config):
-        self.name = name
-        self.config = config
-
-    def __str__(self):
-        return 'CCI/config={config},name={name}/'.format(**self.__dict__)
-
