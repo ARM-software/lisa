@@ -86,6 +86,7 @@ class SqliteResultProcessor(ResultProcessor):
     name = 'sqlite'
     parameters = [
         Parameter('database', default=None,
+                  global_alias='sqlite_database',
                   description=""" Full path to the sqlite database to be used.  If this is not specified then
                                 a new database file will be created in the output directory. This setting can be
                                 used to accumulate results from multiple runs in a single database. If the
@@ -98,6 +99,7 @@ class SqliteResultProcessor(ResultProcessor):
                                             the home reference ~.
                                 """),
         Parameter('overwrite', kind=boolean, default=False,
+                  global_alias='sqlite_overwrite',
                   description="""If ``True``, this will overwrite the database file
                                  if it already exists. If ``False`` (the default) data
                                  will be added to the existing file (provided schema
