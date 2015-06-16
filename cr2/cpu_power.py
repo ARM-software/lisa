@@ -120,7 +120,7 @@ class CpuInPower(Base):
         dfr = self.data_frame
         load_cols = [s for s in dfr.columns if s.startswith("load")]
 
-        load_series = dfr[load_cols[0]]
+        load_series = dfr[load_cols[0]].copy()
         for col in load_cols[1:]:
             load_series += dfr[col]
 

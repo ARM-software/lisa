@@ -107,8 +107,13 @@ class TestCpuPower(BaseTestThermal):
 
     def test_cpuinpower_get_load_data(self):
         """Test CpuInPower.get_load_data()"""
-        load_data = cr2.Run().cpu_in_power.get_load_data(self.map_label)
+        run = cr2.Run()
+        first_load = run.cpu_in_power.data_frame["load0"].iloc[0]
+        load_data = run.cpu_in_power.get_load_data(self.map_label)
 
         self.assertEquals(load_data["A57"].iloc[0], 24 + 19)
         self.assertEquals(load_data["A53"].iloc[3], 32 + 28 + 46 + 44)
         self.assertEquals(load_data["A57"].iloc[0], load_data["A57"].iloc[1])
+
+        self.assertEquals(run.cpu_in_power.data_frame["load0"].iloc[0],
+                          first_load)
