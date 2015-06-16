@@ -175,8 +175,6 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         self._abi = None
 
     def validate(self):
-        if len(self.core_names) != len(self.core_clusters):
-            raise ConfigError('core_names and core_clusters are of different lengths.')
         if self.iks_switch_frequency is not None and self.scheduler != 'iks':  # pylint: disable=E0203
             raise ConfigError('iks_switch_frequency must NOT be set for non-IKS devices.')
         if self.iks_switch_frequency is None and self.scheduler == 'iks':  # pylint: disable=E0203
