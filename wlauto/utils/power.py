@@ -285,6 +285,40 @@ def gather_core_states(system_state_stream, freq_dependent_idle_states=None):  #
         yield (system_state.timestamp, core_states)
 
 
+class PowerStateTimeline(object):
+
+    def __init__(self, filepath, core_names, idle_state_names):
+        self.filepath = filepath
+        self.idle_state_names = idle_state_names
+        self._wfh = open(filepath, 'w')
+        self.writer = csv.writer(self._wfh)
+        if core_names:
+            headers = ['ts'] + ['{} CPU{}'.format(c, i)
+                                for i, c in enumerate(core_names)]
+            self.writer.writerow(headers)
+
+    def update(self, timestamp, core_states):  # NOQA
+        row = [timestamp]
+        for idle_state, frequency in core_states:
+            if frequency is None:
+                if idle_state is None or idle_state == -1:
+                    row.append(None)
+                else:
+                    row.append(self.idle_state_names[idle_state])
+            else:  # frequency is not None
+                if idle_state == -1:
+                    row.append(frequency)
+                elif idle_state is None:
+                    row.append(None)
+                else:
+                    row.append('{} ({})'.format(self.idle_state_names[idle_state],
+                                                frequency))
+        self.writer.writerow(row)
+
+    def report(self):
+        self._wfh.close()
+
+
 class ParallelStats(object):
 
     def __init__(self, core_clusters, use_ratios=False):
@@ -498,15 +532,21 @@ def build_idle_domains(core_clusters,   # NOQA
 
 def report_power_stats(trace_file, idle_state_names, core_names, core_clusters,
                        num_idle_states, first_cluster_state=sys.maxint,
-                       first_system_state=sys.maxint, use_ratios=False):
+                       first_system_state=sys.maxint, use_ratios=False,
+                       timeline_csv_file=None):
     # pylint: disable=too-many-locals
     trace = TraceCmdTrace()
     ps_processor = PowerStateProcessor(core_clusters,
                                        num_idle_states=num_idle_states,
                                        first_cluster_state=first_cluster_state,
                                        first_system_state=first_system_state)
-    parallel_stats = ParallelStats(core_clusters, use_ratios)
-    power_state_stats = PowerStateStats(core_names, idle_state_names, use_ratios)
+    reporters = [
+        ParallelStats(core_clusters, use_ratios),
+        PowerStateStats(core_names, idle_state_names, use_ratios)
+    ]
+    if timeline_csv_file:
+        reporters.append(PowerStateTimeline(timeline_csv_file,
+                                            core_names, idle_state_names))
 
     event_stream = trace.parse(trace_file, names=['cpu_idle', 'cpu_frequency'])
     transition_stream = stream_cpu_power_transitions(event_stream)
@@ -514,18 +554,20 @@ def report_power_stats(trace_file, idle_state_names, core_names, core_clusters,
     core_state_stream = gather_core_states(power_state_stream)
 
     for timestamp, states in core_state_stream:
-        parallel_stats.update(timestamp, states)
-        power_state_stats.update(timestamp, states)
+        for reporter in reporters:
+            reporter.update(timestamp, states)
 
-    parallel_report = parallel_stats.report()
-    ps_report = power_state_stats.report()
-
-    return (parallel_report, ps_report)
+    reports = []
+    for reporter in reporters:
+        report = reporter.report()
+        if report:
+            reports.append(report)
+    return reports
 
 
 def main():
+    # pylint: disable=unbalanced-tuple-unpacking
     args = parse_arguments()
-
     parallel_report, powerstate_report = report_power_stats(
         trace_file=args.infile,
         idle_state_names=args.idle_state_names,
@@ -535,6 +577,7 @@ def main():
         first_cluster_state=args.first_cluster_state,
         first_system_state=args.first_system_state,
         use_ratios=args.ratios,
+        timeline_csv_file=args.timeline_file,
     )
     parallel_report.write(os.path.join(args.output_directory, 'parallel.csv'))
     powerstate_report.write(os.path.join(args.output_directory, 'cpustate.csv'))
@@ -576,7 +619,7 @@ def parse_arguments():  # NOQA
                         core names on the assumption that all cores with the same name are on the
                         same cluster.
                         ''')
-    parser.add_argument('-i', '--idle-state-names', type=SplitListAction,
+    parser.add_argument('-i', '--idle-state-names', action=SplitListAction,
                         help='''
                         Comma-separated list of idle state names. The number of names must match
                         --num-idle-states if that was explicitly specified.
@@ -598,6 +641,11 @@ def parse_arguments():  # NOQA
                         help='''
                         By default proportional values will be reported as percentages, if this
                         flag is enabled, they will be reported as ratios instead.
+                        ''')
+    parser.add_argument('-t', '--timeline-file', metavar='FILE',
+                        help='''
+                        A timeline of core power states will be written to the specified file in
+                        CSV format.
                         ''')
 
     args = parser.parse_args()

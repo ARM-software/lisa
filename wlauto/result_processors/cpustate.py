@@ -95,6 +95,11 @@ class CpuStatesProcessor(ResultProcessor):
                   By default proportional values will be reported as percentages, if this
                   flag is enabled, they will be reported as ratios instead.
                   """),
+        Parameter('create_timeline', kind=bool, default=True,
+                  description="""
+                  Create a CSV with the timeline of core power states over the course of the run
+                  as well as the usual stats reports.
+                  """),
 
     ]
 
@@ -128,7 +133,11 @@ class CpuStatesProcessor(ResultProcessor):
             self.logger.debug('Text trace does not appear to have been generated; skipping this iteration.')
             return
         self.logger.debug('Generating power state reports from trace...')
-        parallel_report, powerstate_report = report_power_stats(
+        if self.create_timeline:
+            timeline_csv_file = os.path.join(context.output_directory, 'power_states.csv')
+        else:
+            timeline_csv_file = None
+        parallel_report, powerstate_report = report_power_stats(  # pylint: disable=unbalanced-tuple-unpacking
             trace_file=trace.path,
             idle_state_names=self.idle_state_names,
             core_names=self.core_names,
@@ -137,6 +146,7 @@ class CpuStatesProcessor(ResultProcessor):
             first_cluster_state=self.first_cluster_state,
             first_system_state=self.first_system_state,
             use_ratios=self.use_ratios,
+            timeline_csv_file=timeline_csv_file,
         )
         if parallel_report is None:
             self.logger.warning('No power state reports generated; are power '
