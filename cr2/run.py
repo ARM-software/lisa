@@ -398,6 +398,35 @@ classes are parsed.
 
         cr2.plot_utils.post_plot_setup(ax, title=title)
 
+    def plot_normalized_load(self, mapping_label, title="", width=None,
+                             height=None, ax=None):
+        """plot the normalized load of all the clusters, similar to how compare runs did it
+
+        the mapping_label has to be a dict whose keys are the cluster
+        numbers as found in the trace and values are the names that
+        will appear in the legend.
+
+        """
+
+        load_data = self.cpu_in_power.get_normalized_load_data(mapping_label)
+        if "load" in self.devfreq_in_power.data_frame:
+            gpu_dfr = self.devfreq_in_power.data_frame
+            gpu_max_freq = max(gpu_dfr["freq"])
+            gpu_load = gpu_dfr["load"] * gpu_dfr["freq"] / gpu_max_freq
+
+            gpu_data = pd.DataFrame({"GPU": gpu_load})
+            load_data = pd.concat([load_data, gpu_data], axis=1)
+
+        load_data = load_data.fillna(method="pad")
+        title = cr2.plot_utils.normalize_title("Normalized Utilization", title)
+
+        if not ax:
+            ax = cr2.plot_utils.pre_plot_setup(width=width, height=height)
+
+        load_data.plot(ax=ax)
+
+        cr2.plot_utils.post_plot_setup(ax, title=title)
+
     def plot_allfreqs(self, map_label, width=None, height=None, ax=None):
         """Do allfreqs plots similar to those of CompareRuns
 

@@ -178,13 +178,16 @@ def plot_hist(data, ax, title, unit, bins, xlabel, xlim, ylim):
 def plot_load(runs, map_label, width=None, height=None):
     """Make a multiplot of all the loads"""
     num_runs = len(runs)
-    axis = pre_plot_setup(width=width, height=height, ncols=num_runs)
+    axis = pre_plot_setup(width=width, height=height, ncols=num_runs, nrows=2)
 
     if num_runs == 1:
         axis = [axis]
+    else:
+        axis = zip(*axis)
 
     for ax, run in zip(axis, runs):
-        run.plot_load(map_label, title=run.name, ax=ax)
+        run.plot_load(map_label, title=run.name, ax=ax[0])
+        run.plot_normalized_load(map_label, title=run.name, ax=ax[1])
 
 def plot_allfreqs(runs, map_label, width=None, height=None):
     """Make a multicolumn plots of the allfreqs plots of each run"""

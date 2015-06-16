@@ -185,6 +185,14 @@ class TestRun(BaseTestThermal):
         _, ax = matplotlib.pyplot.subplots()
         run.plot_load(self.map_label, ax=ax)
 
+    def test_plot_normalized_load(self):
+        """Test that plot_normalized_load() doesn't explode"""
+
+        run = cr2.Run()
+
+        _, ax = matplotlib.pyplot.subplots()
+        run.plot_normalized_load(self.map_label, ax=ax)
+
     def test_plot_allfreqs(self):
         """Test that plot_allfreqs() doesn't bomb"""
 
