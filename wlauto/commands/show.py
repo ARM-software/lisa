@@ -63,6 +63,9 @@ def format_extension(extension, out, width):
     out.write('\n')
     format_extension_summary(extension, out, width)
     out.write('\n')
+    if hasattr(extension, 'supported_platforms'):
+        format_supported_platforms(extension, out, width)
+        out.write('\n')
     if extension.parameters:
         format_extension_parameters(extension, out, width)
         out.write('\n')
@@ -75,6 +78,11 @@ def format_extension_name(extension, out):
 
 def format_extension_summary(extension, out, width):
     out.write('{}\n'.format(format_body(strip_inlined_text(get_summary(extension)), width)))
+
+
+def format_supported_platforms(extension, out, width):
+    text = 'supported on: {}'.format(', '.join(extension.supported_platforms))
+    out.write('{}\n'.format(format_body(text, width)))
 
 
 def format_extension_description(extension, out, width):
