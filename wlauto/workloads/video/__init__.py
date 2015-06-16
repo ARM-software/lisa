@@ -45,6 +45,7 @@ class VideoWorkload(Workload):
     .. _Big Buck Bunny: http://www.bigbuckbunny.org/
 
     """
+    supported_platforms = ['android']
 
     parameters = [
         Parameter('play_duration', kind=int, default=20,

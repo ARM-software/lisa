@@ -60,6 +60,7 @@ class ApplaunchWorkload(Workload):
     Measures the time and energy used in launching an application.
 
     """
+    supported_platforms = ['android']
 
     parameters = [
         Parameter('app', default='browser', allowed_values=['calculator', 'browser', 'calendar'],

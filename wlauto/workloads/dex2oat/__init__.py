@@ -39,6 +39,7 @@ class Dex2oatBenchmark(Workload):
 
         """
 
+    supported_platforms = ['android']
     command_template = 'dex2oat --dex-file={} --oat-file={} --instruction-set={} --dump-timing'
     run_timeout = 5 * 60
 

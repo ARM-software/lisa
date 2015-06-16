@@ -42,6 +42,7 @@ class PowerLoadtest(Workload):
     See: https://www.chromium.org/chromium-os/testing/power-testing
 
     '''
+    supported_platforms = ['chromeos']
 
     parameters = [
         Parameter('board', default=os.getenv('BOARD'),

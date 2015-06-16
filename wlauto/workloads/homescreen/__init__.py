@@ -28,6 +28,7 @@ class HomeScreen(Workload):
     specified duration.
 
     """
+    supported_platforms = ['android']
 
     parameters = [
         Parameter('duration', kind=int, default=20,

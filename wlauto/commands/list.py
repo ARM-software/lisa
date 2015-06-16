@@ -31,6 +31,8 @@ class ListCommand(Command):
                                        'one of: {}'.format(', '.join(extension_types))),
                                  choices=extension_types)
         self.parser.add_argument('-n', '--name', help='Filter results by the name specified')
+        self.parser.add_argument('-p', '--platform', help='Only list results that are supported by '
+                                                          'the specified platform')
 
     def execute(self, args):
         filters = {}
@@ -39,7 +41,7 @@ class ListCommand(Command):
 
         ext_loader = ExtensionLoader(packages=settings.extension_packages, paths=settings.extension_paths)
         results = ext_loader.list_extensions(args.kind[:-1])
-        if filters:
+        if filters or args.platform:
             filtered_results = []
             for result in results:
                 passed = True
@@ -47,6 +49,8 @@ class ListCommand(Command):
                     if getattr(result, k) != v:
                         passed = False
                         break
+                if passed and args.platform:
+                    passed = check_platform(result, args.platform)
                 if passed:
                     filtered_results.append(result)
         else:  # no filters specified
@@ -57,3 +61,10 @@ class ListCommand(Command):
             for result in sorted(filtered_results, key=lambda x: x.name):
                 output.add_item(get_summary(result), result.name)
             print output.format_data()
+
+
+def check_platform(extension, platform):
+    supported_platforms = getattr(extension, 'supported_platforms', [])
+    if supported_platforms:
+        return platform in supported_platforms
+    return True

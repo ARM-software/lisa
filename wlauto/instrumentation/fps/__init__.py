@@ -70,6 +70,7 @@ class FpsInstrument(Instrument):
                        vsync cycle.
 
     """
+    supported_platforms = ['android']
 
     parameters = [
         Parameter('drop_threshold', kind=numeric, default=5,

@@ -33,6 +33,7 @@ class Audio(Workload):
     it plays Canon_in_D_Pieano.mp3 for 30 seconds.
 
     """
+    supported_platforms = ['android']
 
     parameters = [
         Parameter('duration', kind=int, default=30,

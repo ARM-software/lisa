@@ -144,6 +144,7 @@ class ApkWorkload(Workload):
     view = None
     install_timeout = None
     default_install_timeout = 300
+    supported_platforms = ['android']
 
     parameters = [
         Parameter('uninstall_apk', kind=boolean, default=False,
@@ -304,6 +305,8 @@ class ReventWorkload(Workload):
 
 class AndroidUiAutoBenchmark(UiAutomatorWorkload, AndroidBenchmark):
 
+    supported_platforms = ['android']
+
     def __init__(self, device, **kwargs):
         UiAutomatorWorkload.__init__(self, device, **kwargs)
         AndroidBenchmark.__init__(self, device, _call_super=False, **kwargs)
@@ -357,6 +360,7 @@ class GameWorkload(ApkWorkload, ReventWorkload):
     view = 'SurfaceView'
     install_timeout = 500
     loading_time = 10
+    supported_platforms = ['android']
 
     def __init__(self, device, **kwargs):  # pylint: disable=W0613
         ApkWorkload.__init__(self, device, **kwargs)
