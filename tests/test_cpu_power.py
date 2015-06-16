@@ -128,3 +128,18 @@ class TestCpuPower(BaseTestThermal):
 
         self.assertEquals(run.cpu_in_power.data_frame["load0"].iloc[0],
                           first_load)
+
+    def test_cpuinpower_get_normalized_load_data(self):
+        """Test CpuInPower.get_normalized_load_data()"""
+        run = cr2.Run()
+        first_load = run.cpu_in_power.data_frame["load0"].iloc[0]
+        load_data = run.cpu_in_power.get_normalized_load_data(self.map_label)
+
+        # Ideally the trace should have an event in which the cpus are
+        # not running at maximum frequency
+        self.assertEquals(load_data["A57"].iloc[0],
+                          (24. + 19) * 1100000 / (1100000 * 2))
+        self.assertEquals(load_data["A53"].iloc[1],
+                          (36. + 49 + 48 + 7) * 850000 / (850000 * 4))
+        self.assertEquals(run.cpu_in_power.data_frame["load0"].iloc[0],
+                          first_load)

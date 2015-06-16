@@ -120,10 +120,8 @@ class CpuInPower(Base):
             unique_word=self.unique_word,
         )
 
-    def get_load_data(self, mapping_label):
-        """return a dataframe suitable for plot_load()
-
-        mapping_label is a dictionary mapping cluster numbers to labels."""
+    def _get_load_series(self):
+        """get a pandas.Series with the aggregated load"""
 
         dfr = self.data_frame
         load_cols = [s for s in dfr.columns if s.startswith("load")]
@@ -131,6 +129,37 @@ class CpuInPower(Base):
         load_series = dfr[load_cols[0]].copy()
         for col in load_cols[1:]:
             load_series += dfr[col]
+
+        return load_series
+
+    def get_load_data(self, mapping_label):
+        """return a dataframe suitable for plot_load()
+
+        mapping_label is a dictionary mapping cluster cpumasks to labels."""
+
+        dfr = self.data_frame
+        load_series = self._get_load_series()
+        load_dfr = pd.DataFrame({"cpus": dfr["cpus"], "load": load_series})
+
+        return pivot_with_labels(load_dfr, "load", "cpus", mapping_label)
+
+    def get_normalized_load_data(self, mapping_label):
+        """return a dataframe for plotting normalized load data
+
+        mapping_label should be a dictionary mapping cluster cpumasks
+        to labels
+
+        """
+
+        dfr = self.data_frame
+        load_series = self._get_load_series()
+
+        load_series *= dfr['freq']
+        for cpumask in mapping_label:
+            num_cpus = num_cpus_in_mask(cpumask)
+            idx = dfr["cpus"] == cpumask
+            max_freq = max(dfr[idx]["freq"])
+            load_series[idx] = load_series[idx] / (max_freq * num_cpus)
 
         load_dfr = pd.DataFrame({"cpus": dfr["cpus"], "load": load_series})
         cluster_numbers = set(dfr["cpus"])
