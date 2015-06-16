@@ -16,6 +16,10 @@
 """Small functions to help with plots"""
 
 from matplotlib import pyplot as plt
+import os
+import re
+
+from cr2.wa import SysfsExtractor
 
 GOLDEN_RATIO = 1.618034
 
@@ -209,6 +213,37 @@ def plot_controller(runs, width=None, height=None):
     for ax, run in zip(axis, runs):
         run.pid_controller.plot_controller(title=run.name, ax=ax)
 
+def plot_weighted_input_power(runs, actor_order, width=None, height=None):
+    """Make a multicolumn plot of the weighted input power of each run"""
+
+    actor_weights = []
+    for run in runs:
+        run_path = os.path.dirname(run.trace_path)
+        sysfs = SysfsExtractor(run_path)
+
+        thermal_params = sysfs.get_parameters()
+
+        sorted_weights = []
+        for param in sorted(thermal_params):
+            if re.match(r"cdev\d+_weight", param):
+                sorted_weights.append(thermal_params[param])
+
+        actor_weights.append(zip(actor_order, sorted_weights))
+
+    # Do nothing if we don't have actor weights for any run
+    if not any(actor_weights):
+        return
+
+    num_runs = len(runs)
+    axis = pre_plot_setup(width=width, height=height, ncols=num_runs)
+
+    if num_runs == 1:
+        axis = [axis]
+
+    for ax, run, weights in zip(axis, runs, actor_weights):
+        run.thermal_governor.plot_weighted_input_power(weights, title=run.name,
+                                                       ax=ax)
+
 def plot_input_power(runs, actor_order, width=None, height=None):
     """Make a multicolumn plot of the input power of each run"""
     num_runs = len(runs)
@@ -219,6 +254,8 @@ def plot_input_power(runs, actor_order, width=None, height=None):
 
     for ax, run in zip(axis, runs):
         run.thermal_governor.plot_input_power(actor_order, title=run.name, ax=ax)
+
+    plot_weighted_input_power(runs, actor_order, width, height)
 
 def plot_output_power(runs, actor_order, width=None, height=None):
     """Make a multicolumn plot of the output power of each run"""

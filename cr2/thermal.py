@@ -16,7 +16,9 @@
 """Process the output of the power allocator trace in the current
 directory's trace.dat"""
 
+from collections import OrderedDict
 import os
+import pandas as pd
 import re
 from matplotlib import pyplot as plt
 
@@ -126,6 +128,33 @@ class ThermalGovernor(Base):
         plot_dfr.columns = actor_order
 
         title = normalize_title("Input Power", title)
+
+        if not ax:
+            ax = pre_plot_setup(width, height)
+
+        plot_dfr.plot(ax=ax)
+        post_plot_setup(ax, title=title)
+
+    def plot_weighted_input_power(self, actor_weights, title="", width=None, height=None, ax=None):
+        """Plot weighted input power
+
+        actor_weights is an array of tuples.  First element of the
+        tuple is the name of the actor, the second is the weight.  The
+        array is in the same order as the req_power appear in the
+        trace.
+
+        """
+
+        dfr = self.data_frame
+        in_cols = [s for s in dfr.columns if re.match(r"req_power\d+", s)]
+
+        plot_dfr_dict = OrderedDict()
+        for in_col, (name, weight) in zip(in_cols, actor_weights):
+            plot_dfr_dict[name] = dfr[in_col] * weight / 1024
+
+        plot_dfr = pd.DataFrame(plot_dfr_dict)
+
+        title = normalize_title("Weighted Input Power", title)
 
         if not ax:
             ax = pre_plot_setup(width, height)
