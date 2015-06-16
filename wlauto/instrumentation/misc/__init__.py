@@ -130,7 +130,7 @@ class SysfsExtractor(Instrument):
                 dest_dir = self.device.path.join(self.on_device_before, as_relative(d))
                 if '*' in dest_dir:
                     dest_dir = self.device.path.dirname(dest_dir)
-                self.device.execute('busybox cp -Hr {} {}'.format(d, dest_dir),
+                self.device.execute('{} cp -Hr {} {}'.format(self.device.busybox, d, dest_dir),
                                     as_root=True, check_exit_code=False)
         else:  # not rooted
             for dev_dir, before_dir, _, _ in self.device_and_host_paths:
@@ -142,7 +142,7 @@ class SysfsExtractor(Instrument):
                 dest_dir = self.device.path.join(self.on_device_after, as_relative(d))
                 if '*' in dest_dir:
                     dest_dir = self.device.path.dirname(dest_dir)
-                self.device.execute('busybox cp -Hr {} {}'.format(d, dest_dir),
+                self.device.execute('{} cp -Hr {} {}'.format(self.device.busybox, d, dest_dir),
                                     as_root=True, check_exit_code=False)
         else:  # not using tmpfs
             for dev_dir, _, after_dir, _ in self.device_and_host_paths:
@@ -152,7 +152,9 @@ class SysfsExtractor(Instrument):
         if self.use_tmpfs:
             on_device_tarball = self.device.path.join(self.device.working_directory, self.tarname)
             on_host_tarball = self.device.path.join(context.output_directory, self.tarname)
-            self.device.execute('busybox tar czf {} -C {} .'.format(on_device_tarball, self.tmpfs_mount_point),
+            self.device.execute('{} tar czf {} -C {} .'.format(self.device.busybox,
+                                                               on_device_tarball,
+                                                               self.tmpfs_mount_point),
                                 as_root=True)
             self.device.execute('chmod 0777 {}'.format(on_device_tarball), as_root=True)
             self.device.pull_file(on_device_tarball, on_host_tarball)
