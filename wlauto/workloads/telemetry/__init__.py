@@ -51,7 +51,7 @@ class Telemetry(Workload):
 
     name = 'telemetry'
     description = """
-    Executes Google's Telemetery benchmarking framework (must be installed).
+    Executes Google's Telemetery benchmarking framework
 
     Url: https://www.chromium.org/developers/telemetry
 
