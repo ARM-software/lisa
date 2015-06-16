@@ -37,6 +37,8 @@ WRITE_ONLY_TUNABLES = {
     'interactive': ['boostpulse']
 }
 
+FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (\S+) type (\S+) \((\S+)\)')
+
 FstabEntry = namedtuple('FstabEntry', ['device', 'mount_point', 'fs_type', 'options', 'dump_freq', 'pass_num'])
 PsEntry = namedtuple('PsEntry', 'user pid ppid vsize rss wchan pc state name')
 
@@ -285,7 +287,13 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         output = self.execute('mount')
         fstab = []
         for line in output.split('\n'):
-            fstab.append(FstabEntry(*line.split()))
+            match = FSTAB_ENTRY_REGEX.search(line)
+            if match:
+                fstab.append(FstabEntry(match.group(1), match.group(2),
+                                        match.group(3), match.group(4),
+                                        None, None))
+            else:  # assume pre-M Android
+                fstab.append(FstabEntry(*line.split()))
         return fstab
 
     # Process query and control
