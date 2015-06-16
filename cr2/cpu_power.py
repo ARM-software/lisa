@@ -162,7 +162,6 @@ class CpuInPower(Base):
             load_series[idx] = load_series[idx] / (max_freq * num_cpus)
 
         load_dfr = pd.DataFrame({"cpus": dfr["cpus"], "load": load_series})
-        cluster_numbers = set(dfr["cpus"])
 
         return pivot_with_labels(load_dfr, "load", "cpus", mapping_label)
 
