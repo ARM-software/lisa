@@ -389,7 +389,7 @@ classes are parsed.
             pass
 
         load_data = load_data.fillna(method="pad")
-        title = cr2.plot_utils.normalize_title("Utilisation", title)
+        title = cr2.plot_utils.normalize_title("Utilization", title)
 
         if not ax:
             ax = cr2.plot_utils.pre_plot_setup(width=width, height=height)

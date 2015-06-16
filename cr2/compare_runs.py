@@ -20,7 +20,7 @@ import cr2.wa
 def compare_runs(actor_order, map_label, runs, **kwords):
     """A side by side comparison of multiple runs
 
-    Plots include temperature, utilisation, frequencies, PID
+    Plots include temperature, utilization, frequencies, PID
     controller and power.
 
     actor_order must be an array showing the order in which the actors
