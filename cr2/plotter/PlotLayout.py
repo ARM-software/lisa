@@ -18,7 +18,7 @@ and deleting empty plots
 """
 
 import matplotlib.pyplot as plt
-import AttrConf
+from cr2.plotter import AttrConf
 
 
 class PlotLayout(object):

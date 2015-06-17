@@ -39,8 +39,8 @@ result["a"] = pd.Series.filtered()
 
 """
 # pylint: disable=R0913
-import Utils
-import AttrConf
+from cr2.plotter.Utils import decolonize, listify, normalize_list
+from cr2.plotter import AttrConf
 
 
 class Constraint(object):
@@ -151,8 +151,7 @@ class Constraint(object):
 
         data_container = getattr(
             self._cr2_run,
-            Utils.decolonize(
-                self._template.name))
+            decolonize(self._template.name))
         return data_container.data_frame
 
     def pivot_vals(self, data):
@@ -192,9 +191,9 @@ class ConstraintManager(object):
     def __init__(self, runs, columns, templates, pivot, filters):
 
         self._ip_vec = []
-        self._ip_vec.append(Utils.listify(runs))
-        self._ip_vec.append(Utils.listify(columns))
-        self._ip_vec.append(Utils.listify(templates))
+        self._ip_vec.append(listify(runs))
+        self._ip_vec.append(listify(columns))
+        self._ip_vec.append(listify(templates))
 
         self._lens = map(len, self._ip_vec)
         self._max_len = max(self._lens)
@@ -248,9 +247,8 @@ class ConstraintManager(object):
             for val in max_pos_comp:
                 if val == 0:
                     self._run_expanded = True
-                self._ip_vec[val] = Utils.normalize_list(
-                    self._max_len,
-                    self._ip_vec[val])
+                self._ip_vec[val] = normalize_list(self._max_len,
+                                                   self._ip_vec[val])
 
     def _constraints(self):
         """Popluate the expanded constraints"""

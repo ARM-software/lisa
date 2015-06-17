@@ -16,10 +16,10 @@
 
 
 import pandas as pd
-from LinePlot import LinePlot
+import LinePlot
 import AttrConf
 try:
-    import EventPlot
+    import cr2.plotter.EventPlot
 except ImportError:
     pass
 import Utils

@@ -17,11 +17,11 @@ customizing Line Plots with a pandas dataframe input
 """
 
 import matplotlib.pyplot as plt
-import AttrConf
-from Constraint import ConstraintManager
-from PlotLayout import PlotLayout
-from AbstractDataPlotter import AbstractDataPlotter
-from ColorMap import ColorMap
+from cr2.plotter import AttrConf
+from cr2.plotter.Constraint import ConstraintManager
+from cr2.plotter.PlotLayout import PlotLayout
+from cr2.plotter.AbstractDataPlotter import AbstractDataPlotter
+from cr2.plotter.ColorMap import ColorMap
 
 
 class LinePlot(AbstractDataPlotter):

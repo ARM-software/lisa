@@ -15,7 +15,7 @@
 """This is the template class that all Plotters inherit"""
 from abc import abstractmethod, ABCMeta
 from pandas import DataFrame
-from Utils import listify
+from cr2.plotter.Utils import listify
 from functools import reduce
 # pylint: disable=R0921
 # pylint: disable=R0903
