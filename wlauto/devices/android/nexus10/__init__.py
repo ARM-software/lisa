@@ -41,7 +41,7 @@ class Nexus10Device(AndroidDevice):
         Parameter('core_clusters', default=[0, 0], override=True),
     ]
 
-    def init(self, context, *args, **kwargs):
+    def initialize(self, context):
         time.sleep(self.long_delay)
         self.execute('svc power stayon true', check_exit_code=False)
         time.sleep(self.long_delay)

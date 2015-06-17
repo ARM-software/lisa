@@ -385,10 +385,10 @@ class Instrument(Extension):
         self.is_enabled = True
         self.is_broken = False
 
-    def initialize(self, context):  # pylint: disable=arguments-differ
+    def initialize(self, context):
         pass
 
-    def finalize(self, context):  # pylint: disable=arguments-differ
+    def finalize(self, context):
         pass
 
     def __str__(self):

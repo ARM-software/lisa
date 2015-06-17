@@ -140,7 +140,7 @@ class ResultProcessor(Extension):
 
     """
 
-    def initialize(self, context):  # pylint: disable=arguments-differ
+    def initialize(self, context):
         pass
 
     def process_iteration_result(self, result, context):
@@ -155,7 +155,7 @@ class ResultProcessor(Extension):
     def export_run_result(self, result, context):
         pass
 
-    def finalize(self, context):  # pylint: disable=arguments-differ
+    def finalize(self, context):
         pass
 
 

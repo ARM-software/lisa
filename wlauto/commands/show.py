@@ -33,7 +33,7 @@ class ShowCommand(Command):
     Display documentation for the specified extension (workload, instrument, etc.).
     """
 
-    def initialize(self):
+    def initialize(self, context):
         self.parser.add_argument('name', metavar='EXTENSION',
                                  help='''The name of the extension for which information will
                                          be shown.''')

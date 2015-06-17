@@ -61,7 +61,7 @@ class Workload(Extension):
         """
         pass
 
-    def initialize(self, context):  # pylint: disable=arguments-differ
+    def initialize(self, context):
         """
         This method should be used to perform once-per-run initialization of a workload instance, i.e.,
         unlike ``setup()`` it will not be invoked on each iteration.
@@ -96,7 +96,7 @@ class Workload(Extension):
         """ Perform any final clean up for the Workload. """
         pass
 
-    def finalize(self, context):  # pylint: disable=arguments-differ
+    def finalize(self, context):
         pass
 
     def __str__(self):

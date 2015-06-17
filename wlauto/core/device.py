@@ -191,6 +191,14 @@ class Device(Extension):
         if len(self.core_names) != len(self.core_clusters):
             raise ConfigError('core_names and core_clusters are of different lengths.')
 
+    def initialize(self, context):
+        """
+        Initialization that is performed at the begining of the run (after the device has
+        been connecte).
+
+        """
+        pass
+
     def reset(self):
         """
         Initiate rebooting of the device.
@@ -221,35 +229,6 @@ class Device(Extension):
     def disconnect(self):
         """ Close the established connection to the device. """
         raise NotImplementedError()
-
-    def initialize(self, context, *args, **kwargs):
-        """
-        Default implementation just calls through to init(). May be overriden by specialised
-        abstract sub-cleasses to implent platform-specific intialization without requiring
-        concrete implementations to explicitly invoke parent's init().
-
-        Added in version 2.1.3.
-
-        """
-        self.init(context, *args, **kwargs)
-
-    def init(self, context, *args, **kwargs):
-        """
-        Initialize the device. This method *must* be called after a device reboot before
-        any other commands can be issued, however it may also be called without rebooting.
-
-        It is up to device-specific implementations to identify what initialisation needs
-        to be preformed on a particular invocation. Bear in mind that no assumptions can be
-        made about the state of the device prior to the initiation of workload execution,
-        so full initialisation must be performed at least once, even if no reboot has occurred.
-        After that, the device-specific implementation may choose to skip initialization if
-        the device has not been rebooted; it is up to the implementation to keep track of
-        that, however.
-
-        All arguments are device-specific (see the documentation for the your device).
-
-        """
-        pass
 
     def ping(self):
         """

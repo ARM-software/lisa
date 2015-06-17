@@ -44,7 +44,7 @@ class Note3Device(AndroidDevice):
         super(Note3Device, self).__init__(**kwargs)
         self._just_rebooted = False
 
-    def init(self, context):
+    def initialize(self, context):
         self.execute('svc power stayon true', check_exit_code=False)
 
     def reset(self):

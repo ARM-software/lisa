@@ -154,7 +154,7 @@ class Cgroups(Module):
                   description='Location where cgroups are mounted on the device.'),
     ]
 
-    def initialize(self):
+    def initialize(self, context):
         self.device = self.root_owner
         signal.connect(self._on_device_init, signal.RUN_INIT, priority=1)
 

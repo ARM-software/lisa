@@ -182,7 +182,7 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
             self._just_rebooted = False
         self._is_ready = True
 
-    def initialize(self, context, *args, **kwargs):
+    def initialize(self, context):
         self.execute('mkdir -p {}'.format(self.working_directory))
         if self.is_rooted:
             if not self.executable_is_installed('busybox'):
@@ -193,7 +193,6 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
             self.disable_selinux()
         if self.enable_screen_check:
             self.ensure_screen_is_on()
-        self.init(context, *args, **kwargs)
 
     def disconnect(self):
         if self._logcat_poller:

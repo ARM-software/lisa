@@ -123,7 +123,7 @@ class MyCoolModule(Module):
 
     capabilities = ['fizzle']
 
-    def initialize(self):
+    def initialize(self, context):
         self.fizzle_factor = 0  # pylint: disable=attribute-defined-outside-init
 
     def fizzle(self):
@@ -227,16 +227,16 @@ class ExtensionMetaTest(TestCase):
             def __init__(self, *args, **kwargs):
                 super(MyExt, self).__init__(*args, **kwargs)
                 self.instance_init = 0
-            def initialize(self):
+            def initialize(self, context):
                 self.values['a'] += 1
 
         class MyChildExt(MyExt):
             name = 'mychildext'
-            def initialize(self):
+            def initialize(self, context):
                 self.instance_init += 1
 
         ext = _instantiate(MyChildExt)
-        ext.initialize()
+        ext.initialize(None)
 
         assert_equal(MyExt.values['a'], 1)
         assert_equal(ext.instance_init, 1)
@@ -249,14 +249,14 @@ class ExtensionMetaTest(TestCase):
                 super(MyExt, self).__init__(*args, **kwargs)
                 self.instance_init = 0
                 self.instance_validate = 0
-            def initialize(self):
+            def initialize(self, context):
                 self.values['a'] += 1
             def validate(self):
                 self.instance_validate += 1
 
         class MyChildExt(MyExt):
             name = 'mychildext'
-            def initialize(self):
+            def initialize(self, context):
                 self.instance_init += 1
             def validate(self):
                 self.instance_validate += 1
@@ -264,9 +264,9 @@ class ExtensionMetaTest(TestCase):
         ext1 = _instantiate(MyExt)
         ext2 = _instantiate(MyExt)
         ext3 = _instantiate(MyChildExt)
-        ext1.initialize()
-        ext2.initialize()
-        ext3.initialize()
+        ext1.initialize(None)
+        ext2.initialize(None)
+        ext3.initialize(None)
         ext1.validate()
         ext2.validate()
         ext3.validate()

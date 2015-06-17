@@ -28,7 +28,7 @@ class CpufreqModule(Module):
     """
     capabilities = ['cpufreq']
 
-    def initialize(self):
+    def initialize(self, context):
         # pylint: disable=W0201
         CpufreqModule._available_governors = {}
         CpufreqModule._available_governor_tunables = {}

@@ -131,7 +131,7 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
 
         """
         if self._number_of_cores is None:
-            corere = re.compile('^\s*cpu\d+\s*$')
+            corere = re.compile(r'^\s*cpu\d+\s*$')
             output = self.execute('ls /sys/devices/system/cpu')
             self._number_of_cores = 0
             for entry in output.split():
@@ -175,14 +175,13 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         if self.iks_switch_frequency is None and self.scheduler == 'iks':  # pylint: disable=E0203
             self.iks_switch_frequency = 800000  # pylint: disable=W0201
 
-    def initialize(self, context, *args, **kwargs):
+    def initialize(self, context):
         self.execute('mkdir -p {}'.format(self.working_directory))
         if self.is_rooted:
             if not self.is_installed('busybox'):
                 self.busybox = self.deploy_busybox(context)
             else:
                 self.busybox = 'busybox'
-        self.init(context, *args, **kwargs)
 
     def get_properties(self, context):
         for propfile in self.property_files:
@@ -395,7 +394,7 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
                 num_active_cores += 1
         return num_active_cores
 
-    def set_number_of_active_cores(self, core, number):
+    def set_number_of_active_cores(self, core, number):  # NOQA
         if core not in self.core_names:
             raise ValueError('Unexpected core: {}; must be in {}'.format(core, list(set(self.core_names))))
         core_ids = [i for i, c in enumerate(self.core_names) if c == core]
@@ -611,7 +610,8 @@ class LinuxDevice(BaseLinuxDevice):
     def get_pids_of(self, process_name):
         """Returns a list of PIDs of all processes with the specified name."""
         # result should be a column of PIDs with the first row as "PID" header
-        result = self.execute('ps -C {} -o pid'.format(process_name), check_exit_code=False).strip().split()
+        result = self.execute('ps -C {} -o pid'.format(process_name),  # NOQA
+                              check_exit_code=False).strip().split()
         if len(result) >= 2:  # at least one row besides the header
             return map(int, result[1:])
         else:
@@ -624,7 +624,7 @@ class LinuxDevice(BaseLinuxDevice):
 
         result = []
         for line in lines:
-            parts = re.split('\s+', line, maxsplit=8)
+            parts = re.split(r'\s+', line, maxsplit=8)
             if parts:
                 result.append(PsEntry(*(parts[0:1] + map(int, parts[1:5]) + parts[5:])))
 

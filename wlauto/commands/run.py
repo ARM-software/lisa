@@ -30,7 +30,7 @@ class RunCommand(Command):
     name = 'run'
     description = 'Execute automated workloads on a remote device and process the resulting output.'
 
-    def initialize(self):
+    def initialize(self, context):
         self.parser.add_argument('agenda', metavar='AGENDA',
                                  help='Agenda for this workload automation run. This defines which workloads will ' +
                                       'be executed, how many times, with which tunables, etc. ' +

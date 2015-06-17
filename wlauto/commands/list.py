@@ -24,7 +24,7 @@ class ListCommand(Command):
     name = 'list'
     description = 'List available WA extensions with a short description of each.'
 
-    def initialize(self):
+    def initialize(self, context):
         extension_types = ['{}s'.format(ext.name) for ext in settings.extensions]
         self.parser.add_argument('kind', metavar='KIND',
                                  help=('Specify the kind of extension to list. Must be '

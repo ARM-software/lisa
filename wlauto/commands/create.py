@@ -177,7 +177,7 @@ class CreateCommand(Command):
     formatter_class = argparse.RawDescriptionHelpFormatter
     subcmd_classes = [CreateWorkloadSubcommand, CreatePackageSubcommand]
 
-    def initialize(self):
+    def initialize(self, context):
         subparsers = self.parser.add_subparsers(dest='what')
         self.subcommands = []  # pylint: disable=W0201
         for subcmd_cls in self.subcmd_classes:

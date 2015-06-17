@@ -553,10 +553,10 @@ class Extension(object):
         for param in self.parameters:
             param.validate(self)
 
-    def initialize(self, *args, **kwargs):
+    def initialize(self, context):
         pass
 
-    def finalize(self, *args, **kwargs):
+    def finalize(self, context):
         pass
 
     def check_artifacts(self, context, level):
@@ -615,7 +615,7 @@ class Extension(object):
                 raise ValueError(message.format(module_spec))
 
             module = loader.get_module(name, owner=self, **params)
-            module.initialize()
+            module.initialize(None)
             for capability in module.capabilities:
                 if capability not in self.capabilities:
                     self.capabilities.append(capability)
@@ -678,6 +678,6 @@ class Module(Extension):
             if owner.name == self.name:
                 raise ValueError('Circular module import for {}'.format(self.name))
 
-    def initialize(self):
+    def initialize(self, context):
         pass
 

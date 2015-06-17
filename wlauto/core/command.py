@@ -45,12 +45,12 @@ class Command(Extension):
             parser_params['formatter_class'] = self.formatter_class
         self.parser = subparsers.add_parser(self.name, **parser_params)
         init_argument_parser(self.parser)  # propagate top-level options
-        self.initialize()
+        self.initialize(None)
 
-    def initialize(self):
+    def initialize(self, context):
         """
         Perform command-specific initialisation (e.g. adding command-specific options to the command's
-        parser).
+        parser). ``context`` is always ``None``.
 
         """
         pass

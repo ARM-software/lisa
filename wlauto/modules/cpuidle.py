@@ -86,7 +86,7 @@ class Cpuidle(Module):
 
     root_path = '/sys/devices/system/cpu/cpuidle'
 
-    def initialize(self):
+    def initialize(self, context):
         self.device = self.root_owner
         signal.connect(self._on_device_init, signal.RUN_INIT, priority=1)
 
