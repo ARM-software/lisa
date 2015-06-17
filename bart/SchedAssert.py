@@ -290,3 +290,53 @@ class SchedAssert(object):
                 return True
 
         return False
+
+    def getRuntime(self, window=None, percent=False):
+        """Returns the Total Runtime of a task
+
+        Args:
+            window (tuple): A (start, end) tuple to limit
+                the scope of the calculation
+            percent (boolean): If True, the result is returned
+                as a percentage of the total execution time
+                of the run.
+        """
+
+        agg = self._aggregator(sconf.residency_sum)
+        run_time = agg.aggregate(level="all", window=window)[0]
+
+        if percent:
+
+            if window:
+                begin, end = window
+                total_time = end - begin
+            else:
+                total_time_agg = self._aggregator(sconf.total_duration)
+                total_time = total_time_agg.aggregate(
+                    level="all")[0] / self._topology.level_span("all")
+
+            run_time = run_time * 100
+            run_time = run_time / total_time
+
+        return run_time
+
+    def assertRuntime(
+            self,
+            expected_value,
+            operator,
+            window=None,
+            percent=False):
+        """Assert on the total runtime of the task
+
+         Args:
+            expected_value (double): The expected value of the total runtime
+            operator (func(a, b)): A binary operator function that
+                returns a boolean
+            window (tuple): A (start, end) tuple to limit the
+                 scope of the calculation
+            percent (boolean): If True, the result is returned
+                as a percentage of the total execution time of the run.
+        """
+
+        run_time = self.getRuntime(window, percent)
+        return operator(run_time, expected_value)
