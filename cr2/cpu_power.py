@@ -16,12 +16,10 @@
 """Process the output of the cpu_cooling devices in the current
 directory's trace.dat"""
 
-from matplotlib import pyplot as plt
 import pandas as pd
 
 from cr2.base import Base
 from cr2.run import Run
-from cr2.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
 def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
     """Pivot a DataFrame row into columns

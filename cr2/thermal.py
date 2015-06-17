@@ -17,7 +17,6 @@
 directory's trace.dat"""
 
 from collections import OrderedDict
-import os
 import pandas as pd
 import re
 from matplotlib import pyplot as plt

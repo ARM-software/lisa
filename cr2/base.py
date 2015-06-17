@@ -15,7 +15,6 @@
 #
 """Base class to parse trace.dat dumps"""
 
-import os
 import re
 import pandas as pd
 
