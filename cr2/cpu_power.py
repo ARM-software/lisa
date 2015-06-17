@@ -79,6 +79,14 @@ def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
 
     return pd.DataFrame(ret_series).fillna(method="pad")
 
+def num_cpus_in_mask(mask):
+    """Return the number of cpus in a cpumask"""
+
+    mask = mask.replace(",", "")
+    value = int(mask, 16)
+
+    return bin(value).count("1")
+
 class CpuOutPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 

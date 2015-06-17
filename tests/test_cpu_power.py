@@ -39,6 +39,17 @@ class TestCpuPower(BaseTestThermal):
         self.assertEquals(dfr_out["A15"].iloc[2], 2)
         self.assertEquals(dfr_out["A7"].iloc[1], 3)
 
+    def test_num_cpus_in_mask(self):
+        """num_cpus_in_mask() works with the masks we usually use"""
+        mask = "000000f0"
+        self.assertEquals(cpu_power.num_cpus_in_mask(mask), 4)
+
+        mask = sorted(self.map_label)[0]
+        self.assertEquals(cpu_power.num_cpus_in_mask(mask), 2)
+
+        mask = sorted(self.map_label)[1]
+        self.assertEquals(cpu_power.num_cpus_in_mask(mask), 4)
+
     def test_cpuoutpower_dataframe(self):
         """Test that CpuOutPower() creates a proper data_frame"""
         outp = cr2.Run().cpu_out_power
