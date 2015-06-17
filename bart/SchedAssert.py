@@ -401,3 +401,37 @@ class SchedAssert(object):
         first_cpu = self.getFirstCpu(window=window)
         cpus = listify(cpus)
         return first_cpu in cpus
+
+    def generate_events(self, start_id=0):
+        """Generate events for the trace plot"""
+
+        agg = self._aggregator(sconf.trace_event)
+        result = agg.aggregate(level="cpu")
+
+        events = []
+        rect_id = start_id
+        for idx, cpu_events in enumerate(result):
+            cpu = self._topology.get_node("cpu", idx)[0]
+            if not cpu_events:
+                continue
+
+            for event in cpu_events:
+                event["id"] = rect_id
+                event["name"] = self.name
+                event["lane"] = cpu
+                events.append(event)
+                rect_id += 1
+
+        return events
+
+    def plot(self):
+        """
+        Returns:
+            cr2.plotter.AbstractDataPlotter
+            Call .view() to draw the graph
+        """
+        level = "cpu"
+        events = self.generate_events()
+        names = [self.name]
+        num_lanes = self._topology.level_span(level)
+        return cr2.EventPlot(events, names, "CPU: ", num_lanes)

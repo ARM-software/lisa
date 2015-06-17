@@ -117,3 +117,23 @@ class SchedMultiAssert(object):
             return num_true == rank
         else:
             return result
+
+    def generate_events(self):
+        """Generate Events for the trace plot"""
+
+        events = []
+        for s_assert in self._asserts.values():
+            events += s_assert.generate_events(start_id=len(events))
+        return events
+
+    def plot(self):
+        """
+        Returns:
+            cr2.plotter.AbstractDataPlotter. Call .view() for
+                displaying the plot
+        """
+        level = "cpu"
+        events = self.generate_events()
+        names = [s.name for s in self._asserts.values()]
+        num_lanes = self._topology.level_span(level)
+        return cr2.EventPlot(events, names, "CPU: ", num_lanes)
