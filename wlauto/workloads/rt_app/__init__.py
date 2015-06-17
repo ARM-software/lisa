@@ -247,12 +247,6 @@ class RtApp(Workload):
 
     def _update_rt_app_config(self, config_data):
         config_data['global'] = config_data.get('global', {})
-        if 'ftrace' in config_data['global'] and instrument_is_enabled('trace-cmd'):
-            raise WorkloadError('trace-cmd instrument cannot be enabled '
-                                'at the same time as ftrace rt-app setting. '
-                                'Please disable trace-cmd instrument in your '
-                                'WA config file or set ftrace to false in the '
-                                'JSON file.')
         config_data['global']['logdir'] = self.device_working_directory
         config_data['global']['log_basename'] = self.log_basename
         if self.duration is not None:
