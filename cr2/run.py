@@ -18,7 +18,7 @@ import os
 import re
 import pandas as pd
 
-import plot_utils
+import cr2.plot_utils
 
 def _plot_freq_hists(allfreqs, what, axis, title):
     """Helper function for plot_freq_hists
@@ -30,10 +30,10 @@ def _plot_freq_hists(allfreqs, what, axis, title):
     """
     for ax, actor in zip(axis, allfreqs):
         this_title = "freq {} {}".format(what, actor)
-        this_title = plot_utils.normalize_title(this_title, title)
+        this_title = cr2.plot_utils.normalize_title(this_title, title)
         xlim = (0, allfreqs[actor].max())
 
-        plot_utils.plot_hist(allfreqs[actor], ax, this_title, "KHz", 20,
+        cr2.plot_utils.plot_hist(allfreqs[actor], ax, this_title, "KHz", 20,
                              "Frequency", xlim, "default")
 
 class Run(object):
@@ -389,14 +389,14 @@ classes are parsed.
             pass
 
         load_data = load_data.fillna(method="pad")
-        title = plot_utils.normalize_title("Utilisation", title)
+        title = cr2.plot_utils.normalize_title("Utilisation", title)
 
         if not ax:
-            ax = plot_utils.pre_plot_setup(width=width, height=height)
+            ax = cr2.plot_utils.pre_plot_setup(width=width, height=height)
 
         load_data.plot(ax=ax)
 
-        plot_utils.post_plot_setup(ax, title=title)
+        cr2.plot_utils.post_plot_setup(ax, title=title)
 
     def plot_allfreqs(self, map_label, width=None, height=None, ax=None):
         """Do allfreqs plots similar to those of CompareRuns
@@ -414,10 +414,12 @@ classes are parsed.
             setup_plot = True
 
         for this_ax, (label, dfr) in zip(ax, all_freqs):
-            this_title = plot_utils.normalize_title("allfreqs " + label, self.name)
+            this_title = cr2.plot_utils.normalize_title("allfreqs " + label,
+                                                        self.name)
 
             if setup_plot:
-                this_ax = plot_utils.pre_plot_setup(width=width, height=height)
+                this_ax = cr2.plot_utils.pre_plot_setup(width=width,
+                                                        height=height)
 
             dfr.plot(ax=this_ax)
-            plot_utils.post_plot_setup(this_ax, title=this_title)
+            cr2.plot_utils.post_plot_setup(this_ax, title=this_title)

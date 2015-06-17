@@ -15,14 +15,14 @@
 #
 
 from cr2.compare_runs import summary_plots, compare_runs
-from run import Run
-from plotter.LinePlot import LinePlot
+from cr2.run import Run
+from cr2.plotter.LinePlot import LinePlot
 try:
     from cr2.plotter.ILinePlot import ILinePlot
     from cr2.plotter.EventPlot import EventPlot
 except ImportError:
     pass
-from dynamic import register_dynamic, register_class
+from cr2.dynamic import register_dynamic, register_class
 
 # Load all the modules to make sure all classes are registered with Run
 import os

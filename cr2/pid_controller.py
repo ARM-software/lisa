@@ -16,9 +16,9 @@
 """Process the output of the power allocator's PID controller in the
 current directory's trace.dat"""
 
-from base import Base
+from cr2.base import Base
 from cr2.run import Run
-from plot_utils import normalize_title, pre_plot_setup, post_plot_setup
+from cr2.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
 class PIDController(Base):
     """Process the power allocator PID controller data in a ftrace dump"""

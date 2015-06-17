@@ -14,7 +14,7 @@
 # $
 #
 
-from base import Base
+from cr2.base import Base
 from cr2.dynamic import register_dynamic
 from cr2.run import Run
 

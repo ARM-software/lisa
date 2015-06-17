@@ -22,9 +22,9 @@ import pandas as pd
 import re
 from matplotlib import pyplot as plt
 
-from base import Base
+from cr2.base import Base
 from cr2.run import Run
-from plot_utils import normalize_title, pre_plot_setup, post_plot_setup, plot_hist
+from cr2.plot_utils import normalize_title, pre_plot_setup, post_plot_setup, plot_hist
 
 class Thermal(Base):
     """Process the thermal framework data in a ftrace dump"""
