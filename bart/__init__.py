@@ -16,3 +16,4 @@
 
 from sheye import SchedAssert
 from sheye import SchedMultiAssert
+from sheye import SchedMatrix
