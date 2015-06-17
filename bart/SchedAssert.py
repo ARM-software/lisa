@@ -168,3 +168,24 @@ class SchedAssert(object):
         """
         node_value = self.getResidency(level, node, window, percent)
         return operator(node_value, expected_value)
+
+    def getStartTime(self):
+        """
+        Returns the first time the task ran
+        (across all CPUs)
+        """
+
+        agg = self._aggregator(sconf.first_time)
+        result = agg.aggregate(level="all", value=sconf.TASK_RUNNING)
+        return min(result[0])
+
+    def getEndTime(self):
+        """
+        Returns the last time the task ran
+        (across all CPUs)
+        """
+
+        agg = self._aggregator(sconf.first_time)
+        agg = self._aggregator(sconf.last_time)
+        result = agg.aggregate(level="all", value=sconf.TASK_RUNNING)
+        return max(result[0])
