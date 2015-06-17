@@ -88,8 +88,8 @@ def num_cpus_in_mask(mask):
 class CpuOutPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
-    unique_word="thermal_power_cpu_limit"
-    name="cpu_out_power"
+    unique_word = "thermal_power_cpu_limit"
+    name = "cpu_out_power"
     def __init__(self):
         super(CpuOutPower, self).__init__(
             unique_word=self.unique_word,
@@ -111,8 +111,8 @@ Run.register_class(CpuOutPower, "thermal")
 class CpuInPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
-    unique_word="thermal_power_cpu_get"
-    name="cpu_in_power"
+    unique_word = "thermal_power_cpu_get"
+    name = "cpu_in_power"
     def __init__(self):
         super(CpuInPower, self).__init__(
             unique_word=self.unique_word,
