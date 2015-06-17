@@ -15,3 +15,4 @@
 """Initialization for sheye"""
 
 from sheye import SchedAssert
+from sheye import SchedMultiAssert
