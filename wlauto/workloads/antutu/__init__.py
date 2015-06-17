@@ -92,8 +92,8 @@ def extract_version4_metrics(fh):
     metric_counts = defaultdict(int)
     for line in fh:
         if 'ANTUTU RESULT:' in line:
-            parts = line.split(':')
-            metric = parts[2].strip()
+            result = line.split('ANTUTU RESULT:')[1]
+            metric, value_string = [v.strip() for v in result.split(':', 1)]
             # If times prameter > 1 the same metric will appear
             # multiple times in logcat -- we want to collet all of
             # them as they're from different iterations.
@@ -101,7 +101,6 @@ def extract_version4_metrics(fh):
             if metric_counts[metric] > 1:
                 metric += '_' + str(metric_counts[metric])
 
-            value_string = parts[3].strip()
             # Grahics results report resolution in square brackets
             # as part of value string.
             if ']' in value_string:
