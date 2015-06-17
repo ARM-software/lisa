@@ -340,3 +340,36 @@ class SchedAssert(object):
 
         run_time = self.getRuntime(window, percent)
         return operator(run_time, expected_value)
+
+    def getDutyCycle(self, window):
+        """Returns the duty cycle of the task
+        Args:
+             window (tuple): A (start, end) tuple to limit the
+                 scope of the calculation
+
+        Duty Cycle:
+            The percentage of time the task spends executing
+            in the given window
+        """
+
+        return self.getRuntime(window, percent=True)
+
+    def assertDutyCycle(self, expected_value, operator, window):
+        """
+        Args:
+            expected_value (double): The expected value of
+                the duty cycle
+            operator (func(a, b)): A binary operator function that
+                returns a boolean
+            window (tuple): A (start, end) tuple to limit the
+                scope of the calculation
+
+        Duty Cycle:
+            The percentage of time the task spends executing
+                in the given window
+        """
+        return self.assertRuntime(
+            expected_value,
+            operator,
+            window,
+            percent=True)
