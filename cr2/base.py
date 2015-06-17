@@ -110,6 +110,13 @@ class Base(object):
         return ret
 
     def append_data(self, time, comm, pid, cpu, data):
+        """Append data parsed from a line to the corresponding arrays
+
+        The DataFrame will be created from this when the whole trace
+        has been parsed.
+
+        """
+
         self.time_array.append(time)
         self.comm_array.append(comm)
         self.pid_array.append(pid)
@@ -117,6 +124,7 @@ class Base(object):
         self.data_array.append(data)
 
     def create_dataframe(self):
+        """Create the final DataFrame"""
         if not self.time_array:
             return
 
