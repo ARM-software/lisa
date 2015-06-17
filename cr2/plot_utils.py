@@ -15,6 +15,8 @@
 #
 """Small functions to help with plots"""
 
+# pylint disable=star-args
+
 from matplotlib import pyplot as plt
 import os
 import re
@@ -24,17 +26,18 @@ from cr2.wa import SysfsExtractor
 GOLDEN_RATIO = 1.618034
 
 def normalize_title(title, opt_title):
-    """
-    Return a string with that contains the title and opt_title if it's not the empty string
+    """Return a string with that contains the title and opt_title if it's
+not the empty string
 
     See test_normalize_title() for usage
+
     """
     if opt_title is not "":
         title = opt_title + " - " + title
 
     return title
 
-def set_lim(lim, get_lim, set_lim):
+def set_lim(lim, get_lim_f, set_lim_f):
     """Set x or y limitis of the plot
 
     lim can be a tuple containing the limits or the string "default"
@@ -48,11 +51,11 @@ def set_lim(lim, get_lim, set_lim):
         return
 
     if lim == "range":
-        cur_lim = get_lim()
+        cur_lim = get_lim_f()
         lim = (cur_lim[0] - 0.1 * (cur_lim[1] - cur_lim[0]),
                cur_lim[1] + 0.1 * (cur_lim[1] - cur_lim[0]))
 
-    set_lim(lim[0], lim[1])
+    set_lim_f(lim[0], lim[1])
 
 def set_xlim(ax, xlim):
     """Set the xlim of the plot
@@ -256,7 +259,8 @@ def plot_input_power(runs, actor_order, width=None, height=None):
         axis = [axis]
 
     for ax, run in zip(axis, runs):
-        run.thermal_governor.plot_input_power(actor_order, title=run.name, ax=ax)
+        run.thermal_governor.plot_input_power(actor_order, title=run.name,
+                                              ax=ax)
 
     plot_weighted_input_power(runs, actor_order, width, height)
 
@@ -269,7 +273,8 @@ def plot_output_power(runs, actor_order, width=None, height=None):
         axis = [axis]
 
     for ax, run in zip(axis, runs):
-        run.thermal_governor.plot_output_power(actor_order, title=run.name, ax=ax)
+        run.thermal_governor.plot_output_power(actor_order, title=run.name,
+                                               ax=ax)
 
 def plot_freq_hists(runs, map_label):
     """Plot frequency histograms of multiple runs"""
