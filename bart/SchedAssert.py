@@ -373,3 +373,31 @@ class SchedAssert(object):
             operator,
             window,
             percent=True)
+
+    def getFirstCpu(self, window=None):
+        """
+        Args:
+            window (tuple): A (start, end) tuple to limit the
+                scope of the calculation
+        """
+
+        agg = self._aggregator(sconf.first_cpu)
+        result = agg.aggregate(level="cpu", window=window)
+        result = list(itertools.chain.from_iterable(result))
+
+        min_time = min(result)
+        if math.isinf(min_time):
+            return -1
+        index = result.index(min_time)
+        return self._topology.get_node("cpu", index)[0]
+
+    def assertFirstCpu(self, cpus, window=None):
+        """
+        Args:
+            cpus (int, list): A list of acceptable CPUs
+            window (tuple): A (start, end) tuple to limit the scope
+                of the calculation
+        """
+        first_cpu = self.getFirstCpu(window=window)
+        cpus = listify(cpus)
+        return first_cpu in cpus
