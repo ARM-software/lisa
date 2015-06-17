@@ -189,3 +189,104 @@ class SchedAssert(object):
         agg = self._aggregator(sconf.last_time)
         result = agg.aggregate(level="all", value=sconf.TASK_RUNNING)
         return max(result[0])
+
+    def _relax_switch_window(self, series, direction, window):
+        """
+            direction == "left"
+                return the last time the task was running
+                if no such time exists in the window,
+                extend the window's left extent to
+                getStartTime
+
+            direction == "right"
+                return the first time the task was running
+                in the window. If no such time exists in the
+                window, extend the window's right extent to
+                getEndTime()
+
+            The function returns a None if
+            len(series[series == TASK_RUNNING]) == 0
+            even in the extended window
+        """
+
+        series = series[series == sconf.TASK_RUNNING]
+        w_series = sconf.select_window(series, window)
+        start, stop = window
+
+        if direction == "left":
+            if len(w_series):
+                return w_series.index.values[-1]
+            else:
+                start_time = self.getStartTime()
+                w_series = sconf.select_window(
+                    series,
+                    window=(
+                        start_time,
+                        start))
+
+                if not len(w_series):
+                    return None
+                else:
+                    return w_series.index.values[-1]
+
+        elif direction == "right":
+            if len(w_series):
+                return w_series.index.values[0]
+            else:
+                end_time = self.getEndTime()
+                w_series = sconf.select_window(series, window=(stop, end_time))
+
+                if not len(w_series):
+                    return None
+                else:
+                    return w_series.index.values[0]
+        else:
+            raise ValueError("direction should be either left or right")
+
+    def assertSwitch(
+            self,
+            level,
+            from_node,
+            to_node,
+            window,
+            ignore_multiple=True):
+        """
+        This function asserts that there is context switch from the
+           from_node to the to_node:
+
+        Args:
+            level (hashable): The level to which the node belongs
+            from_node (list): The node from which the task switches out
+            to_node (list): The node to which the task switches
+            window (tuple): A (start, end) tuple window of time where the
+                switch needs to be asserted
+            ignore_multiple (bool): If true, the function will ignore multiple
+                switches in the window, If false the assert will be true if and
+                only if there is a single switch within the specified window
+
+        The function will only return true if and only if there is one
+        context switch between the specified nodes
+        """
+
+        from_node_index = self._topology.get_index(level, from_node)
+        to_node_index = self._topology.get_index(level, to_node)
+
+        agg = self._aggregator(sconf.csum)
+        level_result = agg.aggregate(level=level)
+
+        from_node_result = level_result[from_node_index]
+        to_node_result = level_result[to_node_index]
+
+        from_time = self._relax_switch_window(from_node_result, "left", window)
+        if ignore_multiple:
+            to_time = self._relax_switch_window(to_node_result, "left", window)
+        else:
+            to_time = self._relax_switch_window(
+                to_node_result,
+                "right", window)
+
+        if from_time and to_time:
+            if from_time < to_time:
+                return True
+
+        return False
