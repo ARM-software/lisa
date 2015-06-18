@@ -86,6 +86,9 @@ class Cpuidle(Module):
 
     root_path = '/sys/devices/system/cpu/cpuidle'
 
+    def probe(self, device):
+        return device.file_exists(self.root_path)
+
     def initialize(self, context):
         self.device = self.root_owner
         signal.connect(self._on_device_init, signal.RUN_INIT, priority=1)

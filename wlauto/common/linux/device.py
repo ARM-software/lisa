@@ -107,6 +107,11 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
                       value_name='tunables'),
     ]
 
+    dynamic_modules = [
+        'devcpufreq',
+        'cpuidle',
+    ]
+
     @property
     def abi(self):
         if not self._abi:

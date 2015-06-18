@@ -28,6 +28,10 @@ class CpufreqModule(Module):
     """
     capabilities = ['cpufreq']
 
+    def probe(self, device):  # pylint: disable=no-self-use
+        path = '/sys/devices/system/cpu/cpufreq'
+        return device.file_exists(path)
+
     def initialize(self, context):
         # pylint: disable=W0201
         CpufreqModule._available_governors = {}

@@ -598,28 +598,8 @@ class Extension(object):
         for module_spec in modules:
             if not module_spec:
                 continue
-            if isinstance(module_spec, basestring):
-                name = module_spec
-                params = {}
-            elif isinstance(module_spec, dict):
-                if len(module_spec) != 1:
-                    message = 'Invalid module spec: {}; dict must have exctly one key -- the module name.'
-                    raise ValueError(message.format(module_spec))
-                name, params = module_spec.items()[0]
-            else:
-                message = 'Invalid module spec: {}; must be a string or a one-key dict.'
-                raise ValueError(message.format(module_spec))
-
-            if not isinstance(params, dict):
-                message = 'Invalid module spec: {}; dict value must also be a dict.'
-                raise ValueError(message.format(module_spec))
-
-            module = loader.get_module(name, owner=self, **params)
-            module.initialize(None)
-            for capability in module.capabilities:
-                if capability not in self.capabilities:
-                    self.capabilities.append(capability)
-            self._modules.append(module)
+            module = self._load_module(loader, module_spec)
+            self._install_module(module)
 
     def has(self, capability):
         """Check if this extension has the specified capability. The alternative method ``can`` is
@@ -628,6 +608,33 @@ class Extension(object):
         return capability in self.capabilities
 
     can = has
+
+    def _load_module(self, loader, module_spec):
+        if isinstance(module_spec, basestring):
+            name = module_spec
+            params = {}
+        elif isinstance(module_spec, dict):
+            if len(module_spec) != 1:
+                message = 'Invalid module spec: {}; dict must have exctly one key -- the module name.'
+                raise ValueError(message.format(module_spec))
+            name, params = module_spec.items()[0]
+        else:
+            message = 'Invalid module spec: {}; must be a string or a one-key dict.'
+            raise ValueError(message.format(module_spec))
+
+        if not isinstance(params, dict):
+            message = 'Invalid module spec: {}; dict value must also be a dict.'
+            raise ValueError(message.format(module_spec))
+
+        module = loader.get_module(name, owner=self, **params)
+        module.initialize(None)
+        return module
+
+    def _install_module(self, module):
+        for capability in module.capabilities:
+            if capability not in self.capabilities:
+                self.capabilities.append(capability)
+        self._modules.append(module)
 
     def __check_from_loader(self):
         """

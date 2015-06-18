@@ -35,6 +35,7 @@ from collections import OrderedDict
 from contextlib import contextmanager
 
 from wlauto.core.extension import Extension, ExtensionMeta, AttributeCollection, Parameter
+from wlauto.core.extension_loader import ExtensionLoader
 from wlauto.exceptions import DeviceError, ConfigError
 from wlauto.utils.types import list_of_integers, list_of, caseless_string
 
@@ -93,10 +94,34 @@ class CoreParameter(RuntimeParameter):
         return params
 
 
+class DynamicModuleSpec(dict):
+
+    @property
+    def name(self):
+        return self.keys()[0]
+
+    def __init__(self, *args, **kwargs):
+        dict.__init__(self)
+        if args:
+            if len(args) > 1:
+                raise ValueError(args)
+            value = args[0]
+        else:
+            value = kwargs
+        if isinstance(value, basestring):
+            self[value] = {}
+        elif isinstance(value, dict) and len(value) == 1:
+            for k, v in value.iteritems():
+                self[k] = v
+        else:
+            raise ValueError(value)
+
+
 class DeviceMeta(ExtensionMeta):
 
     to_propagate = ExtensionMeta.to_propagate + [
         ('runtime_parameters', RuntimeParameter, AttributeCollection),
+        ('dynamic_modules', DynamicModuleSpec, AttributeCollection),
     ]
 
 
@@ -157,6 +182,9 @@ class Device(Extension):
     ]
 
     runtime_parameters = []
+    # dynamic modules are loaded or not based on whether the device supports
+    # them (established at runtime by module probling the device).
+    dynamic_modules = []
 
     # These must be overwritten by subclasses.
     name = None
@@ -197,7 +225,17 @@ class Device(Extension):
         been connecte).
 
         """
-        pass
+        loader = ExtensionLoader()
+        for module_spec in self.dynamic_modules:
+            module = self._load_module(loader, module_spec)
+            if not hasattr(module, 'probe'):
+                message = 'Module {} does not have "probe" attribute; cannot be loaded dynamically'
+                raise ValueError(message.format(module.name))
+            if module.probe(self):
+                self.logger.debug('Installing module "{}"'.format(module.name))
+                self._install_module(module)
+            else:
+                self.logger.debug('Module "{}" is not supported by the device'.format(module.name))
 
     def reset(self):
         """
