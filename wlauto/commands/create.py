@@ -184,15 +184,28 @@ class CreateAgendaSubcommand(CreateSubcommand):
     def initialize(self):
         self.parser.add_argument('extensions', nargs='+',
                                  help='Extensions to be added')
+        self.parser.add_argument('-i', '--iterations', type=int, default=1,
+                                 help='Sets the number of iterations for all workloads')
+        self.parser.add_argument('-r', '--include-runtime-params', action='store_true',
+                                 help="""
+                                 Adds runtime parameters to the global section of the generated
+                                 agenda. Note: these do not have default values, so only name
+                                 will be added. Also, runtime parameters are devices-specific, so
+                                 a device must be specified (either in the list of extensions,
+                                 or in the existing config).
+                                 """)
         self.parser.add_argument('-o', '--output', metavar='FILE',
                                  help='Output file. If not specfied, STDOUT will be used instead.')
 
-    def execute(self, args):  # pylint: disable=no-self-use
+    def execute(self, args):  # pylint: disable=no-self-use,too-many-branches,too-many-statements
         loader = ExtensionLoader(packages=settings.extension_packages,
                                  paths=settings.extension_paths)
-        agenda = {'config': OrderedDict(instrumentation=[], result_processors=[]),
-                  'workloads': []}
+        agenda = OrderedDict()
+        agenda['config'] = OrderedDict(instrumentation=[], result_processors=[])
+        agenda['global'] = OrderedDict(iterations=args.iterations)
+        agenda['workloads'] = []
         device = None
+        device_config = None
         for name in args.extensions:
             extcls = loader.get_extension_class(name)
             config = loader.get_default_config(name)
@@ -207,8 +220,9 @@ class CreateAgendaSubcommand(CreateSubcommand):
                 agenda['workloads'].append(entry)
             elif extcls.kind == 'device':
                 if device is not None:
-                    raise ConfigError('Specifying multiple devices: {} and {}'.format(device, name))
-                device = name
+                    raise ConfigError('Specifying multiple devices: {} and {}'.format(device.name, name))
+                device = extcls
+                device_config = config
                 agenda['config']['device'] = name
                 agenda['config']['device_config'] = config
             else:
@@ -217,6 +231,24 @@ class CreateAgendaSubcommand(CreateSubcommand):
                 if extcls.kind == 'result_processor':
                     agenda['config']['result_processors'].append(name)
                 agenda['config'][name] = config
+
+        if args.include_runtime_params:
+            if not device:
+                if settings.device:
+                    device = loader.get_extension_class(settings.device)
+                    device_config = loader.get_default_config(settings.device)
+                else:
+                    raise ConfigError('-r option requires for a device to be in the list of extensions')
+            rps = OrderedDict()
+            for rp in device.runtime_parameters:
+                if hasattr(rp, 'get_runtime_parameters'):
+                    # a core parameter needs to be expanded for each of the
+                    # device's cores, if they're avialable
+                    for crp in rp.get_runtime_parameters(device_config.get('core_names', [])):
+                        rps[crp.name] = None
+                else:
+                    rps[rp.name] = None
+            agenda['global']['runtime_params'] = rps
 
         if args.output:
             wfh = open(args.output, 'w')

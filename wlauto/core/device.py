@@ -300,7 +300,7 @@ class Device(Extension):
         runtime_parameters = self._expand_runtime_parameters()
         rtp_map = {rtp.name.lower(): rtp for rtp in runtime_parameters}
 
-        params = OrderedDict((k.lower(), v) for k, v in params.iteritems())
+        params = OrderedDict((k.lower(), v) for k, v in params.iteritems() if v is not None)
 
         expected_keys = rtp_map.keys()
         if not set(params.keys()) <= set(expected_keys):
