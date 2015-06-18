@@ -90,7 +90,8 @@ var ILinePlot = ( function() {
             logscale: t_info.logscale,
             fillGraph: t_info.fill_graph,
             labelsDiv: t_info.name + "_legend",
-            errorBars: false
+            errorBars: false,
+            valueRange: t_info.valueRange
 
         })
     };

@@ -102,8 +102,7 @@ class ILinePlot(AbstractDataPlotter):
 
         self._layout = ILinePlotGen(self._attr["per_line"],
                                     len(pivot_vals),
-                                    step_plot=self._attr["step_plot"],
-                                    fill=self._attr["fill"])
+                                    **self._attr)
         plot_index = 0
 
         for pivot in pivot_vals:

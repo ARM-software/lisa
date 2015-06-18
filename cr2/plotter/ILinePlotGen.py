@@ -155,6 +155,9 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         fig_params["step_plot"] = self._attr["step_plot"]
         fig_params["fill_graph"] = self._attr["fill"]
 
+        if "ylim" in self._attr:
+            fig_params["valueRange"] = self._attr["ylim"]
+
         json_file = os.path.join(AttrConf.PLOTTER_STATIC_DATA_DIR, fig_name + ".json")
         fh = open(json_file, "w")
         json.dump(fig_params, fh)
