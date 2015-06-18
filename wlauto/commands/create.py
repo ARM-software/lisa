@@ -188,7 +188,8 @@ class CreateAgendaSubcommand(CreateSubcommand):
                                  help='Output file. If not specfied, STDOUT will be used instead.')
 
     def execute(self, args):  # pylint: disable=no-self-use
-        loader = ExtensionLoader()
+        loader = ExtensionLoader(packages=settings.extension_packages,
+                                 paths=settings.extension_paths)
         agenda = {'config': OrderedDict(instrumentation=[], result_processors=[]),
                   'workloads': []}
         device = None
