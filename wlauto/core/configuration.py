@@ -308,6 +308,12 @@ def _combine_ids(*args):
     return '_'.join(args)
 
 
+class status_list(list):
+
+    def append(self, item):
+        list.append(self, str(item).upper())
+
+
 class RunConfiguration(object):
     """
     Loads and maintains the unified configuration for this run. This includes configuration
@@ -470,6 +476,8 @@ class RunConfiguration(object):
         RunConfigurationItem('reboot_policy', 'scalar', 'replace'),
         RunConfigurationItem('device', 'scalar', 'replace'),
         RunConfigurationItem('flashing_config', 'dict', 'replace'),
+        RunConfigurationItem('retry_on_status', 'list', 'replace'),
+        RunConfigurationItem('max_retries', 'scalar', 'replace'),
     ]
 
     # Configuration specified for each workload spec. "workload_parameters"
@@ -523,6 +531,8 @@ class RunConfiguration(object):
         self.workload_specs = []
         self.flashing_config = {}
         self.other_config = {}  # keeps track of used config for extensions other than of the four main kinds.
+        self.retry_on_status = status_list(['FAILED', 'PARTIAL'])
+        self.max_retries = 3
         self._used_config_items = []
         self._global_instrumentation = []
         self._reboot_policy = None

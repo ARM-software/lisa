@@ -60,6 +60,9 @@ class Mock(object):
     def __call__(self, *args, **kwargs):
         pass
 
+    def __iter__(self):
+        return iter([])
+
 
 class BadDeviceMeta(DeviceMeta):
 
@@ -161,6 +164,7 @@ class RunnerTest(TestCase):
         context = Mock()
         context.reboot_policy = RebootPolicy(reboot_policy)
         context.config.workload_specs = workloads
+        context.config.retry_on_status = []
 
         instrument = _instantiate(SignalCatcher)
         instrumentation.install(instrument)

@@ -97,6 +97,32 @@ Available Settings
 
    Added in version 2.1.5.
 
+
+.. confval:: retry_on_status
+
+   This is list of statuses on which a job will be cosidered to have failed and
+   will be automatically retried up to ``max_retries`` times. This defaults to
+   ``["FAILED", "PARTIAL"]`` if not set. Possible values are:
+
+   ``"OK"``
+   This iteration has completed and no errors have been detected
+
+   ``"PARTIAL"`` 
+   One or more instruments have failed (the iteration may still be running).
+
+   ``"FAILED"`` 
+   The workload itself has failed.
+
+   ``"ABORTED"`` 
+   The user interupted the workload
+
+.. confval:: max_reties
+
+   The maximum number of times failed jobs will be retried before giving up. If
+   not set, this will default to ``3``. 
+
+   .. note:: this number does not include the original attempt
+
 .. confval:: instrumentation
 
    This should be a list of instruments to be enabled during run execution.

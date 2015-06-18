@@ -40,6 +40,20 @@ reboot_policy = 'as_needed'
 #   random:       Randomisizes the order in which specs run.                                       #
 execution_order = 'by_iteration'
 
+
+# This indicates when a job will be re-run.
+# Possible values:
+#     OK: This iteration has completed and no errors have been detected
+#     PARTIAL: One or more instruments have failed (the iteration may still be running).
+#     FAILED: The workload itself has failed.
+#     ABORTED: The user interupted the workload
+#
+# If set to an empty list, a job will not be re-run ever.
+retry_on_status = ['FAILED', 'PARTIAL']
+
+# How many times a job will be re-run before giving up
+max_retires = 3
+
 ####################################################################################################
 ######################################### Device Settings ##########################################
 ####################################################################################################

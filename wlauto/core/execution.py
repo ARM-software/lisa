@@ -401,8 +401,9 @@ class RunnerJob(object):
 
     """
 
-    def __init__(self, spec):
+    def __init__(self, spec, retry=0):
         self.spec = spec
+        self.retry = retry
         self.iteration = None
         self.result = IterationResult(self.spec)
 
@@ -422,6 +423,10 @@ class Runner(object):
     class _RunnerError(Exception):
         """Internal runner error."""
         pass
+
+    @property
+    def config(self):
+        return self.context.config
 
     @property
     def current_job(self):
@@ -623,8 +628,16 @@ class Runner(object):
 
     def _finalize_job(self):
         self.context.run_result.iteration_results.append(self.current_job.result)
-        self.job_queue[0].iteration = self.context.current_iteration
-        self.completed_jobs.append(self.job_queue.pop(0))
+        job = self.job_queue.pop(0)
+        job.iteration = self.context.current_iteration
+        if job.result.status in self.config.retry_on_status:
+            if job.retry >= self.config.max_retries:
+                self.logger.error('Exceeded maxium number of retries. Abandoning job.')
+            else:
+                self.logger.info('Job status was {}. Retrying...'.format(job.result.status))
+                retry_job = RunnerJob(job.spec, job.retry + 1)
+                self.job_queue.insert(0, retry_job)
+        self.completed_jobs.append(job)
         self.context.end_job()
 
     def _finalize_run(self):
