@@ -42,11 +42,14 @@ class ChromeOsDevice(LinuxDevice):
         Parameter('core_names', default=[], override=True),
         Parameter('core_clusters', default=[], override=True),
         Parameter('username', default='root', override=True),
-        Parameter('password', default='test0000', override=True),
         Parameter('password_prompt', default='Password:', override=True),
         Parameter('binaries_directory', default='/usr/local/bin', override=True),
         Parameter('working_directory', default='/home/root/wa-working', override=True),
     ]
+
+    def validate(self):
+        if self.password is None and not self.keyfile:
+            self.password = 'test0000'
 
     def initialize(self, context, *args, **kwargs):
         if self.busybox == 'busybox':
