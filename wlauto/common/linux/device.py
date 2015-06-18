@@ -28,6 +28,7 @@ from wlauto.exceptions import ConfigError, DeviceError, TimeoutError, DeviceNotR
 from wlauto.common.resources import Executable
 from wlauto.utils.cpuinfo import Cpuinfo
 from wlauto.utils.misc import convert_new_lines, escape_double_quotes, ranges_to_list, ABI_MAP
+from wlauto.utils.misc import isiterable, list_to_mask
 from wlauto.utils.ssh import SshShell
 from wlauto.utils.types import boolean, list_of_strings
 
@@ -422,6 +423,45 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
             self.enable_cpu(core_ids[i])
         for i in xrange(number, max_cores):
             self.disable_cpu(core_ids[i])
+
+    def invoke(self, binary, args=None, in_directory=None, on_cpus=None,
+               background=False, as_root=False, timeout=30):
+        """
+        Executes the specified binary under the specified conditions.
+
+        :binary: binary to execute. Must be present and executable on the device.
+        :args: arguments to be passed to the binary. The can be either a list or
+               a string.
+        :in_directory:  execute the binary in the  specified directory. This must
+                        be an absolute path.
+        :on_cpus:  taskset the binary to these CPUs. This may be a single ``int`` (in which
+                   case, it will be interpreted as the mask), a list of ``ints``, in which
+                   case this will be interpreted as the list of cpus, or string, which
+                   will be interpreted as a comma-separated list of cpu ranges, e.g.
+                   ``"0,4-7"``.
+        :background: If ``True``, a ``subprocess.Popen`` object will be returned straight
+                     away. If ``False`` (the default), this will wait for the command to
+                     terminate and return the STDOUT output
+        :as_root: Specify whether the command should be run as root
+        :timeout: If the invocation does not terminate within this number of seconds,
+                  a ``TimeoutError`` exception will be raised. Set to ``None`` if the
+                  invocation should not timeout.
+
+        """
+        command = binary
+        if args:
+            if isiterable(args):
+                args = ' '.join(args)
+            command = '{} {}'.format(command, args)
+        if on_cpus:
+            if isinstance(on_cpus, basestring):
+                on_cpus = ranges_to_list(on_cpus)
+            if isiterable(on_cpus):
+                on_cpus = list_to_mask(on_cpus)
+            command = '{} taskset 0x{:x} {}'.format(self.busybox, on_cpus, command)
+        if in_directory:
+            command = 'cd {} && {}'.format(in_directory, command)
+        return self.execute(command, background=background, as_root=as_root, timeout=timeout)
 
     # internal methods
 
