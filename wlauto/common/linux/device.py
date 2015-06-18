@@ -261,8 +261,8 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
 
     def deploy_busybox(self, context, force=False):
         """
-        Deploys the busybox Android binary (hence in android module) to the
-        specified device, and returns the path to the binary on the device.
+        Deploys the busybox binary to the specified device, and returns
+        the path to the binary on the device.
 
         :param device: device to deploy the binary to.
         :param context: an instance of ExecutionContext
