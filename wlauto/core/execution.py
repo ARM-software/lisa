@@ -165,10 +165,12 @@ class ExecutionContext(object):
                                                'meta',
                                                mandatory=True,
                                                description='Agenda for this run.'))
-        for i in xrange(1, settings.config_count + 1):
-            self.run_artifacts.append(Artifact('config_{}'.format(i),
-                                               os.path.join(self.host_working_directory,
-                                                            'config_{}.py'.format(i)),
+        for i, filepath in enumerate(settings.loaded_files, 1):
+            name = 'config_{}'.format(i)
+            path = os.path.join(self.host_working_directory,
+                                name + os.path.splitext(filepath)[1])
+            self.run_artifacts.append(Artifact(name,
+                                               path,
                                                kind='meta',
                                                mandatory=True,
                                                description='Config file used for the run.'))

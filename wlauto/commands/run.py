@@ -88,9 +88,11 @@ class RunCommand(Command):
                 self.logger.debug('Updating agenda to disable {}'.format(itd))
                 agenda.config['instrumentation'].append('~{}'.format(itd))
 
-        file_name = 'config_{}.py'
+        basename = 'config_'
         for file_number, path in enumerate(settings.get_config_paths(), 1):
-            shutil.copy(path, os.path.join(settings.meta_directory, file_name.format(file_number)))
+            file_ext = os.path.splitext(path)[1]
+            shutil.copy(path, os.path.join(settings.meta_directory,
+                                           basename + str(file_number) + file_ext))
 
         executor = Executor()
         executor.execute(agenda, selectors={'ids': args.only_run_ids})

@@ -16,13 +16,13 @@
 
 import os
 import shutil
-import imp
 import sys
 import re
 from collections import namedtuple, OrderedDict
 
 from wlauto.exceptions import ConfigError
 from wlauto.utils.misc import merge_dicts, normalize, unique
+from wlauto.utils.misc import load_struct_from_yaml, load_struct_from_python, LoadSyntaxError
 from wlauto.utils.types import identifier
 
 
@@ -76,7 +76,7 @@ class ConfigLoader(object):
         self._loaded = False
         self._config = {}
         self.config_count = 0
-        self._loaded_files = []
+        self.loaded_files = []
         self.environment_root = None
         self.output_directory = 'wa_output'
         self.reboot_after_each_iteration = True
@@ -106,14 +106,22 @@ class ConfigLoader(object):
             self.update_from_file(source)
 
     def update_from_file(self, source):
+        ext = os.path.splitext(source)[1].lower()  # pylint: disable=redefined-outer-name
         try:
-            new_config = imp.load_source('config_{}'.format(self.config_count), source)
-        except SyntaxError, e:
-            message = 'Sytax error in config: {}'.format(str(e))
-            raise ConfigError(message)
-        self._config = merge_dicts(self._config, vars(new_config),
-                                   list_duplicates='first', match_types=False, dict_type=OrderedDict)
-        self._loaded_files.append(source)
+            if ext in ['.py', '.pyo', '.pyc']:
+                new_config = load_struct_from_python(source)
+            elif ext == '.yaml':
+                new_config = load_struct_from_yaml(source)
+            else:
+                raise ConfigError('Unknown config format: {}'.format(source))
+        except LoadSyntaxError as e:
+            raise ConfigError(e)
+
+        self._config = merge_dicts(self._config, new_config,
+                                   list_duplicates='first',
+                                   match_types=False,
+                                   dict_type=OrderedDict)
+        self.loaded_files.append(source)
         self._loaded = True
 
     def update_from_dict(self, source):
@@ -123,7 +131,7 @@ class ConfigLoader(object):
         self._loaded = True
 
     def get_config_paths(self):
-        return [lf.rstrip('c') for lf in self._loaded_files]
+        return [lf.rstrip('c') for lf in self.loaded_files]
 
     def _check_loaded(self):
         if not self._loaded:
@@ -174,13 +182,21 @@ _env_var_paths = os.getenv('WA_EXTENSION_PATHS', '')
 if _env_var_paths:
     _extension_paths.extend(_env_var_paths.split(os.pathsep))
 
+_env_configs = []
+for filename in ['config.py', 'config.yaml']:
+    filepath = os.path.join(_env_root, filename)
+    if os.path.isfile(filepath):
+        _env_configs.append(filepath)
+
 if not os.path.isdir(_env_root):
     init_environment(_env_root, _dep_dir, _extension_paths)
-elif not os.path.isfile(os.path.join(_env_root, 'config.py')):
+elif not _env_configs:
+    filepath = os.path.join(_env_root, 'config.py')
     with open(os.path.join(_this_dir, '..', 'config_example.py')) as f:
         f_text = re.sub(r'""".*?"""', '', f.read(), 1, re.DOTALL)
-        with open(os.path.join(_env_root, 'config.py'), 'w') as f:
+        with open(filepath, 'w') as f:
             f.write(f_text)
+        _env_configs.append(filepath)
 
 settings = ConfigLoader()
 settings.environment_root = _env_root
@@ -193,6 +209,6 @@ if os.path.isfile(_packages_file):
     with open(_packages_file) as fh:
         settings.extension_packages = unique(fh.read().split())
 
-_env_config = os.path.join(settings.environment_root, 'config.py')
-settings.update(_env_config)
+for config in _env_configs:
+    settings.update(config)
 
