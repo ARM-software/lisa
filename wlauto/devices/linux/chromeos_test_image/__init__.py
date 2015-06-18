@@ -48,6 +48,7 @@ class ChromeOsDevice(LinuxDevice):
     ]
 
     def validate(self):
+        # pylint: disable=access-member-before-definition,attribute-defined-outside-init
         if self.password is None and not self.keyfile:
             self.password = 'test0000'
 
