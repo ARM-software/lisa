@@ -130,6 +130,8 @@ class RtApp(Workload):
                   Duration of the workload execution in Seconds. If specified, this
                   will override the corresponing parameter in the JSON config.
                   '''),
+        Parameter('taskset_mask', kind=int,
+                  description='Constrain execution to specific CPUs.'),
     ]
 
     def initialize(self, context):
@@ -158,9 +160,10 @@ class RtApp(Workload):
         self.timeout = self.duration + time_buffer
 
     def run(self, context):
-        self.output = self.device.execute(self.command,
-                                          timeout=self.timeout,
-                                          as_root=True)
+        self.output = self.device.invoke(self.command,
+                                         on_cpus=self.taskset_mask,
+                                         timeout=self.timeout,
+                                         as_root=True)
 
     def update_result(self, context):
         self._pull_rt_app_logs(context)
