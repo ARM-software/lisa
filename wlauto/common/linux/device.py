@@ -261,7 +261,7 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
 
     def deploy_busybox(self, context, force=False):
         """
-        Deploys the busybox binary to the specified device, and returns
+        Deploys the busybox binary to the specified device and returns
         the path to the binary on the device.
 
         :param device: device to deploy the binary to.
