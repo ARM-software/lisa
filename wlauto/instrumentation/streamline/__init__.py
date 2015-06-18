@@ -67,6 +67,10 @@ class StreamlineResourceGetter(ResourceGetter):
             return test_path
 
 
+def _instantiate(resolver):
+    return StreamlineResourceGetter(resolver)
+
+
 class StreamlineInstrument(Instrument):
 
     name = 'streamline'
@@ -164,7 +168,7 @@ class StreamlineInstrument(Instrument):
         if version_tuple < (5, 17):
             raise InstrumentError('Need DS-5 v5.17 or greater; found v{}'.format(match.group(1)))
         self.enabled = True
-        self.resource_getter = StreamlineResourceGetter(context.resolver)
+        self.resource_getter = _instantiate(context.resolver)
         self.resource_getter.register()
 
     def on_run_end(self, context):
