@@ -32,22 +32,41 @@ class RunCommand(Command):
 
     def initialize(self, context):
         self.parser.add_argument('agenda', metavar='AGENDA',
-                                 help='Agenda for this workload automation run. This defines which workloads will ' +
-                                      'be executed, how many times, with which tunables, etc. ' +
-                                      'See example agendas in {} '.format(os.path.dirname(wlauto.__file__)) +
-                                      'for an example of how this file should be structured.')
+                                 help="""
+                                 Agenda for this workload automation run. This defines which
+                                 workloads will be executed, how many times, with which
+                                 tunables, etc.  See example agendas in {} for an example of
+                                 how this file should be structured.
+                                 """.format(os.path.dirname(wlauto.__file__)))
         self.parser.add_argument('-d', '--output-directory', metavar='DIR', default=None,
-                                 help='Specify a directory where the output will be generated. If the directory' +
-                                      'already exists, the script will abort unless -f option (see below) is used,' +
-                                      'in which case the contents of the directory will be overwritten. If this option' +
-                                      'is not specified, then {} will be used instead.'.format(settings.output_directory))
+                                 help="""
+                                 Specify a directory where the output will be generated. If
+                                 the directory already exists, the script will abort unless -f
+                                 option (see below) is used, in which case the contents of the
+                                 directory will be overwritten. If this option is not specified,
+                                 then {} will be used instead.
+                                 """.format(settings.output_directory))
         self.parser.add_argument('-f', '--force', action='store_true',
-                                 help='Overwrite output directory if it exists. By default, the script will abort in this' +
-                                      'situation to prevent accidental data loss.')
+                                 help="""
+                                 Overwrite output directory if it exists. By default, the script
+                                 will abort in this situation to prevent accidental data loss.
+                                 """)
         self.parser.add_argument('-i', '--id', action='append', dest='only_run_ids', metavar='ID',
-                                 help='Specify a workload spec ID from an agenda to run. If this is specified, only that particular ' +
-                                      'spec will be run, and other workloads in the agenda will be ignored. This option may be used to ' +
-                                      'specify multiple IDs.')
+                                 help="""
+                                 Specify a workload spec ID from an agenda to run. If this is
+                                 specified, only that particular spec will be run, and other
+                                 workloads in the agenda will be ignored. This option may be
+                                 used to specify multiple IDs.
+                                 """)
+        self.parser.add_argument('--disable', action='append', dest='instruments_to_disable',
+                                 metavar='INSTRUMENT', help="""
+                                 Specify an instrument to disable from the command line. This
+                                 equivalent to adding "~{metavar}" to the instrumentation list in
+                                 the agenda. This can be used to temporarily disable a troublesome
+                                 instrument for a particular run without introducing permanent
+                                 change to the config (which one might then forget to revert).
+                                 This option may be specified multiple times.
+                                 """)
 
     def execute(self, args):  # NOQA
         self.set_up_output_directory(args)
@@ -61,6 +80,13 @@ class RunCommand(Command):
             self.logger.debug('{} is not a file; assuming workload name.'.format(args.agenda))
             agenda = Agenda()
             agenda.add_workload_entry(args.agenda)
+
+        if args.instruments_to_disable:
+            if 'instrumentation' not in agenda.config:
+                agenda.config['instrumentation'] = []
+            for itd in args.instruments_to_disable:
+                self.logger.debug('Updating agenda to disable {}'.format(itd))
+                agenda.config['instrumentation'].append('~{}'.format(itd))
 
         file_name = 'config_{}.py'
         for file_number, path in enumerate(settings.get_config_paths(), 1):
