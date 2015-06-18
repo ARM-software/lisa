@@ -15,15 +15,19 @@
 
 
 import os
+import sys
 import stat
 import string
 import textwrap
 import argparse
 import shutil
 import getpass
+from collections import OrderedDict
+
+import yaml
 
 from wlauto import ExtensionLoader, Command, settings
-from wlauto.exceptions import CommandError
+from wlauto.exceptions import CommandError, ConfigError
 from wlauto.utils.cli import init_argument_parser
 from wlauto.utils.misc import (capitalize, check_output,
                                ensure_file_directory_exists as _f, ensure_directory_exists as _d)
@@ -169,13 +173,70 @@ class CreatePackageSubcommand(CreateSubcommand):
         touch(os.path.join(actual_package_path, '__init__.py'))
 
 
+class CreateAgendaSubcommand(CreateSubcommand):
+
+    name = 'agenda'
+    description = """
+    Create an agenda whith the specified extensions enabled. And parameters set to their
+    default values.
+    """
+
+    def initialize(self):
+        self.parser.add_argument('extensions', nargs='+',
+                                 help='Extensions to be added')
+        self.parser.add_argument('-o', '--output', metavar='FILE',
+                                 help='Output file. If not specfied, STDOUT will be used instead.')
+
+    def execute(self, args):  # pylint: disable=no-self-use
+        loader = ExtensionLoader()
+        agenda = {'config': OrderedDict(instrumentation=[], result_processors=[]),
+                  'workloads': []}
+        device = None
+        for name in args.extensions:
+            extcls = loader.get_extension_class(name)
+            config = loader.get_default_config(name)
+            del config['modules']
+
+            if extcls.kind == 'workload':
+                entry = OrderedDict()
+                entry['name'] = extcls.name
+                if name != extcls.name:
+                    entry['label'] = name
+                entry['params'] = config
+                agenda['workloads'].append(entry)
+            elif extcls.kind == 'device':
+                if device is not None:
+                    raise ConfigError('Specifying multiple devices: {} and {}'.format(device, name))
+                device = name
+                agenda['config']['device'] = name
+                agenda['config']['device_config'] = config
+            else:
+                if extcls.kind == 'instrument':
+                    agenda['config']['instrumentation'].append(name)
+                if extcls.kind == 'result_processor':
+                    agenda['config']['result_processors'].append(name)
+                agenda['config'][name] = config
+
+        if args.output:
+            wfh = open(args.output, 'w')
+        else:
+            wfh = sys.stdout
+        yaml.dump(agenda, wfh, indent=4, default_flow_style=False)
+        if args.output:
+            wfh.close()
+
+
 class CreateCommand(Command):
 
     name = 'create'
     description = '''Used to create various WA-related objects (see positional arguments list for what
                      objects may be created).\n\nUse "wa create <object> -h" for object-specific arguments.'''
     formatter_class = argparse.RawDescriptionHelpFormatter
-    subcmd_classes = [CreateWorkloadSubcommand, CreatePackageSubcommand]
+    subcmd_classes = [
+        CreateWorkloadSubcommand,
+        CreatePackageSubcommand,
+        CreateAgendaSubcommand,
+    ]
 
     def initialize(self, context):
         subparsers = self.parser.add_subparsers(dest='what')
