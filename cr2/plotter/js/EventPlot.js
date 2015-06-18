@@ -130,7 +130,7 @@ var EventPlot = (function () {
                 .data(lanes)
                 .enter()
                 .append('text')
-                .attr('x', -10)
+                .attr('x', 0)
                 .text(function (d) {
                     return d.label;
                 })
