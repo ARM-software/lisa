@@ -69,6 +69,11 @@ SchedCpuCapacity = register_dynamic("SchedCpuCapacity",
                                     "sched_cpu_capacity:",
                                     "sched")
 
+SchedSwitch = register_dynamic("SchedSwitch",
+                               "sched_switch",
+                               "sched",
+                               parse_raw=True)
+
 class SchedCpuFrequency(Base):
     """Corresponds to Linux kernel trace event power/cpu_frequency"""
     unique_word="cpu_frequency:"

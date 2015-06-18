@@ -48,7 +48,6 @@ def plot_trace(trace_dir):
     if not AttrConf.PLOTTER_IPYTHON:
         raise RuntimeError("plot_trace needs ipython environment")
 
-    cls = cr2.register_dynamic("SchedSwitch", "sched_switch", parse_raw=True)
     run = cr2.Run(trace_dir)
     data, procs = Utils.get_trace_event_data(run)
     trace_graph = EventPlot.EventPlot(data, procs, "CPU: ", int(run._cpus))
