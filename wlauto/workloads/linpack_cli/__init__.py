@@ -46,7 +46,9 @@ class LinpackCliWorkload(Workload):
         self.command = '(echo {}; echo q) | {}'.format(self.array_size, self.binary)
 
     def run(self, context):
-        self.raw_output = self.device.execute(self.command, timeout=300, check_exit_code=False)
+        self.raw_output = self.device.execute(self.command,
+                                              timeout=(self.array_size / 10) ** 2,
+                                              check_exit_code=False)
 
     def update_result(self, context):
         raw_outfile = os.path.join(context.output_directory, 'linpack-raw.txt')
