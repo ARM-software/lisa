@@ -28,13 +28,11 @@ from cr2.plot_utils import normalize_title, pre_plot_setup, post_plot_setup, plo
 class Thermal(Base):
     """Process the thermal framework data in a ftrace dump"""
 
-    unique_word="thermal_temperature:"
-    name="thermal"
+    unique_word = "thermal_temperature:"
+    name = "thermal"
 
     def __init__(self):
-        super(Thermal, self).__init__(
-            unique_word=self.unique_word,
-        )
+        super(Thermal, self).__init__(unique_word=self.unique_word)
 
     def plot_temperature(self, control_temperature=None, title="", width=None,
                          height=None, ylim="range", ax=None, legend_label=""):
@@ -81,8 +79,8 @@ Run.register_class(Thermal, "thermal")
 class ThermalGovernor(Base):
     """Process the power allocator data in a ftrace dump"""
 
-    unique_word="thermal_power_allocator:"
-    name="thermal_governor"
+    unique_word = "thermal_power_allocator:"
+    name = "thermal_governor"
     def __init__(self):
         super(ThermalGovernor, self).__init__(
             unique_word=self.unique_word,
@@ -110,10 +108,13 @@ class ThermalGovernor(Base):
             post_plot_setup(ax, title=title, ylim=ylim)
             plt.legend()
 
-    def plot_input_power(self, actor_order, title="", width=None, height=None, ax=None):
+    def plot_input_power(self, actor_order, title="", width=None, height=None,
+                         ax=None):
         """Plot input power
 
-        actor_order is an array with the order in which the actors were registered.
+        actor_order is an array with the order in which the actors
+        were registered.
+
         """
 
         dfr = self.data_frame
@@ -134,7 +135,8 @@ class ThermalGovernor(Base):
         plot_dfr.plot(ax=ax)
         post_plot_setup(ax, title=title)
 
-    def plot_weighted_input_power(self, actor_weights, title="", width=None, height=None, ax=None):
+    def plot_weighted_input_power(self, actor_weights, title="", width=None,
+                                  height=None, ax=None):
         """Plot weighted input power
 
         actor_weights is an array of tuples.  First element of the
@@ -161,10 +163,13 @@ class ThermalGovernor(Base):
         plot_dfr.plot(ax=ax)
         post_plot_setup(ax, title=title)
 
-    def plot_output_power(self, actor_order, title="", width=None, height=None, ax=None):
+    def plot_output_power(self, actor_order, title="", width=None, height=None,
+                          ax=None):
         """Plot output power
 
-        actor_order is an array with the order in which the actors were registered.
+        actor_order is an array with the order in which the actors
+        were registered.
+
         """
 
         out_cols = [s for s in self.data_frame.columns
@@ -182,15 +187,15 @@ class ThermalGovernor(Base):
         plot_dfr.plot(ax=ax)
         post_plot_setup(ax, title=title)
 
-    def plot_inout_power(self, title="", width=None, height=None):
+    def plot_inout_power(self, title=""):
         """Make multiple plots showing input and output power for each actor"""
         dfr = self.data_frame
 
         actors = []
         for col in dfr.columns:
-                match = re.match("P(.*)_in", col)
-                if match and col != "Ptot_in":
-                    actors.append(match.group(1))
+            match = re.match("P(.*)_in", col)
+            if match and col != "Ptot_in":
+                actors.append(match.group(1))
 
         for actor in actors:
             cols = ["P" + actor + "_in", "P" + actor + "_out"]
