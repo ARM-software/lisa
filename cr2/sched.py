@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # $Copyright:
 # ----------------------------------------------------------------
 # This confidential and proprietary software may be used only as
@@ -14,14 +13,16 @@
 # $
 #
 
+"""Definitions of scheduler events registered by the Run class"""
+
 from cr2.base import Base
 from cr2.dynamic import register_dynamic
 from cr2.run import Run
 
 class SchedLoadAvgSchedGroup(Base):
     """Corresponds to Linux kernel trace event sched_load_avg_sched_group"""
-    unique_word="sched_load_avg_sg:"
-    name="sched_load_avg_sched_group"
+    unique_word = "sched_load_avg_sg:"
+    name = "sched_load_avg_sched_group"
     _cpu_mask_column = "cpus"
 
     def __init__(self):
@@ -34,14 +35,15 @@ class SchedLoadAvgSchedGroup(Base):
         as 8 digits w/ leading 0
         """
         if self._cpu_mask_column in self.data_frame.columns:
-            self.data_frame[self._cpu_mask_column] = self.data_frame[self._cpu_mask_column].apply('{:0>8}'.format)
+            dfr = self.data_frame[self._cpu_mask_column].apply('{:0>8}'.format)
+            self.data_frame[self._cpu_mask_column] = dfr
 
 Run.register_class(SchedLoadAvgSchedGroup, "sched")
 
 class SchedLoadAvgTask(Base):
     """Corresponds to Linux kernel trace event sched_load_avg_task"""
-    unique_word="sched_load_avg_task:"
-    name="sched_load_avg_task"
+    unique_word = "sched_load_avg_task:"
+    name = "sched_load_avg_task"
 
     def __init__(self):
         super(SchedLoadAvgTask, self).__init__(
@@ -51,12 +53,15 @@ class SchedLoadAvgTask(Base):
     def get_pids(self, key=""):
         """Returns a list of (comm, pid) that contain
         'key' in their 'comm'."""
-        df = self.data_frame.drop_duplicates(subset=['comm','pid']).ix[:,['comm','pid']]
+        dfr = self.data_frame.drop_duplicates(subset=['comm', 'pid'])
+        dfr = dfr.ix[:, ['comm', 'pid']]
 
-        return df[df['comm'].str.contains(key)].values.tolist()
+        return dfr[dfr['comm'].str.contains(key)].values.tolist()
 
 Run.register_class(SchedLoadAvgTask, "sched")
 
+# pylint doesn't like globals that are not ALL_CAPS
+# pylint: disable=invalid-name
 SchedLoadAvgCpu = register_dynamic("SchedLoadAvgCpu",
                                    "sched_load_avg_cpu:",
                                    "sched")
@@ -73,11 +78,12 @@ SchedSwitch = register_dynamic("SchedSwitch",
                                "sched_switch",
                                "sched",
                                parse_raw=True)
+# pylint: enable=invalid-name
 
 class SchedCpuFrequency(Base):
     """Corresponds to Linux kernel trace event power/cpu_frequency"""
-    unique_word="cpu_frequency:"
-    name="sched_cpu_frequency"
+    unique_word = "cpu_frequency:"
+    name = "sched_cpu_frequency"
 
     def __init__(self):
         super(SchedCpuFrequency, self).__init__(
