@@ -133,7 +133,7 @@ class ILinePlot(AbstractDataPlotter):
 
         self._layout = ILinePlotGen(self._attr["per_line"],
                                     len(self._constraints),
-                                    step_plot=self._attr["step_plot"])
+                                    **self._attr)
 
         for constraint in self._constraints:
             result = constraint.result
