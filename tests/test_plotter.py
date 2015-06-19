@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # $Copyright:
 # ----------------------------------------------------------------
 # This confidential and proprietary software may be used only as
