@@ -14,6 +14,9 @@
 # $
 #
 
+# pylint can't see any of the dynamically allocated classes of Run
+# pylint: disable=no-member
+
 import os
 import re
 import pandas as pd
@@ -198,9 +201,9 @@ classes are parsed.
         only the "sched" related filters)."""
         filters = []
 
-        for c in self.class_definitions:
-            if re.search(key, c):
-                filters.append(c)
+        for cls in self.class_definitions:
+            if re.search(key, cls):
+                filters.append(cls)
 
         return filters
 
@@ -210,6 +213,8 @@ classes are parsed.
             trace_class.normalize_time(basetime)
 
     def __contains_unique_word(self, line, unique_words):
+        """The line contains any unique word that we are matching"""
+
         for unique_word, trace_name in unique_words:
             if unique_word in line:
                 return trace_name
@@ -220,7 +225,7 @@ classes are parsed.
         """Populates trace metadata"""
 
         # Meta Data as expected to be found in the parsed trace header
-        metadata_keys = [ "version", "cpus" ]
+        metadata_keys = ["version", "cpus"]
 
         for key in metadata_keys:
             setattr(self, "_" + key, None)
@@ -232,7 +237,9 @@ classes are parsed.
             if not line:
                 return
 
-            match = re.search(r"^\b(" + "|".join(metadata_keys) + r")\b\s*=\s*([0-9]+)", line);
+            metadata_pattern = r"^\b(" + "|".join(metadata_keys) + \
+                               r")\b\s*=\s*([0-9]+)"
+            match = re.search(metadata_pattern, line)
             if match:
                 setattr(self, "_" + match.group(1), match.group(2))
                 metadata_keys.remove(match.group(1))
@@ -289,10 +296,10 @@ classes are parsed.
             return
 
         if raw:
-                if self.trace_path_raw != None:
-                    trace_file = self.trace_path_raw
-                else:
-                    return
+            if self.trace_path_raw != None:
+                trace_file = self.trace_path_raw
+            else:
+                return
         else:
             trace_file = self.trace_path
 
@@ -371,7 +378,8 @@ classes are parsed.
             allfreqs.fillna(method="pad", inplace=True)
             _plot_freq_hists(allfreqs, "out", axis, self.name)
 
-    def plot_load(self, mapping_label, title="", width=None, height=None, ax=None):
+    def plot_load(self, mapping_label, title="", width=None, height=None,
+                  ax=None):
         """plot the load of all the clusters, similar to how compare runs did it
 
         the mapping_label has to be a dict whose keys are the cluster
