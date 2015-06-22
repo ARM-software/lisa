@@ -1,0 +1,141 @@
+# $Copyright:
+# ----------------------------------------------------------------
+# This confidential and proprietary software may be used only as
+# authorised by a licensing agreement from ARM Limited
+#  (C) COPYRIGHT 2015 ARM Limited
+#       ALL RIGHTS RESERVED
+# The entire notice above must be reproduced on all authorised
+# copies and copies may only be made to the extent permitted
+# by a licensing agreement from ARM Limited.
+# ----------------------------------------------------------------
+# File:        test_constraint.py
+# ----------------------------------------------------------------
+# $
+#
+
+import pandas as pd
+import unittest
+
+from cr2.plotter import AttrConf
+from cr2.plotter.Constraint import ConstraintManager
+
+class TestConstraintManager(unittest.TestCase):
+    """Test cr2.plotter.ConstraintManager"""
+
+    def __init__(self, *args, **kwargs):
+        """Init some common data for the tests"""
+
+        self.dfrs = [pd.DataFrame({"load": [1, 2, 2, 3],
+                                   "freq": [2, 3, 3, 4],
+                                   "cpu": [0, 1, 0, 1]}),
+                     pd.DataFrame({"load": [2, 3, 2, 1],
+                                   "freq": [1, 2, 2, 1],
+                                   "cpu": [1, 0, 1, 0]})]
+        super(TestConstraintManager, self).__init__(*args, **kwargs)
+
+    def test_one_constraint(self):
+        """Test that the constraint manager works with one constraint"""
+
+        dfr = self.dfrs[0]
+
+        c_mgr = ConstraintManager(dfr, "load", None, AttrConf.PIVOT, {})
+
+        self.assertEquals(len(c_mgr.constraints), 1)
+
+        series = c_mgr.constraints[0].result[AttrConf.PIVOT_VAL]
+        self.assertEquals(series.to_dict().values(),
+                          dfr["load"].to_dict().values())
+
+    def test_no_pivot_multiple_runs(self):
+        """Test that the constraint manager works with multiple runs and no pivots"""
+
+        c_mgr = ConstraintManager(self.dfrs, "load", None, AttrConf.PIVOT, {})
+
+        self.assertEquals(len(c_mgr.constraints), 2)
+
+        for constraint, orig_dfr in zip(c_mgr.constraints, self.dfrs):
+            series = constraint.result[AttrConf.PIVOT_VAL]
+            self.assertEquals(series.to_dict().values(),
+                              orig_dfr["load"].to_dict().values())
+
+    def test_no_pivot_multiple_columns_and_runs(self):
+        """Test the constraint manager with multiple columns and runs"""
+
+        cols = ["load", "freq"]
+        c_mgr = ConstraintManager(self.dfrs, cols, None, AttrConf.PIVOT, {})
+
+        self.assertEquals(len(c_mgr.constraints), 2)
+
+        for constraint, orig_dfr, col in zip(c_mgr.constraints, self.dfrs, cols):
+            series = constraint.result[AttrConf.PIVOT_VAL]
+            self.assertEquals(series.to_dict().values(),
+                              orig_dfr[col].to_dict().values())
+
+    def test_no_pivot_filters(self):
+        """Test the constraint manager with filters"""
+
+        simple_filter = {"freq": [2]}
+
+        c_mgr = ConstraintManager(self.dfrs, "load", None, AttrConf.PIVOT,
+                                  simple_filter)
+
+        num_constraints = len(c_mgr.constraints)
+        self.assertEquals(num_constraints, 2)
+
+        self.assertEquals(len(c_mgr.constraints[0].result), 1)
+
+        series_second_frame = c_mgr.constraints[1].result[AttrConf.PIVOT_VAL]
+        self.assertEquals(series_second_frame.to_dict().values(), [3, 2])
+
+    def test_pivoted_data(self):
+        """Test the constraint manager with a pivot and one run"""
+
+        c_mgr = ConstraintManager(self.dfrs[0], "load", None, "cpu", {})
+
+        self.assertEquals(len(c_mgr.constraints), 1)
+
+        constraint = c_mgr.constraints[0]
+        results = dict([(k, v.to_dict().values()) for k, v in constraint.result.items()])
+        expected_results = {0: [1, 2], 1: [2, 3]}
+
+        self.assertEquals(results, expected_results)
+
+    def test_pivoted_multirun(self):
+        """Test the constraint manager with a pivot and multiple runs"""
+
+        c_mgr = ConstraintManager(self.dfrs, "load", None, "cpu", {})
+
+        self.assertEquals(len(c_mgr.constraints), 2)
+
+        constraint = c_mgr.constraints[0]
+        self.assertEquals(constraint.result[0].to_dict().values(), [1, 2])
+
+        constraint = c_mgr.constraints[1]
+        self.assertEquals(constraint.result[1].to_dict().values(), [2, 2])
+
+    def test_pivoted_multiruns_multicolumns(self):
+        """Test the constraint manager with multiple runs and columns"""
+
+        c_mgr = ConstraintManager(self.dfrs, ["load", "freq"], None, "cpu", {})
+        self.assertEquals(len(c_mgr.constraints), 2)
+
+        constraint = c_mgr.constraints[0]
+        self.assertEquals(constraint.result[1].to_dict().values(), [2, 3])
+
+        constraint = c_mgr.constraints[1]
+        self.assertEquals(constraint.result[0].to_dict().values(), [2, 1])
+
+    def test_pivoted_with_filters(self):
+        """Test the constraint manager with pivoted data and filters"""
+
+        simple_filter = {"load": [2]}
+        c_mgr = ConstraintManager(self.dfrs[0], "freq", None, "cpu",
+                                  simple_filter)
+
+        self.assertEquals(len(c_mgr.constraints), 1)
+
+        constraint = c_mgr.constraints[0]
+        result = constraint.result
+
+        self.assertEquals(result[0].iloc[0], 3)
+        self.assertEquals(result[1].iloc[0], 3)
