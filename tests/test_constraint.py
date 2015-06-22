@@ -40,9 +40,10 @@ class TestConstraintManager(unittest.TestCase):
 
         c_mgr = ConstraintManager(dfr, "load", None, AttrConf.PIVOT, {})
 
-        self.assertEquals(len(c_mgr.constraints), 1)
+        self.assertEquals(len(c_mgr), 1)
 
-        series = c_mgr.constraints[0].result[AttrConf.PIVOT_VAL]
+        constraint = iter(c_mgr).next()
+        series = constraint.result[AttrConf.PIVOT_VAL]
         self.assertEquals(series.to_dict().values(),
                           dfr["load"].to_dict().values())
 
@@ -51,9 +52,9 @@ class TestConstraintManager(unittest.TestCase):
 
         c_mgr = ConstraintManager(self.dfrs, "load", None, AttrConf.PIVOT, {})
 
-        self.assertEquals(len(c_mgr.constraints), 2)
+        self.assertEquals(len(c_mgr), 2)
 
-        for constraint, orig_dfr in zip(c_mgr.constraints, self.dfrs):
+        for constraint, orig_dfr in zip(c_mgr, self.dfrs):
             series = constraint.result[AttrConf.PIVOT_VAL]
             self.assertEquals(series.to_dict().values(),
                               orig_dfr["load"].to_dict().values())
@@ -64,9 +65,9 @@ class TestConstraintManager(unittest.TestCase):
         cols = ["load", "freq"]
         c_mgr = ConstraintManager(self.dfrs, cols, None, AttrConf.PIVOT, {})
 
-        self.assertEquals(len(c_mgr.constraints), 2)
+        self.assertEquals(len(c_mgr), 2)
 
-        for constraint, orig_dfr, col in zip(c_mgr.constraints, self.dfrs, cols):
+        for constraint, orig_dfr, col in zip(c_mgr, self.dfrs, cols):
             series = constraint.result[AttrConf.PIVOT_VAL]
             self.assertEquals(series.to_dict().values(),
                               orig_dfr[col].to_dict().values())
@@ -79,12 +80,15 @@ class TestConstraintManager(unittest.TestCase):
         c_mgr = ConstraintManager(self.dfrs, "load", None, AttrConf.PIVOT,
                                   simple_filter)
 
-        num_constraints = len(c_mgr.constraints)
+        num_constraints = len(c_mgr)
         self.assertEquals(num_constraints, 2)
 
-        self.assertEquals(len(c_mgr.constraints[0].result), 1)
+        constraint_iter = iter(c_mgr)
+        constraint = constraint_iter.next()
+        self.assertEquals(len(constraint.result), 1)
 
-        series_second_frame = c_mgr.constraints[1].result[AttrConf.PIVOT_VAL]
+        constraint = constraint_iter.next()
+        series_second_frame = constraint.result[AttrConf.PIVOT_VAL]
         self.assertEquals(series_second_frame.to_dict().values(), [3, 2])
 
     def test_pivoted_data(self):
@@ -92,9 +96,9 @@ class TestConstraintManager(unittest.TestCase):
 
         c_mgr = ConstraintManager(self.dfrs[0], "load", None, "cpu", {})
 
-        self.assertEquals(len(c_mgr.constraints), 1)
+        self.assertEquals(len(c_mgr), 1)
 
-        constraint = c_mgr.constraints[0]
+        constraint = iter(c_mgr).next()
         results = dict([(k, v.to_dict().values()) for k, v in constraint.result.items()])
         expected_results = {0: [1, 2], 1: [2, 3]}
 
@@ -105,24 +109,26 @@ class TestConstraintManager(unittest.TestCase):
 
         c_mgr = ConstraintManager(self.dfrs, "load", None, "cpu", {})
 
-        self.assertEquals(len(c_mgr.constraints), 2)
+        self.assertEquals(len(c_mgr), 2)
 
-        constraint = c_mgr.constraints[0]
+        constraint_iter = iter(c_mgr)
+        constraint = constraint_iter.next()
         self.assertEquals(constraint.result[0].to_dict().values(), [1, 2])
 
-        constraint = c_mgr.constraints[1]
+        constraint = constraint_iter.next()
         self.assertEquals(constraint.result[1].to_dict().values(), [2, 2])
 
     def test_pivoted_multiruns_multicolumns(self):
         """Test the constraint manager with multiple runs and columns"""
 
         c_mgr = ConstraintManager(self.dfrs, ["load", "freq"], None, "cpu", {})
-        self.assertEquals(len(c_mgr.constraints), 2)
+        self.assertEquals(len(c_mgr), 2)
 
-        constraint = c_mgr.constraints[0]
+        constraint_iter = iter(c_mgr)
+        constraint = constraint_iter.next()
         self.assertEquals(constraint.result[1].to_dict().values(), [2, 3])
 
-        constraint = c_mgr.constraints[1]
+        constraint = constraint_iter.next()
         self.assertEquals(constraint.result[0].to_dict().values(), [2, 1])
 
     def test_pivoted_with_filters(self):
@@ -132,9 +138,9 @@ class TestConstraintManager(unittest.TestCase):
         c_mgr = ConstraintManager(self.dfrs[0], "freq", None, "cpu",
                                   simple_filter)
 
-        self.assertEquals(len(c_mgr.constraints), 1)
+        self.assertEquals(len(c_mgr), 1)
 
-        constraint = c_mgr.constraints[0]
+        constraint = iter(c_mgr).next()
         result = constraint.result
 
         self.assertEquals(result[0].iloc[0], 3)

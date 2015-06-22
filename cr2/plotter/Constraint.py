@@ -199,11 +199,11 @@ class ConstraintManager(object):
         self._max_len = max(self._lens)
         self._pivot = pivot
         self._filters = filters
-        self.constraints = []
+        self._constraints = []
 
         self._run_expanded = False
         self._expand()
-        self._constraints()
+        self._populate_constraints()
 
     def _expand(self):
         """This is really important. We need to
@@ -250,7 +250,7 @@ class ConstraintManager(object):
                 self._ip_vec[val] = normalize_list(self._max_len,
                                                    self._ip_vec[val])
 
-    def _constraints(self):
+    def _populate_constraints(self):
         """Popluate the expanded constraints"""
 
         for idx in range(self._max_len):
@@ -262,7 +262,7 @@ class ConstraintManager(object):
             run = self._ip_vec[0][idx]
             col = self._ip_vec[1][idx]
             template = self._ip_vec[2][idx]
-            self.constraints.append(
+            self._constraints.append(
                 Constraint(
                     run,
                     self._pivot,
@@ -274,7 +274,7 @@ class ConstraintManager(object):
     def get_all_pivots(self):
         """Return a union of the pivot values"""
         pivot_vals = []
-        for constraint in self.constraints:
+        for constraint in self._constraints:
             pivot_vals += constraint.result.keys()
 
         p_list = list(set(pivot_vals))
@@ -291,4 +291,10 @@ class ConstraintManager(object):
 
     def constraint_labels(self):
         """Get the Str representation of the constraints"""
-        return map(str, self.constraints)
+        return map(str, self._constraints)
+
+    def __len__(self):
+        return len(self._constraints)
+
+    def __iter__(self):
+        return iter(self._constraints)

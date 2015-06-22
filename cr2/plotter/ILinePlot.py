@@ -54,7 +54,6 @@ class ILinePlot(AbstractDataPlotter):
         self.templates = templates
         self.set_defaults()
         self._layout = None
-        self._constraints = []
 
         self._check_data()
         for key in kwargs:
@@ -72,7 +71,6 @@ class ILinePlot(AbstractDataPlotter):
             templates,
             self._attr["pivot"],
             self._attr["filters"])
-        self._constraints = self.c_mgr.constraints
         super(ILinePlot, self).__init__()
 
     def savefig(self, *args, **kwargs):
@@ -108,7 +106,7 @@ class ILinePlot(AbstractDataPlotter):
         for pivot in pivot_vals:
             data_frame = pd.Series()
 
-            for constraint in self._constraints:
+            for constraint in self.c_mgr:
                 result = constraint.result
                 constraint_str = str(constraint)
 
@@ -131,11 +129,10 @@ class ILinePlot(AbstractDataPlotter):
         pivot_vals = self.c_mgr.get_all_pivots()
         plot_index = 0
 
-        self._layout = ILinePlotGen(self._attr["per_line"],
-                                    len(self._constraints),
+        self._layout = ILinePlotGen(self._attr["per_line"], len(self.c_mgr),
                                     **self._attr)
 
-        for constraint in self._constraints:
+        for constraint in self.c_mgr:
             result = constraint.result
             title = str(constraint)
             data_frame = pd.Series()

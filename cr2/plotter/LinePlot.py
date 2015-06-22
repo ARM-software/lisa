@@ -52,7 +52,6 @@ class LinePlot(AbstractDataPlotter):
         self.set_defaults()
         self._fig = None
         self._layout = None
-        self._constraints = []
 
         self._check_data()
 
@@ -71,7 +70,6 @@ class LinePlot(AbstractDataPlotter):
             templates,
             self._attr["pivot"],
             self._attr["filters"])
-        self._constraints = self.c_mgr.constraints
         super(LinePlot, self).__init__()
 
     def savefig(self, *args, **kwargs):
@@ -126,12 +124,12 @@ class LinePlot(AbstractDataPlotter):
 
         self._fig = self._layout.get_fig()
 
-        legend = [None] * len(self._constraints)
+        legend = [None] * len(self.c_mgr)
         legend_str = self.c_mgr.constraint_labels()
         constraint_index = 0
-        cmap = ColorMap(len(self._constraints))
+        cmap = ColorMap(len(self.c_mgr))
 
-        for constraint in self._constraints:
+        for constraint in self.c_mgr:
             result = constraint.result
             plot_index = 0
             for pivot in pivot_vals:
@@ -197,11 +195,9 @@ class LinePlot(AbstractDataPlotter):
 
         cmap = ColorMap(num_lines)
 
-        self._layout = PlotLayout(
-            self._attr["per_line"],
-            len(self._constraints),
-            width=self._attr["width"],
-            length=self._attr["length"])
+        self._layout = PlotLayout(self._attr["per_line"], len(self.c_mgr),
+                                  width=self._attr["width"],
+                                  length=self._attr["length"])
 
         self._fig = self._layout.get_fig()
 
@@ -210,7 +206,7 @@ class LinePlot(AbstractDataPlotter):
         legend_str = []
         for pivot in pivot_vals:
             plot_index = 0
-            for constraint in self._constraints:
+            for constraint in self.c_mgr:
                 result = constraint.result
                 if pivot in result:
                     axis = self._layout.get_axis(plot_index)
@@ -255,8 +251,8 @@ class LinePlot(AbstractDataPlotter):
 
         self._fig.legend(legend, legend_str)
         plot_index = 0
-        for constraint in self._constraints:
+        for constraint in self.c_mgr:
             self._layout.get_axis(plot_index).set_title(str(constraint))
             plot_index += 1
 
-        self._layout.finish(len(self._constraints))
+        self._layout.finish(len(self.c_mgr))
