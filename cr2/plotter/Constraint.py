@@ -188,7 +188,8 @@ class ConstraintManager(object):
     to constraints and also ensuring sanity
     """
 
-    def __init__(self, runs, columns, templates, pivot, filters):
+    def __init__(self, runs, columns, templates, pivot, filters,
+                 zip_constraints=True):
 
         self._ip_vec = []
         self._ip_vec.append(listify(runs))
@@ -203,7 +204,10 @@ class ConstraintManager(object):
 
         self._run_expanded = False
         self._expand()
-        self._populate_constraints()
+        if zip_constraints:
+            self._populate_zip_constraints()
+        else:
+            self._populate_constraints()
 
     def _expand(self):
         """This is really important. We need to
@@ -251,7 +255,32 @@ class ConstraintManager(object):
                                                    self._ip_vec[val])
 
     def _populate_constraints(self):
-        """Popluate the expanded constraints"""
+        """Populate the constraints creating one for each column in each run
+
+        In a multirun, multicolumn scenario, create constraints for
+        all the columns in each of the runs.  _populate_constraints()
+        creates one constraint for the first run and first column, the
+        next for the second run and second column,...  This function
+        creates a constraint for every combination of runs and columns
+        possible.
+        """
+
+        for run_idx, run in enumerate(self._ip_vec[0]):
+            for col in self._ip_vec[1]:
+                template = self._ip_vec[2][run_idx]
+                constraint = Constraint(run, self._pivot, col, template,
+                                        run_idx, self._filters)
+                self._constraints.append(constraint)
+
+
+    def _populate_zip_constraints(self):
+        """Populate the expanded constraints
+
+        In a multirun, multicolumn scenario, create constraints for
+        the first run and the first column, second run and second
+        column,... that is, as if you run zip(runs, columns)
+
+        """
 
         for idx in range(self._max_len):
             if self._run_expanded:

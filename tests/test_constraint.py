@@ -31,6 +31,7 @@ class TestConstraintManager(unittest.TestCase):
                      pd.DataFrame({"load": [2, 3, 2, 1],
                                    "freq": [1, 2, 2, 1],
                                    "cpu": [1, 0, 1, 0]})]
+        self.cols = ["load", "freq"]
         super(TestConstraintManager, self).__init__(*args, **kwargs)
 
     def test_one_constraint(self):
@@ -59,18 +60,30 @@ class TestConstraintManager(unittest.TestCase):
             self.assertEquals(series.to_dict().values(),
                               orig_dfr["load"].to_dict().values())
 
-    def test_no_pivot_multiple_columns_and_runs(self):
-        """Test the constraint manager with multiple columns and runs"""
+    def test_no_pivot_zipped_columns_and_runs(self):
+        """Test the constraint manager with multiple columns and runs zipped"""
 
-        cols = ["load", "freq"]
-        c_mgr = ConstraintManager(self.dfrs, cols, None, AttrConf.PIVOT, {})
+        c_mgr = ConstraintManager(self.dfrs, self.cols, None, AttrConf.PIVOT, {})
 
         self.assertEquals(len(c_mgr), 2)
 
-        for constraint, orig_dfr, col in zip(c_mgr, self.dfrs, cols):
+        for constraint, orig_dfr, col in zip(c_mgr, self.dfrs, self.cols):
             series = constraint.result[AttrConf.PIVOT_VAL]
             self.assertEquals(series.to_dict().values(),
                               orig_dfr[col].to_dict().values())
+
+    def test_no_pivot_multicolumns_multiruns(self):
+        """Test the constraint manager with multiple runs that can have each multiple columns"""
+
+        c_mgr = ConstraintManager(self.dfrs, self.cols, None, AttrConf.PIVOT,
+                                  {}, zip_constraints=False)
+
+        self.assertEquals(len(c_mgr), 4)
+
+        expected_series = [dfr[col] for dfr in self.dfrs for col in self.cols]
+        for constraint, orig_series in zip(c_mgr, expected_series):
+            series = constraint.result[AttrConf.PIVOT_VAL]
+            self.assertEquals(series.to_dict(), orig_series.to_dict())
 
     def test_no_pivot_filters(self):
         """Test the constraint manager with filters"""
