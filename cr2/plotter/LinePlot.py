@@ -42,6 +42,7 @@ class LinePlot(AbstractDataPlotter):
        per_line input is used to control the number of graphs
        in each graph subplot row
        concat, Draws all the graphs on a single plot
+       permute, draws one plot for each of the runs specified
     """
 
     def __init__(self, runs, templates=None, **kwargs):
@@ -64,12 +65,13 @@ class LinePlot(AbstractDataPlotter):
         if "column" not in self._attr:
             raise RuntimeError("Value Column not specified")
 
+        zip_constraints = not self._attr["permute"]
         self.c_mgr = ConstraintManager(
             runs,
             self._attr["column"],
             templates,
             self._attr["pivot"],
-            self._attr["filters"])
+            self._attr["filters"], zip_constraints)
         super(LinePlot, self).__init__()
 
     def savefig(self, *args, **kwargs):
@@ -93,9 +95,9 @@ class LinePlot(AbstractDataPlotter):
         else:
             if self._attr["style"]:
                 with plt.rc_context(AttrConf.MPL_STYLE):
-                    self._plot()
+                    self._plot(self._attr["permute"])
             else:
-                self._plot()
+                self._plot(self._attr["permute"])
 
     def set_defaults(self):
         """Sets the default attrs"""
@@ -106,39 +108,56 @@ class LinePlot(AbstractDataPlotter):
         self._attr["fill"] = AttrConf.FILL
         self._attr["filters"] = {}
         self._attr["style"] = True
+        self._attr["permute"] = False
         self._attr["pivot"] = AttrConf.PIVOT
         self._attr["xlim"] = AttrConf.XLIM
         self._attr["ylim"] = AttrConf.XLIM
         self._attr["args_to_forward"] = {}
 
-    def _plot(self):
+    def _plot(self, permute):
         """Internal Method called to draw the plot"""
-        pivot_vals = self.c_mgr.get_all_pivots()
+        pivot_vals, len_pivots = self.c_mgr.generate_pivots(permute)
 
         # Create a 2D Layout
         self._layout = PlotLayout(
             self._attr["per_line"],
-            len(pivot_vals),
+            len_pivots,
             width=self._attr["width"],
             length=self._attr["length"])
 
         self._fig = self._layout.get_fig()
+        legend_str = []
+        plot_index = 0
 
-        legend = [None] * len(self.c_mgr)
-        legend_str = self.c_mgr.constraint_labels()
-        constraint_index = 0
-        cmap = ColorMap(len(self.c_mgr))
+        if permute:
+            legend = [None] * self.c_mgr._max_len
+            cmap = ColorMap(self.c_mgr._max_len)
+        else:
+            legend = [None] * len(self.c_mgr)
+            cmap = ColorMap(len(self.c_mgr))
 
-        for constraint in self.c_mgr:
-            result = constraint.result
-            plot_index = 0
-            for pivot in pivot_vals:
+        for p_val in pivot_vals:
+            l_index = 0
+            for constraint in self.c_mgr:
+                if permute:
+                    run_idx, pivot = p_val
+                    if constraint.run_index != run_idx:
+                        continue
+                    legend_str.append(constraint._column)
+                    l_index = self.c_mgr.get_column_index(constraint)
+                    title = constraint.get_data_name() + ":"
+                else:
+                    pivot = p_val
+                    legend_str.append(str(constraint))
+                    title = ""
+
+                result = constraint.result
                 if pivot in result:
                     axis = self._layout.get_axis(plot_index)
                     line_2d_list = axis.plot(
                         result[pivot].index,
                         result[pivot].values,
-                        color=cmap.cmap(constraint_index),
+                        color=cmap.cmap(l_index),
                         **self._attr["args_to_forward"])
 
                     if self._attr["fill"]:
@@ -151,10 +170,10 @@ class LinePlot(AbstractDataPlotter):
                         axis.fill_between(xdat,
                             axis.get_ylim()[0],
                             ydat,
-                            facecolor=cmap.cmap(constraint_index),
+                            facecolor=cmap.cmap(l_index),
                             alpha=AttrConf.ALPHA)
 
-                    legend[constraint_index] = line_2d_list[0]
+                    legend[l_index] = line_2d_list[0]
                     if self._attr["xlim"] != None:
                         axis.set_xlim(self._attr["xlim"])
                     if self._attr["ylim"] != None:
@@ -163,51 +182,46 @@ class LinePlot(AbstractDataPlotter):
                 else:
                     axis = self._layout.get_axis(plot_index)
                     axis.plot([], [], **self._attr["args_to_forward"])
-                plot_index += 1
 
-            constraint_index += 1
+                l_index += 1
+
+            if pivot == AttrConf.PIVOT_VAL:
+                title += ",".join(self._attr["column"])
+            else:
+                title += "{0}: {1}".format(self._attr["pivot"], pivot)
+
+            axis.set_title(title)
+            plot_index += 1
 
         for l_idx, legend_line in enumerate(legend):
             if not legend_line:
                 del legend[l_idx]
                 del legend_str[l_idx]
         self._fig.legend(legend, legend_str)
-
-        plot_index = 0
-        for pivot_val in pivot_vals:
-            if pivot_val != AttrConf.PIVOT_VAL:
-                self._layout.get_axis(plot_index).set_title( \
-                    self._attr["pivot"] + \
-                    ":" + \
-                    str(pivot_val))
-            else:
-                self._layout.get_axis(plot_index).set_title(
-                    self._attr["column"])
-            plot_index += 1
-
-        self._layout.finish(len(pivot_vals))
+        self._layout.finish(len_pivots)
 
     def _plot_concat(self):
         """Plot all lines on a single figure"""
 
-        pivot_vals = self.c_mgr.get_all_pivots()
-        num_lines = len(pivot_vals)
-
-        cmap = ColorMap(num_lines)
+        pivot_vals, len_pivots = self.c_mgr.generate_pivots()
+        cmap = ColorMap(len_pivots)
 
         self._layout = PlotLayout(self._attr["per_line"], len(self.c_mgr),
                                   width=self._attr["width"],
                                   length=self._attr["length"])
 
         self._fig = self._layout.get_fig()
+        legend = [None] * len_pivots
+        legend_str = [""] * len_pivots
+        plot_index = 0
 
-        pivot_index = 0
-        legend = [None] * len(pivot_vals)
-        legend_str = []
-        for pivot in pivot_vals:
-            plot_index = 0
-            for constraint in self.c_mgr:
-                result = constraint.result
+        for constraint in self.c_mgr:
+            result = constraint.result
+            title = str(constraint)
+            result = constraint.result
+            pivot_index = 0
+            for pivot in pivot_vals:
+
                 if pivot in result:
                     axis = self._layout.get_axis(plot_index)
                     line_2d_list = axis.plot(
@@ -215,6 +229,7 @@ class LinePlot(AbstractDataPlotter):
                         result[pivot].values,
                         color=cmap.cmap(pivot_index),
                         **self._attr["args_to_forward"])
+
                     if self._attr["xlim"] != None:
                         axis.set_xlim(self._attr["xlim"])
                     if self._attr["ylim"] != None:
@@ -222,7 +237,6 @@ class LinePlot(AbstractDataPlotter):
                     legend[pivot_index] = line_2d_list[0]
 
                     if self._attr["fill"]:
-
                         drawstyle = line_2d_list[0].get_drawstyle()
                         if drawstyle.startswith("steps"):
                             # This has been fixed in upstream matplotlib
@@ -234,6 +248,12 @@ class LinePlot(AbstractDataPlotter):
                             ydat,
                             facecolor=cmap.cmap(pivot_index),
                             alpha=AttrConf.ALPHA)
+
+                    if pivot == AttrConf.PIVOT_VAL:
+                        legend_str[pivot_index] = self._attr["column"]
+                    else:
+                        legend_str[pivot_index] = "{0}: {1}".format(self._attr["pivot"], pivot)
+
                 else:
                     axis = self._layout.get_axis(plot_index)
                     axis.plot(
@@ -241,18 +261,12 @@ class LinePlot(AbstractDataPlotter):
                         [],
                         color=cmap.cmap(pivot_index),
                         **self._attr["args_to_forward"])
-                plot_index += 1
-
-            if pivot != AttrConf.PIVOT_VAL:
-                legend_str.append(self._attr["pivot"] + ":" + str(pivot))
-            else:
-                legend_str.append(self._attr["column"])
-            pivot_index += 1
+                pivot_index += 1
+            plot_index += 1
 
         self._fig.legend(legend, legend_str)
         plot_index = 0
         for constraint in self.c_mgr:
             self._layout.get_axis(plot_index).set_title(str(constraint))
             plot_index += 1
-
         self._layout.finish(len(self.c_mgr))

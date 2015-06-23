@@ -281,6 +281,8 @@ class ConstraintManager(object):
                                         run_idx, self._filters)
                 self._constraints.append(constraint)
 
+    def get_column_index(self, constraint):
+        return self._ip_vec[1].index(constraint._column)
 
     def _populate_zip_constraints(self):
         """Populate the expanded constraints
@@ -309,23 +311,28 @@ class ConstraintManager(object):
                     run_idx,
                     self._filters))
 
-    def get_all_pivots(self):
+    def generate_pivots(self, permute=False):
         """Return a union of the pivot values"""
         pivot_vals = []
         for constraint in self._constraints:
             pivot_vals += constraint.result.keys()
 
         p_list = list(set(pivot_vals))
+        runs = range(self._lens[0])
 
         try:
-            return sorted(p_list, key=lambda x: int(x))
-        except ValueError:
-            pass
+            sorted_plist = sorted(p_list, key=int)
+        except ValueError, TypeError:
+            try:
+                sorted_plist = sorted(p_list, key=lambda x: int(x, 16))
+            except ValueError, TypeError:
+                sorted_plist = sorted(p_list)
 
-        try:
-            return sorted(p_list, key=lambda x: int(x, 16))
-        except ValueError:
-            return sorted(p_list)
+        if permute:
+            pivot_gen = ((run_idx, pivot) for run_idx in runs for pivot in sorted_plist)
+            return pivot_gen, len(sorted_plist) * self._lens[0]
+        else:
+            return sorted_plist, len(sorted_plist)
 
     def constraint_labels(self):
         """Get the Str representation of the constraints"""

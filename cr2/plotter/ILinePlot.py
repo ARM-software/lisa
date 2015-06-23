@@ -45,6 +45,7 @@ class ILinePlot(AbstractDataPlotter):
        per_line input is used to control the number of graphs
        in each graph subplot row
        concat, Draws all the graphs on a single plot
+       permute, draws one plot for each of the runs specified
     """
 
     def __init__(self, runs, templates=None, **kwargs):
@@ -65,12 +66,12 @@ class ILinePlot(AbstractDataPlotter):
         if self._attr["drawstyle"] and self._attr["drawstyle"].startswith("steps"):
             self._attr["step_plot"] = True
 
-        self.c_mgr = ConstraintManager(
-            runs,
-            self._attr["column"],
-            templates,
-            self._attr["pivot"],
-            self._attr["filters"])
+        zip_constraints = not self._attr["permute"]
+
+        self.c_mgr = ConstraintManager(runs, self._attr["column"], templates,
+                                       self._attr["pivot"],
+                                       self._attr["filters"], zip_constraints)
+
         super(ILinePlot, self).__init__()
 
     def savefig(self, *args, **kwargs):
@@ -80,9 +81,9 @@ class ILinePlot(AbstractDataPlotter):
         """Displays the graph"""
 
         if self._attr["concat"]:
-                self._plot_concat()
+            self._plot_concat()
         else:
-                self._plot()
+            self._plot(self._attr["permute"])
 
     def set_defaults(self):
         """Sets the default attrs"""
@@ -90,33 +91,42 @@ class ILinePlot(AbstractDataPlotter):
         self._attr["concat"] = AttrConf.CONCAT
         self._attr["filters"] = {}
         self._attr["pivot"] = AttrConf.PIVOT
+        self._attr["permute"] = False
         self._attr["drawstyle"] = None
         self._attr["step_plot"] = False
         self._attr["fill"] = AttrConf.FILL
 
-    def _plot(self):
+    def _plot(self, permute):
         """Internal Method called to draw the plot"""
-        pivot_vals = self.c_mgr.get_all_pivots()
+        pivot_vals, len_pivots = self.c_mgr.generate_pivots(permute)
 
         self._layout = ILinePlotGen(self._attr["per_line"],
-                                    len(pivot_vals),
+                                    len_pivots,
                                     **self._attr)
         plot_index = 0
-
-        for pivot in pivot_vals:
+        for p_val in pivot_vals:
             data_frame = pd.Series()
-
             for constraint in self.c_mgr:
-                result = constraint.result
-                constraint_str = str(constraint)
 
+                if permute:
+                    run_idx, pivot = p_val
+                    if constraint.run_index != run_idx:
+                        continue
+                    title = constraint.get_data_name() + ":"
+                    legend = constraint._column
+                else:
+                    pivot = p_val
+                    title = ""
+                    legend = str(constraint)
+
+                result = constraint.result
                 if pivot in result:
-                    data_frame[constraint_str] = result[pivot]
+                    data_frame[legend] = result[pivot]
 
             if pivot == AttrConf.PIVOT_VAL:
-                title = self._attr["column"]
+                title += ",".join(self._attr["column"])
             else:
-                title = "{0}: {1}".format(self._attr["pivot"], pivot)
+                title += "{0}: {1}".format(self._attr["pivot"], pivot)
 
             self._layout.add_plot(plot_index, data_frame, title)
             plot_index += 1
@@ -126,7 +136,7 @@ class ILinePlot(AbstractDataPlotter):
     def _plot_concat(self):
         """Plot all lines on a single figure"""
 
-        pivot_vals = self.c_mgr.get_all_pivots()
+        pivot_vals, _ = self.c_mgr.generate_pivots()
         plot_index = 0
 
         self._layout = ILinePlotGen(self._attr["per_line"], len(self.c_mgr),
@@ -138,10 +148,9 @@ class ILinePlot(AbstractDataPlotter):
             data_frame = pd.Series()
 
             for pivot in pivot_vals:
-
                 if pivot in result:
                     if pivot == AttrConf.PIVOT_VAL:
-                        key = self._attr["column"]
+                        key = ",".join(self._attr["column"])
                     else:
                         key = "{0}: {1}".format(self._attr["pivot"], pivot)
 
