@@ -170,7 +170,7 @@ class Constraint(object):
 
         return list(pivot_vals)
 
-    def __repr__(self):
+    def __str__(self):
 
         if hasattr(self._cr2_run, "name"):
             return self._cr2_run.name + ": " +  self._column
