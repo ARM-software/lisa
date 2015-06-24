@@ -16,6 +16,8 @@
 """Process the output of the devfreq_cooling devices in the current
 directory's trace.dat"""
 
+import pandas as pd
+
 from cr2.base import Base
 from cr2.run import Run
 
@@ -32,14 +34,14 @@ ftrace dump"""
         )
 
     def get_all_freqs(self):
-        """Return a pandas.Series with the frequencies for the devfreq device
+        """Return a pandas.DataFrame with the frequencies for the devfreq device
 
         The format should be the same as the one for
         CpuInPower().get_all_freqs().  Frequencies are in MHz.
 
         """
 
-        return self.data_frame["freq"] / 1000000
+        return pd.DataFrame(self.data_frame["freq"] / 1000000)
 
 Run.register_class(DevfreqInPower, "thermal")
 
@@ -56,7 +58,7 @@ ftrace dump"""
         )
 
     def get_all_freqs(self):
-        """Return a pandas.Series with the output frequencies for the devfreq
+        """Return a pandas.DataFrame with the output frequencies for the devfreq
 device
 
         The format should be the same that that of
@@ -64,6 +66,6 @@ device
 
         """
 
-        return self.data_frame["freq"] / 1000000
+        return pd.DataFrame(self.data_frame["freq"] / 1000000)
 
 Run.register_class(DevfreqOutPower, "thermal")

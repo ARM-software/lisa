@@ -331,8 +331,8 @@ classes are parsed.
             gpu_freq_in_data = gpu_freq_out_data = None
 
         if gpu_freq_in_data is not None:
-            inout_freq_dict = {"gpu_freq_in": gpu_freq_in_data,
-                               "gpu_freq_out": gpu_freq_out_data
+            inout_freq_dict = {"gpu_freq_in": gpu_freq_in_data["freq"],
+                               "gpu_freq_out": gpu_freq_out_data["freq"]
                            }
             dfr = pd.DataFrame(inout_freq_dict).fillna(method="pad")
             ret.append(("GPU", dfr))

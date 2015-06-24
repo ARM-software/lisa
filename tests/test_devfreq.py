@@ -12,6 +12,8 @@
 # ----------------------------------------------------------------
 # $
 #
+import pandas as pd
+
 import cr2
 from test_thermal import BaseTestThermal
 
@@ -34,12 +36,14 @@ class TestDevfreqPower(BaseTestThermal):
         """Test that DevfreqInPower get_all_freqs() work"""
 
         all_freqs = cr2.Run().devfreq_in_power.get_all_freqs()
+        self.assertTrue(isinstance(all_freqs, pd.DataFrame))
 
-        self.assertEquals(all_freqs.iloc[0], 525)
+        self.assertEquals(all_freqs["freq"].iloc[0], 525)
 
     def test_get_outp_all_freqs(self):
         """Test that DevfreqOutPower get_all_freqs() work"""
 
         all_freqs = cr2.Run().devfreq_out_power.get_all_freqs()
+        self.assertTrue(isinstance(all_freqs, pd.DataFrame))
 
-        self.assertEquals(all_freqs.iloc[0], 525)
+        self.assertEquals(all_freqs["freq"].iloc[0], 525)
