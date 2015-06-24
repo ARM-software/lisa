@@ -30,7 +30,7 @@ sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
 class BaseTestThermal(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         super(BaseTestThermal, self).__init__(
-             [("trace_thermal.txt", "trace.txt")],
+             [("../doc/trace.txt", "trace.txt")],
              *args,
              **kwargs)
 

@@ -74,7 +74,7 @@ class TestBase(utils_tests.SetupDirectory):
 
     def __init__(self, *args, **kwargs):
         super(TestBase, self).__init__(
-             [("trace_thermal.txt", "trace.txt")],
+             [("../doc/trace.txt", "trace.txt")],
              *args,
              **kwargs)
 
