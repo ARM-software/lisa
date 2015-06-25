@@ -54,25 +54,7 @@ def pulse_dtr(conn, state=True, duration=0.1):
     conn.setDTR(not state)
 
 
-@contextmanager
-def open_serial_connection(timeout, get_conn=False, init_dtr=None, *args, **kwargs):
-    """
-    Opens a serial connection to a device.
-
-    :param timeout: timeout for the fdpexpect spawn object.
-    :param conn: ``bool`` that specfies whether the underlying connection
-                 object should be yielded as well.
-    :param init_dtr: specifies the initial DTR state stat should be set.
-
-    All arguments are passed into the __init__ of serial.Serial. See
-    pyserial documentation for details:
-
-        http://pyserial.sourceforge.net/pyserial_api.html#serial.Serial
-
-    :returns: a pexpect spawn object connected to the device.
-              See: http://pexpect.sourceforge.net/pexpect.html
-
-    """
+def get_connection(timeout, init_dtr=None, *args, **kwargs):
     if init_dtr is not None:
         kwargs['dsrdtr'] = True
     try:
@@ -99,6 +81,29 @@ def open_serial_connection(timeout, get_conn=False, init_dtr=None, *args, **kwar
         time.sleep(0.1)
 
     target.sendline = sendline
+    return target, conn
+
+
+@contextmanager
+def open_serial_connection(timeout, get_conn=False, init_dtr=None, *args, **kwargs):
+    """
+    Opens a serial connection to a device.
+
+    :param timeout: timeout for the fdpexpect spawn object.
+    :param conn: ``bool`` that specfies whether the underlying connection
+                 object should be yielded as well.
+    :param init_dtr: specifies the initial DTR state stat should be set.
+
+    All arguments are passed into the __init__ of serial.Serial. See
+    pyserial documentation for details:
+
+        http://pyserial.sourceforge.net/pyserial_api.html#serial.Serial
+
+    :returns: a pexpect spawn object connected to the device.
+              See: http://pexpect.sourceforge.net/pexpect.html
+
+    """
+    target, conn = get_connection(timeout, init_dtr=init_dtr, *args, **kwargs)
 
     if get_conn:
         yield target, conn

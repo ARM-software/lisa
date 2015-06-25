@@ -26,6 +26,7 @@ from wlauto.exceptions import DeviceError
 from wlauto.utils.serial_port import open_serial_connection, pulse_dtr
 from wlauto.utils.android import adb_connect, adb_disconnect, adb_list_devices
 from wlauto.utils.uefi import UefiMenu, UefiConfig
+from wlauto.utils.uboot import UbootMenu
 
 
 AUTOSTART_MESSAGE = 'Press Enter to stop auto boot...'
@@ -59,6 +60,9 @@ class Juno(BigLittleDevice):
         Parameter('core_names', default=['a53', 'a53', 'a53', 'a53', 'a57', 'a57'], override=True),
         Parameter('core_clusters', default=[0, 0, 0, 0, 1, 1], override=True),
 
+        Parameter('bootloader', default='uefi', allowed_values=['uefi', 'u-boot'],
+                  description="""Bootloader used on the device."""),
+
         # VExpress flasher expects a device to have these:
         Parameter('uefi_entry', default='WA',
                   description='The name of the entry to use (will be created if does not exist).'),
@@ -84,6 +88,27 @@ class Juno(BigLittleDevice):
     def boot(self, **kwargs):
         self.logger.debug('Resetting the device.')
         self.reset()
+        if self.bootloader == 'uefi':
+            self._boot_via_uefi()
+        else:
+            self._boot_via_uboot(**kwargs)
+
+    def _boot_via_uboot(self, **kwargs):
+        if not kwargs:
+            # Standard linaro configuration will proceed directly to the kernel
+            return
+        with open_serial_connection(port=self.port,
+                                    baudrate=self.baudrate,
+                                    timeout=self.timeout,
+                                    init_dtr=0) as target:
+            menu = UbootMenu(target)
+            self.logger.debug('Waiting for U-Boot prompt...')
+            menu.open(timeout=120)
+            for var, value in kwargs.iteritems():
+                menu.setenv(var, value)
+            menu.boot()
+
+    def _boot_via_uefi(self):
         with open_serial_connection(port=self.port,
                                     baudrate=self.baudrate,
                                     timeout=self.timeout,
@@ -109,7 +134,7 @@ class Juno(BigLittleDevice):
                                             baudrate=self.baudrate,
                                             init_dtr=0) as target:
                     target.sendline('')
-                    self.logger.debug('Waiting for android prompt.')
+                    self.logger.debug('Waiting for the Android prompt.')
                     target.expect(self.android_prompt)
 
                     self.logger.debug('Waiting for IP address...')
