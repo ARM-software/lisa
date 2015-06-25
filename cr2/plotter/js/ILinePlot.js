@@ -13,6 +13,10 @@
  * $
  */
 var ILinePlot = ( function() {
+
+   var graphs = new Array();
+   var syncObjs = new Array();
+
    var convertToDataTable = function (d, index_col) {
 
         var columns = _.keys(d);
@@ -64,17 +68,99 @@ var ILinePlot = ( function() {
         }
     };
 
+    var purge = function() {
+        for (var div_name in graphs) {
+            if (document.getElementById(div_name) == null) {
+                delete graphs[div_name];
+            }
+        }
+    };
+
+    var sync = function(group) {
+
+        var syncGraphs = Array();
+        var xRange;
+        var yRange;
+        var syncZoom = true;
+
+        for (var div_name in graphs) {
+
+            if (graphs[div_name].group == group) {
+                syncGraphs.push(graphs[div_name].graph);
+                syncZoom = syncZoom & graphs[div_name].syncZoom;
+
+                var xR = graphs[div_name].graph.xAxisRange();
+                var yR = graphs[div_name].graph.yAxisRange();
+
+                if (xRange != undefined) {
+                    if (xR[0] < xRange[0])
+                        xRange[0] = xR[0];
+                    if (xR[1] > xRange[1])
+                        xRange[1] = xR[1];
+                } else
+                    xRange = xR;
+
+                if (yRange != undefined) {
+                    if (yR[0] < yRange[0])
+                        yRange[0] = yR[0];
+                    if (yR[1] > yRange[1])
+                        yRange[1] = yR[1];
+                } else
+                    yRange = yR;
+            }
+        }
+
+        if (syncGraphs.length >= 2) {
+            if (syncZoom) {
+                if (syncObjs[group] != undefined)
+                    syncObjs[group].detach();
+
+                syncObjs[group] = Dygraph.synchronize(syncGraphs, {
+                    zoom: true,
+                    selection: false,
+                    range: true
+                });
+            }
+
+            $.each(syncGraphs, function(g) {
+                var graph = syncGraphs[g];
+
+                graph.updateOptions({
+                    valueRange: yRange,
+                    dateWindow: xRange
+                });
+
+                if (graph.padFront_ == undefined) {
+                    graph.padFront_ = true;
+                    var _decoy_elem = new Array(graph.rawData_[0].length);
+                    graph.rawData_.unshift(_decoy_elem);
+                }
+                graph.rawData_[0][0] = xRange[0];
+
+                if (graph.padBack_ == undefined) {
+                    graph.padBack_ = true;
+                    var _decoy_elem = new Array(graph.rawData_[0].length);
+                    graph.rawData_.push(_decoy_elem);
+                }
+                graph.rawData_[graph.rawData_.length - 1][0] = xRange[1];
+            });
+        }
+    };
+
     var generate = function(div_name) {
         var json_file = "/static/plotter_data/" + div_name + ".json";
             $.getJSON( json_file, function( data ) {
                 create_graph(data);
+                purge();
+                if (data.syncGroup != undefined)
+                    sync(data.syncGroup);
             });
     };
 
     var create_graph = function(t_info) {
         var tabular = convertToDataTable(t_info.data, t_info.index_col);
 
-        new Dygraph(document.getElementById(t_info.name), tabular.data, {
+        var graph = new Dygraph(document.getElementById(t_info.name), tabular.data, {
             legend: 'always',
             title: t_info.title,
             labels: tabular.labels,
@@ -93,7 +179,15 @@ var ILinePlot = ( function() {
             errorBars: false,
             valueRange: t_info.valueRange
 
-        })
+        });
+
+        graphs[t_info.name] =
+            {
+                graph: graph,
+                group: t_info.syncGroup,
+                syncZoom: t_info.syncZoom
+            };
+
     };
 
     return {

@@ -89,11 +89,15 @@ ARGS_TO_FORWARD = [
 
 HTML_WIDTH =  900
 HTML_HEIGHT = 400
+# Sync Graph zoom by default in
+# ILinePlot graph groups
+DEFAULT_SYNC_ZOOM = False
 
 IPLOT_RESOURCES = {
     "ILinePlot": [
         "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined.js",
-        "js/ILinePlot.js"],
+        "js/ILinePlot.js",
+        "http://dygraphs.com/extras/synchronizer.js"],
     "EventPlot": [
         "http://d3js.org/d3.v3.min.js",
         "http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js",

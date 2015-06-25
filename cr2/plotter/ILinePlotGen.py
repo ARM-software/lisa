@@ -172,6 +172,13 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         fig_params["step_plot"] = self._attr["step_plot"]
         fig_params["fill_graph"] = self._attr["fill"]
 
+        if "group" in self._attr:
+            fig_params["syncGroup"] = self._attr["group"]
+            if "sync_zoom" in self._attr:
+                fig_params["syncZoom"] = self._attr["sync_zoom"]
+            else:
+                fig_params["syncZoom"] = AttrConf.DEFAULT_SYNC_ZOOM
+
         if "ylim" in self._attr:
             fig_params["valueRange"] = self._attr["ylim"]
 
