@@ -84,12 +84,18 @@ class PerfInstrument(Instrument):
                   description="""Provides labels for pref output. If specified, the number of
                   labels must match the number of ``optionstring``\ s.
                   """),
+        Parameter('force_install', kind=bool, default=False,
+                  description="""
+                  always install perf binary even if perf is already present on the device.
+                  """),
     ]
 
     def on_run_init(self, context):
-        if not self.device.is_installed('perf'):
+        if not self.device.is_installed('perf') or self.force_install:
             binary = context.resolver.get(Executable(self, self.device.abi, 'perf'))
-            self.device.install(binary)
+            self.binary = self.device.install(binary)
+        else:
+            self.binary = 'perf'
         self.commands = self._build_commands()
 
     def setup(self, context):
@@ -161,7 +167,7 @@ class PerfInstrument(Instrument):
 
     def _build_perf_command(self, options, events, label):
         event_string = ' '.join(['-e {}'.format(e) for e in events])
-        command = PERF_COMMAND_TEMPLATE.format('perf',
+        command = PERF_COMMAND_TEMPLATE.format(self.binary,
                                                options or '',
                                                event_string,
                                                self._get_device_outfile(label))
