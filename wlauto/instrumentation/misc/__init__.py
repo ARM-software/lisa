@@ -166,7 +166,7 @@ class SysfsExtractor(Instrument):
         for paths in self.device_and_host_paths:
             after_dir = paths[self.AFTER_PATH]
             dev_dir = paths[self.DEVICE_PATH].strip('*')  # remove potential trailing '*'
-            if not os.listdir(after_dir) and self.device.listdir(dev_dir)[0]:
+            if not os.listdir(after_dir) and self.device.listdir(dev_dir):
                 self.logger.error('sysfs files were not pulled from the device.')
                 self.device_and_host_paths.remove(paths)  # Path is removed to skip diffing it
         for _, before_dir, after_dir, diff_dir in self.device_and_host_paths:
