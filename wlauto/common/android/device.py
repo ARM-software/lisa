@@ -46,7 +46,7 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
     parameters = [
         Parameter('adb_name',
                   description='The unique ID of the device as output by "adb devices".'),
-        Parameter('android_prompt', kind=regex, default=re.compile('^.*(shell|root)@.*:/ [#$] ', re.MULTILINE),
+        Parameter('android_prompt', kind=regex, default=re.compile('^.*(shell|root)@.*:/\S* [#$] ', re.MULTILINE),
                   description='The format  of matching the shell prompt in Android.'),
         Parameter('working_directory', default='/sdcard/wa-working',
                   description='Directory that will be used WA on the device for output files etc.'),
