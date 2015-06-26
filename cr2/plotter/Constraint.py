@@ -172,15 +172,24 @@ class Constraint(object):
 
     def __str__(self):
 
-        if hasattr(self._cr2_run, "name"):
-            return self._cr2_run.name + ": " +  self._column
+        name = self.get_data_name()
 
         if not self._uses_cr2_run():
-            return "DataFrame " + str(self.run_index) + ":" + self._column
+            return name + ":" + self._column
 
-        return "Run " + str(self.run_index) + ":" + \
+        return name + ":" + \
             self._template.name + ":" + self._column
 
+
+    def get_data_name(self):
+        """Get name for the data Member"""
+        if self._uses_cr2_run():
+            if self._cr2_run.name != "":
+                return self._cr2_run.name
+            else:
+                return "Run {}".format(self.run_index)
+        else:
+            return "DataFrame {}".format(self.run_index)
 
 class ConstraintManager(object):
 
