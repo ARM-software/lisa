@@ -76,6 +76,23 @@ similar distributions, this may be done with APT::
 
         sudo apt-get install python-pip
 
+.. note:: Some versions of pip (in particluar v1.5.4 which comes with Ubuntu
+          14.04) are know to set the wrong permissions when installing
+          packages, resulting in WA failing to import them. To avoid this it
+          is recommended that you update pip and setuptools before proceeding
+          with installation::
+
+                  sudo pip install --upgrade pip
+                  sudo pip install --upgrade setuptools
+
+          If you do run  into this issue after already installing some packages,
+          you can resolve it by running ::
+
+                  sudo chmod -R a+r /usr/local/lib/python2.7/dist-packagessudo 
+                  find /usr/local/lib/python2.7/dist-packages -type d -exec chmod a+x {} \;
+
+          (The paths above will work for Ubuntu; they may need to be adjusted
+          for other distros).
 
 Python Packages
 ---------------
