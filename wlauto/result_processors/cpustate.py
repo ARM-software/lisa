@@ -155,7 +155,7 @@ class CpuStatesProcessor(ResultProcessor):
         else:
             self.logger.debug('Reports generated.')
 
-        iteration_id = (context.spec.label, context.current_iteration)
+        iteration_id = (context.spec.id, context.spec.label, context.current_iteration)
         self.iteration_reports[iteration_id] = (parallel_report, powerstate_report)
         if self.write_iteration_reports:
             self.logger.debug('Writing iteration reports')
@@ -170,26 +170,26 @@ class CpuStatesProcessor(ResultProcessor):
         parallel_rows = []
         powerstate_rows = []
         for iteration_id, reports in self.iteration_reports.iteritems():
-            workload, iteration = iteration_id
+            spec_id, workload, iteration = iteration_id
             parallel_report, powerstate_report = reports
             for record in parallel_report.values:
-                parallel_rows.append([workload, iteration] + record)
+                parallel_rows.append([spec_id, workload, iteration] + record)
             for state in sorted(powerstate_report.state_stats):
                 stats = powerstate_report.state_stats[state]
-                powerstate_rows.append([workload, iteration, state] +
+                powerstate_rows.append([spec_id, workload, iteration, state] +
                                        ['{:.3f}'.format(s if s is not None else 0)
                                            for s in stats])
 
         with open(os.path.join(context.output_directory, 'parallel.csv'), 'w') as wfh:
             writer = csv.writer(wfh)
-            writer.writerow(['workload', 'iteration', 'cluster',
+            writer.writerow(['id', 'workload', 'iteration', 'cluster',
                              'number_of_cores', 'total_time',
                              '%time', '%running_time'])
             writer.writerows(parallel_rows)
 
         with open(os.path.join(context.output_directory, 'cpustate.csv'), 'w') as wfh:
             writer = csv.writer(wfh)
-            headers = ['workload', 'iteration', 'state']
+            headers = ['id', 'workload', 'iteration', 'state']
             headers += ['{} CPU{}'.format(c, i)
                         for i, c in enumerate(powerstate_report.core_names)]
             writer.writerow(headers)
