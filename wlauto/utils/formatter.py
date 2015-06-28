@@ -14,7 +14,7 @@
 #
 
 
-import os
+from wlauto.utils.terminalsize import get_terminal_size
 
 
 INDENTATION_FROM_TITLE = 4
@@ -58,8 +58,7 @@ class DescriptionListFormatter(TextFormatter):
 
     def get_text_width(self):
         if not self._text_width:
-            _, width = os.popen('stty size', 'r').read().split()
-            self._text_width = int(width)
+            self._text_width, _ = get_terminal_size()
         return self._text_width
 
     def set_text_width(self, value):
