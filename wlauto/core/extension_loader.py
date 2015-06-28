@@ -311,7 +311,7 @@ class ExtensionLoader(object):
         self.logger.debug('Loading from paths.')
         for path in paths:
             self.logger.debug('Checking path %s', path)
-            for root, _, files in os.walk(path):
+            for root, _, files in os.walk(path, followlinks=True):
                 should_skip = False
                 for igpath in ignore_paths:
                     if root.startswith(igpath):
