@@ -84,7 +84,7 @@ class GlbCorp(ApkWorkload):
                   description=('Explicitly specifies the resultion under which the benchmark will '
                                'be run. If not specfied, device\'s native resoution will used.')),
         Parameter('test_id', default='gl_manhattan_off', allowed_values=valid_test_ids,
-                  description='ID of the GFXBench test to be run.')
+                  description='ID of the GFXBench test to be run.'),
         Parameter('run_timeout', kind=int, default=10 * 60,
                   description="""
                   Time out for workload execution. The workload will be killed if it hasn't completed
