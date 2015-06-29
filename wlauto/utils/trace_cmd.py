@@ -184,13 +184,21 @@ class TraceCmdTrace(object):
     def __init__(self, filter_markers=True):
         self.filter_markers = filter_markers
 
-    def parse(self, filepath, names=None):
+    def parse(self, filepath, names=None, check_for_markers=True):  # pylint: disable=too-many-branches
         """
         This is a generator for the trace event stream.
 
         """
         inside_maked_region = False
         filters = [re.compile('^{}$'.format(n)) for n in names or []]
+        if check_for_markers:
+            with open(filepath) as fh:
+                for line in fh:
+                    if TRACE_MARKER_START in line:
+                        break
+                else:
+                    # maker not found force filtering by marker to False
+                    self.filter_markers = False
         with open(filepath) as fh:
             for line in fh:
                 # if processing trace markers, skip marker lines as well as all
