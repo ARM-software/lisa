@@ -533,9 +533,9 @@ def build_idle_domains(core_clusters,   # NOQA
 def report_power_stats(trace_file, idle_state_names, core_names, core_clusters,
                        num_idle_states, first_cluster_state=sys.maxint,
                        first_system_state=sys.maxint, use_ratios=False,
-                       timeline_csv_file=None):
+                       timeline_csv_file=None, filter_trace=True):
     # pylint: disable=too-many-locals
-    trace = TraceCmdTrace()
+    trace = TraceCmdTrace(filter_markers=filter_trace)
     ps_processor = PowerStateProcessor(core_clusters,
                                        num_idle_states=num_idle_states,
                                        first_cluster_state=first_cluster_state,
@@ -578,6 +578,7 @@ def main():
         first_system_state=args.first_system_state,
         use_ratios=args.ratios,
         timeline_csv_file=args.timeline_file,
+        filter_trace=(not args.no_trace_filter),
     )
     parallel_report.write(os.path.join(args.output_directory, 'parallel.csv'))
     powerstate_report.write(os.path.join(args.output_directory, 'cpustate.csv'))
@@ -606,6 +607,11 @@ def parse_arguments():  # NOQA
     parser.add_argument('-d', '--output-directory', default='.',
                         help='''
                         Output directory where reports will be placed.
+                        ''')
+    parser.add_argument('-F', '--no-trace-filter', action='store_true', default=False,
+                        help='''
+                        Normally, only the trace between begin and end marker is used. This disables
+                        the filtering so the entire trace file is considered.
                         ''')
     parser.add_argument('-c', '--core-names', action=SplitListAction,
                         help='''
