@@ -371,6 +371,9 @@ class EnergyModelInstrument(Instrument):
         Parameter('no_hotplug', kind=bool, default=False,
                   description='''This options allows running the instrument without hotpluging cores on and off.
                                  Disabling hotplugging will most likely produce a less accurate power model.'''),
+        Parameter('num_of_freqs_to_thermal_adjust', kind=int, default=0,
+                  description="""The number of frequencies begining from the highest, to be adjusted for
+                                 the thermal effect."""),
     ]
 
     def validate(self):
@@ -394,6 +397,9 @@ class EnergyModelInstrument(Instrument):
             self.big_core = self.device.core_names[-1]  # the last core is usually "big" in existing big.LITTLE devices
         if not self.device_name:
             self.device_name = self.device.name
+        if self.num_of_freqs_to_thermal_adjust and not instrument_is_installed('daq'):
+            self.logger.warn('Adjustment for thermal effect requires daq instrument. Disabling adjustment')
+            self.num_of_freqs_to_thermal_adjust = 0
 
     def initialize(self, context):
         self.number_of_cpus = {}
@@ -426,20 +432,38 @@ class EnergyModelInstrument(Instrument):
     def on_iteration_start(self, context):
         self.setup_measurement(context.spec.cluster)
 
+    def thermal_correction(self, context):
+        if not self.num_of_freqs_to_thermal_adjust or self.num_of_freqs_to_thermal_adjust > len(self.big_frequencies):
+            return 0
+        freqs = self.big_frequencies[-self.num_of_freqs_to_thermal_adjust:]
+        spec = context.result.spec
+        if spec.frequency not in freqs:
+            return 0
+        data_path = os.path.join(context.output_directory, 'daq', '{}.csv'.format(self.big_core))
+        data = pd.read_csv(data_path)['power']
+        return _adjust_for_thermal(data, filt_method=lambda x: pd.rolling_median(x, 1000), thresh=0.9, window=5000)
+
     # slow to make sure power results have been generated
-    def slow_update_result(self, context):
+    def slow_update_result(self, context):  # pylint: disable=too-many-branches
         spec = context.result.spec
         cluster = spec.cluster
         is_freq_iteration = spec.label.startswith('freq_')
         perf_metric = 0
         power_metric = 0
+        thermal_adjusted_power = 0
+        if is_freq_iteration and cluster == 'big':
+            thermal_adjusted_power = self.thermal_correction(context)
         for metric in context.result.metrics:
             if metric.name == self.performance_metric:
                 perf_metric = metric.value
+            elif thermal_adjusted_power and metric.name in self.big_power_metrics:
+                power_metric += thermal_adjusted_power * self.power_scaling_factor
             elif (cluster == 'big') and metric.name in self.big_power_metrics:
                 power_metric += metric.value * self.power_scaling_factor
             elif (cluster == 'little') and metric.name in self.little_power_metrics:
                 power_metric += metric.value * self.power_scaling_factor
+            elif thermal_adjusted_power and metric.name in self.big_energy_metrics:
+                power_metric += thermal_adjusted_power / self.run_time * self.power_scaling_factor
             elif (cluster == 'big') and metric.name in self.big_energy_metrics:
                 power_metric += metric.value / self.run_time * self.power_scaling_factor
             elif (cluster == 'little') and metric.name in self.little_energy_metrics:
@@ -706,6 +730,25 @@ class EnergyModelInstrument(Instrument):
             return self.big_frequencies
         else:
             return self.little_frequencies
+
+
+def _adjust_for_thermal(data, filt_method=lambda x: x, thresh=0.9, window=5000, tdiff_threshold=10000):
+    n = filt_method(data)
+    n = n[~np.isnan(n)]  # pylint: disable=no-member
+
+    d = np.diff(n)  # pylint: disable=no-member
+    d = d[~np.isnan(d)]  # pylint: disable=no-member
+    dmin = min(d)
+    dmax = max(d)
+
+    index_up = np.max((d > dmax * thresh).nonzero())  # pylint: disable=no-member
+    index_down = np.min((d < dmin * thresh).nonzero())  # pylint: disable=no-member
+    low_average = np.average(n[index_up:index_up + window])  # pylint: disable=no-member
+    high_average = np.average(n[index_down - window:index_down])  # pylint: disable=no-member
+    if low_average > high_average or index_down - index_up < tdiff_threshold:
+        return 0
+    else:
+        return low_average
 
 
 if __name__ == '__main__':
