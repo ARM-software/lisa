@@ -76,8 +76,6 @@ class GlbCorp(ApkWorkload):
         }
     }
 
-    run_timeout = 3 * 60
-
     parameters = [
         Parameter('times', kind=int, default=1, constraint=lambda x: x > 0,
                   description=('Specifies the number of times the benchmark will be run in a "tight '
@@ -87,6 +85,11 @@ class GlbCorp(ApkWorkload):
                                'be run. If not specfied, device\'s native resoution will used.')),
         Parameter('test_id', default='gl_manhattan_off', allowed_values=valid_test_ids,
                   description='ID of the GFXBench test to be run.')
+        Parameter('run_timeout', kind=int, default=10 * 60,
+                  description="""
+                  Time out for workload execution. The workload will be killed if it hasn't completed
+                  withint this period.
+                  """),
     ]
 
     aliases = [
