@@ -719,7 +719,9 @@ class LinuxDevice(BaseLinuxDevice):
         return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
 
     def listdir(self, path, as_root=False, **kwargs):
-        contents = self.execute('ls -1 {}'.format(path), as_root=as_root)
+        contents = self.execute('ls -1 {}'.format(path), as_root=as_root).strip()
+        if not contents:
+            return []
         return [x.strip() for x in contents.split('\n')]  # pylint: disable=maybe-no-member
 
     def install(self, filepath, timeout=default_timeout, with_name=None):  # pylint: disable=W0221
