@@ -29,7 +29,7 @@ if not AttrConf.PLOTTER_IPYTHON:
 
 # Install resources
 from cr2.plotter import Utils
-RESOURCES = Utils.iplot_install("ILinePlot")
+Utils.iplot_install("ILinePlot")
 
 
 class ILinePlotGen(object):
@@ -44,13 +44,26 @@ class ILinePlotGen(object):
         """Add a HTML table cell to hold the plot"""
 
         width = int(self._attr["width"] / self._cols)
-
         div_js = """
-            <script>require(""" + str(RESOURCES) + """, function () {;
+            <script>
+            var ilp_req = require.config( {
+
+                baseUrl: "/static/plotter_scripts",
+                shim: {
+                    "ILinePlot/synchronizer": ["ILinePlot/dygraph-combined"],
+                    "ILinePlot/ILinePlot": {
+
+                        "deps": ["ILinePlot/synchronizer", "ILinePlot/dygraph-combined" ],
+                        "exports":  "ILinePlot"
+                    }
+                }
+            });
+                ilp_req(["require", "ILinePlot/ILinePlot"], function() {
                 ILinePlot.generate('""" + fig_name + """');
             });
             </script>
         """
+
 
         cell = '<td style="border-style: hidden;"><div class="ilineplot" id="{0}" style="width: \
 {1}px; height: {2}px;">{3}</div></td>'.format(fig_name,

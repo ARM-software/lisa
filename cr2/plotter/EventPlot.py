@@ -36,7 +36,7 @@ if not AttrConf.PLOTTER_IPYTHON:
 # pylint: disable=R0921
 # Initialize Resources
 from cr2.plotter import Utils
-RESOURCES = Utils.iplot_install("EventPlot")
+Utils.iplot_install("EventPlot")
 
 
 class EventPlot(AbstractDataPlotter):
@@ -111,13 +111,26 @@ class EventPlot(AbstractDataPlotter):
 
     def _init_html(self):
         """Initialize HTML for the plot"""
-
         div_js = """
-            <script>require(""" + str(RESOURCES) + """, function () {;
-                EventPlot.generate('""" + self._fig_name + """');
+        <script>
+            var req = require.config( {
+
+                baseUrl: "/static/plotter_scripts",
+                shim: {
+                    "EventPlot/d3.tip.v0.6.3": ["EventPlot/d3.v3.min"],
+                    "EventPlot/EventPlot": {
+
+                        "deps": ["EventPlot/d3.v3.min", "EventPlot/d3.tip.v0.6.3" ],
+                        "exports":  "EventPlot"
+                    }
+                }
             });
-            </script>
+            req(["require", "EventPlot/EventPlot"], function() {
+               EventPlot.generate('""" + self._fig_name + """');
+            });
+        </script>
         """
+
         self._html.append(
             '<div id="{}" class="eventplot">{}</div>'.format(self._fig_name,
                                                              div_js))

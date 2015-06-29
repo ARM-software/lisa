@@ -101,28 +101,18 @@ def iplot_install(module_name):
             any relative resource dependency resolver
     """
 
-    required_resources = []
-
     resources = AttrConf.IPLOT_RESOURCES[module_name]
     for resource in resources:
         resource_name = os.path.basename(resource)
         resource_dest_dir = os.path.join(
             AttrConf.PLOTTER_SCRIPTS_PATH,
             module_name)
-        required_resource_path = os.path.join(
-            AttrConf.PLOTTER_SCRIPTS_DIR,
-            module_name,
-            os.path.splitext(resource_name)[0])
 
         # Ensure if the directory exists
         if not os.path.isdir(resource_dest_dir):
             os.mkdir(resource_dest_dir)
         resource_dest_path = os.path.join(resource_dest_dir, resource_name)
         install_resource(resource, resource_dest_path)
-
-        required_resources.append(required_resource_path)
-
-    return required_resources
 
 def get_trace_event_data(run):
     """
