@@ -58,7 +58,7 @@ class DescriptionListFormatter(TextFormatter):
 
     def get_text_width(self):
         if not self._text_width:
-            self._text_width, _ = get_terminal_size()
+            self._text_width, _ = get_terminal_size()  # pylint: disable=unpacking-non-sequence
         return self._text_width
 
     def set_text_width(self, value):
