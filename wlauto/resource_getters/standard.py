@@ -151,9 +151,9 @@ class EnvironmentExecutableGetter(ExecutableGetter):
 
     def get(self, resource, **kwargs):
         paths = [
-            os.path.join(settings.environment_root, 'bin',
-                         resource.platform, resource.filename),
             os.path.join(resource.owner.dependencies_directory, 'bin',
+                         resource.platform, resource.filename),
+            os.path.join(settings.environment_root, 'bin',
                          resource.platform, resource.filename),
         ]
         for path in paths:
