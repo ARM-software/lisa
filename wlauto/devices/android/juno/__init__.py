@@ -62,6 +62,10 @@ class Juno(BigLittleDevice):
 
         Parameter('bootloader', default='uefi', allowed_values=['uefi', 'u-boot'],
                   description="""Bootloader used on the device."""),
+        Parameter('actually_disconnect', kind=bool, default=False,
+                  description="""
+                  Actually perfom "adb disconnect" on closing the connection to the device.
+                  """),
 
         # VExpress flasher expects a device to have these:
         Parameter('uefi_entry', default='WA',
@@ -160,7 +164,8 @@ class Juno(BigLittleDevice):
     def disconnect(self):
         if self._is_ready:
             super(Juno, self).disconnect()
-            adb_disconnect(self.adb_name)
+            if self.actually_disconnect:
+                adb_disconnect(self.adb_name)
             self._is_ready = False
 
     def reset(self):
