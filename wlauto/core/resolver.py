@@ -65,7 +65,8 @@ class ResourceResolver(object):
             self.logger.debug('Trying {}'.format(getter))
             result = getter.get(resource, *args, **kwargs)
             if result is not None:
-                self.logger.debug('Resource {} found using {}'.format(resource, getter))
+                self.logger.debug('Resource {} found using {}:'.format(resource, getter))
+                self.logger.debug('\t{}'.format(result))
                 return result
         if strict:
             raise ResourceError('{} could not be found'.format(resource))
