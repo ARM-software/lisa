@@ -48,22 +48,26 @@ class ILinePlotGen(object):
             <script>
             var ilp_req = require.config( {
 
-                baseUrl: "/static/plotter_scripts",
-                shim: {
-                    "ILinePlot/synchronizer": ["ILinePlot/dygraph-combined"],
-                    "ILinePlot/ILinePlot": {
+                paths: {
+                    "dygraph-sync": "/static/plotter_scripts/ILinePlot/synchronizer",
+                    "dygraph": "/static/plotter_scripts/ILinePlot/dygraph-combined",
+                    "ILinePlot": "/static/plotter_scripts/ILinePlot/ILinePlot",
+                },
 
-                        "deps": ["ILinePlot/synchronizer", "ILinePlot/dygraph-combined" ],
+                shim: {
+                    "dygraph-sync": ["dygraph"],
+                    "ILinePlot": {
+
+                        "deps": ["dygraph-sync", "dygraph" ],
                         "exports":  "ILinePlot"
                     }
                 }
             });
-                ilp_req(["require", "ILinePlot/ILinePlot"], function() {
+                ilp_req(["require", "ILinePlot"], function() {
                 ILinePlot.generate('""" + fig_name + """');
             });
             </script>
         """
-
 
         cell = '<td style="border-style: hidden;"><div class="ilineplot" id="{0}" style="width: \
 {1}px; height: {2}px;">{3}</div></td>'.format(fig_name,

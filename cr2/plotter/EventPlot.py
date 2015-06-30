@@ -115,17 +115,22 @@ class EventPlot(AbstractDataPlotter):
         <script>
             var req = require.config( {
 
-                baseUrl: "/static/plotter_scripts",
-                shim: {
-                    "EventPlot/d3.tip.v0.6.3": ["EventPlot/d3.v3.min"],
-                    "EventPlot/EventPlot": {
+                paths: {
 
-                        "deps": ["EventPlot/d3.v3.min", "EventPlot/d3.tip.v0.6.3" ],
+                    "EventPlot": "/static/plotter_scripts/EventPlot/EventPlot",
+                    "d3-tip": "/static/plotter_scripts/EventPlot/d3.tip.v0.6.3",
+                    "d3": "/static/plotter_scripts/EventPlot/d3.v3.min"
+                },
+                shim: {
+                    "d3-tip": ["d3"],
+                    "EventPlot": {
+
+                        "deps": ["d3-tip", "d3" ],
                         "exports":  "EventPlot"
                     }
                 }
             });
-            req(["require", "EventPlot/EventPlot"], function() {
+            req(["require", "EventPlot"], function() {
                EventPlot.generate('""" + self._fig_name + """');
             });
         </script>
