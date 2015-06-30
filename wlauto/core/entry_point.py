@@ -67,7 +67,14 @@ def main():
     except WAError, e:
         logging.critical(e)
         sys.exit(1)
-    except Exception, e:  # pylint: disable=broad-except
+    except SyntaxError as e:
+        message = 'Syntax Error in {}, line {}, offset {}:'
+        logging.critical(message.format(e.filename, e.lineno, e.offset))
+        logging.critical('\t{}'.format(e.msg))
+        tb = get_traceback()
+        logging.critical(tb)
+        sys.exit(2)
+    except Exception as e:  # pylint: disable=broad-except
         tb = get_traceback()
         logging.critical(tb)
         logging.critical('{}({})'.format(e.__class__.__name__, e))
