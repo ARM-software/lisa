@@ -150,9 +150,15 @@ class EnvironmentExecutableGetter(ExecutableGetter):
     name = 'env_exe_getter'
 
     def get(self, resource, **kwargs):
-        path = os.path.join(settings.environment_root, 'bin', resource.platform, resource.filename)
-        if os.path.isfile(path):
-            return path
+        paths = [
+            os.path.join(settings.environment_root, 'bin',
+                         resource.platform, resource.filename),
+            os.path.join(resource.owner.dependencies_directory, 'bin',
+                         resource.platform, resource.filename),
+        ]
+        for path in paths:
+            if os.path.isfile(path):
+                return path
 
 
 class DependencyFileGetter(ResourceGetter):
