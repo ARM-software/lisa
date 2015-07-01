@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+from wlauto.core.bootstrap import settings
 from wlauto.core.extension import Extension
 
 
@@ -169,6 +170,7 @@ class __NullOwner(object):
     """Represents an owner for a resource not owned by anyone."""
 
     name = 'noone'
+    dependencies_directory = settings.dependencies_directory
 
     def __getattr__(self, name):
         return None
