@@ -362,6 +362,14 @@ class GameWorkload(ApkWorkload, ReventWorkload):
     loading_time = 10
     supported_platforms = ['android']
 
+    parameters = [
+        Parameter('clear_data_on_reset', kind=bool, default=True,
+                  description="""
+                  If set to ``False``, this will prevent WA from clearing package
+                  data for this workload prior to running it.
+                  """),
+    ]
+
     def __init__(self, device, **kwargs):  # pylint: disable=W0613
         ApkWorkload.__init__(self, device, **kwargs)
         ReventWorkload.__init__(self, device, _call_super=False, **kwargs)
@@ -386,10 +394,12 @@ class GameWorkload(ApkWorkload, ReventWorkload):
     def reset(self, context):
         # If saved state exists, restore it; if not, do full
         # uninstall/install cycle.
+        self.device.execute('am force-stop {}'.format(self.package))
         if self.saved_state_file:
             self._deploy_resource_tarball(context, self.saved_state_file)
         else:
-            ApkWorkload.reset(self, context)
+            if self.clear_data_on_reset:
+                self.device.execute('pm clear {}'.format(self.package))
             self._deploy_assets(context)
 
     def run(self, context):
