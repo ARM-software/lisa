@@ -52,7 +52,7 @@ execution_order = 'by_iteration'
 retry_on_status = ['FAILED', 'PARTIAL']
 
 # How many times a job will be re-run before giving up
-max_retires = 3
+max_retries = 3
 
 ####################################################################################################
 ######################################### Device Settings ##########################################
