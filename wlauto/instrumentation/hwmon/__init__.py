@@ -113,6 +113,8 @@ class HwmonInstrument(Instrument):
                     context.result.add_metric(sensor.label, diff, units)
                 elif report_type == 'before/after':
                     before, after = sensor.readings
+                    mean = conversion((after + before) / 2)
+                    context.result.add_metric(sensor.label, mean, units)
                     context.result.add_metric(sensor.label + ' before', conversion(before), units)
                     context.result.add_metric(sensor.label + ' after', conversion(after), units)
                 else:
