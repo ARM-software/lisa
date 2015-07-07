@@ -496,7 +496,7 @@ class RunConfiguration(object):
 
     # List of names that may be present in configuration (and it is valid for
     # them to be there) but are not handled buy RunConfiguration.
-    ignore_names = ['logging']
+    ignore_names = ['logging', 'remote_assets_mount_point']
 
     def get_reboot_policy(self):
         if not self._reboot_policy:
