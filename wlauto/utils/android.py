@@ -177,17 +177,19 @@ def adb_get_device():
 def adb_connect(device, timeout=None):
     _check_env()
     command = "adb connect " + device
-    if ":5555" in device:
+    if ":" in device:
+        port = device.split(':')[-1]
         logger.debug(command)
 
         output, _ = check_output(command, shell=True, timeout=timeout)
         logger.debug(output)
         #### due to a rare adb bug sometimes an extra :5555 is appended to the IP address
-        if output.find('5555:5555') != -1:
-            logger.debug('ADB BUG with extra 5555')
-            command = "adb connect " + device.replace(':5555', '')
+        if output.find('{}:{}'.format(port, port)) != -1:
+            logger.debug('ADB BUG with extra port')
+            command = "adb connect " + device.replace(':{}'.format(port), '')
 
     tries = 0
+    output = None
     while not poll_for_file(device, "/proc/cpuinfo"):
         logger.debug("adb connect failed, retrying now...")
         tries += 1
@@ -197,7 +199,7 @@ def adb_connect(device, timeout=None):
         output, _ = check_output(command, shell=True, timeout=timeout)
         time.sleep(10)
 
-    if output.find('connected to') == -1:
+    if tries and output.find('connected to') == -1:
         raise DeviceError('Could not connect to {}'.format(device))
 
 
