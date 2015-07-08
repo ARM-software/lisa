@@ -45,26 +45,26 @@ class Stream(Workload):
                   description='The number of threads to execute if OpenMP is enabled')
     ]
 
+    def initialize(self, context):
+        Stream.stream_noomp_binary = context.resolver.get(Executable(self, self.device.abi, 'stream_noomp'))
+        Stream.stream_omp_binary = context.resolver.get(Executable(self, self.device.abi, 'stream_omp'))
+
+        Stream.stream_default = self.device.install(Stream.stream_noomp_binary)
+        Stream.stream_optional = self.device.install(Stream.stream_omp_binary)
+
+
     def setup(self, context):
-        self.stream_noomp_binary = context.resolver.get(Executable(self, self.device.abi, 'stream_noomp'))
-        self.stream_omp_binary = context.resolver.get(Executable(self, self.device.abi, 'stream_omp'))
-
-        self.stream_default = self.device.install(self.stream_noomp_binary)
-        self.stream_optional = self.device.install(self.stream_omp_binary)
-
         self.results = os.path.join(self.device.working_directory, stream_results_txt)
-        self.default_command = '{} > {}'.format(self.stream_default, self.results)
-        self.optional_command = '{} > {}'.format(self.stream_optional, self.results)
-
         self.timeout = 50
 
-    def run(self, context):
         if self.threads:
-            export_command = 'export OMP_NUM_THREADS={}'.format(self.threads)
-            self.device.execute(export_command)
-            self.output = self.device.execute(self.optional_command, timeout=self.timeout)
+            self.command = 'OMP_NUM_THREADS={} {} > {}'.format(self.threads, self.stream_optional, self.results)
         else:
-            self.output = self.device.execute(self.default_command, timeout=self.timeout)
+            self.command = '{} > {}'.format(self.stream_default, self.results)
+
+
+    def run(self, context):
+        self.output = self.device.execute(self.command, timeout=self.timeout)
 
     def update_result(self, context):
         self.device.pull_file(self.results, context.output_directory)
@@ -86,6 +86,6 @@ class Stream(Workload):
                     if match:
                         context.result.add_metric(label, float(match.group(1)), match.group(2))
 
-    def teardown(self, context):
+    def finalize(self, context):
         self.device.uninstall_executable(self.stream_default)
         self.device.uninstall_executable(self.stream_optional)
