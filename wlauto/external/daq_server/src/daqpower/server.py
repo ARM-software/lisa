@@ -235,7 +235,8 @@ class DaqControlProtocol(LineReceiver):  # pylint: disable=W0223
             else:
                 self.sendError('Received unknown command: {}'.format(request.command))
         except Exception, e:  # pylint: disable=W0703
-            self.sendError('{}: {}'.format(e.__class__.__name__, e.message))
+            message = getattr(e, 'mess', e.message)
+            self.sendError('{}: {}'.format(e.__class__.__name__, message))
 
     def configure(self, request):
         if 'config' in request.params:
