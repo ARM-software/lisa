@@ -84,6 +84,12 @@ class IPythonNotebookExporter(ResultProcessor):
 
                   .. note:: the URL should not contain the final part (the notebook name) which will be populated automatically.
                   '''),
+        Parameter('convert_to_html', kind=bool,
+                  description='Convert the resulting notebook to HTML.'),
+        Parameter('show_html', kind=bool,
+                  description='''Open the exported html notebook at the end of
+                  the run. This can only be selected if convert_to_html has
+                  also been selected.'''),
         Parameter('convert_to_pdf', kind=bool,
                   description='Convert the resulting notebook to PDF.'),
         Parameter('show_pdf', kind=bool,
@@ -111,6 +117,10 @@ class IPythonNotebookExporter(ResultProcessor):
         if self.notebook_directory and not os.path.isdir(self.notebook_directory):
             raise ConfigError('notebook_directory {} does not exist'.format(self.notebook_directory))
 
+        if self.show_html and not self.convert_to_html:  # pylint: disable=E0203
+            self.convert_to_html = True
+            self.logger.debug('Assuming "convert_to_html" as "show_html" is set')
+
         if self.show_pdf and not self.convert_to_pdf:  # pylint: disable=E0203
             self.convert_to_pdf = True
             self.logger.debug('Assuming "convert_to_pdf" as "show_pdf" is set')
@@ -121,10 +131,16 @@ class IPythonNotebookExporter(ResultProcessor):
             self.open_notebook()
 
         if self.convert_to_pdf:
-            ipython.generate_pdf(self.nbbasename,
-                                 context.run_output_directory)
+            ipython.export_notebook(self.nbbasename,
+                                    context.run_output_directory, 'pdf')
             if self.show_pdf:
-                self.open_pdf()
+                self.open_file('pdf')
+
+        if self.convert_to_html:
+            ipython.export_notebook(self.nbbasename,
+                                    context.run_output_directory, 'html')
+            if self.show_html:
+                self.open_file('html')
 
     def generate_notebook(self, result, context):
         """Generate a notebook from the template and run it"""
@@ -149,10 +165,10 @@ class IPythonNotebookExporter(ResultProcessor):
         """Open the notebook in a browser"""
         webbrowser.open(self.notebook_url.rstrip('/') + '/' + self.nbbasename)
 
-    def open_pdf(self):
-        """Open the PDF"""
-        pdf_file = os.path.splitext(self.notebook_file)[0] + ".pdf"
-        open_file(pdf_file)
+    def open_file(self, output_format):
+        """Open the exported notebook"""
+        fname = os.path.splitext(self.notebook_file)[0] + "." + output_format
+        open_file(fname)
 
 
 # Add the default template to the documentation
