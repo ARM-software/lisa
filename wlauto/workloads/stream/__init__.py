@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# pylint: disable=attribute-defined-outside-init
 
 from wlauto import Workload, Parameter, Executable
 
@@ -20,20 +21,23 @@ import re
 stream_results_txt = 'stream_results.txt'
 system_array_regex = re.compile(r'^This system uses (\d)')
 
-regex_map = {"array_size": (re.compile(r'^Array size = (\d+)'), "elements"),
-             "total_threads_requested": (re.compile(r'^Number of Threads requested = (\d+)'), "threads"),
-             "total_thread_count": (re.compile(r'^Number of Threads counted = (\d+)'), "threads")
-            }
+regex_map = {
+    "array_size": (re.compile(r'^Array size = (\d+)'), "elements"),
+    "total_threads_requested": (re.compile(r'^Number of Threads requested = (\d+)'), "threads"),
+    "total_thread_count": (re.compile(r'^Number of Threads counted = (\d+)'), "threads")
+}
 
-regex_map2 = {"memory_per_array": re.compile(r'^Memory per array = (\d*.\d*) (\w+)'),
-              "total_memory_required": re.compile(r'^Total memory required = (\d*.\d*) (\w+)')
-             }
+regex_map2 = {
+    "memory_per_array": re.compile(r'^Memory per array = (\d*.\d*) (\w+)'),
+    "total_memory_required": re.compile(r'^Total memory required = (\d*.\d*) (\w+)')
+}
 
 
 class Stream(Workload):
 
     name = 'stream'
-    description = """stream is a workload that measures memory bandwidth.
+    description = """
+    Measures memory bandwidth.
 
     The original source code be found on:
     https://www.cs.virginia.edu/stream/FTP/Code/
@@ -52,7 +56,6 @@ class Stream(Workload):
         Stream.stream_default = self.device.install(Stream.stream_noomp_binary)
         Stream.stream_optional = self.device.install(Stream.stream_omp_binary)
 
-
     def setup(self, context):
         self.results = os.path.join(self.device.working_directory, stream_results_txt)
         self.timeout = 50
@@ -61,7 +64,6 @@ class Stream(Workload):
             self.command = 'OMP_NUM_THREADS={} {} > {}'.format(self.threads, self.stream_optional, self.results)
         else:
             self.command = '{} > {}'.format(self.stream_default, self.results)
-
 
     def run(self, context):
         self.output = self.device.execute(self.command, timeout=self.timeout)
