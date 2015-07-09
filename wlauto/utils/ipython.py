@@ -46,7 +46,7 @@ if IPython:
 
         NotebookNode = IPython.nbformat.NotebookNode  # pylint: disable=E1101
 
-        IPYTHON_NBCONVERT = ['ipython', 'nbconvert', '--to=pdf']
+        IPYTHON_NBCONVERT_PDF = ['ipython', 'nbconvert', '--to=pdf']
     elif StrictVersion(IPython.__version__) >= StrictVersion('2.0.0'):
         import IPython.kernel
         import IPython.nbformat.v3
@@ -59,7 +59,8 @@ if IPython:
 
         NotebookNode = IPython.nbformat.v3.NotebookNode  # pylint: disable=E1101
 
-        IPYTHON_NBCONVERT = ['ipython', 'nbconvert', '--to=latex', '--post=PDF']
+        IPYTHON_NBCONVERT_PDF = ['ipython', 'nbconvert', '--to=latex',
+                                 '--post=PDF']
     else:
         # Unsupported IPython version
         import_error_str = 'Unsupported IPython version {}'.format(IPython.__version__)
@@ -154,7 +155,7 @@ def generate_pdf(nbbasename, output_directory):
     os.chdir(output_directory)
 
     with open(os.devnull, 'w') as devnull:
-        subprocess.check_call(IPYTHON_NBCONVERT + [nbbasename], stderr=devnull)
+        subprocess.check_call(IPYTHON_NBCONVERT_PDF + [nbbasename], stderr=devnull)
 
     os.chdir(prev_dir)
 
