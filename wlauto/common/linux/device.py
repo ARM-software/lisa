@@ -580,8 +580,9 @@ class LinuxDevice(BaseLinuxDevice):
             raise DeviceError('Could not connect to {} after reboot'.format(self.host))
 
     def connect(self):  # NOQA pylint: disable=R0912
-        self.shell = SshShell(password_prompt=self.password_prompt, timeout=self.default_timeout)
-        self.shell.login(self.host, self.username, self.password, self.keyfile, self.port, telnet=self.use_telnet)
+        self.shell = SshShell(password_prompt=self.password_prompt,
+                              timeout=self.default_timeout, telnet=self.use_telnet)
+        self.shell.login(self.host, self.username, self.password, self.keyfile, self.port)
         self._is_ready = True
 
     def disconnect(self):  # NOQA pylint: disable=R0912

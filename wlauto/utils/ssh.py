@@ -109,13 +109,15 @@ class SshShell(object):
     default_password_prompt = '[sudo] password'
     max_cancel_attempts = 5
 
-    def __init__(self, password_prompt=None, timeout=10):
+    def __init__(self, password_prompt=None, timeout=10, telnet=False):
         self.password_prompt = password_prompt if password_prompt is not None else self.default_password_prompt
         self.timeout = timeout
+        self.telnet = telnet
         self.conn = None
         self.lock = threading.Lock()
+        self.connection_lost = False
 
-    def login(self, host, username, password=None, keyfile=None, port=None, timeout=None, telnet=False):
+    def login(self, host, username, password=None, keyfile=None, port=None, timeout=None):
         # pylint: disable=attribute-defined-outside-init
         logger.debug('Logging in {}@{}'.format(username, host))
         self.host = host
@@ -124,7 +126,7 @@ class SshShell(object):
         self.keyfile = check_keyfile(keyfile) if keyfile else keyfile
         self.port = port
         timeout = self.timeout if timeout is None else timeout
-        self.conn = ssh_get_shell(host, username, password, self.keyfile, port, timeout, telnet)
+        self.conn = ssh_get_shell(host, username, password, self.keyfile, port, timeout, self.telnet)
 
     def push_file(self, source, dest, timeout=30):
         dest = '{}@{}:{}'.format(self.username, self.host, dest)
@@ -143,19 +145,32 @@ class SshShell(object):
             command = _give_password(self.password, command)
         return subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)
 
+    def reconnect(self):
+        self.conn = ssh_get_shell(self.host, self.username, self.password,
+                                  self.keyfile, self.port, self.timeout, self.telnet)
+
     def execute(self, command, timeout=None, check_exit_code=True, as_root=False, strip_colors=True):
-        with self.lock:
-            output = self._execute_and_wait_for_prompt(command, timeout, as_root, strip_colors)
-            if check_exit_code:
-                exit_code_text = self._execute_and_wait_for_prompt('echo $?', strip_colors=strip_colors, log=False)
-                try:
-                    exit_code = int(exit_code_text.split()[0])
-                    if exit_code:
-                        message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
-                        raise DeviceError(message.format(exit_code, command, output))
-                except ValueError:
-                    logger.warning('Could not get exit code for "{}",\ngot: "{}"'.format(command, exit_code_text))
-            return output
+        try:
+            with self.lock:
+                if self.connection_lost:
+                    logger.debug('Attempting to reconnect...')
+                    self.reconnect()
+                    self.connection_lost = False
+                output = self._execute_and_wait_for_prompt(command, timeout, as_root, strip_colors)
+                if check_exit_code:
+                    exit_code_text = self._execute_and_wait_for_prompt('echo $?', strip_colors=strip_colors, log=False)
+                    try:
+                        exit_code = int(exit_code_text.split()[0])
+                        if exit_code:
+                            message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
+                            raise DeviceError(message.format(exit_code, command, output))
+                    except ValueError:
+                        logger.warning('Could not get exit code for "{}",\ngot: "{}"'.format(command, exit_code_text))
+                return output
+        except EOF:
+            logger.error('Dropped connection detected.')
+            self.connection_lost = True
+            raise
 
     def logout(self):
         logger.debug('Logging out {}@{}'.format(self.username, self.host))
