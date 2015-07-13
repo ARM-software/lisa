@@ -180,7 +180,7 @@ class TraceCmdInstrument(Instrument):
         else:
             raise ValueError('Bad mode: {}'.format(self.mode))  # should never get here
 
-    def start(self, context):
+    def very_slow_start(self, context):
         self.start_time = time.time()  # pylint: disable=attribute-defined-outside-init
         if self.mode == 'start':
             self.device.execute('{} start {}'.format(self.trace_cmd, self.event_string), as_root=True)
