@@ -17,13 +17,11 @@
 import os
 import re
 import csv
-import math
 import shutil
 import json
 import urllib
 import stat
 from zipfile import is_zipfile, ZipFile
-from collections import defaultdict
 
 try:
     import pandas as pd
@@ -33,7 +31,7 @@ except ImportError:
 from wlauto import Workload, Parameter
 from wlauto.exceptions import WorkloadError, ConfigError
 from wlauto.utils.misc import check_output, get_null, get_meansd
-from wlauto.utils.types import numeric, identifier
+from wlauto.utils.types import numeric
 
 
 RESULT_REGEX = re.compile(r'RESULT ([^:]+): ([^=]+)\s*=\s*'  # preamble and test/metric name
@@ -113,6 +111,12 @@ class Telemetry(Workload):
                   description="""
                   if ``True``, FPS for the run will be computed from the trace (must be enabled).
                   """),
+        Parameter('target_config', kind=str, default=None,
+                  description="""
+                  Manually specify target configuration for telemetry. This must contain
+                  --browser option plus any addition options Telemetry requires for a particular
+                  target (e.g. --device or --remote)
+                  """),
     ]
 
     def validate(self):
@@ -177,18 +181,22 @@ class Telemetry(Workload):
 
     def build_command(self):
         device_opts = ''
-        if self.device.platform == 'chromeos':
-            if '--remote' not in self.run_benchmark_params:
-                device_opts += '--remote={} '.format(self.device.host)
-            if '--browser' not in self.run_benchmark_params:
-                device_opts += '--browser=cros-chrome '
-        elif self.device.platform == 'android':
-            if '--device' not in self.run_benchmark_params and self.device.adb_name:
-                device_opts += '--device={} '.format(self.device.adb_name)
-            if '--browser' not in self.run_benchmark_params:
-                device_opts += '--browser=android-webview-shell '
+        if self.target_config:
+            device_opts = self.target_config
         else:
-            raise WorkloadError('Currently, telemetry workload supports only ChromeOS or Android devices.')
+            if self.device.platform == 'chromeos':
+                if '--remote' not in self.run_benchmark_params:
+                    device_opts += '--remote={} '.format(self.device.host)
+                if '--browser' not in self.run_benchmark_params:
+                    device_opts += '--browser=cros-chrome '
+            elif self.device.platform == 'android':
+                if '--device' not in self.run_benchmark_params and self.device.adb_name:
+                    device_opts += '--device={} '.format(self.device.adb_name)
+                if '--browser' not in self.run_benchmark_params:
+                    device_opts += '--browser=android-webview-shell '
+            else:
+                raise WorkloadError('Unless you\'re running Telemetry on a ChromeOS or Android device, '
+                                    'you mast specify target_config option')
         return '{} {} {} {}'.format(self.run_benchmark_path,
                                     self.test,
                                     device_opts,
