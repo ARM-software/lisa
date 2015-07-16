@@ -142,13 +142,13 @@ class ApkWorkload(Workload):
     package = None
     activity = None
     view = None
-    install_timeout = None
-    default_install_timeout = 300
     supported_platforms = ['android']
 
     parameters = [
+        Parameter('install_timeout', kind=int, default=300,
+                  description='Timeout for the installation of the apk.'),
         Parameter('uninstall_apk', kind=boolean, default=False,
-                  description="If ``True``, will uninstall workload's APK as part of teardown."),
+                  description='If ``True``, will uninstall workload\'s APK as part of teardown.'),
     ]
 
     def __init__(self, device, _call_super=True, **kwargs):
@@ -158,8 +158,6 @@ class ApkWorkload(Workload):
         self.apk_version = None
         self.logcat_log = None
         self.force_reinstall = kwargs.get('force_reinstall', False)
-        if not self.install_timeout:
-            self.install_timeout = self.default_install_timeout
 
     def init_resources(self, context):
         self.apk_file = context.resolver.get(wlauto.common.android.resources.ApkFile(self), version=getattr(self, 'version', None))
@@ -358,11 +356,13 @@ class GameWorkload(ApkWorkload, ReventWorkload):
     asset_file = None
     saved_state_file = None
     view = 'SurfaceView'
-    install_timeout = 500
     loading_time = 10
     supported_platforms = ['android']
 
     parameters = [
+        Parameter('install_timeout', default=500, override=True),
+        Parameter('assets_push_timeout', kind=int, default=500,
+                  description='Timeout used during deployment of the assets package (if there is one).'),
         Parameter('clear_data_on_reset', kind=bool, default=True,
                   description="""
                   If set to ``False``, this will prevent WA from clearing package
@@ -389,7 +389,7 @@ class GameWorkload(ApkWorkload, ReventWorkload):
 
     def do_post_install(self, context):
         ApkWorkload.do_post_install(self, context)
-        self._deploy_assets(context)
+        self._deploy_assets(context, self.assets_push_timeout)
 
     def reset(self, context):
         # If saved state exists, restore it; if not, do full
@@ -430,7 +430,7 @@ class GameWorkload(ApkWorkload, ReventWorkload):
                 raise WorkloadError(message.format(resource_file, self.name))
             # adb push will create intermediate directories if they don't
             # exist.
-            self.device.push_file(asset_tarball, ondevice_cache)
+            self.device.push_file(asset_tarball, ondevice_cache, timeout=timeout)
 
         device_asset_directory = self.device.path.join(self.device.external_storage_directory, 'Android', kind)
         deploy_command = 'cd {} && {} tar -xzf {}'.format(device_asset_directory,
