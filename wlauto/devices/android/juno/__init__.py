@@ -80,7 +80,8 @@ class Juno(BigLittleDevice):
                       'image_args': 'console=ttyAMA0,115200 '
                                     'earlyprintk=pl011,0x7ff80000 '
                                     'verbose debug init=/init '
-                                    'root=/dev/sda1 rw ip=dhcp rootwait',
+                                    'root=/dev/sda1 rw ip=dhcp rootwait'
+                                    'video=DVI-D-1:1920x1080R@60',
                       'fdt_support': True,
                   }
                   ),
