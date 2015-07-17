@@ -79,7 +79,6 @@ class BBench(Workload):
         self.bbench_server_on_device = os.path.join(self.device.working_directory, BBENCH_SERVER_NAME)
         self.audio_on_device = os.path.join(self.device.working_directory, DEFAULT_AUDIO_FILE_NAME)
         self.index_noinput = 'file:///{}'.format(self.bbench_on_device) + '/index_noinput.html'
-        self.luanch_server_command = '{} {}'.format(BBENCH_SERVER_NAME, self.server_timeout)
 
         if not os.path.isdir(os.path.join(self.dependencies_directory, "sites")):
             self._download_bbench_file()
@@ -101,7 +100,8 @@ class BBench(Workload):
 
         # Push the bbench server
         host_binary = context.resolver.get(Executable(self, self.device.abi, 'bbench_server'))
-        self.device.install(host_binary)
+        device_binary = self.device.install(host_binary)
+        self.luanch_server_command = '{} {}'.format(device_binary, self.server_timeout)
 
         # Open the browser with default page
         self.device.execute('am start -n  {}/{} about:blank'.format(self.browser_package, self.browser_activity))
