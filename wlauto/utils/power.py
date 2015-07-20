@@ -27,6 +27,8 @@ from wlauto.utils.trace_cmd import TraceCmdTrace
 
 logger = logging.getLogger('power')
 
+UNKNOWN_FREQUENCY = -1
+
 
 class CorePowerTransitionEvent(object):
 
@@ -199,6 +201,8 @@ class PowerStateProcessor(object):
         self.requested_states.pop(event.cpu_id, None)  # remove outstanding request if there is one
         old_state = self.cpu_states[event.cpu_id].idle_state
         self.cpu_states[event.cpu_id].idle_state = -1
+        if self.cpu_states[event.cpu_id].frequency is None:
+            self.cpu_states[event.cpu_id].frequency = UNKNOWN_FREQUENCY
 
         related_ids = self.idle_related_cpus[(event.cpu_id, old_state)]
         if old_state is not None:
@@ -307,10 +311,14 @@ class PowerStateTimeline(object):
                     row.append(self.idle_state_names[idle_state])
             else:  # frequency is not None
                 if idle_state == -1:
+                    if frequency == UNKNOWN_FREQUENCY:
+                        frequency = 'Running (Unknown Hz)'
                     row.append(frequency)
                 elif idle_state is None:
                     row.append(None)
                 else:
+                    if frequency == UNKNOWN_FREQUENCY:
+                        frequency = 'Unknown Hz'
                     row.append('{} ({})'.format(self.idle_state_names[idle_state],
                                                 frequency))
         self.writer.writerow(row)
