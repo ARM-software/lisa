@@ -29,6 +29,11 @@ critical = lambda x: log.msg(x, logLevel=logging.CRITICAL)
 
 class CustomLoggingObserver(log.PythonLoggingObserver):
 
+    def __init__(self, loggerName="twisted"):
+        super(CustomLoggingObserver, self).__init__(loggerName)
+        if not hasattr(self, '_newObserver'):  # new vesions of Twisted
+            self.logger = self._newObserver.logger  # pylint: disable=no-member
+
     def emit(self, eventDict):
         if 'logLevel' in eventDict:
             level = eventDict['logLevel']
