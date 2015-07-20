@@ -204,7 +204,7 @@ class FpsInstrument(Instrument):
             vtc_deltas = filtered_vsyncs_to_compose - filtered_vsyncs_to_compose.shift()
             vtc_deltas.index = range(0, vtc_deltas.size)
             vtc_deltas = vtc_deltas.drop(0).abs()
-            janks = vtc_deltas.apply(lambda x: (x > EPSYLON) and 1 or 0).sum()
+            janks = vtc_deltas.apply(lambda x: (x > 1.5) and 1 or 0).sum()
             not_at_vsync = vsyncs_to_compose.apply(lambda x: (abs(x - 1.0) > EPSYLON) and 1 or 0).sum()
             context.result.add_metric('janks', janks)
             context.result.add_metric('not_at_vsync', not_at_vsync)
