@@ -33,6 +33,45 @@ PREV_PID_FIELD = "prev_pid"
 TASK_RUNNING = 1
 TASK_NOT_RUNNING = 0
 TIME_INVAL = -1
+SERIES_SANTIZED = "_sched_sanitized"
+
+def sanitize_asymmetry(series, window=None):
+    """Sanitize the cases when a SWITCH_OUT
+    happens before a SWITCH in. (The case when
+    a process is already running before the started
+    """
+
+    if not hasattr(series, SERIES_SANTIZED):
+
+        events = series[series != 0]
+        if len(series) >= 2 and len(events):
+            if series.values[0] == SCHED_SWITCH_OUT:
+                series.values[0] = TASK_NOT_RUNNING
+
+            elif events.values[0] == SCHED_SWITCH_OUT:
+                series.values[0] = SCHED_SWITCH_IN
+                if window:
+                    series.index.values[0] = window[0]
+
+            if series.values[-1] == SCHED_SWITCH_IN:
+                series.values[-1] = TASK_NOT_RUNNING
+
+            elif events.values[-1] == SCHED_SWITCH_IN:
+                series.values[-1] = SCHED_SWITCH_OUT
+                if window:
+                    series.index.values[-1] = window[1]
+
+        # No point if the series just has one value and
+        # one event. We do not have sufficient data points
+        # for any calculation. We should Ideally never reach
+        # here.
+        elif len(series) == 1:
+            series.values[0] = 0
+
+        setattr(series, SERIES_SANTIZED, True)
+
+    return series
+
 
 def csum(series, window=None, filter_gaps=False):
     """The following actions are done on the
@@ -118,29 +157,33 @@ def residency_sum(series, window=None):
             float (scalar)
     """
 
-    running = series.cumsum()
+    if not len(series):
+        return 0.0
+
+    org_series = series
     series = select_window(series, window)
-    duration = 0
+    series = sanitize_asymmetry(series, window)
 
-    if running[series.index.values[0]] == TASK_RUNNING:
-        start = series.index.values[0]
+    s_in = series[series == SCHED_SWITCH_IN]
+    s_out = series[series == SCHED_SWITCH_OUT]
+
+    if not (len(s_in) and len(s_out)):
+        try:
+            org_series = sanitize_asymmetry(org_series)
+            running = select_window(org_series.cumsum(), window)
+            if running.values[0] == TASK_RUNNING and running.values[-1] == TASK_RUNNING:
+                return window[1] - window[0]
+        except Exception,e:
+            pass
+
+    if len(s_in) != len(s_out):
+        raise RuntimeError(
+            "Unexpected Lengths: s_in={}, s_out={}".format(
+                len(s_in),
+                len(s_out)))
     else:
-        start = None
+        return np.sum(s_out.index.values - s_in.index.values)
 
-    for index, value in series.iteritems():
-        if value == SCHED_SWITCH_IN:
-            start = index
-
-        if value == SCHED_SWITCH_OUT:
-            if start is not None:
-                duration += index - start
-
-            start = None
-
-    if start is not None:
-        duration += series.index.values[-1] - start
-
-    return duration
 
 def total_duration(series):
     """Aggregator function that returns the
