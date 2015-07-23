@@ -106,7 +106,8 @@ class PerfInstrument(Instrument):
             self.device.kick_off(command)
 
     def stop(self, context):
-        self.device.killall('sleep')
+        as_root = self.device.platfrom == 'android'
+        self.device.killall('sleep', as_root=as_root)
 
     def update_result(self, context):
         for label in self.labels:
