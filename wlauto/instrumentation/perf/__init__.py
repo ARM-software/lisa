@@ -23,7 +23,7 @@ import itertools
 from wlauto import Instrument, Executable, Parameter
 from wlauto.exceptions import ConfigError
 from wlauto.utils.misc import ensure_file_directory_exists as _f
-from wlauto.utils.types import arguments, list_of_strs
+from wlauto.utils.types import list_or_string, list_of_strs
 
 PERF_COMMAND_TEMPLATE = '{} stat {} {} sleep 1000 > {} 2>&1 '
 
@@ -72,7 +72,7 @@ class PerfInstrument(Instrument):
                   global_alias='perf_events',
                   constraint=(lambda x: x, 'must not be empty.'),
                   description="""Specifies the events to be counted."""),
-        Parameter('optionstring', kind=arguments, default='-a',
+        Parameter('optionstring', kind=list_or_string, default='-a',
                   global_alias='perf_options',
                   description="""Specifies options to be used for the perf command. This
                   may be a list of option strings, in which case, multiple instances of perf
