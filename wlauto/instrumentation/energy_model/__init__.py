@@ -21,7 +21,6 @@ import math
 import time
 from tempfile import mktemp
 from base64 import b64encode
-from copy import deepcopy
 from collections import Counter, namedtuple
 
 try:
@@ -48,7 +47,8 @@ from wlauto.utils.types import caseless_string, list_or_caseless_string, list_of
 from wlauto.utils.misc import list_to_mask
 
 FREQ_TABLE_FILE = 'frequency_power_perf_data.csv'
-CPUS_TABLE_FILE = 'cap_power.csv'
+CPUS_TABLE_FILE = 'projected_cap_power.csv'
+MEASURED_CPUS_TABLE_FILE = 'measured_cap_power.csv'
 IDLE_TABLE_FILE = 'idle_power_perf_data.csv'
 REPORT_TEMPLATE_FILE = 'report.template'
 EM_TEMPLATE_FILE = 'em.template'
@@ -160,7 +160,7 @@ def generate_em_c_file(em, big_core, little_core, em_template_file, outfile):
     return em_text
 
 
-def generate_report(freq_power_table, cpus_table, idle_power_table,
+def generate_report(freq_power_table, measured_cpus_table, cpus_table, idle_power_table,
                     report_template_file, device_name, em_text, outfile):
     # pylint: disable=too-many-locals
     cap_power_analysis = PowerPerformanceAnalysis(freq_power_table)
@@ -171,7 +171,8 @@ def generate_report(freq_power_table, cpus_table, idle_power_table,
     fig, axes = plt.subplots(1, 2)
     fig.set_size_inches(16, 8)
     for i, cluster in enumerate(reversed(cpus_table.columns.levels[0])):
-        plot_cpus_table(cpus_table[cluster].dropna(), axes[i], cluster)
+        projected = cpus_table[cluster].dropna()
+        plot_cpus_table(projected, axes[i], cluster)
     cpus_plot_data = get_figure_data(fig)
 
     with open(report_template_file) as fh:
@@ -272,7 +273,7 @@ def get_cap_power_plot(data_single_core):
 
 def get_idle_power_plot(df):
     fig, axes = plt.subplots(1, 2, figsize=(15, 7))
-    for cluster, ax in zip(['big', 'little'], axes):
+    for cluster, ax in zip(['little', 'big'], axes):
         data = df[df.cluster == cluster].pivot_table(index=['state'], columns='cpus', values='power')
         err = df[df.cluster == cluster].pivot_table(index=['state'], columns='cpus', values='power_error')
         data.plot(kind='bar', ax=ax, rot=30, yerr=err)
@@ -282,30 +283,45 @@ def get_idle_power_plot(df):
     return fig
 
 
+def fit_polynomial(s, n):
+    coeffs = np.polyfit(s.index, s.values, n)
+    poly = np.poly1d(coeffs)
+    return poly(s.index)
+
+
 def get_cpus_power_table(data, index):
     power_table = data[[index, 'cluster', 'cpus', 'power']].pivot_table(index=index,
                                                                         columns=['cluster', 'cpus'],
                                                                         values='power')
+    bs_power_table = pd.DataFrame(index=power_table.index, columns=power_table.columns)
     for cluster in power_table.columns.levels[0]:
         power_table[cluster, 0] = (power_table[cluster, 1] -
                                    (power_table[cluster, 2] -
                                     power_table[cluster, 1]))
-
+        bs_power_table[cluster, 1][power_table[cluster, 1].notnull()] = fit_polynomial(power_table[cluster, 1].dropna(), 2)
+        bs_power_table[cluster, 2][power_table[cluster, 2].notnull()] = fit_polynomial(power_table[cluster, 2].dropna(), 2)
+        bs_power_table[cluster, 0] = (bs_power_table[cluster, 1] -
+                                      (bs_power_table[cluster, 2] -
+                                       bs_power_table[cluster, 1]))
     # re-order columns and rename colum '0' to  'cluster'
     power_table = power_table[sorted(power_table.columns,
                                      cmp=lambda x, y: cmp(y[0], x[0]) or cmp(x[1], y[1]))]
+    bs_power_table = bs_power_table[sorted(bs_power_table.columns,
+                                           cmp=lambda x, y: cmp(y[0], x[0]) or cmp(x[1], y[1]))]
     old_levels = power_table.columns.levels
     power_table.columns.set_levels([old_levels[0], list(map(str, old_levels[1])[:-1]) + ['cluster']],
                                    inplace=True)
-    return power_table
+    bs_power_table.columns.set_levels([old_levels[0], list(map(str, old_levels[1])[:-1]) + ['cluster']],
+                                      inplace=True)
+    return power_table, bs_power_table
 
 
-def plot_cpus_table(cpus_table, ax, cluster):
-    cpus_table.T.plot(ax=ax, marker='o')
+def plot_cpus_table(projected, ax, cluster):
+    projected.T.plot(ax=ax, marker='o')
     ax.set_title('{} cluster'.format(cluster))
-    ax.set_xticklabels(cpus_table.columns)
+    ax.set_xticklabels(projected.columns)
     ax.set_xticks(range(0, 5))
-    ax.set_xlim(-0.5, len(cpus_table.columns) - 0.5)
+    ax.set_xlim(-0.5, len(projected.columns) - 0.5)
     ax.set_ylabel('Power (mW)')
     ax.grid(True)
 
@@ -514,7 +530,11 @@ class EnergyModelInstrument(Instrument):
             freq_power_table.to_csv(wfh, index=False)
         context.add_artifact('freq_power_table', freq_output, 'export')
 
-        cpus_table = get_cpus_power_table(freq_power_table, 'frequency')
+        measured_cpus_table, cpus_table = get_cpus_power_table(freq_power_table, 'frequency')
+        measured_cpus_output = os.path.join(output_directory, MEASURED_CPUS_TABLE_FILE)
+        with open(measured_cpus_output, 'w') as wfh:
+            measured_cpus_table.to_csv(wfh)
+        context.add_artifact('measured_cpus_table', measured_cpus_output, 'export')
         cpus_output = os.path.join(output_directory, CPUS_TABLE_FILE)
         with open(cpus_output, 'w') as wfh:
             cpus_table.to_csv(wfh)
@@ -527,9 +547,9 @@ class EnergyModelInstrument(Instrument):
         context.add_artifact('em', em_file, 'data')
 
         report_file = os.path.join(output_directory, 'report.html')
-        generate_report(freq_power_table, cpus_table, idle_power_table,
-                        self.report_template_file, self.device_name, em_text,
-                        report_file)
+        generate_report(freq_power_table, measured_cpus_table, cpus_table,
+                        idle_power_table, self.report_template_file,
+                        self.device_name, em_text, report_file)
         context.add_artifact('pm_report', report_file, 'export')
 
     def initialize_result_tracking(self):
@@ -764,8 +784,8 @@ if __name__ == '__main__':
     em_template_file = os.path.join(this_dir, EM_TEMPLATE_FILE)
 
     freq_power_table = pd.read_csv(os.path.join(indir, FREQ_TABLE_FILE))
-    cpus_table = pd.read_csv(os.path.join(indir, CPUS_TABLE_FILE),
-                             header=range(2), index_col=0)
+    measured_cpus_table, cpus_table = pd.read_csv(os.path.join(indir, CPUS_TABLE_FILE),
+                                                  header=range(2), index_col=0)
     idle_power_table = pd.read_csv(os.path.join(indir, IDLE_TABLE_FILE))
 
     if not os.path.exists(outdir):
@@ -777,6 +797,6 @@ if __name__ == '__main__':
                             idle_power_table, first_cluster_idle_state)
     em_text = generate_em_c_file(em, big_core, little_core,
                                  em_template_file, em_file)
-    generate_report(freq_power_table, cpus_table, idle_power_table,
-                    report_template_file, device_name, em_text,
-                    report_file)
+    generate_report(freq_power_table, measured_cpus_table, cpus_table,
+                    idle_power_table, report_template_file, device_name,
+                    em_text, report_file)
