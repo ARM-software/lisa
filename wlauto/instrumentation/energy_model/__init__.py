@@ -160,7 +160,7 @@ def generate_em_c_file(em, big_core, little_core, em_template_file, outfile):
     return em_text
 
 
-def generate_report(freq_power_table, measured_cpus_table, cpus_table, idle_power_table,
+def generate_report(freq_power_table, measured_cpus_table, cpus_table, idle_power_table,  # pylint: disable=unused-argument
                     report_template_file, device_name, em_text, outfile):
     # pylint: disable=too-many-locals
     cap_power_analysis = PowerPerformanceAnalysis(freq_power_table)
@@ -284,6 +284,7 @@ def get_idle_power_plot(df):
 
 
 def fit_polynomial(s, n):
+    # pylint: disable=no-member
     coeffs = np.polyfit(s.index, s.values, n)
     poly = np.poly1d(coeffs)
     return poly(s.index)
@@ -784,7 +785,7 @@ if __name__ == '__main__':
     em_template_file = os.path.join(this_dir, EM_TEMPLATE_FILE)
 
     freq_power_table = pd.read_csv(os.path.join(indir, FREQ_TABLE_FILE))
-    measured_cpus_table, cpus_table = pd.read_csv(os.path.join(indir, CPUS_TABLE_FILE),
+    measured_cpus_table, cpus_table = pd.read_csv(os.path.join(indir, CPUS_TABLE_FILE),  # pylint: disable=unbalanced-tuple-unpacking
                                                   header=range(2), index_col=0)
     idle_power_table = pd.read_csv(os.path.join(indir, IDLE_TABLE_FILE))
 
