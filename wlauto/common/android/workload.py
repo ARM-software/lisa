@@ -21,7 +21,7 @@ from wlauto.core.extension import Parameter
 from wlauto.core.workload import Workload
 from wlauto.core.resource import NO_ONE
 from wlauto.common.resources import ExtensionAsset, Executable
-from wlauto.exceptions import WorkloadError, ResourceError
+from wlauto.exceptions import WorkloadError, ResourceError, ConfigError
 from wlauto.utils.android import ApkInfo
 from wlauto.utils.types import boolean
 import wlauto.common.android.resources
@@ -147,6 +147,16 @@ class ApkWorkload(Workload):
     parameters = [
         Parameter('install_timeout', kind=int, default=300,
                   description='Timeout for the installation of the apk.'),
+        Parameter('check_apk', kind=boolean, default=True,
+                  description='''
+                  Discover the APK for this workload on the host, and check that
+                  the version matches the one on device (if already installed).
+                  '''),
+        Parameter('force_install', kind=boolean, default=False,
+                  description='''
+                  Always re-install the APK, even if matching version is found
+                  on already installed on the device.
+                  '''),
         Parameter('uninstall_apk', kind=boolean, default=False,
                   description='If ``True``, will uninstall workload\'s APK as part of teardown.'),
     ]
@@ -157,10 +167,19 @@ class ApkWorkload(Workload):
         self.apk_file = None
         self.apk_version = None
         self.logcat_log = None
-        self.force_reinstall = kwargs.get('force_reinstall', False)
 
     def init_resources(self, context):
-        self.apk_file = context.resolver.get(wlauto.common.android.resources.ApkFile(self), version=getattr(self, 'version', None))
+        self.apk_file = context.resolver.get(wlauto.common.android.resources.ApkFile(self),
+                                             version=getattr(self, 'version', None),
+                                             strict=self.check_apk)
+
+    def validate(self):
+        if self.check_apk:
+            if not self.apk_file:
+                raise WorkloadError('No APK file found for workload {}.'.format(self.name))
+        else:
+            if self.force_install:
+                raise ConfigError('force_install cannot be "True" when check_apk is set to "False".')
 
     def setup(self, context):
         self.initialize_package(context)
@@ -170,19 +189,35 @@ class ApkWorkload(Workload):
 
     def initialize_package(self, context):
         installed_version = self.device.get_installed_package_version(self.package)
+        if self.check_apk:
+            self.initialize_with_host_apk(context, installed_version)
+        else:
+            if not installed_version:
+                message = '''{} not found found on the device and check_apk is set to "False"
+                             so host version was not checked.'''
+                raise WorkloadError(message.format(self.package))
+            message = 'Version {} installed on device; skipping host APK check.'
+            self.logger.debug(message.format(installed_version))
+            self.reset(context)
+            self.apk_version = installed_version
+
+    def initialize_with_host_apk(self, context, installed_version):
         host_version = ApkInfo(self.apk_file).version_name
         if installed_version != host_version:
             if installed_version:
                 message = '{} host version: {}, device version: {}; re-installing...'
-                self.logger.debug(message.format(os.path.basename(self.apk_file), host_version, installed_version))
+                self.logger.debug(message.format(os.path.basename(self.apk_file),
+                                                 host_version, installed_version))
             else:
                 message = '{} host version: {}, not found on device; installing...'
-                self.logger.debug(message.format(os.path.basename(self.apk_file), host_version))
-            self.force_reinstall = True
+                self.logger.debug(message.format(os.path.basename(self.apk_file),
+                                                 host_version))
+            self.force_install = True  # pylint: disable=attribute-defined-outside-init
         else:
             message = '{} version {} found on both device and host.'
-            self.logger.debug(message.format(os.path.basename(self.apk_file), host_version))
-        if self.force_reinstall:
+            self.logger.debug(message.format(os.path.basename(self.apk_file),
+                                             host_version))
+        if self.force_install:
             if installed_version:
                 self.device.uninstall(self.package)
             self.install_apk(context)
@@ -231,10 +266,6 @@ class ApkWorkload(Workload):
         self.device.execute('am force-stop {}'.format(self.package))
         if self.uninstall_apk:
             self.device.uninstall(self.package)
-
-    def validate(self):
-        if not self.apk_file:
-            raise WorkloadError('No APK file found for workload {}.'.format(self.name))
 
 
 AndroidBenchmark = ApkWorkload  # backward compatibility
