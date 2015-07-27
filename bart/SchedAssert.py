@@ -311,9 +311,7 @@ class SchedAssert(object):
                 begin, end = window
                 total_time = end - begin
             else:
-                total_time_agg = self._aggregator(sconf.total_duration)
-                total_time = total_time_agg.aggregate(
-                    level="all")[0] / self._topology.level_span("all")
+                total_time = self._run.get_duration()
 
             run_time = run_time * 100
             run_time = run_time / total_time
