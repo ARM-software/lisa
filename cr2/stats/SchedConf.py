@@ -362,27 +362,19 @@ def trace_event(series, window=None):
 
     """
     rects = []
-    running = series.cumsum()
     series = select_window(series, window)
+    series = sanitize_asymmetry(series, window)
 
-    if running[series.index.values[0]] == TASK_RUNNING:
-        start = series.index.values[0]
-        rects.append({"start": start})
-    else:
-        start = None
+    s_in = series[series == SCHED_SWITCH_IN]
+    s_out = series[series == SCHED_SWITCH_OUT]
 
-    for index, value in series.iteritems():
-        if value == SCHED_SWITCH_IN:
-            start = index
-            rects.append({"start": start})
+    if not len(s_in):
+        return rects
 
-        if value == SCHED_SWITCH_OUT:
-            if start is not None:
-                rects[-1]["end"] = index
+    if len(s_in) != len(s_out):
+        raise RuntimeError(
+            "Unexpected Lengths: s_in={}, s_out={}".format(
+                len(s_in),
+                len(s_out)))
 
-            start = None
-
-    if start is not None:
-        rects[-1]["end"] = series.index.values[-1]
-
-    return rects
+    return np.column_stack((s_in.index.values, s_out.index.values))
