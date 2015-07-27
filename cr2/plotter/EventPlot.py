@@ -44,40 +44,57 @@ class EventPlot(AbstractDataPlotter):
     """EventPlot Class that extends
        AbstractDataPlotter"""
 
-    def __init__(self, data, keys, lane_prefix, num_lanes, summary=True):
+    def __init__(
+            self,
+            data,
+            keys,
+            lane_prefix,
+            num_lanes,
+            domain,
+            summary=True):
         """
             Args:
                 data: Data of the format:
-                    [ {"id"   : <id>,
-                       "name" : <name>,
-                       "lane" : <lane_number>
-                       "start": <event_start_time
-                       "end"  : <event_end_time>
-                      },
-                      .
-                      .
-                      .
-                    ]
+                   { "<name1>" : [
+                                    [event_start, event_end, lane],
+                                    .
+                                    .
+                                    [event_start, event_end, lane],
+                                 ],
+                     .
+                     .
+                     .
+
+                     "<nameN>" : [
+                                    [event_start, event_end, lane],
+                                    .
+                                    .
+                                    [event_start, event_end, lane],
+                                 ],
+                    }
                 keys: List of unique names in the data dictionary
                 lane_prefix: A string prefix to be used to name each lane
                 num_lanes: Total number of expected lanes
+                domain: Domain of the event data
         """
 
         self._fig_name = self._generate_fig_name
         self._html = []
         self._fig_name = self._generate_fig_name()
-
+        avgFunc = lambda x: sum([(evt[1] - evt[0]) for evt in x]) / len(x)
+        avg = {k: avgFunc(v) for k, v in data.iteritems()}
         graph = {}
         graph["data"] = data
-        graph["keys"] = keys
         graph["lanes"] = self._get_lanes(lane_prefix, num_lanes)
+        graph["xDomain"] = domain
+        graph["keys"] = sorted(avg, key=lambda x: avg[x], reverse=True)
         graph["showSummary"] = summary
 
-        # Write the graph data to the JSON File
         json_file = os.path.join(
             AttrConf.PLOTTER_STATIC_DATA_DIR,
             self._fig_name +
             ".json")
+
         with open(json_file, "w") as json_fh:
             json.dump(graph, json_fh)
 

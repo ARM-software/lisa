@@ -12,7 +12,31 @@
  * ----------------------------------------------------------------
  * $
  */
+
 var EventPlot = (function () {
+
+    /* EventPlot receives data that is hashed by the keys
+     * and each element in the data is sorted by start time.
+     * Since events on each lane are mutually exclusive, they
+     * they are also sorted by the end time. We use this information
+     * and binary search on the input data for filtering events
+     * This maintains filtering complexity to O[KLogN]
+     */
+
+    var search_data = function (data, key, value, left, right) {
+
+        var mid;
+
+        while (left < right) {
+
+            mid = Math.floor((left + right) / 2)
+            if (data[mid][key] > value)
+                right = mid;
+            else
+                left = mid + 1;
+        }
+        return left;
+    }
 
     var generate = function (div_name) {
 
@@ -40,23 +64,11 @@ var EventPlot = (function () {
                 mainHeight = 300 - margin.top - margin.bottom;
 
             x = d3.scale.linear()
-                .domain([d3.min(items, function (d) {
-                        return d.start
-                    }),
-                    d3.max(items, function (d) {
-                        return d.end;
-                    })
-                ])
+                .domain(d.xDomain)
                 .range([0, width]);
 
             var zoomScale = d3.scale.linear()
-                .domain([d3.min(items, function (d) {
-                        return d.start
-                    }),
-                    d3.max(items, function (d) {
-                        return d.end;
-                    })
-                ])
+                .domain(d.xDomain)
                 .range([0, width]);
 
             var xMin = x.domain()[0];
@@ -83,7 +95,6 @@ var EventPlot = (function () {
 
             var ePlot;
 
-
             chart = d3.select('#' + div_name)
                 .append('svg:svg')
                 .attr('width', width + margin.right +
@@ -92,13 +103,6 @@ var EventPlot = (function () {
                     margin.bottom + 5)
                 .attr('class', 'chart')
 
-
-            chart.append('defs')
-                .append('clipPath')
-                .attr('id', 'clip')
-                .append('rect')
-                .attr('width', width)
-                .attr('height', mainHeight);
 
             main = chart.append('g')
                 .attr('transform', 'translate(' + margin.left +
@@ -147,7 +151,6 @@ var EventPlot = (function () {
 
             tip = d3.tip()
                 .attr('class', 'd3-tip')
-                .offset([-10, 0])
                 .html(function (d) {
                     return "<span style='color:white'>" +
                         d.name + "</span>";
@@ -158,9 +161,6 @@ var EventPlot = (function () {
                     mainHeight + ')')
                 .attr('class', 'main axis')
                 .call(mainAxis);
-
-            itemRects = main.append('g')
-                .attr('clip-path', 'url(#clip)')
 
             var ePlot;
 
@@ -176,19 +176,18 @@ var EventPlot = (function () {
                 yMain: yMain,
                 main: main,
                 mainAxis: mainAxis,
-                itemRects: itemRects,
                 items: items,
                 colourAxis: colourAxis,
                 tip: tip,
                 lanes: lanes,
+                names: names,
             };
+            ePlot.zoomScale = zoomScale;
 
             if (showSummary)
                 ePlot.mini = drawMini(ePlot);
 
-            var transform = function (d) {}
-
-
+            var outgoing;
             var zoomed = function () {
 
                 if (zoomScale.domain()[0] < xMin) {
@@ -211,28 +210,16 @@ var EventPlot = (function () {
 
                 }
 
+                outgoing = main.selectAll(".mItem")
+                    .attr("visibility", "hidden");
+                drawMain(ePlot, zoomScale.domain()[0],
+                    zoomScale.domain()[1]);
                 if (showSummary) {
                     brush.extent(zoomScale.domain());
                     ePlot.mini.select(".brush")
                         .call(
                             brush);
                 }
-
-                ePlot.itemRects.selectAll("rect")
-                    .attr(
-                        "transform",
-                        function (d) {
-                            return "translate(" + (
-                                zoomScale(d.start)
-                            ) + ",0 )";
-                        })
-                    .attr("width", function (d) {
-                        return Math.max(zoomScale(
-                                (zoomScale.domain()[
-                                        0] + d.end -
-                                    d.start)),
-                            1)
-                    })
 
                 brushScale.domain(zoomScale.domain());
                 ePlot.main.select('.main.axis')
@@ -241,6 +228,8 @@ var EventPlot = (function () {
 
             if (showSummary) {
                 var _brushed_event = function () {
+                    main.selectAll("path")
+                        .remove();
                     var brush_xmin = brush.extent()[0];
                     var brush_xmax = brush.extent()[1];
 
@@ -263,35 +252,22 @@ var EventPlot = (function () {
                      *  translate[0] = x.range()[0] - x(new_domain[0])) * zoom.scale()
                      */
 
-                    scale = (width) / x(x.domain()[0] + new_domain[1] -
+                    scale = (width) / x(x.domain()[0] +
+                        new_domain[1] -
                         new_domain[0]);
                     zoom.scale(scale);
                     t[0] = x.range()[0] - (x(new_domain[
                         0]) * scale);
                     zoom.translate(t);
 
-                    brushScale.domain(brush.extent())
-                    ePlot.itemRects.selectAll("rect")
-                        .attr(
-                            "transform",
-                            function (d) {
-                                return "translate(" + (
-                                        brushScale(d.start)) +
-                                    ",0 )";
-                            })
-                        .attr("width", function (d) {
-                            return Math.max(brushScale((brushScale.domain()[
-                                    0] +
-                                d.end -
-                                d.start
-                            )), 1)
-                        })
 
+                    brushScale.domain(brush.extent())
+                    drawMain(ePlot, brush_xmin,
+                        brush_xmax);
                     ePlot.main.select('.main.axis')
                         .call(ePlot.mainAxis)
 
                 };
-
 
                 brush = d3.svg.brush()
                     .x(x)
@@ -310,10 +286,15 @@ var EventPlot = (function () {
                 .x(zoomScale)
                 .on(
                     "zoom", zoomed)
-                .scaleExtent([1, 32]);
+                .on("zoomend", function () {
+                    outgoing.remove()
+                })
+                .scaleExtent([1, 4096]);
             chart.call(zoom);
 
             drawMain(ePlot, xMin, xMax);
+            ePlot.main.select('.main.axis')
+                .call(ePlot.mainAxis)
             return ePlot;
 
         });
@@ -380,7 +361,7 @@ var EventPlot = (function () {
 
         mini.append('g')
             .selectAll('miniItems')
-            .data(getPaths(ePlot.items, ePlot.x, ePlot.yMini, ePlot.colourAxis))
+            .data(getPaths(ePlot, ePlot.x, ePlot.yMini))
             .enter()
             .append('path')
             .attr('class', function (d) {
@@ -415,104 +396,120 @@ var EventPlot = (function () {
 
     var drawMain = function (ePlot, xMin, xMax) {
 
-
         var rects, labels;
-        var visItems = ePlot.items.filter(function (d) {
-            return d.start < xMax && d.end > xMin
-        });
-
-        ePlot.main.call(ePlot.tip);
+        var dMin = 10000;
+        var paths = getPaths(ePlot, ePlot.zoomScale, ePlot.yMain);
         ePlot.brushScale.domain([xMin, xMax]);
-        ePlot.main.select('.main.axis')
-            .call(ePlot.mainAxis);
 
-        rects = ePlot.itemRects.selectAll('rect')
-            .attr("transform", function (d) {
-                return "translate(" + ePlot.x(d.start) + ", 0)";
+        if (paths.length == 0)
+            return;
+
+        ePlot.main
+            .selectAll('mainItems')
+            .data(paths)
+            .enter()
+            .append('path')
+            .attr('d', function (d) {
+                return d.path;
             })
-            .attr('x', 0)
-            .data(visItems, function (d) {
-                return d.id;
+            .attr("class", "mItem")
+            .attr("stroke-width", function(d) {
+               return  0.8 * ePlot.yMain(1);
             })
-            .attr('width', function (d) {
-                return Math.max(ePlot.brushScale(d.end) - ePlot.brushScale(d.start),
-                    1);
+            .attr("stroke", function (d) {
+                return d.color
             })
-            .attr("fill", function (d) {
-                return ePlot.colourAxis(d.name)
-            })
+            .call(ePlot.tip)
             .on("mouseover", ePlot.tip.show)
             .on('mouseout', ePlot.tip.hide)
             .on('mousemove', function () {
-
-                ePlot.tip.style("left", Math.max(0, d3.event.pageX -
-                        60) + "px")
-                    .style("top", (d3.event.pageY - 50) + "px");
-
-            });
-
-        rects.enter()
-            .append('rect')
-            .attr("transform", function (d) {
-                return "translate(" + ePlot.x(d.start) + ", 0)";
+                var xDisp = parseFloat(ePlot.tip.style("width")) /
+                    2.0
+                ePlot.tip.style("left", (d3.event.pageX - xDisp) +
+                        "px")
+                    .style("top", Math.max(0, d3.event.pageY -
+                        47) + "px");
             })
-            .attr('x', 0)
-            .attr('y', function (d) {
-                return ePlot.yMain(d.lane) + .1 * ePlot.yMain(1) +
-                    0.5;
-            })
-            .attr('width', function (d) {
-                return Math.max(ePlot.brushScale(d.end) - ePlot.brushScale(d.start),
-                    1);
-            })
-            .attr('height', function (d) {
-                return 0.8 * ePlot.yMain(1);
-            })
-            .attr('class', function (d) {
-                return 'mainItem'
-            })
-            .attr("fill", function (d) {
-                return ePlot.colourAxis(d.name)
-            })
-            .on("mouseover", ePlot.tip.show)
-            .on('mouseout', ePlot.tip.hide)
-            .on('mousemove', function () {
-                ePlot.tip
-                    .style("left", Math.max(0, d3.event.pageX -
-                        60) + "px")
-                    .style("top", (d3.event.pageY - 50) + "px");
-            });
-
-        rects.exit()
-            .remove();
-
     };
 
-    var getPaths = function (items, x, yMini, colourAxis) {
 
+   function  _handle_equality(d, xMin, xMax, x, y) {
+        var offset = 0.5 * y(1) + 0.5
+        var bounds = [Math.max(d[0], xMin), Math.min(d[1],
+            xMax)]
+        if (bounds[0] < bounds[1])
+            return 'M' + ' ' + x(bounds[0]) + ' ' + (y(d[2]) + offset) + ' H ' +  x(bounds[1]);
+        else
+            return '';
+    };
+
+    function _process(path, d, xMin, xMax, x, y, offset) {
+
+        var start = d[0];
+        if (start < xMin)
+            start = xMin;
+        var end = d[1];
+        if (end > xMax)
+            end = xMax;
+
+        start = x(start);
+
+        if (x(xMin + end - d[0]) < 1)
+            end = start + 0.3;
+        else
+            end = x(end);
+
+        path += 'M' + ' ' + start + ' ' + (y(d[2]) + offset) + ' H ' +  end;
+        return path;
+    }
+
+    var _get_path = function(data, xMin, xMax, offset, x, y) {
+
+            var path = ''
+            var max_rects = 2000;
+            var right = search_data(data, 0, xMax, 0, data.length -
+                1)
+            var left = search_data(data, 1, xMin, 0, right)
+            //Handle Equality
+            if (left == right)
+                return _handle_equality(data[left], xMin, xMax, x, y);
+
+            data = data.slice(left, right + 1);
+
+            var skip_length = Math.max(Math.ceil(data.length / max_rects), 1);
+            for (var i = 0; i < data.length; i+= skip_length)
+                path = _process(path, data[i], xMin, xMax, x, y, offset);
+
+        return path;
+    }
+
+    var getPaths = function (ePlot, x, y) {
+
+        var keys = ePlot.names;
+        var items = ePlot.items;
+        var colourAxis = ePlot.colourAxis;
+
+        var xMin = x.domain()[0];
+        var xMax = x.domain()[1];
         var paths = {},
-            d, offset = 0.5 * yMini(1) + 0.5,
+            d, offset = 0.5 * y(1) + 0.5,
             result = [];
-        for (var i = 0; i < items.length; i++) {
-            d = items[i];
 
-            var end = d.end;
-            if (x(x.domain()[0] + d.end - d.start) < 1)
-                end = x(d.start) + 1;
-            else
-                end = x(d.end);
+        for (var i in keys) {
+            var name = keys[i];
+            var path = _get_path(items[name], xMin, xMax, offset, x, y)
+            /* This is critical. Adding paths for non
+             * existent processes in the window* can be
+             * very expensive as there is one SVG per process
+             * and SVG rendering is expensive
+             */
+            if (!path || path == "")
+                continue
 
-            if (!paths[d.name]) paths[d.name] = '';
-            paths[d.name] += ['M', x(d.start), (yMini(d.lane) + offset),
-                'H', end
-            ].join(' ');
-        }
-
-
-        for (var name in paths) {
             result.push({
                 color: colourAxis(name),
-                path: paths[name]
+                path: path,
+                name: name
             });
         }
 
