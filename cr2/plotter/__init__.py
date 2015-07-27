@@ -49,6 +49,6 @@ def plot_trace(trace_dir):
         raise RuntimeError("plot_trace needs ipython environment")
 
     run = cr2.Run(trace_dir)
-    data, procs = Utils.get_trace_event_data(run)
-    trace_graph = EventPlot.EventPlot(data, procs, "CPU: ", int(run._cpus))
+    data, procs, domain = Utils.get_trace_event_data(run)
+    trace_graph = EventPlot.EventPlot(data, procs, "CPU: ", int(run._cpus), domain)
     trace_graph.view()

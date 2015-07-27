@@ -19,6 +19,7 @@ import urllib
 import os
 import shutil
 from cr2.plotter import AttrConf
+import collections
 
 
 def listify(to_select):
@@ -125,13 +126,13 @@ def get_trace_event_data(run):
             residency like kernelshark
     """
 
-    data = []
+    data = collections.defaultdict(list)
     pmap = {}
 
     data_frame = run.sched_switch.data_frame
-
-    idx = 0
+    start_idx = data_frame.index.values[0]
     end_idx = data_frame.index.values[-1]
+
     procs = {}
 
     for index, row in data_frame.iterrows():
@@ -140,8 +141,8 @@ def get_trace_event_data(run):
         next_comm = row["next_comm"]
 
         if prev_pid in pmap.keys():
-            idx = pmap[prev_pid]["idx"]
-            data[idx]["end"] = index
+            name = pmap[prev_pid]
+            data[name][-1][1] = index
             del pmap[prev_pid]
 
         if next_pid in pmap.keys():
@@ -149,17 +150,8 @@ def get_trace_event_data(run):
 
         if next_pid != 0 and not next_comm.startswith("migration"):
             name = "{}-{}".format(next_comm, next_pid)
-            data.append({"id": idx,
-                         "start": index,
-                         "lane": row["__cpu"],
-                         "name": name})
-            pmap[next_pid] = {}
-            pmap[next_pid]["idx"] = len(data) - 1
+            data[name].append([index, end_idx, row["__cpu"]])
+            pmap[next_pid] = name
             procs[name] = 1
-            idx += 1
 
-    for idx, value in enumerate(data):
-        if not "end" in value.keys():
-            data[idx]["end"] = end_idx
-
-    return data, procs.keys()
+    return data, procs.keys(), [start_idx, end_idx]
