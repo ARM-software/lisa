@@ -185,14 +185,6 @@ def residency_sum(series, window=None):
         return np.sum(s_out.index.values - s_in.index.values)
 
 
-def total_duration(series):
-    """Aggregator function that returns the
-    total execution duration
-    """
-
-    index = series.index.values
-    return index[-1] - index[0]
-
 def first_time(series, value, window=None):
     """Return the first index where the
        series == value
