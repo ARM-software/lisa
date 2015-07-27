@@ -22,6 +22,7 @@ from cr2.plotter.Utils import listify
 from cr2.stats.Aggregator import MultiTriggerAggregator
 from cr2.stats import SchedConf as sconf
 from sheye import Utils
+import numpy as np
 
 # pylint: disable=invalid-name
 # pylint: disable=too-many-arguments
@@ -405,21 +406,14 @@ class SchedAssert(object):
 
         agg = self._aggregator(sconf.trace_event)
         result = agg.aggregate(level=level)
-
         events = []
-        rect_id = start_id
+
         for idx, level_events in enumerate(result):
-            if not level_events:
+            if not len(level_events):
                 continue
+            events += np.column_stack((level_events, np.full(len(level_events), idx))).tolist()
 
-            for event in level_events:
-                event["id"] = rect_id
-                event["name"] = self.name
-                event["lane"] = idx
-                events.append(event)
-                rect_id += 1
-
-        return events
+        return sorted(events, key = lambda x : x[0])
 
     def plot(self, level="cpu"):
         """
@@ -427,8 +421,9 @@ class SchedAssert(object):
             cr2.plotter.AbstractDataPlotter
             Call .view() to draw the graph
         """
-        events = self.generate_events(level)
+        events = {}
+        events[self.name] = self.generate_events(level)
         names = [self.name]
         num_lanes = self._topology.level_span(level)
         lane_prefix = level.upper() + ": "
-        return cr2.EventPlot(events, names, lane_prefix, num_lanes)
+        return cr2.EventPlot(events, names, lane_prefix, num_lanes, [0, self._run.get_duration()])

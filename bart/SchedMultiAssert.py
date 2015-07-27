@@ -121,9 +121,10 @@ class SchedMultiAssert(object):
     def generate_events(self, level):
         """Generate Events for the trace plot"""
 
-        events = []
+        events = {}
         for s_assert in self._asserts.values():
-            events += s_assert.generate_events(level, start_id=len(events))
+            events[s_assert.name] = s_assert.generate_events(level)
+
         return events
 
     def plot(self, level="cpu"):
@@ -136,4 +137,4 @@ class SchedMultiAssert(object):
         names = [s.name for s in self._asserts.values()]
         num_lanes = self._topology.level_span(level)
         lane_prefix = level.upper() + ": "
-        return cr2.EventPlot(events, names, lane_prefix, num_lanes)
+        return cr2.EventPlot(events, names, lane_prefix, num_lanes, [0, self._run.get_duration()])
