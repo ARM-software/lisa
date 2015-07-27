@@ -184,6 +184,22 @@ classes are parsed.
 
         return min(basetimes)
 
+    def get_duration(self):
+        """Returns the largest time value of all classes,
+        returns 0 if the data frames of all classes are empty"""
+        durations = []
+
+        for trace_class in self.trace_classes:
+            try:
+                durations.append(trace_class.data_frame.index[-1])
+            except IndexError:
+                pass
+
+        if len(durations) == 0:
+            return 0
+
+        return max(durations) - self.get_basetime()
+
     @classmethod
     def register_class(cls, cobject, scope="all"):
         # Add the class to the classes dictionary

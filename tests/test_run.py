@@ -135,6 +135,15 @@ class TestRun(BaseTestThermal):
 
         self.assertEqual(run.get_basetime(), basetime)
 
+    def test_run_duration(self):
+        """Test that duration calculation is correct"""
+
+        run = cr2.Run(normalize_time=False)
+
+        duration = run.thermal_governor.data_frame.index[-1] - run.thermal.data_frame.index[0]
+
+        self.assertEqual(run.get_duration(), duration)
+
     def test_run_normalize_time(self):
         """Run().normalize_time() works accross all classes"""
 
