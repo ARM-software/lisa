@@ -138,3 +138,16 @@ cr2.thermal.Thermal:temp"
         parser = Parser(cr2.Run(), pvars=pvars)
         eqn = "mean(cr2.thermal.Thermal:temp) < control_temp"
         self.assertTrue(parser.solve(eqn))
+
+    def test_cls_forward(self):
+        """Test Forwarding: Classes"""
+
+        cls = cr2.thermal.Thermal
+        pvars = {}
+        pvars["mean"] = np.mean
+        pvars["control_temp"] = 78000
+        pvars["therm"] = cls
+
+        parser = Parser(cr2.Run(), pvars=pvars)
+        eqn = "mean(therm:temp) < control_temp"
+        self.assertTrue(parser.solve(eqn))

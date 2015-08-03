@@ -203,7 +203,12 @@ class Parser(object):
         if params[1] in self._agg_df.columns:
             return self._agg_df[params[1]]
 
-        cls = str_to_attr(params[0])
+        cls = params[0]
+        if cls in self._pvars:
+            cls = self._pvars[cls]
+        else:
+            cls = str_to_attr(cls)
+
         data_frame = getattr(self.data, cls.name).data_frame
         col_keys = [column for column in self._agg_df].append(params[1])
         self._agg_df = pd.concat(
