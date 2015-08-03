@@ -118,23 +118,30 @@ class SchedMultiAssert(object):
         else:
             return result
 
-    def generate_events(self, level):
+    def generate_events(self, level, window=None):
         """Generate Events for the trace plot"""
 
         events = {}
         for s_assert in self._asserts.values():
-            events[s_assert.name] = s_assert.generate_events(level)
+            events[s_assert.name] = s_assert.generate_events(level, window=window)
 
         return events
 
-    def plot(self, level="cpu"):
+    def plot(self, level="cpu", window=None, xlim=None):
         """
         Returns:
             cr2.plotter.AbstractDataPlotter. Call .view() for
                 displaying the plot
         """
-        events = self.generate_events(level)
+
+        if not xlim:
+            if not window:
+                xlim = [0, self._run.get_duration()]
+            else:
+                xlim = list(window)
+
+        events = self.generate_events(level, window)
         names = [s.name for s in self._asserts.values()]
         num_lanes = self._topology.level_span(level)
         lane_prefix = level.upper() + ": "
-        return cr2.EventPlot(events, names, lane_prefix, num_lanes, [0, self._run.get_duration()])
+        return cr2.EventPlot(events, names, lane_prefix, num_lanes, xlim)

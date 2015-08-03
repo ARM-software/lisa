@@ -401,11 +401,11 @@ class SchedAssert(object):
         cpus = listify(cpus)
         return first_cpu in cpus
 
-    def generate_events(self, level, start_id=0):
+    def generate_events(self, level, start_id=0, window=None):
         """Generate events for the trace plot"""
 
         agg = self._aggregator(sconf.trace_event)
-        result = agg.aggregate(level=level)
+        result = agg.aggregate(level=level, window=window)
         events = []
 
         for idx, level_events in enumerate(result):
@@ -415,15 +415,22 @@ class SchedAssert(object):
 
         return sorted(events, key = lambda x : x[0])
 
-    def plot(self, level="cpu"):
+    def plot(self, level="cpu", window=None, xlim=None):
         """
         Returns:
             cr2.plotter.AbstractDataPlotter
             Call .view() to draw the graph
         """
+
+        if not xlim:
+            if not window:
+                xlim = [0, self._run.get_duration()]
+            else:
+                xlim = list(window)
+
         events = {}
-        events[self.name] = self.generate_events(level)
+        events[self.name] = self.generate_events(level, window)
         names = [self.name]
         num_lanes = self._topology.level_span(level)
         lane_prefix = level.upper() + ": "
-        return cr2.EventPlot(events, names, lane_prefix, num_lanes, [0, self._run.get_duration()])
+        return cr2.EventPlot(events, names, lane_prefix, num_lanes, xlim)
