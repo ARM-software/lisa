@@ -41,6 +41,7 @@ except ImportError:
 
 
 VSYNC_INTERVAL = 16666667
+PAUSE_LATENCY = 20
 EPSYLON = 0.0001
 
 
@@ -180,9 +181,11 @@ class FpsInstrument(Instrument):
                     result.status = IterationResult.FAILED
                     result.add_event('Content crash detected (actual/expected frames: {:.2}).'.format(ratio))
 
-    def _update_stats(self, context, data):
+    def _update_stats(self, context, data):  # pylint: disable=too-many-locals
         vsync_interval = self.collector.refresh_period
-        actual_present_time_deltas = (data.actual_present_time - data.actual_present_time.shift()).drop(0)  # pylint: disable=E1103
+        # fiter out bogus frames.
+        actual_present_times = data.actual_present_time[data.actual_present_time != 0x7fffffffffffffff]
+        actual_present_time_deltas = (actual_present_times - actual_present_times.shift()).drop(0)  # pylint: disable=E1103
         vsyncs_to_compose = (actual_present_time_deltas / vsync_interval).apply(lambda x: int(round(x, 0)))
         # drop values lower than drop_threshold FPS as real in-game frame
         # rate is unlikely to drop below that (except on loading screens
@@ -204,7 +207,7 @@ class FpsInstrument(Instrument):
             vtc_deltas = filtered_vsyncs_to_compose - filtered_vsyncs_to_compose.shift()
             vtc_deltas.index = range(0, vtc_deltas.size)
             vtc_deltas = vtc_deltas.drop(0).abs()
-            janks = vtc_deltas.apply(lambda x: (x > 1.5) and 1 or 0).sum()
+            janks = vtc_deltas.apply(lambda x: (PAUSE_LATENCY > x > 1.5) and 1 or 0).sum()
             not_at_vsync = vsyncs_to_compose.apply(lambda x: (abs(x - 1.0) > EPSYLON) and 1 or 0).sum()
             context.result.add_metric('janks', janks)
             context.result.add_metric('not_at_vsync', not_at_vsync)
