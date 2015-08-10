@@ -16,6 +16,7 @@
 
 from datetime import date
 import os
+import re
 import subprocess
 import unittest
 
@@ -27,9 +28,10 @@ def copyright_is_valid(fname):
         # are probably doing something wrong
         lines = fin.readlines(2048)
 
-    # Either the first or the second line must have a "#    Copyright:" line
-    if not lines[0].startswith("#    Copyright"):
-        if lines[1].startswith("#    Copyright"):
+    # Either the first or the second line must have a "Copyright:" line
+    first_line = re.compile(r"(#| \*)    Copyright")
+    if not first_line.search(lines[0]):
+        if first_line.search(lines[1]):
             # Drop the first line to align the copyright to lines[0]
             lines = lines[1:]
         else:
@@ -45,7 +47,7 @@ def copyright_is_valid(fname):
         return False
 
     # It's the apache license
-    if "#     http://www.apache.org/licenses/LICENSE-2.0\n" != lines[6]:
+    if "http://www.apache.org/licenses/LICENSE-2.0" not in lines[6]:
         return False
 
     return True
@@ -57,7 +59,8 @@ class TestCopyRight(unittest.TestCase):
         files_in_repo = subprocess.check_output(["git", "ls-files"])
 
         for fname in files_in_repo.split():
-            if os.path.splitext(fname)[1] == ".py":
+            extension = os.path.splitext(fname)[1]
+            if extension in [".py", ".js", ".css"]:
                 if not copyright_is_valid(fname):
                     print("Invalid copyright in {}".format(fname))
                     self.fail()
