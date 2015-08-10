@@ -92,6 +92,7 @@ HTML_HEIGHT = 400
 # Sync Graph zoom by default in
 # ILinePlot graph groups
 DEFAULT_SYNC_ZOOM = False
+EVENT_PLOT_STRIDE = False
 
 IPLOT_RESOURCES = {
     "ILinePlot": [

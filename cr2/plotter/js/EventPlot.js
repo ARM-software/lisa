@@ -463,7 +463,7 @@ var EventPlot = (function () {
         return path;
     }
 
-    var _get_path = function(data, xMin, xMax, offset, x, y) {
+    var _get_path = function(data, xMin, xMax, offset, x, y, stride) {
 
             var path = ''
             var max_rects = 2000;
@@ -476,14 +476,17 @@ var EventPlot = (function () {
 
             data = data.slice(left, right + 1);
 
-            var skip_length = Math.max(Math.ceil(data.length / max_rects), 1);
-            for (var i = 0; i < data.length; i+= skip_length)
+            var stride_length = 1;
+            if (stride)
+                stride_length = Math.max(Math.ceil(data.length / max_rects), 1);
+
+            for (var i = 0; i < data.length; i+= stride_length)
                 path = _process(path, data[i], xMin, xMax, x, y, offset);
 
         return path;
     }
 
-    var getPaths = function (ePlot, x, y) {
+    var getPaths = function (ePlot, x, y, stride) {
 
         var keys = ePlot.names;
         var items = ePlot.items;
@@ -497,7 +500,7 @@ var EventPlot = (function () {
 
         for (var i in keys) {
             var name = keys[i];
-            var path = _get_path(items[name], xMin, xMax, offset, x, y)
+            var path = _get_path(items[name], xMin, xMax, offset, x, y, stride)
             /* This is critical. Adding paths for non
              * existent processes in the window* can be
              * very expensive as there is one SVG per process

@@ -51,7 +51,8 @@ class EventPlot(AbstractDataPlotter):
             lane_prefix,
             num_lanes,
             domain,
-            summary=True):
+            summary=True,
+            stride=False):
         """
             Args:
                 data: Data of the format:
@@ -76,6 +77,8 @@ class EventPlot(AbstractDataPlotter):
                 lane_prefix: A string prefix to be used to name each lane
                 num_lanes: Total number of expected lanes
                 domain: Domain of the event data
+                stride: Stride can be used if the trace is very large.
+                        It results in sampled rendering
         """
 
         self._fig_name = self._generate_fig_name
@@ -89,6 +92,7 @@ class EventPlot(AbstractDataPlotter):
         graph["xDomain"] = domain
         graph["keys"] = sorted(avg, key=lambda x: avg[x], reverse=True)
         graph["showSummary"] = summary
+        graph["stride"] = AttrConf.EVENT_PLOT_STRIDE
 
         json_file = os.path.join(
             AttrConf.PLOTTER_STATIC_DATA_DIR,
