@@ -18,10 +18,10 @@ import os
 import sys
 import unittest
 import utils_tests
-import cr2
-from cr2.base import trace_parser_explode_array
+import trappy
+from trappy.base import trace_parser_explode_array
 
-sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
+sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "trappy"))
 
 class TestBaseMethods(unittest.TestCase):
     """Test simple methods that don't need to set up a directory"""
@@ -90,7 +90,7 @@ class TestBase(utils_tests.SetupDirectory):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        run = cr2.Run()
+        run = trappy.Run()
         dfr = run.cpu_in_power.data_frame
 
         self.assertEquals(set(dfr.columns), expected_columns)
@@ -122,8 +122,8 @@ class TestBase(utils_tests.SetupDirectory):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        cr2.register_dynamic('Event0', 'event0', scope="sched")
-        run = cr2.Run()
+        trappy.register_dynamic('Event0', 'event0', scope="sched")
+        run = trappy.Run()
         dfr = run.event0.data_frame
 
         self.assertEquals(set(dfr.columns), expected_columns)
@@ -146,9 +146,9 @@ class TestBase(utils_tests.SetupDirectory):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        cr2.register_dynamic('sched_stat_runtime', 'my_sched_stat_runtime',
+        trappy.register_dynamic('sched_stat_runtime', 'my_sched_stat_runtime',
                              scope="sched")
-        run = cr2.Run()
+        run = trappy.Run()
         dfr = run.sched_stat_runtime.data_frame
 
         self.assertEquals(set(dfr.columns), expected_columns)
@@ -160,7 +160,7 @@ class TestBase(utils_tests.SetupDirectory):
     def test_get_dataframe(self):
         """TestBase: Thermal.data_frame["thermal_zone"] exists and
            it contains a known value"""
-        dfr = cr2.Run().thermal.data_frame
+        dfr = trappy.Run().thermal.data_frame
 
         self.assertTrue("thermal_zone" in dfr.columns)
         self.assertEquals(dfr["temp"].iloc[0], 68786)
@@ -170,7 +170,7 @@ class TestBase(utils_tests.SetupDirectory):
         from csv import DictReader
 
         fname = "thermal.csv"
-        cr2.Run().thermal.write_csv(fname)
+        trappy.Run().thermal.write_csv(fname)
 
         with open(fname) as fin:
             csv_reader = DictReader(fin)
@@ -184,7 +184,7 @@ class TestBase(utils_tests.SetupDirectory):
 
     def test_normalize_time(self):
         """TestBase: Base::normalize_time() normalizes the time of the trace"""
-        thrm = cr2.Run().thermal
+        thrm = trappy.Run().thermal
 
         last_prev_time = thrm.data_frame.index[-1]
 

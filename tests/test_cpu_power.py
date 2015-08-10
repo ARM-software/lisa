@@ -18,7 +18,7 @@ import matplotlib
 import pandas as pd
 
 from test_thermal import BaseTestThermal
-import cr2
+import trappy
 import cpu_power
 
 class TestCpuPower(BaseTestThermal):
@@ -52,21 +52,21 @@ class TestCpuPower(BaseTestThermal):
 
     def test_cpuoutpower_dataframe(self):
         """Test that CpuOutPower() creates a proper data_frame"""
-        outp = cr2.Run().cpu_out_power
+        outp = trappy.Run().cpu_out_power
 
         self.assertEquals(outp.data_frame["power"].iloc[0], 1344)
         self.assertTrue("cdev_state" in outp.data_frame.columns)
 
     def test_cpuoutpower_get_all_freqs(self):
         """Test CpuOutPower.get_all_freqs()"""
-        dfr = cr2.Run().cpu_out_power.get_all_freqs(self.map_label)
+        dfr = trappy.Run().cpu_out_power.get_all_freqs(self.map_label)
 
         self.assertEquals(dfr["A57"].iloc[0], 1100)
         self.assertEquals(dfr["A53"].iloc[1], 850)
 
     def test_cpuinpower_get_dataframe(self):
         """Test that CpuInPower() creates a proper data_frame()"""
-        inp = cr2.Run().cpu_in_power
+        inp = trappy.Run().cpu_in_power
 
         self.assertTrue("load0" in inp.data_frame.columns)
         self.assertEquals(inp.data_frame["load0"].iloc[0], 24)
@@ -80,7 +80,7 @@ class TestCpuPower(BaseTestThermal):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        inp = cr2.Run(normalize_time=False).cpu_in_power
+        inp = trappy.Run(normalize_time=False).cpu_in_power
         self.assertEquals(round(inp.data_frame.index[0], 6), 676.256284)
         self.assertEquals(inp.data_frame["cpus"].iloc[1], "00000000,00000030")
 
@@ -97,7 +97,7 @@ class TestCpuPower(BaseTestThermal):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        inp = cr2.Run(normalize_time=False).cpu_in_power
+        inp = trappy.Run(normalize_time=False).cpu_in_power
 
         self.assertEquals(inp.data_frame["load0"].iloc[0], 74)
         self.assertEquals(inp.data_frame["load1"].iloc[0], 49)
@@ -110,7 +110,7 @@ class TestCpuPower(BaseTestThermal):
 
     def test_cpuinpower_get_all_freqs(self):
         """Test CpuInPower.get_all_freqs()"""
-        dfr = cr2.Run().cpu_in_power.get_all_freqs(self.map_label)
+        dfr = trappy.Run().cpu_in_power.get_all_freqs(self.map_label)
 
         self.assertEquals(dfr["A57"].iloc[0], 1100)
         self.assertEquals(dfr["A53"].iloc[1], 850)
@@ -118,7 +118,7 @@ class TestCpuPower(BaseTestThermal):
 
     def test_cpuinpower_get_load_data(self):
         """Test CpuInPower.get_load_data()"""
-        run = cr2.Run()
+        run = trappy.Run()
         first_load = run.cpu_in_power.data_frame["load0"].iloc[0]
         load_data = run.cpu_in_power.get_load_data(self.map_label)
 
@@ -131,7 +131,7 @@ class TestCpuPower(BaseTestThermal):
 
     def test_cpuinpower_get_normalized_load_data(self):
         """Test CpuInPower.get_normalized_load_data()"""
-        run = cr2.Run()
+        run = trappy.Run()
         first_load = run.cpu_in_power.data_frame["load0"].iloc[0]
         load_data = run.cpu_in_power.get_normalized_load_data(self.map_label)
 

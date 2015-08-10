@@ -20,7 +20,7 @@ import unittest
 
 import utils_tests
 
-import cr2.wa
+import trappy.wa
 
 class TestWASysfsExtractor(utils_tests.SetupDirectory):
     """Test the WA specific interface to get parameters from a sysfs extractor"""
@@ -38,7 +38,7 @@ class TestWASysfsExtractor(utils_tests.SetupDirectory):
         """Test that we can get the parameters of a sysfs extractor output"""
 
         os.chdir("..")
-        thermal_params = cr2.wa.SysfsExtractor(self.out_dir).get_parameters()
+        thermal_params = trappy.wa.SysfsExtractor(self.out_dir).get_parameters()
         self.assertEquals(thermal_params["cdev0_weight"], 1024)
         self.assertEquals(thermal_params["cdev1_weight"], 768)
         self.assertEquals(thermal_params["trip_point_0_temp"], 72000)
@@ -47,15 +47,15 @@ class TestWASysfsExtractor(utils_tests.SetupDirectory):
     def test_print_thermal_params(self):
         """Test that printing the thermal params doesn't bomb"""
 
-        cr2.wa.SysfsExtractor(".").pretty_print_in_ipython()
+        trappy.wa.SysfsExtractor(".").pretty_print_in_ipython()
 
 class TestWASysfsExtractorFailMode(unittest.TestCase):
     """Test the failure modes of the Workload Automation sysfs extractor"""
 
     def test_get_params_invalid_directory(self):
-        """An invalid directory for cr2.wa.SysfsExtractor doesn't bomb"""
+        """An invalid directory for trappy.wa.SysfsExtractor doesn't bomb"""
 
-        sysfs_extractor = cr2.wa.SysfsExtractor(".")
+        sysfs_extractor = trappy.wa.SysfsExtractor(".")
         self.assertEquals(sysfs_extractor.get_parameters(), {})
 
         sysfs_extractor.pretty_print_in_ipython()

@@ -22,7 +22,7 @@ import tempfile
 import unittest
 
 from test_thermal import BaseTestThermal
-import cr2
+import trappy
 import utils_tests
 
 class TestRun(BaseTestThermal):
@@ -33,7 +33,7 @@ class TestRun(BaseTestThermal):
     def test_run_has_all_classes(self):
         """The Run() class has members for all classes"""
 
-        run = cr2.Run()
+        run = trappy.Run()
 
         for attr in run.class_definitions.iterkeys():
             self.assertTrue(hasattr(run, attr))
@@ -41,7 +41,7 @@ class TestRun(BaseTestThermal):
     def test_run_has_all_classes_scope_all(self):
         """The Run() class has members for all classes with scope=all"""
 
-        run = cr2.Run(scope="all")
+        run = trappy.Run(scope="all")
 
         for attr in run.class_definitions.iterkeys():
             self.assertTrue(hasattr(run, attr))
@@ -49,7 +49,7 @@ class TestRun(BaseTestThermal):
     def test_run_has_all_classes_scope_thermal(self):
         """The Run() class has only members for thermal classes with scope=thermal"""
 
-        run = cr2.Run(scope="thermal")
+        run = trappy.Run(scope="thermal")
 
         for attr in run.thermal_classes.iterkeys():
             self.assertTrue(hasattr(run, attr))
@@ -60,7 +60,7 @@ class TestRun(BaseTestThermal):
     def test_run_has_all_classes_scope_sched(self):
         """The Run() class has only members for sched classes with scope=sched"""
 
-        run = cr2.Run(scope="sched")
+        run = trappy.Run(scope="sched")
 
         for attr in run.thermal_classes.iterkeys():
             self.assertFalse(hasattr(run, attr))
@@ -71,19 +71,19 @@ class TestRun(BaseTestThermal):
     def test_run_accepts_name(self):
         """The Run() class has members for all classes"""
 
-        run = cr2.Run(name="foo")
+        run = trappy.Run(name="foo")
 
         self.assertEquals(run.name, "foo")
 
     def test_fail_if_no_trace_dat(self):
         """Raise an IOError with the path if there's no trace.dat and trace.txt"""
         os.remove("trace.txt")
-        self.assertRaises(IOError, cr2.Run)
+        self.assertRaises(IOError, trappy.Run)
 
         cwd = os.getcwd()
 
         try:
-            cr2.Run(cwd)
+            trappy.Run(cwd)
         except IOError as exception:
             pass
 
@@ -95,7 +95,7 @@ class TestRun(BaseTestThermal):
         other_random_dir = tempfile.mkdtemp()
         os.chdir(other_random_dir)
 
-        dfr = cr2.Run(self.out_dir).thermal.data_frame
+        dfr = trappy.Run(self.out_dir).thermal.data_frame
 
         self.assertTrue(len(dfr) > 0)
         self.assertEquals(os.getcwd(), other_random_dir)
@@ -105,7 +105,7 @@ class TestRun(BaseTestThermal):
         arbitrary_trace_name = "my_trace.txt"
         shutil.move("trace.txt", arbitrary_trace_name)
 
-        dfr = cr2.Run(arbitrary_trace_name).thermal.data_frame
+        dfr = trappy.Run(arbitrary_trace_name).thermal.data_frame
 
         self.assertTrue(len(dfr) > 0)
         self.assertFalse(os.path.exists("trace.txt"))
@@ -116,21 +116,21 @@ class TestRun(BaseTestThermal):
     def test_run_autonormalize_time(self):
         """Run() normalizes by default"""
 
-        run = cr2.Run()
+        run = trappy.Run()
 
         self.assertEquals(round(run.thermal.data_frame.index[0], 7), 0)
 
     def test_run_dont_normalize_time(self):
         """Run() doesn't normalize if asked not to"""
 
-        run = cr2.Run(normalize_time=False)
+        run = trappy.Run(normalize_time=False)
 
         self.assertNotEquals(round(run.thermal.data_frame.index[0], 7), 0)
 
     def test_run_basetime(self):
         """Test that basetime calculation is correct"""
 
-        run = cr2.Run(normalize_time=False)
+        run = trappy.Run(normalize_time=False)
 
         basetime = run.thermal.data_frame.index[0]
 
@@ -139,7 +139,7 @@ class TestRun(BaseTestThermal):
     def test_run_duration(self):
         """Test that duration calculation is correct"""
 
-        run = cr2.Run(normalize_time=False)
+        run = trappy.Run(normalize_time=False)
 
         duration = run.thermal_governor.data_frame.index[-1] - run.thermal.data_frame.index[0]
 
@@ -148,7 +148,7 @@ class TestRun(BaseTestThermal):
     def test_run_normalize_time(self):
         """Run().normalize_time() works accross all classes"""
 
-        run = cr2.Run(normalize_time=False)
+        run = trappy.Run(normalize_time=False)
 
         prev_inpower_basetime = run.cpu_in_power.data_frame.index[0]
         prev_inpower_last = run.cpu_in_power.data_frame.index[-1]
@@ -167,7 +167,7 @@ class TestRun(BaseTestThermal):
     def test_get_all_freqs_data(self):
         """Test get_all_freqs_data()"""
 
-        allfreqs = cr2.Run().get_all_freqs_data(self.map_label)
+        allfreqs = trappy.Run().get_all_freqs_data(self.map_label)
 
         self.assertEquals(allfreqs[1][1]["A53_freq_out"].iloc[3], 850)
         self.assertEquals(allfreqs[1][1]["A53_freq_in"].iloc[1], 850)
@@ -180,7 +180,7 @@ class TestRun(BaseTestThermal):
     def test_plot_freq_hists(self):
         """Test that plot_freq_hists() doesn't bomb"""
 
-        run = cr2.Run()
+        run = trappy.Run()
 
         _, axis = matplotlib.pyplot.subplots(nrows=2)
         run.plot_freq_hists(self.map_label, axis)
@@ -188,7 +188,7 @@ class TestRun(BaseTestThermal):
 
     def test_plot_load(self):
         """Test that plot_load() doesn't explode"""
-        run = cr2.Run()
+        run = trappy.Run()
         run.plot_load(self.map_label, title="Util")
 
         _, ax = matplotlib.pyplot.subplots()
@@ -197,7 +197,7 @@ class TestRun(BaseTestThermal):
     def test_plot_normalized_load(self):
         """Test that plot_normalized_load() doesn't explode"""
 
-        run = cr2.Run()
+        run = trappy.Run()
 
         _, ax = matplotlib.pyplot.subplots()
         run.plot_normalized_load(self.map_label, ax=ax)
@@ -205,7 +205,7 @@ class TestRun(BaseTestThermal):
     def test_plot_allfreqs(self):
         """Test that plot_allfreqs() doesn't bomb"""
 
-        run = cr2.Run()
+        run = trappy.Run()
 
         run.plot_allfreqs(self.map_label)
         matplotlib.pyplot.close('all')
@@ -222,13 +222,13 @@ class TestRun(BaseTestThermal):
         expected_metadata["version"] = "6"
         expected_metadata["cpus"] = "6"
 
-        run = cr2.Run()
+        run = trappy.Run()
         for key, value in expected_metadata.items():
             self.assertTrue(hasattr(run, "_" + key))
             self.assertEquals(getattr(run, "_" + key), value)
 
     def test_missing_metadata(self):
-        """Test if cr2.Run() works with a trace missing metadata info"""
+        """Test if trappy.Run() works with a trace missing metadata info"""
         lines = []
 
         with open("trace.txt", "r") as fil:
@@ -240,7 +240,7 @@ class TestRun(BaseTestThermal):
             fil.write("".join(lines))
             fil.close()
 
-        run = cr2.Run()
+        run = trappy.Run()
         self.assertEquals(run._cpus, None)
         self.assertEquals(run._version, None)
         self.assertTrue(len(run.thermal.data_frame) > 0)
@@ -259,7 +259,7 @@ class TestRunRawDat(utils_tests.SetupDirectory):
     def test_raw_dat(self):
         """Tests an event that relies on raw parsing"""
 
-        run = cr2.Run()
+        run = trappy.Run()
         self.assertTrue(hasattr(run, "sched_switch"))
         self.assertTrue(len(run.sched_switch.data_frame) > 0)
         self.assertTrue("prev_comm" in run.sched_switch.data_frame.columns)
@@ -270,7 +270,7 @@ class TestRunRawDat(utils_tests.SetupDirectory):
         arbitrary_name = "my_trace.dat"
         shutil.move("trace.dat", arbitrary_name)
 
-        run = cr2.Run(arbitrary_name)
+        run = trappy.Run(arbitrary_name)
         self.assertTrue(os.path.isfile("my_trace.raw.txt"))
         self.assertTrue(hasattr(run, "sched_switch"))
         self.assertTrue(len(run.sched_switch.data_frame) > 0)
@@ -288,7 +288,7 @@ class TestRunRawBothTxt(utils_tests.SetupDirectory):
         """test raw parsing for txt files"""
 
         self.assertFalse(os.path.isfile("trace.dat"))
-        run = cr2.Run()
+        run = trappy.Run()
         self.assertTrue(hasattr(run, "sched_switch"))
         self.assertTrue(len(run.sched_switch.data_frame) > 0)
 
@@ -301,7 +301,7 @@ class TestRunRawBothTxt(utils_tests.SetupDirectory):
         shutil.move("trace.txt", arbitrary_name)
         shutil.move("trace.raw.txt", arbitrary_name_raw)
 
-        run = cr2.Run(arbitrary_name)
+        run = trappy.Run(arbitrary_name)
         self.assertTrue(hasattr(run, "sched_switch"))
         self.assertTrue(len(run.sched_switch.data_frame) > 0)
 
@@ -317,7 +317,7 @@ class TestRunSched(utils_tests.SetupDirectory):
     def test_run_basetime_empty(self):
         """Test that basetime is 0 if data frame of all data objects is empty"""
 
-        run = cr2.Run(normalize_time=False)
+        run = trappy.Run(normalize_time=False)
 
         self.assertEqual(run.get_basetime(), 0)
 
@@ -327,7 +327,7 @@ class TestRunSched(utils_tests.SetupDirectory):
         with open("trace.txt", "a") as fil:
             fil.write("     kworker/4:1-1219  [004]   508.424826: thermal_temperature:  thermal_zone=exynos-therm id=0 temp_prev=24000 temp=24000")
 
-        run = cr2.Run()
+        run = trappy.Run()
 
         self.assertEqual(run.thermal.data_frame.index[0], 0)
 
@@ -344,7 +344,7 @@ class TestTraceDat(utils_tests.SetupDirectory):
         """Create trace.txt if it's not there"""
         self.assertFalse(os.path.isfile("trace.txt"))
 
-        cr2.Run()
+        trappy.Run()
 
         found = False
         with open("trace.txt") as fin:
@@ -359,7 +359,7 @@ class TestTraceDat(utils_tests.SetupDirectory):
         """Create trace.raw.txt if it's not there"""
         self.assertFalse(os.path.isfile("trace.raw.txt"))
 
-        cr2.Run()
+        trappy.Run()
 
         found = False
         with open("trace.raw.txt") as fin:
@@ -373,7 +373,7 @@ class TestTraceDat(utils_tests.SetupDirectory):
         arbitrary_trace_name = "my_trace.dat"
         shutil.move("trace.dat", arbitrary_trace_name)
 
-        dfr = cr2.Run(arbitrary_trace_name).thermal.data_frame
+        dfr = trappy.Run(arbitrary_trace_name).thermal.data_frame
 
         self.assertTrue(os.path.exists("my_trace.txt"))
         self.assertTrue(os.path.exists("my_trace.raw.txt"))

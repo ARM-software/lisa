@@ -21,8 +21,8 @@ import matplotlib
 import pandas as pd
 
 import utils_tests
-sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "cr2"))
-from cr2.wa import Result, get_results, combine_results
+sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "trappy"))
+from trappy.wa import Result, get_results, combine_results
 
 class TestResults(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
@@ -109,7 +109,7 @@ class TestResults(utils_tests.SetupDirectory):
         matplotlib.pyplot.close('all')
 
     def test_get_run_number(self):
-        from cr2.wa.results import get_run_number
+        from trappy.wa.results import get_run_number
 
         self.assertEquals(get_run_number("score_2"), (True, 2))
         self.assertEquals(get_run_number("score"), (True, 0))

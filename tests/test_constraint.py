@@ -17,11 +17,11 @@
 import pandas as pd
 import unittest
 
-from cr2.plotter import AttrConf
-from cr2.plotter.Constraint import ConstraintManager
+from trappy.plotter import AttrConf
+from trappy.plotter.Constraint import ConstraintManager
 
 class TestConstraintManager(unittest.TestCase):
-    """Test cr2.plotter.ConstraintManager"""
+    """Test trappy.plotter.ConstraintManager"""
 
     def __init__(self, *args, **kwargs):
         """Init some common data for the tests"""

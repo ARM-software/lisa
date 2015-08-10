@@ -21,7 +21,7 @@ import tempfile
 import os
 
 from test_thermal import BaseTestThermal
-import cr2
+import trappy
 
 
 class TestPlotter(BaseTestThermal):
@@ -33,67 +33,67 @@ class TestPlotter(BaseTestThermal):
 
     def test_plot_no_pivot(self):
         """Tests LinePlot with no pivot"""
-        run1 = cr2.Run(name="first")
-        l = cr2.LinePlot(run1, cr2.thermal.Thermal, column="temp")
+        run1 = trappy.Run(name="first")
+        l = trappy.LinePlot(run1, trappy.thermal.Thermal, column="temp")
         l.view(test=True)
 
     def test_plot_multi_run(self):
         """Tests LinePlot with no Pivot multi runs"""
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
-        l = cr2.LinePlot(
-            [run1, run2], cr2.thermal.Thermal, column="temp")
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
+        l = trappy.LinePlot(
+            [run1, run2], trappy.thermal.Thermal, column="temp")
         l.view(test=True)
 
     def test_plot_multi(self):
         """Tests LinePlot with no Pivot multi attrs"""
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
-        l = cr2.LinePlot([run1,
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
+        l = trappy.LinePlot([run1,
                           run2],
-                         [cr2.thermal.Thermal,
-                          cr2.thermal.ThermalGovernor],
+                         [trappy.thermal.Thermal,
+                          trappy.thermal.ThermalGovernor],
                          column=["temp",
                                  "power_range"])
         l.view(test=True)
 
     def test_plot_filter(self):
         """Tests LinePlot with no Pivot with filters"""
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
-        l = cr2.LinePlot([run1,
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
+        l = trappy.LinePlot([run1,
                           run2],
-                         [cr2.cpu_power.CpuOutPower],
+                         [trappy.cpu_power.CpuOutPower],
                          column=["power"],
                          filters={"cdev_state": [1]})
         l.view(test=True)
 
     def test_plot_pivot(self):
         """Tests LinePlot with Pivot"""
-        run1 = cr2.Run(name="first")
-        l = cr2.LinePlot(
+        run1 = trappy.Run(name="first")
+        l = trappy.LinePlot(
             run1,
-            cr2.thermal.Thermal,
+            trappy.thermal.Thermal,
             column="temp",
             pivot="thermal_zone")
         l.view(test=True)
 
     def test_plot_multi_run_pivot(self):
         """Tests LinePlot with Pivot multi runs"""
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
-        l = cr2.LinePlot(
-            [run1, run2], cr2.cpu_power.CpuOutPower, column="power", pivot="cpus")
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
+        l = trappy.LinePlot(
+            [run1, run2], trappy.cpu_power.CpuOutPower, column="power", pivot="cpus")
         l.view(test=True)
 
     def test_plot_multi_pivot(self):
         """Tests LinePlot with Pivot with multi attrs"""
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
-        l = cr2.LinePlot([run1,
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
+        l = trappy.LinePlot([run1,
                           run2],
-                         [cr2.cpu_power.CpuInPower,
-                          cr2.cpu_power.CpuOutPower],
+                         [trappy.cpu_power.CpuInPower,
+                          trappy.cpu_power.CpuOutPower],
                          column=["dynamic_power",
                                  "power"],
                          pivot="cpus")
@@ -101,11 +101,11 @@ class TestPlotter(BaseTestThermal):
 
     def test_plot_multi_pivot_filter(self):
         """Tests LinePlot with Pivot and filters"""
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
-        l = cr2.LinePlot(
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
+        l = trappy.LinePlot(
             run1,
-            cr2.cpu_power.CpuInPower,
+            trappy.cpu_power.CpuInPower,
             column=[
                 "dynamic_power",
                 "load1"],
@@ -118,11 +118,11 @@ class TestPlotter(BaseTestThermal):
 
     def test_plot_savefig(self):
         """Tests plotter: savefig"""
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
-        l = cr2.LinePlot(
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
+        l = trappy.LinePlot(
             run1,
-            cr2.cpu_power.CpuInPower,
+            trappy.cpu_power.CpuInPower,
             column=[
                 "dynamic_power",
                 "load1"],

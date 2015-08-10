@@ -19,7 +19,7 @@ import matplotlib
 import pandas as pd
 
 from test_thermal import BaseTestThermal
-import cr2
+import trappy
 import plot_utils
 
 class TestPlotUtils(unittest.TestCase):
@@ -118,7 +118,7 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
         """Calculate the number of frequency plots correctly"""
         trace_out = ""
 
-        run = cr2.Run()
+        run = trappy.Run()
         self.assertEquals(plot_utils.number_freq_plots([run], self.map_label),
                           3)
 
@@ -133,15 +133,15 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
             fout.write(trace_out)
 
         # Without devfreq there should only be two plots
-        run = cr2.Run()
+        run = trappy.Run()
         self.assertEquals(plot_utils.number_freq_plots([run], self.map_label),
                           2)
 
     def test_plot_temperature(self):
         """Test that plot_utils.plot_temperature() doesn't bomb"""
 
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
         runs = [run1, run2]
 
         plot_utils.plot_temperature(runs, ylim="default")
@@ -150,8 +150,8 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
     def test_plot_load(self):
         """Test that plot_utils.plot_load() doesn't bomb"""
 
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
         runs = [run1, run2]
 
         plot_utils.plot_load(runs, self.map_label, height=5)
@@ -159,7 +159,7 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
 
     def test_plot_load_single_run(self):
         """plot_utils.plot_load() can be used with a single run"""
-        run = cr2.Run()
+        run = trappy.Run()
 
         plot_utils.plot_load([run], self.map_label)
         matplotlib.pyplot.close('all')
@@ -167,8 +167,8 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
     def test_plot_allfreqs(self):
         """Test that plot_utils.plot_allfreqs() doesn't bomb"""
 
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
         runs = [run1, run2]
 
         plot_utils.plot_allfreqs(runs, self.map_label, width=20)
@@ -176,7 +176,7 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
 
     def test_plot_allfreqs_single_run(self):
         """plot_utils.plot_allfreqs() can be used with a single run"""
-        run = cr2.Run()
+        run = trappy.Run()
 
         plot_utils.plot_allfreqs([run], self.map_label)
         matplotlib.pyplot.close('all')
@@ -184,8 +184,8 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
     def test_plot_controller(self):
         """plot_utils.plot_controller() doesn't bomb"""
 
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
         runs = [run1, run2]
 
         plot_utils.plot_controller(runs, height=5)
@@ -194,8 +194,8 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
     def test_plot_input_power(self):
         """plot_utils.plot_input_power() doesn't bomb"""
 
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
         runs = [run1, run2]
 
         plot_utils.plot_input_power(runs, self.actor_order, width=20)
@@ -204,8 +204,8 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
     def test_plot_output_power(self):
         """plot_utils.plot_output_power() doesn't bomb"""
 
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
         runs = [run1, run2]
 
         plot_utils.plot_output_power(runs, self.actor_order, width=20)
@@ -214,8 +214,8 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
     def test_plot_freq_hists(self):
         """plot_utils.plot_freq_hists() doesn't bomb"""
 
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
         runs = [run1, run2]
 
         plot_utils.plot_freq_hists(runs, self.map_label)
@@ -224,7 +224,7 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
     def test_plot_freq_hists_single_run(self):
         """plot_utils.plot_freq_hists() works with a single run"""
 
-        run = cr2.Run()
+        run = trappy.Run()
 
         plot_utils.plot_freq_hists([run], self.map_label)
         matplotlib.pyplot.close('all')
@@ -232,8 +232,8 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
     def test_plot_temperature_hist(self):
         """plot_utils.plot_temperature_hist() doesn't bomb"""
 
-        run1 = cr2.Run(name="first")
-        run2 = cr2.Run(name="second")
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
         runs = [run1, run2]
 
         plot_utils.plot_temperature_hist(runs)

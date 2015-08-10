@@ -1,4 +1,4 @@
-cr2 is a visualization tool to help analyze data generated on a
+trappy is a visualization tool to help analyze data generated on a
 device. It depends on ipython notebook and pandas. First install these
 dependencies if you don't have them already:
 
@@ -12,5 +12,5 @@ This should pop up a browser. If it doesn't, open a web browser and go
 to http://localhost:8888/tree/
 
 In the doc/ folder there's a "00 - Quick start" which describes how to
-run cr2. Other notebooks in that directory describe other functions of
-cr2.
+run trappy. Other notebooks in that directory describe other functions
+of trappy.
