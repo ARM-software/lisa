@@ -393,8 +393,9 @@ def normalize(value, dict_type=dict):
     if isinstance(value, dict):
         normalized = dict_type()
         for k, v in value.iteritems():
-            key = k.strip().lower().replace(' ', '_')
-            normalized[key] = normalize(v, dict_type)
+            if isinstance(k, basestring):
+                k = k.strip().lower().replace(' ', '_')
+            normalized[k] = normalize(v, dict_type)
         return normalized
     elif isinstance(value, list):
         return [normalize(v, dict_type) for v in value]
