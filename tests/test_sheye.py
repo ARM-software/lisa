@@ -16,9 +16,9 @@
 
 import utils_tests
 import unittest
-import cr2
+import trappy
 from sheye.SchedAssert import SchedAssert
-from cr2.stats.Topology import Topology
+from trappy.stats.Topology import Topology
 
 @unittest.skipUnless(utils_tests.trace_cmd_installed(),
                      "trace-cmd not installed")
@@ -37,7 +37,7 @@ class TestSchedAssert(utils_tests.SetupDirectory):
 
     def test_get_runtime(self):
 
-        r = cr2.Run()
+        r = trappy.Run()
         # The ls process is process we are
         # testing against with pre calculated
         # values
