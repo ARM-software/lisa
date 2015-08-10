@@ -409,6 +409,7 @@ var EventPlot = (function () {
             .data(paths)
             .enter()
             .append('path')
+            .attr("shape-rendering", "crispEdges")
             .attr('d', function (d) {
                 return d.path;
             })
@@ -453,11 +454,12 @@ var EventPlot = (function () {
             end = xMax;
 
         start = x(start);
+        end = x(end);
 
-        if (x(xMin + end - d[0]) < 1)
-            end = start + 0.3;
-        else
-            end = x(end);
+        if ((end - start) < 0.01)
+            return path;
+        else if ((end - start) < 1)
+            end = start + 1;
 
         path += 'M' + ' ' + start + ' ' + (y(d[2]) + offset) + ' H ' +  end;
         return path;
