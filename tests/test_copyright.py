@@ -1,17 +1,18 @@
-# $Copyright:
-# ----------------------------------------------------------------
-# This confidential and proprietary software may be used only as
-# authorised by a licensing agreement from ARM Limited
-#  (C) COPYRIGHT 2015 ARM Limited
-#       ALL RIGHTS RESERVED
-# The entire notice above must be reproduced on all authorised
-# copies and copies may only be made to the extent permitted
-# by a licensing agreement from ARM Limited.
-# ----------------------------------------------------------------
-# File:        test_copyright.py
-# ----------------------------------------------------------------
-# $
+#    Copyright 2015-2015 ARM Limited
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 
 from datetime import date
 import os
@@ -26,27 +27,25 @@ def copyright_is_valid(fname):
         # are probably doing something wrong
         lines = fin.readlines(2048)
 
-    # Either the first or the second line must have a "# $Copyright:" line
-    if lines[0] != "# $Copyright:\n":
-        if lines[1] == "# $Copyright:\n":
+    # Either the first or the second line must have a "#    Copyright:" line
+    if not lines[0].startswith("#    Copyright"):
+        if lines[1].startswith("#    Copyright"):
             # Drop the first line to align the copyright to lines[0]
             lines = lines[1:]
         else:
             return False
 
-    # There's a (C) COPYRIGHT which includes the current year
-    if "(C) COPYRIGHT" not in lines[4]:
+    # The copyright mentions ARM Limited
+    if "ARM Limited" not in lines[0]:
         return False
 
+    # The Copyright includes the current year
     current_year = date.today().year
-    if str(current_year) not in lines[4]:
+    if str(current_year) not in lines[0]:
         return False
 
-    # There's a "File: $fname" line that matches the current file
-    if "File: " not in lines[10]:
-        return False
-
-    if os.path.basename(fname) not in lines[10]:
+    # It's the apache license
+    if "#     http://www.apache.org/licenses/LICENSE-2.0\n" != lines[6]:
         return False
 
     return True
