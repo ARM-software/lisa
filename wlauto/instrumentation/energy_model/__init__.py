@@ -171,7 +171,7 @@ def generate_report(freq_power_table, measured_cpus_table, cpus_table, idle_powe
     fig, axes = plt.subplots(1, 2)
     fig.set_size_inches(16, 8)
     for i, cluster in enumerate(reversed(cpus_table.columns.levels[0])):
-        projected = cpus_table[cluster].dropna()
+        projected = cpus_table[cluster].dropna(subset=['1'])
         plot_cpus_table(projected, axes[i], cluster)
     cpus_plot_data = get_figure_data(fig)
 
@@ -290,7 +290,8 @@ def fit_polynomial(s, n):
     return poly(s.index)
 
 
-def get_cpus_power_table(data, index):
+def get_cpus_power_table(data, index, opps):  # pylint: disable=too-many-locals
+    # pylint: disable=no-member
     power_table = data[[index, 'cluster', 'cpus', 'power']].pivot_table(index=index,
                                                                         columns=['cluster', 'cpus'],
                                                                         values='power')
@@ -299,11 +300,40 @@ def get_cpus_power_table(data, index):
         power_table[cluster, 0] = (power_table[cluster, 1] -
                                    (power_table[cluster, 2] -
                                     power_table[cluster, 1]))
-        bs_power_table[cluster, 1][power_table[cluster, 1].notnull()] = fit_polynomial(power_table[cluster, 1].dropna(), 2)
-        bs_power_table[cluster, 2][power_table[cluster, 2].notnull()] = fit_polynomial(power_table[cluster, 2].dropna(), 2)
-        bs_power_table[cluster, 0] = (bs_power_table[cluster, 1] -
-                                      (bs_power_table[cluster, 2] -
-                                       bs_power_table[cluster, 1]))
+        bs_power_table.loc[power_table[cluster, 1].notnull(), (cluster, 1)] = fit_polynomial(power_table[cluster, 1].dropna(), 2)
+        bs_power_table.loc[power_table[cluster, 2].notnull(), (cluster, 2)] = fit_polynomial(power_table[cluster, 2].dropna(), 2)
+
+        if opps[cluster] is None:
+            bs_power_table.loc[bs_power_table[cluster, 1].notnull(), (cluster, 0)] = \
+                                    (2* power_table[cluster, 1] - power_table[cluster, 2]).values
+        else:
+            df = pd.concat([bs_power_table[cluster],
+                            opps[cluster].set_index('frequency')],
+                        axis=1).dropna(subset=[1]).reset_index()
+
+            # Create a projection by calculating coefficients from the lowest two OPPs (assume minimal leakage)
+            v0 = df.voltage[0]
+            v1 = df.voltage[1]
+            f0 = df.frequency[0]
+            f1 = df.frequency[1]
+
+            # Assumption:
+            #  P = k1*v*f + k2*v^2*f
+            coeffs = np.array([
+                    [v0 * f0, (v0**2) * f0],
+                    [v1 * f1, (v1**2) * f1]
+                ])
+            c1pow = np.array([df[1][0], df[1][1]])
+            c2pow = np.array([df[2][0], df[2][1]])
+            c1k1, c1k2 = np.linalg.solve(coeffs, c1pow)
+            c2k1, c2k2 = np.linalg.solve(coeffs, c2pow)
+
+            df['a1'] = pd.Series(df.frequency * df.voltage * c1k1 + df.frequency * df.voltage ** 2 * c1k2,
+                                index=df.index)
+            df['a2'] = pd.Series(df.frequency * df.voltage * c2k1 +  df.frequency * df.voltage ** 2 * c2k2,
+                                index=df.index)
+            bs_power_table.loc[bs_power_table[cluster, 1].notnull(), (cluster, 0)] = (2 * df.a1 - df.a2).values
+
     # re-order columns and rename colum '0' to  'cluster'
     power_table = power_table[sorted(power_table.columns,
                                      cmp=lambda x, y: cmp(y[0], x[0]) or cmp(x[1], y[1]))]
@@ -325,6 +355,12 @@ def plot_cpus_table(projected, ax, cluster):
     ax.set_xlim(-0.5, len(projected.columns) - 0.5)
     ax.set_ylabel('Power (mW)')
     ax.grid(True)
+
+
+def opp_table(d):
+    if d is None:
+        return None
+    return pd.DataFrame(d.items(), columns=['frequency', 'voltage'])
 
 
 class EnergyModelInstrument(Instrument):
@@ -391,6 +427,10 @@ class EnergyModelInstrument(Instrument):
         Parameter('num_of_freqs_to_thermal_adjust', kind=int, default=0,
                   description="""The number of frequencies begining from the highest, to be adjusted for
                                  the thermal effect."""),
+        Parameter('big_opps', kind=opp_table,
+                  description="""OPP table mapping frequency to volatage (kHz --> mV) for the big cluster."""),
+        Parameter('little_opps', kind=opp_table,
+                  description="""OPP table mapping frequency to volatage (kHz --> mV) for the little cluster."""),
     ]
 
     def validate(self):
@@ -531,7 +571,11 @@ class EnergyModelInstrument(Instrument):
             freq_power_table.to_csv(wfh, index=False)
         context.add_artifact('freq_power_table', freq_output, 'export')
 
-        measured_cpus_table, cpus_table = get_cpus_power_table(freq_power_table, 'frequency')
+        if self.big_opps is None or self.little_opps is None:
+            message = 'OPPs not specified for one or both clusters; cluster power will not be adjusted for leakage.'
+            self.logger.warning(message)
+        opps = {'big': self.big_opps, 'little': self.little_opps}
+        measured_cpus_table, cpus_table = get_cpus_power_table(freq_power_table, 'frequency', opps)
         measured_cpus_output = os.path.join(output_directory, MEASURED_CPUS_TABLE_FILE)
         with open(measured_cpus_output, 'w') as wfh:
             measured_cpus_table.to_csv(wfh)
@@ -606,7 +650,10 @@ class EnergyModelInstrument(Instrument):
         pids_to_move = server_pids + children_pids
         self.cpuset.root.add_tasks(pids_to_move)
         for pid in pids_to_move:
-            self.device.execute('busybox taskset -p 0x{:x} {}'.format(list_to_mask(self.measuring_cpus), pid))
+            try:
+                self.device.execute('busybox taskset -p 0x{:x} {}'.format(list_to_mask(self.measuring_cpus), pid))
+            except DeviceError:
+                pass
 
     def enable_all_cores(self):
         counter = Counter(self.device.core_names)
