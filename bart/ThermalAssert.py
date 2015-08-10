@@ -14,12 +14,12 @@
 #
 
 """Allow the user to assert various conditions
-based on the grammar defined in cr2.stats.grammar. The class is
+based on the grammar defined in trappy.stats.grammar. The class is
 also intended to have aggregator based functionality. This is not
 implemented yet.
 """
 
-from cr2.stats.grammar import Parser
+from trappy.stats.grammar import Parser
 import warnings
 import numpy as np
 
@@ -29,7 +29,7 @@ class ThermalAssert(object):
 
     """
         Args:
-            data (cr2.Run): A cr2.Run instance
+            data (trappy.Run): A trappy.Run instance
             config (dict): A dictionary of variables, classes
                 and functions that can be used in the statements
     """
