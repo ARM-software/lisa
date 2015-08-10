@@ -18,9 +18,9 @@ statistics aggregation framework"""
 
 import re
 import inspect
-import cr2
-from cr2.stats import SchedConf as sconf
-from cr2.plotter.Utils import listify
+import trappy
+from trappy.stats import SchedConf as sconf
+from trappy.plotter.Utils import listify
 from sheye.SchedAssert import SchedAssert
 from sheye import Utils
 
@@ -32,9 +32,9 @@ class SchedMultiAssert(object):
 
     def __init__(self, run, topology, execnames):
         """Args:
-                run (cr2.Run): A single cr2.Run object
-                    or a path that can be passed to cr2.Run
-                topology(cr2.stats.Topology): The CPU topology
+                run (trappy.Run): A single trappy.Run object
+                    or a path that can be passed to trappy.Run
+                topology(trappy.stats.Topology): The CPU topology
                 execname(str, list): List of execnames or single task
         """
 
@@ -131,7 +131,7 @@ class SchedMultiAssert(object):
     def plot(self, level="cpu", window=None, xlim=None):
         """
         Returns:
-            cr2.plotter.AbstractDataPlotter. Call .view() for
+            trappy.plotter.AbstractDataPlotter. Call .view() for
                 displaying the plot
         """
 
@@ -145,4 +145,4 @@ class SchedMultiAssert(object):
         names = [s.name for s in self._asserts.values()]
         num_lanes = self._topology.level_span(level)
         lane_prefix = level.upper() + ": "
-        return cr2.EventPlot(events, names, lane_prefix, num_lanes, xlim)
+        return trappy.EventPlot(events, names, lane_prefix, num_lanes, xlim)

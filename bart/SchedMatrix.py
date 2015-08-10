@@ -65,12 +65,12 @@ assertSiblings(A4, 2, operator.eq)
 
 
 import sys
-import cr2
+import trappy
 import numpy as np
-from cr2.stats.Aggregator import MultiTriggerAggregator
-from cr2.stats.Correlator import Correlator
-from cr2.plotter.Utils import listify
-from cr2.stats import SchedConf as sconf
+from trappy.stats.Aggregator import MultiTriggerAggregator
+from trappy.stats.Correlator import Correlator
+from trappy.plotter.Utils import listify
+from trappy.stats import SchedConf as sconf
 from sheye import Utils
 
 POSITIVE_TOLERANCE = 0.80
@@ -138,7 +138,7 @@ class SchedMatrix(object):
                     sconf.sched_triggers(
                         reference_run,
                         self._reference_pids[idx],
-                        cr2.sched.SchedSwitch
+                        trappy.sched.SchedSwitch
                         ),
                     self._topology,
                     aggfunc))
@@ -148,7 +148,7 @@ class SchedMatrix(object):
                     sconf.sched_triggers(
                         run,
                         self._pids[idx],
-                        cr2.sched.SchedSwitch
+                        trappy.sched.SchedSwitch
                         ),
                     self._topology,
                     aggfunc))

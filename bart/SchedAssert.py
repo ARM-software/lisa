@@ -16,12 +16,12 @@
 """A library for asserting scheduler scenarios based on the
 statistics aggregation framework"""
 
-import cr2
+import trappy
 import itertools
 import math
-from cr2.plotter.Utils import listify
-from cr2.stats.Aggregator import MultiTriggerAggregator
-from cr2.stats import SchedConf as sconf
+from trappy.plotter.Utils import listify
+from trappy.stats.Aggregator import MultiTriggerAggregator
+from trappy.stats import SchedConf as sconf
 from sheye import Utils
 import numpy as np
 
@@ -35,9 +35,9 @@ class SchedAssert(object):
 
     def __init__(self, run, topology, execname=None, pid=None):
         """Args:
-                run (cr2.Run): A single cr2.Run object
-                    or a path that can be passed to cr2.Run
-                topology(cr2.stats.Topology): The CPU topology
+                run (trappy.Run): A single trappy.Run object
+                    or a path that can be passed to trappy.Run
+                topology(trappy.stats.Topology): The CPU topology
                 execname(str, optional): Optional execname of the task
                      under consideration.
                 PID(int): The PID of the task to be checked
@@ -58,7 +58,7 @@ class SchedAssert(object):
         self._aggs = {}
         self._topology = topology
         self._triggers = sconf.sched_triggers(self._run, self._pid,
-                                              cr2.sched.SchedSwitch)
+                                              trappy.sched.SchedSwitch)
         self.name = "{}-{}".format(self.execname, self._pid)
 
     def _validate_pid(self, pid):
@@ -419,7 +419,7 @@ class SchedAssert(object):
     def plot(self, level="cpu", window=None, xlim=None):
         """
         Returns:
-            cr2.plotter.AbstractDataPlotter
+            trappy.plotter.AbstractDataPlotter
             Call .view() to draw the graph
         """
 
@@ -434,4 +434,4 @@ class SchedAssert(object):
         names = [self.name]
         num_lanes = self._topology.level_span(level)
         lane_prefix = level.upper() + ": "
-        return cr2.EventPlot(events, names, lane_prefix, num_lanes, xlim)
+        return trappy.EventPlot(events, names, lane_prefix, num_lanes, xlim)

@@ -15,15 +15,15 @@
 
 """Utility functions for sheye"""
 
-import cr2
+import trappy
 
 def init_run(trace):
     """Initialize the Run Object"""
 
     if isinstance(trace, basestring):
-        return cr2.Run(trace)
+        return trappy.Run(trace)
 
-    elif isinstance(trace, cr2.Run):
+    elif isinstance(trace, trappy.Run):
         return trace
 
     raise ValueError("Invalid trace Object")
