@@ -104,3 +104,9 @@ class Topology(object):
             return len(self._nodes)
         else:
             return len(self._levels[level])
+
+    def has_level(self, level):
+        """Returns true if level is present"""
+
+        return (level in self._levels)
+
