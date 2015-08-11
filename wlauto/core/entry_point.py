@@ -17,6 +17,7 @@
 import sys
 import argparse
 import logging
+import subprocess
 
 from wlauto.core.bootstrap import settings
 from wlauto.core.extension_loader import ExtensionLoader
@@ -64,15 +65,24 @@ def main():
     except KeyboardInterrupt:
         logging.info('Got CTRL-C. Aborting.')
         sys.exit(3)
-    except WAError, e:
+    except WAError as e:
         logging.critical(e)
         sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        tb = get_traceback()
+        logging.critical(tb)
+        command = e.cmd
+        if e.args:
+            command = '{} {}'.format(command, ' '.join(e.args))
+        message = 'Command \'{}\' returned non-zero exit status {}\nOUTPUT:\n{}\n'
+        logging.critical(message.format(command, e.returncode, e.output))
+        sys.exit(2)
     except SyntaxError as e:
+        tb = get_traceback()
+        logging.critical(tb)
         message = 'Syntax Error in {}, line {}, offset {}:'
         logging.critical(message.format(e.filename, e.lineno, e.offset))
         logging.critical('\t{}'.format(e.msg))
-        tb = get_traceback()
-        logging.critical(tb)
         sys.exit(2)
     except Exception as e:  # pylint: disable=broad-except
         tb = get_traceback()
