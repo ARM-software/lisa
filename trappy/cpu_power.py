@@ -90,6 +90,8 @@ class CpuOutPower(Base):
 
     unique_word = "thermal_power_cpu_limit"
     name = "cpu_out_power"
+    pivot = "cpus"
+
     def __init__(self):
         super(CpuOutPower, self).__init__(
             unique_word=self.unique_word,
@@ -113,6 +115,8 @@ class CpuInPower(Base):
 
     unique_word = "thermal_power_cpu_get"
     name = "cpu_in_power"
+    pivot = "cpus"
+
     def __init__(self):
         super(CpuInPower, self).__init__(
             unique_word=self.unique_word,

@@ -30,6 +30,7 @@ class Thermal(Base):
 
     unique_word = "thermal_temperature:"
     name = "thermal"
+    pivot = "thermal_zone"
 
     def __init__(self):
         super(Thermal, self).__init__(unique_word=self.unique_word)
