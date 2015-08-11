@@ -22,6 +22,7 @@ import textwrap
 import argparse
 import shutil
 import getpass
+import subprocess
 from collections import OrderedDict
 
 import yaml
@@ -351,7 +352,12 @@ def create_uiauto_project(path, name, target='1'):
                                                                                 package_name,
                                                                                 target,
                                                                                 path)
-    check_output(command, shell=True)
+    try:
+        check_output(command, shell=True)
+    except subprocess.CalledProcessError as e:
+        if 'is is not valid' in e.output:
+            message = 'No Android SDK target found; have you run "{} update sdk" and download a platform?'
+            raise CommandError(message.format(android_path))
 
     build_script = os.path.join(path, 'build.sh')
     with open(build_script, 'w') as wfh:
@@ -390,5 +396,5 @@ def render_template(name, params):
 
 
 def touch(path):
-    with open(path, 'w') as wfh:  # pylint: disable=unused-variable
+    with open(path, 'w') as _:
         pass
