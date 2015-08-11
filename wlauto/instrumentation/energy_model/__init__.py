@@ -305,11 +305,11 @@ def get_cpus_power_table(data, index, opps):  # pylint: disable=too-many-locals
 
         if opps[cluster] is None:
             bs_power_table.loc[bs_power_table[cluster, 1].notnull(), (cluster, 0)] = \
-                                    (2* power_table[cluster, 1] - power_table[cluster, 2]).values
+                (2 * power_table[cluster, 1] - power_table[cluster, 2]).values
         else:
             df = pd.concat([bs_power_table[cluster],
                             opps[cluster].set_index('frequency')],
-                        axis=1).dropna(subset=[1]).reset_index()
+                           axis=1).dropna(subset=[1]).reset_index()
 
             # Create a projection by calculating coefficients from the lowest two OPPs (assume minimal leakage)
             v0 = df.voltage[0]
@@ -320,18 +320,18 @@ def get_cpus_power_table(data, index, opps):  # pylint: disable=too-many-locals
             # Assumption:
             #  P = k1*v*f + k2*v^2*f
             coeffs = np.array([
-                    [v0 * f0, (v0**2) * f0],
-                    [v1 * f1, (v1**2) * f1]
-                ])
+                [v0 * f0, (v0**2) * f0],
+                [v1 * f1, (v1**2) * f1]
+            ])
             c1pow = np.array([df[1][0], df[1][1]])
             c2pow = np.array([df[2][0], df[2][1]])
             c1k1, c1k2 = np.linalg.solve(coeffs, c1pow)
             c2k1, c2k2 = np.linalg.solve(coeffs, c2pow)
 
             df['a1'] = pd.Series(df.frequency * df.voltage * c1k1 + df.frequency * df.voltage ** 2 * c1k2,
-                                index=df.index)
-            df['a2'] = pd.Series(df.frequency * df.voltage * c2k1 +  df.frequency * df.voltage ** 2 * c2k2,
-                                index=df.index)
+                                 index=df.index)
+            df['a2'] = pd.Series(df.frequency * df.voltage * c2k1 + df.frequency * df.voltage ** 2 * c2k2,
+                                 index=df.index)
             bs_power_table.loc[bs_power_table[cluster, 1].notnull(), (cluster, 0)] = (2 * df.a1 - df.a2).values
 
     # re-order columns and rename colum '0' to  'cluster'
