@@ -57,7 +57,7 @@ MULT_OPS = oneOf("* /")
 # Addition/Subtraction Operators
 SUM_OPS = oneOf("+ -")
 # Relational Operators
-REL_OPS = oneOf("> < >= <=")
+REL_OPS = oneOf("> < >= <= == !=")
 # Logical Operators
 LOGICAL_OPS = oneOf("&& || & |")
 
@@ -74,6 +74,8 @@ OPERATOR_MAP = {
     "||": lambda a, b: a or b,
     "&&": lambda a, b: a and b,
     "|": lambda a, b: a | b,
+    "==": lambda a, b: a == b,
+    "!=": lambda a, b: a != b,
     "&": lambda a, b: a & b
 }
 
