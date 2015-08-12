@@ -164,7 +164,7 @@ class SshShell(object):
                         if exit_code:
                             message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
                             raise DeviceError(message.format(exit_code, command, output))
-                    except ValueError:
+                    except (ValueError, IndexError):
                         logger.warning('Could not get exit code for "{}",\ngot: "{}"'.format(command, exit_code_text))
                 return output
         except EOF:
