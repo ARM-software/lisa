@@ -97,6 +97,16 @@ class DelayInstrument(Instrument):
                   .. note:: This cannot be specified at the same time as ``temperature_between_iterations``
 
                   """),
+        Parameter('fixed_before_start', kind=int, default=None,
+                  global_alias='fixed_delay_before_start',
+                  description="""
+
+                  How long to sleep (in seconds) after setup for an iteration has been perfromed but
+                  before running the workload.
+
+                  .. note:: This cannot be specified at the same time as ``temperature_before_start``
+
+                  """),
         Parameter('active_cooling', kind=boolean, default=False,
                   global_alias='thermal_active_cooling',
                   description="""
@@ -116,7 +126,7 @@ class DelayInstrument(Instrument):
             self.logger.debug('Setting temperature threshold between workload specs to {}'.format(temp))
             self.temperature_between_specs = temp
 
-    def slow_on_iteration_start(self, context):
+    def very_slow_on_iteration_start(self, context):
         if self.active_cooling:
             self.device.stop_active_cooling()
         if self.fixed_between_iterations:
@@ -126,7 +136,7 @@ class DelayInstrument(Instrument):
             self.logger.debug('Waiting for temperature drop before iteration...')
             self.wait_for_temperature(self.temperature_between_iterations)
 
-    def slow_on_spec_start(self, context):
+    def very_slow_on_spec_start(self, context):
         if self.active_cooling:
             self.device.stop_active_cooling()
         if self.fixed_between_specs:
@@ -139,7 +149,10 @@ class DelayInstrument(Instrument):
     def very_slow_start(self, context):
         if self.active_cooling:
             self.device.stop_active_cooling()
-        if self.temperature_before_start:
+        if self.fixed_before_start:
+            self.logger.debug('Waiting for a fixed period after iteration...')
+            time.sleep(self.fixed_before_start)
+        elif self.temperature_before_start:
             self.logger.debug('Waiting for temperature drop before commencing execution...')
             self.wait_for_temperature(self.temperature_before_start)
 
@@ -171,8 +184,13 @@ class DelayInstrument(Instrument):
                 self.fixed_between_iterations is not None):
             raise ConfigError('Both fixed delay and thermal threshold specified for iterations.')
 
+        if (self.temperature_before_start is not None and
+                self.fixed_before_start is not None):
+            raise ConfigError('Both fixed delay and thermal threshold specified before start.')
+
         if not any([self.temperature_between_specs, self.fixed_between_specs, self.temperature_before_start,
-                    self.temperature_between_iterations, self.fixed_between_iterations]):
+                    self.temperature_between_iterations, self.fixed_between_iterations,
+                    self.fixed_before_start]):
             raise ConfigError('delay instrument is enabled, but no delay is specified.')
 
         if self.active_cooling and not self.device.has('active_cooling'):
