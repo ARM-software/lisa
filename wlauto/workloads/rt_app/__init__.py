@@ -266,10 +266,10 @@ class RtApp(Workload):
                                                         self.device_working_directory,
                                                         TARBALL_FILENAME,
                                                         self.device_working_directory)
-        self.device.execute(tar_command)
+        self.device.execute(tar_command, timeout=300)
         device_path = self.device.path.join(self.device_working_directory, TARBALL_FILENAME)
         host_path = os.path.join(context.output_directory, TARBALL_FILENAME)
-        self.device.pull_file(device_path, host_path, timeout=20)
+        self.device.pull_file(device_path, host_path, timeout=120)
         with tarfile.open(host_path, 'r:gz') as tf:
             tf.extractall(context.output_directory)
         os.remove(host_path)
