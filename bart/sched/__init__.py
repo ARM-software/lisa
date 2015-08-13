@@ -13,8 +13,9 @@
 # limitations under the License.
 #
 
-"""Initialization for sheye"""
+"""Initialization for bart.sched"""
 
-from sheye import SchedAssert
-from sheye import SchedMultiAssert
-from sheye import SchedMatrix
+
+from bart.sched import SchedAssert
+from bart.sched import SchedMultiAssert
+from bart.sched import SchedMatrix
