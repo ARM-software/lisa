@@ -35,8 +35,8 @@ class Analyzer(object):
                 and functions that can be used in the statements
     """
 
-    def __init__(self, data, config):
-        self._parser = Parser(data, config)
+    def __init__(self, data, config, topology=None):
+        self._parser = Parser(data, config, topology)
 
     def assertStatement(self, statement):
         """Solve the statement for a boolean result"""
