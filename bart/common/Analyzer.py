@@ -25,7 +25,8 @@ import numpy as np
 
 # pylint: disable=invalid-name
 
-class ThermalAssert(object):
+
+class Analyzer(object):
 
     """
         Args:

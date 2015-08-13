@@ -17,3 +17,4 @@
 
 
 from bart.common import Utils
+from bart.common import Analyzer
