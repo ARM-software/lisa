@@ -341,6 +341,42 @@ class SchedAssert(object):
         run_time = self.getRuntime(window, percent)
         return operator(run_time, expected_value)
 
+    def getPeriod(self, window=None, align="start"):
+        """Returns average period of the task in (ms)
+
+         Args:
+            window (tuple): A (start, end) tuple to limit the
+                 scope of the calculation
+            align: "start" aligns period calculation to switch-in events
+                "end" aligns the calculation to switch-out events
+        """
+
+        agg = self._aggregator(sconf.period)
+        period = agg.aggregate(level="all", window=window)[0]
+        total, length = map(sum, zip(*period))
+        return (total * 1000) / length
+
+    def assertPeriod(
+            self,
+            expected_value,
+            operator,
+            window=None,
+            align="start"):
+        """Assert on the period of the task
+
+         Args:
+            expected_value (double): The expected value of the total runtime
+            operator (func(a, b)): A binary operator function that
+                returns a boolean
+            window (tuple): A (start, end) tuple to limit the
+                 scope of the calculation
+            percent (boolean): If True, the result is returned
+                as a percentage of the total execution time of the run.
+        """
+
+        period = self.getPeriod(window, align)
+        return operator(period, expected_value)
+
     def getDutyCycle(self, window):
         """Returns the duty cycle of the task
         Args:
