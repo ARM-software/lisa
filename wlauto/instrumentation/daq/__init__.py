@@ -168,6 +168,7 @@ class Daq(Instrument):
             with open(path) as fh:
                 reader = csv.reader(fh)
                 metrics = reader.next()
+                self._metrics |= set(metrics)
                 data = [map(float, d) for d in zip(*list(reader))]
                 n = len(data[0])
                 means = [s / n for s in map(sum, data)]
@@ -186,6 +187,7 @@ class Daq(Instrument):
         if not daq:
             raise ImportError(import_error_mesg)
         self._results = None
+        self._metrics = set()
         if self.labels:
             if not (len(self.labels) == len(self.resistor_values)):  # pylint: disable=superfluous-parens
                 raise ConfigError('Number of DAQ port labels does not match the number of resistor values.')
@@ -209,7 +211,7 @@ class Daq(Instrument):
     def before_overall_results_processing(self, context):
         if self._results:
             headers = ['id', 'workload', 'iteration']
-            metrics = sorted(self._results.iteritems().next()[1].keys())
+            metrics = ['{}_{}'.format(p, m) for p in self.labels for m in sorted(self._metrics)]
             headers += metrics
             rows = [headers]
             for key, value in self._results.iteritems():
