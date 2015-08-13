@@ -22,7 +22,7 @@ import math
 from trappy.plotter.Utils import listify
 from trappy.stats.Aggregator import MultiTriggerAggregator
 from trappy.stats import SchedConf as sconf
-from bart import Utils
+from bart.common import Utils
 import numpy as np
 
 # pylint: disable=invalid-name

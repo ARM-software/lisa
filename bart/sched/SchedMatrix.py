@@ -71,7 +71,7 @@ from trappy.stats.Aggregator import MultiTriggerAggregator
 from trappy.stats.Correlator import Correlator
 from trappy.plotter.Utils import listify
 from trappy.stats import SchedConf as sconf
-from bart import Utils
+from bart.common import Utils
 
 POSITIVE_TOLERANCE = 0.80
 

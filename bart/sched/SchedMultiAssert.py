@@ -22,7 +22,7 @@ import trappy
 from trappy.stats import SchedConf as sconf
 from trappy.plotter.Utils import listify
 from bart.sched.SchedAssert import SchedAssert
-from bart import Utils
+from bart.common import Utils
 
 class SchedMultiAssert(object):
 
