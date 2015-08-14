@@ -278,8 +278,8 @@ def get_pids_for_process(run, execname, cls=None):
         event = getattr(run, cls.name)
         df = event.data_frame
 
-    mask = df["__comm"].apply(lambda x : True if x.startswith(execname) else False)
-    return list(np.unique(df[mask]["__pid"].values))
+    mask = df["next_comm"].apply(lambda x : True if x.startswith(execname) else False)
+    return list(np.unique(df[mask]["next_pid"].values))
 
 def get_task_name(run, pid, cls=None):
     """Returns the execname for pid
