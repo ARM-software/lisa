@@ -23,6 +23,9 @@ from pyparsing import Literal, delimitedList, Optional, oneOf, nums,\
 import importlib
 import pandas as pd
 import types
+import numpy as np
+from trappy.stats.Topology import Topology
+from trappy.stats import StatConf
 
 
 def parse_num(tokens):
@@ -176,7 +179,7 @@ class Parser(object):
     """A parser class for solving simple
     data accesses and super-indexing data"""
 
-    def __init__(self, data, pvars=None):
+    def __init__(self, data, pvars=None, topology=None):
         if pvars is None:
             pvars = {}
 
@@ -187,6 +190,12 @@ class Parser(object):
         self._parse_expr = get_parse_expression(
             self._parse_func, self._parse_var_id)
         self._agg_df = pd.DataFrame()
+        if not topology:
+            self.topology = Topology()
+        else:
+            self.topology = topology
+        self._pivot_set = set()
+        self._index_limit = None
 
     def solve(self, expr):
         """Solve expression
@@ -199,6 +208,35 @@ class Parser(object):
         self._accessor.searchString(expr)
         return self._parse_expr.parseString(expr)[0]
 
+    def _pivot(self, cls, column):
+        """Pivot Data for concatenation"""
+
+        data_frame = getattr(self.data, cls.name).data_frame
+
+        if hasattr(cls, "pivot") and cls.pivot:
+            pivot = cls.pivot
+            pivot_vals = list(np.unique(data_frame[pivot].values))
+            data = {}
+
+            for val in pivot_vals:
+                data[val] = data_frame[data_frame[pivot] == val][[column]]
+                if len(self._agg_df):
+                    data[val] = data[val].reindex(
+                        index=self._agg_df.index,
+                        method="nearest",
+                        limit=1)
+
+            return pd.concat(data, axis=1).swaplevel(0, 1, axis=1)
+
+        if len(self._agg_df):
+            data_frame = data_frame.reindex(
+                index=self._agg_df.index,
+                method="nearest",
+                limit=1)
+
+        return pd.concat({StatConf.GRAMMAR_DEFAULT_PIVOT: data_frame[
+                         [column]]}, axis=1).swaplevel(0, 1, axis=1)
+
     def _pre_process(self, tokens):
         """Pre-process accessors for super-indexing"""
 
@@ -207,16 +245,17 @@ class Parser(object):
             return self._agg_df[params[1]]
 
         cls = params[0]
+        column = params[1]
+
         if cls in self._pvars:
             cls = self._pvars[cls]
         else:
             cls = str_to_attr(cls)
 
-        data_frame = getattr(self.data, cls.name).data_frame
-        col_keys = [column for column in self._agg_df].append(params[1])
+        data_frame = self._pivot(cls, column)
         self._agg_df = pd.concat(
-            [self._agg_df, data_frame[params[1]]], keys=col_keys, axis=1)
-        self._agg_df.fillna(method="pad", inplace=True)
+            [self._agg_df, data_frame], axis=1)
+
         return self._agg_df[params[1]]
 
     def _parse_var_id(self, tokens):
