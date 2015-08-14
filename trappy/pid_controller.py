@@ -24,6 +24,7 @@ class PIDController(Base):
     """Process the power allocator PID controller data in a ftrace dump"""
 
     name = "pid_controller"
+    pivot = "thermal_zone_id"
 
     def __init__(self):
         super(PIDController, self).__init__(

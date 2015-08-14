@@ -30,7 +30,7 @@ class Thermal(Base):
 
     unique_word = "thermal_temperature:"
     name = "thermal"
-    pivot = "thermal_zone"
+    pivot = "id"
 
     def __init__(self):
         super(Thermal, self).__init__(unique_word=self.unique_word)
@@ -82,6 +82,8 @@ class ThermalGovernor(Base):
 
     unique_word = "thermal_power_allocator:"
     name = "thermal_governor"
+    pivot = "thermal_zone_id"
+
     def __init__(self):
         super(ThermalGovernor, self).__init__(
             unique_word=self.unique_word,
