@@ -69,10 +69,10 @@ class Androbench(AndroidBenchmark):
         os.system('sqlite3 results.db "select * from history" > results.raw')
         fhresults=open("results.raw","rb")
         results=fhresults.readlines()[0].split('|')
-        context.result.add_metric('Sequential Read MB/s', results[8])
-        context.result.add_metric('Sequential Write MB/s', results[9])
-        context.result.add_metric('Random Read MB/s', results[10])
-        context.result.add_metric('Random Write MB/s', results[12])
+        context.result.add_metric('Sequential Read MB/s ', results[8])
+        context.result.add_metric('Sequential Write MB/s ', results[9])
+        context.result.add_metric('Random Read MB/s ', results[10])
+        context.result.add_metric('Random Write MB/s ', results[12])
         os.system('rm results.raw')
         
     
