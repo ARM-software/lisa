@@ -203,6 +203,30 @@ def first_time(series, value, window=None):
     return [series.index.values[0]]
 
 
+def period(series, align="start", window=None):
+    """Return a tuple of the average
+       duration between SWITCH_IN (align=start)
+       and SWITCH_OUT (align=end) and the number
+       of events
+    """
+
+    series = select_window(series, window)
+    series = sanitize_asymmetry(series, window)
+
+    if align == "start":
+        series = series[series == SCHED_SWITCH_IN]
+    elif align == "end":
+        series = series[series == SCHED_SWITCH_OUT]
+
+    if len(series) % 2 == 0:
+        series = series[:1]
+
+    if not len(series):
+        return [(0,0)]
+
+    deltas = np.diff(series.index.values)
+    return [(np.sum(deltas), len(deltas))]
+
 def last_time(series, value, window=None):
     """Return the first index where the
        series == value
