@@ -25,7 +25,8 @@ import numpy as np
 
 # pylint: disable=invalid-name
 
-class ThermalAssert(object):
+
+class Analyzer(object):
 
     """
         Args:
@@ -34,13 +35,14 @@ class ThermalAssert(object):
                 and functions that can be used in the statements
     """
 
-    def __init__(self, data, config):
-        self._parser = Parser(data, config)
+    def __init__(self, data, config, topology=None):
+        self._parser = Parser(data, config, topology)
 
-    def assertStatement(self, statement):
+    def assertStatement(self, statement, select=None):
         """Solve the statement for a boolean result"""
 
-        result = self.getStatement(statement)
+        result = self.getStatement(statement, select=select)
+
         # pylint: disable=no-member
         if not (isinstance(result, bool) or isinstance(result, np.bool_)):
             warnings.warn(
@@ -48,7 +50,19 @@ class ThermalAssert(object):
         return result
         # pylint: enable=no-member
 
-    def getStatement(self, statement):
+    def getStatement(self, statement, reference=False, select=None):
         """Evaluate the statement"""
 
-        return self._parser.solve(statement)
+        result = self._parser.solve(statement)
+
+        # pylint: disable=no-member
+        if np.isscalar(result):
+            return result
+        # pylint: enable=no-member
+
+        if select is not None and len(result):
+            result = result[select]
+            if reference:
+                result = self._parser.ref(result)
+
+        return result

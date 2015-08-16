@@ -13,7 +13,9 @@
 # limitations under the License.
 #
 
-"""Initialization for bart"""
+"""Initialization for bart.sched"""
 
-import bart.sched
-import bart.common
+
+from bart.sched import SchedAssert
+from bart.sched import SchedMultiAssert
+from bart.sched import SchedMatrix
