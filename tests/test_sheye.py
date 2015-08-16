@@ -17,9 +17,15 @@
 import utils_tests
 import unittest
 import trappy
-from sheye.SchedAssert import SchedAssert
 from trappy.stats.Topology import Topology
 
+try:
+    from bart.sched.SchedAssert import SchedAssert
+    HAVE_SHEYE = True
+except ImportError:
+    HAVE_SHEYE = False
+
+@unittest.skipUnless(HAVE_SHEYE, "sheye not present")
 @unittest.skipUnless(utils_tests.trace_cmd_installed(),
                      "trace-cmd not installed")
 class TestSchedAssert(utils_tests.SetupDirectory):
