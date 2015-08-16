@@ -17,3 +17,4 @@
 
 # Default interval between a uniform time series
 DELTA_DEFAULT = 0.000025
+GRAMMAR_DEFAULT_PIVOT = "NO_PIVOT"
