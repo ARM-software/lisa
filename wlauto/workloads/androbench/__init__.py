@@ -18,49 +18,15 @@ import os
 import re
 import time
 
-from wlauto import AndroidBenchmark
-from uiautomator import Device
+from wlauto import AndroidUiAutoBenchmark
 
-
-class Androbench(AndroidBenchmark):
+class Androbench(AndroidUiAutoBenchmark):
 
     name = 'androbench'
     description = """Androbench measures the storage performance of device"""
     package = 'com.andromeda.androbench2'
     activity = '.main'
-    device=''
-
-    def setup(self, context):
-		global device
-		os.system('adb devices > deviceinfo')
-		devinf = open('deviceinfo','rb')
-		dev = devinf.readlines()[1].split('\t')[0]
-		devinf.close()
-		device=Device(dev)
-		os.system('rm deviceinfo')
-
-
-    def run(self, context):
-		global device,package,activity
-		os.system('adb shell pm clear com.andromeda.androbench2')		
-		os.system('adb shell am start -n com.andromeda.androbench2/.main')
-		while True :
-			if device(text="Measure your storage performance").exists :
-				time.sleep(1)
-				break
-				
-		if device(textStartsWith="Micro").exists :
-			device(textStartsWith="Micro").click()
-		if device(text="Yes").exists :
-			device(textStartsWith="Yes").click()
-		
-		
-		while True :
-			if device(text="Cancel").exists :
-				device(text="Cancel").click()
-				time.sleep(1)
-				break
-			
+    run_timeout = 10 * 60
 
     def update_result(self, context):
         super(Androbench, self).update_result(context)
@@ -68,8 +34,8 @@ class Androbench(AndroidBenchmark):
         fhresults=open("results.raw","rb")
         results=fhresults.readlines()[0].split('|')
         context.result.add_metric('Sequential Read ', results[8], 'MB/s')
-        context.result.add_metric('Sequential Write MB/s ', results[9] , 'MB/s')
-        context.result.add_metric('Random Read MB/s ', results[10], 'MB/s')
-        context.result.add_metric('Random Write MB/s ', results[12], 'MB/s')
+        context.result.add_metric('Sequential Write ', results[9] , 'MB/s')
+        context.result.add_metric('Random Read ', results[10], 'MB/s')
+        context.result.add_metric('Random Write ', results[12], 'MB/s')
         os.system('rm results.raw')
         
