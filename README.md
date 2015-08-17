@@ -37,7 +37,7 @@ It is required if you plan to use interactive plotting in BART.
 
 # Trace Analysis Language
 
-BART also provides a generic Trace Analysis Language, which allows the user to construct complex relation statements on trace data and assert their expected behaviours. The usage of the Analyzer module can be seen for the thermal behaviours [here](https://github.com/sinkap/bart/blob/master/notebooks/thermal/Thermal.ipynb)
+BART also provides a generic Trace Analysis Language, which allows the user to construct complex relation statements on trace data and assert their expected behaviours. The usage of the Analyzer module can be seen for the thermal behaviours [here](https://github.com/ARM-software/bart/blob/master/notebooks/thermal/Thermal.ipynb)
 
 # Scheduler Assertions
 
