@@ -77,26 +77,36 @@ class Juno(BigLittleDevice):
                                  used, when flashing new images.''',
                   default={
                       'image_name': 'Image',
-                      'image_args': 'console=ttyAMA0,115200 '
-                                    'earlyprintk=pl011,0x7ff80000 '
-                                    'verbose debug init=/init '
-                                    'root=/dev/sda1 rw ip=dhcp rootwait '
-                                    'video=DVI-D-1:1920x1080R@60',
+                      'image_args': None,  # populated from bootargs if not specified
                       'fdt_support': True,
                   }
                   ),
+        Parameter('bootargs', default='console=ttyAMA0,115200 earlyprintk=pl011,0x7ff80000 '
+                                      'verbose debug init=/init root=/dev/sda1 rw ip=dhcp '
+                                      'rootwait video=DVI-D-1:1920x1080R@60',
+                  description='''Default boot arguments to use when boot_arguments were not.'''),
     ]
 
     short_delay = 1
     firmware_prompt = 'Cmd>'
 
-    def boot(self, **kwargs):
-        self.logger.debug('Resetting the device.')
-        self.reset()
+    def validate(self):
+        if not self.uefi_config.image_args:
+            self.uefi_config.image_args = self.bootargs
+
+    def boot(self, hard=False, **kwargs):
+        if kwargs:
+            self.bootargs = kwargs  # pylint: disable=attribute-defined-outside-init
+        if hard:
+            self.logger.debug('Performing a hard reset.')
+            self.hard_reset()
+        else:
+            self.logger.debug('Resetting the device.')
+            self.reset()
         if self.bootloader == 'uefi':
             self._boot_via_uefi()
         else:
-            self._boot_via_uboot(**kwargs)
+            self._boot_via_uboot(**self.bootargs)
 
     def _boot_via_uboot(self, **kwargs):
         if not kwargs:

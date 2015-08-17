@@ -495,7 +495,7 @@ class Runner(object):
                         if self.context.reboot_policy.can_reboot and self.device.can('reset_power'):
                             self.logger.info('Attempting to hard-reset the device...')
                             try:
-                                self.device.hard_reset()
+                                self.device.boot(hard=True)
                                 self.device.connect()
                             except DeviceError:  # hard_boot not implemented for the device.
                                 raise e
@@ -553,7 +553,7 @@ class Runner(object):
             except DeviceError:  # device may be offline
                 if self.device.can('reset_power'):
                     with self._signal_wrap('INITIAL_BOOT'):
-                        self.device.hard_reset()
+                        self.device.boot(hard=True)
                 else:
                     raise DeviceError('Cannot connect to device for initial reboot; '
                                       'and device does not support hard reset.')

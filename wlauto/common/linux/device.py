@@ -563,8 +563,11 @@ class LinuxDevice(BaseLinuxDevice):
         super(LinuxDevice, self).hard_reset()
         self._is_ready = False
 
-    def boot(self, **kwargs):
-        self.reset()
+    def boot(self, hard=False, **kwargs):
+        if hard:
+            self.hard_reset()
+        else:
+            self.reset()
         self.logger.debug('Waiting for device...')
         start_time = time.time()
         while (time.time() - start_time) < self.boot_timeout:

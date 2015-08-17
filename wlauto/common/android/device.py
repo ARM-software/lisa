@@ -126,8 +126,11 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
         self._is_ready = False
         self._just_rebooted = True
 
-    def boot(self, **kwargs):
-        self.reset()
+    def boot(self, hard=False, **kwargs):
+        if hard:
+            self.hard_reset()
+        else:
+            self.reset()
 
     def connect(self):  # NOQA pylint: disable=R0912
         iteration_number = 0
