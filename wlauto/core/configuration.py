@@ -77,6 +77,7 @@ class WorkloadRunSpec(object):
                  runtime_parameters=None,
                  instrumentation=None,
                  flash=None,
+                 classifiers=None,
                  ):  # pylint: disable=W0622
         self.id = id
         self.number_of_iterations = number_of_iterations
@@ -88,6 +89,7 @@ class WorkloadRunSpec(object):
         self.workload_parameters = workload_parameters or OrderedDict()
         self.instrumentation = instrumentation or []
         self.flash = flash or OrderedDict()
+        self.classifiers = classifiers or OrderedDict()
         self._workload = None
         self._section = None
         self.enabled = True
@@ -96,7 +98,7 @@ class WorkloadRunSpec(object):
         if param in ['id', 'section_id', 'number_of_iterations', 'workload_name', 'label']:
             if value is not None:
                 setattr(self, param, value)
-        elif param in ['boot_parameters', 'runtime_parameters', 'workload_parameters', 'flash']:
+        elif param in ['boot_parameters', 'runtime_parameters', 'workload_parameters', 'flash', 'classifiers']:
             setattr(self, param, merge_dicts(getattr(self, param), value, list_duplicates='last',
                                              dict_type=OrderedDict, should_normalize=False))
         elif param in ['instrumentation']:
@@ -167,6 +169,7 @@ class WorkloadRunSpec(object):
         other.workload_parameters = copy(self.workload_parameters)
         other.instrumentation = copy(self.instrumentation)
         other.flash = copy(self.flash)
+        other.classifiers = copy(self.classifiers)
         other._section = self._section  # pylint: disable=protected-access
         other.enabled = self.enabled
         return other
@@ -492,6 +495,7 @@ class RunConfiguration(object):
         RunConfigurationItem('runtime_parameters', 'dict', 'merge'),
         RunConfigurationItem('instrumentation', 'list', 'merge'),
         RunConfigurationItem('flash', 'dict', 'merge'),
+        RunConfigurationItem('classifiers', 'dict', 'merge'),
     ]
 
     # List of names that may be present in configuration (and it is valid for

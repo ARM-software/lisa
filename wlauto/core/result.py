@@ -254,13 +254,13 @@ class IterationResult(object):
         self.spec = spec
         self.id = spec.id
         self.workload = spec.workload
+        self.classifiers = copy(spec.classifiers)
         self.iteration = None
         self.status = self.NOT_STARTED
         self.output_directory = None
         self.events = []
         self.metrics = []
         self.artifacts = []
-        self.classifiers = {}
 
     def add_metric(self, name, value, units=None, lower_is_better=False, classifiers=None):
         classifiers = merge_dicts(self.classifiers, classifiers or {},

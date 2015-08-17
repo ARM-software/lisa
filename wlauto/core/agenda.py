@@ -70,6 +70,7 @@ class AgendaWorkloadEntry(AgendaEntry):
                                                      default=OrderedDict())
         self.instrumentation = kwargs.pop('instrumentation', [])
         self.flash = kwargs.pop('flash', OrderedDict())
+        self.classifiers = kwargs.pop('classifiers', OrderedDict())
         if kwargs:
             raise ConfigError('Invalid entry(ies) in workload {}: {}'.format(self.id, ', '.join(kwargs.keys())))
 
@@ -96,6 +97,7 @@ class AgendaSectionEntry(AgendaEntry):
                                                      default=OrderedDict())
         self.instrumentation = kwargs.pop('instrumentation', [])
         self.flash = kwargs.pop('flash', OrderedDict())
+        self.classifiers = kwargs.pop('classifiers', OrderedDict())
         self.workloads = []
         for w in kwargs.pop('workloads', []):
             self.workloads.append(agenda.get_workload_entry(w))
@@ -128,6 +130,7 @@ class AgendaGlobalEntry(AgendaEntry):
                                                      default=OrderedDict())
         self.instrumentation = kwargs.pop('instrumentation', [])
         self.flash = kwargs.pop('flash', OrderedDict())
+        self.classifiers = kwargs.pop('classifiers', OrderedDict())
         if kwargs:
             raise ConfigError('Invalid entries in global section: {}'.format(kwargs))
 
