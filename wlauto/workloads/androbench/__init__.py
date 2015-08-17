@@ -20,8 +20,8 @@ import time
 
 from wlauto import AndroidUiAutoBenchmark
 
-class Androbench(AndroidUiAutoBenchmark):
 
+class Androbench(AndroidUiAutoBenchmark):
     name = 'androbench'
     description = """Androbench measures the storage performance of device"""
     package = 'com.andromeda.androbench2'
@@ -30,12 +30,14 @@ class Androbench(AndroidUiAutoBenchmark):
 
     def update_result(self, context):
         super(Androbench, self).update_result(context)
-        os.system('adb shell sqlite3 /data/data/com.andromeda.androbench2/databases/history.db "select * from history" > results.raw')
-        fhresults=open("results.raw","rb")
-        results=fhresults.readlines()[0].split('|')
+        db = '/data/data/com.andromeda.androbench2/databases/history.db'
+        qs = 'select * from history'
+        res = 'results.raw'
+        os.system('adb shell sqlite3 %s "%s" > %s' % (db, qs, res))
+        fhresults = open("results.raw", "rb")
+        results = fhresults.readlines()[0].split('|')
         context.result.add_metric('Sequential Read ', results[8], 'MB/s')
-        context.result.add_metric('Sequential Write ', results[9] , 'MB/s')
+        context.result.add_metric('Sequential Write ', results[9], 'MB/s')
         context.result.add_metric('Random Read ', results[10], 'MB/s')
         context.result.add_metric('Random Write ', results[12], 'MB/s')
         os.system('rm results.raw')
-        
