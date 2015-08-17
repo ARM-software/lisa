@@ -173,8 +173,10 @@ def regex_body_parser(regex, flags=0):
 EVENT_PARSER_MAP = {
 }
 
-TRACE_EVENT_REGEX = re.compile(r'^\s+(?P<thread>\S+)\s+\[(?P<cpu_id>\d+)\]\s+(?P<ts>[\d.]+):\s+'
+TRACE_EVENT_REGEX = re.compile(r'^\s+(?P<thread>\S+.*?\S+)\s+\[(?P<cpu_id>\d+)\]\s+(?P<ts>[\d.]+):\s+'
                                r'(?P<name>[^:]+):\s+(?P<body>.*?)\s*$')
+
+HEADER_REGEX = re.compile(r'^\s*(?:version|cpus)\s*=\s*([\d.]+)\s*$')
 
 DROPPED_EVENTS_REGEX = re.compile(r'CPU:(?P<cpu_id>\d+) \[\d*\s*EVENTS DROPPED\]')
 
@@ -215,6 +217,11 @@ class TraceCmdTrace(object):
                 match = DROPPED_EVENTS_REGEX.search(line)
                 if match:
                     yield DroppedEventsEvent(match.group('cpu_id'))
+                    continue
+
+                match = HEADER_REGEX.search(line)
+                if match:
+                    logger.debug(line.strip())
                     continue
 
                 match = TRACE_EVENT_REGEX.search(line)
