@@ -64,21 +64,12 @@ class Androbench(AndroidBenchmark):
 
     def update_result(self, context):
         super(Androbench, self).update_result(context)
-        os.system('adb shell cp /data/data/com.andromeda.androbench2/databases/history.db /sdcard/results.db')
-        os.system('adb pull /sdcard/results.db .')
-        os.system('sqlite3 results.db "select * from history" > results.raw')
+        os.system('adb shell sqlite3 /data/data/com.andromeda.androbench2/databases/history.db "select * from history" > results.raw')
         fhresults=open("results.raw","rb")
         results=fhresults.readlines()[0].split('|')
-        context.result.add_metric('Sequential Read MB/s ', results[8])
-        context.result.add_metric('Sequential Write MB/s ', results[9])
-        context.result.add_metric('Random Read MB/s ', results[10])
-        context.result.add_metric('Random Write MB/s ', results[12])
+        context.result.add_metric('Sequential Read ', results[8], 'MB/s')
+        context.result.add_metric('Sequential Write MB/s ', results[9] , 'MB/s')
+        context.result.add_metric('Random Read MB/s ', results[10], 'MB/s')
+        context.result.add_metric('Random Write MB/s ', results[12], 'MB/s')
         os.system('rm results.raw')
         
-    
-
-    def teardown(self, context):
-        pass
-
-    def validate(self):
-        pass
