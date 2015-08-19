@@ -15,7 +15,7 @@
 
 
 import os
-
+import sqlite3
 from wlauto import AndroidUiAutoBenchmark
 
 
@@ -28,14 +28,16 @@ class Androbench(AndroidUiAutoBenchmark):
 
     def update_result(self, context):
         super(Androbench, self).update_result(context)
-        db = '/data/data/com.andromeda.androbench2/databases/history.db'
+        dbn = 'databases/history.db'
+        db = self.device.path.join(self.device.package_data_directory, self.package, dbn)
+        host_results = os.path.join(context.output_directory, 'results.db')
+        self.device.pull_file(db, host_results)
         qs = 'select * from history'
-        res = 'results.raw'
-        os.system('adb shell sqlite3 %s "%s" > %s' % (db, qs, res))
-        fhresults = open("results.raw", "rb")
-        results = fhresults.readlines()[0].split('|')
+        conn = sqlite3.connect(host_results)
+        c = conn.cursor()
+        c.execute(qs)
+        results = c.fetchone()
         context.result.add_metric('Sequential Read ', results[8], 'MB/s')
         context.result.add_metric('Sequential Write ', results[9], 'MB/s')
         context.result.add_metric('Random Read ', results[10], 'MB/s')
         context.result.add_metric('Random Write ', results[12], 'MB/s')
-        os.system('rm results.raw')
