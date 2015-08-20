@@ -30,8 +30,8 @@ class Androbench(AndroidUiAutoBenchmark):
         super(Androbench, self).update_result(context)
         dbn = 'databases/history.db'
         db = self.device.path.join(self.device.package_data_directory, self.package, dbn)
-        host_results = os.path.join(context.output_directory, 'results.db')
-        self.device.pull_file(db, host_results)
+        host_results = os.path.join(context.output_directory, 'history.db')
+        self.device.pull_file(db, host_results, as_root=True)
         qs = 'select * from history'
         conn = sqlite3.connect(host_results)
         c = conn.cursor()
