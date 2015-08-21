@@ -13,18 +13,27 @@
 # limitations under the License.
 #
 
-
 import os
 import sqlite3
+
 from wlauto import AndroidUiAutoBenchmark
+from wlauto.exceptions import WorkloadError
 
 
 class Androbench(AndroidUiAutoBenchmark):
     name = 'androbench'
-    description = """Androbench measures the storage performance of device"""
+    description = """
+    Measures the storage performance of an Android device.
+
+    Website: http://www.androbench.org/wiki/AndroBench
+    """
     package = 'com.andromeda.androbench2'
     activity = '.main'
     run_timeout = 10 * 60
+
+    def initialize(self, context):
+        if not self.device.is_rooted:
+            raise WorkloadError('Androbench workload only works on rooted devices.')
 
     def update_result(self, context):
         super(Androbench, self).update_result(context)
