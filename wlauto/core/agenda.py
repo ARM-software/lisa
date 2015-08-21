@@ -139,7 +139,7 @@ class Agenda(object):
 
     def __init__(self, source=None):
         self.filepath = None
-        self.config = None
+        self.config = {}
         self.global_ = None
         self.sections = []
         self.workloads = []
