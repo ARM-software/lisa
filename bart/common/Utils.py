@@ -27,3 +27,17 @@ def init_run(trace):
         return trace
 
     raise ValueError("Invalid trace Object")
+
+def select_window(series, window):
+    """Library Function to select a portion of
+       pandas time series
+    """
+
+    if not window:
+        return series
+
+    start, stop = window
+    ix = series.index
+    selector = ((ix >= start) & (ix <= stop))
+    window_series = series[selector]
+    return window_series
