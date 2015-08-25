@@ -19,13 +19,15 @@ customizing Line Plots with a pandas dataframe input
 
 import matplotlib.pyplot as plt
 from trappy.plotter import AttrConf
+from trappy.plotter import Utils
 from trappy.plotter.Constraint import ConstraintManager
 from trappy.plotter.ILinePlotGen import ILinePlotGen
 from trappy.plotter.AbstractDataPlotter import AbstractDataPlotter
 from trappy.plotter.ColorMap import ColorMap
+from trappy.plotter import IPythonConf
 import pandas as pd
 
-if not AttrConf.PLOTTER_IPYTHON:
+if not IPythonConf.check_ipython():
     raise ImportError("Ipython Environment not Found")
 
 class ILinePlot(AbstractDataPlotter):

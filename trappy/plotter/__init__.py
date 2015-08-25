@@ -25,7 +25,7 @@ except ImportError:
     pass
 import Utils
 import trappy
-
+import IPythonConf
 
 def register_forwarding_arg(arg_name):
     """Allows the user to register args to
@@ -46,7 +46,7 @@ def unregister_forwarding_arg(arg_name):
 def plot_trace(trace_dir):
     """Creates a kernelshark like plot of the trace file"""
 
-    if not AttrConf.PLOTTER_IPYTHON:
+    if not IPythonConf.check_ipython():
         raise RuntimeError("plot_trace needs ipython environment")
 
     run = trappy.Run(trace_dir)

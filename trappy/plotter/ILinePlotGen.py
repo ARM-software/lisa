@@ -23,14 +23,14 @@ import uuid
 import json
 import os
 from IPython.display import display, HTML
+from trappy.plotter import IPythonConf
 
 
-if not AttrConf.PLOTTER_IPYTHON:
+if not IPythonConf.check_ipython():
     raise ImportError("No Ipython Environment found")
 
 # Install resources
-from trappy.plotter import Utils
-Utils.iplot_install("ILinePlot")
+IPythonConf.iplot_install("ILinePlot")
 
 
 class ILinePlotGen(object):
@@ -50,9 +50,9 @@ class ILinePlotGen(object):
             var ilp_req = require.config( {
 
                 paths: {
-                    "dygraph-sync": "/static/plotter_scripts/ILinePlot/synchronizer",
-                    "dygraph": "/static/plotter_scripts/ILinePlot/dygraph-combined",
-                    "ILinePlot": "/static/plotter_scripts/ILinePlot/ILinePlot",
+                    "dygraph-sync": '""" + IPythonConf.add_web_base("plotter_scripts/ILinePlot/synchronizer") + """',
+                    "dygraph": '""" + IPythonConf.add_web_base("plotter_scripts/ILinePlot/dygraph-combined") + """',
+                    "ILinePlot": '""" + IPythonConf.add_web_base("plotter_scripts/ILinePlot/ILinePlot") + """',
                 },
 
                 shim: {
@@ -65,7 +65,7 @@ class ILinePlotGen(object):
                 }
             });
                 ilp_req(["require", "ILinePlot"], function() {
-                ILinePlot.generate('""" + fig_name + """');
+                ILinePlot.generate('""" + fig_name + """', '""" + IPythonConf.add_web_base("") + """');
             });
             </script>
         """
@@ -183,7 +183,7 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         if "ylim" in self._attr:
             fig_params["valueRange"] = self._attr["ylim"]
 
-        json_file = os.path.join(AttrConf.PLOTTER_STATIC_DATA_DIR, fig_name + ".json")
+        json_file = os.path.join(IPythonConf.get_data_path(), fig_name + ".json")
         fh = open(json_file, "w")
         json.dump(fig_params, fh)
         fh.close()

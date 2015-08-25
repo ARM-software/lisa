@@ -29,15 +29,15 @@ import json
 import os
 from IPython.display import display, HTML
 from trappy.plotter.AbstractDataPlotter import AbstractDataPlotter
+from trappy.plotter import IPythonConf
 
-if not AttrConf.PLOTTER_IPYTHON:
+if not IPythonConf.check_ipython():
     raise ImportError("Ipython Environment not Found")
 
 # pylint: disable=R0201
 # pylint: disable=R0921
 # Initialize Resources
-from trappy.plotter import Utils
-Utils.iplot_install("EventPlot")
+IPythonConf.iplot_install("EventPlot")
 
 
 class EventPlot(AbstractDataPlotter):
@@ -96,7 +96,7 @@ class EventPlot(AbstractDataPlotter):
         graph["stride"] = AttrConf.EVENT_PLOT_STRIDE
 
         json_file = os.path.join(
-            AttrConf.PLOTTER_STATIC_DATA_DIR,
+            IPythonConf.get_data_path(),
             self._fig_name +
             ".json")
 
@@ -139,21 +139,24 @@ class EventPlot(AbstractDataPlotter):
 
                 paths: {
 
-                    "EventPlot": "/static/plotter_scripts/EventPlot/EventPlot",
-                    "d3-tip": "/static/plotter_scripts/EventPlot/d3.tip.v0.6.3",
-                    "d3": "/static/plotter_scripts/EventPlot/d3.v3.min"
+                    "EventPlot": '""" + IPythonConf.add_web_base("plotter_scripts/EventPlot/EventPlot") + """',
+                    "d3-tip": '""" + IPythonConf.add_web_base("plotter_scripts/EventPlot/d3.tip.v0.6.3") + """',
+                    "d3-plotter": '""" + IPythonConf.add_web_base("plotter_scripts/EventPlot/d3.v3.min") + """'
                 },
                 shim: {
-                    "d3-tip": ["d3"],
+                    "d3-plotter" : {
+                        "exports" : "d3"
+                    },
+                    "d3-tip": ["d3-plotter"],
                     "EventPlot": {
 
-                        "deps": ["d3-tip", "d3" ],
+                        "deps": ["d3-tip", "d3-plotter" ],
                         "exports":  "EventPlot"
                     }
                 }
             });
             req(["require", "EventPlot"], function() {
-               EventPlot.generate('""" + self._fig_name + """');
+               EventPlot.generate('""" + self._fig_name + """', '""" + IPythonConf.add_web_base("") + """');
             });
         </script>
         """

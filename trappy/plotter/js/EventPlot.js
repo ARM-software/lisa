@@ -39,13 +39,13 @@ var EventPlot = (function () {
         return left;
     }
 
-    var generate = function (div_name) {
+    var generate = function (div_name, base) {
 
         var margin, brush, x, ext, yMain, chart, main,
             mainAxis,
             itemRects, items, colourAxis, tip, lanes;
 
-        var json_file = "/static/plotter_data/" + div_name +
+        var json_file = base + "plotter_data/" + div_name +
             ".json"
 
         $.getJSON(json_file, function (d) {

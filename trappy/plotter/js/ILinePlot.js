@@ -149,8 +149,8 @@ var ILinePlot = ( function() {
         }
     };
 
-    var generate = function(div_name) {
-        var json_file = "/static/plotter_data/" + div_name + ".json";
+    var generate = function(div_name, base) {
+        var json_file = base + "plotter_data/" + div_name + ".json";
             $.getJSON( json_file, function( data ) {
                 create_graph(data);
                 purge();

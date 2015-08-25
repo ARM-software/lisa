@@ -95,37 +95,3 @@ HTML_HEIGHT = 400
 DEFAULT_SYNC_ZOOM = False
 EVENT_PLOT_STRIDE = False
 
-IPLOT_RESOURCES = {
-    "ILinePlot": [
-        "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined.js",
-        "js/ILinePlot.js",
-        "http://dygraphs.com/extras/synchronizer.js"],
-    "EventPlot": [
-        "http://d3js.org/d3.v3.min.js",
-        "http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js",
-        "js/EventPlot.js"]}
-
-try:
-    import IPython
-    import os
-    ip = IPython.get_ipython()
-    if not ip:
-        PLOTTER_IPYTHON = False
-    else:
-        PLOTTER_IPYTHON = True
-        PLOTTER_IPYTHON_PROFILE_DIR = ip.config.ProfileDir["location"]
-        PLOTTER_STATIC_DATA_DIR = os.path.join(
-            PLOTTER_IPYTHON_PROFILE_DIR,
-            "static", "plotter_data")
-        PLOTTER_SCRIPTS_DIR = "plotter_scripts"
-        PLOTTER_SCRIPTS_PATH = os.path.join(
-            PLOTTER_IPYTHON_PROFILE_DIR,
-            "static",
-            PLOTTER_SCRIPTS_DIR)
-
-        if not os.path.isdir(PLOTTER_STATIC_DATA_DIR):
-            os.mkdir(PLOTTER_STATIC_DATA_DIR)
-        if not os.path.isdir(PLOTTER_SCRIPTS_PATH):
-            os.mkdir(PLOTTER_SCRIPTS_PATH)
-except:
-    PLOTTER_IPYTHON = False
