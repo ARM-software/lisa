@@ -103,35 +103,35 @@ classes are parsed.
         """Process the path and return the path to the trace text file"""
 
         if os.path.isfile(basepath):
-            trace_txt = os.path.splitext(basepath)[0]
-            raw_trace_path = trace_txt + ".raw.txt"
-            trace_path = trace_txt + ".txt"
+            trace_name = os.path.splitext(basepath)[0]
+            trace_raw = trace_name + ".raw.txt"
+            trace_txt = trace_name + ".txt"
 
             if basepath.endswith(".dat"):
                 self.__run_trace_cmd_report(basepath)
 
             elif basepath.endswith(".txt"):
-                trace_path = basepath
-                if not os.path.isfile(raw_trace_path):
-                    raw_trace_path = None
+                trace_txt = basepath
+                if not os.path.isfile(trace_raw):
+                    trace_raw = None
         else:
-            trace_path = os.path.join(basepath, "trace.txt")
-            raw_trace_path = os.path.join(basepath, "trace.raw.txt")
-            dat_file = os.path.join(basepath, "trace.dat")
+            trace_txt = os.path.join(basepath, "trace.txt")
+            trace_raw = os.path.join(basepath, "trace.raw.txt")
+            trace_dat = os.path.join(basepath, "trace.dat")
 
-            if not os.path.isfile(trace_path):
-                self.__run_trace_cmd_report(dat_file)
+            if not os.path.isfile(trace_txt):
+                self.__run_trace_cmd_report(trace_dat)
 
             # The condition below handles the the following cases
             # trace.dat and trace.txt are both present
             # We can still generate the trace.raw.txt
-            if not os.path.isfile(raw_trace_path):
-                if os.path.isfile(dat_file):
-                    self.__run_trace_cmd_report(dat_file)
+            if not os.path.isfile(trace_raw):
+                if os.path.isfile(trace_dat):
+                    self.__run_trace_cmd_report(trace_dat)
                 else:
-                    raw_trace_path = None
+                    trace_raw = None
 
-        return trace_path, raw_trace_path
+        return trace_txt, trace_raw
 
     def __run_trace_cmd_report(self, fname):
         """Run "trace-cmd report fname > fname.txt"
