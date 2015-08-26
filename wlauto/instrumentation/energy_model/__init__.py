@@ -663,10 +663,9 @@ class EnergyModelInstrument(Instrument):
         self.little_cpus = self.device.get_online_cpus(self.little_core)
 
     def enable_all_idle_states(self):
-        for state in self.big_idle_states:
-            state.disable = 0
-        for state in self.little_idle_states:
-            state.disable = 0
+        for cpu in self.device.online_cpus:
+            for state in self.device.get_cpuidle_states(cpu):
+                state.disable = 0
 
     def reset_cgroups(self):
         self.big_cpus = self.device.get_online_cpus(self.big_core)
@@ -777,9 +776,13 @@ class EnergyModelInstrument(Instrument):
 
     def get_device_idle_states(self, cluster):
         if cluster == 'big':
-            return self.big_idle_states
+            online_cpus = self.device.get_online_cpus(self.big_core)
         else:
-            return self.little_idle_states
+            online_cpus = self.device.get_online_cpus(self.little_core)
+        idle_states = []
+        for cpu in online_cpus:
+            idle_states.extend(self.device.get_cpuidle_states(cpu))
+        return idle_states
 
     def get_core_name(self, cluster):
         if cluster == 'big':
