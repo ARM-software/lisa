@@ -45,8 +45,9 @@ class CpuidleState(object):
                 raise ValueError('invalid idle state name: "{}"'.format(self.id))
         return int(self.id[i:])
 
-    def __init__(self, device, path):
+    def __init__(self, device, index, path):
         self.device = device
+        self.index = index
         self.path = path
         self.id = self.device.path.basename(self.path)
         self.cpu = self.device.path.basename(self.device.path.dirname(path))
@@ -106,7 +107,8 @@ class Cpuidle(Module):
         idle_states = []
         for state in self.device.listdir(states_dir):
             if state.startswith('state'):
-                idle_states.append(CpuidleState(self.device, self.device.path.join(states_dir, state)))
+                index = int(state[5:])
+                idle_states.append(CpuidleState(self.device, index, self.device.path.join(states_dir, state)))
         return idle_states
 
     def _on_device_init(self, context):  # pylint: disable=unused-argument

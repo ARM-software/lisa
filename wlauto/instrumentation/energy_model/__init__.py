@@ -475,10 +475,10 @@ class EnergyModelInstrument(Instrument):
         if not context.spec.label.startswith('idle_'):
             return
         for idle_state in self.get_device_idle_states(self.measured_cluster):
-            if idle_state.id == context.spec.idle_state_id:
-                idle_state.disable = 0
-            else:
+            if idle_state.id > context.spec.idle_state_index:
                 idle_state.disable = 1
+            else:
+                idle_state.disable = 0
 
     def fast_start(self, context):  # pylint: disable=unused-argument
         self.start_time = time.time()
@@ -718,6 +718,7 @@ class EnergyModelInstrument(Instrument):
         cluster_frequencies = self.get_frequencies_param(cluster)
         if not cluster_frequencies:
             raise InstrumentError('Could not read available frequencies for {}'.format(core))
+        min_frequency = min(cluster_frequencies)
 
         idle_states = self.get_device_idle_states(cluster)
         new_specs = []
@@ -728,8 +729,10 @@ class EnergyModelInstrument(Instrument):
                 spec.workload_parameters = self.idle_workload_params
                 spec.idle_state_id = state.id
                 spec.idle_state_desc = state.desc
+                spec.idle_state_index = state.index
                 if not self.no_hotplug:
                     spec.runtime_parameters['{}_cores'.format(core)] = num_cpus
+                spec.runtime_parameters['{}_frequency'.format(core)] = min_frequency
                 spec.cluster = cluster
                 spec.num_cpus = num_cpus
                 spec.id = '{}_idle_{}_{}'.format(cluster, state.id, num_cpus)
