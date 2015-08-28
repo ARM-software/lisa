@@ -239,7 +239,7 @@ class TraceCmdInstrument(Instrument):
             # To get the output of trace.dat, trace-cmd must be installed
             # This is done host-side because the generated file is very large
             if not os.path.isfile(local_trace_file):
-                self.logger.warning('Not generating trace.txt, as trace.bin does not exist.')
+                self.logger.warning('Not generating trace.txt, as {} does not exist.'.format(OUTPUT_TRACE_FILE))
             try:
                 command = 'trace-cmd report {} > {}'.format(local_trace_file, local_txt_trace_file)
                 self.logger.debug(command)
