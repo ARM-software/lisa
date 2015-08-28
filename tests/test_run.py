@@ -18,6 +18,7 @@ import matplotlib
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -274,6 +275,24 @@ class TestRunRawDat(utils_tests.SetupDirectory):
         self.assertTrue(os.path.isfile("my_trace.raw.txt"))
         self.assertTrue(hasattr(run, "sched_switch"))
         self.assertTrue(len(run.sched_switch.data_frame) > 0)
+
+    def test_raw_created_if_dat_and_txt_exist(self):
+        """trace.raw.txt is created when both trace.dat and trace.txt exist"""
+
+        # Create the trace.txt
+        cmd = ["trace-cmd", "report", "trace.dat"]
+        with open(os.devnull) as devnull:
+            out = subprocess.check_output(cmd, stderr=devnull)
+
+        with open("trace.txt", "w") as fout:
+            fout.write(out)
+
+        # Now check that the raw trace is created and analyzed when creating the run
+        run = trappy.Run()
+
+        self.assertTrue(hasattr(run, "sched_switch"))
+        self.assertTrue(len(run.sched_switch.data_frame) > 0)
+        self.assertTrue("prev_comm" in run.sched_switch.data_frame.columns)
 
 class TestRunRawBothTxt(utils_tests.SetupDirectory):
 
