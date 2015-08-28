@@ -13,8 +13,7 @@
 # limitations under the License.
 #
 
-"""Initialization for bart"""
+"""Initialization for bart.thermal"""
 
-import bart.sched
-import bart.common
-import bart.thermal
+
+import bart.thermal.ThermalAssert
