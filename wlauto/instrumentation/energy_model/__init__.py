@@ -475,7 +475,7 @@ class EnergyModelInstrument(Instrument):
         if not context.spec.label.startswith('idle_'):
             return
         for idle_state in self.get_device_idle_states(self.measured_cluster):
-            if idle_state.id > context.spec.idle_state_index:
+            if idle_state.index > context.spec.idle_state_index:
                 idle_state.disable = 1
             else:
                 idle_state.disable = 0
