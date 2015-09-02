@@ -56,11 +56,15 @@ def copyright_is_valid(fname):
 class TestCopyRight(unittest.TestCase):
     def test_copyrights(self):
         """Check that all files have valid copyrights"""
-        files_in_repo = subprocess.check_output(["git", "ls-files"])
 
-        for fname in files_in_repo.split():
-            extension = os.path.splitext(fname)[1]
-            if extension in [".py", ".js", ".css"]:
-                if not copyright_is_valid(fname):
-                    print("Invalid copyright in {}".format(fname))
-                    self.fail()
+        tests_dir = os.path.dirname(os.path.abspath(__file__))
+        base_dir = os.path.dirname(tests_dir)
+
+        for root, _, files in os.walk(base_dir):
+            for fname in files:
+                fname = os.path.join(root, fname)
+                extension = os.path.splitext(fname)[1]
+                if extension in [".py", ".js", ".css"]:
+                    if not copyright_is_valid(fname):
+                        print("Invalid copyright in {}".format(fname))
+                        self.fail()
