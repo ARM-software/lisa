@@ -290,7 +290,7 @@ def fit_polynomial(s, n):
     return poly(s.index)
 
 
-def get_cpus_power_table(data, index, opps):  # pylint: disable=too-many-locals
+def get_cpus_power_table(data, index, opps, leak_factors):  # pylint: disable=too-many-locals
     # pylint: disable=no-member
     power_table = data[[index, 'cluster', 'cpus', 'power']].pivot_table(index=index,
                                                                         columns=['cluster', 'cpus'],
@@ -307,32 +307,10 @@ def get_cpus_power_table(data, index, opps):  # pylint: disable=too-many-locals
             bs_power_table.loc[bs_power_table[cluster, 1].notnull(), (cluster, 0)] = \
                 (2 * power_table[cluster, 1] - power_table[cluster, 2]).values
         else:
-            df = pd.concat([bs_power_table[cluster],
-                            opps[cluster].set_index('frequency')],
-                           axis=1).dropna(subset=[1]).reset_index()
-
-            # Create a projection by calculating coefficients from the lowest two OPPs (assume minimal leakage)
-            v0 = df.voltage[0]
-            v1 = df.voltage[1]
-            f0 = df.frequency[0]
-            f1 = df.frequency[1]
-
-            # Assumption:
-            #  P = k1*v*f + k2*v^2*f
-            coeffs = np.array([
-                [v0 * f0, (v0**2) * f0],
-                [v1 * f1, (v1**2) * f1]
-            ])
-            c1pow = np.array([df[1][0], df[1][1]])
-            c2pow = np.array([df[2][0], df[2][1]])
-            c1k1, c1k2 = np.linalg.solve(coeffs, c1pow)
-            c2k1, c2k2 = np.linalg.solve(coeffs, c2pow)
-
-            df['a1'] = pd.Series(df.frequency * df.voltage * c1k1 + df.frequency * df.voltage ** 2 * c1k2,
-                                 index=df.index)
-            df['a2'] = pd.Series(df.frequency * df.voltage * c2k1 + df.frequency * df.voltage ** 2 * c2k2,
-                                 index=df.index)
-            bs_power_table.loc[bs_power_table[cluster, 1].notnull(), (cluster, 0)] = (2 * df.a1 - df.a2).values
+            leakage = leak_factors[cluster] * 2 * (opps['voltage'] / 1000000)**3 / 0.9**3
+            leakage_delta = leakage - leakage[0]
+            bs_power_table.loc[bs_power_table[cluster, 1].notnull(), (cluster, 0)] = \
+                (2 * power_table[cluster, 1] + leakage_delta - power_table[cluster, 2]).values
 
     # re-order columns and rename colum '0' to  'cluster'
     power_table = power_table[sorted(power_table.columns,
@@ -431,6 +409,14 @@ class EnergyModelInstrument(Instrument):
                   description="""OPP table mapping frequency to volatage (kHz --> mV) for the big cluster."""),
         Parameter('little_opps', kind=opp_table,
                   description="""OPP table mapping frequency to volatage (kHz --> mV) for the little cluster."""),
+        Parameter('big_leakage', kind=int, default=120,
+                  description="""
+                  Leakage factor for the big cluster (this is specific to a particular core implementation).
+                  """),
+        Parameter('little_leakage', kind=int, default=60,
+                  description="""
+                  Leakage factor for the little cluster (this is specific to a particular core implementation).
+                  """),
     ]
 
     def validate(self):
@@ -575,7 +561,8 @@ class EnergyModelInstrument(Instrument):
             message = 'OPPs not specified for one or both clusters; cluster power will not be adjusted for leakage.'
             self.logger.warning(message)
         opps = {'big': self.big_opps, 'little': self.little_opps}
-        measured_cpus_table, cpus_table = get_cpus_power_table(freq_power_table, 'frequency', opps)
+        leakages = {'big': self.big_leakage, 'little': self.little_leakage}
+        measured_cpus_table, cpus_table = get_cpus_power_table(freq_power_table, 'frequency', opps, leakages)
         measured_cpus_output = os.path.join(output_directory, MEASURED_CPUS_TABLE_FILE)
         with open(measured_cpus_output, 'w') as wfh:
             measured_cpus_table.to_csv(wfh)
