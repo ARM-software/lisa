@@ -34,7 +34,7 @@ NBFORMAT_VERSION = 3
 
 
 if IPython:
-    if StrictVersion(IPython.__version__) >= StrictVersion('3.0.0'):
+    if StrictVersion('4.0.0') > StrictVersion(IPython.__version__) >= StrictVersion('3.0.0'):
         import IPython.kernel
         import IPython.nbformat
 
@@ -48,7 +48,7 @@ if IPython:
 
         IPYTHON_NBCONVERT_HTML = ['ipython', 'nbconvert', '--to=html']
         IPYTHON_NBCONVERT_PDF = ['ipython', 'nbconvert', '--to=pdf']
-    elif StrictVersion(IPython.__version__) >= StrictVersion('2.0.0'):
+    elif StrictVersion('3.0.0') > StrictVersion(IPython.__version__) >= StrictVersion('2.0.0'):
         import IPython.kernel
         import IPython.nbformat.v3
 
