@@ -30,7 +30,7 @@ import com.android.uiautomator.testrunner.UiAutomatorTestCase;
 
 import com.arm.wlauto.uiauto.BaseUiAutomation;
 
-public class UiAutomation extends BaseUiAutomation {   
+public class UiAutomation extends BaseUiAutomation {
 
     public static String TAG = "andebench";
 
@@ -41,10 +41,11 @@ public class UiAutomation extends BaseUiAutomation {
         Bundle status = new Bundle();
         Bundle params = getParams();
         String numThreads = params.getString("number_of_threads");
+        Boolean nativeOnly = Boolean.parseBoolean(params.getString("native_only"));
         status.putString("product", getUiDevice().getProductName());
 
         waitForStartButton();
-        setNumberOfThreads(numThreads);
+        setConfiguration(numThreads, nativeOnly);
         hitStart();
         waitForAndExtractResuts();
 
@@ -60,27 +61,33 @@ public class UiAutomation extends BaseUiAutomation {
         }
     }
 
-    public void setNumberOfThreads(String numThreads) throws Exception {
+    public void setConfiguration(String numThreads, boolean nativeOnly) throws Exception {
         UiSelector selector = new UiSelector();
         getUiDevice().pressMenu();
 
         UiObject settingsButton = new UiObject(selector.clickable(true));
         settingsButton.click();
+
+        if (nativeOnly) {
+            UiObject nativeButton = new UiObject(selector.textContains("Native"));
+            nativeButton.click();
+        }
+
         UiObject threadNumberField = new UiObject(selector.className("android.widget.EditText"));
-        threadNumberField.clearTextField(); 
+        threadNumberField.clearTextField();
         threadNumberField.setText(numThreads);
 
-        getUiDevice().pressBack();      
+        getUiDevice().pressBack();
         sleep(shortDelaySeconds);
         // If the device does not have a physical keyboard, a virtual one might have
         // poped up when setting the number of threads. If that happend, then the above
         // backpress would dismiss the vkb and another one will be necessary to return
         // from the settings screen.
         if(threadNumberField.exists())
-        { 
+        {
             getUiDevice().pressBack();
             sleep(shortDelaySeconds);
-        }  
+        }
     }
 
     public void hitStart() throws Exception {

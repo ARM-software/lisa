@@ -50,6 +50,10 @@ class Andebench(AndroidUiAutoBenchmark):
                   If ``true``, AndEBench will run with a single thread. Note: this must
                   not be specified if ``number_of_threads`` has been specified.
                   """),
+        Parameter('native_only', kind=bool,
+                  description="""
+                  If ``true``, AndEBench will execute only the native portion of the benchmark.
+                  """),
     ]
 
     aliases = [
@@ -71,6 +75,9 @@ class Andebench(AndroidUiAutoBenchmark):
                 self.number_of_threads = self.device.number_of_cores  # pylint: disable=W0201
         self.logger.debug('Using {} threads'.format(self.number_of_threads))
         self.uiauto_params['number_of_threads'] = self.number_of_threads
+        self.uiauto_params['native_only'] = False
+        if self.native_only:
+            self.uiauto_params['native_only'] = True
         # Called after this setup as modifying uiauto_params
         super(Andebench, self).setup(context)
 
