@@ -38,10 +38,10 @@ class GetterPriority(object):
     """
     cached = 20
     preferred = 10
+    remote = 5
     environment = 0
     external_package = -5
     package = -10
-    remote = -20
 
 
 class Resource(object):

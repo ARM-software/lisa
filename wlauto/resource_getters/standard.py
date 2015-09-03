@@ -23,11 +23,19 @@ import sys
 import glob
 import shutil
 import inspect
+import httplib
+import logging
+import json
+
+import requests
 
 from wlauto import ResourceGetter, GetterPriority, Parameter, NO_ONE, settings, __file__ as __base_filepath
 from wlauto.exceptions import ResourceError
-from wlauto.utils.misc import ensure_directory_exists as _d
+from wlauto.utils.misc import ensure_directory_exists as _d, ensure_file_directory_exists as _f, sha256, urljoin
 from wlauto.utils.types import boolean
+
+
+logging.getLogger("requests").setLevel(logging.WARNING)
 
 
 class PackageFileGetter(ResourceGetter):
@@ -100,7 +108,7 @@ class PackageReventGetter(ReventGetter):
     name = 'package_revent'
 
     def get_base_location(self, resource):
-        return _get_owner_path(resource)
+        return get_owner_path(resource)
 
 
 class EnvironmentApkGetter(EnvironmentFileGetter):
@@ -140,7 +148,7 @@ class PackageExecutableGetter(ExecutableGetter):
     priority = GetterPriority.package
 
     def get(self, resource, **kwargs):
-        path = os.path.join(_get_owner_path(resource), 'bin', resource.platform, resource.filename)
+        path = os.path.join(get_owner_path(resource), 'bin', resource.platform, resource.filename)
         if os.path.isfile(path):
             return path
 
@@ -255,6 +263,133 @@ class ExtensionAssetGetter(DependencyFileGetter):
     relative_path = 'workload_automation/assets'
 
 
+class HttpGetter(ResourceGetter):
+
+    name = 'http_assets'
+    description = """
+    Downloads resources from a server based on an index fetched from the specified URL.
+
+    Given a URL, this will try to fetch ``<URL>/index.json``. The index file maps extension
+    names to a list of corresponing asset descriptons. Each asset description continas a path
+    (relative to the base URL) of the resource and a SHA256 hash, so that this Getter can
+    verify whether the resource on the remote has changed.
+
+    For example, let's assume we want to get the APK file for workload "foo", and that
+    assets are hosted at ``http://example.com/assets``. This Getter will first try to
+    donwload ``http://example.com/assests/index.json``. The index file may contian
+    something like ::
+
+        {
+            "foo": [
+                {
+                    "path": "foo-app.apk",
+                    "sha256": "b14530bb47e04ed655ac5e80e69beaa61c2020450e18638f54384332dffebe86"
+                },
+                {
+                    "path": "subdir/some-other-asset.file",
+                    "sha256": "48d9050e9802246d820625717b72f1c2ba431904b8484ca39befd68d1dbedfff"
+                }
+            ]
+        }
+
+    This Getter will look through the list of assets for "foo" (in this case, two) check
+    the paths until it finds one matching the resource (in this case, "foo-app.apk").
+    Finally, it will try to dowload that file relative to the base URL and extension name
+    (in this case, "http://example.com/assets/foo/foo-app.apk"). The downloaded version
+    will be cached locally, so that in the future, the getter will check the SHA256 hash
+    of the local file against the one advertised inside index.json, and provided that hasn't
+    changed, it won't try to download the file again.
+
+    """
+    priority = GetterPriority.remote
+    resource_type = ['apk', 'file', 'jar', 'revent']
+
+    parameters = [
+        Parameter('url', global_alias='remote_assets_url',
+                  description="""URL of the index file for assets on an HTTP server."""),
+        Parameter('username',
+                  description="""User name for authenticating with assets URL"""),
+        Parameter('password',
+                  description="""Password for authenticationg with assets URL"""),
+        Parameter('always_fetch', kind=boolean, default=False, global_alias='always_fetch_remote_assets',
+                  description="""If ``True``, will always attempt to fetch assets from the remote, even if
+                                 a local cached copy is available."""),
+        Parameter('chunk_size', kind=int, default=1024,
+                  description="""Chunk size for streaming large assets."""),
+    ]
+
+    def __init__(self, resolver, **kwargs):
+        super(HttpGetter, self).__init__(resolver, **kwargs)
+        self.index = None
+
+    def get(self, resource, **kwargs):
+        if not resource.owner:
+            return  # TODO: add support for unowned resources
+        if not self.index:
+            self.index = self.fetch_index()
+        asset = self.resolve_resource(resource)
+        if not asset:
+            return
+        return self.download_asset(asset, resource.owner.name)
+
+    def fetch_index(self):
+        index_url = urljoin(self.url, 'index.json')
+        response = self.geturl(index_url)
+        if response.status_code != httplib.OK:
+            message = 'Could not fetch "{}"; recieved "{} {}"'
+            self.logger.error(message.format(index_url, response.status_code, response.reason))
+            return {}
+        return json.loads(response.content)
+
+    def download_asset(self, asset, owner_name):
+        url = urljoin(self.url, owner_name, asset['path'])
+        local_path = _f(os.path.join(settings.dependencies_directory, '__remote',
+                                     owner_name, asset['path'].replace('/', os.sep)))
+        if os.path.isfile(local_path) and not self.always_fetch:
+            local_sha = sha256(local_path)
+            if local_sha == asset['sha256']:
+                self.logger.debug('Local SHA256 matches; not re-downloading')
+                return local_path
+        self.logger.debug('Downloading {}'.format(url))
+        response = self.geturl(url, stream=True)
+        if response.status_code != httplib.OK:
+            message = 'Could not download asset "{}"; recieved "{} {}"'
+            self.logger.warning(message.format(url, response.status_code, response.reason))
+            return
+        with open(local_path, 'wb') as wfh:
+            for chunk in response.iter_content(chunk_size=self.chunk_size):
+                wfh.write(chunk)
+        return local_path
+
+    def geturl(self, url, stream=False):
+        if self.username:
+            auth = (self.username, self.password)
+        else:
+            auth = None
+        return requests.get(url, auth=auth, stream=stream)
+
+    def resolve_resource(self, resource):
+        assets = self.index.get(resource.owner.name, {})
+        if resource.name in ['apk', 'jar']:
+            paths = [a['path'] for a in assets]
+            version = getattr(resource, 'version', None)
+            found = get_from_list_by_extension(resource, paths, resource.name, version)
+            if found:
+                for a in assets:
+                    if a['path'] == found:
+                        return a
+        if resource.name == 'revent':
+            filename = '.'.join([resource.owner.device.name, resource.stage, 'revent']).lower()
+            for asset in assets:
+                pathname = os.path.basename(asset['path']).lower()
+                if pathname == filename:
+                    return asset
+        else:  # file
+            for asset in assets:
+                if asset['path'].lower() == resource.path.lower():
+                    return asset
+
+
 class RemoteFilerGetter(ResourceGetter):
 
     name = 'filer_assets'
@@ -279,13 +414,13 @@ class RemoteFilerGetter(ResourceGetter):
         version = kwargs.get('version')
         if resource.owner:
             remote_path = os.path.join(self.remote_path, resource.owner.name)
-            local_path = os.path.join(settings.environment_root, resource.owner.dependencies_directory)
+            local_path = os.path.join(settings.environment_root, '__filer', resource.owner.dependencies_directory)
             return self.try_get_resource(resource, version, remote_path, local_path)
         else:
             result = None
             for entry in os.listdir(remote_path):
                 remote_path = os.path.join(self.remote_path, entry)
-                local_path = os.path.join(settings.environment_root, settings.dependencies_directory, entry)
+                local_path = os.path.join(settings.environment_root, '__filer', settings.dependencies_directory, entry)
                 result = self.try_get_resource(resource, version, remote_path, local_path)
                 if result:
                     break
@@ -338,19 +473,28 @@ class RemoteFilerGetter(ResourceGetter):
 
 def get_from_location_by_extension(resource, location, extension, version=None):
     found_files = glob.glob(os.path.join(location, '*.{}'.format(extension)))
-    if version:
-        found_files = [ff for ff in found_files if version.lower() in os.path.basename(ff).lower()]
-    if len(found_files) == 1:
-        return found_files[0]
-    elif not found_files:
-        return None
-    else:
+    try:
+        return get_from_list_by_extension(resource, found_files, extension, version)
+    except ResourceError:
         raise ResourceError('More than one .{} found in {} for {}.'.format(extension,
                                                                            location,
                                                                            resource.owner.name))
 
 
-def _get_owner_path(resource):
+def get_from_list_by_extension(resource, filelist, extension, version=None):
+    if version:
+        filelist = [ff for ff in filelist if version.lower() in os.path.basename(ff).lower()]
+    if len(filelist) == 1:
+        return filelist[0]
+    elif not filelist:
+        return None
+    else:
+        raise ResourceError('More than one .{} found in {} for {}.'.format(extension,
+                                                                           filelist,
+                                                                           resource.owner.name))
+
+
+def get_owner_path(resource):
     if resource.owner is NO_ONE:
         return os.path.join(os.path.dirname(__base_filepath), 'common')
     else:

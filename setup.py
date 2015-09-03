@@ -76,6 +76,7 @@ params = dict(
         'pyserial',  # Serial port interface
         'colorama',  # Printing with colors
         'pyYAML',  # YAML-formatted agenda parsing
+        'requests', # Fetch assets over HTTP
     ],
     extras_require={
         'other': ['jinja2', 'pandas>=0.13.1'],

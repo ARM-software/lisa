@@ -32,6 +32,7 @@ import pkgutil
 import traceback
 import logging
 import random
+import hashlib
 from datetime import datetime, timedelta
 from operator import mul, itemgetter
 from StringIO import StringIO
@@ -799,3 +800,18 @@ def mask_to_list(mask):
     size = len(bin(mask)) - 2  # because of "0b"
     return [size - i - 1 for i in xrange(size)
             if mask & (1 << size - i - 1)]
+
+
+def sha256(path, chunk=2048):
+    """Calculates SHA256 hexdigest of the file at the specified path."""
+    h = hashlib.sha256()
+    with open(path, 'rb') as fh:
+        buf = fh.read(chunk)
+        while buf:
+            h.update(buf)
+            buf = fh.read(chunk)
+    return h.hexdigest()
+
+
+def urljoin(*parts):
+    return '/'.join(p.rstrip('/') for p in parts)
