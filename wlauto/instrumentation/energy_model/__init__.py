@@ -307,7 +307,7 @@ def get_cpus_power_table(data, index, opps, leak_factors):  # pylint: disable=to
             bs_power_table.loc[bs_power_table[cluster, 1].notnull(), (cluster, 0)] = \
                 (2 * power_table[cluster, 1] - power_table[cluster, 2]).values
         else:
-            leakage = leak_factors[cluster] * 2 * (opps['voltage'] / 1000000)**3 / 0.9**3
+            leakage = leak_factors[cluster] * 2 * (opps[cluster]['voltage'] / 1000000)**3 / 0.9**3
             leakage_delta = leakage - leakage[0]
             bs_power_table.loc[bs_power_table[cluster, 1].notnull(), (cluster, 0)] = \
                 (2 * power_table[cluster, 1] + leakage_delta - power_table[cluster, 2]).values
@@ -406,9 +406,9 @@ class EnergyModelInstrument(Instrument):
                   description="""The number of frequencies begining from the highest, to be adjusted for
                                  the thermal effect."""),
         Parameter('big_opps', kind=opp_table,
-                  description="""OPP table mapping frequency to volatage (kHz --> mV) for the big cluster."""),
+                  description="""OPP table mapping frequency to voltage (kHz --> mV) for the big cluster."""),
         Parameter('little_opps', kind=opp_table,
-                  description="""OPP table mapping frequency to volatage (kHz --> mV) for the little cluster."""),
+                  description="""OPP table mapping frequency to voltage (kHz --> mV) for the little cluster."""),
         Parameter('big_leakage', kind=int, default=120,
                   description="""
                   Leakage factor for the big cluster (this is specific to a particular core implementation).
