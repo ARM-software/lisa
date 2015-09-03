@@ -65,6 +65,9 @@ def change_resource_paths(txt):
     txt = txt.replace(
         IPythonConf.add_web_base("plotter_scripts/ILinePlot/ILinePlot"),
         "https://rawgit.com/sinkap/648927dfd6985d4540a9/raw/69d6f1f9031ae3624c15707315ce04be1a9d1ac3/ILinePlot")
+    txt = txt.replace(
+        IPythonConf.add_web_base("plotter_scripts/ILinePlot/underscore-min"),
+        "https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min")
 
     logging.info("Updated Library Paths...")
     return txt

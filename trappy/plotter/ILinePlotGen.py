@@ -53,13 +53,14 @@ class ILinePlotGen(object):
                     "dygraph-sync": '""" + IPythonConf.add_web_base("plotter_scripts/ILinePlot/synchronizer") + """',
                     "dygraph": '""" + IPythonConf.add_web_base("plotter_scripts/ILinePlot/dygraph-combined") + """',
                     "ILinePlot": '""" + IPythonConf.add_web_base("plotter_scripts/ILinePlot/ILinePlot") + """',
+                    "underscore": '""" + IPythonConf.add_web_base("plotter_scripts/ILinePlot/underscore-min") + """',
                 },
 
                 shim: {
                     "dygraph-sync": ["dygraph"],
                     "ILinePlot": {
 
-                        "deps": ["dygraph-sync", "dygraph" ],
+                        "deps": ["dygraph-sync", "dygraph", "underscore"],
                         "exports":  "ILinePlot"
                     }
                 }
