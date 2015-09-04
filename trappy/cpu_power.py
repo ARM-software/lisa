@@ -22,43 +22,51 @@ from trappy.base import Base
 from trappy.run import Run
 
 def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
-    """Pivot a DataFrame row into columns
+    """Pivot a :mod:`pandas.DataFrame` row into columns
 
-    dfr is the DataFrame to operate on.  data_col_name is the name of
-    the column in the DataFrame which contains the values.
-    new_col_name is the name of the column in the DataFrame that will
-    became the new columns.  mapping_label is a dictionary whose keys
-    are the values in new_col_name and whose values are their
-    corresponding name in the DataFrame to be returned.
+    :param dfr: The :mod:`pandas.DataFrame` to operate on.
 
-    There has to be a more "pandas" way of doing this.
+    :param data_col_name: The name of the column in the :mod:`pandas.DataFrame`
+        which contains the values.
+
+    :param new_col_name: The name of the column in the :mod:`pandas.DataFrame` that will
+        become the new columns.
+
+    :param mapping_label: A dictionary whose keys are the values in
+        new_col_name and whose values are their
+        corresponding name in the :mod:`pandas.DataFrame` to be returned.
+
+    :type dfr: :mod:`pandas.DataFrame`
+    :type data_col_name: str
+    :type new_col_name: str
+    :type mapping_label: dict
 
     Example:
 
-    In [8]: dfr_in = pd.DataFrame({'cpus': ["000000f0", "0000000f", "000000f0", "0000000f"], 'freq': [1, 3, 2, 6]})
+        >>> dfr_in = pd.DataFrame({'cpus': ["000000f0",
+        >>>                                 "0000000f",
+        >>>                                 "000000f0",
+        >>>                                 "0000000f"
+        >>>                                 ],
+        >>>                        'freq': [1, 3, 2, 6]})
+        >>> dfr_in
+               cpus  freq
+        0  000000f0     1
+        1  0000000f     3
+        2  000000f0     2
+        3  0000000f     6
 
-    In [9]: dfr_in
-    Out[9]:
-           cpus  freq
-    0  000000f0     1
-    1  0000000f     3
-    2  000000f0     2
-    3  0000000f     6
+        >>> map_label = {"000000f0": "A15", "0000000f": "A7"}
+        >>> power.pivot_with_labels(dfr_in, "freq", "cpus", map_label)
+           A15  A7
+        0    1 NaN
+        1    1   3
+        2    2   3
+        3    2   6
 
-    [4 rows x 2 columns]
-
-    In [10]: map_label = {"000000f0": "A15", "0000000f": "A7"}
-
-    In [11]: power.pivot_with_labels(dfr_in, "freq", "cpus", map_label)
-    Out[11]:
-       A15  A7
-    0    1 NaN
-    1    1   3
-    2    2   3
-    3    2   6
-
-    [4 rows x 2 columns]
     """
+
+    # There has to be a more "pandas" way of doing this.
 
     col_set = set(dfr[new_col_name])
 
@@ -89,8 +97,14 @@ class CpuOutPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump"""
 
     unique_word = "thermal_power_cpu_limit"
+    """The unique word that will be matched in a trace line"""
+
     name = "cpu_out_power"
+    """The name of the :mod:`pandas.DataFrame` member that will be created in a
+    :mod:`trappy.run.Run` object"""
+
     pivot = "cpus"
+    """The Pivot along which the data is orthogonal"""
 
     def __init__(self):
         super(CpuOutPower, self).__init__(
@@ -98,10 +112,13 @@ class CpuOutPower(Base):
         )
 
     def get_all_freqs(self, mapping_label):
-        """get a DataFrame with the maximum frequencies allowed by the governor
+        """Get a :mod:`pandas.DataFrame` with the maximum frequencies allowed by the governor
 
-        mapping_label must be a dictionary that maps cpumasks to name
-        of the cpu.  Returned freqs are in MHz
+        :param mapping_label: A dictionary that maps cpumasks to name
+            of the cpu.
+        :type mapping_label: dict
+
+        :return: freqs are in MHz
         """
 
         dfr = self.data_frame
@@ -111,11 +128,18 @@ class CpuOutPower(Base):
 Run.register_class(CpuOutPower, "thermal")
 
 class CpuInPower(Base):
-    """Process the cpufreq cooling power actor data in a ftrace dump"""
+    """Process the cpufreq cooling power actor data in a ftrace dump
+    """
 
     unique_word = "thermal_power_cpu_get"
+    """The unique word that will be matched in a trace line"""
+
     name = "cpu_in_power"
+    """The name of the :mod:`pandas.DataFrame` member that will be created in a
+    :mod:`trappy.run.Run` object"""
+
     pivot = "cpus"
+    """The Pivot along which the data is orthogonal"""
 
     def __init__(self):
         super(CpuInPower, self).__init__(
@@ -123,7 +147,7 @@ class CpuInPower(Base):
         )
 
     def _get_load_series(self):
-        """get a pandas.Series with the aggregated load"""
+        """get a :mod:`pandas.Series` with the aggregated load"""
 
         dfr = self.data_frame
         load_cols = [s for s in dfr.columns if s.startswith("load")]
@@ -135,9 +159,11 @@ class CpuInPower(Base):
         return load_series
 
     def get_load_data(self, mapping_label):
-        """return a dataframe suitable for plot_load()
+        """Return :mod:`pandas.DataFrame` suitable for plot_load()
 
-        mapping_label is a dictionary mapping cluster cpumasks to labels."""
+        :param mapping_label: A Dictionary mapping cluster cpumasks to labels
+        :type mapping_label: dict
+        """
 
         dfr = self.data_frame
         load_series = self._get_load_series()
@@ -146,11 +172,11 @@ class CpuInPower(Base):
         return pivot_with_labels(load_dfr, "load", "cpus", mapping_label)
 
     def get_normalized_load_data(self, mapping_label):
-        """return a dataframe for plotting normalized load data
+        """Return a :mod:`pandas.DataFrame` for plotting normalized load data
 
-        mapping_label should be a dictionary mapping cluster cpumasks
-        to labels
-
+        :param mapping_label: should be a dictionary mapping cluster cpumasks
+            to labels
+        :type mapping_label: dict
         """
 
         dfr = self.data_frame
@@ -168,9 +194,11 @@ class CpuInPower(Base):
         return pivot_with_labels(load_dfr, "load", "cpus", mapping_label)
 
     def get_all_freqs(self, mapping_label):
-        """get a DataFrame with the "in" frequencies as seen by the governor
+        """get a :mod:`pandas.DataFrame` with the "in" frequencies as seen by the governor
 
-        Frequencies are in MHz
+        .. note::
+
+            Frequencies are in MHz
         """
 
         dfr = self.data_frame
