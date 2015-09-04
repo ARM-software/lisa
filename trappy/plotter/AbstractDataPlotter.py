@@ -23,11 +23,10 @@ from functools import reduce
 
 
 class AbstractDataPlotter(object):
+    """This is an abstract data plotting Class defining an interface
+       for the various Plotting Classes"""
 
     __metaclass__ = ABCMeta
-
-    """This is an Abstract Data Plotting Class defining an interface
-       for the various Plotting Classes"""
 
     @abstractmethod
     def view(self):
@@ -36,7 +35,11 @@ class AbstractDataPlotter(object):
 
     @abstractmethod
     def savefig(self, path):
-        """Save the image as a file"""
+        """Save the image as a file
+
+        :param path: Location of the Saved File
+        :type path: str
+        """
         raise NotImplementedError("Method Not Implemented")
 
     def _check_data(self):
