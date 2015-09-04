@@ -19,6 +19,8 @@ from __future__ import division
 import os
 import sys
 import csv
+import shutil
+import tempfile
 from collections import OrderedDict
 from multiprocessing import Process, Queue
 
@@ -130,7 +132,20 @@ class Daq(Instrument):
                   global_alias='daq_labels',
                   description='List of port labels. If specified, the lenght of the list must match '
                               'the length of ``resistor_values``. Defaults to "PORT_<pnum>", where '
-                              '"pnum" is the number of the port.')
+                              '"pnum" is the number of the port.'),
+        Parameter('negative_samples', default='keep', allowed_values=['keep', 'zero', 'drop', 'abs'],
+                  global_alias='daq_negative_samples',
+                  description="""
+                  Specifies how negative power samples should be handled. The following
+                  methods are possible:
+
+                    :keep: keep them as they are
+                    :zero: turn negative values to zero
+                    :drop: drop samples if they contain negative values. *warning:* this may result in
+                           port files containing different numbers of samples
+                    :abs: take the absoulte value of negave samples
+
+                  """),
     ]
 
     def initialize(self, context):
@@ -165,11 +180,29 @@ class Daq(Instrument):
             key = (context.spec.id, context.workload.name, context.current_iteration)
             if key not in self._results:
                 self._results[key] = {}
+
+            temp_file = os.path.join(tempfile.gettempdir(), entry)
+            writer, wfh = None, None
+
             with open(path) as fh:
+                if self.negative_samples != 'keep':
+                    wfh = open(temp_file, 'wb')
+                    writer = csv.writer(wfh)
+
                 reader = csv.reader(fh)
                 metrics = reader.next()
+                if writer:
+                    writer.writerow(metrics)
                 self._metrics |= set(metrics)
-                data = [map(float, d) for d in zip(*list(reader))]
+
+                rows = _get_rows(reader, writer, self.negative_samples)
+                #data = [map(float, d) for d in zip(*rows)]
+                data = zip(*rows)
+
+                if writer:
+                    wfh.close()
+                    shutil.move(temp_file, os.path.join(output_directory, entry))
+
                 n = len(data[0])
                 means = [s / n for s in map(sum, data)]
                 for metric, value in zip(metrics, means):
@@ -243,3 +276,25 @@ class Daq(Instrument):
 def _send_daq_command(q, *args, **kwargs):
     result = daq.execute_command(*args, **kwargs)
     q.put(result)
+
+
+def _get_rows(reader, writer, negative_samples):
+    rows = []
+    for row in reader:
+        row = map(float, row)
+        if negative_samples == 'keep':
+            rows.append(row)
+        elif negative_samples == 'zero':
+            def nonneg(v):
+                return v if v >= 0 else 0
+            rows.append([nonneg(v) for v in row])
+        elif negative_samples == 'drop':
+            if all(v >= 0 for v in row):
+                rows.append(row)
+        elif negative_samples == 'abs':
+            rows.append([abs(v) for v in row])
+        else:
+            raise AssertionError(negative_samples)  # should never get here
+        if writer:
+            writer.writerow(row)
+    return rows
