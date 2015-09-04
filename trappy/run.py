@@ -42,27 +42,38 @@ def _plot_freq_hists(allfreqs, what, axis, title):
 class Run(object):
     """A wrapper class that initializes all the classes of a given run
 
-The run class can receive the following optional parameters.
+    - The run class can receive the following optional parameters.
 
-path contains the path to the trace file.  If no path is given, it
-uses the current directory by default.  If path is a file, and ends in
-.dat, it's run through "trace-cmd report".  If it doesn't end in
-".dat", then it must be the output of a trace-cmd report run.  If path
-is a directory that contains a trace.txt, that is assumed to be the
-output of "trace-cmd report".  If path is a directory that doesn't
-have a trace.txt but has a trace.dat, it runs trace-cmd report on the
-trace.dat, saves it in trace.txt and then uses that.
+    :param path: Path contains the path to the trace file.  If no path is given, it
+        uses the current directory by default.  If path is a file, and ends in
+        .dat, it's run through "trace-cmd report".  If it doesn't end in
+        ".dat", then it must be the output of a trace-cmd report run.  If path
+        is a directory that contains a trace.txt, that is assumed to be the
+        output of "trace-cmd report".  If path is a directory that doesn't
+        have a trace.txt but has a trace.dat, it runs trace-cmd report on the
+        trace.dat, saves it in trace.txt and then uses that.
 
-name is a string describing the trace.
+    :param name: is a string describing the trace.
 
-normalize_time is used to make all traces start from time 0 (the
-default).  If normalize_time is False, the trace times are the same as
-in the trace file.
+    :param normalize_time: is used to make all traces start from time 0 (the
+        default).  If normalize_time is False, the trace times are the same as
+        in the trace file.
 
-scope can be used to limit the parsing done on the trace.  The default
-scope parses all the traces known to trappy.  If scope is thermal, only
-the thermal classes are parsed.  If scope is sched, only the sched
-classes are parsed.
+    :param scope: can be used to limit the parsing done on the trace.  The default
+        scope parses all the traces known to trappy.  If scope is thermal, only
+        the thermal classes are parsed.  If scope is sched, only the sched
+        classes are parsed.
+
+    :type path: str
+    :type name: str
+    :type normalize_time: bool
+    :type scope: str
+
+    This is a simple example:
+    ::
+
+        import trappy
+        trappy.Run("trace_dir")
 
     """
 
@@ -203,6 +214,15 @@ classes are parsed.
 
     @classmethod
     def register_class(cls, cobject, scope="all"):
+        """Register the class as an Event. This function
+        can be used to register a class which is associated
+        with an FTrace unique word.
+
+        .. seealso::
+
+            :mod:`trappy.dynamic.register_dynamic` :mod:`trappy.dynamic.register_class`
+
+        """
         # Add the class to the classes dictionary
         if scope == "all":
             cls.dynamic_classes[cobject.name] = cobject.__name__
@@ -212,9 +232,10 @@ classes are parsed.
 
     def get_filters(self, key=""):
         """Returns an array with the available filters.
-        If 'key' is specified, returns a subset of the available filters
-        that contain 'key' in their name (e.g., key="sched" returns
-        only the "sched" related filters)."""
+
+        :param key: If specified, returns a subset of the available filters
+            that contain 'key' in their name (e.g., :code:`key="sched"` returns
+            only the :code:`"sched"` related filters)."""
         filters = []
 
         for cls in self.class_definitions:
@@ -224,7 +245,12 @@ classes are parsed.
         return filters
 
     def normalize_time(self, basetime):
-        """Normalize the time of all the trace classes"""
+        """Normalize the time of all the trace classes
+
+        :param basetime: The offset which needs to be subtracted from
+            the time index
+        :type basetime: float
+        """
         for trace_class in self.trace_classes:
             trace_class.normalize_time(basetime)
 
@@ -329,6 +355,8 @@ classes are parsed.
         for trace_class in self.trace_classes:
             trace_class.create_dataframe()
             trace_class.finalize_object()
+
+    # TODO: Move thermal specific functionality
 
     def get_all_freqs_data(self, map_label):
         """get an array of tuple of names and DataFrames suitable for the
