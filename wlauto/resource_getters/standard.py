@@ -20,7 +20,6 @@ This module contains the standard set of resource getters used by Workload Autom
 """
 import os
 import sys
-import glob
 import shutil
 import inspect
 import httplib
@@ -36,6 +35,7 @@ from wlauto.utils.types import boolean
 
 
 logging.getLogger("requests").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
 class PackageFileGetter(ResourceGetter):
@@ -333,6 +333,8 @@ class HttpGetter(ResourceGetter):
         return self.download_asset(asset, resource.owner.name)
 
     def fetch_index(self):
+        if not self.url:
+            return {}
         index_url = urljoin(self.url, 'index.json')
         response = self.geturl(index_url)
         if response.status_code != httplib.OK:
@@ -370,6 +372,8 @@ class HttpGetter(ResourceGetter):
 
     def resolve_resource(self, resource):
         assets = self.index.get(resource.owner.name, {})
+        if not assets:
+            return {}
         if resource.name in ['apk', 'jar']:
             paths = [a['path'] for a in assets]
             version = getattr(resource, 'version', None)
@@ -378,7 +382,7 @@ class HttpGetter(ResourceGetter):
                 for a in assets:
                     if a['path'] == found:
                         return a
-        if resource.name == 'revent':
+        elif resource.name == 'revent':
             filename = '.'.join([resource.owner.device.name, resource.stage, 'revent']).lower()
             for asset in assets:
                 pathname = os.path.basename(asset['path']).lower()
@@ -472,7 +476,10 @@ class RemoteFilerGetter(ResourceGetter):
 # Utility functions
 
 def get_from_location_by_extension(resource, location, extension, version=None):
-    found_files = glob.glob(os.path.join(location, '*.{}'.format(extension)))
+    try:
+        found_files = [os.path.join(location, f) for f in os.listdir(location)]
+    except OSError:
+        return None
     try:
         return get_from_list_by_extension(resource, found_files, extension, version)
     except ResourceError:
@@ -482,6 +489,8 @@ def get_from_location_by_extension(resource, location, extension, version=None):
 
 
 def get_from_list_by_extension(resource, filelist, extension, version=None):
+    filelist = [ff for ff in filelist
+                if os.path.splitext(ff)[1].lower().endswith(extension)]
     if version:
         filelist = [ff for ff in filelist if version.lower() in os.path.basename(ff).lower()]
     if len(filelist) == 1:
