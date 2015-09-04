@@ -24,22 +24,37 @@ def compare_runs(actor_order, map_label, runs, **kwords):
     Plots include temperature, utilization, frequencies, PID
     controller and power.
 
-    actor_order must be an array showing the order in which the actors
-    where registered.  The array values are the labels that will be
-    used in the input and output power plots.  E.g. actor_order can be
-    ["GPU", "A15", "A7]
+    :param actor_order: An array showing the order in which the actors
+        were registered.  The array values are the labels that
+        will be used in the input and output power plots.
 
-    map_label has to be a dict that matches cpumasks (as found in the
-    trace) with their proper name.  This "proper name" will be used as
-    a label for the load and allfreqs plots.  It's recommended that
-    the names of the cpus matches those in actor_order.  map_label can
-    be {"0000000f": "A7", "000000f0": "A15"}
+        For Example:
+        ::
 
-    runs is an array of tuples consisting of a name and the path to
-    the directory where the trace.dat is.  For example:
-    [("experiment1", "wa_output/antutu_antutu_1"),
-     ("known good", "good/antutu_antutu_1")]
+            ["GPU", "A15", "A7"]
 
+    :param map_label: A dict that matches cpumasks (as found in the
+        trace) with their proper name.  This "proper name" will be used as
+        a label for the load and allfreqs plots.  It's recommended that
+        the names of the cpus matches those in actor_order.
+
+        For Example:
+        ::
+
+            {"0000000f": "A7", "000000f0": "A15"}
+
+    :param runs: An array of tuples consisting of a name and the path to
+        the directory where the trace.dat is.
+
+        For example:
+        ::
+
+            [("experiment1", "wa_output/antutu_antutu_1"),
+             ("known good", "good/antutu_antutu_1")]
+
+    :type actor_order: list
+    :type map_label: dict
+    :type runs: list
     """
 
     if not isinstance(actor_order, list):
@@ -70,7 +85,10 @@ def compare_runs(actor_order, map_label, runs, **kwords):
 def summary_plots(actor_order, map_label, **kwords):
     """A summary of plots for a given run
 
-    This is a wrapper around compare_runs().  Use that instead."""
+    .. warning::
+
+        This is a wrapper around compare_runs().  Use that instead.
+    """
 
     path = kwords.pop("path", ".")
     title = kwords.pop("title", "")
