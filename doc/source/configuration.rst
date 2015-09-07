@@ -116,7 +116,7 @@ Available Settings
    ``"ABORTED"`` 
    The user interupted the workload
 
-.. confval:: max_reties
+.. confval:: max_retries
 
    The maximum number of times failed jobs will be retried before giving up. If
    not set, this will default to ``3``. 
