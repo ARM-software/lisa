@@ -307,10 +307,11 @@ def get_cpus_power_table(data, index, opps, leak_factors):  # pylint: disable=to
             bs_power_table.loc[bs_power_table[cluster, 1].notnull(), (cluster, 0)] = \
                 (2 * power_table[cluster, 1] - power_table[cluster, 2]).values
         else:
-            leakage = leak_factors[cluster] * 2 * (opps[cluster]['voltage'] / 1000000)**3 / 0.9**3
-            leakage_delta = leakage - leakage[0]
-            bs_power_table.loc[bs_power_table[cluster, 1].notnull(), (cluster, 0)] = \
-                (2 * power_table[cluster, 1] + leakage_delta - power_table[cluster, 2]).values
+            voltages = opps[cluster].set_index('frequency').sort_index()
+            leakage = leak_factors[cluster] * 2 * voltages['voltage']**3 / 0.9**3
+            leakage_delta = leakage - leakage[leakage.index[0]]
+            bs_power_table.loc[:, (cluster, 0)] = \
+                (2 * bs_power_table[cluster, 1] + leakage_delta - bs_power_table[cluster, 2]).values
 
     # re-order columns and rename colum '0' to  'cluster'
     power_table = power_table[sorted(power_table.columns,
