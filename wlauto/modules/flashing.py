@@ -168,7 +168,7 @@ class VersatileExpressFlasher(Flasher):
             self.deploy_images(device, image_bundle, images)
 
         self.logger.debug('Resetting the device.')
-        device.hard_reset(target)
+        device.hard_reset()
 
         with open_serial_connection(port=device.port,
                                     baudrate=device.baudrate,
