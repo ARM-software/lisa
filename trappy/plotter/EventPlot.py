@@ -16,8 +16,8 @@
 """
 The EventPlot is used to represent Events with two characteristics:
 
-    * A name, which determines the colour on the plot
-    * A lane, which determines the lane in which the event occurred
+    - A name, which determines the colour on the plot
+    - A lane, which determines the lane in which the event occurred
 
 In the case of a cpu residency plot, the term lane can be equated to
 a CPU and the name attribute can be the PID of the task
@@ -41,9 +41,47 @@ IPythonConf.iplot_install("EventPlot")
 
 
 class EventPlot(AbstractDataPlotter):
+    """
+        Input Data should be of the format
+        ::
 
-    """EventPlot Class that extends
-       AbstractDataPlotter"""
+                { "<name1>" : [
+                                 [event_start, event_end, lane],
+                                  .
+                                  .
+                                 [event_start, event_end, lane],
+                              ],
+                 .
+                 .
+                 .
+
+                 "<nameN>" : [
+                                [event_start, event_end, lane],
+                                 .
+                                 .
+                                [event_start, event_end, lane],
+                             ],
+                }
+
+        :param data: Input Data
+        :type data: dict
+
+        :param keys: List of unique names in the data dictionary
+        :type keys: list
+
+        :param lane_prefix: A string prefix to be used to name each lane
+        :type lane_prefix: str
+
+        :param num_lanes: Total number of expected lanes
+        :type num_lanes: int
+
+        :param domain: Domain of the event data
+        :type domain: tuple
+
+        :param stride: Stride can be used if the trace is very large.
+            It results in sampled rendering
+        :type stride: bool
+    """
 
     def __init__(
             self,
@@ -54,33 +92,6 @@ class EventPlot(AbstractDataPlotter):
             domain,
             summary=True,
             stride=False):
-        """
-            Args:
-                data: Data of the format:
-                   { "<name1>" : [
-                                    [event_start, event_end, lane],
-                                    .
-                                    .
-                                    [event_start, event_end, lane],
-                                 ],
-                     .
-                     .
-                     .
-
-                     "<nameN>" : [
-                                    [event_start, event_end, lane],
-                                    .
-                                    .
-                                    [event_start, event_end, lane],
-                                 ],
-                    }
-                keys: List of unique names in the data dictionary
-                lane_prefix: A string prefix to be used to name each lane
-                num_lanes: Total number of expected lanes
-                domain: Domain of the event data
-                stride: Stride can be used if the trace is very large.
-                        It results in sampled rendering
-        """
 
         self._fig_name = self._generate_fig_name
         self._html = []
@@ -112,7 +123,10 @@ class EventPlot(AbstractDataPlotter):
         display(HTML(self.html()))
 
     def savefig(self, path):
-        """Save the plot in the provided path"""
+        """Save the plot in the provided path
+
+        .. warning:: Not Implemented for :mod:`trappy.plotter.EventPlot`
+        """
 
         raise NotImplementedError(
             "Save is not currently implemented for EventPlot")
