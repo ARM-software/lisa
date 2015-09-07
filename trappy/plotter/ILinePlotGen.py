@@ -13,9 +13,11 @@
 # limitations under the License.
 #
 
-"""This module is reponsible for creating a layout
-of plots as a 2D axes and handling corener cases
-and deleting empty plots
+"""This is helper module for :mod:`trappy.plotter.ILinePlot`
+for adding HTML and javascript necessary for interactive
+plotting. The Linear to 2-D co-ordination transformations
+are done by using the functionality in
+:mod:`trappy.plotter.PlotLayout`
 """
 
 from trappy.plotter import AttrConf
@@ -34,11 +36,20 @@ IPythonConf.iplot_install("ILinePlot")
 
 
 class ILinePlotGen(object):
+    """
+    :param cols: The number of columns to draw
+    :type cols: int
 
-    """Cols is the number of columns to draw
-       rows are calculated as 1D - 2D transformation
-       the same transformation is used to index the
-       axes array
+    :param num_plots: The total number of plots
+    :type num_plots: int
+
+    The linear co-ordinate system :math:`[0, N_{plots}]` is
+    mapped to a 2-D coordinate system with :math:`N_{rows}`
+    and :math:`N_{cols}` such that:
+
+    .. math::
+
+        N_{rows} = \\frac{N_{cols}}{N_{plots}}
     """
 
     def _add_graph_cell(self, fig_name):
@@ -140,11 +151,6 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         self._end_table()
 
     def __init__(self, cols, num_plots, **kwargs):
-        """
-            Args:
-                cols (int): Number of plots in a single line
-                num_plots (int): Total Number of Plots
-        """
 
         self._cols = cols
         self._attr = kwargs
@@ -182,7 +188,17 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         fig_params["pointSize"] = self._attr["point_size"]
 
     def add_plot(self, plot_num, data_frame, title=""):
-        """Add a plot to for a corresponding index"""
+        """Add a plot for the corresponding index
+
+        :param plot_num: The linear index of the plot
+        :type plot_num: int
+
+        :param data_frame: The data for the plot
+        :type data_frame: :mod:`pandas.DataFrame`
+
+        :param title: The title for the plot
+        :type title: str
+        """
 
         fig_name = self._fig_map[plot_num]
         fig_params = {}
