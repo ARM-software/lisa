@@ -15,29 +15,16 @@
 
 """This module provides the Constraint class for handling
 filters and pivots in a modular fashion. This enable easy
-constrain application
+constraint application.
 
-What is a Constraint?
-1. It is collection of data based on two rules:
-    a. A Pivot
-    b. A Set of Filters
+An implementation of :mod:`trappy.plotter.AbstractDataPlotter`
+is expected to use the :mod:`trappy.plotter.Constraint.ConstraintManager`
+class to pivot and filter data and handle multiple column,
+run and event inputs.
 
-For Example:
-    for a dataframe
-
-    Time    CPU       Latency
-    1       x           <val>
-    2       y           <val>
-    3       z           <val>
-    4       a           <val>
-
-The resultant data will be for each unique pivot value with the filters applied
-
-result["x"] = pd.Series.filtered()
-result["y"] = pd.Series.filtered()
-result["z"] = pd.Series.filtered()
-result["a"] = pd.Series.filtered()
-
+The underlying object that encapsulates a unique set of
+a data column, data event and the requisite filters is
+:mod:`trappy.plotter.Constraint.Constraint`
 """
 # pylint: disable=R0913
 from trappy.plotter.Utils import decolonize, listify, normalize_list
@@ -46,9 +33,52 @@ from trappy.plotter import AttrConf
 
 class Constraint(object):
 
-    """The constructor takes a filter and a pivot object,
-       The apply method takes a trappy Run object and a column
-       and applies the constraint on input object
+    """
+    What is a Constraint?
+        It is collection of data based on two rules:
+
+        - A Pivot
+
+        - A Set of Filters
+
+        - A Data Column
+
+    For Example a :mod:`pandas.DataFrame`
+
+    =====  ======== =========
+    Time    CPU       Latency
+    =====  ======== =========
+    1       x           <val>
+    2       y           <val>
+    3       z           <val>
+    4       a           <val>
+    =====  ======== =========
+
+    The resultant data will be split for each unique pivot value
+    with the filters applied
+    ::
+
+        result["x"] = pd.Series.filtered()
+        result["y"] = pd.Series.filtered()
+        result["z"] = pd.Series.filtered()
+        result["a"] = pd.Series.filtered()
+
+
+    :param trappy_run: Input Data
+    :type trappy_run: :mod:`pandas.DataFrame`, :mod:`trappy.run.Run`
+
+    :param column: The data column
+    :type column: str
+
+    :param template: TRAPpy Event
+    :type template: :mod:`trappy.base.Base` event
+
+    :param run_index: The index of the run/data in the overall constraint
+        data
+    :type run_index: int
+
+    :param filters: A dictionary of filter values
+    :type filters: dict
     """
 
     def __init__(
@@ -75,8 +105,7 @@ class Constraint(object):
 
     def _apply(self):
         """This method applies the filter on the resultant data
-           on the input column.
-           Do we need pivot_val?
+        on the input column.
         """
         data = self._data
         result = {}
@@ -146,7 +175,7 @@ class Constraint(object):
             return True
 
     def populate_data_frame(self):
-        """Return the data frame"""
+        """Return the populated :mod:`pandas.DataFrame`"""
         if not self._uses_trappy_run():
             return self._trappy_run
 
@@ -157,7 +186,10 @@ class Constraint(object):
 
     def pivot_vals(self, data):
         """This method returns the unique pivot values for the
-           Constraint's pivot and the column
+        Constraint's pivot and the column
+
+        :param data: Input Data
+        :type data: :mod:`pandas.DataFrame`
         """
         if self._pivot == AttrConf.PIVOT:
             return AttrConf.PIVOT_VAL
@@ -183,7 +215,13 @@ class Constraint(object):
 
 
     def get_data_name(self):
-        """Get name for the data Member"""
+        """Get name for the data member. This method
+        relies on the "name" attribute for the name.
+        If the name attribute is absent, it associates
+        a numeric name to the respective data element
+
+        :returns: The name of the data member
+        """
         if self._uses_trappy_run():
             if self._trappy_run.name != "":
                 return self._trappy_run.name
@@ -196,6 +234,22 @@ class ConstraintManager(object):
 
     """A class responsible for converting inputs
     to constraints and also ensuring sanity
+
+
+    :param runs: Input Run data
+    :type runs: :mod:`trappy.run.Run`, list(:mod:`trappy.run.Run`)
+    :param columns: The column values from the corresponding
+        :mod:`pandas.DataFrame`
+    :type columns: str, list(str)
+    :param pivot: The column around which the data will be
+        pivoted:
+    :type pivot: str
+    :param filters: A dictionary of values to be applied on the
+        respective columns
+    :type filters: dict
+    :param zip_constraints: Permutes the columns and runs instead
+        of a one-to-one correspondence
+    :type zip_constraints: bool
     """
 
     def __init__(self, runs, columns, templates, pivot, filters,
@@ -221,24 +275,26 @@ class ConstraintManager(object):
 
     def _expand(self):
         """This is really important. We need to
-           meet the following criteria for constraint
-           expansion:
+        meet the following criteria for constraint
+        expansion:
+        ::
 
-           Len[runs] == Len[columns] == Len[templates]
-                            OR
-           Permute(
-               Len[runs] = 1
-               Len[columns] = 1
-               Len[templates] != 1
-            }
+            Len[runs] == Len[columns] == Len[templates]
 
+        Or:
+        ::
 
-           Permute(
-               Len[runs] = 1
-               Len[columns] != 1
-               Len[templates] != 1
+            Permute(
+                Len[runs] = 1
+                Len[columns] = 1
+                Len[templates] != 1
             )
 
+            Permute(
+                   Len[runs] = 1
+                   Len[columns] != 1
+                   Len[templates] != 1
+            )
         """
         min_len = min(self._lens)
         max_pos_comp = [
@@ -265,9 +321,10 @@ class ConstraintManager(object):
                                                    self._ip_vec[val])
 
     def _populate_constraints(self):
-        """Populate the constraints creating one for each column in each run
+        """Populate the constraints creating one for each column in
+        each run
 
-        In a multirun, multicolumn scenario, create constraints for
+        In a multi-run, multicolumn scenario, constraints are created for
         all the columns in each of the runs.  _populate_constraints()
         creates one constraint for the first run and first column, the
         next for the second run and second column,...  This function
@@ -291,7 +348,6 @@ class ConstraintManager(object):
         In a multirun, multicolumn scenario, create constraints for
         the first run and the first column, second run and second
         column,... that is, as if you run zip(runs, columns)
-
         """
 
         for idx in range(self._max_len):
@@ -313,7 +369,11 @@ class ConstraintManager(object):
                     self._filters))
 
     def generate_pivots(self, permute=False):
-        """Return a union of the pivot values"""
+        """Return a union of the pivot values
+
+        :param permute: Permute the Runs and Columns
+        :type permute: bool
+        """
         pivot_vals = []
         for constraint in self._constraints:
             pivot_vals += constraint.result.keys()
@@ -336,7 +396,11 @@ class ConstraintManager(object):
             return sorted_plist, len(sorted_plist)
 
     def constraint_labels(self):
-        """Get the Str representation of the constraints"""
+        """
+        :return: string to represent the
+            set of Constraints
+
+        """
         return map(str, self._constraints)
 
     def __len__(self):
