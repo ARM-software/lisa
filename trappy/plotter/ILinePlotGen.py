@@ -53,13 +53,14 @@ class ILinePlotGen(object):
                     "dygraph-sync": '""" + IPythonConf.add_web_base("plotter_scripts/ILinePlot/synchronizer") + """',
                     "dygraph": '""" + IPythonConf.add_web_base("plotter_scripts/ILinePlot/dygraph-combined") + """',
                     "ILinePlot": '""" + IPythonConf.add_web_base("plotter_scripts/ILinePlot/ILinePlot") + """',
+                    "underscore": '""" + IPythonConf.add_web_base("plotter_scripts/ILinePlot/underscore-min") + """',
                 },
 
                 shim: {
                     "dygraph-sync": ["dygraph"],
                     "ILinePlot": {
 
-                        "deps": ["dygraph-sync", "dygraph" ],
+                        "deps": ["dygraph-sync", "dygraph", "underscore"],
                         "exports":  "ILinePlot"
                     }
                 }
@@ -98,6 +99,11 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
 
         self._html.append("</tr>")
 
+    def _end_table(self):
+        """Add the closing tag for the HTML table"""
+
+        self._html.append("</table>")
+
     def _generate_fig_name(self):
         """Generate a unique figure name"""
 
@@ -130,6 +136,8 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
                 self._add_legend_cell(l_fig)
 
             self._end_row()
+
+        self._end_table()
 
     def __init__(self, cols, num_plots, **kwargs):
         """
