@@ -20,6 +20,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 from test_thermal import BaseTestThermal
@@ -403,3 +404,23 @@ class TestTraceDat(utils_tests.SetupDirectory):
         self.assertFalse(os.path.exists("trace.dat"))
         self.assertFalse(os.path.exists("trace.txt"))
         self.assertFalse(os.path.exists("trace.raw.txt"))
+
+    def test_regenerate_txt_if_outdated(self):
+        """Regenerate the trace.txt if it's older than the trace.dat"""
+
+        trappy.Run()
+
+        # Empty the trace.txt
+        with open("trace.txt", "w") as fout:
+            fout.write("")
+
+        # Set access and modified time of trace.txt to 10 seconds ago
+        now = time.time()
+        os.utime("trace.txt", (now - 10, now - 10))
+
+        # touch trace.dat
+        os.utime("trace.dat", None)
+
+        trappy.Run()
+
+        self.assert_thermal_in_trace("trace.txt")
