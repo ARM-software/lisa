@@ -15,16 +15,30 @@
 
 """These are the default plotting Attributes"""
 WIDTH = 7
+"""Default Width of a MatPlotlib Plot"""
 LENGTH = 7
+"""Default Length of a MatPlotlib Plot"""
 PER_LINE = 2
+"""Default Graphs per line"""
 CONCAT = False
+"""Default value for concat in :mod:`trappy.plotter.LinePlot`
+and :mod:`trappy.plotter.ILinePlot`
+"""
 PIVOT = "__TRAPPY_PIVOT_DEFAULT"
+"""Default pivot when None specified"""
 PIVOT_VAL = "__TRAPPY_DEFAULT_PIVOT_VAL"
+"""Default PivotValue for the default pivot"""
 DUPLICATE_VALUE_MAX_DELTA = 0.000001
+"""Maximum interval for duplicate value adjustment"""
 XLIM = None
+"""Default value for xlimit"""
 YLIM = None
+"""Default value for ylim"""
 FILL = False
+"""Default value for "fill" in :mod:`trappy.plotter.LinePlot`
+and :mod:`trappy.plotter.ILinePlot`"""
 ALPHA = 0.75
+"""Default value for the alpha channel"""
 
 MPL_STYLE = {
     'axes.axisbelow': True,
@@ -87,13 +101,23 @@ ARGS_TO_FORWARD = [
     "linestyle",
     "linewidth",
     "drawstyle"]
-
+"""kwargs that will be forwarded to matplotlib API calls
+"""
 HTML_WIDTH =  900
+"""Default width for HTML based plots"""
 HTML_HEIGHT = 400
-# Sync Graph zoom by default in
-# ILinePlot graph groups
+"""Default height for HTML based plots"""
 DEFAULT_SYNC_ZOOM = False
+"""Sync Graph zoom by default in
+:mod:`trappy.plotter.ILinePlot` graph groups
+"""
 EVENT_PLOT_STRIDE = False
+"""Default value for stride which enables sampled
+EventPlots for :mod:`trappy.plotter.EventPlot`
+"""
 PLOT_SCATTER = False
+"""Default value for creating Scatter Plots"""
 POINT_SIZE = 2
+"""Default Point Size for plots (in pts)"""
 LINE_WIDTH = 1.0
+"""Default Line Width for plotter"""
