@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-"""This module is reponsible for creating a layout
-of plots as a 2D axes and handling corener cases
-and deleting empty plots
+"""This module implements functionality related to
+the arrangement of the plots on the underlying
+plotting backend.
 """
 
 import matplotlib.pyplot as plt
@@ -24,10 +23,20 @@ from trappy.plotter import AttrConf
 
 class PlotLayout(object):
 
-    """Cols is the number of columns to draw
-       rows are calculated as 1D - 2D transformation
-       the same transformation is used to index the
-       axes array
+    """
+    :param cols: The number of columns to draw
+    :type cols: int
+
+    :param num_plots: The total number of plots
+    :type num_plots: int
+
+    The linear co-ordinate system :math:`[0, N_{plots}]` is
+    mapped to a 2-D coordinate system with math:`N_{rows}`
+    and :math:`N_{cols}` such that:
+
+    .. math::
+
+        N_{rows} = \\frac{N_{cols}}{N_{plots}}
     """
 
     def __init__(self, cols, num_plots, **kwargs):
@@ -82,7 +91,14 @@ class PlotLayout(object):
         self._attr["length"] = AttrConf.LENGTH
 
     def get_2d(self, linear_val):
-        """Convert Linear to 2D coordinates"""
+        """Convert Linear to 2D coordinates
+
+        :param linear_val: The value in 1-D
+            co-ordinate
+        :type linear_val: int
+
+        :return: Converted 2-D tuple
+        """
         if self.usecol:
             return linear_val % self.cols
 
@@ -94,7 +110,14 @@ class PlotLayout(object):
         return val_y, val_x
 
     def finish(self, plot_index):
-        """Delete the empty cells"""
+        """Delete the empty cells
+
+        :param plot_index: Linear index at which the
+            last plot was created. This is used to
+            delete the leftover empty plots that
+            were generated.
+        :type plot_index: int
+        """
         while plot_index < (self.rows * self.cols):
             self._attr["figure"].delaxes(
                 self._attr["axes"][
@@ -102,12 +125,23 @@ class PlotLayout(object):
             plot_index += 1
 
     def get_axis(self, plot_index):
-        """Get the axes for the plots"""
+        """Get the axes for the plots
+
+        :param plot_index: The index for
+            which the axis is required. This
+            internally is mapped to a 2-D co-ordinate
+
+        :return: :mod:`matplotlib.axes.Axes`
+            instance is returned
+        """
         if self._single_plot:
             return self._attr["axes"]
         else:
             return self._attr["axes"][self.get_2d(plot_index)]
 
     def get_fig(self):
-        """Return the matplotlib figure object"""
+        """Return the matplotlib figure object
+
+        :return: :mod:`matplotlib.figure`
+        """
         return self._attr["figure"]
