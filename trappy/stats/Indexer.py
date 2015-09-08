@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-"""Indexers are responsible for providind indexes for
+"""Indexers are responsible for providing indexes for
    aggregations and provide specific functions like
    unification and resampling.
 """
@@ -25,16 +25,18 @@ from trappy.stats import StatConf
 
 class Indexer(object):
     """Indexer base class is an encapsulation
-       around the pandas Index object with some
-       special functionality"""
+    around the pandas Index object with some
+    special functionality
+
+    :param index: Pandas index object. This can be
+                    non-unoform and non-unique
+    :type index: :mod:`pandas.Index`
+
+    :param runs: trappy Run list/singular object
+    :type runs: :mod:`trappy.run.Run`
+    """
 
     def __init__(self, index):
-        """
-            Args:
-                index (pandas.Index): Pandas index. This can be
-                    non-unoform and non-unique
-                runs (trappy.Run): trappy Run list/singular object
-        """
         self.index = index
 
     def series(self):
@@ -44,12 +46,11 @@ class Indexer(object):
 
     def get_uniform(self, delta=StatConf.DELTA_DEFAULT):
         """
-            Args:
-                delta: Difference between two indices. This has a
-                    default value specified in StatConf.DELTA_DEFAULT
+        :param delta: Difference between two indices. This has a
+            default value specified in StatConf.DELTA_DEFAULT
+        :type delta: float
 
-            Returns:
-                Returns a uniformly spaced index.
+        :return: A uniformly spaced index.
         """
 
         uniform_start = self.index.values[0]
@@ -60,13 +61,12 @@ class Indexer(object):
 def get_unified_indexer(indexers):
     """Unify the List of Indexers
 
-        Args:
-            indexers (stats.Indexer): A list of indexers
+    :param indexers: A list of indexers
+    :type indexers: :mod:`trappy.stats.Indexer.Indexer`
 
-        Returns:
-            An indexer with a unfied index
+    :return: A :mod:`pandas.Indexer.Indexer`
+        with a unfied index
     """
-
 
     new_index = indexers[0].index
 
@@ -78,14 +78,12 @@ def get_unified_indexer(indexers):
 class MultiTriggerIndexer(Indexer):
     """"The index unifies the indices of all trigger
      events.
+
+    :param triggers: A (list or single) trigger
+    :type triggers: :mod:`trappy.stats.Trigger.Trigger`
     """
 
-
     def __init__(self, triggers):
-        """
-            Args:
-                triggers (stat.Trigger): A list (or single) trigger
-        """
 
         self._triggers = listify(triggers)
         super(MultiTriggerIndexer, self).__init__(self._unify())
