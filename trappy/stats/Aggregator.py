@@ -14,9 +14,9 @@
 #
 
 """Aggregators are responsible for aggregating information
-   for further analysis. These aggregations can produce
-   both scalars and vectors and each aggregator implementation
-   is expected to handle its "aggregation" mechanism.
+for further analysis. These aggregations can produce
+both scalars and vectors and each aggregator implementation
+is expected to handle its "aggregation" mechanism.
 """
 
 
@@ -26,8 +26,16 @@ from abc import ABCMeta, abstractmethod
 
 
 class AbstractAggregator(object):
+    """Abstract class for all aggregators
 
-    """Abstract class for all aggregators"""
+    :param indexer: Indexer iss passed on by the Child class
+        for handling indices during correlation
+    :type indexer: :mod:`trappy.stats.Indexer.Indexer`
+
+    :param aggfunc: Function that accepts a pandas.Series and
+        process it for aggregation.
+    :type aggfunc: function
+    """
 
     __metaclass__ = ABCMeta
 
@@ -35,13 +43,6 @@ class AbstractAggregator(object):
     # be unified across data frames to account for
     # variable sampling across data frames
     def __init__(self, indexer, aggfunc=None):
-        """Args:
-
-            indexer (Indexer): Indexer iss passed on by the Child class
-                for handling indices during correlation
-            aggfunc (function): Function that accepts a pandas.Series and
-                process it for aggregation.
-        """
 
         self._result = {}
         self._aggregated = False
@@ -51,13 +52,16 @@ class AbstractAggregator(object):
     def _add_result(self, pivot, data_frame, value):
         """Add the result for the given pivot and run
 
-          Args:
-             pivot (hashable): The pivot for which the result is being generated
-             data_frame (pandas.DataFrame): pandas data frame of result values
-             value (str, numeric): If value is str, the corresponding
-                 column is used as a vector of resultant values. If
-                 numeric, each index in data frame gets the numeric
+        :param pivot: The pivot for which the result is being generated
+        :type pivot(hashable)
 
+        :param data_frame (pandas.DataFrame): pandas data frame of result values
+        :type data_frame :mod:`pandas.DataFrame`
+
+        :param value: If value is str, the corresponding
+            column is used as a vector of resultant values. If
+            numeric, each index in data frame gets the numeric
+        :type value: str, numeric
         """
 
         if pivot not in self._result:
@@ -72,13 +76,12 @@ class AbstractAggregator(object):
     @abstractmethod
     def aggregate(self, run_idx, **kwargs):
         """Abstract Method for aggregating data for various
-           pivots.
+        pivots.
 
-            Args:
-                run_idx: Index of the run to be aggregated
+        :param run_idx: Index of the run to be aggregated
+        :type run_idx: int
 
-            Returns:
-                The aggregated result
+        :return: The aggregated result
 
         """
 
@@ -93,15 +96,17 @@ class MultiTriggerAggregator(AbstractAggregator):
 
     def __init__(self, triggers, topology, aggfunc=None):
         """
-            Args:
+        :param triggers: trappy.stat.Trigger): A list or a singular trigger object
+        :type triggers: :mod:`trappy.stat.Trigger.Trigger`
 
-            triggers (trappy.stat.Trigger): A list or a singular trigger object
-            topology (trappy.stat.Topology): A topology object for aggregation
+        :param topology (trappy.stat.Topology): A topology object for aggregation
                 levels
-            aggfunc: A function to be applied on each series being aggregated.
+        :type topology: :mod:`trappy.stat.Topology`
+
+        :param aggfunc: A function to be applied on each series being aggregated.
                 For each topology node, a series will be generated and this
                 will be processed by the aggfunc
-
+        :type aggfunc: function
         """
         self._triggers = triggers
         self.topology = topology
@@ -111,18 +116,14 @@ class MultiTriggerAggregator(AbstractAggregator):
 
     def aggregate(self, **kwargs):
         """
-            Aggregate implementation that aggrgates
-            triggers for a given topological level
+        Aggregate implementation that aggregates
+        triggers for a given topological level. All the arguments passed to
+        it are forwarded to the aggregator function except level (if present)
 
-            Args:
-                level can be specified. If not the default level is
-                taken to be all
-
-            Returns:
-                A scalar or a vector aggregated result.
-                Each group in the level produces an element
-                in the result list with a one to one
-                index correspondence
+        :return: A scalar or a vector aggregated result. Each group in the
+            level produces an element in the result list with a one to one
+            index correspondence
+            ::
 
                 groups["level"] = [[1,2], [3,4]]
                 result = [result_1, result_2]
@@ -160,14 +161,15 @@ class MultiTriggerAggregator(AbstractAggregator):
 
     def _aggregate_base(self):
         """A memoized function to generate the base series
-           for each node in the flattened topology.
+        for each node in the flattened topology
+        ::
 
-            eg topo["level_1"] = [[1, 2], [3, 4]]
-            This function will generate the fundamental
-            aggregations for all nodes 1, 2, 3, 4 and
-            store the result in _agg_result
+            topo["level_1"] = [[1, 2], [3, 4]]
 
-        """
+       This function will generate the fundamental
+       aggregations for all nodes 1, 2, 3, 4 and
+       store the result in _agg_result
+       """
 
         for trigger in self._triggers:
             for node in self.topology.flatten():
