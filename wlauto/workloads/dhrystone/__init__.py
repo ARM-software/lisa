@@ -76,9 +76,14 @@ class Dhrystone(Workload):
                                                     execution_mode,
                                                     self.threads, self.delay)
         self.timeout = self.duration and self.duration + self.delay * self.threads + 10 or 300
+        self.device.killall('dhrystone')
 
     def run(self, context):
-        self.output = self.device.execute(self.command, timeout=self.timeout, check_exit_code=False)
+        try:
+            self.output = self.device.execute(self.command, timeout=self.timeout, check_exit_code=False)
+        except KeyboardInterrupt:
+            self.device.killall('dhrystone')
+            raise
 
     def update_result(self, context):
         outfile = os.path.join(context.output_directory, 'dhrystone.output')
