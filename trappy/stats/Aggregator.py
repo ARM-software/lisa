@@ -28,7 +28,7 @@ from abc import ABCMeta, abstractmethod
 class AbstractAggregator(object):
     """Abstract class for all aggregators
 
-    :param indexer: Indexer iss passed on by the Child class
+    :param indexer: Indexer is passed on by the Child class
         for handling indices during correlation
     :type indexer: :mod:`trappy.stats.Indexer.Indexer`
 
