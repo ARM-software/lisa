@@ -29,7 +29,7 @@ class CpufreqModule(Module):
     capabilities = ['cpufreq']
 
     def probe(self, device):  # pylint: disable=no-self-use
-        path = '/sys/devices/system/cpu/cpufreq'
+        path = '/sys/devices/system/cpu/cpu{}/cpufreq'.format(device.online_cpus[0])
         return device.file_exists(path)
 
     def initialize(self, context):
