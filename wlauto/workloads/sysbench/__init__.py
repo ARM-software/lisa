@@ -85,6 +85,8 @@ class Sysbench(Workload):
             self.num_threads = self.threads
         if (self.max_requests is None) and (self.max_time is None):
             self.max_time = 30
+        if self.max_time and (self.max_time + 10) > self.timeout:
+            self.timeout = self.max_time + 10
         if self.test == 'fileio' and not self.file_test_mode:
             self.logger.debug('Test is "fileio" and no file_test_mode specified -- using default.')
             self.file_test_mode = 'seqwr'
