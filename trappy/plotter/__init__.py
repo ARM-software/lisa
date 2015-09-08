@@ -30,6 +30,9 @@ import IPythonConf
 def register_forwarding_arg(arg_name):
     """Allows the user to register args to
        be forwarded to matplotlib
+
+    :param arg_name: The arg to register
+    :type arg_name: str
     """
     if arg_name not in AttrConf.ARGS_TO_FORWARD:
         AttrConf.ARGS_TO_FORWARD.append(arg_name)
@@ -37,6 +40,9 @@ def register_forwarding_arg(arg_name):
 def unregister_forwarding_arg(arg_name):
     """Unregisters arg_name from being passed to
        plotter matplotlib calls
+
+    :param arg_name: The arg to register
+    :type arg_name: str
     """
     try:
         AttrConf.ARGS_TO_FORWARD.remove(arg_name)
@@ -44,7 +50,11 @@ def unregister_forwarding_arg(arg_name):
         pass
 
 def plot_trace(trace_dir):
-    """Creates a kernelshark like plot of the trace file"""
+    """Creates a kernelshark like plot of the trace file
+
+    :param trace_dir: The location of the trace file
+    :type trace_dir: str
+    """
 
     if not IPythonConf.check_ipython():
         raise RuntimeError("plot_trace needs ipython environment")
