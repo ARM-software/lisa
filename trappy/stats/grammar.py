@@ -29,7 +29,11 @@ from trappy.stats import StatConf
 
 
 def parse_num(tokens):
-    """parse a number"""
+    """Parser function for numerical data
+
+    :param tokens: The grammar tokens
+    :type tokens: list
+    """
     return float(tokens[0])
 
 # Suppressed Literals
@@ -84,7 +88,11 @@ OPERATOR_MAP = {
 
 
 def eval_unary_op(tokens):
-    """Unary Op Evaluation"""
+    """Unary Op Evaluation
+
+    :param tokens: The grammar tokens
+    :type tokens: list
+    """
 
     params = tokens[0]
     if params[0] == "-":
@@ -94,7 +102,11 @@ def eval_unary_op(tokens):
 
 
 def iterate_binary_ops(tokens):
-    """An iterator for Binary Operation tokens"""
+    """An iterator for Binary Operation tokens
+
+    :param tokens: The grammar tokens
+    :type tokens: list
+    """
 
     itr = iter(tokens)
     while True:
@@ -105,7 +117,11 @@ def iterate_binary_ops(tokens):
 
 
 def eval_binary_op(tokens):
-    """Evaluate Binary operators"""
+    """Evaluate Binary operators
+
+    :param tokens: The grammar tokens
+    :type tokens: list
+    """
 
     params = tokens[0]
     result = params[0]
@@ -119,6 +135,11 @@ def eval_binary_op(tokens):
 def str_to_attr(cls_str):
     """Bring the attr specified into current scope
        and return a handler
+
+    :param cls_str: A string representing the class
+    :type cls_str: str
+
+    :return: A class object
     """
     attr_name = cls_str.rsplit(".", 1)
     if len(attr_name) == 2:
@@ -177,7 +198,83 @@ def get_parse_expression(parse_func, parse_var_id):
 class Parser(object):
 
     """A parser class for solving simple
-    data accesses and super-indexing data"""
+    data accesses and super-indexing data
+
+    :param pvars: A dictionary of variables that need to be
+        accessed from within the grammar
+    :type pvars: dict
+
+    :param topology: Future support for the usage of topologies in
+        grammar
+    :type topology: :mod:`trappy.stats.Topology`
+
+
+    - **Operators**
+
+        +----------------+----------------------+---------------+
+        | Operation      |      operator        | Associativity |
+        +================+======================+===============+
+        |Unary           | \-                   |    Right      |
+        +----------------+----------------------+---------------+
+        | Multiply/Divide| \*, /                |    Left       |
+        +----------------+----------------------+---------------+
+        | Add/Subtract   | +, \-,               |    Left       |
+        +----------------+----------------------+---------------+
+        | Comparison     | >, <, >=, <=, ==, != |    Left       |
+        +----------------+----------------------+---------------+
+        | Logical        | &&, ||, \|, &        |    Left       |
+        +----------------+----------------------+---------------+
+
+    - **Data Accessors**
+
+        Since the goal of the grammar is to provide an
+        easy language to access and compare data
+        from a :mod:`trappy.run.Run` object. The parser provides
+        a simple notation to access this data.
+
+        *Statically Defined Events*
+        ::
+
+            import trappy
+            from trappy.stats.grammar import Parser
+
+            run = trappy.Run("path/to/trace/file")
+            parser = Parser(run)
+            parser.solve("trappy.thermal.Thermal:temp * 2")
+
+        *Aliasing*
+        ::
+
+            import trappy
+            from trappy.stats.grammar import Parser
+
+            pvars = {}
+            pvars["THERMAL"] = trappy.thermal.Thermal
+            run = trappy.Run("path/to/trace/file")
+            parser = Parser(run)
+            parser.solve("THERMAL:temp * 2")
+
+        The event :mod:`trappy.thermal.Thermal` is aliased
+        as **THERMAL** in the grammar
+
+        *Dynamic Events*
+        ::
+
+            import trappy
+            from trappy.stats.grammar import Parser
+
+            # Register Dynamic Event
+            cls = trappy.register_dynamic("my_unique_word", "event_name")
+
+            pvars = {}
+            pvars["CUSTOM"] = cls
+            run = trappy.Run("path/to/trace/file")
+            parser = Parser(run)
+            parser.solve("CUSTOM:col * 2")
+
+        .. seealso:: :mod:`trappy.dynamic.register_dynamic`
+
+    """
 
     def __init__(self, data, pvars=None, topology=None):
         if pvars is None:
@@ -198,10 +295,57 @@ class Parser(object):
         self._index_limit = None
 
     def solve(self, expr):
-        """Solve expression
+        """Parses and solves the input expression
 
-        Args:
-            expr(string)
+        :param expr: The input expression
+        :type expr: str
+
+        :return: The return type may vary depending on
+            the expression. For example:
+
+            **Vector**
+            ::
+
+                import trappy
+                from trappy.stats.grammar import Parser
+
+                run = trappy.Run("path/to/trace/file")
+                parser = Parser(run)
+                parser.solve("trappy.thermal.Thermal:temp * 2")
+
+            **Scalar**
+            ::
+
+                import trappy
+                from trappy.stats.grammar import Parser
+
+                run = trappy.Run("path/to/trace/file")
+                parser = Parser(run)
+                parser.solve("numpy.mean(trappy.thermal.Thermal:temp)")
+
+            **Vector Mask**
+            ::
+
+                import trappy
+                from trappy.stats.grammar import Parser
+
+                run = trappy.Run("path/to/trace/file")
+                parser = Parser(run)
+                parser.solve("trappy.thermal.Thermal:temp > 65000")
+        """
+
+        # Pre-process accessors for indexing
+        self._accessor.searchString(expr)
+        return self._parse_expr.parseString(expr)[0]
+
+
+        """
+
+        # Pre-process accessors for indexing
+        self._accessor.searchString(expr)
+        return self._parse_expr.parseString(expr)[0]
+
+
         """
 
         # Pre-process accessors for indexing
@@ -285,6 +429,14 @@ class Parser(object):
         return func(*params[1])
 
     def ref(self, mask):
-        """Reference super indexed data with a boolean mask"""
+        """Reference super indexed data with a boolean mask
+
+        :param mask: A boolean :mod:`pandas.Series` that
+            can be used to reference the aggregated data in
+            the parser
+        :type mask: :mod:`pandas.Series`
+
+        :return: aggregated_data[mask]
+        """
 
         return self._agg_df[mask]
