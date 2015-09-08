@@ -33,29 +33,40 @@ IPLOT_RESOURCES = {
         "js/EventPlot.js"]}
 
 PROFILE_DIR_IPYTHON_V4 = os.path.expanduser("~/.local/share/jupyter")
+"""The location of the IPython webserver in IPython version 4.0+"""
 IPYTHON_V4_BASE = "/nbextensions"
+"""The webserver base directory for IPython version 4.0+"""
 IPYTHON_V3_BASE = "/static"
+"""The webserver base directory for IPython version < 4.0"""
 PLOTTER_SCRIPTS = "plotter_scripts"
+"""The installation directory of plotter JS files in the
+IPython webserver"""
 PLOTTER_DATA = "plotter_data"
+"""The installation directory of plotter data files in the
+IPython webserver"""
 
 def install_http_resource(url, to_path):
     """Install a HTTP Resource (eg. javascript) to
-       a destination on the disk
+    a destination on the disk
 
-        Args:
-            url (str): HTTP URL
-            to_path (str): Destintation path on the disk
+    :param url: HTTP URL
+    :type url: str
+
+    :param to_path: Destination path on the disk
+    :type to_path: str
     """
     urllib.urlretrieve(url, filename=to_path)
 
 
 def install_local_resource(from_path, to_path):
     """Move a local resource  to the desired
-       a destination.
+    a destination.
 
-        Args:
-            from_path (str): Path relative to this file
-            to_path (str): Destintation path on the disk
+    :param from_path: Path relative to this file
+    :type from_path: str
+
+    :param to_path: Destination path on the disk
+    :type to_path: str
     """
     base_dir = os.path.dirname(__file__)
     from_path = os.path.join(base_dir, from_path)
@@ -65,9 +76,11 @@ def install_local_resource(from_path, to_path):
 def install_resource(from_path, to_path):
     """Install a resource to a location on the disk
 
-        Args:
-            from_path (str): URL or relative path
-            to_path (str): Destintation path on the disk
+    :param from_path: URL or relative path
+    :type from_path: str
+
+    :param to_path: Destination path on the disk
+    :type to_path: str
     """
 
     if from_path.startswith("http"):
@@ -79,14 +92,13 @@ def install_resource(from_path, to_path):
 
 def iplot_install(module_name):
     """Install the resources for the module to the Ipython
-       profile directory
+    profile directory
 
-        Args:
-            module_name (str): Name of the module
+    :param module_name: Name of the module
+    :type module_name: str
 
-        Returns:
-            A list than can be consumed by requirejs or
-            any relative resource dependency resolver
+    :return: A list than can be consumed by requirejs or
+        any relative resource dependency resolver
     """
 
     resources = IPLOT_RESOURCES[module_name]
@@ -135,7 +147,11 @@ def get_profile_name():
     return ipy.profile
 
 def get_ipython_dir(profile=None):
-    """Returns the base directory of the IPython server"""
+    """Returns the base directory of the IPython server
+
+    :param profile: The name of the IPython profile
+    :type profile: str
+    """
 
     if not check_ipython():
         raise ImportError("Cannot Find IPython Environment")
@@ -156,7 +172,12 @@ def get_ipython_dir(profile=None):
             IPYTHON_V3_BASE.strip("/"))
 
 def add_web_base(path):
-    """Add the base of the IPython dependency URLs"""
+    """Add the base of the IPython dependency URLs
+
+    :param path: The path to be augmented with the
+        webserver base
+    :type path: str
+    """
 
     import IPython
     if V(IPython.__version__) >= V('4.0.0'):
@@ -165,7 +186,11 @@ def add_web_base(path):
         return os.path.join(IPYTHON_V3_BASE, path)
 
 def get_scripts_path(profile=None):
-    """Directory where plotter scripts are installed"""
+    """Directory where plotter scripts are installed
+
+    :param profile: The name of the IPython profile
+    :type profile: str
+    """
 
     dir_name = os.path.join(get_ipython_dir(profile), PLOTTER_SCRIPTS)
     if not os.path.isdir(dir_name):
@@ -173,7 +198,11 @@ def get_scripts_path(profile=None):
     return dir_name
 
 def get_data_path(profile=None):
-    """Directory where Plotter Data is stored"""
+    """Directory where Plotter Data is stored
+
+    :param profile: The name of the IPython profile
+    :type profile: str
+    """
 
     dir_name = os.path.join(get_ipython_dir(profile), PLOTTER_DATA)
     if not os.path.isdir(dir_name):
