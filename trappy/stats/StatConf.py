@@ -17,4 +17,6 @@
 
 # Default interval between a uniform time series
 DELTA_DEFAULT = 0.000025
+"""The default delta for uniformly resampled data"""
 GRAMMAR_DEFAULT_PIVOT = "NO_PIVOT"
+"""Default pivot value for :mod:`trappy.stats.grammar`"""
