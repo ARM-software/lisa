@@ -15,9 +15,13 @@
 
 """Trigger is a representation of the following:
 
-    1. Event
-    2. An associated value
-    3. A set of filters
+    - Event(s) (:mod:`trappy.base.Base`)
+    - An associated value
+        - scalar
+        - vector
+    - A set of filters
+        - value based
+        - function based
 """
 
 import types
@@ -25,34 +29,43 @@ from trappy.plotter.Utils import listify
 
 
 class Trigger(object):
-    """The tigger is an event relationship which
-       accepts a run object to "generate" qualified data
+    """Trigger is an event-value relationship which
+    accepts a run object to "generate" qualified data
 
-       The filter can either have a function
+    :param run: A trappy Run object
+    :type run: :mod:`trappy.run.Run`
 
-       def function_based_filter(elem):
+    :param template: A trappy Event to act as a trigger
+    :type template: trappy.Base
+
+    :param filters: Key value filter pairs
+    :type filters: dict
+
+    The filter can either have a function:
+    ::
+
+        def function_based_filter(elem):
             if condition:
                 return True
             else:
                 return False
 
-      or value
+    or a value/list of values
+    ::
 
-      f = {}
-      f["data_column_a"] = function_based_filter
-      f["data_column_b"] = value
+        f = {}
+        f["data_column_a"] = function_based_filter
+        f["data_column_b"] = value
+
+    :param value: Value can be a string or a numeric
+    :type value: str, int, float
+
+    :param pivot: This is the column around which the data will be
+        pivoted
+    :type pivot: str
     """
 
     def __init__(self, run, template, filters, value, pivot):
-        """
-            Args:
-                run (trappy.Run): A trappy Run object
-                template (trappy.Base): A trappy Event to act as a trigger
-                filters (dict): Key value filter pairs
-                value: Value can be a string or a numeric
-                pivot: This is the column around which the data will be
-                    pivoted
-        """
 
         self.template = template
         self._filters = filters
@@ -62,12 +75,11 @@ class Trigger(object):
 
     def generate(self, pivot_val):
         """Generate the trigger data for a given pivot value
-           and a run index
+        and a run index
 
-            Args:
-                pivot_val: The pivot to generate data for
+        :param pivot_val: The pivot to generate data for
+        :type pivot_val: hashable
         """
-
 
         trappy_event = getattr(self.run, self.template.name)
         data_frame = trappy_event.data_frame
@@ -88,11 +100,18 @@ class Trigger(object):
 
 def apply_filter_kv(key, value, data_frame, mask):
     """Internal function to apply a key value
-       filter to a data_frame and update the initial
-       condition provided in mask.
+    filter to a data_frame and update the initial
+    condition provided in mask.
 
-       Returns:
-           Mask to index the data frame
+    :param value: The value to checked for
+
+    :param data_frame: The data to be filtered
+    :type data_frame: :mod:`pandas.DataFrame`
+
+    :param mask: Initial Condition Mask
+    :type mask: :mod:`pandas.Series`
+
+    :return: A **mask** to index the data frame
     """
 
     value = listify(value)
