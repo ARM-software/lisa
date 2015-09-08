@@ -20,7 +20,12 @@ import matplotlib.cm as cmx
 
 class ColorMap(object):
 
-    """The Color Map Class to return a gradient method"""
+    """The Color Map Class to return a gradient method
+
+    :param num_colors: Number or colors for which a gradient
+        is needed
+    :type num_colors: int
+    """
 
     def __init__(self, num_colors):
         self.color_norm = clrs.Normalize(vmin=0, vmax=num_colors)
@@ -28,9 +33,19 @@ class ColorMap(object):
         self.num_colors = num_colors
 
     def cmap(self, index):
-        """Return the color at index"""
+        """
+        :param index: Index for the gradient array
+        :type index: int
+
+        :return: The color at specified index
+        """
         return self.scalar_map.to_rgba(index)
 
     def cmap_inv(self, index):
-        """Return the inverse color"""
+        """
+        :param index: Index for the gradient array
+        :type index: int
+
+        :return: The color at :math:`N_{colors} - i`
+        """
         return self.cmap(self.num_colors - index)
