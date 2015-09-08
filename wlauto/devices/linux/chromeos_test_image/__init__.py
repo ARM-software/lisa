@@ -1,4 +1,3 @@
-
 #    Copyright 2014-2015 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,10 +13,12 @@
 # limitations under the License.
 #
 
+import re
 
 from wlauto import LinuxDevice, Parameter
+from wlauto.core.device import RuntimeParameter
 from wlauto.utils.misc import convert_new_lines
-import re
+from wlauto.utils.types import boolean
 
 
 class ChromeOsDevice(LinuxDevice):
@@ -47,6 +48,14 @@ class ChromeOsDevice(LinuxDevice):
         Parameter('working_directory', default='/home/root/wa-working', override=True),
     ]
 
+    runtime_parameters = [
+        RuntimeParameter('ui', 'get_ui_status', 'set_ui_status', value_name='status'),
+    ]
+
+    def __init__(self, **kwargs):
+        super(ChromeOsDevice, self).__init__(**kwargs)
+        self.ui_status = True
+
     def validate(self):
         # pylint: disable=access-member-before-definition,attribute-defined-outside-init
         if self.password is None and not self.keyfile:
@@ -57,4 +66,19 @@ class ChromeOsDevice(LinuxDevice):
             self.logger.debug('Busybox already installed on the device: replacing with wa version')
             self.uninstall('busybox')
             self.busybox = self.deploy_busybox(context)
+
+    def start(self):
+        if not self.ui_status:
+            self.execute('stop ui')
+
+    def stop(self):
+        if not self.ui_status:
+            self.execute('start ui')
+            self.ui_status = True
+
+    def get_ui_status(self):
+        return self.ui_status
+
+    def set_ui_status(self, status):
+        self.ui_status = boolean(status)
 
