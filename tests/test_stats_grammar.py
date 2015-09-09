@@ -20,7 +20,7 @@ from trappy.stats.grammar import Parser
 from pandas.util.testing import assert_series_equal
 import numpy as np
 import pandas
-from distutils.version import StrictVersion as V
+from distutils.version import LooseVersion as V
 import unittest
 
 
