@@ -25,15 +25,15 @@ import math
 
 class Correlator(object):
     """Class that allows to align and correlate two
-       runs
+    runs
+    :param first: First Aggregator
+    :type first: :mod:`trappy.stats.Aggregator`
+
+    :param second: Second Aggregator
+    :type second: :mod:`trappy.stats.Aggregator`
     """
 
     def __init__(self, first, second, **kwargs):
-        """
-            Args:
-                first (stat.Aggregator): First Aggregator
-                second (stat.Aggregator): Second Aggregator
-        """
 
         self._first_agg = first
         self._second_agg = second
@@ -45,14 +45,15 @@ class Correlator(object):
 
     def _resample(self, series, delta=StatConf.DELTA_DEFAULT):
         """Internal method to resample the series
-        to a uniformally spaces index
+        to a uniformly spaced index
 
-        Args:
-            series (pandas.Series): Series io be resampled
-            delta  (float): spacing between indices
+        :param series: Series io be resampled
+        :type series: :mod:`pandas.Series`
 
-        Returns:
-            resampled (pandas.Series)
+        :param delta: spacing between indices
+        :type delta: float
+
+        :return: resampled :mod:`pandas.Series`
         """
 
         new_index = self.indexer.get_uniform(delta)
@@ -62,14 +63,15 @@ class Correlator(object):
         """This function returns the correlation between two
            runs
 
-            Args:
-                level: The level at which the correlation is
-                    required
+        :param level: The level at which the correlation is
+            required
+        :type level: str
 
-            Returns:
-                A normalized correlation value is returned
-                for each group in the level
+        :param resample: Resample data
+        :type resample: bool
 
+        :return: A normalized correlation value is returned
+            for each group in the level
         """
         result_1 = self._first_agg.aggregate(level=level, **self._agg_kwargs)
         result_2 = self._second_agg.aggregate(level=level, **self._agg_kwargs)
@@ -102,6 +104,12 @@ class Correlator(object):
     def plot(self, level, per_line=3):
         """Temporary function to plot data. Expected to be
         implemented in plotter
+
+        :param level: Topological Level (level in :mod:`trappy.stats.Topology`)
+        :type level: str
+
+        :param per_line: Number of plots per line
+        :type per_line: int
         """
 
         num_plots = self._first_agg.topology.level_span(level)
@@ -173,7 +181,17 @@ class Correlator(object):
 
 
 def align(s_x, s_y, mode="front"):
-    """Function to align the input series"""
+    """Function to align the input series
+
+    :param s_x: First Series
+    :type s_x: :mod:`pandas.Series`
+
+    :param s_y: Second Series
+    :type s_y: :mod:`pandas.Series`
+
+    :param mode: Align Front/Back
+    :type mode: str
+    """
 
     p_x = np.flatnonzero(s_x)
     p_y = np.flatnonzero(s_y)
@@ -195,6 +213,18 @@ def align(s_x, s_y, mode="front"):
     return s_x, s_y, shift
 
 def shift_series(s_x, s_y, shift):
+    """Shift series to align
+    :param s_x: First Series
+    :type s_x: :mod:`pandas.Series`
+
+    :param s_y: Second Series
+    :type s_y: :mod:`pandas.Series`
+
+    :param shift: The number of index
+        positions to be shifted
+    :type shift: int
+    """
+
     if shift > 0:
         s_y = s_y.shift(shift)
     else:
