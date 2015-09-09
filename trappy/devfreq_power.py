@@ -25,9 +25,11 @@ from trappy.run import Run
 
 class DevfreqInPower(Base):
     """Process de devfreq cooling device data regarding get_power in an
-ftrace dump"""
+FTrace dump"""
 
     name = "devfreq_in_power"
+    """The name of the :mod:`pandas.DataFrame` member that will be created in a
+    :mod:`trappy.run.Run` object"""
 
     def __init__(self):
         super(DevfreqInPower, self).__init__(
@@ -35,11 +37,13 @@ ftrace dump"""
         )
 
     def get_all_freqs(self):
-        """Return a pandas.DataFrame with the frequencies for the devfreq device
+        """Return a :mod:`pandas.DataFrame` with
+        the frequencies for the devfreq device
 
         The format should be the same as the one for
-        CpuInPower().get_all_freqs().  Frequencies are in MHz.
+        :code:`CpuInPower().get_all_freqs()`.
 
+        .. note:: Frequencies are in MHz.
         """
 
         return pd.DataFrame(self.data_frame["freq"] / 1000000)
@@ -52,6 +56,8 @@ class DevfreqOutPower(Base):
 ftrace dump"""
 
     name = "devfreq_out_power"
+    """The name of the :mod:`pandas.DataFrame` member that will be created in a
+    :mod:`trappy.run.Run` object"""
 
     def __init__(self):
         super(DevfreqOutPower, self).__init__(
@@ -59,12 +65,13 @@ ftrace dump"""
         )
 
     def get_all_freqs(self):
-        """Return a pandas.DataFrame with the output frequencies for the devfreq
-device
+        """Return a :mod:`pandas.DataFrame` with
+        the output frequencies for the devfreq device
 
-        The format should be the same that that of
-        CpuOutPower().get_all_freqs().  The frequencies are in MHz.
+        The format should be the same as the one for
+        :code:`CpuOutPower().get_all_freqs()`.
 
+        .. note:: Frequencies are in MHz.
         """
 
         return pd.DataFrame(self.data_frame["freq"] / 1000000)
