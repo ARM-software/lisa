@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""A helper module to extract data from WorkloadAutomation
+output directories. WorkloadAutomation is a tool for
+automating the execution of workloads. For more information
+please visit https://github.com/ARM-software/workload-automation
 
+.. note::
+
+    TRAPpy does not have a dependency on workload automation
+"""
 
 from trappy.wa.results import Result, get_results, combine_results
 from trappy.wa.sysfs_extractor import SysfsExtractor
