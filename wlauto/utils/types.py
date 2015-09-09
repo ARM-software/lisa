@@ -47,7 +47,7 @@ def boolean(value):
     e.g. boolean('0') and boolean('false') will both yield False.
 
     """
-    false_strings = ['', '0', 'n', 'no']
+    false_strings = ['', '0', 'n', 'no', 'off']
     if isinstance(value, basestring):
         value = value.lower()
         if value in false_strings or 'false'.startswith(value):
