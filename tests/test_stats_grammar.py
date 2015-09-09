@@ -20,7 +20,7 @@ from trappy.stats.grammar import Parser
 from pandas.util.testing import assert_series_equal
 import numpy as np
 import pandas
-from distutils.version import StrictVersion as V
+from distutils.version import LooseVersion as V
 import unittest
 
 
@@ -40,8 +40,8 @@ class TestStatsGrammar(BaseTestThermal):
         eqn = "(10 + 2) - (-3 + 2)"
         self.assertEquals(parser.solve(eqn), 13)
 
-    @unittest.skipIf(V(pandas.__version__) < V('0.16.0'),
-                     "check_names is not supported in pandas < 0.16")
+    @unittest.skipIf(V(pandas.__version__) < V('0.16.1'),
+                     "check_names is not supported in pandas < 0.16.1")
     def test_accessors_sum(self):
         """Test Addition And Subtraction: Data"""
 
@@ -118,8 +118,8 @@ trappy.thermal.Thermal:temp"
         eqn = "-2 * 2 + 2 * 10 / 10"
         self.assertEquals(parser.solve(eqn), -2)
 
-    @unittest.skipIf(V(pandas.__version__) < V('0.16.0'),
-                     "check_names is not supported in pandas < 0.16")
+    @unittest.skipIf(V(pandas.__version__) < V('0.16.1'),
+                     "check_names is not supported in pandas < 0.16.1")
     def test_funcparams_mul(self):
         """Test Mult and Division: Data"""
 
