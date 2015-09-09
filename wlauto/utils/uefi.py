@@ -52,7 +52,7 @@ class UefiMenu(object):
     """
 
     option_regex = re.compile(r'^\[(\d+)\]\s+([^\r]+)\r\n', re.M)
-    prompt_regex = re.compile(r'^([^\r\n]+):\s*', re.M)
+    prompt_regex = re.compile(r'^(\S[^\r\n]+):\s*', re.M)
     invalid_regex = re.compile(r'Invalid input \(max (\d+)\)', re.M)
 
     load_delay = 1  # seconds
