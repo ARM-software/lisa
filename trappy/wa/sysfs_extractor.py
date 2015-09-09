@@ -19,11 +19,12 @@ import pandas as pd
 import re
 
 class SysfsExtractor(object):
-    """Operate on the parameters of a dump of Workload Automation's sysfs extractor instrumentation.
+    """Operate on the parameters of a dump of Workload Automation's
+       sysfs extractor instrumentation.
 
-    path is the path to the workload in a output directory created by
-    WA.
-
+    :param path: The path to the workload in a output directory created by
+        WA.
+    :type path: str
     """
 
     def __init__(self, path):
