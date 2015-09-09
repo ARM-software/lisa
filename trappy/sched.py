@@ -22,8 +22,14 @@ from trappy.run import Run
 
 class SchedLoadAvgSchedGroup(Base):
     """Corresponds to Linux kernel trace event sched_load_avg_sched_group"""
+
     unique_word = "sched_load_avg_sg:"
+    """The unique word that will be matched in a trace line"""
+
     name = "sched_load_avg_sched_group"
+    """The name of the :mod:`pandas.DataFrame` member that will be created in a
+    :mod:`trappy.run.Run` object"""
+
     _cpu_mask_column = "cpus"
 
     def __init__(self):
@@ -43,8 +49,13 @@ Run.register_class(SchedLoadAvgSchedGroup, "sched")
 
 class SchedLoadAvgTask(Base):
     """Corresponds to Linux kernel trace event sched_load_avg_task"""
+
     unique_word = "sched_load_avg_task:"
+    """The unique word that will be matched in a trace line"""
+
     name = "sched_load_avg_task"
+    """The name of the :mod:`pandas.DataFrame` member that will be created in a
+    :mod:`trappy.run.Run` object"""
 
     def __init__(self):
         super(SchedLoadAvgTask, self).__init__(
@@ -66,25 +77,34 @@ Run.register_class(SchedLoadAvgTask, "sched")
 SchedLoadAvgCpu = register_dynamic("SchedLoadAvgCpu",
                                    "sched_load_avg_cpu:",
                                    "sched")
+"""Load and Utilization Signals for CPUs"""
 
 SchedContribScaleFactor = register_dynamic("SchedContribScaleFactor",
                                            "sched_contrib_scale_f:",
                                            "sched")
+"""Event to register tracing of contrib factor"""
 
 SchedCpuCapacity = register_dynamic("SchedCpuCapacity",
                                     "sched_cpu_capacity:",
                                     "sched")
+"""Event to register tracing of CPU capacities"""
 
 SchedSwitch = register_dynamic("SchedSwitch",
                                "sched_switch",
                                "sched",
                                parse_raw=True)
+"""Register SchedSwitch Event"""
 # pylint: enable=invalid-name
 
 class SchedCpuFrequency(Base):
     """Corresponds to Linux kernel trace event power/cpu_frequency"""
+
     unique_word = "cpu_frequency:"
+    """The unique word that will be matched in a trace line"""
+
     name = "sched_cpu_frequency"
+    """The name of the :mod:`pandas.DataFrame` member that will be created in a
+    :mod:`trappy.run.Run` object"""
 
     def __init__(self):
         super(SchedCpuFrequency, self).__init__(
