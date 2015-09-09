@@ -26,11 +26,17 @@ from trappy.run import Run
 from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup, plot_hist
 
 class Thermal(Base):
-    """Process the thermal framework data in a ftrace dump"""
+    """Process the thermal framework data in a FTrace dump"""
 
     unique_word = "thermal_temperature:"
+    """The unique word that will be matched in a trace line"""
+
     name = "thermal"
+    """The name of the :mod:`pandas.DataFrame` member that will be created in a
+    :mod:`trappy.run.Run` object"""
+
     pivot = "id"
+    """The Pivot along which the data is orthogonal"""
 
     def __init__(self):
         super(Thermal, self).__init__(unique_word=self.unique_word)
@@ -39,11 +45,27 @@ class Thermal(Base):
                          height=None, ylim="range", ax=None, legend_label=""):
         """Plot the temperature.
 
-        If control_temp is a pd.Series() representing the (possible)
-        variation of control_temp during the run, draw it using a
-        dashed yellow line.  Otherwise, only the temperature is
-        plotted.
+        :param ax: Axis instance
+        :type ax: :mod:`matplotlib.Axis`
 
+        :param legend_label: Label for the legend
+        :type legend_label: str
+
+        :param title: The title of the plot
+        :type title: str
+
+        :param control_temperature: If control_temp is a
+            :mod:`pd.Series` representing the (possible)
+            variation of :code:`control_temp` during the
+            run, draw it using a dashed yellow line.
+            Otherwise, only the temperature is plotted.
+        :type control_temperature: :mod:`pandas.Series`
+
+        :param width: The width of the plot
+        :type width: int
+
+        :param height: The height of the plot
+        :type int: int
         """
         title = normalize_title("Temperature", title)
 
@@ -67,7 +89,14 @@ class Thermal(Base):
             plt.legend()
 
     def plot_temperature_hist(self, ax, title):
-        """Plot a temperature histogram"""
+        """Plot a temperature histogram
+
+        :param ax: Axis instance
+        :type ax: :mod:`matplotlib.Axis`
+
+        :param title: The title of the plot
+        :type title: str
+        """
 
         temps = self.data_frame["temp"] / 1000
         title = normalize_title("Temperature", title)
@@ -81,8 +110,14 @@ class ThermalGovernor(Base):
     """Process the power allocator data in a ftrace dump"""
 
     unique_word = "thermal_power_allocator:"
+    """The unique word that will be matched in a trace line"""
+
     name = "thermal_governor"
+    """The name of the :mod:`pandas.DataFrame` member that will be created in a
+    :mod:`trappy.run.Run` object"""
+
     pivot = "thermal_zone_id"
+    """The Pivot along which the data is orthogonal"""
 
     def __init__(self):
         super(ThermalGovernor, self).__init__(
@@ -115,9 +150,28 @@ class ThermalGovernor(Base):
                          ax=None):
         """Plot input power
 
-        actor_order is an array with the order in which the actors
-        were registered.
+        :param ax: Axis instance
+        :type ax: :mod:`matplotlib.Axis`
 
+        :param title: The title of the plot
+        :type title: str
+
+        :param width: The width of the plot
+        :type width: int
+
+        :param height: The height of the plot
+        :type int: int
+
+        :param actor_order: An array showing the order in which the actors
+           were registered.  The array values are the labels that
+           will be used in the input and output power plots.
+
+           For Example:
+           ::
+
+                ["GPU", "A15", "A7"]
+
+        :type actor_order: list
         """
 
         dfr = self.data_frame
@@ -142,11 +196,23 @@ class ThermalGovernor(Base):
                                   height=None, ax=None):
         """Plot weighted input power
 
-        actor_weights is an array of tuples.  First element of the
-        tuple is the name of the actor, the second is the weight.  The
-        array is in the same order as the req_power appear in the
-        trace.
+        :param actor_weights: An array of tuples.  First element of the
+            tuple is the name of the actor, the second is the weight.  The
+            array is in the same order as the :code:`req_power` appear in the
+            trace.
+        :type actor_weights: list
 
+        :param ax: Axis instance
+        :type ax: :mod:`matplotlib.Axis`
+
+        :param title: The title of the plot
+        :type title: str
+
+        :param width: The width of the plot
+        :type width: int
+
+        :param height: The height of the plot
+        :type int: int
         """
 
         dfr = self.data_frame
@@ -170,9 +236,28 @@ class ThermalGovernor(Base):
                           ax=None):
         """Plot output power
 
-        actor_order is an array with the order in which the actors
-        were registered.
+        :param ax: Axis instance
+        :type ax: :mod:`matplotlib.Axis`
 
+        :param title: The title of the plot
+        :type title: str
+
+        :param width: The width of the plot
+        :type width: int
+
+        :param height: The height of the plot
+        :type int: int
+
+        :param actor_order: An array showing the order in which the actors
+            were registered.  The array values are the labels that
+            will be used in the input and output power plots.
+
+            For Example:
+            ::
+
+                ["GPU", "A15", "A7"]
+
+        :type actor_order: list
         """
 
         out_cols = [s for s in self.data_frame.columns
@@ -191,7 +276,11 @@ class ThermalGovernor(Base):
         post_plot_setup(ax, title=title)
 
     def plot_inout_power(self, title=""):
-        """Make multiple plots showing input and output power for each actor"""
+        """Make multiple plots showing input and output power for each actor
+
+        :param title: The title of the plot
+        :type title: str
+        """
         dfr = self.data_frame
 
         actors = []
