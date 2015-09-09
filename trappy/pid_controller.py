@@ -21,10 +21,14 @@ from trappy.run import Run
 from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
 class PIDController(Base):
-    """Process the power allocator PID controller data in a ftrace dump"""
+    """Process the power allocator PID controller data in a FTrace dump"""
 
     name = "pid_controller"
+    """The name of the :mod:`pandas.DataFrame` member that will be created in a
+    :mod:`trappy.run.Run` object"""
+
     pivot = "thermal_zone_id"
+    """The Pivot along which the data is orthogonal"""
 
     def __init__(self):
         super(PIDController, self).__init__(
@@ -32,7 +36,20 @@ class PIDController(Base):
         )
 
     def plot_controller(self, title="", width=None, height=None, ax=None):
-        """Plot a summary of the controller data"""
+        """Plot a summary of the controller data
+
+        :param ax: Axis instance
+        :type ax: :mod:`matplotlib.Axis`
+
+        :param title: The title of the plot
+        :type title: str
+
+        :param width: The width of the plot
+        :type width: int
+
+        :param height: The height of the plot
+        :type int: int
+        """
         title = normalize_title("PID", title)
 
         if not ax:
