@@ -175,7 +175,7 @@ class VersatileExpressFlasher(Flasher):
                                     timeout=device.timeout,
                                     init_dtr=0) as target:
             menu = UefiMenu(target)
-            menu.open(timeout=120)
+            menu.open(timeout=300)
             if menu.has_option(device.uefi_entry):
                 self.logger.debug('Deleting existing device entry.')
                 menu.delete_entry(device.uefi_entry)

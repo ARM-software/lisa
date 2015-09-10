@@ -189,7 +189,7 @@ class Juno(BigLittleDevice):
         self.adb_name = None  # Force re-acquire IP address on reboot. pylint: disable=attribute-defined-outside-init
         with open_serial_connection(port=self.port,
                                     baudrate=self.baudrate,
-                                    timeout=self.timeout,
+                                    timeout=300,
                                     init_dtr=0,
                                     get_conn=True) as (target, conn):
             pulse_dtr(conn, state=True, duration=0.1)  # TRM specifies a pulse of >=100ms
