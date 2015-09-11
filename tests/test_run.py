@@ -20,6 +20,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 from test_thermal import BaseTestThermal
@@ -359,14 +360,14 @@ class TestTraceDat(utils_tests.SetupDirectory):
             [("trace.dat", "trace.dat")],
             *args, **kwargs)
 
-    def test_do_txt_if_not_there(self):
-        """Create trace.txt if it's not there"""
-        self.assertFalse(os.path.isfile("trace.txt"))
+    def assert_thermal_in_trace(self, fname):
+        """Assert that the thermal event is in the trace
 
-        trappy.Run()
+        fname is the trace file, usually "trace.txt" or "trace.raw.txt"
+        """
 
         found = False
-        with open("trace.txt") as fin:
+        with open(fname) as fin:
             for line in fin:
                 if re.search("thermal", line):
                     found = True
@@ -374,18 +375,21 @@ class TestTraceDat(utils_tests.SetupDirectory):
 
         self.assertTrue(found)
 
+    def test_do_txt_if_not_there(self):
+        """Create trace.txt if it's not there"""
+        self.assertFalse(os.path.isfile("trace.txt"))
+
+        trappy.Run()
+
+        self.assert_thermal_in_trace("trace.txt")
+
     def test_do_raw_txt_if_not_there(self):
         """Create trace.raw.txt if it's not there"""
         self.assertFalse(os.path.isfile("trace.raw.txt"))
 
         trappy.Run()
 
-        found = False
-        with open("trace.raw.txt") as fin:
-            for line in fin:
-                if re.search("thermal", line):
-                    found = True
-                    break
+        self.assert_thermal_in_trace("trace.raw.txt")
 
     def test_run_arbitrary_trace_dat(self):
         """Run() works if asked to parse a binary trace with a filename other than trace.dat"""
@@ -400,3 +404,23 @@ class TestTraceDat(utils_tests.SetupDirectory):
         self.assertFalse(os.path.exists("trace.dat"))
         self.assertFalse(os.path.exists("trace.txt"))
         self.assertFalse(os.path.exists("trace.raw.txt"))
+
+    def test_regenerate_txt_if_outdated(self):
+        """Regenerate the trace.txt if it's older than the trace.dat"""
+
+        trappy.Run()
+
+        # Empty the trace.txt
+        with open("trace.txt", "w") as fout:
+            fout.write("")
+
+        # Set access and modified time of trace.txt to 10 seconds ago
+        now = time.time()
+        os.utime("trace.txt", (now - 10, now - 10))
+
+        # touch trace.dat
+        os.utime("trace.dat", None)
+
+        trappy.Run()
+
+        self.assert_thermal_in_trace("trace.txt")

@@ -115,32 +115,24 @@ class Run(object):
 
         if os.path.isfile(basepath):
             trace_name = os.path.splitext(basepath)[0]
-            trace_raw = trace_name + ".raw.txt"
-            trace_txt = trace_name + ".txt"
-
-            if basepath.endswith(".dat"):
-                self.__run_trace_cmd_report(basepath)
-
-            elif basepath.endswith(".txt"):
-                trace_txt = basepath
-                if not os.path.isfile(trace_raw):
-                    trace_raw = None
         else:
-            trace_txt = os.path.join(basepath, "trace.txt")
-            trace_raw = os.path.join(basepath, "trace.raw.txt")
-            trace_dat = os.path.join(basepath, "trace.dat")
+            trace_name = os.path.join(basepath, "trace")
 
-            if not os.path.isfile(trace_txt):
+        trace_txt = trace_name + ".txt"
+        trace_raw = trace_name + ".raw.txt"
+        trace_dat = trace_name + ".dat"
+
+        if os.path.isfile(trace_dat):
+            # Both TXT and RAW traces must always be generated
+            if not os.path.isfile(trace_txt) or \
+               not os.path.isfile(trace_raw):
+                self.__run_trace_cmd_report(trace_dat)
+            # TXT (and RAW) traces must match the most recent binary trace
+            elif os.path.getmtime(trace_txt) < os.path.getmtime(trace_dat):
                 self.__run_trace_cmd_report(trace_dat)
 
-            # The condition below handles the the following cases
-            # trace.dat and trace.txt are both present
-            # We can still generate the trace.raw.txt
-            if not os.path.isfile(trace_raw):
-                if os.path.isfile(trace_dat):
-                    self.__run_trace_cmd_report(trace_dat)
-                else:
-                    trace_raw = None
+        if not os.path.isfile(trace_raw):
+            trace_raw = None
 
         return trace_txt, trace_raw
 
