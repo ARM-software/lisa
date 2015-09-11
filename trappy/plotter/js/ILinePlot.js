@@ -179,7 +179,10 @@ var ILinePlot = ( function() {
             fillGraph: t_info.fill_graph,
             labelsDiv: t_info.name + "_legend",
             errorBars: false,
-            valueRange: t_info.valueRange
+            valueRange: t_info.valueRange,
+            drawPoints: t_info.drawPoints,
+            strokeWidth: t_info.strokeWidth,
+            pointSize: t_info.pointSize,
 
         });
 
