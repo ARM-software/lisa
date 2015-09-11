@@ -168,6 +168,19 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         self._attr["height"] = AttrConf.HTML_HEIGHT
         self._init_html()
 
+    def _check_add_scatter(self, fig_params):
+        """Check if a scatter plot is needed
+        and augment the fig_params accordingly"""
+
+        if self._attr["scatter"]:
+            fig_params["drawPoints"] = True
+            fig_params["strokeWidth"] = 0.0
+        else:
+            fig_params["drawPoints"] = False
+            fig_params["strokeWidth"] = AttrConf.LINE_WIDTH
+
+        fig_params["pointSize"] = self._attr["point_size"]
+
     def add_plot(self, plot_num, data_frame, title=""):
         """Add a plot to for a corresponding index"""
 
@@ -180,6 +193,8 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         fig_params["title"] = title
         fig_params["step_plot"] = self._attr["step_plot"]
         fig_params["fill_graph"] = self._attr["fill"]
+
+        self._check_add_scatter(fig_params)
 
         if "group" in self._attr:
             fig_params["syncGroup"] = self._attr["group"]

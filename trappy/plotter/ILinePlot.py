@@ -136,6 +136,9 @@ class ILinePlot(AbstractDataPlotter):
         self._attr["drawstyle"] = None
         self._attr["step_plot"] = False
         self._attr["fill"] = AttrConf.FILL
+        self._attr["draw_line"] = True
+        self._attr["scatter"] = AttrConf.PLOT_SCATTER
+        self._attr["point_size"] = AttrConf.POINT_SIZE
 
     def _plot(self, permute):
         """Internal Method called to draw the plot"""

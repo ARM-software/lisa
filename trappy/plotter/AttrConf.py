@@ -94,4 +94,6 @@ HTML_HEIGHT = 400
 # ILinePlot graph groups
 DEFAULT_SYNC_ZOOM = False
 EVENT_PLOT_STRIDE = False
-
+PLOT_SCATTER = False
+POINT_SIZE = 2
+LINE_WIDTH = 1.0
