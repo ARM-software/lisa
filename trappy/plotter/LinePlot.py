@@ -73,6 +73,7 @@ class LinePlot(AbstractDataPlotter):
             templates,
             self._attr["pivot"],
             self._attr["filters"], zip_constraints)
+        self._check_add_scatter()
         super(LinePlot, self).__init__()
 
     def savefig(self, *args, **kwargs):
@@ -114,6 +115,18 @@ class LinePlot(AbstractDataPlotter):
         self._attr["xlim"] = AttrConf.XLIM
         self._attr["ylim"] = AttrConf.XLIM
         self._attr["args_to_forward"] = {}
+        self._attr["scatter"] = AttrConf.PLOT_SCATTER
+
+    def _check_add_scatter(self):
+        """Check if a scatter plot is needed
+        and augment the forwarded args accordingly"""
+
+        if self._attr["scatter"]:
+            self._attr["args_to_forward"]["linestyle"] = ""
+            self._attr["args_to_forward"]["marker"] = "o"
+            if "point_size" in self._attr:
+                self._attr["args_to_forward"]["markersize"] = \
+                    self._attr["point_size"]
 
     def _plot(self, permute):
         """Internal Method called to draw the plot"""
