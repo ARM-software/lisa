@@ -725,6 +725,7 @@ class EnergyModelInstrument(Instrument):
                 if not self.no_hotplug:
                     spec.runtime_parameters['{}_cores'.format(core)] = num_cpus
                 spec.runtime_parameters['{}_frequency'.format(core)] = min_frequency
+                spec.runtime_parameters['ui'] = 'off'
                 spec.cluster = cluster
                 spec.num_cpus = num_cpus
                 spec.id = '{}_idle_{}_{}'.format(cluster, state.id, num_cpus)
@@ -743,6 +744,7 @@ class EnergyModelInstrument(Instrument):
                     spec.runtime_parameters['{}_frequency'.format(core)] = freq
                     if not self.no_hotplug:
                         spec.runtime_parameters['{}_cores'.format(core)] = num_cpus
+                    spec.runtime_parameters['ui'] = 'off'
                     spec.id = '{}_{}_{}'.format(cluster, num_cpus, freq)
                     spec.label = 'freq_{}_{}'.format(cluster, spec.label)
                     spec.workload_parameters['taskset_mask'] = list_to_mask(self.get_cpus(cluster))

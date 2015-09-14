@@ -308,6 +308,7 @@ class Device(Extension):
             raise ConfigError('Unknown runtime parameter(s): {}'.format(unknown_params))
 
         for param in params:
+            self.logger.debug('Setting runtime parameter "{}"'.format(param))
             rtp = rtp_map[param]
             setter = getattr(self, rtp.setter)
             args = dict(rtp.setter_args.items() + [(rtp.value_name, params[rtp.name.lower()])])

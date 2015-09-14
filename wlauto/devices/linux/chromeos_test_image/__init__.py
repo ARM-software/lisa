@@ -16,6 +16,7 @@
 import re
 
 from wlauto import LinuxDevice, Parameter
+from wlauto.exceptions import DeviceError
 from wlauto.core.device import RuntimeParameter
 from wlauto.utils.misc import convert_new_lines
 from wlauto.utils.types import boolean
@@ -54,7 +55,7 @@ class ChromeOsDevice(LinuxDevice):
 
     def __init__(self, **kwargs):
         super(ChromeOsDevice, self).__init__(**kwargs)
-        self.ui_status = True
+        self.ui_status = None
 
     def validate(self):
         # pylint: disable=access-member-before-definition,attribute-defined-outside-init
@@ -67,18 +68,33 @@ class ChromeOsDevice(LinuxDevice):
             self.uninstall('busybox')
             self.busybox = self.deploy_busybox(context)
 
-    def start(self):
-        if not self.ui_status:
-            self.execute('stop ui')
-
-    def stop(self):
-        if not self.ui_status:
-            self.execute('start ui')
-            self.ui_status = True
-
     def get_ui_status(self):
         return self.ui_status
 
     def set_ui_status(self, status):
         self.ui_status = boolean(status)
+        if self.ui_status is None:
+            pass
+        elif self.ui_status:
+            try:
+                self.execute('start ui')
+            except DeviceError:
+                pass
+        else:
+            try:
+                self.execute('stop ui')
+            except DeviceError:
+                pass
+
+    def stop(self):
+        if self.ui_status is None:
+            pass
+        elif not self.ui_status:
+            try:
+                self.execute('start ui')
+            except DeviceError:
+                pass
+        else:
+            pass
+        self.ui_status = None
 
