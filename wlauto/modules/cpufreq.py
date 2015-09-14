@@ -164,7 +164,13 @@ class CpufreqModule(Module):
         try:
             cmd = 'cat /sys/devices/system/cpu/{}/cpufreq/scaling_available_frequencies'.format(cpu)
             output = self.device.execute(cmd)
-            available_frequencies = map(int, output.strip().split())  # pylint: disable=E1103
+            #available_frequencies = map(int, output.strip().split())  # pylint: disable=E1103
+            available_frequencies = []
+            for f in output.strip().split():
+                try:
+                    available_frequencies.append(int(f))
+                except ValueError:
+                    pass
         except DeviceError:
             # On some devices scaling_available_frequencies  is not generated.
             # http://adrynalyne-teachtofish.blogspot.co.uk/2011/11/how-to-enable-scalingavailablefrequenci.html
