@@ -154,7 +154,7 @@ class VersatileExpressFlasher(Flasher):
 
     """
 
-    def flash(self, image_bundle=None, images=None):
+    def flash(self, image_bundle=None, images=None, recreate_uefi_entry=True):  # pylint: disable=arguments-differ
         device = self.owner
         if not hasattr(device, 'port') or not hasattr(device, 'microsd_mount_point'):
             msg = 'Device {} does not appear to support VExpress flashing.'
@@ -176,10 +176,12 @@ class VersatileExpressFlasher(Flasher):
                                     init_dtr=0) as target:
             menu = UefiMenu(target)
             menu.open(timeout=300)
-            if menu.has_option(device.uefi_entry):
+            if recreate_uefi_entry and menu.has_option(device.uefi_entry):
                 self.logger.debug('Deleting existing device entry.')
                 menu.delete_entry(device.uefi_entry)
-            menu.create_entry(device.uefi_entry, device.uefi_config)
+                menu.create_entry(device.uefi_entry, device.uefi_config)
+            elif not menu.has_option(device.uefi_entry):
+                menu.create_entry(device.uefi_entry, device.uefi_config)
             menu.select(device.uefi_entry)
             target.expect(device.android_prompt, timeout=device.timeout)
 
