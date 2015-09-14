@@ -563,7 +563,11 @@ class EnergyModelInstrument(Instrument):
             self.logger.warning(message)
         opps = {'big': self.big_opps, 'little': self.little_opps}
         leakages = {'big': self.big_leakage, 'little': self.little_leakage}
-        measured_cpus_table, cpus_table = get_cpus_power_table(freq_power_table, 'frequency', opps, leakages)
+        try:
+            measured_cpus_table, cpus_table = get_cpus_power_table(freq_power_table, 'frequency', opps, leakages)
+        except (ValueError, KeyError, IndexError) as e:
+            self.logger.error('Could not create cpu power tables: {}'.format(e))
+            return
         measured_cpus_output = os.path.join(output_directory, MEASURED_CPUS_TABLE_FILE)
         with open(measured_cpus_output, 'w') as wfh:
             measured_cpus_table.to_csv(wfh)
