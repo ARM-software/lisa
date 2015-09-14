@@ -196,7 +196,9 @@ class SshShell(object):
             if index == 0:
                 self.conn.sendline(self.password)
             timed_out = self._wait_for_prompt(timeout)
-            output = re.sub(r'.*?{}'.format(re.escape(command)), '', self.conn.before, 1).strip()
+            output = re.sub(r' \r([^\n])', r'\1', self.conn.before)
+            output = process_backspaces(output)
+            output = re.sub(r'.*?{}'.format(re.escape(command)), '', output, 1).strip()
         else:
             if log:
                 logger.debug(command)
@@ -205,6 +207,7 @@ class SshShell(object):
             # the regex removes line breaks potential introduced when writing
             # command to shell.
             output = re.sub(r' \r([^\n])', r'\1', self.conn.before)
+            output = process_backspaces(output)
             command_index = output.find(command)
             output = output[command_index + len(command):].strip()
         if timed_out:
@@ -257,4 +260,14 @@ def _check_env():
         sshpass = which('sshpass')
     if not (ssh and scp):
         raise HostError('OpenSSH must be installed on the host.')
+
+
+def process_backspaces(text):
+    chars = []
+    for c in text:
+        if c == chr(8) and chars:  # backspace
+            chars.pop()
+        else:
+            chars.append(c)
+    return ''.join(chars)
 
