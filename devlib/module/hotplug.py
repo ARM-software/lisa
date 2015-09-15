@@ -8,7 +8,10 @@ class HotplugModule(Module):
 
     @classmethod
     def probe(cls, target):  # pylint: disable=arguments-differ
-        path = cls._cpu_path(target, 0)
+        # If a system has just 1 CPU, it makes not sense to hotplug it.
+        # If a system has more than 1 CPU, CPU0 could be configured to be not
+        # hotpluggable. Thus, check for hotplug support by looking at CPU1
+        path = cls._cpu_path(target, 1)
         return target.file_exists(path) and target.is_rooted
 
     @classmethod
@@ -30,6 +33,8 @@ class HotplugModule(Module):
 
     def hotplug(self, cpu, online):
         path = self._cpu_path(self.target, cpu)
+        if not self.target.file_exists(path):
+            return
         value = 1 if online else 0
         self.target.write_value(path, value)
 
