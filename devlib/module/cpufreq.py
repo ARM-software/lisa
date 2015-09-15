@@ -30,6 +30,8 @@ class CpufreqModule(Module):
     @staticmethod
     def probe(target):
         path = '/sys/devices/system/cpu/cpufreq'
+        if target.abi == 'x86_64':
+            path = '/sys/devices/system/cpu/intel_pstate'
         return target.file_exists(path)
 
     def __init__(self, target):
