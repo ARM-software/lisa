@@ -55,7 +55,11 @@ def install_http_resource(url, to_path):
     :param to_path: Destination path on the disk
     :type to_path: str
     """
-    urllib.urlretrieve(url, filename=to_path)
+    try:
+        urllib.urlretrieve(url, filename=to_path)
+    except IOError:
+        raise ImportError("Could not receive Web Resource {}"
+                          .format(to_path))
 
 
 def install_local_resource(from_path, to_path):
