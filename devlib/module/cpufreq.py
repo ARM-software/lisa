@@ -349,3 +349,17 @@ class CpufreqModule(Module):
         for cpu in online_cpus:
             self.set_frequency(cpu, freq, exact)
 
+    def set_all_frequencies(self, freq, exact=False):
+        self.target.execute(
+                "for CPU in /sys/devices/system/cpu/cpu[0-9]*; do "\
+                        "echo {} > $CPU/cpufreq/scaling_cur_freq; "\
+                "done"\
+                .format(freq), as_root=True)
+
+    def set_all_governors(self, governor):
+        self.target.execute(
+                "for CPU in /sys/devices/system/cpu/cpu[0-9]*; do "\
+                        "echo {} > $CPU/cpufreq/scaling_governor; "\
+                "done"\
+                .format(governor), as_root=True)
+
