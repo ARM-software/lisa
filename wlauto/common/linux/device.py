@@ -216,7 +216,7 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
                      as a string.
 
         """
-        output = self.execute('cat \'{}\''.format(sysfile), as_root=True).strip()  # pylint: disable=E1103
+        output = self.execute('cat \'{}\''.format(sysfile), as_root=self.is_rooted).strip()  # pylint: disable=E1103
         if kind:
             return kind(output)
         else:
