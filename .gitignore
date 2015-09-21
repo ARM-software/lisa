@@ -1,2 +1,3 @@
 *.pyc
 .ipynb_checkpoints
+example_trace_dat*
