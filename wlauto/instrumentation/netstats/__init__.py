@@ -141,6 +141,11 @@ class NetstatsInstrument(Instrument):
                   List of Android packages who's traffic will be monitored. If
                   unspecified, all packages in the device will be monitorred.
                   """),
+        Parameter('period', kind=int, default=5,
+                  description="""
+                  Polling period for instrumentation on the device. Traffic statistics
+                  will be updated every ``period`` seconds.
+                  """),
         Parameter('force_reinstall', kind=bool, default=False,
                   description="""
                   If ``True``, instrumentation APK will always be re-installed even if
@@ -161,7 +166,7 @@ class NetstatsInstrument(Instrument):
         self.collector.setup(force=self.force_reinstall)
 
     def setup(self, context):
-        self.collector.reset(sites=self.packages)
+        self.collector.reset(sites=self.packages, period=self.period)
 
     def start(self, context):
         self.collector.start()
