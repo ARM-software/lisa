@@ -29,17 +29,30 @@ import numpy as np
 class Analyzer(object):
 
     """
-        Args:
-            data (trappy.Run): A trappy.Run instance
-            config (dict): A dictionary of variables, classes
-                and functions that can be used in the statements
+    :param data: TRAPpy Run Object
+    :type data: :mod:`trappy.run.Run`
+
+    :param config: A dictionary of variables, classes
+        and functions that can be used in the statements
+    :type config: dict
     """
 
     def __init__(self, data, config, topology=None):
         self._parser = Parser(data, config, topology)
 
     def assertStatement(self, statement, select=None):
-        """Solve the statement for a boolean result"""
+        """Solve the statement for a boolean result
+
+        :param statement: A string representing a valid
+            :mod:`trappy.stats.grammar` statement
+        :type statement: str
+
+        :param select: If the result represents a boolean
+            mask and the data was derived from a TRAPpy event
+            with a pivot value. The :code:`select` can be
+            used to select a particular pivot value
+        :type select: :mod:`pandas.DataFrame` column
+        """
 
         result = self.getStatement(statement, select=select)
 
