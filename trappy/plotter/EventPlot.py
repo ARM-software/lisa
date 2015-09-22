@@ -27,13 +27,13 @@ from trappy.plotter import AttrConf
 import uuid
 import json
 import os
-from IPython.display import display, HTML
 from trappy.plotter.AbstractDataPlotter import AbstractDataPlotter
 from trappy.plotter import IPythonConf
 
 if not IPythonConf.check_ipython():
     raise ImportError("Ipython Environment not Found")
 
+from IPython.display import display, HTML
 # pylint: disable=R0201
 # pylint: disable=R0921
 # Initialize Resources

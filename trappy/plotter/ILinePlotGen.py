@@ -24,12 +24,13 @@ from trappy.plotter import AttrConf
 import uuid
 import json
 import os
-from IPython.display import display, HTML
 from trappy.plotter import IPythonConf
 
 
 if not IPythonConf.check_ipython():
     raise ImportError("No Ipython Environment found")
+
+from IPython.display import display, HTML
 
 # Install resources
 IPythonConf.iplot_install("ILinePlot")
