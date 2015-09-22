@@ -31,6 +31,11 @@ class ListCommand(Command):
                                        'one of: {}'.format(', '.join(extension_types))),
                                  choices=extension_types)
         self.parser.add_argument('-n', '--name', help='Filter results by the name specified')
+        self.parser.add_argument('-o', '--packaged-only', action='store_true',
+                                 help='''
+                                 Only list extensions packaged with WA itself. Do not list extensions
+                                 installed locally or from other packages.
+                                 ''')
         self.parser.add_argument('-p', '--platform', help='Only list results that are supported by '
                                                           'the specified platform')
 
@@ -39,7 +44,11 @@ class ListCommand(Command):
         if args.name:
             filters['name'] = args.name
 
-        ext_loader = ExtensionLoader(packages=settings.extension_packages, paths=settings.extension_paths)
+        if args.packaged_only:
+            ext_loader = ExtensionLoader()
+        else:
+            ext_loader = ExtensionLoader(packages=settings.extension_packages,
+                                         paths=settings.extension_paths)
         results = ext_loader.list_extensions(args.kind[:-1])
         if filters or args.platform:
             filtered_results = []
