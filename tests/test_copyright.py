@@ -17,7 +17,6 @@
 from datetime import date
 import os
 import re
-import subprocess
 import unittest
 
 
