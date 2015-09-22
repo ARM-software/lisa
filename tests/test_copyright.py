@@ -30,12 +30,15 @@ def copyright_is_valid(fname):
 
     # Either the first or the second line must have a "Copyright:" line
     first_line = re.compile(r"(#| \*)    Copyright")
-    if not first_line.search(lines[0]):
-        if first_line.search(lines[1]):
-            # Drop the first line to align the copyright to lines[0]
-            lines = lines[1:]
-        else:
-            return False
+    try:
+        if not first_line.search(lines[0]):
+            if first_line.search(lines[1]):
+                # Drop the first line to align the copyright to lines[0]
+                lines = lines[1:]
+            else:
+                return False
+    except IndexError:
+        return False
 
     # The copyright mentions ARM Limited
     if "ARM Limited" not in lines[0]:
