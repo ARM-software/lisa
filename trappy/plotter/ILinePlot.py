@@ -121,6 +121,13 @@ class ILinePlot(AbstractDataPlotter):
     def view(self, test=False):
         """Displays the graph"""
 
+        # Defer installation of IPython components
+        # to the .view call to avoid any errors at
+        # when importing the module. This facilitates
+        # the importing of the module from outside
+        # an IPython notebook
+        IPythonConf.iplot_install("ILinePlot")
+
         if self._attr["concat"]:
             self._plot_concat()
         else:

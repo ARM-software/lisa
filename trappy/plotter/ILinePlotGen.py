@@ -32,9 +32,6 @@ if not IPythonConf.check_ipython():
 
 from IPython.display import display, HTML
 
-# Install resources
-IPythonConf.iplot_install("ILinePlot")
-
 
 class ILinePlotGen(object):
     """
