@@ -15,6 +15,7 @@
 
 
 from datetime import date
+from glob import glob
 import os
 import re
 import unittest
@@ -61,10 +62,34 @@ class TestCopyRight(unittest.TestCase):
 
         tests_dir = os.path.dirname(os.path.abspath(__file__))
         base_dir = os.path.dirname(tests_dir)
+        patterns_to_ignore = {}
 
         for root, dirs, files in os.walk(base_dir):
+            if ".gitignore" in files:
+                fname = os.path.join(root, ".gitignore")
+                with open(fname) as fin:
+                    lines = fin.readlines()
+
+            patterns_to_ignore[root] = [l.strip() for l in lines]
+
+            files_to_ignore = []
+            for directory, patterns in patterns_to_ignore.iteritems():
+                if root.startswith(directory):
+                    for pat in patterns:
+                        pat = os.path.join(root, pat)
+                        files_to_ignore.extend(glob(pat))
+
+            for dirname in dirs:
+                full_dirname = os.path.join(root, dirname)
+                if full_dirname in files_to_ignore:
+                    dirs.remove(dirname)
+
+
             for fname in files:
                 fname = os.path.join(root, fname)
+                if fname in files_to_ignore:
+                    continue
+
                 extension = os.path.splitext(fname)[1]
                 if extension in [".py", ".js", ".css"]:
                     if not copyright_is_valid(fname):
