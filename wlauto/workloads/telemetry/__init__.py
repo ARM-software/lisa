@@ -88,6 +88,8 @@ class Telemetry(Workload):
 
     """
 
+    supported_platforms = ['android', 'chromeos']
+
     parameters = [
         Parameter('run_benchmark_path', default=None,
                   description="""

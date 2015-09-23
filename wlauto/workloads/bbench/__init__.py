@@ -74,6 +74,8 @@ class BBench(Workload):
         Alias('bbench_with_audio', with_audio=True),
     ]
 
+    supported_platforms = ['android']
+
     def setup(self, context):  # NOQA
         self.bbench_on_device = '/'.join([self.device.working_directory, 'bbench'])
         self.bbench_server_on_device = os.path.join(self.device.working_directory, BBENCH_SERVER_NAME)
