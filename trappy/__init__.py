@@ -14,6 +14,7 @@
 #
 
 
+import pkg_resources
 from trappy.compare_runs import summary_plots, compare_runs
 from trappy.run import Run
 from trappy.plotter.LinePlot import LinePlot
@@ -32,3 +33,8 @@ for fname in os.listdir(os.path.dirname(__file__)):
         __import__("trappy.{}".format(import_name))
 
 del fname, import_name, extension
+
+try:
+    __version__ = pkg_resources.get_distribution("trappy").version
+except pkg_resources.DistributionNotFound:
+    __version__ = "local"
