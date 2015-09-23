@@ -18,3 +18,9 @@
 import bart.sched
 import bart.common
 import bart.thermal
+import pkg_resources
+
+try:
+    __version__ = pkg_resources.get_distribution("trappy").version
+except pkg_resources.DistributionNotFound:
+    __version__ = "local"
