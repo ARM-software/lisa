@@ -15,9 +15,9 @@
 
 
 from datetime import date
+from glob import glob
 import os
 import re
-import subprocess
 import unittest
 
 
@@ -30,12 +30,15 @@ def copyright_is_valid(fname):
 
     # Either the first or the second line must have a "Copyright:" line
     first_line = re.compile(r"(#| \*)    Copyright")
-    if not first_line.search(lines[0]):
-        if first_line.search(lines[1]):
-            # Drop the first line to align the copyright to lines[0]
-            lines = lines[1:]
-        else:
-            return False
+    try:
+        if not first_line.search(lines[0]):
+            if first_line.search(lines[1]):
+                # Drop the first line to align the copyright to lines[0]
+                lines = lines[1:]
+            else:
+                return False
+    except IndexError:
+        return False
 
     # The copyright mentions ARM Limited
     if "ARM Limited" not in lines[0]:
@@ -59,12 +62,39 @@ class TestCopyRight(unittest.TestCase):
 
         tests_dir = os.path.dirname(os.path.abspath(__file__))
         base_dir = os.path.dirname(tests_dir)
+        patterns_to_ignore = {}
 
-        for root, _, files in os.walk(base_dir):
+        for root, dirs, files in os.walk(base_dir):
+            if ".gitignore" in files:
+                fname = os.path.join(root, ".gitignore")
+                with open(fname) as fin:
+                    lines = fin.readlines()
+
+            patterns_to_ignore[root] = [l.strip() for l in lines]
+
+            files_to_ignore = []
+            for directory, patterns in patterns_to_ignore.iteritems():
+                if root.startswith(directory):
+                    for pat in patterns:
+                        pat = os.path.join(root, pat)
+                        files_to_ignore.extend(glob(pat))
+
+            for dirname in dirs:
+                full_dirname = os.path.join(root, dirname)
+                if full_dirname in files_to_ignore:
+                    dirs.remove(dirname)
+
+
             for fname in files:
                 fname = os.path.join(root, fname)
+                if fname in files_to_ignore:
+                    continue
+
                 extension = os.path.splitext(fname)[1]
                 if extension in [".py", ".js", ".css"]:
                     if not copyright_is_valid(fname):
                         print("Invalid copyright in {}".format(fname))
                         self.fail()
+
+            if '.git' in dirs:
+                dirs.remove('.git')
