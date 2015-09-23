@@ -34,6 +34,12 @@ REQUIRES = [
     "jupyter>=1.0.0",
 ]
 
+data_files = {"trappy.plotter": ["js/EventPlot.js",
+                                 "js/ILinePlot.js",
+                                 "css/EventPlot.css",
+                             ]
+}
+
 setup(name='TRAPpy',
       version=VERSION,
       license="Apache v2",
@@ -43,7 +49,7 @@ setup(name='TRAPpy',
       long_description=LONG_DESCRIPTION,
       url="http://arm-software.github.io/trappy",
       packages=find_packages(),
-      include_package_data=True,
+      package_data=data_files,
       scripts=["scripts/publish_interactive_plots.py"],
       classifiers=[
           "Development Status :: 5 - Production/Stable",
