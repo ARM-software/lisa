@@ -25,18 +25,118 @@ from bart.sched.SchedAssert import SchedAssert
 from bart.common import Utils
 
 class SchedMultiAssert(object):
+    """This is vector assertion class built on top of
+    :mod:`bart.sched.SchedAssert.SchedAssert`
 
-    """The primary focus of this class is to assert and verify
-    predefined scheduler scenarios. This does not compare parameters
-    across runs"""
+    :param run: A single trappy.Run object
+        or a path that can be passed to trappy.Run
+    :type run: :mod:`trappy.run.Run`
+
+    :param topology: A topology that describes the arrangement of
+        CPU's on a system. This is useful for multi-cluster systems
+        where data needs to be aggregated at different topological
+        levels
+    :type topology: :mod:`trappy.stats.Topology.Topology`
+
+    :param execnames: The execnames of the task to be analysed
+
+        A single execname or a list of execnames can be passed.
+        There can be multiple processes associated with a single
+        execname parameter. The execnames are searched using a prefix
+        match.
+    :type execname: list, str
+
+    :param pid: The process ID of the task to be analysed
+    :type pid: list, int
+
+    Consider the following processes which need to be analysed
+
+        ===== ==============
+         PID    execname
+        ===== ==============
+         11     task_1
+         22     task_2
+         33     task_3
+        ===== ==============
+
+    A :mod:`bart.sched.SchedMultiAssert.SchedMultiAssert` instance be created
+    following different ways:
+
+        - Using execname prefix match
+          ::
+
+            SchedMultiAssert(run, topology, execnames="task_")
+
+        - Individual Task names
+          ::
+
+            SchedMultiAssert(run, topology, execnames=["task_1", "task_2", "task_3"])
+
+        - Using Process IDs
+          ::
+
+            SchedMultiAssert(run, topology, pids=[11, 22, 33])
+
+
+    All the functionality provided in :mod:`bart.sched.SchedAssert.SchedAssert` is available
+    in this class with the addition of handling vector assertions.
+
+    For example consider the use of :func:`getDutyCycle`
+    ::
+
+        >>> s = SchedMultiAssert(run, topology, execnames="task_")
+        >>> s.getDutyCycle(window=(start, end))
+        {
+            "11": {
+                "task_name": "task_1",
+                "dutycycle": 10.0
+            },
+            "22": {
+                "task_name": "task_2",
+                "dutycycle": 20.0
+            },
+            "33": {
+                "task_name": "task_3",
+                "dutycycle": 30.0
+            },
+        }
+
+    The assertions can be used in a similar way
+    ::
+
+        >>> import operator as op
+        >>> s = SchedMultiAssert(run, topology, execnames="task_")
+        >>> s.assertDutyCycle(15, op.ge, window=(start, end))
+        {
+            "11": {
+                "task_name": "task_1",
+                "dutycycle": False
+            },
+            "22": {
+                "task_name": "task_2",
+                "dutycycle": True
+            },
+            "33": {
+                "task_name": "task_3",
+                "dutycycle": True
+            },
+        }
+
+    The above result can be coalesced using a :code:`rank` parameter
+    As we know that only 2 processes have duty cycles greater than 15%
+    we can do the following:
+    ::
+
+        >>> import operator as op
+        >>> s = SchedMultiAssert(run, topology, execnames="task_")
+        >>> s.assertDutyCycle(15, op.ge, window=(start, end), rank=2)
+        True
+
+    See :mod:`bart.sched.SchedAssert.SchedAssert` for the available
+    functionality
+    """
 
     def __init__(self, run, topology, execnames):
-        """Args:
-                run (trappy.Run): A single trappy.Run object
-                    or a path that can be passed to trappy.Run
-                topology(trappy.stats.Topology): The CPU topology
-                execname(str, list): List of execnames or single task
-        """
 
         self._execnames = listify(execnames)
         self._run = Utils.init_run(run)
@@ -120,7 +220,11 @@ class SchedMultiAssert(object):
             return result
 
     def generate_events(self, level, window=None):
-        """Generate Events for the trace plot"""
+        """Generate Events for the trace plot
+
+        .. note::
+            This is an internal function for plotting data
+        """
 
         events = {}
         for s_assert in self._asserts.values():
@@ -130,9 +234,8 @@ class SchedMultiAssert(object):
 
     def plot(self, level="cpu", window=None, xlim=None):
         """
-        Returns:
-            trappy.plotter.AbstractDataPlotter. Call .view() for
-                displaying the plot
+        :return: :mod:`trappy.plotter.AbstractDataPlotter` instance
+            Call :func:`view` to draw the graph
         """
 
         if not xlim:

@@ -26,7 +26,11 @@ import numpy as np
 class ThermalAssert(object):
 
     """A class that accepts a TRAPpy Run object and
-    provides assertions for thermal behaviours"""
+    provides assertions for thermal behaviours
+
+    :param run: A path to the trace file or a TRAPpy Run object
+    :type run: str, :mod:`trappy.run.Run`
+    """
 
     def __init__(self, run, config=None):
 
@@ -34,15 +38,24 @@ class ThermalAssert(object):
         self._analyzer = Analyzer(self._run, config)
 
     def getThermalResidency(self, temp_range, window, percent=False):
-        """Returns the total time spent in a given temperature range
-        Args:
-            temp_range (tuple): A tuple of (low_temp, high_temp)
-                which the specifies the range of temperature that
-                one intends to calculate the residency for.
-            window (tuple): A (start, end) tuple to limit the scope of the
-                residency calculation.
-            percent: Returns the residency as a percentage of the total
-                duration of the trace
+        """Return the total time spent in a given temperature range
+
+        :param temp_range: A tuple of (low_temp, high_temp)
+            which the specifies the range of temperature that
+            one intends to calculate the residency for.
+        :type temp_range: tuple
+
+        :param window: A (start, end) tuple to limit the scope of the
+            residency calculation.
+        :type window: tuple
+
+        :param percent: Returns the residency as a percentage of the total
+            duration of the trace
+        :type percent: bool
+
+        .. seealso:
+
+            :mod:`bart.thermal.ThermalAssert.ThermalAssert.assertThermalResidency`
         """
 
         # Get a pivoted thermal temperature data using the grammar
@@ -77,17 +90,45 @@ class ThermalAssert(object):
             window,
             percent=False):
         """
-        Args:
-            expected_value (double): The expected value of the residency
-            operator (function): A binary operator function that returns
-                a boolean
-            temp_range (tuple): A tuple of (low_temp, high_temp)
-                which the specifies the range of temperature that
-                one intends to calculate the residency for.
-            window (tuple): A (start, end) tuple to limit the scope of the
-                residency calculation.
-            percent: Returns the residency as a percentage of the total
-                duration of the trace
+        :param expected_value: The expected value of the residency
+        :type expected_value: double
+
+        :param operator: A binary operator function that returns
+            a boolean. For example:
+            ::
+
+                import operator
+                op = operator.ge
+                assertThermalResidency(temp_range, expected_value, op)
+
+            Will do the following check:
+            ::
+
+                getThermalResidency(temp_range) >= expected_value
+
+            A custom function can also be passed:
+            ::
+
+                THRESHOLD=5
+                def between_threshold(a, expected):
+                    return abs(a - expected) <= THRESHOLD
+
+        :param temp_range: A tuple of (low_temp, high_temp)
+            which the specifies the range of temperature that
+            one intends to calculate the residency for.
+        :type temp_range: tuple
+
+        :param window: A (start, end) tuple to limit the scope of the
+            residency calculation.
+        :type window: tuple
+
+        :param percent: Returns the residency as a percentage of the total
+            duration of the trace
+        :type percent: bool
+
+        .. seealso:
+
+            :mod:`bart.thermal.ThermalAssert.ThermalAssert.assertThermalResidency`
         """
 
         residency = self.getThermalResidency(temp_range, window, percent)

@@ -18,7 +18,12 @@
 import trappy
 
 def init_run(trace):
-    """Initialize the Run Object"""
+    """Initialize the Run Object
+
+    :param trace: Path for the trace file
+        or a trace object
+    :type trace: str, :mod:`trappy.run.Run`
+    """
 
     if isinstance(trace, basestring):
         return trappy.Run(trace)
@@ -29,8 +34,14 @@ def init_run(trace):
     raise ValueError("Invalid trace Object")
 
 def select_window(series, window):
-    """Library Function to select a portion of
-       pandas time series
+    """Helper Function to select a portion of
+    pandas time series
+
+    :param series: Input Time Series data
+    :type series: :mod:`pandas.Series`
+
+    :param window: A tuple indicating a time window
+    :type window: tuple
     """
 
     if not window:

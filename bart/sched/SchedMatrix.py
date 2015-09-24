@@ -26,41 +26,42 @@ SchedMatrix creates a Matrix of Scheduler Waveform Correlations
 A = Reference Execution
 B = Execution to be Evaluated
 
-           +---+  +---+
-           |   |  |   |
-A1, B3 +---+   +--+   +--------------+
-                      +---+  +---+
-                      |   |  |   |
-A2, B4 +--------------+   +--+   +---+
-           +---+  +---+
-           |   |  |   |
-A3, B1 +---+   +--+   +--------------+
-                      +---+  +---+
-                      |   |  |   |
-A4, B2 +--------------+   +--+   +---+
+.. code::
+
+               +---+  +---+
+               |   |  |   |
+    A1, B3 +---+   +--+   +--------------+
+                          +---+  +---+
+                          |   |  |   |
+    A2, B4 +--------------+   +--+   +---+
+               +---+  +---+
+               |   |  |   |
+    A3, B1 +---+   +--+   +--------------+
+                          +---+  +---+
+                          |   |  |   |
+    A4, B2 +--------------+   +--+   +---+
 
 
-Correlation Matrix
+**Correlation Matrix**
 
-    B1   B2   B3   B4
-A1  1    0    1    0
+    === ==== ==== ==== ====
+         B1   B2   B3   B4
+    === ==== ==== ==== ====
+    A1   1    0    1    0
+    A2   0    1    0    1
+    A3   1    0    1    0
+    A4   0    1    0    1
+    === ==== ==== ==== ====
 
-A2  0    1    0    1
 
-A3  1    0    1    0
-
-A4  0    1    0    1
-
-
-Thus a success criteria can be defined as
-
-A1 has two similar threads in the
+Thus a success criteria can be defined as A1 having two similar threads in the
 evaluated execution
+::
 
-assertSiblings(A1, 2, operator.eq)
-assertSiblings(A2, 2, operator.eq)
-assertSiblings(A3, 2, operator.eq)
-assertSiblings(A4, 2, operator.eq)
+    assertSiblings(A1, 2, operator.eq)
+    assertSiblings(A2, 2, operator.eq)
+    assertSiblings(A3, 2, operator.eq)
+    assertSiblings(A4, 2, operator.eq)
 """
 
 
@@ -81,12 +82,67 @@ POSITIVE_TOLERANCE = 0.80
 
 class SchedMatrix(object):
 
-    """Valid cases are:
+    """
+    :param reference_trace: The trace file path/run object
+        to be used as a reference
+    :type reference_trace: str, :mod:`trappy.run.Run`
 
-        * Single execname, multiple PIDs
-        * PID List
-        * Multiple execname, one-to-one PID
-            association
+    :param trace: The trace file path/run object
+        to be verified
+    :type trace: str, :mod:`trappy.run.Run`
+
+    :param topology: A topology that describes the arrangement of
+        CPU's on a system. This is useful for multi-cluster systems
+        where data needs to be aggregated at different topological
+        levels
+    :type topology: :mod:`trappy.stats.Topology.Topology`
+
+    :param execnames: The execnames of the task to be analysed
+
+        A single execname or a list of execnames can be passed.
+        There can be multiple processes associated with a single
+        execname parameter. The execnames are searched using a prefix
+        match.
+    :type execname: list, str
+
+    Consider the following processes which need to be analysed:
+
+    * **Reference Trace**
+
+            ===== ==============
+             PID    execname
+            ===== ==============
+             11     task_1
+             22     task_2
+             33     task_3
+            ===== ==============
+
+    * **Trace to be verified**
+
+            ===== ==============
+             PID    execname
+            ===== ==============
+             77     task_1
+             88     task_2
+             99     task_3
+            ===== ==============
+
+
+    A :mod:`bart.sched.SchedMatrix.SchedMatrix` instance be created
+    following different ways:
+
+        - Using execname prefix match
+          ::
+
+            SchedMatrix(r_trace, trace, topology,
+                        execnames="task_")
+
+        - Individual Task names
+          ::
+
+            SchedMatrix(r_trace, trace, topology,
+                        execnames=["task_1", "task_2", "task_3"])
+
     """
 
     def __init__(
@@ -187,8 +243,18 @@ class SchedMatrix(object):
 
     def getSiblings(self, pid, tolerance=POSITIVE_TOLERANCE):
         """Return the number of processes in the
-           reference trace that have a correlation
-           greater than tolerance
+        reference trace that have a correlation
+        greater than tolerance
+
+        :param pid: The PID of the process in the reference
+            trace
+        :type pid: int
+
+        :param tolerance: A correlation value > tolerance
+            will classify the resultant process as a sibling
+        :type tolerance: float
+
+        .. seealso:: :mod:`bart.sched.SchedMatrix.SchedMatrix.assertSiblings`
         """
 
         ref_pid_idx = self._reference_pids.index(pid)
@@ -198,13 +264,30 @@ class SchedMatrix(object):
     def assertSiblings(self, pid, expected_value, operator,
                        tolerance=POSITIVE_TOLERANCE):
         """Assert that the number of siblings in the reference
-           trace match the expected value and the operator
+        trace match the expected value and the operator
 
-           Args:
-               pid: The PID in the reference trace
-               expected_value: the second argument to the operator
-               operator: a function of the type f(a, b) that returns
-                    a boolean
-         """
+        :param pid: The PID of the process in the reference
+            trace
+        :type pid: int
+
+        :param operator: A binary operator function that returns
+            a boolean. For example:
+            ::
+
+                import operator
+                op = operator.eq
+                getSiblings(pid, expected_value, op)
+
+            Will do the following check:
+            ::
+
+                getSiblings(pid) == expected_value
+
+        :param tolerance: A correlation value > tolerance
+            will classify the resultant process as a sibling
+        :type tolerance: float
+
+        .. seealso:: :mod:`bart.sched.SchedMatrix.SchedMatrix.getSiblings`
+        """
         num_siblings = self.getSiblings(pid, tolerance)
         return operator(num_siblings, expected_value)
