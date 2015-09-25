@@ -25,7 +25,8 @@ from collections import OrderedDict
 from multiprocessing import Process, Queue
 
 from wlauto import Instrument, Parameter
-from wlauto.exceptions import ConfigError, InstrumentError
+from wlauto.core import signal
+from wlauto.exceptions import ConfigError, InstrumentError, DeviceError
 from wlauto.utils.misc import ensure_directory_exists as _d
 from wlauto.utils.types import list_of_ints, list_of_strs
 
@@ -45,6 +46,10 @@ UNITS = {
     'power': 'Watts',
     'voltage': 'Volts',
 }
+
+
+GPIO_ROOT = '/sys/class/gpio'
+TRACE_MARKER_PATH = '/sys/kernel/debug/tracing/trace_marker'
 
 
 class Daq(Instrument):
@@ -146,6 +151,13 @@ class Daq(Instrument):
                     :abs: take the absoulte value of negave samples
 
                   """),
+        Parameter('gpio_sync', kind=int, constraint=lambda x: x > 0,
+                  description="""
+                  If specified, the instrument will simultaneously set the
+                  specified GPIO pin high and put a marker into ftrace. This is
+                  to facillitate syncing kernel trace events to DAQ power
+                  trace.
+                  """),
     ]
 
     def initialize(self, context):
@@ -153,6 +165,22 @@ class Daq(Instrument):
         if status == daq.Status.OK and not devices:
             raise InstrumentError('DAQ: server did not report any devices registered with the driver.')
         self._results = OrderedDict()
+        self.gpio_path = None
+        if self.gpio_sync:
+            if not self.device.file_exists(GPIO_ROOT):
+                raise InstrumentError('GPIO sysfs not enabled on the device.')
+            try:
+                export_path = self.device.path.join(GPIO_ROOT, 'export')
+                self.device.set_sysfile_value(export_path, self.gpio_sync, verify=False)
+                pin_root = self.device.path.join(GPIO_ROOT, 'gpio{}'.format(self.gpio_sync))
+                direction_path = self.device.path.join(pin_root, 'direction')
+                self.device.set_sysfile_value(direction_path, 'out')
+                self.gpio_path = self.device.path.join(pin_root, 'value')
+                self.device.set_sysfile_value(self.gpio_path, 0, verify=False)
+                signal.connect(self.insert_start_marker, signal.BEFORE_WORKLOAD_EXECUTION, priority=11)
+                signal.connect(self.insert_stop_marker, signal.AFTER_WORKLOAD_EXECUTION, priority=11)
+            except DeviceError as e:
+                raise InstrumentError('Could not configure GPIO on device: {}'.format(e))
 
     def setup(self, context):
         self.logger.debug('Initialising session.')
@@ -216,6 +244,11 @@ class Daq(Instrument):
         self.logger.debug('Terminating session.')
         self._execute_command('close')
 
+    def finalize(self, context):
+        if self.gpio_path:
+            unexport_path = self.device.path.join(GPIO_ROOT, 'unexport')
+            self.device.set_sysfile_value(unexport_path, self.gpio_sync, verify=False)
+
     def validate(self):
         if not daq:
             raise ImportError(import_error_mesg)
@@ -254,6 +287,16 @@ class Daq(Instrument):
             with open(outfile, 'wb') as fh:
                 writer = csv.writer(fh)
                 writer.writerows(rows)
+
+    def insert_start_marker(self, context):
+        if self.gpio_path:
+            command = 'echo DAQ_START_MARKER > {}; echo 1 > {}'.format(TRACE_MARKER_PATH, self.gpio_path)
+            self.device.execute(command, as_root=self.device.is_rooted)
+
+    def insert_stop_marker(self, context):
+        if self.gpio_path:
+            command = 'echo DAQ_STOP_MARKER > {}; echo 0 > {}'.format(TRACE_MARKER_PATH, self.gpio_path)
+            self.device.execute(command, as_root=self.device.is_rooted)
 
     def _execute_command(self, command, **kwargs):
         # pylint: disable=E1101
