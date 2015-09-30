@@ -191,12 +191,16 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
 
     def get_properties(self, context):
         for propfile in self.property_files:
-            if not self.file_exists(propfile):
-                continue
             try:
                 normname = propfile.lstrip(self.path.sep).replace(self.path.sep, '.')
                 outfile = os.path.join(context.host_working_directory, normname)
-                self.pull_file(propfile, outfile)
+                if self.is_file(propfile):
+                    with open(outfile, 'w') as wfh:
+                        wfh.write(self.execute('cat {}'.format(propfile)))
+                elif self.is_directory(propfile):
+                    self.pull_file(propfile, outfile)
+                else:
+                    continue
             except DeviceError:
                 # We pull these files "opportunistically", so if a pull fails
                 # (e.g. we don't have permissions to read the file), just note
@@ -718,6 +722,18 @@ class LinuxDevice(BaseLinuxDevice):
 
     def file_exists(self, filepath):
         output = self.execute('if [ -e \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
+        # output from ssh my contain part of the expression in the buffer,
+        # split out everything except the last word.
+        return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
+
+    def is_file(self, filepath):
+        output = self.execute('if [ -f \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
+        # output from ssh my contain part of the expression in the buffer,
+        # split out everything except the last word.
+        return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
+
+    def is_directory(self, filepath):
+        output = self.execute('if [ -d \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
         # output from ssh my contain part of the expression in the buffer,
         # split out everything except the last word.
         return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
