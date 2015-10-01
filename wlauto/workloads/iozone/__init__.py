@@ -90,6 +90,10 @@ class Iozone(Workload):
 
     [0,1,4,5]
 
+    Please enable classifiers in your agenda or config file 
+    in order to display the results properly in the results.csv
+    file.
+
     The official website for iozone is at www.iozone.org.
     """
 
