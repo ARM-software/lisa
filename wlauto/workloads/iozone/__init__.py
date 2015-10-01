@@ -230,7 +230,7 @@ class Iozone(Workload):
 
     # break list of results into smaller groups based on
     # I/O operation
-    def parse_metrics(self, context, plist):
+    def parse_metrics(self, context, plist):       
         subvalue_list = []
         value_list = []
         for values in plist:
@@ -239,6 +239,9 @@ class Iozone(Workload):
             else:
                 value_list.append(subvalue_list)
                 subvalue_list = []
+
+        if subvalue_list:
+            value_list.append(subvalue_list)
 
         for reports in value_list:
             # grab report name and convert it to a string
