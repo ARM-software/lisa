@@ -205,7 +205,7 @@ class Daq(Instrument):
                                            description='DAQ power measurments.')
             port = os.path.splitext(entry)[0]
             path = os.path.join(output_directory, entry)
-            key = (context.spec.id, context.workload.name, context.current_iteration)
+            key = (context.spec.id, context.spec.label, context.current_iteration)
             if key not in self._results:
                 self._results[key] = {}
 
