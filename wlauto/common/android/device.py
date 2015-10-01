@@ -33,6 +33,7 @@ from wlauto.utils.android import (adb_shell, adb_background_shell, adb_list_devi
 
 
 SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn)=([0-9]+|true|false)', re.I)
+SCREEN_SIZE_REGEX = re.compile(r'mUnrestrictedScreen=\(\d+,\d+\)\s+(?P<width>\d+)x(?P<height>\d+)')
 
 
 class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
@@ -70,6 +71,11 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
                   description="""
                   Specified whether the device should make sure that the screen is on
                   during initialization.
+                  """),
+        Parameter('swipe_to_unlock', kind=boolean, default=False,
+                  description="""
+                  If set to ``True``, a horisonal swipe will be performed 2/3 down the screen.
+                  This should unlock the screen.
                   """),
     ]
 
@@ -554,6 +560,23 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
             return self._logcat_poller.clear_buffer()
         else:
             return adb_shell(self.adb_name, 'logcat -c', timeout=self.default_timeout)
+
+    def get_screen_size(self):
+        output = self.execute('dumpsys window')
+        match = SCREEN_SIZE_REGEX.search(output)
+        if match:
+            return (int(match.group('width')),
+                    int(match.group('height')))
+        else:
+            return (0, 0)
+
+    def swipe_to_unlock(self):
+        width, height = self.get_screen_size()
+        swipe_heigh = height * 2 // 3
+        start = 100
+        stop = width - start
+        command = 'input swipe {} {} {} {}'
+        self.execute(command.format(start, swipe_heigh, stop, swipe_heigh))
 
     def capture_screen(self, filepath):
         """Caputers the current device screen into the specified file in a PNG format."""
