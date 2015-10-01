@@ -15,11 +15,11 @@
 from wlauto import Workload, Parameter, Executable
 from wlauto.exceptions import ConfigError
 from wlauto.utils.types import list_of_ints
+from collections import OrderedDict
+from itertools import izip_longest
 import os
 import re
 import csv
-from collections import OrderedDict
-from itertools import izip_longest
 
 iozone_results_txt = 'iozone_results.txt'
 
@@ -49,7 +49,7 @@ class Iozone(Workload):
     4  - Random Read Test
          Measure performance of reading a file by accessing
          random locations within the file.
-                        
+
     5  - Random Write Test
          Measure performance of writing a file by accessing
          random locations within the file.
@@ -60,30 +60,30 @@ class Iozone(Workload):
     7  - Record Rewrite Test
          Measure performance of writing and rewriting a
          particular spot within the file. 
-    
+
     8  - Strided Read Test
          Measure performance of reading a file with strided
          access behavior.
 
     9  - Fwrite Test
-         Measure performance of writing a file using the 
+         Measure performance of writing a file using the
          library function fwrite() that performances
          buffered write operations.
 
     10 - Frewrite Test
-         Measure performance of writing a file using the 
-         the library function fwrite() that performs 
+         Measure performance of writing a file using the
+         the library function fwrite() that performs
          buffered and blocked write operations.
-`
+
     11 - Fread Test
          Measure performance of reading a file using the
-         library function fread() that performs buffered 
+         library function fread() that performs buffered
          and blocked read operations.
- 
+
     12 - Freread Test
-         Same as the Fread Test except the current file 
+         Same as the Fread Test except the current file
          being read was read previously sometime in the
-         past. 
+         past.
 
     By default, iozone will run all tests in auto mode. To run
     specific tests, they must be written in the form of:
@@ -156,8 +156,7 @@ class Iozone(Workload):
         if match:
            self.user_file = match.group(1)
            self.device_output_file = os.path.join(self.device.working_directory,
-                                                       self.user_file)
-
+                                                  self.user_file)
 
         return iozone_command
 
@@ -249,20 +248,21 @@ class Iozone(Workload):
 
             record_sizes = reports[1]
             values = reports[2:]
-                
-            for data in values:
-                temp = OrderedDict(izip_longest(record_sizes, data))
-                
-                for reclen,value in temp.items():
+
+            for v in values:
+                templist = OrderedDict(izip_longest(record_sizes, v))
+
+                for reclen,value in templist.items():
                     if reclen is '0':
                         fs = value
-                       
+
                     if value is None:
                         value = '0'
-                        
-                    classifier = {'reclen': reclen, 'file_size': fs}
+
+                    classifiers = {'reclen': reclen, 'file_size': fs}
                     if reclen != '0':
-                        context.add_metric(report_name, int(value), 'kb/s', classifiers=classifier)
+                        context.add_metric(report_name, int(value), 'kb/s',
+                                           classifiers=classifiers)
 
     # parse thread-mode results
     def parse_thread_results(self):
