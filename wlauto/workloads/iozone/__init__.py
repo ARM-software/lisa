@@ -14,10 +14,12 @@
 
 from wlauto import Workload, Parameter, Executable
 from wlauto.exceptions import ConfigError
-from wlauto.utils.types import list_of_strs
+from wlauto.utils.types import list_of_ints
 import os
 import re
 import csv
+from collections import OrderedDict
+from itertools import izip_longest
 
 iozone_results_txt = 'iozone_results.txt'
 
@@ -28,26 +30,81 @@ class Iozone(Workload):
     Iozone is a filesystem benchmark that runs a series of disk
     I/O performance tests.
 
+    Here is a list of tests that you can run in the iozone 
+    workload. The descriptions are from the official iozone 
+    document.
+
+    0  - Write Test
+         Measure performance of writing a new file.
+
+    1  - Rewrite Test
+         Measure performance of writing an existing file.
+
+    2  - Read Test
+         Measure performance of reading an existing file.
+
+    3  - Reread Test
+         Measure performance of rereading an existing file.
+
+    4  - Random Read Test
+         Measure performance of reading a file by accessing
+         random locations within the file.
+                        
+    5  - Random Write Test
+         Measure performance of writing a file by accessing
+         random locations within the file.
+
+    6  - Backwards Read Test
+         Measure performance of reading a file backwards.
+
+    7  - Record Rewrite Test
+         Measure performance of writing and rewriting a
+         particular spot within the file. 
+    
+    8  - Strided Read Test
+         Measure performance of reading a file with strided
+         access behavior.
+
+    9  - Fwrite Test
+         Measure performance of writing a file using the 
+         library function fwrite() that performances
+         buffered write operations.
+
+    10 - Frewrite Test
+         Measure performance of writing a file using the 
+         the library function fwrite() that performs 
+         buffered and blocked write operations.
+`
+    11 - Fread Test
+         Measure performance of reading a file using the
+         library function fread() that performs buffered 
+         and blocked read operations.
+ 
+    12 - Freread Test
+         Same as the Fread Test except the current file 
+         being read was read previously sometime in the
+         past. 
+
     By default, iozone will run all tests in auto mode. To run
     specific tests, they must be written in the form of:
 
-    ['0', '1', '5', '6']
+    [0,1,4,5]
 
     The official website for iozone is at www.iozone.org.
     """
 
     parameters = [
-        Parameter('tests', kind=list_of_strs, default=[],
+        Parameter('tests', kind=list_of_ints, allowed_values=range(13),
                   description='List of performance tests to run.'),
         Parameter('auto_mode', kind=bool, default=True,
                   description='Run tests in auto mode.'),
         Parameter('timeout', kind=int, default=14400,
                   description='Timeout for the workload.'),
-        Parameter('file_size', kind=int, default=0,
+        Parameter('file_size', kind=int,
                   description='Fixed file size.'),
-        Parameter('record_length', kind=int, default=0,
+        Parameter('record_length', kind=int,
                   description='Fixed record length.'),
-        Parameter('threads', kind=int, default=0,
+        Parameter('threads', kind=int,
                   description='Number of threads'),
         Parameter('other_params', kind=str, default='',
                   description='Other parameter. Run iozone -h to see'
@@ -184,16 +241,28 @@ class Iozone(Workload):
                 value_list.append(subvalue_list)
                 subvalue_list = []
 
-        for group in value_list:
-            classifier = {'header': group[0]}
-            record_lens = group[2:]
-            for rec in record_lens:
-                context.add_metric('reclen', int(rec[0]), 'kb',
-                                   classifiers=classifier)
-                values = rec[1:]
-                for v in values:
-                    context.add_metric('bytes', int(v), 'kb',
-                                       classifiers=classifier)
+        for reports in value_list:
+            # grab report name and convert it to a string
+            report_name = reports[0]
+            report_name = report_name[:-1]
+            report_name = '_'.join(report_name).lower()
+
+            record_sizes = reports[1]
+            values = reports[2:]
+                
+            for data in values:
+                temp = OrderedDict(izip_longest(record_sizes, data))
+                
+                for reclen,value in temp.items():
+                    if reclen is '0':
+                        fs = value
+                       
+                    if value is None:
+                        value = '0'
+                        
+                    classifier = {'reclen': reclen, 'file_size': fs}
+                    if reclen != '0':
+                        context.add_metric(report_name, int(value), 'kb/s', classifiers=classifier)
 
     # parse thread-mode results
     def parse_thread_results(self):
