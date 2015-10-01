@@ -94,8 +94,8 @@ class Telemetry(Workload):
         Parameter('run_benchmark_path', default=None,
                   description="""
                   This is the path to run_benchmark script which runs a
-                  Telemetry benchmark. If not specified, the assumption will be
-                  that it is in path (i.e. with be invoked as ``run_benchmark``).
+                  Telemetry benchmark. If not specified, WA will look for Telemetry in its
+                  dependencies; if not found there, Telemetry will be downloaded.
                   """),
         Parameter('test', default='page_cycler.top_10_mobile',
                   description="""
@@ -135,14 +135,17 @@ class Telemetry(Workload):
 
     def setup(self, context):
         self.raw_output = None
+        self.error_output = None
         self.command = self.build_command()
 
     def run(self, context):
         self.logger.debug(self.command)
-        self.raw_output, _ = check_output(self.command, shell=True, timeout=self.run_timeout, ignore='all')
+        self.raw_output, self.error_output = check_output(self.command, shell=True, timeout=self.run_timeout, ignore='all')
 
     def update_result(self, context):  # pylint: disable=too-many-locals
-        if not self.raw_output:
+        if self.error_output:
+            self.logger.error('run_benchmarks output contained errors:\n' + self.error_output)
+        elif not self.raw_output:
             self.logger.warning('Did not get run_benchmark output.')
             return
         raw_outfile = os.path.join(context.output_directory, 'telemetry_raw.out')
