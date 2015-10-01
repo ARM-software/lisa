@@ -233,7 +233,7 @@ class Iozone(Workload):
         csv_file.close()
 
     # break list of results into smaller groups based on
-    # I/O operation
+    # test name
     def parse_metrics(self, context, plist):       
         subvalue_list = []
         value_list = []
@@ -244,6 +244,9 @@ class Iozone(Workload):
                 value_list.append(subvalue_list)
                 subvalue_list = []
 
+        # If users run a list of specific tests, make 
+        # sure that the results for the last test
+        # executed are appended.
         if subvalue_list:
             value_list.append(subvalue_list)
 
