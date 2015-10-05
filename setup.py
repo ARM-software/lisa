@@ -30,7 +30,7 @@ to assert behaviours using the FTrace output from the kernel
 """
 
 REQUIRES = [
-    "TRAPpy==1.0.0",
+    "TRAPpy",
 ]
 
 setup(name='bart-py',
