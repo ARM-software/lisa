@@ -30,10 +30,10 @@ to assert behaviours using the FTrace output from the kernel
 """
 
 REQUIRES = [
-    "TRAPpy==1.0.0",
+    "TRAPpy",
 ]
 
-setup(name='BART',
+setup(name='bart-py',
       version=VERSION,
       license="Apache v2",
       author="ARM-BART",
