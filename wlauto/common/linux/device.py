@@ -189,6 +189,18 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
             else:
                 self.busybox = 'busybox'
 
+    def is_file(self, filepath):
+        output = self.execute('if [ -f \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
+        # output from ssh my contain part of the expression in the buffer,
+        # split out everything except the last word.
+        return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
+
+    def is_directory(self, filepath):
+        output = self.execute('if [ -d \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
+        # output from ssh my contain part of the expression in the buffer,
+        # split out everything except the last word.
+        return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
+
     def get_properties(self, context):
         for propfile in self.property_files:
             try:
@@ -722,18 +734,6 @@ class LinuxDevice(BaseLinuxDevice):
 
     def file_exists(self, filepath):
         output = self.execute('if [ -e \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
-        # output from ssh my contain part of the expression in the buffer,
-        # split out everything except the last word.
-        return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
-
-    def is_file(self, filepath):
-        output = self.execute('if [ -f \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
-        # output from ssh my contain part of the expression in the buffer,
-        # split out everything except the last word.
-        return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
-
-    def is_directory(self, filepath):
-        output = self.execute('if [ -d \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
         # output from ssh my contain part of the expression in the buffer,
         # split out everything except the last word.
         return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
