@@ -41,7 +41,7 @@ class ThermalAssert(object):
         """Return the total time spent in a given temperature range
 
         :param temp_range: A tuple of (low_temp, high_temp)
-            which the specifies the range of temperature that
+            which specifies the range of temperature that
             one intends to calculate the residency for.
         :type temp_range: tuple
 
@@ -114,7 +114,7 @@ class ThermalAssert(object):
                     return abs(a - expected) <= THRESHOLD
 
         :param temp_range: A tuple of (low_temp, high_temp)
-            which the specifies the range of temperature that
+            which specifies the range of temperature that
             one intends to calculate the residency for.
         :type temp_range: tuple
 
