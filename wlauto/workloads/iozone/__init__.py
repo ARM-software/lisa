@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# pylint: disable=attribute-defined-outside-init
 
 from wlauto import Workload, Parameter, Executable
 from wlauto.exceptions import ConfigError
@@ -30,8 +31,8 @@ class Iozone(Workload):
     Iozone is a filesystem benchmark that runs a series of disk
     I/O performance tests.
 
-    Here is a list of tests that you can run in the iozone 
-    workload. The descriptions are from the official iozone 
+    Here is a list of tests that you can run in the iozone
+    workload. The descriptions are from the official iozone
     document.
 
     0  - Write Test
@@ -59,7 +60,7 @@ class Iozone(Workload):
 
     7  - Record Rewrite Test
          Measure performance of writing and rewriting a
-         particular spot within the file. 
+         particular spot within the file.
 
     8  - Strided Read Test
          Measure performance of reading a file with strided
@@ -90,7 +91,7 @@ class Iozone(Workload):
 
     [0,1,4,5]
 
-    Please enable classifiers in your agenda or config file 
+    Please enable classifiers in your agenda or config file
     in order to display the results properly in the results.csv
     file.
 
@@ -158,9 +159,9 @@ class Iozone(Workload):
         # check if -b option is used
         match = re.search(r'-b (.?\w+.?\w+?\s)', iozone_command)
         if match:
-           self.user_file = match.group(1)
-           self.device_output_file = os.path.join(self.device.working_directory,
-                                                  self.user_file)
+            self.user_file = match.group(1)
+            self.device_output_file = os.path.join(self.device.working_directory,
+                                                   self.user_file)
 
         return iozone_command
 
@@ -234,7 +235,7 @@ class Iozone(Workload):
 
     # break list of results into smaller groups based on
     # test name
-    def parse_metrics(self, context, plist):       
+    def parse_metrics(self, context, plist):  # pylint: disable=no-self-use
         subvalue_list = []
         value_list = []
         for values in plist:
@@ -244,7 +245,7 @@ class Iozone(Workload):
                 value_list.append(subvalue_list)
                 subvalue_list = []
 
-        # If users run a list of specific tests, make 
+        # If users run a list of specific tests, make
         # sure that the results for the last test
         # executed are appended.
         if subvalue_list:
@@ -262,7 +263,7 @@ class Iozone(Workload):
             for v in values:
                 templist = OrderedDict(izip_longest(record_sizes, v))
 
-                for reclen,value in templist.items():
+                for reclen, value in templist.items():
                     if reclen is '0':
                         fs = value
 
