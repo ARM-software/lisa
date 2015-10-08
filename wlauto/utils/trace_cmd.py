@@ -15,6 +15,7 @@
 
 import re
 import logging
+from itertools import chain
 
 from wlauto.utils.misc import isiterable
 from wlauto.utils.types import numeric
@@ -133,10 +134,12 @@ def default_body_parser(event, text):
     the value into a numeric type, and failing that, keep it as string.
 
     """
-    kv_pairs = [e.split('=', 1) for e in text.split()]
-    new_values = {k: try_convert_to_numeric(v)
-                  for (k, v) in kv_pairs}
-    event.fields.update(new_values)
+    parts = [e.rsplit(' ', 1) for e in text.strip().split('=')]
+    parts = [p.strip() for p in chain.from_iterable(parts)]
+    if not len(parts) % 2:
+        i = iter(parts)
+        for k, v in zip(i, i):
+            event.fields[k] = v
 
 
 def regex_body_parser(regex, flags=0):
