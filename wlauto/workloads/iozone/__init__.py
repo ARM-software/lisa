@@ -36,7 +36,10 @@ class Iozone(Workload):
     document.
 
     0  - Write Test
-         Measure performance of writing a new file.
+         Measure performance of writing a new file. Other
+         tests rely on the file written by this, so it must
+         always be enabled (WA will automatically neable this
+         if not specified).
 
     1  - Rewrite Test
          Measure performance of writing an existing file.
@@ -132,6 +135,7 @@ class Iozone(Workload):
                               " auto mode at the same time.")
 
     def _build_command(self):
+        # pylint: disable=access-member-before-definition
         iozone_command = 'cd {} && {}'.format(self.device.working_directory,
                                               self.device_binary)
 
@@ -139,6 +143,8 @@ class Iozone(Workload):
             iozone_command += ' -a'
 
         if self.tests:
+            if 0 not in self.tests:
+                self.tests = [0] + self.tests
             iozone_command += ''.join([' -i {}'.format(t) for t in self.tests])
 
         if self.record_length > 0:
