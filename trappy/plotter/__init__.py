@@ -61,5 +61,7 @@ def plot_trace(trace_dir):
 
     run = trappy.Run(trace_dir)
     data, procs, domain = Utils.get_trace_event_data(run)
-    trace_graph = EventPlot.EventPlot(data, procs, "CPU: ", int(run._cpus), domain)
+    trace_graph = EventPlot.EventPlot(data, procs, domain,
+                                      lane_prefix="CPU :",
+                                      num_lanes=int(run._cpus))
     trace_graph.view()
