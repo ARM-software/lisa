@@ -1,0 +1,5 @@
+*.pyc
+*.pyo
+*.orig
+.ropeproject
+*.egg-info
