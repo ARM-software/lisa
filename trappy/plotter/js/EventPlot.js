@@ -24,6 +24,22 @@ var EventPlot = (function () {
      * This maintains filtering complexity to O[KLogN]
      */
 
+    var GUIDER_WIDTH = 2;
+
+    infoProps = {
+        START_GUIDER_COLOR: "green",
+        END_GUIDER_COLOR: "red",
+        DELTA_COLOR: "blue",
+        GUIDER_WIDTH: 2,
+        TOP_MARGIN: 20,
+        HEIGHT: 30,
+        START_PREFIX: "A = ",
+        END_PREFIX: "B = ",
+        DELTA_PREFIX: "A - B = ",
+        XPAD: 10,
+        YPAD: 5,
+    }
+
     var search_data = function (data, key, value, left, right) {
 
         var mid;
@@ -56,7 +72,7 @@ var EventPlot = (function () {
             var showSummary = d.showSummary;
 
             margin = {
-                    top: 20,
+                    top: 0,
                     right: 15,
                     bottom: 15,
                     left: 70
@@ -95,6 +111,8 @@ var EventPlot = (function () {
 
 
             var ePlot;
+
+            var iDesc = drawInfo(div_name, margin, width);
 
             chart = d3.select('#' + div_name)
                 .append('svg:svg')
@@ -302,6 +320,61 @@ var EventPlot = (function () {
         });
     };
 
+    var drawInfo = function (div_name, margin, width) {
+
+        var infoHeight = 30;
+        var _top = 20;
+        var LINE_WIDTH = 2
+
+        var iDesc = {};
+
+        var info_svg = d3.select("#" + div_name)
+            .append(
+                "svg:svg")
+            .attr('width', width + margin.right +
+                margin.left)
+            .attr('height', infoHeight + infoProps.TOP_MARGIN + LINE_WIDTH)
+
+        iDesc.info = info_svg.append("g")
+            .attr("transform", "translate(" + margin.left +
+                 "," + infoProps.TOP_MARGIN + ")")
+            .attr('width', width)
+            .attr("class", "main")
+            .attr('height', infoProps.HEIGHT)
+
+        iDesc.info.append("rect")
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", width)
+            .attr("height", infoHeight)
+            .attr("stroke", "lightgray")
+            .attr("fill", "none")
+            .attr("stroke-width", 1);
+
+       iDesc.startText = iDesc.info.append("text")
+            .text("")
+            .attr("x", infoProps.XPAD)
+            .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
+            .attr("fill", infoProps.START_GUIDER_COLOR);
+
+
+       iDesc.deltaText = iDesc.info.append("text")
+            .text("")
+            .attr("x", width / 2)
+            .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
+            .attr("fill", infoProps.DELTA_COLOR);
+
+        iDesc.endText = iDesc.info.append("text")
+            .text("")
+            .attr("x", width - infoProps.XPAD)
+            .attr("text-anchor", "end")
+            .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
+            .attr("fill", infoProps.END_GUIDER_COLOR);
+
+        return iDesc;
+
+    }
+
     var drawMini = function (ePlot) {
 
         var miniHeight = ePlot.lanes.length * 12 + 50;
@@ -326,7 +399,7 @@ var EventPlot = (function () {
             .attr('width', ePlot.width + ePlot.margin.right +
                 ePlot.margin.left)
             .attr('height', miniHeight + ePlot.margin.bottom +
-                ePlot.margin.top + 5)
+                ePlot.margin.top)
             .attr('class', 'chart')
 
         var mini = summary.append('g')
