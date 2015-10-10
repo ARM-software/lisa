@@ -62,7 +62,7 @@ var EventPlot = (function () {
                     left: 70
                 }, width = 960 - margin.left - margin.right,
 
-                mainHeight = 300 - margin.top - margin.bottom;
+                mainHeight = 50 * lanes.length - margin.top - margin.bottom;
 
             x = d3.scale.linear()
                 .domain(d.xDomain)
