@@ -243,7 +243,46 @@ var EventPlot = (function () {
                 brushScale.domain(zoomScale.domain());
                 ePlot.main.select('.main.axis')
                     .call(ePlot.mainAxis)
+
+                updateGuiders(ePlot);
             };
+
+            var contextMenuHandler = function() {
+
+                var e = d3.event;
+                var x0 = d3.mouse(this)[0] - ePlot.margin.left;
+
+                if (e.ctrlKey) {
+
+                    if (ePlot.endGuider)
+                        ePlot.endGuider = ePlot.endGuider.remove();
+
+                    ePlot.endGuider = drawVerticalLine(ePlot, x0,
+                        infoProps.END_GUIDER_COLOR);
+                    ePlot.endGuider._x_pos = ePlot.zoomScale.invert(x0);
+                    iDesc.endText.text(infoProps.END_PREFIX + ePlot.endGuider._x_pos.toFixed(6))
+
+                } else {
+
+                    if (ePlot.startGuider)
+                        ePlot.startGuider = ePlot.startGuider.remove();
+
+                    ePlot.startGuider = drawVerticalLine(ePlot, x0,
+                        infoProps.START_GUIDER_COLOR);
+                    ePlot.startGuider._x_pos = ePlot.zoomScale.invert(x0);
+                    iDesc.startText.text(infoProps.START_PREFIX + ePlot.startGuider._x_pos.toFixed(6))
+                }
+
+                if (ePlot.endGuider && ePlot.startGuider)
+                    iDesc.deltaText.text(infoProps.DELTA_PREFIX +
+                            (ePlot.endGuider._x_pos - ePlot.startGuider._x_pos)
+                            .toFixed(6)
+                        )
+
+                d3.event.preventDefault();
+            }
+
+            chart.on("contextmenu", contextMenuHandler);
 
             if (showSummary) {
                 var _brushed_event = function () {
@@ -286,6 +325,7 @@ var EventPlot = (function () {
                     ePlot.main.select('.main.axis')
                         .call(ePlot.mainAxis)
 
+                    updateGuiders(ePlot);
                 };
 
                 brush = d3.svg.brush()
@@ -373,6 +413,57 @@ var EventPlot = (function () {
 
         return iDesc;
 
+    }
+
+    var drawVerticalLine = function (ePlot, x, color) {
+
+        var line = ePlot.main.append("g")
+
+        line.append("line")
+            .style("stroke", color)
+            .style("stroke-width", GUIDER_WIDTH)
+            .attr("x1", x)
+            .attr("x2", x)
+            .attr("y1", 0)
+            .attr("y2", ePlot.mainHeight + 50)
+
+        return line;
+    };
+
+    var checkGuiderRange = function (ePlot, xpos) {
+
+        if (xpos >= ePlot.zoomScale.domain()[0] &&
+            xpos <= ePlot.zoomScale.domain()[1])
+            return true;
+        else
+            return false;
+    }
+
+    var updateGuiders = function (ePlot) {
+
+        if (ePlot.endGuider) {
+
+            var xpos = ePlot.endGuider._x_pos;
+            ePlot.endGuider.remove();
+
+            if (checkGuiderRange(ePlot, xpos)) {
+                ePlot.endGuider = drawVerticalLine(ePlot, ePlot.zoomScale(xpos),
+                    infoProps.END_GUIDER_COLOR);
+                ePlot.endGuider._x_pos = xpos;
+            }
+        }
+
+        if (ePlot.startGuider) {
+
+            var xpos = ePlot.startGuider._x_pos;
+            ePlot.startGuider.remove();
+
+            if (checkGuiderRange(ePlot, xpos)) {
+                ePlot.startGuider = drawVerticalLine(ePlot, ePlot.zoomScale(xpos),
+                    infoProps.START_GUIDER_COLOR);
+                ePlot.startGuider._x_pos = xpos
+            }
+        }
     }
 
     var drawMini = function (ePlot) {
