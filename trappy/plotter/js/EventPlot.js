@@ -288,7 +288,8 @@ var EventPlot = (function () {
                 .on(
                     "zoom", zoomed)
                 .on("zoomend", function () {
-                    outgoing.remove()
+                    if (outgoing)
+                        outgoing.remove()
                 })
                 .scaleExtent([1, 4096]);
             chart.call(zoom);
