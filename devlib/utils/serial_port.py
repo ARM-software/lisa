@@ -19,7 +19,13 @@ from contextlib import contextmanager
 from logging import Logger
 
 import serial
-import fdpexpect
+
+import pexpect
+from distutils.version import StrictVersion as V
+if V(pexpect.__version__) < V('4.0.0'):
+    import fdpexpect
+else:
+    from pexpect import fdpexpect
 # Adding pexpect exceptions into this module's namespace
 from pexpect import EOF, TIMEOUT  # NOQA pylint: disable=W0611
 
