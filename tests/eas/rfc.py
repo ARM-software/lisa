@@ -397,6 +397,7 @@ class EAS_Tests(unittest.TestCase):
 
         # FTRACE: start (if a configuration has been provided)
         if cls.env.ftrace:
+            logging.warning('%14s - Starting FTrace', 'MultiRun')
             cls.env.ftrace.start()
 
         # ENERGY: start sampling
