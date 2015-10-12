@@ -304,15 +304,21 @@ class TestEnv(ShareState):
             nrg_total = nrg[ch]['total']
             logging.info('%14s - Energy [%16s]: %.6f',
                     'EnergyReport', ch, nrg_total)
-            if self.target.little_core in ch:
+            if self.target.little_core.upper() in ch.upper():
                 clusters_nrg['LITTLE'] = '{:.6f}'.format(nrg_total)
-            elif self.target.big_core in ch:
+            elif self.target.big_core.upper() in ch.upper():
                 clusters_nrg['big'] = '{:.6f}'.format(nrg_total)
             else:
                 logging.warning('%14s - Unable to bind hwmon channel [%s]'\
                         ' to a big.LITTLE cluster',
                         'EnergyReport', ch)
                 clusters_nrg[ch] = '{:.6f}'.format(nrg_total)
+        if 'LITTLE' not in clusters_nrg:
+                logging.warning('%14s - Failed to get energy for LITTLE cluster',
+                        'EnergyProbe')
+        if 'big' not in clusters_nrg:
+                logging.warning('%14s - Failed to get energy for big cluster',
+                        'EnergyProbe')
         # Dump data as JSON file
         nrg_file = '{}/energy.json'.format(out_dir)
         with open(nrg_file, 'w') as ofile:
