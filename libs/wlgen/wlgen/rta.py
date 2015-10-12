@@ -75,21 +75,48 @@ class RTA(Workload):
             for line in self.output['executor'].split('\n'):
                 ofile.write(line+'\n')
 
+    def _getFirstBig(self, cpus=None):
+        if cpus:
+            for c in cpus:
+                if c not in self.target.bl.bigs:
+                    continue
+                return c
+        # Only LITTLE CPUs, thus:
+        #  return the first big core of the system
+        if self.target.big_core:
+            # Big.LITTLE system
+            return self.target.bl.bigs[0]
+        return 0
+
+    def _getFirstLittle(self, cpus=None):
+        # Try to return one LITTLE CPUs among the specified ones
+        if cpus:
+            for c in cpus:
+                if c not in self.target.bl.littles:
+                    continue
+                return c
+        # Only big CPUs, thus:
+        #  return the first LITTLE core of the system
+        if self.target.little_core:
+            # Big.LITTLE system
+            return self.target.bl.littles[0]
+        return 0
+
     def getTargetCpu(self, loadref):
         # Select CPU for task calibration, which is the first little
         # of big depending on the loadref tag
-        if (self.pload is not None):
-            if (loadref.upper() == 'LITTLE'):
-                target_cpu = self.target.get_first_little()
+        if self.pload:
+            if loadref.upper() == 'LITTLE':
+                target_cpu = self._getFirstLittle()
                 logging.debug('ref on LITTLE cpu: {0:d}'.format(target_cpu))
             else:
-                target_cpu = self.target.get_first_big()
+                target_cpu = self._getFirstBig()
                 logging.debug('ref on big cpu: {0:d}'.format(target_cpu))
-        elif (self.cpus is None):
-            target_cpu = self.target.get_first_big()
+        elif self.cpus is None:
+            target_cpu = self._getFirstBig()
             logging.debug('ref on cpu: {0:d}'.format(target_cpu))
         else:
-            target_cpu = self.target.get_first_big(self.cpus)
+            target_cpu = self._getFirstBig(self.cpus)
             logging.debug('ref on cpu: {0:d}'.format(target_cpu))
         return target_cpu
 
