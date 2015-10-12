@@ -23,7 +23,12 @@ import threading
 import tempfile
 import shutil
 
-import pxssh
+import pexpect
+from distutils.version import StrictVersion as V
+if V(pexpect.__version__) < V('4.0.0'):
+    import pxssh
+else:
+    from pexpect import pxssh
 from pexpect import EOF, TIMEOUT, spawn
 
 from devlib.exception import HostError, TargetError, TimeoutError
