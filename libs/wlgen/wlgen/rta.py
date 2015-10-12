@@ -75,6 +75,15 @@ class RTA(Workload):
             for line in self.output['executor'].split('\n'):
                 ofile.write(line+'\n')
 
+    def _getFirstBiggest(self, cpus):
+        for c in cpus:
+             if c not in self.target.bl.bigs:
+                continue
+             return c
+        # Only LITTLE CPUs, thus:
+        #  return the first possible cpu
+        return cpus[0]
+
     def _getFirstBig(self, cpus=None):
         if cpus:
             for c in cpus:
@@ -105,19 +114,23 @@ class RTA(Workload):
     def getTargetCpu(self, loadref):
         # Select CPU for task calibration, which is the first little
         # of big depending on the loadref tag
-        if self.pload:
+        if self.pload is not None:
             if loadref.upper() == 'LITTLE':
                 target_cpu = self._getFirstLittle()
                 logging.debug('ref on LITTLE cpu: {0:d}'.format(target_cpu))
             else:
                 target_cpu = self._getFirstBig()
                 logging.debug('ref on big cpu: {0:d}'.format(target_cpu))
-        elif self.cpus is None:
+            return target_cpu
+
+        # These options are selected only when RTApp has not been
+        # already calibrated
+        if self.cpus is None:
             target_cpu = self._getFirstBig()
             logging.debug('ref on cpu: {0:d}'.format(target_cpu))
         else:
-            target_cpu = self._getFirstBig(self.cpus)
-            logging.debug('ref on cpu: {0:d}'.format(target_cpu))
+            target_cpu = self._getFirstBiggest(self.cpus)
+            logging.debug('ref on (possible) biggest cpu: {0:d}'.format(target_cpu))
         return target_cpu
 
     def getCalibrationConf(self, target_cpu=0):
