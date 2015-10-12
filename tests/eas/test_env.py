@@ -107,7 +107,7 @@ class TestEnv(ShareState):
 
         self.res_dir = datetime.datetime.now().strftime(
                            OUT_PREFIX + '/%Y%m%d_%H%M%S')
-        os.mkdir(self.res_dir)
+        os.makedirs(self.res_dir)
 
         if os.path.islink(LATEST_LINK):
             os.remove(LATEST_LINK)
