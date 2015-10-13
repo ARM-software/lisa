@@ -229,7 +229,7 @@ class EAS_Tests(unittest.TestCase):
         # Reboot target
         logging.info('%14s - Rebooting taget...',
                 'KernelSetup')
-        # TODO: wait for devide to reboot
+        cls.env.reboot()
 
         # Keep track of last installed kernel
         cls.kernel = tc['kernel']

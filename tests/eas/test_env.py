@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import sys
+import time
 import unittest
 
 import libs
@@ -376,6 +377,28 @@ class TestEnv(ShareState):
         logging.info('%14s - Target (%s) at IP address: %s',
                 'HostResolver', host, ipaddr)
         return (host, ipaddr)
+
+    def reboot(self, reboot_time=60):
+        # Send remote target a reboot command
+        self.target.execute('sleep 2 && reboot -f &', as_root=True)
+
+        # Wait for the target to complete the reboot
+        logging.info('%14s - Waiting %s [s]for target to reboot...',
+                'Reboot', reboot_time)
+        time.sleep(reboot_time)
+
+        # Force re-initialization of all the devlib modules
+        force = True
+
+        # Reset the connection to the target
+        self.init(force)
+
+        # Initialize FTrace events collection
+        self.init_ftrace(force)
+
+        # Initialize energy probe instrument
+        self.init_energy(force)
+
 
 IFCFG_BCAST_RE = re.compile(
     r'Bcast:(.*) '
