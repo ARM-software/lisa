@@ -121,9 +121,9 @@ class TestEnv(ShareState):
 
         self._init = True
 
-    def init_target(self):
+    def init_target(self, force = False):
 
-        if self.target is not None:
+        if not force and self.target is not None:
             return self.target
 
         self.__connection_settings = {
@@ -191,9 +191,9 @@ class TestEnv(ShareState):
             tools_to_install.append(binary)
         self.target.setup(tools_to_install)
 
-    def init_ftrace(self):
+    def init_ftrace(self, force=False):
 
-        if self.ftrace is not None:
+        if not force and self.ftrace is not None:
             return self.ftrace
 
         if 'ftrace' not in self.conf.keys():
@@ -219,7 +219,7 @@ class TestEnv(ShareState):
 
         return self.ftrace
 
-    def init_energy(self):
+    def init_energy(self, force):
 
         # Initialize energy probe to board default
         if 'board' in self.conf.keys():
@@ -229,7 +229,7 @@ class TestEnv(ShareState):
                         'EnergyProbe', self.conf['board'])
 
         if eprobe['instrument'] == 'hwmon':
-           self.hwmon_init(self.conf)
+           self.hwmon_init(force)
 
 
     def calibrate(self):
@@ -250,7 +250,11 @@ class TestEnv(ShareState):
         logging.info('Using RT-App calibration values: %s', self.calib)
 
 
-    def hwmon_init(self):
+    def hwmon_init(self, force=False):
+
+        if not force and self.eprobe is not None:
+            return self.eprobe
+
         # Initialize HWMON instrument
         self.eprobe = devlib.HwmonInstrument(self.target)
 
