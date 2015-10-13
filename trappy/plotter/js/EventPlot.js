@@ -202,6 +202,7 @@ var EventPlot = (function () {
                 tip: tip,
                 lanes: lanes,
                 names: names,
+                iDesc: iDesc,
             };
             ePlot.zoomScale = zoomScale;
 
