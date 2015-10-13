@@ -343,6 +343,16 @@ class EAS_Tests(unittest.TestCase):
                     run_dir=cls.env.run_dir)
             return rtapp
 
+        if conf['class'] == 'custom':
+            rtapp = wlgen.RTA(cls.env.target,
+                        wl_idx, calibration = cls.env.calib)
+            rtapp.conf(kind='custom',
+                    params=conf['json'],
+                    duration=conf['duration'],
+                    cpus=cpus, cgroup=cgroup,
+                    run_dir=cls.env.run_dir)
+            return rtapp
+
         raise ValueError('Configuration error - '
                 'unsupported \'class\' value for [{}] '\
                 'RT-App workload specification'\
