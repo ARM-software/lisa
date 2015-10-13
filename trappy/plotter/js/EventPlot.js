@@ -100,7 +100,7 @@ var EventPlot = (function () {
             var showSummary = d.showSummary;
 
             margin = {
-                    top: 0,
+                    top: 15,
                     right: 15,
                     bottom: 15,
                     left: 70
@@ -312,7 +312,7 @@ var EventPlot = (function () {
                         ePlot.endGuider = ePlot.endGuider.remove();
 
                     ePlot.endGuider = drawVerticalLine(ePlot, x0,
-                        infoProps.END_GUIDER_COLOR);
+                        infoProps.END_GUIDER_COLOR, "B");
                     ePlot.endGuider._x_pos = ePlot.zoomScale.invert(x0);
                     iDesc.endText.text(infoProps.END_PREFIX + ePlot.endGuider._x_pos.toFixed(6))
 
@@ -322,7 +322,7 @@ var EventPlot = (function () {
                         ePlot.startGuider = ePlot.startGuider.remove();
 
                     ePlot.startGuider = drawVerticalLine(ePlot, x0,
-                        infoProps.START_GUIDER_COLOR);
+                        infoProps.START_GUIDER_COLOR, "A");
                     ePlot.startGuider._x_pos = ePlot.zoomScale.invert(x0);
                     iDesc.startText.text(infoProps.START_PREFIX + ePlot.startGuider._x_pos.toFixed(6))
                 }
@@ -492,7 +492,7 @@ var EventPlot = (function () {
 
     }
 
-    var drawVerticalLine = function (ePlot, x, color) {
+    var drawVerticalLine = function (ePlot, x, color, text) {
 
         var line = ePlot.main.append("g")
 
@@ -502,7 +502,14 @@ var EventPlot = (function () {
             .attr("x1", x)
             .attr("x2", x)
             .attr("y1", 0)
-            .attr("y2", ePlot.mainHeight + 50)
+            .attr("y2", ePlot.mainHeight)
+
+        line.append("text")
+            .text(text)
+            .attr("y", -1)
+            .attr("x", x)
+            .attr("text-anchor", "middle")
+            .attr("fill", color)
 
         return line;
     };
@@ -572,7 +579,7 @@ var EventPlot = (function () {
 
             if (checkGuiderRange(ePlot, xpos)) {
                 ePlot.endGuider = drawVerticalLine(ePlot, ePlot.zoomScale(xpos),
-                    infoProps.END_GUIDER_COLOR);
+                    infoProps.END_GUIDER_COLOR, "B");
                 ePlot.endGuider._x_pos = xpos;
             }
         }
@@ -584,7 +591,7 @@ var EventPlot = (function () {
 
             if (checkGuiderRange(ePlot, xpos)) {
                 ePlot.startGuider = drawVerticalLine(ePlot, ePlot.zoomScale(xpos),
-                    infoProps.START_GUIDER_COLOR);
+                    infoProps.START_GUIDER_COLOR, "A");
                 ePlot.startGuider._x_pos = xpos
             }
         }
