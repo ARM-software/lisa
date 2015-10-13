@@ -38,6 +38,8 @@ var EventPlot = (function () {
         DELTA_PREFIX: "A - B = ",
         XPAD: 10,
         YPAD: 5,
+        BOX_BUFFER: 2,
+        BOX_WIDTH_RATIO: 0.6
     }
 
     var search_data = function (data, key, value, left, right) {
@@ -368,6 +370,9 @@ var EventPlot = (function () {
 
         var iDesc = {};
 
+        var width_box_one = infoProps.BOX_WIDTH_RATIO * width;
+        var width_box_two = width - width_box_one
+
         var info_svg = d3.select("#" + div_name)
             .append(
                 "svg:svg")
@@ -385,7 +390,16 @@ var EventPlot = (function () {
         iDesc.info.append("rect")
             .attr("x", 0)
             .attr("y", 0)
-            .attr("width", width)
+            .attr("width", width_box_one - infoProps.BOX_BUFFER)
+            .attr("height", infoHeight)
+            .attr("stroke", "lightgray")
+            .attr("fill", "none")
+            .attr("stroke-width", 1);
+
+        iDesc.info.append("rect")
+            .attr("x", width_box_one + infoProps.BOX_BUFFER)
+            .attr("y", 0)
+            .attr("width", width_box_two - infoProps.BOX_BUFFER)
             .attr("height", infoHeight)
             .attr("stroke", "lightgray")
             .attr("fill", "none")
@@ -397,16 +411,15 @@ var EventPlot = (function () {
             .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
             .attr("fill", infoProps.START_GUIDER_COLOR);
 
-
        iDesc.deltaText = iDesc.info.append("text")
             .text("")
-            .attr("x", width / 2)
+            .attr("x", (width_box_one / 2) - infoProps.XPAD)
             .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
             .attr("fill", infoProps.DELTA_COLOR);
 
-        iDesc.endText = iDesc.info.append("text")
+       iDesc.endText = iDesc.info.append("text")
             .text("")
-            .attr("x", width - infoProps.XPAD)
+            .attr("x", width_box_one - infoProps.XPAD)
             .attr("text-anchor", "end")
             .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
             .attr("fill", infoProps.END_GUIDER_COLOR);
