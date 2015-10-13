@@ -57,6 +57,32 @@ var EventPlot = (function () {
         return left;
     }
 
+
+    /* Return the information for the current process
+     * pointed by the mouse
+     */
+    var getCurrentInfo = function(ePlot, x0, y0) {
+
+        for (name in ePlot.items) {
+
+            var data = ePlot.items[name];
+            var xMax = ePlot.zoomScale.domain()[1];
+            var right = search_data(data, 0, xMax, 0, data.length - 1);
+            var left = search_data(data, 1, x0, 0, right);
+
+            if (data) {
+                var candidate = data[left];
+                if (candidate[0] <= x0 &&
+                        candidate[1] >= x0 &&
+                        candidate[2] == y0)
+                    return {
+                            name: name,
+                            info: candidate
+                        };
+            }
+        }
+    }
+
     var generate = function (div_name, base) {
 
         var margin, brush, x, ext, yMain, chart, main,
