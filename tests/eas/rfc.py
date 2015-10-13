@@ -218,24 +218,8 @@ class EAS_Tests(unittest.TestCase):
 
     @classmethod
     def setup_kernel(cls, tc):
-
-        if cls.kernel == tc['kernel']:
-            return
-
-        logging.info('%14s - Install kernel [%s] on target...',
-                'KernelSetup', tc['kernel'])
-        # TODO: deploy kernel on the device
-
-        # Reboot target
-        logging.info('%14s - Rebooting taget...',
-                'KernelSetup')
-        cls.env.reboot()
-
-        # Keep track of last installed kernel
-        cls.kernel = tc['kernel']
-        if cls.dtb is not None:
-            cls.dtb = tc['dtb']
-
+        # Deploy kernel on the device
+        cls.env.install_kernel(tc, reboot=True)
         # Setup the rootfs for the experiments
         cls.setup_rootfs()
 
