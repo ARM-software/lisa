@@ -273,7 +273,7 @@ var EventPlot = (function () {
                 ePlot.main.select('.main.axis')
                     .call(ePlot.mainAxis)
 
-                updateGuiders(ePlot);
+                updateInfo(ePlot);
             };
 
             var rightClickCtrlAltHandler = function(x0, y0) {
@@ -379,7 +379,7 @@ var EventPlot = (function () {
                     ePlot.main.select('.main.axis')
                         .call(ePlot.mainAxis)
 
-                    updateGuiders(ePlot);
+                    updateInfo(ePlot);
                 };
 
                 brush = d3.svg.brush()
@@ -563,7 +563,7 @@ var EventPlot = (function () {
             return false;
     }
 
-    var updateGuiders = function (ePlot) {
+    var updateInfo = function (ePlot) {
 
         if (ePlot.endGuider) {
 
