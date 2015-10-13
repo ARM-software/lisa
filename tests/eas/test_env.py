@@ -34,6 +34,7 @@ class TestEnv(ShareState):
     def __init__(self, conf=None):
         super(TestEnv, self).__init__()
 
+        self.conf = conf
         self.target = None
         self.ftrace = None
         self.workdir = WORKING_DIR_DEFAULT
@@ -65,28 +66,28 @@ class TestEnv(ShareState):
         if self._init:
             return
 
-        if 'workdir' in conf.keys():
-            self.workdir = conf['workdir']
+        if 'workdir' in self.conf.keys():
+            self.workdir = self.conf['workdir']
 
         # Initialize binary tools to deploy
-        if 'tools' in conf.keys():
-            self.__tools = conf['tools']
+        if 'tools' in self.conf.keys():
+            self.__tools = self.conf['tools']
 
         # Initialize modules to use on the target
-        if 'modules' in conf.keys():
-            self.__modules = conf['modules']
+        if 'modules' in self.conf.keys():
+            self.__modules = self.conf['modules']
 
         # Initialize target
-        self.init_target(conf)
+        self.init_target()
 
         # Initialize FTrace events collection
-        self.init_ftrace(conf)
+        self.init_ftrace()
 
         # Initialize energy probe instrument
-        self.init_energy(conf)
+        self.init_energy()
 
         # # Initialize RT-App calibration values
-        self.calibrate(conf)
+        self.calibrate()
 
         # Initialize target Topology for behavior analysis
         CLUSTERS = []
@@ -115,7 +116,7 @@ class TestEnv(ShareState):
 
         self._init = True
 
-    def init_target(self, conf):
+    def init_target(self):
 
         if self.target is not None:
             return self.target
@@ -124,22 +125,22 @@ class TestEnv(ShareState):
             'username' : USERNAME_DEFAULT,
         }
 
-        if 'usename' in conf.keys():
-            self.__connection_settings['username'] = conf['username']
-        if 'keyfile' in conf.keys():
-            self.__connection_settings['keyfile'] = conf['keyfile']
-        elif 'password' in conf.keys():
-            self.__connection_settings['password'] = conf['password']
+        if 'usename' in self.conf.keys():
+            self.__connection_settings['username'] = self.conf['username']
+        if 'keyfile' in self.conf.keys():
+            self.__connection_settings['keyfile'] = self.conf['keyfile']
+        elif 'password' in self.conf.keys():
+            self.__connection_settings['password'] = self.conf['password']
         else:
             self.__connection_settings['password'] = PASSWORD_DEFAULT
 
         try:
-            self.__connection_settings['host'] = conf['host']
+            self.__connection_settings['host'] = self.conf['host']
         except KeyError:
             raise ValueError('Config error: missing [host] parameter')
 
         try:
-            platform_type = conf['platform']
+            platform_type = self.conf['platform']
         except KeyError:
             raise ValueError('Config error: missing [platform] parameter')
 
@@ -184,15 +185,15 @@ class TestEnv(ShareState):
             tools_to_install.append(binary)
         self.target.setup(tools_to_install)
 
-    def init_ftrace(self, conf):
+    def init_ftrace(self):
 
         if self.ftrace is not None:
             return self.ftrace
 
-        if 'ftrace' not in conf.keys():
+        if 'ftrace' not in self.conf.keys():
             return None
 
-        ftrace = conf['ftrace']
+        ftrace = self.conf['ftrace']
 
         events = FTRACE_EVENTS_DEFAULT
         if 'events' in ftrace.keys():
@@ -212,29 +213,29 @@ class TestEnv(ShareState):
 
         return self.ftrace
 
-    def init_energy(self, conf):
+    def init_energy(self):
 
         # Initialize energy probe to board default
-        if 'board' in conf.keys():
-            if conf['board'] in self.energy_probe.keys():
-                eprobe = self.energy_probe[conf['board']]
+        if 'board' in self.conf.keys():
+            if self.conf['board'] in self.energy_probe.keys():
+                eprobe = self.energy_probe[self.conf['board']]
                 logging.debug('%14s - using default instrument for [%s]',
-                        'EnergyProbe', conf['board'])
+                        'EnergyProbe', self.conf['board'])
 
         if eprobe['instrument'] == 'hwmon':
-           self.hwmon_init(conf)
+           self.hwmon_init(self.conf)
 
 
-    def calibrate(self, conf):
+    def calibrate(self):
 
         if self.calib is not None:
             return self.calib
 
-        if 'rtapp-calib' in conf.keys():
+        if 'rtapp-calib' in self.conf.keys():
             logging.info('Loading RTApp calibration from configuration file...')
             self.calib = {
                     int(key): int(value)
-                    for key, value in conf['rtapp-calib'].items()
+                    for key, value in self.conf['rtapp-calib'].items()
                 }
         else:
             logging.info('Calibrating RTApp...')
@@ -243,12 +244,12 @@ class TestEnv(ShareState):
         logging.info('Using RT-App calibration values: %s', self.calib)
 
 
-    def hwmon_init(self, conf):
+    def hwmon_init(self):
         # Initialize HWMON instrument
         self.eprobe = devlib.HwmonInstrument(self.target)
 
         # Configure channels for energy measurements
-        probes_conf = self.energy_probe[conf['board']]['conf']
+        probes_conf = self.energy_probe[self.conf['board']]['conf']
         logging.debug('%14s - Enabling channels %s', 'EnergyProbe', probes_conf)
         self.eprobe.reset(**probes_conf)
 
