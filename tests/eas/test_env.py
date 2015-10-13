@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 import unittest
@@ -42,6 +43,10 @@ class TestEnv(ShareState):
         self.__modules = None
         self.__connection_settings = None
         self.calib = None
+
+        # Keep track of target IP and MAC address
+        self.ip = None
+        self.mac = None
 
         # Default energy measurements for each board
         self.energy_probe = {
@@ -135,7 +140,8 @@ class TestEnv(ShareState):
             self.__connection_settings['password'] = PASSWORD_DEFAULT
 
         try:
-            self.__connection_settings['host'] = self.conf['host']
+            (self.mac, self.ip) = self.resolv_host(self.conf['host'])
+            self.__connection_settings['host'] = self.ip
         except KeyError:
             raise ValueError('Config error: missing [host] parameter')
 
@@ -324,5 +330,51 @@ class TestEnv(ShareState):
         nrg_file = '{}/energy.json'.format(out_dir)
         with open(nrg_file, 'w') as ofile:
             json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
+
+    def resolv_host(self, host=None):
+        if host is None:
+            host = self.conf['host']
+
+        # Refresh ARP for local network IPs
+        logging.debug('%14s - Collecting all Bcast address', 'HostResolver')
+        output = os.popen(r'ifconfig').read().split('\n')
+        for line in output:
+            match = IFCFG_BCAST_RE.search(line)
+            if not match:
+                continue
+            baddr = match.group(1)
+            cmd = r'ping -b -c1 {} &>/dev/null'.format(baddr)
+            logging.debug('%14s - %s', 'HostResolver', cmd)
+            os.popen(cmd)
+
+        if ':' in host:
+            # Assuming this is a MAC address
+            # TODO add a suitable check on MAC address format
+            # Query ARP for the specified HW address
+            ARP_RE = re.compile(
+                r'([^ ]*).*({}|{})'.format(host.lower(), host.upper())
+            )
+        else:
+            # Assuming this is an IP address
+            # TODO add a suitable check on IP address format
+            # Query ARP for the specified IP address
+            ARP_RE = re.compile(
+                r'{}.*ether *([0-9a-fA-F:]*)'.format(host)
+            )
+
+        output = os.popen(r'arp -n')
+        for line in output:
+            match = ARP_RE.search(line)
+            if not match:
+                continue
+            ipaddr = match.group(1)
+            break
+        logging.info('%14s - Target (%s) at IP address: %s',
+                'HostResolver', host, ipaddr)
+        return (host, ipaddr)
+
+IFCFG_BCAST_RE = re.compile(
+    r'Bcast:(.*) '
+)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
