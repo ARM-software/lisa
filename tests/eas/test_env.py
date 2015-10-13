@@ -242,6 +242,17 @@ class TestEnv(ShareState):
         if self.calib is not None:
             return self.calib
 
+        required = False
+        wloads = self.conf['wloads']
+        for wl_idx in wloads.keys():
+            if 'rt-app' in wloads[wl_idx]['type']:
+                required = True
+                break
+
+        if not required:
+            logging.debug('No RT-App workloads, skipping calibration')
+            return
+
         if 'rtapp-calib' in self.conf.keys():
             logging.info('Loading RTApp calibration from configuration file...')
             self.calib = {
