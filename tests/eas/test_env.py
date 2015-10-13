@@ -82,17 +82,26 @@ class TestEnv(ShareState):
         if 'modules' in self.conf.keys():
             self.__modules = self.conf['modules']
 
-        # Initialize target
-        self.init_target()
+        self.init()
 
-        # Initialize FTrace events collection
-        self.init_ftrace()
-
-        # Initialize energy probe instrument
-        self.init_energy()
-
-        # # Initialize RT-App calibration values
+        # Initialize RT-App calibration values
         self.calibrate()
+
+        # Initialize local results folder
+        self.res_dir = datetime.datetime.now().strftime(
+                           OUT_PREFIX + '/%Y%m%d_%H%M%S')
+        os.makedirs(self.res_dir)
+
+        if os.path.islink(LATEST_LINK):
+            os.remove(LATEST_LINK)
+        os.symlink(self.res_dir, LATEST_LINK)
+
+        self._init = True
+
+    def init(self, force = False):
+
+        # Initialize target
+        self.init_target(force)
 
         # Initialize target Topology for behavior analysis
         CLUSTERS = []
@@ -111,15 +120,6 @@ class TestEnv(ShareState):
         self.topology = Topology(clusters=CLUSTERS)
         logging.info('Target topology: %s', CLUSTERS)
 
-        self.res_dir = datetime.datetime.now().strftime(
-                           OUT_PREFIX + '/%Y%m%d_%H%M%S')
-        os.makedirs(self.res_dir)
-
-        if os.path.islink(LATEST_LINK):
-            os.remove(LATEST_LINK)
-        os.symlink(self.res_dir, LATEST_LINK)
-
-        self._init = True
 
     def init_target(self, force = False):
 
