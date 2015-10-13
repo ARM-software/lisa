@@ -276,12 +276,37 @@ var EventPlot = (function () {
                 updateGuiders(ePlot);
             };
 
+            var rightClickCtrlAltHandler = function(x0, y0) {
+
+                x0 = ePlot.zoomScale.invert(x0);
+                y0 = Math.floor(ePlot.yMain.invert(y0));
+                var current = getCurrentInfo(ePlot, x0, y0);
+
+                if (current) {
+                    ePlot.iDesc.currentProc.text(current.name)
+                    ePlot.iDesc.currentInfo.text(
+                        current.info[0].toFixed(6)
+                        + " to " +
+                        current.info[1].toFixed(6) +
+                        " (" + (current.info[1] - current.info[0])
+                        .toFixed(6) + ")")
+
+                    removeContextRect(ePlot);
+                    ePlot.contextRect = drawContextRect(ePlot, current.info[0], current.info[1], current.info[2], true)
+                    ePlot.iDesc.currentDisp.attr("stroke", ePlot.colourAxis(current.name));     
+                }
+            }
+
             var contextMenuHandler = function() {
 
                 var e = d3.event;
                 var x0 = d3.mouse(this)[0] - ePlot.margin.left;
+                var y0 = d3.mouse(this)[1] - ePlot.margin.top;
 
-                if (e.ctrlKey) {
+                if (e.ctrlKey && e.altKey)
+                    rightClickCtrlAltHandler(x0, y0);
+
+                else if (e.ctrlKey) {
 
                     if (ePlot.endGuider)
                         ePlot.endGuider = ePlot.endGuider.remove();
@@ -423,7 +448,7 @@ var EventPlot = (function () {
             .attr("fill", "none")
             .attr("stroke-width", 1);
 
-        iDesc.info.append("rect")
+        iDesc.currentDisp = iDesc.info.append("rect")
             .attr("x", width_box_one + infoProps.BOX_BUFFER)
             .attr("y", 0)
             .attr("width", width_box_two - infoProps.BOX_BUFFER)
@@ -451,6 +476,18 @@ var EventPlot = (function () {
             .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
             .attr("fill", infoProps.END_GUIDER_COLOR);
 
+        iDesc.currentProc = iDesc.info.append("text")
+            .text("")
+            .attr("x", width_box_one + infoProps.XPAD + infoProps.BOX_BUFFER)
+            .attr("text-anchor", "start")
+            .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
+
+        iDesc.currentInfo = iDesc.info.append("text")
+            .text("")
+            .attr("x", width - infoProps.XPAD)
+            .attr("text-anchor", "end")
+            .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
+
         return iDesc;
 
     }
@@ -469,6 +506,53 @@ var EventPlot = (function () {
 
         return line;
     };
+
+    var removeContextRect = function(ePlot) {
+        if (ePlot.contextRect && ePlot.contextRect.rect)
+            ePlot.contextRect.rect.remove();
+    }
+
+    var drawContextRect = function (ePlot, x0, x1, y, animate) {
+
+        var xMin = ePlot.zoomScale.domain()[0];
+        var xMax = ePlot.zoomScale.domain()[1];
+        var bounds = [Math.max(x0, xMin), Math.min(x1,
+                xMax)]
+
+        if (bounds[0] >= bounds[1])
+            return {
+                rect: false,
+                x0: x0,
+                x1: x1,
+                y: y,
+            }
+
+        var rect = ePlot.main.selectAll(".contextRect").data([""])
+
+        if (animate)
+            rect.enter().append("rect")
+                .attr("x", ePlot.zoomScale(bounds[0]))
+                .attr("y", ePlot.yMain(y))
+                .attr("height", ePlot.yMain(1))
+                .attr("class", "contextRect")
+                .attr("width", 0)
+                .transition()
+                .attr("width", ePlot.zoomScale(bounds[1]) - ePlot.zoomScale(bounds[0]))
+        else
+            rect.enter().append("rect")
+                .attr("x", ePlot.zoomScale(bounds[0]))
+                .attr("y", ePlot.yMain(y))
+                .attr("class", "contextRect")
+                .attr("height", ePlot.yMain(1))
+                .attr("width", ePlot.zoomScale(bounds[1]) - ePlot.zoomScale(bounds[0]))
+
+        return {
+                rect: rect,
+                x0: x0,
+                x1: x1,
+                y: y,
+        }
+    }
 
     var checkGuiderRange = function (ePlot, xpos) {
 
@@ -504,6 +588,15 @@ var EventPlot = (function () {
                 ePlot.startGuider._x_pos = xpos
             }
         }
+
+        if (ePlot.contextRect) {
+            removeContextRect(ePlot);
+            ePlot.contextRect = drawContextRect(ePlot, ePlot.contextRect.x0,
+                                    ePlot.contextRect.x1,
+                                    ePlot.contextRect.y,
+                                    false);
+        }
+
     }
 
     var drawMini = function (ePlot) {
