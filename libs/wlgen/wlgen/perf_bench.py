@@ -5,6 +5,8 @@ import logging
 import os
 import re
 
+from wlgen import Workload
+
 class PerfMessaging(Workload):
 
     def __init__(self,

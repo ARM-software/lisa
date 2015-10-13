@@ -18,6 +18,7 @@
 import pkg_resources
 from wlgen.workload import Workload
 from wlgen.rta import RTA
+from wlgen.perf_bench import PerfMessaging, PerfPipe
 
 try:
     __version__ = pkg_resources.get_distribution("wlgen").version

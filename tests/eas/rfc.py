@@ -349,6 +349,27 @@ class EAS_Tests(unittest.TestCase):
                 .format(wl_idx))
 
     @classmethod
+    def wload_perf_bench(cls, wl_idx, wlspec, cpus, cgroup):
+        conf = wlspec['conf']
+        logging.debug(r'%14s - Configuring perf_message...',
+                'PerfMessage')
+
+        if conf['class'] == 'messaging':
+            perf_bench = wlgen.PerfMessaging(cls.env.target, wl_idx)
+            perf_bench.conf(**conf['params'])
+            return perf_bench
+
+        if conf['class'] == 'pipe':
+            perf_bench = wlgen.PerfPipe(cls.env.target, wl_idx)
+            perf_bench.conf(**conf['params'])
+            return perf_bench
+
+        raise ValueError('Configuration error - '\
+                'unsupported \'class\' value for [{}] '\
+                'perf bench workload specification'\
+                .format(wl_idx))
+
+    @classmethod
     def wload_conf(cls, wl_idx, wlspec):
 
         # CGROUP: setup execution on cgroup if required by configuration
@@ -361,6 +382,9 @@ class EAS_Tests(unittest.TestCase):
 
         if wlspec['type'] == 'rt-app':
             return cls.wload_rtapp(wl_idx, wlspec, cpus, cgroup)
+        if wlspec['type'] == 'perf_bench':
+            return cls.wload_perf_bench(wl_idx, wlspec, cpus, cgroup)
+
 
         raise ValueError('Configuration error - '
                 'unsupported \'type\' value for [{}] '\
