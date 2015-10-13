@@ -49,6 +49,10 @@ class TestEnv(ShareState):
         self.ip = None
         self.mac = None
 
+        # Keep track of last installed kernel
+        self.kernel = None
+        self.dtb = None
+
         # Default energy measurements for each board
         self.energy_probe = {
             'tc2' : {
@@ -399,6 +403,68 @@ class TestEnv(ShareState):
         # Initialize energy probe instrument
         self.init_energy(force)
 
+    def install_kernel(self, tc, reboot=False):
+
+        if self.kernel == tc['kernel'] and self.dbt == tc['dtb']:
+            return
+
+        logging.info('%14s - Install kernel [%s] on target...',
+                'KernelSetup', tc)
+
+        # Install kernel/dtb via FTFP
+        if 'tftp' in self.conf.keys():
+            logging.info('%14s - Deply kernel via FTFP...', 'KernelSetup')
+
+            # Deply kernel in FTFP folder (madatory)
+            if 'kernel' not in tc.keys():
+                raise ValueError('Missing "kernel" paramtere in conf: %s',
+                        'KernelSetup', tc)
+            self.tftp_deploy(tc['kernel'])
+
+            # Deploy DTB in TFTP folder (if provided)
+            if 'dtb' not in tc.keys():
+                logging.warn('%14s - DTB not provided for current conf: %s',
+                        'KernelSetup', tc)
+                logging.warn('%14s - Using pre-installed DTB', 'KernelSetup')
+            else:
+                self.tftp_deploy(tc['dtb'])
+        else:
+            raise ValueError('%14s - Kernel installation method not supported',
+                    'KernelSetup')
+
+        # Keep track of last installed kernel
+        self.kernel = tc['kernel']
+        if 'dtb' in tc.keys():
+            self.dtb = tc['dtb']
+
+        if not reboot:
+            return
+
+        # Reboot target
+        logging.info('%14s - Rebooting taget...', 'KernelSetup')
+        self.reboot()
+
+
+    def tftp_deploy(self, src):
+
+        tftp = self.conf['tftp']
+
+        dst = tftp['folder']
+        if 'kernel' in src:
+            dst = os.path.join(dst, tftp['kernel'])
+        elif 'dtb' in src:
+            dst = os.path.join(dst, tftp['dtb'])
+        else:
+            dst = os.path.join(dst, os.path.basename(src))
+
+        cmd = 'cp {} {}'.format(src, dst)
+        logging.info('%14s - Deploy %s into %s',
+                'TFTP', src, dst)
+        result = os.system(cmd)
+        if result != 0:
+            logging.error('%14s - Failed to deploy image: %s',
+                    'FTFP', src)
+            raise ValueError('copy error')
 
 IFCFG_BCAST_RE = re.compile(
     r'Bcast:(.*) '
