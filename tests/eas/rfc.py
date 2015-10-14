@@ -411,7 +411,7 @@ class EAS_Tests(unittest.TestCase):
                         run_idx, cls.conf['iterations']))
 
         # Setup local results folder
-        cls.wload_run_init(tc_idx, wl_idx, run_idx)
+        cls.wload_run_init(tc_idx, wl_idx, wload, run_idx)
 
         # FTRACE: start (if a configuration has been provided)
         if cls.env.ftrace:
@@ -433,9 +433,9 @@ class EAS_Tests(unittest.TestCase):
             cls.env.ftrace.get_trace(cls.env.out_dir + '/trace.dat')
 
     @classmethod
-    def wload_run_init(cls, tc_idx, wl_idx, run_idx):
-        cls.env.out_dir = '{}/{}:{}/{}'\
-                .format(cls.env.res_dir, tc_idx, wl_idx, run_idx)
+    def wload_run_init(cls, tc_idx, wl_idx, wload, run_idx):
+        cls.env.out_dir = '{}/{}:{}:{}/{}'\
+                .format(cls.env.res_dir, wload.wtype, tc_idx, wl_idx, run_idx)
         logging.debug(r'%14s - out_dir [%s]', 'MultiRun', cls.env.out_dir)
         os.system('mkdir -p ' + cls.env.out_dir)
 
