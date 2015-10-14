@@ -22,6 +22,8 @@ class PerfMessaging(Workload):
         self.wtype = 'perf_bench_messaging'
         self.executor = 'perf bench sched messaging'
 
+        # Setup post-processing callback
+        self.setCallback('postrun', self.__postrun)
 
     def conf(self,
              group = 1,
@@ -60,6 +62,33 @@ class PerfMessaging(Workload):
         match = re.search('Total time: ([0-9\.]+) \[sec\]', results)
         return match.group(1)
 
+    def __postrun(self, params):
+        destdir = params['destdir']
+        if destdir is None:
+            return
+
+        logfile = '{}/output.log'.format(destdir)
+        logging.debug('Saving output on [%s]...', logfile)
+        with open(logfile, 'w') as ofile:
+            for line in self.getOutput().split('\n'):
+                ofile.write(line+'\n')
+
+        # Computing performance metric
+        ctime = float(self.getCompletionTime())
+        perf = 1.0 / ctime
+        results = {
+                "performance" : perf
+        }
+
+        logging.info('Completion time: %.6f, Performance %.6f',
+                ctime, perf)
+
+        perfile = '{}/performance.json'.format(destdir)
+        logging.debug('Saving performance into [%s]...', perfile)
+        with open(perfile, 'w') as ofile:
+            json.dump(results, ofile, sort_keys=True, indent=4)
+
+
 class PerfPipe(Workload):
 
     def __init__(self,
@@ -75,6 +104,8 @@ class PerfPipe(Workload):
         self.wtype = 'perf_bench_pipe'
         self.executor = 'perf bench sched pipe'
 
+        # Setup post-processing callback
+        self.setCallback('postrun', self.__postrun)
 
     def conf(self,
              loop = 10,
@@ -110,5 +141,37 @@ class PerfPipe(Workload):
         results = self.getOutput()
         match = re.search('([0-9]+) ops/sec', results)
         return match.group(1)
+
+    def __postrun(self, params):
+        destdir = params['destdir']
+        if destdir is None:
+            return
+
+        logfile = '{}/output.log'.format(destdir)
+        logging.debug('Saving output on [%s]...', logfile)
+        with open(logfile, 'w') as ofile:
+            for line in self.getOutput().split('\n'):
+                ofile.write(line+'\n')
+
+        # Computing performance metric
+        ctime = float(self.getCompletionTime())
+        uspo = float(self.getUsecPerOp())
+        ops = float(self.getOpPerSec())
+
+        perf = 1.0 / ctime
+        results = {
+                "performance" : perf,
+                "usec/op" : uspo,
+                "ops/sec" : ops
+        }
+
+        logging.info('Completion time: %.6f, Performance %.6f',
+                ctime, perf)
+
+        # Reporting performance metric
+        perfile = '{}/performance.json'.format(destdir)
+        logging.debug('Saving performance into [%s]...', perfile)
+        with open(perfile, 'w') as ofile:
+            json.dump(results, ofile, sort_keys=True, indent=4)
 
 
