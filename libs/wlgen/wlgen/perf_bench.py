@@ -77,6 +77,7 @@ class PerfMessaging(Workload):
         ctime = float(self.getCompletionTime())
         perf = 1.0 / ctime
         results = {
+                "ctime" : ctime,
                 "performance" : perf
         }
 
@@ -160,6 +161,7 @@ class PerfPipe(Workload):
 
         perf = 1.0 / ctime
         results = {
+                "ctime" : ctime,
                 "performance" : perf,
                 "usec/op" : uspo,
                 "ops/sec" : ops
