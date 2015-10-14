@@ -85,6 +85,20 @@ class Report(object):
             test_rexp = re.compile(test_rexp, re.DOTALL)
             self.compare.append((base_rexp, test_rexp))
 
+        # Report all supported workload classes
+        self.__rtapp_report(numbers)
+
+    ############################### REPORT RTAPP ###############################
+
+    def __rtapp_report(self, numbers):
+
+        if 'rtapp' not in self.results.keys():
+            logging.debug('%14s - No RTApp workloads to report', 'ReportRTApp')
+            return
+
+        logging.debug('%14s - Reporting RTApp workloads', 'ReportRTApp')
+
+        # Setup lables depending on requested report
         if numbers:
             nrg_lable = 'Energy Indexes (Absolute)'
             prf_lable = 'Performance Indexes (Absolute)'
@@ -97,13 +111,6 @@ class Report(object):
             logging.info('')
             logging.info('%14s - Relative comparisions:', 'Report')
             print ''
-
-
-        if 'rtapp' not in self.results.keys():
-            logging.debug('%14s - No RTApp workloads to report', 'ReportRTApp')
-            return
-
-        logging.debug('%14s - Reporting RTApp workloads', 'ReportRTApp')
 
         # Dump headers
         print '{:9s}   {:15s} |'\
@@ -137,11 +144,11 @@ class Report(object):
                             new_test = False
                         if not test_rexp.match(test_idx):
                             continue
-                        self.__compare_rtapp(tid, base_idx, test_idx, numbers)
+                        self.__rtapp_compare(tid, base_idx, test_idx, numbers)
 
         print ''
 
-    def __compare_rtapp(self, tid, base_idx, test_idx, numbers):
+    def __rtapp_compare(self, tid, base_idx, test_idx, numbers):
         _results = self.results['rtapp']
 
         logging.debug('Test %s: compare %s with %s',
