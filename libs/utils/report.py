@@ -30,26 +30,12 @@ class Results(object):
         self.results_dir = results_dir
         self.results_json = results_dir + '/results.json'
         self.results = {}
-        self.compare = []
 
-        # Load results from file (if already parsed)
+        # Do nothing if results have been already parsed
         if os.path.isfile(self.results_json):
-            logging.info('%14s - Load results from [%s]...',
-                    'Results', self.results_json)
-            with open(self.results_json) as infile:
-               self.results = json.load(infile)
             return
 
-        # Parse results folder
-        self.parse()
-
-    ############################################################################
-    # Results Parsing
-    ############################################################################
-
-
-    def parse(self):
-
+        # Parse results
         self.base_wls = defaultdict(list)
         self.test_wls = defaultdict(list)
 
@@ -70,12 +56,24 @@ class Results(object):
         with open(results_json, 'w') as outfile:
             json.dump(self.results, outfile, indent=4, sort_keys=True)
 
+class Report(object):
 
-    ############################################################################
-    # Results Reporting
-    ############################################################################
 
-    def report(self, compare=None, numbers=False):
+    def __init__(self, results_dir, compare=None, numbers=False):
+        self.results_json = results_dir + '/results.json'
+        self.results = {}
+
+        self.compare = []
+
+        # Parse results (if required)
+        if not os.path.isfile(self.results_json):
+            Results(results_dir)
+
+        # Load results from file (if already parsed)
+        logging.info('%14s - Load results from [%s]...',
+                'Results', self.results_json)
+        with open(self.results_json) as infile:
+           self.results = json.load(infile)
 
         # Setup configuration comparisons
         if compare is None:
@@ -100,8 +98,14 @@ class Results(object):
             logging.info('%14s - Relative comparisions:', 'Report')
             print ''
 
-        # Dump headers
 
+        if 'rtapp' not in self.results.keys():
+            logging.debug('%14s - No RTApp workloads to report', 'ReportRTApp')
+            return
+
+        logging.debug('%14s - Reporting RTApp workloads', 'ReportRTApp')
+
+        # Dump headers
         print '{:9s}   {:15s} |'\
                 ' {:33s} | {:54s} |'\
                 .format('Test Id', 'Comparision',
@@ -114,29 +118,32 @@ class Results(object):
                         'PerfIndex', 'NegSlacks', 'EDP1', 'EDP2', 'EDP3')
 
         # For each test
-        for tid in sorted(self.results.keys()):
+        _results = self.results['rtapp']
+        for tid in sorted(_results.keys()):
             new_test = True
             # For each configuration...
-            for i, base_idx in enumerate(sorted(self.results[tid].keys())):
+            for i, base_idx in enumerate(sorted(_results[tid].keys())):
                 # Which matches at least on base regexp
                 for (base_rexp, test_rexp) in self.compare:
                     if not base_rexp.match(base_idx):
                         continue
                     # Look for a configuration which matches the test regexp
-                    for test_idx in sorted(self.results[tid].keys())[i+1:]:
+                    for test_idx in sorted(_results[tid].keys())[i+1:]:
                         if test_idx == base_idx:
                             continue
                         if new_test:
-                            print '{:-<28s}+{:-<35s}+{:-<56s}+'.format('','', '')
+                            print '{:-<28s}+{:-<35s}+{:-<56s}+'\
+                                    .format('','', '')
                             new_test = False
                         if not test_rexp.match(test_idx):
                             continue
-                        self.__compare(tid, base_idx, test_idx, numbers)
+                        self.__compare_rtapp(tid, base_idx, test_idx, numbers)
 
         print ''
-        return True
 
-    def __compare(self, tid, base_idx, test_idx, numbers):
+    def __compare_rtapp(self, tid, base_idx, test_idx, numbers):
+        _results = self.results['rtapp']
+
         logging.debug('Test %s: compare %s with %s',
                 tid, base_idx, test_idx)
         res_comp = '{0:s} vs {1:s}'.format(test_idx, base_idx)
@@ -144,8 +151,8 @@ class Results(object):
 
         # Dump all energy metrics
         for cpus in ['LITTLE', 'big', 'Total']:
-            res_base = self.results[tid][base_idx]['energy'][cpus]['avg']
-            res_test = self.results[tid][test_idx]['energy'][cpus]['avg']
+            res_base = _results[tid][base_idx]['energy'][cpus]['avg']
+            res_test = _results[tid][test_idx]['energy'][cpus]['avg']
             speedup_cnt =  res_test - res_base
             if numbers:
                 res_line += ' {0:10.2f}'.format(speedup_cnt)
@@ -158,13 +165,13 @@ class Results(object):
         res_line += ' |'
 
         # If available, dump also performance results
-        if 'performance' not in self.results[tid][base_idx].keys():
+        if 'performance' not in _results[tid][base_idx].keys():
             print res_line
             return
 
         for pidx in ['perf_avg', 'slack_pct', 'edp1', 'edp2', 'edp3']:
-            res_base = self.results[tid][base_idx]['performance'][pidx]['avg']
-            res_test = self.results[tid][test_idx]['performance'][pidx]['avg']
+            res_base = _results[tid][base_idx]['performance'][pidx]['avg']
+            res_test = _results[tid][test_idx]['performance'][pidx]['avg']
 
             logging.debug('idx: %s, base: %s, test: %s',
                     pidx, res_base, res_test)
