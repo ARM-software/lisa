@@ -16,13 +16,12 @@ class PerfMessaging(Workload):
         # TODO: Assume perf is pre-installed on target
         #target.setup('perf')
 
+        super(PerfMessaging, self).__init__(target, name, None)
+
         # perf "sched" executor
         self.wtype = 'perf_bench_messaging'
         self.executor = 'perf bench sched messaging'
 
-        self.command = ''
-
-        super(PerfMessaging, self).__init__(target, name, None)
 
     def conf(self,
              group = 1,
@@ -70,11 +69,12 @@ class PerfPipe(Workload):
         # TODO: Assume perf is pre-installed on target
         #target.setup('perf')
 
+        super(PerfPipe, self).__init__(target, name, None)
+
         # perf "sched" executor
         self.wtype = 'perf_bench_pipe'
         self.executor = 'perf bench sched pipe'
 
-        super(PerfPipe, self).__init__(target, name, None)
 
     def conf(self,
              loop = 10,
