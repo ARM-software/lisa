@@ -26,15 +26,10 @@ DEFAULT_COMPARE = [(r'.*', r'.*')]
 
 class Results(object):
 
-    def __init__(self, results_dir, verbose=False):
-
+    def __init__(self, results_dir):
         self.results_dir = results_dir
-        self.verbose = verbose
-
-        self.results = {}
         self.results_json = results_dir + '/results.json'
-        self.verbose = verbose
-
+        self.results = {}
         self.compare = []
 
         # Load results from file (if already parsed)
@@ -66,7 +61,8 @@ class Results(object):
             if not os.path.isdir(test_dir):
                 continue
 
-            Test(test_idx, test_dir, self.results)
+            test = TestFactory.get(test_idx, test_dir, self.results)
+            test.parse()
 
         results_json = self.results_dir + '/results.json'
         logging.info('%14s - Dump perf results on JSON file [%s]...',
@@ -236,101 +232,173 @@ class Stats(object):
         c99 = 2.58 * ste
         return c99
 
+TEST_DIR_RE = re.compile(
+        r'.*/([^:]*):([^:]*):([^:]*)'
+    )
 
 class Test(object):
 
     def __init__(self, test_idx, test_dir, res):
         self.test_idx = test_idx
-
-        # Energy measures per each run of the workload
-        little = []
-        total = []
-        big = []
-
-        # Performance measures per each run of the workload
-        slack_pct = []
-        perf_avg = []
-        edp1 = []
-        edp2 = []
-        edp3 = []
+        self.test_dir = test_dir
+        self.res = res
+        match = TEST_DIR_RE.search(test_dir)
+        if not match:
+            logging.error('%14s - Results folder not matching naming template',
+                    'TestParser')
+            logging.error('%14s - Skip parsing of test results [%s]',
+                    'TestParser', test_dir)
+            return
 
         # Create required JSON entries
-        wload_idx = self.wload()
-        if wload_idx not in res.keys():
-            res[wload_idx] = {}
-        conf_idx = self.config()
-        if conf_idx not in res[wload_idx].keys():
-            res[wload_idx][conf_idx] = {}
+        wtype = match.group(1)
+        if wtype not in res.keys():
+            res[wtype] = {}
+        wload_idx = match.group(3)
+        if wload_idx not in res[wtype].keys():
+            res[wtype][wload_idx] = {}
+        conf_idx = match.group(2)
+        if conf_idx not in res[wtype][wload_idx].keys():
+            res[wtype][wload_idx][conf_idx] = {}
 
-        logging.debug('%14s - Parse [%s]...', 'Test', test_dir)
-        for run_idx in sorted(os.listdir(test_dir)):
+        # Set the workload type for this test
+        self.wtype = wtype
+        self.wload_idx = wload_idx
+        self.conf_idx = conf_idx
 
-            # Parse test's run results
-            run_dir = test_dir + '/' + run_idx
-            run = Run(run_idx, run_dir)
+        # Energy metrics collected for all tests
+        self.little = []
+        self.total = []
+        self.big = []
 
-            # Keep track of average energy of each run
-            little.append(run.little_nrg)
-            total.append(run.total_nrg)
-            big.append(run.big_nrg)
+    def parse(self):
 
-            # Keep track of average performances of each run
-            slack_pct.extend(run.slack_pct)
-            perf_avg.extend(run.perf_avg)
-            edp1.extend(run.edp1)
-            edp2.extend(run.edp2)
-            edp3.extend(run.edp3)
+        logging.info('%14s - Processing results from wtype [%s]',
+                'TestParser', self.wtype)
 
+        # Parse test's run results
+        for run_idx in sorted(os.listdir(self.test_dir)):
+            run_dir = self.test_dir + '/' + run_idx
+            run = self.parse_run(run_idx, run_dir)
+            self.collect_energy(run)
+            self.collect_performance(run)
+
+        # Report energy/performance stats over all runs
+        self.res[self.wtype][self.wload_idx][self.conf_idx]\
+                ['energy'] = self.energy()
+        self.res[self.wtype][self.wload_idx][self.conf_idx]\
+                ['performance'] = self.performance()
+
+    def collect_energy(self, run):
+        # Keep track of average energy of each run
+        self.little.append(run.little_nrg)
+        self.total.append(run.total_nrg)
+        self.big.append(run.big_nrg)
+
+    def energy(self):
         # Compute energy stats over all run
-        res[wload_idx][conf_idx]['energy'] = {
-                'LITTLE' : Stats(little).get(),
-                'big'    : Stats(big).get(),
-                'Total'  : Stats(total).get()
+        return {
+                'LITTLE' : Stats(self.little).get(),
+                'big'    : Stats(self.big).get(),
+                'Total'  : Stats(self.total).get()
         }
 
-        # Compute average performance over all run
-        res[wload_idx][conf_idx]['performance'] = {
-                'slack_pct' : Stats(slack_pct).get(),
-                'perf_avg'  : Stats(perf_avg).get(),
-                'edp1'      : Stats(edp1).get(),
-                'edp2'      : Stats(edp2).get(),
-                'edp3'      : Stats(edp3).get(),
-        }
 
-    def config(self):
-        return self.test_idx.split(':')[0]
+class RTAppTest(Test):
 
-    def wload(self):
-        return self.test_idx.split(':')[1]
+    def __init__(self, test_idx, test_dir, res):
+        super(RTAppTest, self).__init__(test_idx, test_dir, res)
 
-
-class Run(object):
-
-    def __init__(self, run_idx, run_dir):
-        self.run_idx = run_idx
-
-        # Set of exposed attibutes
-        self.little_nrg = None
-        self.total_nrg = None
-        self.big_nrg = None
-
+        # RTApp specific performance metric
         self.slack_pct = []
         self.perf_avg = []
         self.edp1 = []
         self.edp2 = []
         self.edp3 = []
 
+    def parse_run(self, run_idx, run_dir):
+        return RunRTApp(run_idx, run_dir)
+
+    def collect_performance(self, run):
+        # Keep track of average performances of each run
+        self.slack_pct.extend(run.slack_pct)
+        self.perf_avg.extend(run.perf_avg)
+        self.edp1.extend(run.edp1)
+        self.edp2.extend(run.edp2)
+        self.edp3.extend(run.edp3)
+
+    def performance(self):
+        return {
+                'slack_pct' : Stats(self.slack_pct).get(),
+                'perf_avg'  : Stats(self.perf_avg).get(),
+                'edp1'      : Stats(self.edp1).get(),
+                'edp2'      : Stats(self.edp2).get(),
+                'edp3'      : Stats(self.edp3).get(),
+        }
+
+
+class DefaultTest(Test):
+
+    def __init__(self, test_idx, test_dir, res):
+        super(DefaultTest, self).__init__(test_idx, test_dir, res)
+
+
+class TestFactory(object):
+
+    @staticmethod
+    def get(test_idx, test_dir, res):
+
+        # Retrive workload class from results folder name
+        match = TEST_DIR_RE.search(test_dir)
+        if not match:
+            logging.error('%14s - Results folder not matching naming template',
+                    'TestParser')
+            logging.error('%14s - Skip parsing of test results [%s]',
+                    'TestParser', test_dir)
+            return
+
+        # Create workload specifi test class
+        wtype = match.group(1)
+
+        if wtype == 'rtapp':
+            return RTAppTest(test_idx, test_dir, res)
+
+        # Return a generi test parser
+        return DefaultTest(test_idx, test_dir, res)
+
+
+class Run(object):
+
+    def __init__(self, run_idx, run_dir):
+        self.run_idx = run_idx
+        self.nrg = None
+
         logging.debug('%14s - Parse [%s]...', 'Run', run_dir)
 
-        # Load run's energy results
+        # Energy stats
+        self.little_nrg = None
+        self.total_nrg = None
+        self.big_nrg = None
+
         nrg_file = run_dir + '/energy.json'
         if os.path.isfile(nrg_file):
-            nrg = Energy(nrg_file)
-            self.little_nrg = nrg.little
-            self.total_nrg = nrg.total
-            self.big_nrg = nrg.big
-        else:
-            nrg = None
+            self.nrg = Energy(nrg_file)
+            self.little_nrg = self.nrg.little
+            self.total_nrg = self.nrg.total
+            self.big_nrg = self.nrg.big
+
+class RunRTApp(Run):
+
+    def __init__(self, run_idx, run_dir):
+        # Call base class to parse energy data
+        super(RunRTApp, self).__init__(run_idx, run_dir)
+
+        # RTApp specific performance stats
+        self.slack_pct = []
+        self.perf_avg = []
+        self.edp1 = []
+        self.edp2 = []
+        self.edp3 = []
 
         # Load run's performance of each task
         for perf_idx in sorted(os.listdir(run_dir)):
@@ -340,7 +408,7 @@ class Run(object):
 
             # Parse run's performance results
             prf_file = run_dir + '/' + perf_idx
-            prf = Perf(prf_file, nrg)
+            prf = PerfRTApp(prf_file, self.nrg)
 
             # Keep track of average performances of each task
             self.slack_pct.append(prf.slack_pct)
@@ -370,7 +438,7 @@ class Energy(object):
         logging.debug('%14s - Energy LITTLE [%s], big [%s], Total [%s]',
                 'Energy', self.little, self.big, self.total)
 
-class Perf(object):
+class PerfRTApp(object):
 
     def __init__(self, perf_file, nrg):
 
