@@ -368,6 +368,70 @@ class DefaultTest(Test):
     def __init__(self, test_idx, test_dir, res):
         super(DefaultTest, self).__init__(test_idx, test_dir, res)
 
+        # Default performance metric
+        self.ctime_avg = []
+        self.perf_avg = []
+        self.edp1 = []
+        self.edp2 = []
+        self.edp3 = []
+
+    def parse_run(self, run_idx, run_dir):
+        return DefaultRun(run_idx, run_dir)
+
+    def collect_performance(self, run):
+        # Keep track of average performances of each run
+        self.ctime_avg.append(run.ctime_avg)
+        self.perf_avg.append(run.perf_avg)
+        self.edp1.append(run.edp1)
+        self.edp2.append(run.edp2)
+        self.edp3.append(run.edp3)
+
+    def performance(self):
+        return {
+                'ctime_avg' : Stats(self.ctime_avg).get(),
+                'perf_avg'  : Stats(self.perf_avg).get(),
+                'edp1'      : Stats(self.edp1).get(),
+                'edp2'      : Stats(self.edp2).get(),
+                'edp3'      : Stats(self.edp3).get(),
+        }
+
+class DefaultRun(Run):
+
+    def __init__(self, run_idx, run_dir):
+        # Call base class to parse energy data
+        super(DefaultRun, self).__init__(run_idx, run_dir)
+
+        # Default specific performance stats
+        self.ctime_avg = 0
+        self.perf_avg = 0
+        self.edp1 = 0
+        self.edp2 = 0
+        self.edp3 = 0
+
+        # Load default performance.json
+        prf_file = os.path.join(run_dir, 'performance.json')
+        if not os.path.isfile(prf_file):
+            logging.warning('%14s - No performance.json found in %s',
+                    'Perf', run_dir)
+            return
+
+        # Load performance report from JSON
+        with open(prf_file, 'r') as infile:
+            prf = json.load(infile)
+
+        # Keep track of performance value
+        self.ctime_avg = prf['ctime']
+        self.perf_avg = prf['performance']
+
+        # Compute EDP indexes if energy measurements are available
+        if self.nrg is None:
+            return
+
+        # Computing EDP
+        self.edp1 = self.nrg.total * math.pow(self.ctime_avg, 1)
+        self.edp2 = self.nrg.total * math.pow(self.ctime_avg, 2)
+        self.edp3 = self.nrg.total * math.pow(self.ctime_avg, 3)
+
 
 ################################################################################
 # Globals
