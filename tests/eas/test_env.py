@@ -271,6 +271,14 @@ class TestEnv(ShareState):
         if not force and self.eprobe is not None:
             return self.eprobe
 
+        if 'hwmon' not in self.__modules:
+            logging.info('%14s - HWMON module not enabled',
+                    'EnergyProbe')
+            logging.warning('%14s - Energy sampling disabled by configuration',
+                    'EnergyProbe')
+            self.eprobe = None
+            return
+
         # Initialize HWMON instrument
         self.eprobe = devlib.HwmonInstrument(self.target)
 
@@ -323,6 +331,8 @@ class TestEnv(ShareState):
 
 
     def energy_report(self, out_dir):
+        if self.eprobe is None:
+            return
         # Retrive energy consumption data
         nrg = self.energy_sample()
         # Reformat data for output generation
