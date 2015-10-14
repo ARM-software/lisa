@@ -17,6 +17,7 @@ class PerfMessaging(Workload):
         #target.setup('perf')
 
         # perf "sched" executor
+        self.wtype = 'perf_bench_messaging'
         self.executor = 'perf bench sched messaging'
 
         self.command = ''
@@ -70,6 +71,7 @@ class PerfPipe(Workload):
         #target.setup('perf')
 
         # perf "sched" executor
+        self.wtype = 'perf_bench_pipe'
         self.executor = 'perf bench sched pipe'
 
         super(PerfPipe, self).__init__(target, name, None)

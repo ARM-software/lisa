@@ -15,6 +15,9 @@ class Workload(object):
         # Target device confguration
         self.target = target
 
+        # Specific class of this workload
+        self.wtype = None
+
         # Name of this orkload
         self.name = name
 

@@ -23,6 +23,7 @@ class RTA(Workload):
         super(RTA, self).__init__(target, name, calibration)
 
         # rt-app executor
+        self.wtype = 'rtapp'
         self.executor = 'rt-app'
 
         # Setup RTA callbacks
