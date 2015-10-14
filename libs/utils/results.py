@@ -145,9 +145,9 @@ class Energy(object):
     def __init__(self, nrg_file):
 
         # Set of exposed attributes
-        self.little = None
-        self.big = None
-        self.total = None
+        self.little = 0
+        self.big = 0
+        self.total = 0
 
         logging.debug('%14s - Parse [%s]...', 'Energy', nrg_file)
 
@@ -212,9 +212,9 @@ class Run(object):
         logging.debug('%14s - Parse [%s]...', 'Run', run_dir)
 
         # Energy stats
-        self.little_nrg = None
-        self.total_nrg = None
-        self.big_nrg = None
+        self.little_nrg = 0
+        self.total_nrg = 0
+        self.big_nrg = 0
 
         nrg_file = run_dir + '/energy.json'
         if os.path.isfile(nrg_file):
@@ -300,9 +300,9 @@ class RTAppPerf(object):
         self.run_sum = None
         self.slack_sum = None
         self.slack_pct = None
-        self.edp1 = None
-        self.edp2 = None
-        self.edp3 = None
+        self.edp1 = 0
+        self.edp2 = 0
+        self.edp3 = 0
 
         logging.debug('%14s - Parse [%s]...', 'Perf', perf_file)
 
