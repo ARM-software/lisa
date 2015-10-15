@@ -24,6 +24,22 @@ var EventPlot = (function () {
      * This maintains filtering complexity to O[KLogN]
      */
 
+    var GUIDER_WIDTH = 2;
+
+    infoProps = {
+        START_GUIDER_COLOR: "green",
+        END_GUIDER_COLOR: "red",
+        DELTA_COLOR: "blue",
+        GUIDER_WIDTH: 2,
+        TOP_MARGIN: 20,
+        HEIGHT: 30,
+        START_PREFIX: "A = ",
+        END_PREFIX: "B = ",
+        DELTA_PREFIX: "A - B = ",
+        XPAD: 10,
+        YPAD: 5,
+    }
+
     var search_data = function (data, key, value, left, right) {
 
         var mid;
@@ -56,13 +72,13 @@ var EventPlot = (function () {
             var showSummary = d.showSummary;
 
             margin = {
-                    top: 20,
+                    top: 0,
                     right: 15,
                     bottom: 15,
                     left: 70
                 }, width = 960 - margin.left - margin.right,
 
-                mainHeight = 300 - margin.top - margin.bottom;
+                mainHeight = 50 * lanes.length - margin.top - margin.bottom;
 
             x = d3.scale.linear()
                 .domain(d.xDomain)
@@ -95,6 +111,8 @@ var EventPlot = (function () {
 
 
             var ePlot;
+
+            var iDesc = drawInfo(div_name, margin, width);
 
             chart = d3.select('#' + div_name)
                 .append('svg:svg')
@@ -225,7 +243,46 @@ var EventPlot = (function () {
                 brushScale.domain(zoomScale.domain());
                 ePlot.main.select('.main.axis')
                     .call(ePlot.mainAxis)
+
+                updateGuiders(ePlot);
             };
+
+            var contextMenuHandler = function() {
+
+                var e = d3.event;
+                var x0 = d3.mouse(this)[0] - ePlot.margin.left;
+
+                if (e.ctrlKey) {
+
+                    if (ePlot.endGuider)
+                        ePlot.endGuider = ePlot.endGuider.remove();
+
+                    ePlot.endGuider = drawVerticalLine(ePlot, x0,
+                        infoProps.END_GUIDER_COLOR);
+                    ePlot.endGuider._x_pos = ePlot.zoomScale.invert(x0);
+                    iDesc.endText.text(infoProps.END_PREFIX + ePlot.endGuider._x_pos.toFixed(6))
+
+                } else {
+
+                    if (ePlot.startGuider)
+                        ePlot.startGuider = ePlot.startGuider.remove();
+
+                    ePlot.startGuider = drawVerticalLine(ePlot, x0,
+                        infoProps.START_GUIDER_COLOR);
+                    ePlot.startGuider._x_pos = ePlot.zoomScale.invert(x0);
+                    iDesc.startText.text(infoProps.START_PREFIX + ePlot.startGuider._x_pos.toFixed(6))
+                }
+
+                if (ePlot.endGuider && ePlot.startGuider)
+                    iDesc.deltaText.text(infoProps.DELTA_PREFIX +
+                            (ePlot.endGuider._x_pos - ePlot.startGuider._x_pos)
+                            .toFixed(6)
+                        )
+
+                d3.event.preventDefault();
+            }
+
+            chart.on("contextmenu", contextMenuHandler);
 
             if (showSummary) {
                 var _brushed_event = function () {
@@ -268,6 +325,7 @@ var EventPlot = (function () {
                     ePlot.main.select('.main.axis')
                         .call(ePlot.mainAxis)
 
+                    updateGuiders(ePlot);
                 };
 
                 brush = d3.svg.brush()
@@ -288,7 +346,8 @@ var EventPlot = (function () {
                 .on(
                     "zoom", zoomed)
                 .on("zoomend", function () {
-                    outgoing.remove()
+                    if (outgoing)
+                        outgoing.remove()
                 })
                 .scaleExtent([1, 4096]);
             chart.call(zoom);
@@ -300,6 +359,112 @@ var EventPlot = (function () {
 
         });
     };
+
+    var drawInfo = function (div_name, margin, width) {
+
+        var infoHeight = 30;
+        var _top = 20;
+        var LINE_WIDTH = 2
+
+        var iDesc = {};
+
+        var info_svg = d3.select("#" + div_name)
+            .append(
+                "svg:svg")
+            .attr('width', width + margin.right +
+                margin.left)
+            .attr('height', infoHeight + infoProps.TOP_MARGIN + LINE_WIDTH)
+
+        iDesc.info = info_svg.append("g")
+            .attr("transform", "translate(" + margin.left +
+                 "," + infoProps.TOP_MARGIN + ")")
+            .attr('width', width)
+            .attr("class", "main")
+            .attr('height', infoProps.HEIGHT)
+
+        iDesc.info.append("rect")
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", width)
+            .attr("height", infoHeight)
+            .attr("stroke", "lightgray")
+            .attr("fill", "none")
+            .attr("stroke-width", 1);
+
+       iDesc.startText = iDesc.info.append("text")
+            .text("")
+            .attr("x", infoProps.XPAD)
+            .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
+            .attr("fill", infoProps.START_GUIDER_COLOR);
+
+
+       iDesc.deltaText = iDesc.info.append("text")
+            .text("")
+            .attr("x", width / 2)
+            .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
+            .attr("fill", infoProps.DELTA_COLOR);
+
+        iDesc.endText = iDesc.info.append("text")
+            .text("")
+            .attr("x", width - infoProps.XPAD)
+            .attr("text-anchor", "end")
+            .attr("y", infoProps.HEIGHT / 2 + infoProps.YPAD)
+            .attr("fill", infoProps.END_GUIDER_COLOR);
+
+        return iDesc;
+
+    }
+
+    var drawVerticalLine = function (ePlot, x, color) {
+
+        var line = ePlot.main.append("g")
+
+        line.append("line")
+            .style("stroke", color)
+            .style("stroke-width", GUIDER_WIDTH)
+            .attr("x1", x)
+            .attr("x2", x)
+            .attr("y1", 0)
+            .attr("y2", ePlot.mainHeight + 50)
+
+        return line;
+    };
+
+    var checkGuiderRange = function (ePlot, xpos) {
+
+        if (xpos >= ePlot.zoomScale.domain()[0] &&
+            xpos <= ePlot.zoomScale.domain()[1])
+            return true;
+        else
+            return false;
+    }
+
+    var updateGuiders = function (ePlot) {
+
+        if (ePlot.endGuider) {
+
+            var xpos = ePlot.endGuider._x_pos;
+            ePlot.endGuider.remove();
+
+            if (checkGuiderRange(ePlot, xpos)) {
+                ePlot.endGuider = drawVerticalLine(ePlot, ePlot.zoomScale(xpos),
+                    infoProps.END_GUIDER_COLOR);
+                ePlot.endGuider._x_pos = xpos;
+            }
+        }
+
+        if (ePlot.startGuider) {
+
+            var xpos = ePlot.startGuider._x_pos;
+            ePlot.startGuider.remove();
+
+            if (checkGuiderRange(ePlot, xpos)) {
+                ePlot.startGuider = drawVerticalLine(ePlot, ePlot.zoomScale(xpos),
+                    infoProps.START_GUIDER_COLOR);
+                ePlot.startGuider._x_pos = xpos
+            }
+        }
+    }
 
     var drawMini = function (ePlot) {
 
@@ -325,7 +490,7 @@ var EventPlot = (function () {
             .attr('width', ePlot.width + ePlot.margin.right +
                 ePlot.margin.left)
             .attr('height', miniHeight + ePlot.margin.bottom +
-                ePlot.margin.top + 5)
+                ePlot.margin.top)
             .attr('class', 'chart')
 
         var mini = summary.append('g')
