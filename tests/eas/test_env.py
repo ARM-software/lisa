@@ -105,6 +105,9 @@ class TestEnv(ShareState):
 
     def init(self, force = False):
 
+        if self.feature('debug'):
+            logging.getLogger().setLevel(logging.DEBUG)
+
         # Initialize target
         self.init_target(force)
 
@@ -405,12 +408,15 @@ class TestEnv(ShareState):
 
     def reboot(self, reboot_time=60):
         # Send remote target a reboot command
-        self.target.execute('sleep 2 && reboot -f &', as_root=True)
+        if self.feature('no-reboot'):
+            logging.warning('%14s - Reboot disabled by conf features')
+        else:
+            self.target.execute('sleep 2 && reboot -f &', as_root=True)
 
-        # Wait for the target to complete the reboot
-        logging.info('%14s - Waiting %s [s]for target to reboot...',
-                'Reboot', reboot_time)
-        time.sleep(reboot_time)
+            # Wait for the target to complete the reboot
+            logging.info('%14s - Waiting %s [s]for target to reboot...',
+                    'Reboot', reboot_time)
+            time.sleep(reboot_time)
 
         # Force re-initialization of all the devlib modules
         force = True
@@ -486,6 +492,9 @@ class TestEnv(ShareState):
             logging.error('%14s - Failed to deploy image: %s',
                     'FTFP', src)
             raise ValueError('copy error')
+
+    def feature(self, feature):
+        return feature in self.conf['__features__']
 
 IFCFG_BCAST_RE = re.compile(
     r'Bcast:(.*) '
