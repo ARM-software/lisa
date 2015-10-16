@@ -139,6 +139,10 @@ def default_body_parser(event, text):
     if not len(parts) % 2:
         i = iter(parts)
         for k, v in zip(i, i):
+            try:
+                v = int(v)
+            except ValueError:
+                pass
             event.fields[k] = v
 
 
