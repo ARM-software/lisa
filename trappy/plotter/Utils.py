@@ -48,7 +48,9 @@ def decolonize(val):
     return val.strip(":")
 
 
-def get_trace_event_data(run):
+def get_trace_event_data(run,
+                         execnames=None,
+                         pids=None):
     """
         Args:
             trappy.Run: A trappy.Run object
@@ -58,6 +60,12 @@ def get_trace_event_data(run):
             consumed by EventPlot to plot task
             residency like kernelshark
     """
+
+    if execnames:
+        execnames = listify(execnames)
+
+    if pids:
+        pids = listify(pids)
 
     data = collections.defaultdict(list)
     pmap = {}
@@ -82,6 +90,13 @@ def get_trace_event_data(run):
             raise ValueError("Malformed data for PID: {}".format(next_pid))
 
         if next_pid != 0 and not next_comm.startswith("migration"):
+
+            if execnames and next_comm not in execnames:
+                continue
+
+            if pids and next_pid not in pids:
+                continue
+
             name = "{}-{}".format(next_comm, next_pid)
             data[name].append([index, end_idx, row["__cpu"]])
             pmap[next_pid] = name

@@ -49,17 +49,27 @@ def unregister_forwarding_arg(arg_name):
     except ValueError:
         pass
 
-def plot_trace(trace_dir):
+def plot_trace(trace_dir,
+               execnames=None,
+               pids=None):
     """Creates a kernelshark like plot of the trace file
 
     :param trace_dir: The location of the trace file
     :type trace_dir: str
+
+    :param pids: List of execnames to be filtered. If not
+        specified all execnames will be plotted
+    :type execnames: list, str
+
+    :param pids: List of pids to be filtered. If not specified
+        all pids will be plotted
+    :type pids: list, str
     """
 
     if not IPythonConf.check_ipython():
         raise RuntimeError("plot_trace needs ipython environment")
 
     run = trappy.Run(trace_dir)
-    data, procs, domain = Utils.get_trace_event_data(run)
+    data, procs, domain = Utils.get_trace_event_data(run, execnames, pids)
     trace_graph = EventPlot.EventPlot(data, procs, "CPU: ", int(run._cpus), domain)
     trace_graph.view()
