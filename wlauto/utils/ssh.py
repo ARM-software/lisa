@@ -23,8 +23,7 @@ import threading
 import tempfile
 import shutil
 
-import pxssh
-from pexpect import EOF, TIMEOUT, spawn
+from pexpect import EOF, TIMEOUT, spawn, pxssh
 
 from wlauto.exceptions import HostError, DeviceError, TimeoutError, ConfigError
 from wlauto.utils.misc import which, strip_bash_colors, escape_single_quotes, check_output
