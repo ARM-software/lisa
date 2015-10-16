@@ -16,9 +16,15 @@
 
 import time
 from contextlib import contextmanager
+from distutils.version import StrictVersion as V
 
 import serial
-import fdpexpect
+import pexpect
+if V(pexpect.__version__) < V('4.0.0'):
+    import fdpexpect  # pylint: disable=import-error
+else:
+    from pexpect import fdpexpect
+
 # Adding pexpect exceptions into this module's namespace
 from pexpect import EOF, TIMEOUT  # NOQA pylint: disable=W0611
 
