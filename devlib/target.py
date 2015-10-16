@@ -177,8 +177,8 @@ class Target(object):
         tid = id(threading.current_thread())
         self._connections[tid] = self.get_connection(timeout=timeout)
         self.busybox = self.get_installed('busybox')
-        self._update_modules('connected')
         self.platform.update_from_target(self)
+        self._update_modules('connected')
         if self.platform.big_core and self.load_default_modules:
             self._install_module(get_module('bl'))
 

@@ -29,7 +29,20 @@ class CpufreqModule(Module):
 
     @staticmethod
     def probe(target):
+
+        # x86 with Intel P-State driver
+        if target.abi == 'x86_64':
+            path = '/sys/devices/system/cpu/intel_pstate'
+            if target.file_exists(path):
+                return True
+
+        # Generic CPUFreq support (single policy)
         path = '/sys/devices/system/cpu/cpufreq'
+        if target.file_exists(path):
+            return True
+
+        # Generic CPUFreq support (per CPU policy)
+        path = '/sys/devices/system/cpu/cpu0/cpufreq'
         return target.file_exists(path)
 
     def __init__(self, target):
