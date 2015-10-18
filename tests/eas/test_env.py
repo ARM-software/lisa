@@ -432,7 +432,7 @@ class TestEnv(ShareState):
 
     def install_kernel(self, tc, reboot=False):
 
-        if self.kernel == tc['kernel'] and self.dbt == tc['dtb']:
+        if self.kernel == tc['kernel'] and self.dtb == tc['dtb']:
             return
 
         logging.info('%14s - Install kernel [%s] on target...',
