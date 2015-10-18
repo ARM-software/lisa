@@ -18,8 +18,8 @@ import logging
 reload(logging)
 logging.basicConfig(
     format='%(asctime)-9s %(levelname)-8s: %(message)s',
-    level=logging.DEBUG,
-    # level=logging.INFO,
+    # level=logging.DEBUG,
+    level=logging.INFO,
     datefmt='%I:%M:%S')
 
 # By default compare all the possible combinations
