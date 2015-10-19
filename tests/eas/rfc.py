@@ -223,6 +223,12 @@ class EAS_Tests(unittest.TestCase):
         cls.setup_rootfs()
 
     @classmethod
+    def setup_sched_features(cls, tc):
+        feats = tc['sched_features'].split(",")
+        for feat in feats:
+            cls.env.target.execute('echo {} > /sys/kernel/debug/sched_features'.format(feat))
+
+    @classmethod
     def setup_rootfs(cls):
         # Initialize CGroups if required
         cls.schedtune_init()
@@ -297,6 +303,7 @@ class EAS_Tests(unittest.TestCase):
                 r'configuring target for [{}] experiments'\
                 .format(tc['tag']))
         cls.setup_kernel(tc)
+        cls.setup_sched_features(tc)
         cls.setup_cpufreq(tc)
         return cls.setup_cgroups(tc)
 
