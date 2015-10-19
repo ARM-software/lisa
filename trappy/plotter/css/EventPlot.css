@@ -44,6 +44,16 @@
   left: 0;
 }
 
+.contextRect {
+  fill: lightgray;
+  fill-opacity: 0.5;
+  stroke: black;
+  stroke-width: 1;
+  stroke-opacity: 1;
+  pointer-events: none;
+  shape-rendering: crispEdges;
+}
+
 .chart {
   shape-rendering: crispEdges;
 }
