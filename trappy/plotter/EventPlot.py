@@ -79,26 +79,29 @@ class EventPlot(AbstractDataPlotter):
         :param stride: Stride can be used if the trace is very large.
             It results in sampled rendering
         :type stride: bool
+
+        :param lanes: The sorted order of lanes
+        :type lanes: list
     """
 
     def __init__(
             self,
             data,
             keys,
-            lane_prefix,
-            num_lanes,
             domain,
+            lane_prefix="Lane: ",
+            num_lanes=0,
             summary=True,
-            stride=False):
+            stride=False,
+            lanes=None):
 
-        self._fig_name = self._generate_fig_name
         self._html = []
         self._fig_name = self._generate_fig_name()
         avgFunc = lambda x: sum([(evt[1] - evt[0]) for evt in x]) / len(x)
         avg = {k: avgFunc(v) for k, v in data.iteritems()}
         graph = {}
         graph["data"] = data
-        graph["lanes"] = self._get_lanes(lane_prefix, num_lanes)
+        graph["lanes"] = self._get_lanes(lanes, lane_prefix, num_lanes, data)
         graph["xDomain"] = domain
         graph["keys"] = sorted(avg, key=lambda x: avg[x], reverse=True)
         graph["showSummary"] = summary
@@ -136,12 +139,40 @@ class EventPlot(AbstractDataPlotter):
         raise NotImplementedError(
             "Save is not currently implemented for EventPlot")
 
-    def _get_lanes(self, lane_prefix, num_lanes):
+    def _get_lanes(self,
+                   input_lanes,
+                   lane_prefix,
+                   num_lanes,
+                   data):
         """Populate the lanes for the plot"""
 
+        # If the user has specified lanes explicitly
         lanes = []
-        for idx in range(num_lanes):
-            lanes.append({"id": idx, "label": "{}{}".format(lane_prefix, idx)})
+        if input_lanes:
+            lane_map = {}
+            for idx, lane in enumerate(input_lanes):
+                lane_map[lane] = idx
+
+            for name in data:
+                for event in data[name]:
+                    lane = event[2]
+
+                    try:
+                        event[2] = lane_map[lane]
+                    except KeyError:
+                        raise RuntimeError("Invalid Lane %s" % lane)
+
+            for idx, lane in enumerate(input_lanes):
+                lanes.append({"id": idx, "label": lane})
+
+        else:
+
+            if not num_lanes:
+                raise RuntimeError("Either lanes or num_lanes must be specified")
+
+            for idx in range(num_lanes):
+                lanes.append({"id": idx, "label": "{}{}".format(lane_prefix, idx)})
+
         return lanes
 
     def _generate_fig_name(self):
