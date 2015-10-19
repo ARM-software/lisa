@@ -194,10 +194,7 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
     def initialize(self, context):
         self.execute('mkdir -p {}'.format(self.working_directory))
         if self.is_rooted:
-            if not self.executable_is_installed('busybox'):
-                self.busybox = self.deploy_busybox(context)
-            else:
-                self.busybox = self.path.join(self.binaries_directory, 'busybox')
+            self.busybox = self.deploy_busybox(context)
             self.disable_screen_lock()
             self.disable_selinux()
         if self.enable_screen_check:
