@@ -28,7 +28,7 @@ DEFAULT_COMPARE = [(r'base_', r'test_')]
 class Report(object):
 
 
-    def __init__(self, results_dir, compare=None, formats=['absolute']):
+    def __init__(self, results_dir, compare=None, formats=['relative']):
         self.results_json = results_dir + '/results.json'
         self.results = {}
 
@@ -113,6 +113,7 @@ class Report(object):
                         if new_test:
                             print '{:-<33s}+{:-<35s}+{:-<56s}+'\
                                     .format('','', '')
+                            self.__rtapp_reference(tid, base_idx)
                             new_test = False
                         if test_rexp.match(test_idx) == None:
                             continue
@@ -120,13 +121,44 @@ class Report(object):
 
         print ''
 
+    def __rtapp_reference(self, tid, base_idx):
+        _results = self.results['rtapp']
+
+        logging.debug('Test %s: compare against [%s] base',
+                tid, base_idx)
+        res_line = '{0:8s}: {1:22s} | '.format(tid, base_idx)
+
+        # Dump all energy metrics
+        for cpus in ['LITTLE', 'big', 'Total']:
+            res_base = _results[tid][base_idx]['energy'][cpus]['avg']
+            # Dump absolute values
+            res_line += ' {0:10.3f}'.format(res_base)
+        res_line += ' |'
+
+        # If available, dump also performance results
+        if 'performance' not in _results[tid][base_idx].keys():
+            print res_line
+            return
+
+        for pidx in ['perf_avg', 'slack_pct', 'edp1', 'edp2', 'edp3']:
+            res_base = _results[tid][base_idx]['performance'][pidx]['avg']
+
+            logging.debug('idx: %s, base: %s', pidx, res_base)
+
+            # Compute speedup if required
+            if 'edp' in pidx:
+                res_line += ' {0:10.2e}'.format(res_base)
+            else:
+                res_line += ' {0:10.2f}'.format(res_base)
+        res_line += ' |'
+        print res_line
+
     def __rtapp_compare(self, tid, base_idx, test_idx, formats):
         _results = self.results['rtapp']
 
         logging.debug('Test %s: compare %s with %s',
                 tid, base_idx, test_idx)
-        res_comp = '{0:s} vs {1:s}'.format(test_idx, base_idx)
-        res_line = '{0:8s}: {1:22s} | '.format(tid, res_comp)
+        res_line = '{0:8s}:   {1:20s} | '.format(tid, test_idx)
 
         # Dump all energy metrics
         for cpus in ['LITTLE', 'big', 'Total']:
