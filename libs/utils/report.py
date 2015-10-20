@@ -23,7 +23,7 @@ logging.basicConfig(
     datefmt='%I:%M:%S')
 
 # By default compare all the possible combinations
-DEFAULT_COMPARE = [(r'.*', r'.*')]
+DEFAULT_COMPARE = [(r'base_', r'test_')]
 
 class Report(object):
 
@@ -50,6 +50,8 @@ class Report(object):
             logging.warning('%14s - Comparing all the possible combination',
                     'Results')
         for (base_rexp, test_rexp) in compare:
+            logging.info('Configured regexps for comparisions (bases , tests): (%s, %s)',
+                    base_rexp, test_rexp)
             base_rexp = re.compile(base_rexp, re.DOTALL)
             test_rexp = re.compile(test_rexp, re.DOTALL)
             self.compare.append((base_rexp, test_rexp))
@@ -99,20 +101,20 @@ class Report(object):
         for tid in sorted(_results.keys()):
             new_test = True
             # For each configuration...
-            for i, base_idx in enumerate(sorted(_results[tid].keys())):
+            for base_idx in sorted(_results[tid].keys()):
                 # Which matches at least on base regexp
                 for (base_rexp, test_rexp) in self.compare:
                     if not base_rexp.match(base_idx):
                         continue
                     # Look for a configuration which matches the test regexp
-                    for test_idx in sorted(_results[tid].keys())[i+1:]:
+                    for test_idx in sorted(_results[tid].keys()):
                         if test_idx == base_idx:
                             continue
                         if new_test:
                             print '{:-<28s}+{:-<35s}+{:-<56s}+'\
                                     .format('','', '')
                             new_test = False
-                        if not test_rexp.match(test_idx):
+                        if test_rexp.match(test_idx) == None:
                             continue
                         self.__rtapp_compare(tid, base_idx, test_idx, numbers)
 
@@ -227,13 +229,13 @@ class Report(object):
             for tid in sorted(_results.keys()):
                 new_test = True
                 # For each configuration...
-                for i, base_idx in enumerate(sorted(_results[tid].keys())):
+                for base_idx in sorted(_results[tid].keys()):
                     # Which matches at least on base regexp
                     for (base_rexp, test_rexp) in self.compare:
                         if not base_rexp.match(base_idx):
                             continue
                         # Look for a configuration which matches the test regexp
-                        for test_idx in sorted(_results[tid].keys())[i+1:]:
+                        for test_idx in sorted(_results[tid].keys()):
                             if test_idx == base_idx:
                                 continue
                             if new_test:
