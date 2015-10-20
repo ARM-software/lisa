@@ -28,7 +28,7 @@ DEFAULT_COMPARE = [(r'base_', r'test_')]
 class Report(object):
 
 
-    def __init__(self, results_dir, compare=None, numbers=False):
+    def __init__(self, results_dir, compare=None, formats=['absolute']):
         self.results_json = results_dir + '/results.json'
         self.results = {}
 
@@ -57,12 +57,12 @@ class Report(object):
             self.compare.append((base_rexp, test_rexp))
 
         # Report all supported workload classes
-        self.__rtapp_report(numbers)
-        self.__default_report(numbers)
+        self.__rtapp_report(formats)
+        self.__default_report(formats)
 
     ############################### REPORT RTAPP ###############################
 
-    def __rtapp_report(self, numbers):
+    def __rtapp_report(self, formats):
 
         if 'rtapp' not in self.results.keys():
             logging.debug('%14s - No RTApp workloads to report', 'ReportRTApp')
@@ -71,7 +71,7 @@ class Report(object):
         logging.debug('%14s - Reporting RTApp workloads', 'ReportRTApp')
 
         # Setup lables depending on requested report
-        if numbers:
+        if 'absolute' in formats:
             nrg_lable = 'Energy Indexes (Absolute)'
             prf_lable = 'Performance Indexes (Absolute)'
             logging.info('')
@@ -116,11 +116,11 @@ class Report(object):
                             new_test = False
                         if test_rexp.match(test_idx) == None:
                             continue
-                        self.__rtapp_compare(tid, base_idx, test_idx, numbers)
+                        self.__rtapp_compare(tid, base_idx, test_idx, formats)
 
         print ''
 
-    def __rtapp_compare(self, tid, base_idx, test_idx, numbers):
+    def __rtapp_compare(self, tid, base_idx, test_idx, formats):
         _results = self.results['rtapp']
 
         logging.debug('Test %s: compare %s with %s',
@@ -133,7 +133,7 @@ class Report(object):
             res_base = _results[tid][base_idx]['energy'][cpus]['avg']
             res_test = _results[tid][test_idx]['energy'][cpus]['avg']
             speedup_cnt =  res_test - res_base
-            if numbers:
+            if 'absolute' in formats:
                 res_line += ' {0:10.2f}'.format(speedup_cnt)
             else:
                 speedup_pct =  100.0 * speedup_cnt / res_base
@@ -165,7 +165,7 @@ class Report(object):
 
             # Compute speedup if required
             speedup_pct = 0
-            if numbers:
+            if 'absolute' in formats:
                 if 'edp' in pidx:
                     res_line += ' {0:10.2e}'.format(speedup_cnt)
                 else:
@@ -183,7 +183,7 @@ class Report(object):
 
     ############################### REPORT DEFAULT #############################
 
-    def __default_report(self, numbers):
+    def __default_report(self, formats):
 
         # Build list of workload types which can be rendered using the default parser
         wtypes = []
@@ -198,7 +198,7 @@ class Report(object):
         logging.debug('%14s - Reporting Default workloads', 'ReportDefault')
 
         # Setup lables depending on requested report
-        if numbers:
+        if 'absolute' in formats:
             nrg_lable = 'Energy Indexes (Absolute)'
             prf_lable = 'Performance Indexes (Absolute)'
             logging.info('')
@@ -244,11 +244,11 @@ class Report(object):
                                 new_test = False
                             if not test_rexp.match(test_idx):
                                 continue
-                            self.__default_compare(wtype, tid, base_idx, test_idx, numbers)
+                            self.__default_compare(wtype, tid, base_idx, test_idx, formats)
 
         print ''
 
-    def __default_compare(self, wtype, tid, base_idx, test_idx, numbers):
+    def __default_compare(self, wtype, tid, base_idx, test_idx, formats):
         _results = self.results[wtype]
 
         logging.debug('Test %s: compare %s with %s',
@@ -272,7 +272,7 @@ class Report(object):
             res_test = _results[tid][test_idx]['energy'][cpus]['avg']
 
             speedup_cnt =  res_test - res_base
-            if numbers:
+            if 'absolute' in formats:
                 res_line += ' {0:10.2f}'.format(speedup_cnt)
             else:
                 speedup_pct =  100.0 * speedup_cnt / res_base
@@ -304,7 +304,7 @@ class Report(object):
 
             # Compute speedup if required
             speedup_pct = 0
-            if numbers:
+            if 'absolute' in formats:
                 if 'edp' in pidx:
                     res_line += ' {0:10.2e}'.format(speedup_cnt)
                 else:
