@@ -85,11 +85,11 @@ class Report(object):
             print ''
 
         # Dump headers
-        print '{:9s}   {:15s} |'\
+        print '{:9s}   {:20s} |'\
                 ' {:33s} | {:54s} |'\
                 .format('Test Id', 'Comparision',
                         nrg_lable, prf_lable)
-        print '{:9s}   {:15s} |'\
+        print '{:9s}   {:20s} |'\
                 ' {:>10s} {:>10s} {:>10s}  |'\
                 ' {:>10s} {:>10s} {:>10s} {:>10s} {:>10s} |'\
                 .format('', '',
@@ -111,7 +111,7 @@ class Report(object):
                         if test_idx == base_idx:
                             continue
                         if new_test:
-                            print '{:-<28s}+{:-<35s}+{:-<56s}+'\
+                            print '{:-<33s}+{:-<35s}+{:-<56s}+'\
                                     .format('','', '')
                             new_test = False
                         if test_rexp.match(test_idx) == None:
@@ -126,7 +126,7 @@ class Report(object):
         logging.debug('Test %s: compare %s with %s',
                 tid, base_idx, test_idx)
         res_comp = '{0:s} vs {1:s}'.format(test_idx, base_idx)
-        res_line = '{0:8s}: {1:15s} | '.format(tid, res_comp)
+        res_line = '{0:8s}: {1:22s} | '.format(tid, res_comp)
 
         # Dump all energy metrics
         for cpus in ['LITTLE', 'big', 'Total']:
@@ -212,11 +212,11 @@ class Report(object):
             print ''
 
         # Dump headers
-        print '{:9s}   {:15s} |'\
+        print '{:9s}   {:20s} |'\
                 ' {:33s} | {:54s} |'\
                 .format('Test Id', 'Comparision',
                         nrg_lable, prf_lable)
-        print '{:9s}   {:15s} |'\
+        print '{:9s}   {:20s} |'\
                 ' {:>10s} {:>10s} {:>10s}  |'\
                 ' {:>10s} {:>10s} {:>10s} {:>10s} {:>10s} |'\
                 .format('', '',
@@ -239,7 +239,7 @@ class Report(object):
                             if test_idx == base_idx:
                                 continue
                             if new_test:
-                                print '{:-<28s}+{:-<35s}+{:-<56s}+'\
+                                print '{:-<33s}+{:-<35s}+{:-<56s}+'\
                                         .format('','', '')
                                 new_test = False
                             if not test_rexp.match(test_idx):
@@ -254,7 +254,7 @@ class Report(object):
         logging.debug('Test %s: compare %s with %s',
                 tid, base_idx, test_idx)
         res_comp = '{0:s} vs {1:s}'.format(test_idx, base_idx)
-        res_line = '{0:8s}: {1:15s} | '.format(tid, res_comp)
+        res_line = '{0:8s}: {1:22s} | '.format(tid, res_comp)
 
         # Dump all energy metrics
         for cpus in ['LITTLE', 'big', 'Total']:
