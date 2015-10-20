@@ -191,13 +191,13 @@ class Report(object):
             speedup_cnt = 0
             if res_base != 0:
                 if pidx in ['perf_avg']:
-                    speedup_cnt =  res_test - res_base
+                    speedup_cnt =  res_test
                 else:
                     speedup_cnt =  res_base - res_test
 
             # Compute speedup if required
             speedup_pct = 0
-            if 'absolute' in formats:
+            if 'absolute' in formats or pidx in ['perf_avg', 'slack_pct']:
                 if 'edp' in pidx:
                     res_line += ' {0:10.2e}'.format(speedup_cnt)
                 else:
