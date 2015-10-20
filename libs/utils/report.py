@@ -145,11 +145,16 @@ class Report(object):
 
             logging.debug('idx: %s, base: %s', pidx, res_base)
 
-            # Compute speedup if required
+            if pidx in ['perf_avg']:
+                res_line += ' {0:s}'.format(TestColors.rate(res_base))
+                continue
+            if pidx in ['slack_pct']:
+                res_line += ' {0:s}'.format(
+                        TestColors.rate(res_base, positive_is_good = False))
+                continue
             if 'edp' in pidx:
                 res_line += ' {0:10.2e}'.format(res_base)
-            else:
-                res_line += ' {0:10.2f}'.format(res_base)
+                continue
         res_line += ' |'
         print res_line
 
@@ -187,29 +192,23 @@ class Report(object):
             logging.debug('idx: %s, base: %s, test: %s',
                     pidx, res_base, res_test)
 
-            # Compute difference base-vs-test
-            speedup_cnt = 0
-            if res_base != 0:
-                if pidx in ['perf_avg']:
-                    speedup_cnt =  res_test
-                else:
-                    speedup_cnt =  res_base - res_test
+            if pidx in ['perf_avg']:
+                res_line += ' {0:s}'.format(TestColors.rate(res_test))
+                continue
 
-            # Compute speedup if required
-            speedup_pct = 0
-            if 'absolute' in formats or pidx in ['perf_avg', 'slack_pct']:
-                if 'edp' in pidx:
+            if pidx in ['slack_pct']:
+                res_line += ' {0:s}'.format(
+                        TestColors.rate(res_test, positive_is_good = False))
+                continue
+
+            # Compute difference base-vs-test
+            if 'edp' in pidx:
+                speedup_cnt = res_base - res_test
+                if 'absolute':
                     res_line += ' {0:10.2e}'.format(speedup_cnt)
                 else:
-                    res_line += ' {0:10.2f}'.format(speedup_cnt)
-            else:
-                if res_base != 0:
-                    if pidx in ['perf_avg']:
-                        # speedup_pct =  100.0 * speedup_cnt / res_base
-                        speedup_pct =  speedup_cnt
-                    else:
-                        speedup_pct =  100.0 * speedup_cnt / res_base
-                res_line += ' {0:s}'.format(TestColors.rate(speedup_pct))
+                    res_line += ' {0:s}'.format(TestColors.rate(speedup_pct))
+
         res_line += ' |'
         print res_line
 

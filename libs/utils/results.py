@@ -326,8 +326,8 @@ class RTAppPerf(object):
         slacks = self.data[:,RTAPP_COL_SLACK]
         slacks = slacks[slacks < 0]
         # logging.debug('Negative Slacks: %s', self.slacks)
-        self.slack_sum = slacks.sum()
         # logging.debug('slack [%s]: %6.2f', self.name, self.slack_sum)
+        self.slack_sum = -slacks.sum()
 
         # Slack over run-time
         self.run_sum = np.sum(self.data[:,RTAPP_COL_RUN])
