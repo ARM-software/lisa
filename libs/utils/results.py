@@ -312,7 +312,7 @@ class RTAppPerf(object):
 
         # Max Slack (i.e. configured/expected slack): period - run
         self.max_slack = np.subtract(
-                self.data[:,RTAPP_COL_PERIOD], self.data[:,RTAPP_COL_RUN])
+                self.data[:,RTAPP_COL_C_PERIOD], self.data[:,RTAPP_COL_C_RUN])
 
         # Performance Index: 100 * slack / max_slack
         perf = np.divide(self.data[:,RTAPP_COL_SLACK], self.max_slack)
