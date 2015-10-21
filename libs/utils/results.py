@@ -274,13 +274,13 @@ class RTAppRun(Run):
         self.edp3 = []
 
         # Load run's performance of each task
-        for perf_idx in sorted(os.listdir(run_dir)):
+        for task_idx in sorted(os.listdir(run_dir)):
 
-            if not fnm.fnmatch(perf_idx, 'rt-app-*.log'):
+            if not fnm.fnmatch(task_idx, 'rt-app-*.log'):
                 continue
 
             # Parse run's performance results
-            prf_file = run_dir + '/' + perf_idx
+            prf_file = run_dir + '/' + task_idx
             prf = RTAppPerf(prf_file, self.nrg)
 
             # Keep track of average performances of each task
