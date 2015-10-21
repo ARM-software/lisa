@@ -248,25 +248,35 @@ class EAS_Tests(unittest.TestCase):
 
     @classmethod
     def setup_cpufreq(cls, tc):
-        if cls.governor == tc['governor']:
+        if cls.governor == tc['cpufreq']['governor']:
             return
         logging.info(r'%14s - Configuring all CPUs to use [%s] governor',
-                'CPUFreq', tc['governor'])
-        if tc['governor'] == 'ondemand':
+                'CPUFreq', tc['cpufreq']['governor'])
+        try:
+            cpufreq = tc['cpufreq']
+        except KeyError:
+            logging.warning(r'%14s - Using currently configured governor',
+                    'CPUFreq')
+            return
+        if cpufreq['governor'] == 'ondemand':
+            try:
+                sampling_rate = cpufreq['params']['sampling_rate']
+            except KeyError:
+                sampling_rate = 20000
             cls.env.target.execute(
                     'for CPU in /sys/devices/system/cpu/cpu[0-9]*; do   '\
                     '   echo {} > $CPU/cpufreq/scaling_governor;  '\
                     '   echo {} > $CPU/cpufreq/ondemand/sampling_rate;  '\
                     'done'\
-                    .format('ondemand', 200000))
+                    .format('ondemand', sampling_rate))
         else:
             cls.env.target.execute(
                     'for CPU in /sys/devices/system/cpu/cpu[0-9]*; do   '\
                     '   echo {} > $CPU/cpufreq/scaling_governor;  '\
                     'done'\
-                    .format(tc['governor']))
+                    .format(cpufreq['governor']))
         # Keep track of currently configured governor
-        cls.governor = tc['governor']
+        cls.governor = cpufreq['governor']
 
     @classmethod
     def setup_cgroups(cls, tc):
