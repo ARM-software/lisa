@@ -58,8 +58,8 @@ class TelnetConnection(pxssh.pxssh):
     # pylint: disable=arguments-differ
 
     def login(self, server, username, password='', original_prompt=r'[#$]', login_timeout=10,
-              auto_prompt_reset=True, sync_multiplier=1):
-        cmd = 'telnet -l {} {}'.format(username, server)
+              auto_prompt_reset=True, sync_multiplier=1, port=23):
+        cmd = 'telnet -l {} {} {}'.format(username, server, port)
 
         spawn._spawn(self, cmd)  # pylint: disable=protected-access
         i = self.expect('(?i)(?:password)', timeout=login_timeout)
