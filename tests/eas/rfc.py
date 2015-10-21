@@ -77,9 +77,8 @@ class EAS_Tests(unittest.TestCase):
             if not cls.target_configure(tc):
                 continue
             for wl_idx in cls.conf['wloads']:
-                # WORKLOAD: configuration
-                wlspec = cls.conf['wloads'][wl_idx]
-                wload = cls.wload_conf(wl_idx, wlspec)
+                # TEST: configuration
+                wload = cls.test_conf(tc_idx, wl_idx)
                 for itr_idx in range(1, cls.conf['iterations']+1):
                     # WORKLOAD: execution
                     cls.wload_run(exp_idx, tc_idx, wl_idx, wload, itr_idx)
@@ -417,6 +416,14 @@ class EAS_Tests(unittest.TestCase):
                 'workload specification'\
                 .format(wl_idx))
 
+    @classmethod
+    def test_conf(cls, tc_idx, wl_idx):
+
+        # Configure the test workload
+        wlspec = cls.conf['wloads'][wl_idx]
+        wload = cls.wload_conf(wl_idx, wlspec)
+
+        return wload
 
     @classmethod
     def wload_run(cls, exp_idx, tc_idx, wl_idx, wload, run_idx):
