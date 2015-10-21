@@ -161,23 +161,23 @@ class TestEnv(ShareState):
         except KeyError:
             raise ValueError('Config error: missing [platform] parameter')
 
-        logging.info(r'Connecing %s target with: %s',
-                platform_type, self.__connection_settings)
+        logging.info(r'%14s - Connecing %s target with: %s',
+                'Target', platform_type, self.__connection_settings)
 
         if platform_type.lower() == 'linux':
-            logging.debug('Setup LINUX target...')
+            logging.debug('%14s - Setup LINUX target...', 'Target')
             self.target = devlib.LinuxTarget(
                     connection_settings = self.__connection_settings,
                     load_default_modules = False,
                     modules = self.__modules)
         elif platform_type.lower() == 'android':
-            logging.debug('Setup ANDROID target...')
+            logging.debug('%14s - Setup ANDROID target...', 'Target')
             self.target = devlib.AndroidTarget(
                     connection_settings = self.__connection_settings,
                     load_default_modules = False,
                     modules = self.__modules)
         elif platform_type.lower() == 'host':
-            logging.debug('Setup HOST target...')
+            logging.debug('%14s - Setup HOST target...', 'Target')
             self.target = devlib.LocalLinuxTarget(
                     connection_settings = self.__connection_settings,
                     load_default_modules = False,
@@ -186,14 +186,14 @@ class TestEnv(ShareState):
             raise ValueError('Config error: not supported [platform] type {}'\
                     .format(platform_type))
 
-        logging.debug('Checking target connection...')
-        logging.debug('Target info:')
-        logging.debug('      ABI: %s', self.target.abi)
-        logging.debug('     CPUs: %s', self.target.cpuinfo)
-        logging.debug(' Clusters: %s', self.target.core_clusters)
+        logging.debug('%14s - Checking target connection...', 'Target')
+        logging.debug('%14s - Target info:', 'Target')
+        logging.debug('%14s -       ABI: %s', 'Target', self.target.abi)
+        logging.debug('%14s -      CPUs: %s', 'Target', self.target.cpuinfo)
+        logging.debug('%14s -  Clusters: %s', 'Target', self.target.core_clusters)
 
-        logging.info('Initializing target workdir [%s]',
-                        self.target.working_directory)
+        logging.info('%14s - Initializing target workdir [%s]',
+                    'Target', self.target.working_directory)
         tools_to_install = []
         for tool in self.__tools:
             binary = './tools/scripts/{}'.format(tool)
@@ -450,7 +450,7 @@ class TestEnv(ShareState):
     def reboot(self, reboot_time=60):
         # Send remote target a reboot command
         if self.feature('no-reboot'):
-            logging.warning('%14s - Reboot disabled by conf features')
+            logging.warning('%14s - Reboot disabled by conf features', 'Reboot')
         else:
             self.target.execute('sleep 2 && reboot -f &', as_root=True)
 

@@ -43,10 +43,14 @@ class EAS_Tests(unittest.TestCase):
 
         # Load target specific configuration
         target_config = 'target.config'
+        logging.info('%14s - Loading target configuration [%s]...',
+                'Main', target_config)
         cls.conf = cls.load_conf(target_config)
 
         # Load test specific configuration
         class_config = 'tests/eas/rfc.config'
+        logging.info('%14s - Loading EAS RFC tests configuration [%s]...',
+                'Main', class_config)
         cls.conf.update(cls.load_conf(class_config))
 
         logging.debug('Complete configuration %s', cls.conf)
