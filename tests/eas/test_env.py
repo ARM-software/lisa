@@ -376,9 +376,15 @@ class TestEnv(ShareState):
             if not match:
                 continue
             baddr = match.group(1)
-            cmd = r'ping -b -c1 {} &>/dev/null'.format(baddr)
-            logging.debug('%14s - %s', 'HostResolver', cmd)
-            os.popen(cmd)
+            try:
+                cmd = r'nmap -T4 -sP {}/24 &>/dev/null'.format(baddr.strip())
+                logging.debug('%14s - %s', 'HostResolver', cmd)
+                os.popen(cmd)
+            except RuntimeError:
+                logging.warning('%14s - Nmap not available, try IP lookup using broadcast ping')
+                cmd = r'ping -b -c1 {} &>/dev/null'.format(baddr)
+                logging.debug('%14s - %s', 'HostResolver', cmd)
+                os.popen(cmd)
 
         if ':' in host:
             # Assuming this is a MAC address
@@ -396,12 +402,15 @@ class TestEnv(ShareState):
             )
 
         output = os.popen(r'arp -n')
+        ipaddr = '0.0.0.0'
         for line in output:
             match = ARP_RE.search(line)
             if not match:
                 continue
             ipaddr = match.group(1)
             break
+        if ipaddr == '0.0.0.0':
+            raise ValueError('Unable to lookup for target IP address')
         logging.info('%14s - Target (%s) at IP address: %s',
                 'HostResolver', host, ipaddr)
         return (host, ipaddr)
