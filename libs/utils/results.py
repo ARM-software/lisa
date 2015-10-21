@@ -273,6 +273,8 @@ class RTAppRun(Run):
         self.edp2 = []
         self.edp3 = []
 
+        rta = {}
+
         # Load run's performance of each task
         for task_idx in sorted(os.listdir(run_dir)):
 
@@ -281,28 +283,39 @@ class RTAppRun(Run):
 
             # Parse run's performance results
             prf_file = run_dir + '/' + task_idx
-            prf = RTAppPerf(prf_file, self.nrg)
+            task = RTAppPerf(prf_file, self.nrg)
 
             # Keep track of average performances of each task
-            self.slack_pct.append(prf.slack_pct)
-            self.perf_avg.append(prf.perf_avg)
-            self.edp1.append(prf.edp1)
-            self.edp2.append(prf.edp2)
-            self.edp3.append(prf.edp3)
+            self.slack_pct.append(task.prf['slack_pct'])
+            self.perf_avg.append(task.prf['perf_avg'])
+            self.edp1.append(task.prf['edp1'])
+            self.edp2.append(task.prf['edp2'])
+            self.edp3.append(task.prf['edp3'])
+
+            # Keep track of performance stats for each task
+            rta[task.name] = task.prf
+
+        # Dump per task rtapp stats
+        prf_file = os.path.join(run_dir, 'performance.json')
+        with open(prf_file, 'w') as ofile:
+            json.dump(rta, ofile, indent=4, sort_keys=True)
+
 
 class RTAppPerf(object):
 
     def __init__(self, perf_file, nrg):
 
         # Set of exposed attibutes
-        self.perf_avg = None
-        self.perf_std = None
-        self.run_sum = None
-        self.slack_sum = None
-        self.slack_pct = None
-        self.edp1 = 0
-        self.edp2 = 0
-        self.edp3 = 0
+        self.prf = {
+                'perf_avg'  : 0,
+                'perf_std'  : 0,
+                'run_sum'   : 0,
+                'slack_sum' : 0,
+                'slack_pct' : 0,
+                'edp1' : 0,
+                'edp2' : 0,
+                'edp3' : 0
+        }
 
         logging.debug('%14s - Parse [%s]...', 'Perf', perf_file)
 
@@ -311,39 +324,40 @@ class RTAppPerf(object):
         self.data = np.loadtxt(perf_file, comments='#', unpack=False)
 
         # Max Slack (i.e. configured/expected slack): period - run
-        self.max_slack = np.subtract(
+        max_slack = np.subtract(
                 self.data[:,RTAPP_COL_C_PERIOD], self.data[:,RTAPP_COL_C_RUN])
 
         # Performance Index: 100 * slack / max_slack
-        perf = np.divide(self.data[:,RTAPP_COL_SLACK], self.max_slack)
+        perf = np.divide(self.data[:,RTAPP_COL_SLACK], max_slack)
         perf = np.multiply(perf, 100)
-        self.perf_avg = np.mean(perf)
-        self.perf_std  = np.std(perf)
+        self.prf['perf_avg'] = np.mean(perf)
+        self.prf['perf_std'] = np.std(perf)
         # logging.debug('perf [%s]: %6.2f,%6.2f',
-        #                 self.name, self.perf_mean, self.perf_std)
+        #     self.name, self.prf['perf_mean'], self.prf['perf_std'])
 
         # Negative slacks
-        slacks = self.data[:,RTAPP_COL_SLACK]
-        slacks = slacks[slacks < 0]
-        # logging.debug('Negative Slacks: %s', self.slacks)
-        # logging.debug('slack [%s]: %6.2f', self.name, self.slack_sum)
-        self.slack_sum = -slacks.sum()
+        nslacks = self.data[:,RTAPP_COL_SLACK]
+        nslacks = nslacks[nslacks < 0]
+        # logging.debug('Negative Slacks: %s', nslacks)
+        self.prf['slack_sum'] = -nslacks.sum()
+        # logging.debug('Negative slack [%s] sum: %6.2f',
+        #     self.name, self.prf['slack_sum'])
 
         # Slack over run-time
-        self.run_sum = np.sum(self.data[:,RTAPP_COL_RUN])
-        self.slack_pct = 100 * self.slack_sum / self.run_sum
+        self.prf['run_sum'] = np.sum(self.data[:,RTAPP_COL_RUN])
+        self.prf['slack_pct'] = 100 * self.prf['slack_sum'] / self.prf['run_sum']
         # logging.debug('SlackPct [%s]: %6.2f %%', self.name, self.slack_pct)
 
         if nrg is None:
             return
 
         # Computing EDP
-        self.edp1 = nrg.total * math.pow(self.run_sum, 1)
-        # logging.debug('EDP1 [%s]: {%6.2f}', self.name, self.edp1)
-        self.edp2 = nrg.total * math.pow(self.run_sum, 2)
-        # logging.debug('EDP2 [%s]: %6.2f', self.name, self.edp2)
-        self.edp3 = nrg.total * math.pow(self.run_sum, 3)
-        # logging.debug('EDP3 [%s]: %6.2f', self.name, self.edp3)
+        self.prf['edp1'] = nrg.total * math.pow(self.prf['run_sum'], 1)
+        # logging.debug('EDP1 [%s]: {%6.2f}', self.name, self.prf['edp1'])
+        self.prf['edp2'] = nrg.total * math.pow(self.prf['run_sum'], 2)
+        # logging.debug('EDP2 [%s]: %6.2f', self.name, self.prf['edp2'])
+        self.prf['edp3'] = nrg.total * math.pow(self.prf['run_sum'], 3)
+        # logging.debug('EDP3 [%s]: %6.2f', self.name, self.prf['edp3'])
 
 
 # Columns of the per-task rt-app log file
