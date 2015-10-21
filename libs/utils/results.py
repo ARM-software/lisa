@@ -239,6 +239,8 @@ class RTAppTest(Test):
         self.edp2 = []
         self.edp3 = []
 
+        self.rtapp_run = {}
+
     def parse_run(self, run_idx, run_dir):
         return RTAppRun(run_idx, run_dir)
 
@@ -250,7 +252,23 @@ class RTAppTest(Test):
         self.edp2.extend(run.edp2)
         self.edp3.extend(run.edp3)
 
+        # Keep track of performance stats for each run
+        self.rtapp_run[run.run_idx] = {
+                'slack_pct' : Stats(run.slack_pct).get(),
+                'perf_avg'  : Stats(run.perf_avg).get(),
+                'edp1'      : Stats(run.edp1).get(),
+                'edp2'      : Stats(run.edp2).get(),
+                'edp3'      : Stats(run.edp3).get(),
+        }
+
     def performance(self):
+
+        # Dump per run rtapp stats
+        prf_file = os.path.join(self.test_dir, 'performance.json')
+        with open(prf_file, 'w') as ofile:
+            json.dump(self.rtapp_run, ofile, indent=4, sort_keys=True)
+
+        # Return oveall stats
         return {
                 'slack_pct' : Stats(self.slack_pct).get(),
                 'perf_avg'  : Stats(self.perf_avg).get(),
