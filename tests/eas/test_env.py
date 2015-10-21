@@ -448,7 +448,11 @@ class TestEnv(ShareState):
                 'KernelSetup', tc)
 
         # Install kernel/dtb via FTFP
-        if 'tftp' in self.conf.keys():
+        if self.feature('no-kernel'):
+            logging.warning('%14s - Kernel deploy disabled by conf features',
+                    'KernelSetup')
+
+        elif 'tftp' in self.conf.keys():
             logging.info('%14s - Deply kernel via FTFP...', 'KernelSetup')
 
             # Deply kernel in FTFP folder (madatory)
@@ -464,6 +468,7 @@ class TestEnv(ShareState):
                 logging.warn('%14s - Using pre-installed DTB', 'KernelSetup')
             else:
                 self.tftp_deploy(tc['dtb'])
+
         else:
             raise ValueError('%14s - Kernel installation method not supported',
                     'KernelSetup')
