@@ -426,6 +426,9 @@ class EAS_Tests(unittest.TestCase):
         # Keep track of platform configuration
         cls.env.test_dir = '{}/{}:{}:{}'\
             .format(cls.env.res_dir, wload.wtype, tc_idx, wl_idx)
+        os.system('mkdir -p ' + cls.env.test_dir)
+        cls.env.platform_dump(cls.env.test_dir)
+
         return wload
 
     @classmethod

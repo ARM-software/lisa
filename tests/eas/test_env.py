@@ -73,6 +73,9 @@ class TestEnv(ShareState):
         self.eprobe = None
         self.eprobe_readings = {}
 
+        # The platform descriptor to be saved into the results folder
+        self.platform = {}
+
         if self._init:
             return
 
@@ -199,6 +202,9 @@ class TestEnv(ShareState):
             tools_to_install.append(binary)
         self.target.setup(tools_to_install)
 
+        # Initialize the platform descriptor
+        self.init_platform()
+
     def init_ftrace(self, force=False):
 
         if not force and self.ftrace is not None:
@@ -239,6 +245,32 @@ class TestEnv(ShareState):
         if eprobe['instrument'] == 'hwmon':
            self.hwmon_init(force)
 
+    def init_platform(self):
+        self.platform = {
+            'clusters' : {
+                'little'    : self.target.bl.littles,
+                'big'       : self.target.bl.bigs
+            },
+            'freqs' : {
+                'little'    : self.target.bl.list_littles_frequencies(),
+                'big'       : self.target.bl.list_bigs_frequencies()
+            }
+        }
+        self.platform['cpus_count'] = \
+            len(self.platform['clusters']['little']) + \
+            len(self.platform['clusters']['big'])
+        if 'nrg_model' in self.conf.keys():
+            self.platform['nrg_model'] = self.conf['nrg_model']
+
+        logging.debug('%14s - Platform descriptor initialized\n%s',
+            'Platform', self.platform)
+
+    def platform_dump(self, dest_dir):
+        plt_file = os.path.join(dest_dir, 'platform.json')
+        logging.debug('%14s - Dump platform descriptor in [%s]',
+            'Platform', plt_file)
+        with open(plt_file, 'w') as ofile:
+            json.dump(self.platform, ofile, sort_keys=True, indent=4)
 
     def calibrate(self):
 
