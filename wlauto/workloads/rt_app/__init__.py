@@ -137,6 +137,12 @@ class RtApp(Workload):
                   If set to ``True``, rt-app binary will be uninstalled from the device
                   at the end of the run.
                   """),
+        Parameter('force_install', kind=bool, default=False,
+                  description="""
+                  If set to ``True``, rt-app binary will always be deployed to the
+                  target device at the begining of the run, regardless of whether it
+                  was already installed there.
+                  """),
     ]
 
     def initialize(self, context):
@@ -210,7 +216,7 @@ class RtApp(Workload):
 
     def _deploy_rt_app_binary_if_necessary(self):
         # called from initialize() so gets invoked once per run
-        if not self.device.is_installed(BINARY_NAME):
+        if self.force_install or not self.device.is_installed(BINARY_NAME):
             if not self.host_binary:
                 message = '''rt-app is not installed on the device and could not be
                              found in workload resources'''
