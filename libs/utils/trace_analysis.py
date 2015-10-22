@@ -359,8 +359,9 @@ class TraceAnalysis(object):
         df.rename(columns={'cpu_id':'cpu'}, inplace=True)
         df.rename(columns={'state':'cur_capacity'}, inplace=True)
         # Add column with LITTLE and big CPUs max capacities
-        max_lcap = self.platform.nrg_model['little']['cpu']['cap_max']
-        max_bcap = self.platform.nrg_model['big']['cpu']['cap_max']
+        nrg_model = self.platform['nrg_model']
+        max_lcap = nrg_model['little']['cpu']['cap_max']
+        max_bcap = nrg_model['big']['cpu']['cap_max']
         df['max_capacity'] = np.select(
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 [max_lcap], max_bcap)
@@ -529,10 +530,11 @@ class TraceAnalysis(object):
             pl.savefig(figname, bbox_inches='tight')
 
     def __addNormalizedEnergy(self):
-        em_lcluster = self.platform.nrg_model['little']['cluster']
-        em_bcluster = self.platform.nrg_model['big']['cluster']
-        em_lcpu = self.platform.nrg_model['little']['cpu']
-        em_bcpu = self.platform.nrg_model['big']['cpu']
+        nrg_model = self.platform['nrg_model']
+        em_lcluster = nrg_model['little']['cluster']
+        em_bcluster = nrg_model['big']['cluster']
+        em_lcpu = nrg_model['little']['cpu']
+        em_bcpu = nrg_model['big']['cpu']
         lcpus = len(self.platform['clusters']['little'])
         bcpus = len(self.platform['clusters']['big'])
         SCHED_LOAD_SCALE = 1024
