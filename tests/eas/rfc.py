@@ -227,6 +227,9 @@ class EAS_Tests(unittest.TestCase):
 
     @classmethod
     def setup_sched_features(cls, tc):
+        if 'sched_features' not in tc:
+            logging.debug('%14s - Configuration not provided', 'SchedFeatures')
+            return
         feats = tc['sched_features'].split(",")
         for feat in feats:
             cls.env.target.execute('echo {} > /sys/kernel/debug/sched_features'.format(feat))
@@ -251,6 +254,9 @@ class EAS_Tests(unittest.TestCase):
 
     @classmethod
     def setup_cpufreq(cls, tc):
+        if 'cpufreq' not in tc:
+            logging.debug('%14s - Configuration not provided', 'CPUFreq')
+            return
         if cls.governor == tc['cpufreq']['governor']:
             return
         logging.info(r'%14s - Configuring all CPUs to use [%s] governor',
