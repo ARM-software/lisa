@@ -231,6 +231,9 @@ class TestEnv(ShareState):
             autoview    = False
         )
 
+        logging.info('%14s - Enabled events:', 'FTrace')
+        logging.info('%14s -   %s', 'FTrace', events)
+
         return self.ftrace
 
     def init_energy(self, force):
