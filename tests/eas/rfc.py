@@ -56,10 +56,10 @@ class EAS_Tests(unittest.TestCase):
         logging.debug('Complete configuration %s', cls.conf)
 
         # Check for mandatory configurations
-        if 'confs' not in cls.conf.keys() or len(cls.conf['confs']) == 0:
+        if 'confs' not in cls.conf or len(cls.conf['confs']) == 0:
             raise ValueError(
                     'Configuration error: missing \'conf\' definitions')
-        if 'wloads' not in cls.conf.keys() or len(cls.conf['wloads']) == 0:
+        if 'wloads' not in cls.conf or len(cls.conf['wloads']) == 0:
             raise ValueError(
                     'Configuration error: missing \'wloads\' definitions')
 
@@ -291,7 +291,7 @@ class EAS_Tests(unittest.TestCase):
     def setup_cgroups(cls, tc):
 
         if cls.env.cgroup is None:
-            if 'cgroup' not in tc.keys():
+            if 'cgroup' not in tc:
                 return True
             else:
                 logging.warning(r'%14s - Configuration error: '\
@@ -299,7 +299,7 @@ class EAS_Tests(unittest.TestCase):
                         'SchedTune')
                 return False
 
-        if 'cgroup' not in tc.keys():
+        if 'cgroup' not in tc:
             logging.debug(r'%14s - reset root control group boost value', \
                     'SchedTune')
             cls.schedtune_boost('/', 0)
