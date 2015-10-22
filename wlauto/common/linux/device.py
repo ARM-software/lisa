@@ -576,7 +576,6 @@ class LinuxDevice(BaseLinuxDevice):
         self._is_ready = False
 
     def hard_reset(self):
-        super(LinuxDevice, self).hard_reset()
         self._is_ready = False
 
     def boot(self, hard=False, **kwargs):
