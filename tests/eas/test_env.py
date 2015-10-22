@@ -15,6 +15,8 @@ import wlgen
 from devlib.utils.misc import memoized
 from trappy.stats.Topology import Topology
 
+from devlib import Platform
+
 USERNAME_DEFAULT = 'root'
 PASSWORD_DEFAULT = ''
 WORKING_DIR_DEFAULT = '/data/local/schedtest'
@@ -176,6 +178,18 @@ class TestEnv(ShareState):
                     connection_settings = self.__connection_settings,
                     load_default_modules = False,
                     modules = self.__modules)
+        # TO BE REMOVED: Temporary fix for dmidecode not working on Chromebook
+        elif platform_type.lower() == 'oak':
+            logging.debug('%14s - Setup OAK target...', 'Target')
+            self.target = devlib.LinuxTarget(
+                    connection_settings = self.__connection_settings,
+                    load_default_modules = False,
+                    platform = Platform(model='MT8173'),
+                    modules = self.__modules)
+            # Reset the target to a standard linux target
+            platform_type == 'linux'
+            # Ensure rootfs is RW mounted
+            self.target.execute('mount -o remount,rw /', as_root=True)
         elif platform_type.lower() == 'host':
             logging.debug('%14s - Setup HOST target...', 'Target')
             self.target = devlib.LocalLinuxTarget(
