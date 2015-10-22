@@ -81,15 +81,15 @@ class TestEnv(ShareState):
         if self._init:
             return
 
-        if 'workdir' in self.conf.keys():
+        if 'workdir' in self.conf:
             self.workdir = self.conf['workdir']
 
         # Initialize binary tools to deploy
-        if 'tools' in self.conf.keys():
+        if 'tools' in self.conf:
             self.__tools = self.conf['tools']
 
         # Initialize modules to use on the target
-        if 'modules' in self.conf.keys():
+        if 'modules' in self.conf:
             self.__modules = self.conf['modules']
 
         self.init()
@@ -143,11 +143,11 @@ class TestEnv(ShareState):
             'username' : USERNAME_DEFAULT,
         }
 
-        if 'usename' in self.conf.keys():
+        if 'usename' in self.conf:
             self.__connection_settings['username'] = self.conf['username']
-        if 'keyfile' in self.conf.keys():
+        if 'keyfile' in self.conf:
             self.__connection_settings['keyfile'] = self.conf['keyfile']
-        elif 'password' in self.conf.keys():
+        elif 'password' in self.conf:
             self.__connection_settings['password'] = self.conf['password']
         else:
             self.__connection_settings['password'] = PASSWORD_DEFAULT
@@ -224,17 +224,17 @@ class TestEnv(ShareState):
         if not force and self.ftrace is not None:
             return self.ftrace
 
-        if 'ftrace' not in self.conf.keys():
+        if 'ftrace' not in self.conf:
             return None
 
         ftrace = self.conf['ftrace']
 
         events = FTRACE_EVENTS_DEFAULT
-        if 'events' in ftrace.keys():
+        if 'events' in ftrace:
             events = ftrace['events']
 
         buffsize = FTRACE_BUFSIZE_DEFAULT
-        if 'buffsize' in ftrace.keys():
+        if 'buffsize' in ftrace:
             buffsize = ftrace['buffsize']
 
         self.ftrace = devlib.FtraceCollector(
@@ -253,8 +253,8 @@ class TestEnv(ShareState):
     def init_energy(self, force):
 
         # Initialize energy probe to board default
-        if 'board' in self.conf.keys():
-            if self.conf['board'] in self.energy_probe.keys():
+        if 'board' in self.conf:
+            if self.conf['board'] in self.energy_probe:
                 eprobe = self.energy_probe[self.conf['board']]
                 logging.debug('%14s - using default instrument for [%s]',
                         'EnergyProbe', self.conf['board'])
@@ -276,7 +276,7 @@ class TestEnv(ShareState):
         self.platform['cpus_count'] = \
             len(self.platform['clusters']['little']) + \
             len(self.platform['clusters']['big'])
-        if 'nrg_model' in self.conf.keys():
+        if 'nrg_model' in self.conf:
             self.platform['nrg_model'] = self.conf['nrg_model']
 
         logging.debug('%14s - Platform descriptor initialized\n%s',
@@ -296,7 +296,7 @@ class TestEnv(ShareState):
 
         required = False
         wloads = self.conf['wloads']
-        for wl_idx in wloads.keys():
+        for wl_idx in wloads:
             if 'rt-app' in wloads[wl_idx]['type']:
                 required = True
                 break
@@ -305,7 +305,7 @@ class TestEnv(ShareState):
             logging.debug('No RT-App workloads, skipping calibration')
             return
 
-        if 'rtapp-calib' in self.conf.keys():
+        if 'rtapp-calib' in self.conf:
             logging.info('Loading RTApp calibration from configuration file...')
             self.calib = {
                     int(key): int(value)
@@ -501,17 +501,17 @@ class TestEnv(ShareState):
             logging.warning('%14s - Kernel deploy disabled by conf features',
                     'KernelSetup')
 
-        elif 'tftp' in self.conf.keys():
+        elif 'tftp' in self.conf:
             logging.info('%14s - Deply kernel via FTFP...', 'KernelSetup')
 
             # Deply kernel in FTFP folder (madatory)
-            if 'kernel' not in tc.keys():
+            if 'kernel' not in tc:
                 raise ValueError('Missing "kernel" paramtere in conf: %s',
                         'KernelSetup', tc)
             self.tftp_deploy(tc['kernel'])
 
             # Deploy DTB in TFTP folder (if provided)
-            if 'dtb' not in tc.keys():
+            if 'dtb' not in tc:
                 logging.warn('%14s - DTB not provided for current conf: %s',
                         'KernelSetup', tc)
                 logging.warn('%14s - Using pre-installed DTB', 'KernelSetup')
@@ -524,7 +524,7 @@ class TestEnv(ShareState):
 
         # Keep track of last installed kernel
         self.kernel = tc['kernel']
-        if 'dtb' in tc.keys():
+        if 'dtb' in tc:
             self.dtb = tc['dtb']
 
         if not reboot:
