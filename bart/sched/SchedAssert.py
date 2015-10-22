@@ -633,4 +633,6 @@ class SchedAssert(object):
         names = [self.name]
         num_lanes = self._topology.level_span(level)
         lane_prefix = level.upper() + ": "
-        return trappy.EventPlot(events, names, lane_prefix, num_lanes, xlim)
+        return trappy.EventPlot(events, names, xlim,
+                                lane_prefix=lane_prefix,
+                                num_lanes=num_lanes)
