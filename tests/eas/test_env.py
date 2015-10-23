@@ -56,7 +56,7 @@ class TestEnv(ShareState):
         self.dtb = None
 
         # Default energy measurements for each board
-        self.energy_probe = {
+        self.energy_meter = {
             'tc2' : {
                 'instrument' : 'hwmon',
                 'conf' : {
@@ -74,6 +74,9 @@ class TestEnv(ShareState):
         }
         self.eprobe = None
         self.eprobe_readings = {}
+
+        # Energy meter configuration
+        self.emeter = None
 
         # The platform descriptor to be saved into the results folder
         self.platform = {}
@@ -254,10 +257,10 @@ class TestEnv(ShareState):
 
         # Initialize energy probe to board default
         if 'board' in self.conf:
-            if self.conf['board'] in self.energy_probe:
-                eprobe = self.energy_probe[self.conf['board']]
-                logging.debug('%14s - using default instrument for [%s]',
-                        'EnergyProbe', self.conf['board'])
+            if self.conf['board'] in self.energy_meter:
+                self.emeter = self.energy_meter[self.conf['board']]
+                logging.debug('%14s - using default energy meter for [%s]',
+                        'EnergyMeter', self.conf['board'])
 
         if eprobe['instrument'] == 'hwmon':
            self.hwmon_init(force)
@@ -325,9 +328,9 @@ class TestEnv(ShareState):
 
         if 'hwmon' not in self.__modules:
             logging.info('%14s - HWMON module not enabled',
-                    'EnergyProbe')
+                    'EnergyMeter')
             logging.warning('%14s - Energy sampling disabled by configuration',
-                    'EnergyProbe')
+                    'EnergyMeter')
             self.eprobe = None
             return
 
@@ -404,10 +407,10 @@ class TestEnv(ShareState):
                 clusters_nrg[ch] = '{:.6f}'.format(nrg_total)
         if 'LITTLE' not in clusters_nrg:
                 logging.warning('%14s - Failed to get energy for LITTLE cluster',
-                        'EnergyProbe')
+                        'EnergyMeter')
         if 'big' not in clusters_nrg:
                 logging.warning('%14s - Failed to get energy for big cluster',
-                        'EnergyProbe')
+                        'EnergyMeter')
         # Dump data as JSON file
         nrg_file = '{}/energy.json'.format(out_dir)
         with open(nrg_file, 'w') as ofile:
