@@ -82,7 +82,7 @@ class EAS_Tests(unittest.TestCase):
                 continue
             for wl_idx in cls.conf['wloads']:
                 # TEST: configuration
-                wload = cls.test_conf(tc_idx, wl_idx)
+                wload = cls.wload_init(tc_idx, wl_idx)
                 for itr_idx in range(1, cls.conf['iterations']+1):
                     # WORKLOAD: execution
                     cls.wload_run(exp_idx, tc_idx, wl_idx, wload, itr_idx)
@@ -427,7 +427,7 @@ class EAS_Tests(unittest.TestCase):
                 .format(wl_idx))
 
     @classmethod
-    def test_conf(cls, tc_idx, wl_idx):
+    def wload_init(cls, tc_idx, wl_idx):
 
         # Configure the test workload
         wlspec = cls.conf['wloads'][wl_idx]
