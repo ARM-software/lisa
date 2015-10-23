@@ -70,9 +70,21 @@ class TestEnv(ShareState):
                     'sites' : [ 'a53', 'a57' ],
                     'kinds' : [ 'energy' ]
                 }
+            },
+            'oak' : {
+                'instrument' : 'daq',
+                'conf' : {
+                    'host'              : '10.1.208.38',
+                    'port'              : '8888',
+                    'channel_map'       : [2, 3, 4, 5, 6, 7, 0, 1],
+                    'resistor_values'   : [0.01, 0.1, 0.1, 0.1],
+                    'labels'            : ['a72', 'VSRAM-CA7', 'a53', 'VSRAM-CA15'],
+                    'sampling_rate'     : 10000
+                }
             }
         }
         # Supported energy instruments
+        self.daq = None
         self.hwmon = None
 
         # Energy readings
@@ -267,6 +279,8 @@ class TestEnv(ShareState):
 
         if self.emeter['instrument'] == 'hwmon':
            self.hwmon_init(force)
+        if self.emeter['instrument'] == 'daq':
+            self.daq_init(force)
 
     def init_platform(self):
         self.platform = {
@@ -349,6 +363,32 @@ class TestEnv(ShareState):
         logging.info('%14s - Channels selected for energy sampling:\n%s',
                 'EnergyMeter', str(self.hwmon.active_channels))
 
+    def daq_init(self, force=False):
+
+        if not force and self.daq is not None:
+            return self.daq
+
+        if 'daq' not in self.__modules:
+            logging.info('%14s - DAQ module not enabled',
+                    'EnergyMeter')
+            logging.warning('%14s - Energy sampling disabled by configuration',
+                    'EnergyMeter')
+            self.daq = None
+            return
+
+        # Initialize DAQ instrument
+        daq_conf = self.emeter['conf']
+        logging.debug('%14s - Using configuration:', 'EnergyMeter')
+        logging.debug('%14s -   %s', 'EnergyMeter', daq_conf)
+        self.daq = devlib.DaqInstrument(self.target, **daq_conf)
+
+        # Configure channels for energy measurements
+        self.daq.reset()
+
+        # # Logging enabled channels
+        # logging.info('%14s - Channels selected for energy sampling:\n%s',
+        #         'EnergyMeter', str(self.daq.active_channels))
+
     def hwmon_sample(self):
         if self.hwmon is None:
             return
@@ -378,9 +418,16 @@ class TestEnv(ShareState):
         # logging.debug('SAMPLE: %s', self.energy_reading)
         return self.energy_reading
 
+    def daq_sample(self):
+        if self.daq is None:
+            return
+        self.daq.start()
+
     def energy_sample(self):
         if self.hwmon:
             return self.hwmon_sample()
+        if self.daq:
+            return self.daq_sample()
 
     def hwmon_reset(self):
         if self.hwmon is None:
@@ -391,9 +438,16 @@ class TestEnv(ShareState):
             self.energy_reading[label]['total'] = 0
         # logging.debug('RESET: %s', self.energy_reading)
 
+    def daq_reset(self):
+        if self.daq is None:
+            return
+        self.daq.reset()
+
     def energy_reset(self):
         if self.hwmon:
             self.hwmon_reset()
+        if self.daq:
+            self.daq_reset()
 
     def hwmon_report(self, out_dir):
         if self.hwmon is None:
@@ -426,9 +480,21 @@ class TestEnv(ShareState):
         with open(nrg_file, 'w') as ofile:
             json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
 
+    def daq_report(self, out_dir):
+        if self.daq is None:
+            return
+        # Stop DAQ data acquisition
+        self.daq.stop()
+        # Retrive energy consumption data
+        self.daq.get_data(out_dir)
+
+        # # TODO compute and report cluster energy consumption
     def energy_report(self, out_dir):
         if self.hwmon:
             self.hwmon_report(out_dir)
+        if self.daq:
+            self.daq_report(out_dir)
+
     def resolv_host(self, host=None):
         if host is None:
             host = self.conf['host']
