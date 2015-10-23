@@ -73,8 +73,10 @@ class TestEnv(ShareState):
             }
         }
         # Supported energy instruments
-        self.eprobe_readings = {}
         self.hwmon = None
+
+        # Energy readings
+        self.energy_reading = {}
 
         # Energy meter configuration
         self.emeter = None
@@ -357,24 +359,25 @@ class TestEnv(ShareState):
                     .replace(" ", "_")
             value = s.value
 
-            if label not in self.eprobe_readings:
-                self.eprobe_readings[label] = {
+            if label not in self.energy_reading:
+                self.energy_reading[label] = {
                         'last'  : value,
                         'delta' : 0,
                         'total' : 0
                         }
                 continue
 
-            last  = self.eprobe_readings[label]['last']
+            last  = self.energy_reading[label]['last']
             delta = value - last
-            total = self.eprobe_readings[label]['total']
+            total = self.energy_reading[label]['total']
 
-            self.eprobe_readings[label]['last']  = value
-            self.eprobe_readings[label]['delta'] = delta
-            self.eprobe_readings[label]['total'] = total + delta
+            self.energy_reading[label]['last']  = value
+            self.energy_reading[label]['delta'] = delta
+            self.energy_reading[label]['total'] = total + delta
 
-        # logging.debug('SAMPLE: %s', self.eprobe_readings)
-        return self.eprobe_readings
+        # logging.debug('SAMPLE: %s', self.energy_reading)
+        return self.energy_reading
+
     def energy_sample(self):
         if self.hwmon:
             return self.hwmon_sample()
@@ -383,10 +386,10 @@ class TestEnv(ShareState):
         if self.hwmon is None:
             return
         self.energy_sample()
-        for label in self.eprobe_readings:
-            self.eprobe_readings[label]['delta'] = 0
-            self.eprobe_readings[label]['total'] = 0
-        # logging.debug('RESET: %s', self.eprobe_readings)
+        for label in self.energy_reading:
+            self.energy_reading[label]['delta'] = 0
+            self.energy_reading[label]['total'] = 0
+        # logging.debug('RESET: %s', self.energy_reading)
 
     def energy_reset(self):
         if self.hwmon:
