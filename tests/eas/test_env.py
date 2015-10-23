@@ -72,8 +72,9 @@ class TestEnv(ShareState):
                 }
             }
         }
-        self.eprobe = None
+        # Supported energy instruments
         self.eprobe_readings = {}
+        self.hwmon = None
 
         # Energy meter configuration
         self.emeter = None
@@ -262,7 +263,7 @@ class TestEnv(ShareState):
                 logging.debug('%14s - using default energy meter for [%s]',
                         'EnergyMeter', self.conf['board'])
 
-        if eprobe['instrument'] == 'hwmon':
+        if self.emeter['instrument'] == 'hwmon':
            self.hwmon_init(force)
 
     def init_platform(self):
@@ -323,33 +324,33 @@ class TestEnv(ShareState):
 
     def hwmon_init(self, force=False):
 
-        if not force and self.eprobe is not None:
-            return self.eprobe
+        if not force and self.hwmon is not None:
+            return self.hwmon
 
         if 'hwmon' not in self.__modules:
             logging.info('%14s - HWMON module not enabled',
                     'EnergyMeter')
             logging.warning('%14s - Energy sampling disabled by configuration',
                     'EnergyMeter')
-            self.eprobe = None
+            self.hwmon = None
             return
 
         # Initialize HWMON instrument
-        self.eprobe = devlib.HwmonInstrument(self.target)
+        self.hwmon = devlib.HwmonInstrument(self.target)
 
         # Configure channels for energy measurements
-        probes_conf = self.energy_probe[self.conf['board']]['conf']
-        logging.debug('%14s - Enabling channels %s', 'EnergyProbe', probes_conf)
-        self.eprobe.reset(**probes_conf)
+        hwmon_conf = self.emeter['conf']
+        logging.debug('%14s - Enabling channels %s', 'EnergyMeter', hwmon_conf)
+        self.hwmon.reset(**hwmon_conf)
 
         # Logging enabled channels
         logging.info('%14s - Channels selected for energy sampling:\n%s',
-                'EnergyProbe', str(self.eprobe.active_channels))
+                'EnergyMeter', str(self.hwmon.active_channels))
 
-    def energy_sample(self):
-        if self.eprobe is None:
+    def hwmon_sample(self):
+        if self.hwmon is None:
             return
-        samples = self.eprobe.take_measurement()
+        samples = self.hwmon.take_measurement()
         for s in samples:
             label = s.channel.label\
                     .replace('_energy', '')\
@@ -374,9 +375,12 @@ class TestEnv(ShareState):
 
         # logging.debug('SAMPLE: %s', self.eprobe_readings)
         return self.eprobe_readings
+    def energy_sample(self):
+        if self.hwmon:
+            return self.hwmon_sample()
 
-    def energy_reset(self):
-        if self.eprobe is None:
+    def hwmon_reset(self):
+        if self.hwmon is None:
             return
         self.energy_sample()
         for label in self.eprobe_readings:
@@ -384,9 +388,12 @@ class TestEnv(ShareState):
             self.eprobe_readings[label]['total'] = 0
         # logging.debug('RESET: %s', self.eprobe_readings)
 
+    def energy_reset(self):
+        if self.hwmon:
+            self.hwmon_reset()
 
-    def energy_report(self, out_dir):
-        if self.eprobe is None:
+    def hwmon_report(self, out_dir):
+        if self.hwmon is None:
             return
         # Retrive energy consumption data
         nrg = self.energy_sample()
@@ -416,6 +423,9 @@ class TestEnv(ShareState):
         with open(nrg_file, 'w') as ofile:
             json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
 
+    def energy_report(self, out_dir):
+        if self.hwmon:
+            self.hwmon_report(out_dir)
     def resolv_host(self, host=None):
         if host is None:
             host = self.conf['host']
