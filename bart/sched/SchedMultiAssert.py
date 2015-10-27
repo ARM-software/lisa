@@ -136,12 +136,21 @@ class SchedMultiAssert(object):
     functionality
     """
 
-    def __init__(self, run, topology, execnames):
+    def __init__(self, run, topology, execnames=None, pids=None):
 
-        self._execnames = listify(execnames)
         self._run = Utils.init_run(run)
-        self._pids = self._populate_pids()
         self._topology = topology
+
+        if execnames and pids:
+            raise ValueError('Either pids or execnames must be specified')
+        if execnames:
+            self._execnames = listify(execnames)
+            self._pids = self._populate_pids()
+        elif pids:
+            self._pids = pids
+        else:
+            raise ValueError('One of PIDs or execnames must be specified')
+
         self._asserts = self._populate_asserts()
         self._populate_methods()
 
