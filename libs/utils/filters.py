@@ -20,6 +20,7 @@ class Filters(object):
         self.tasks = tasks
 
         self.big_frequent_tasks_pids = None
+        self.wkp_frequent_tasks_pids = None
 
         self.big_cap = self.trace.platform['nrg_model']['big']['cpu']['cap_max']
         self.little_cap = self.trace.platform['nrg_model']['little']['cpu']['cap_max']
@@ -115,3 +116,73 @@ class Filters(object):
         print 'Tasks which have been a "utilization" of {0:d} for at least {1:d} samples'\
             .format(self.little_cap, min_samples)
 
+    def topWakeupTasks(self, max_tasks=10, min_wakeups=100):
+        """
+        Tasks which wakeups more frequent than a specified threshold
+        """
+
+        df = self.trace.df('swkp')
+
+        wkp_tasks_stats = df.groupby('pid').describe(include=['object'])
+        wkp_tasks_pids = wkp_tasks_stats.unstack()['comm']\
+                        .sort(columns=['count'], ascending=False)
+        wkp_tasks_pids = wkp_tasks_pids[wkp_tasks_pids['count'] > min_wakeups]
+
+        wkp_topmost = wkp_tasks_pids.head(max_tasks)
+        print 'Top {} "big" tasks:'.format(max_tasks)
+        print wkp_topmost
+
+        self.wkp_frequent_tasks_pids = list(wkp_topmost.index)
+        return self.wkp_frequent_tasks_pids
+
+    def plotWakeupTasks(self, max_tasks=10, min_wakeups=100, per_cluster=False):
+
+        # Get the list of big and frequent tasks
+        if self.wkp_frequent_tasks_pids is None:
+            pids = self.topWakeupTasks(max_tasks, min_wakeups)
+
+        wkp_frequent_tasks_count = len(self.wkp_frequent_tasks_pids)
+        if wkp_frequent_tasks_count == 0:
+            print "No big/frequent wakeups tasks to plot"
+            return
+
+        # Define axes for side-by-side plottings
+        fig, axes = plt.subplots(2, 1, figsize=(14, 5));
+        plt.subplots_adjust(wspace=0.2, hspace=0.3);
+
+        if per_cluster:
+
+            # Get list of big/LITTLE CPUs
+            big_cpus = self.trace.platform['clusters']['big']
+            little_cpus = self.trace.platform['clusters']['little']
+
+            # Get per cluster wakeup events
+            df = self.trace.df('swkpn')
+            ntbc = df[df.target_cpu.astype(int).isin(big_cpus)];
+            ntlc = df[df.target_cpu.astype(int).isin(little_cpus)];
+
+            ax = axes[0]
+            ax.set_title('Tasks Forks on big CPUs');
+            ax.set_xlim(0, self.trace.time_range);
+            ntbc.pid.astype(int).plot(style=['g.'], ax=ax);
+
+            ax = axes[1]
+            ax.set_title('Tasks Forks on LITTLE CPUs');
+            ax.set_xlim(0, self.trace.time_range);
+            ntlc.pid.astype(int).plot(style=['g.'], ax=ax);
+
+        else:
+
+            ax = axes[0]
+            ax.set_title('Tasks WakeUps Events');
+            df = self.trace.df('swkp')
+            df.pid.astype(int).plot(style=['b.'], ax=ax);
+            ax.set_xlim(0, self.trace.time_range);
+            ax.xaxis.set_visible(False);
+
+            ax = axes[1]
+            ax.set_title('Tasks Forks Events');
+            df = self.trace.df('swkpn')
+            df.pid.astype(int).plot(style=['r.'], ax=ax);
+            ax.set_xlim(0, self.trace.time_range);
+            ax.xaxis.set_visible(False);
