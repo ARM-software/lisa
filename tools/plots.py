@@ -1,9 +1,11 @@
 #!/usr/bin/python
 
 import sys
-sys.path.insert(1, "./libs")
-from utils.perf_analysis import PerfAnalysis
-from utils.trace_analysis import TraceAnalysis
+# sys.path.insert(1, "./libs")
+#from utils.perf_analysis import PerfAnalysis
+#from utils.trace_analysis import TraceAnalysis
+from perf_analysis import PerfAnalysis
+from trace_analysis import TraceAnalysis
 
 import os
 import re

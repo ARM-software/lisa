@@ -12,8 +12,13 @@ git submodule update
 
 echo
 echo
+echo "NOTE: source the local init_env script before staring to use the suite."
+echo "      This is required, for the time being, to proprely setup"
+echo "      the PYTHONPATH for all the dependencies under libs"
 echo
-echo "To run the suite, first edit you configuration:"
+echo
+echo "=== EAS RFC Test suite"
+echo "To run the EAS RFC regression suite, first edit you configuration:"
 echo "  target.config        : to setup your target board"
 echo "  tests/eas/rfc.config : to define the experiment to run"
 echo

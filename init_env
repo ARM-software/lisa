@@ -1,0 +1,5 @@
+export PYTHONPATH=`pwd`/libs/trappy:$PYTHONPATH
+export PYTHONPATH=`pwd`/libs/devlib:$PYTHONPATH
+export PYTHONPATH=`pwd`/libs/bart:$PYTHONPATH
+export PYTHONPATH=`pwd`/libs/utils:$PYTHONPATH
+export PYTHONPATH=`pwd`/libs/wlgen:$PYTHONPATH
