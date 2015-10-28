@@ -57,6 +57,11 @@ class Trace(object):
         self.trappy_cls['sched_migrate_task'] = trappy.register_dynamic(
                 'SchedMigrateTask', 'sched_migrate_task:', scope='sched');
 
+        self.trappy_cls['sched_wakeup'] = trappy.register_dynamic(
+                'SchedWakeup', 'sched_wakeup:', scope='sched', parse_raw=True);
+        self.trappy_cls['sched_wakeup_new'] = trappy.register_dynamic(
+                'SchedWakeupNew', 'sched_wakeup_new:', scope='sched', parse_raw=True);
+
         # Additional (out-of-tree) custom events
         self.trappy_cls['sched_load_avg_cpu'] = trappy.register_dynamic(
                 'SchedLoadAvgCpu', 'sched_load_avg_cpu', scope='sched');
@@ -95,6 +100,14 @@ class Trace(object):
         if self.hasEvents('sched_switch'):
             self.trace_data['sswitch'] = \
                 self.run.sched_switch.data_frame
+
+        if self.hasEvents('sched_wakeup'):
+            self.trace_data['swkp'] = \
+                self.run.sched_wakeup.data_frame
+
+        if self.hasEvents('sched_wakeup_new'):
+            self.trace_data['swkpn'] = \
+                self.run.sched_wakeup_new.data_frame
 
         if self.hasEvents('sched_cpu_frequency'):
             self.trace_data['pfreq'] = \
