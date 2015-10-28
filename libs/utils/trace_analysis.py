@@ -15,229 +15,26 @@ import logging
 
 class TraceAnalysis(object):
 
-    def __init__(self, platform, datadir, tasks=None):
+    def __init__(self, trace, platform, tasks=None, plotsdir=None):
+        """
+        Support for plotting a standard set of trace singals and events
+        """
 
-        # The platform used to run the experiments
-        self.platform = None
+        self.trace = trace
+        self.tasks = tasks
+        self.platform = platform
+        self.plotsdir = plotsdir
 
-        # Dataframe of all events data
-        self.trace_data = {}
-
-        # Folder containing all perf data
-        self.datadir = None
-
-        # TRAPpy run object
-        self.run = None
-
-        # Dynamically registered TRAPpy events
-        self.trappy_cls = {}
-
-        # Maximum timespan for all collected events
-        self.time_range = 0
+        # Plotsdir is byb default the trace dir
+        if self.plotsdir is None:
+            self.plotsdir = self.trace.datadir
 
         # Minimum and Maximum x_time to use for all plots
         self.x_min = 0
-        self.x_max = self.time_range
+        self.x_max = self.trace.time_range
 
-        # The dictionary of tasks descriptors available in the dataset
-        self.tasks = {}
-
-        # List of events available in the parsed trace
-        self.available_events = []
-
-        # Folder containing trace
-        self.datadir = datadir
-
-        # Platform descriptor
-        self.platform = platform
-
-        self.__registerTraceEvents()
-        self.__parseTrace(datadir, tasks)
-        self.__computeTimeSpan()
-
-    def __registerTraceEvents(self):
-
-        # Standard Sched events
-        # self.trappy_cls['cpu_frequency'] = trappy.register_dynamic(
-        #         'CpuFrequency', 'cpu_frequency')
-
-        # Additional (out-of-tree) custom events
-        # self.trappy_cls['sched_load_avg_cpu'] = trappy.register_dynamic(
-        #         'SchedLoadAvgCpu', 'sched_load_avg_cpu')
-        # self.trappy_cls['sched_load_avg_task'] = trappy.register_dynamic(
-        #         'SchedLoadAvgTask', 'sched_load_avg_task')
-        self.trappy_cls['sched_contrib_scale_f'] = trappy.register_dynamic(
-                'SchedContribScaleF', 'sched_contrib_scale_f')
-        self.trappy_cls['cpu_capacity'] = trappy.register_dynamic(
-                'CpuCapacity', 'cpu_capacity:', scope='sched')
-
-        self.trappy_cls['sched_boost_cpu'] = trappy.register_dynamic(
-                'SchedBoostCpu', 'sched_boost_cpu:', scope='sched')
-        self.trappy_cls['sched_boost_task'] = trappy.register_dynamic(
-                'SchedBoostTask', 'sched_boost_task:', scope='sched')
-        self.trappy_cls['sched_energy_diff'] = trappy.register_dynamic(
-                'SchedEnergyDiff', 'sched_energy_diff:', scope='sched')
-        self.trappy_cls['sched_tune_config'] = trappy.register_dynamic(
-                'SchedTuneConfig', 'sched_tune_config:', scope='sched')
-        self.trappy_cls['sched_tune_tasks_update'] = trappy.register_dynamic(
-                'SchedTuneTasksUpdate', 'sched_tune_tasks_update:', scope='sched')
-        # self.trappy_cls['sched_task_model_update'] = trappy.register_dynamic(
-        #         'sched_task_model_update', 'sched_task_model_update')
-
-    def __parseTrace(self, datadir, tasks):
-        logging.debug('Loading [sched] events from trace in [%s]...', datadir)
-        self.run = trappy.Run(datadir, scope="sched")
-
-        # Check for events available on the parsed trace
-        self.__checkAvailableEvents()
-        if len(self.available_events) == 0:
-            raise ValueError('The trace does not contain useful events for analysis')
-
-        # Setup internal data reference to interesting events/dataframes
-
-        if self.__isAvailable('sched_switch'):
-            self.trace_data['sswitch'] = \
-                self.run.sched_switch.data_frame
-
-        if self.__isAvailable('sched_cpu_frequency'):
-            self.trace_data['pfreq'] = \
-                self.run.sched_cpu_frequency.data_frame
-
-        if self.__isAvailable('sched_load_avg_cpu'):
-            self.trace_data['cload'] = \
-                self.run.sched_load_avg_cpu.data_frame
-
-        if self.__isAvailable('sched_load_avg_task'):
-            self.trace_data['tload'] = \
-                self.run.sched_load_avg_task.data_frame
-            self.__addClusterColum()
-
-        if self.__isAvailable('cpu_capacity'):
-            self.trace_data['ccap'] = \
-                self.run.cpu_capacity.data_frame
-            self.__addCapacityColum()
-
-        if self.__isAvailable('sched_boost_cpu'):
-            self.trace_data['cboost'] = \
-                self.run.sched_boost_cpu.data_frame
-            self.__addCpuBoostColums()
-
-        if self.__isAvailable('sched_boost_task'):
-            self.trace_data['tboost'] = \
-                self.run.sched_boost_task.data_frame
-            self.__addBoostedColum()
-
-        if self.__isAvailable('sched_contrib_scale_f'):
-            self.trace_data['scalef'] = \
-                self.run.sched_contrib_scale_f.data_frame
-
-        if self.__isAvailable('sched_energy_diff'):
-            self.trace_data['ediff'] = \
-                    self.run.sched_energy_diff.data_frame
-            self.__addNormalizedEnergy()
-
-        if self.__isAvailable('sched_tune_config'):
-            self.trace_data['stune'] = \
-                    self.run.sched_tune_config.data_frame
-
-        if self.__isAvailable('sched_tune_tasks_update'):
-            self.trace_data['utask'] = \
-                    self.run.sched_tune_tasks_update.data_frame
-
-        self.__loadTasksNames(tasks)
-
-
-    def __checkAvailableEvents(self):
-        for val in trappy.Run.get_filters(self.run):
-            obj = getattr(self.run, val)
-            if len(obj.data_frame):
-                self.available_events.append(val)
-        logging.debug('Events found on trace:')
-        for evt in self.available_events:
-            logging.debug(' - %s', evt)
-
-
-    def __loadTasksNames(self, tasks):
-        # Try to load tasks names using one of the supported events
-        if 'sched_switch' in self.available_events:
-            self.getTasks(self.trace_data['sswitch'], tasks,
-                name_key='next_comm', pid_key='next_pid')
-            return
-        if 'sched_load_avg_task' in self.available_events:
-            self.getTasks(self.trace_data['tload'], tasks)
-            return
-        logging.warning('Failed to load tasks names from trace events')
-
-    def __isAvailable(self, dataset):
-        if dataset in self.available_events:
-            return True
-        return False
-
-    def __computeTimeSpan(self):
-        # Compute time axis range, considering all the parsed events
-        ts = sys.maxint
-        te = 0
-
-        for key in self.trace_data.keys():
-            df = self.trace_data[key]
-            if len(df) == 0:
-                continue
-            if (df.index[0]) < ts:
-                ts = df.index[0]
-            if (df.index[-1]) > te:
-                te = df.index[-1]
-            self.time_range = te - ts
-
-        logging.info('Collected events spans a %.3f [s] time interval',
-                self.time_range)
         # Reset x axis time range to full scale
         self.setXTimeRange()
-
-    def getTasks(self, dataframe=None,
-            task_names=None, name_key='comm', pid_key='pid'):
-        # """ Helper function to get PIDs of specified tasks
-        #
-        #     This method requires a Pandas dataset in input to be used to
-        #     fiter out the PIDs of all the specified tasks.
-        #     In a dataset is not provided, previouslt filtered PIDs are
-        #     returned.
-        #     If a list of task names is not provided, the workload defined
-        #     task names is used instead.
-        #     The specified dataframe must provide at least two columns
-        #     reporting the task name and the task PID. The default values of
-        #     this colums could be specified using the provided parameters.
-        #
-        #     :param task_names: The list of tasks to get the PID of (by default
-        #                        the workload defined tasks)
-        #     :param dataframe: A Pandas datafram containing at least 'pid' and
-        #                       'task name' columns
-        #                      If None, the previously filtered PIDs are returned
-        #     :param name_key: The name of the dataframe columns containing task names
-        #     :param pid_key:  The name of the dataframe columns containing task PIDs
-        # """
-        if dataframe is None:
-            return self.tasks
-        df = dataframe
-        if task_names is None:
-            task_names = self.tasks.keys()
-        logging.debug("Lookup dataset for tasks...")
-        for tname in task_names:
-            logging.debug("Lookup for task [%s]...", tname)
-            results = df[df[name_key] == tname][[name_key,pid_key]]
-            if len(results)==0:
-                logging.error('  task %16s NOT found', tname)
-                continue
-            (name,pid) = results.head(1).values[0]
-            if name!=tname:
-                logging.error('  task %16s NOT found', tname)
-                continue
-            if (tname not in self.tasks):
-                self.tasks[tname] = {}
-            pids = list(results[pid_key].unique())
-            self.tasks[tname]['pid'] = pids
-            logging.info('  task %16s found, pid: %s',
-                    tname, self.tasks[tname]['pid'])
-        return self.tasks
 
     def setXTimeRange(self, t_min=None, t_max=None):
         if t_min is None:
@@ -245,43 +42,30 @@ class TraceAnalysis(object):
         else:
             self.x_min = t_min
         if t_max is None:
-            self.x_max = self.time_range
+            self.x_max = self.trace.time_range
         else:
             self.x_max = t_max
         logging.info('Set plots time range to (%.6f, %.6f)[s]',
                 self.x_min, self.x_max)
 
-    def df(self, event):
-        """
-        Return the PANDAS dataframe with the performance data for the specified
-        event
-        """
-        if self.datadir is None:
-            raise ValueError("trace data not (yet) loaded")
-        if event not in self.trace_data:
-            raise ValueError('Event [%s] not supported. '\
-                    'Supported events are: %s',
-                    event, self.trace_data.keys())
-        return self.trace_data[event]
-
     def plotClusterFrequencies(self):
-        if not self.__isAvailable('sched_cpu_frequency'):
+        if not self.trace.hasEvents('sched_cpu_frequency'):
             logging.warn('Events [sched_cpu_frequency] not found, '\
                     'plot DISABLED!')
             return
-        df = self.trace_data
+        df = self.trace.df('pfreq')
 
         pd.options.mode.chained_assignment = None
 
         # Extract LITTLE and big clusters frequencies
         # and scale them to [MHz]
         if len(self.platform['clusters']['little']):
-            lfreq = df['pfreq'][df['pfreq'].cpu == self.platform['clusters']['little'][-1]]
+            lfreq = df[df.cpu == self.platform['clusters']['little'][-1]]
             lfreq['state'] = lfreq['state']/1e3
         else:
             lfreq = []
         if len(self.platform['clusters']['big']):
-            bfreq = df['pfreq'][df['pfreq'].cpu == self.platform['clusters']['big'][-1]]
+            bfreq = df[df.cpu == self.platform['clusters']['big'][-1]]
             bfreq['state'] = bfreq['state']/1e3
         else:
             bfreq = []
@@ -345,7 +129,7 @@ class TraceAnalysis(object):
         axes.grid(True);
 
         # Save generated plots into datadir
-        figname = '{}/cluster_freqs.png'.format(self.datadir)
+        figname = '{}/cluster_freqs.png'.format(self.plotsdir)
         pl.savefig(figname, bbox_inches='tight')
 
         logging.info('LITTLE cluster average frequency: %.3f GHz',
@@ -354,7 +138,7 @@ class TraceAnalysis(object):
                 avg_bfreq/1e3)
 
     def __addCapacityColum(self):
-        df = self.df('ccap')
+        df = self.trace.df('ccap')
         # Rename CPU and Capacity columns
         df.rename(columns={'cpu_id':'cpu'}, inplace=True)
         df.rename(columns={'state':'cur_capacity'}, inplace=True)
@@ -378,7 +162,7 @@ class TraceAnalysis(object):
         if label != '':
             label1 = '{} '.format(label)
             label2 = '_{}s'.format(label.lower())
-        df = self.trace_data
+        df = self.trace.trace_data
 
         # Plot required CPUs
         fig, pltaxes = plt.subplots(len(cpus), 1, figsize=(16, 3*(len(cpus))));
@@ -399,20 +183,22 @@ class TraceAnalysis(object):
             if (len(df1)):
                 df1[['utilization']].plot(ax=axes, drawstyle='steps-post', alpha=0.4);
 
-            if self.__isAvailable('sched_boost_cpu'):
-                df2 = df['cboost'][df['cboost'].cpu == cpu]
-                if (len(df2)):
-                    df2[['util', 'boosted_util']].plot(
-                            ax=axes,
-                            style=['m-', 'r-'],
-                            drawstyle='steps-post');
+            # if self.trace.hasEvents('sched_boost_cpu'):
+            #     df2 = df['cboost'][df['cboost'].cpu == cpu]
+            #     if (len(df2)):
+            #         df2[['usage', 'boosted_usage']].plot(
+            #                 ax=axes,
+            #                 style=['m-', 'r-'],
+            #                 drawstyle='steps-post');
 
             # Add Capacities data if avilable
-            if self.__isAvailable('cpu_capacity'):
+            if self.trace.hasEvents('cpu_capacity'):
                 df2 = df['ccap'][df['ccap'].cpu == cpu]
                 if (len(df2)):
-                    data = df2[['cur_capacity', 'tip_capacity', 'max_capacity']]
-                    data.plot(ax=axes, style=['m', 'y', 'r'],
+                    # data = df2[['cur_capacity', 'tip_capacity', 'max_capacity']]
+                    # data.plot(ax=axes, style=['m', 'y', 'r'],
+                    data = df2[['cur_capacity', 'tip_capacity' ]]
+                    data.plot(ax=axes, style=['m', '--y' ],
                         drawstyle='steps-post')
 
             axes.set_ylim(0, 1100);
@@ -427,11 +213,11 @@ class TraceAnalysis(object):
             idx+=1
 
         # Save generated plots into datadir
-        figname = '{}/cpus{}.png'.format(self.datadir, label2)
+        figname = '{}/cpus{}.png'.format(self.plotsdir, label2)
         pl.savefig(figname, bbox_inches='tight')
 
     def plotCPU(self, cpus=None):
-        if not self.__isAvailable('sched_load_avg_cpu'):
+        if not self.trace.hasEvents('sched_load_avg_cpu'):
             logging.warn('Events [sched_load_avg_cpu] not found, '\
                     'plot DISABLED!')
             return
@@ -448,25 +234,13 @@ class TraceAnalysis(object):
         lcpus = set(cpus) & set(self.platform['clusters']['little'])
         self.__plotCPU(lcpus, "LITTLE")
 
-    def __addClusterColum(self):
-        df = self.df('tload')
-        df['cluster'] = np.select([df.cpu.isin(self.platform['clusters']['little'])], ['LITTLE'], 'big')
-
-    def __addCpuBoostColums(self):
-        df = self.df('cboost')
-        df['boosted_util'] = df['util'] + df['margin']
-
-    def __addBoostedColum(self):
-        df = self.df('tboost')
-        df['boosted_utilization'] = df['utilization'] + df['margin']
-
     def plotTasks(self, tasks=None):
-        if not self.__isAvailable('sched_load_avg_task'):
+        if not self.trace.hasEvents('sched_load_avg_task'):
             logging.warn('Events [sched_load_avg_task] not found, '\
                     'plot DISABLED!')
             return
-        df = self.trace_data['tload']
-        self.getTasks(df, tasks)
+        df = self.trace.trace_data['tload']
+        self.trace.getTasks(df, tasks)
         tasks_to_plot = sorted(self.tasks)
         if tasks:
             tasks_to_plot = tasks
@@ -477,7 +251,7 @@ class TraceAnalysis(object):
 
         for task_name in tasks_to_plot:
             logging.debug('Plotting [%s]', task_name)
-            tid = self.tasks[task_name]['pid'][0]
+            tid = self.trace.tasks[task_name]['pid'][0]
 
             # Figure
             plt.figure(figsize=(16, 2*6+3));
@@ -490,8 +264,8 @@ class TraceAnalysis(object):
             data = df[df.comm == task_name][['load', 'utilization']]
             data.plot(ax=axes, drawstyle='steps-post');
             # Plot boost utilization if available
-            if self.__isAvailable('sched_boost_task'):
-                df2 = self.trace_data['tboost']
+            if self.trace.hasEvents('sched_boost_task'):
+                df2 = self.trace.trace_data['tboost']
                 data = df2[df2.comm == task_name][['boosted_utilization']]
                 if len(data):
                     data.plot(ax=axes, style=['y-'], drawstyle='steps-post');
@@ -504,7 +278,7 @@ class TraceAnalysis(object):
             # Plot CPUs residency
             axes = plt.subplot(gs[1,0]);
             axes.set_title('CPUs residency (green: LITTLE, red: big)');
-            axes.set_xlim(0, self.time_range);
+            axes.set_xlim(0, self.trace.time_range);
             data = df[df.comm == task_name][['cluster', 'cpu']]
             for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
                 cdata = data[data.cluster == clabel]
@@ -526,48 +300,18 @@ class TraceAnalysis(object):
             axes.grid(True);
 
             # Save generated plots into datadir
-            figname = '{}/task_util_{}.png'.format(self.datadir, task_name)
+            figname = '{}/task_util_{}.png'.format(self.plotsdir, task_name)
             pl.savefig(figname, bbox_inches='tight')
-
-    def __addNormalizedEnergy(self):
-        nrg_model = self.platform['nrg_model']
-        em_lcluster = nrg_model['little']['cluster']
-        em_bcluster = nrg_model['big']['cluster']
-        em_lcpu = nrg_model['little']['cpu']
-        em_bcpu = nrg_model['big']['cpu']
-        lcpus = len(self.platform['clusters']['little'])
-        bcpus = len(self.platform['clusters']['big'])
-        SCHED_LOAD_SCALE = 1024
-
-        power_max = em_lcpu['nrg_max'] * lcpus + em_bcpu['nrg_max'] * bcpus + \
-                    em_lcluster['nrg_max'] + em_bcluster['nrg_max']
-        print "Maximum estimated system energy: {0:d}".format(power_max)
-
-        df = self.df('ediff')
-        df['nrg_diff_pct'] = SCHED_LOAD_SCALE * df.nrg_diff / power_max
-
-        # Tag columns by usage_delta
-        ccol = df.usage_delta
-        df['usage_delta_group'] = np.select(
-            [ccol < 150, ccol < 400, ccol < 600],
-            ['< 150', '< 400', '< 600'], '>= 600')
-
-        # Tag columns by nrg_payoff
-        ccol = df.nrg_payoff
-        df['nrg_payoff_group'] = np.select(
-            [ccol > 2e9, ccol > 0, ccol > -2e9],
-            ['Optimal Accept', 'SchedTune Accept', 'SchedTune Reject'], 'Suboptimal Reject')
-
 
     def plotEDiffTime(self, tasks=None,
             min_usage_delta=None, max_usage_delta=None,
             min_cap_delta=None, max_cap_delta=None,
             min_nrg_delta=None, max_nrg_delta=None,
             min_nrg_diff=None, max_nrg_diff=None):
-        if not self.__isAvailable('sched_energy_diff'):
+        if not self.trace.hasEvents('sched_energy_diff'):
             logging.warn('Events [sched_energy_diff] not found, plot DISABLED!')
             return
-        df = self.df('ediff')
+        df = self.trace.df('ediff')
 
         # Filter on 'tasks'
         if tasks is not None:
@@ -661,7 +405,7 @@ class TraceAnalysis(object):
         axes.set_xlim(self.x_min, self.x_max);
 
         # Save generated plots into datadir
-        figname = '{}/ediff_time.png'.format(self.datadir)
+        figname = '{}/ediff_time.png'.format(self.plotsdir)
         pl.savefig(figname, bbox_inches='tight')
 
 
@@ -680,7 +424,7 @@ class TraceAnalysis(object):
         df[['nrg_delta']].hist(ax=axes, bins=60)
 
         # Save generated plots into datadir
-        figname = '{}/ediff_stats.png'.format(self.datadir)
+        figname = '{}/ediff_stats.png'.format(self.plotsdir)
         pl.savefig(figname, bbox_inches='tight')
 
 
@@ -689,10 +433,10 @@ class TraceAnalysis(object):
             min_cap_delta=None, max_cap_delta=None,
             min_nrg_delta=None, max_nrg_delta=None,
             min_nrg_diff=None, max_nrg_diff=None):
-        if not self.__isAvailable('sched_energy_diff'):
+        if not self.trace.hasEvents('sched_energy_diff'):
             logging.warn('Events [sched_energy_diff] not found, plot DISABLED!')
             return
-        df = self.df('ediff')
+        df = self.trace.df('ediff')
 
         # Filter on 'tasks'
         if tasks is not None:
@@ -835,7 +579,7 @@ class TraceAnalysis(object):
         plt.title('Performance-Energy Space')
 
         # Save generated plots into datadir
-        figname = '{}/ediff_space.png'.format(self.datadir)
+        figname = '{}/ediff_space.png'.format(self.plotsdir)
         pl.savefig(figname, bbox_inches='tight')
 
 
@@ -843,7 +587,7 @@ class TraceAnalysis(object):
         """
         Plot the configuration of the SchedTune
         """
-        if not self.__isAvailable('sched_tune_config'):
+        if not self.trace.hasEvents('sched_tune_config'):
             logging.warn('Events [sched_tune_config] not found, plot DISABLED!')
             return
         # Grid
@@ -858,7 +602,7 @@ class TraceAnalysis(object):
         # Plot: Margin
         axes = plt.subplot(gs[0,0]);
         axes.set_title('Margin');
-        data = self.df('stune')[['margin']]
+        data = self.trace.df('stune')[['margin']]
         data.plot(ax=axes, drawstyle='steps-post', style=['b']);
         axes.set_ylim(0, 110);
         axes.set_xlim(self.x_min, self.x_max);
@@ -867,12 +611,12 @@ class TraceAnalysis(object):
         # Plot: Boost mode
         axes = plt.subplot(gs[1,0]);
         axes.set_title('Boost mode');
-        data = self.df('stune')[['boostmode']]
+        data = self.trace.df('stune')[['boostmode']]
         data.plot(ax=axes, drawstyle='steps-post');
         axes.set_ylim(0, 4);
         axes.set_xlim(self.x_min, self.x_max);
         axes.xaxis.set_visible(True);
 
         # Save generated plots into datadir
-        figname = '{}/schedtune_conf.png'.format(self.datadir)
+        figname = '{}/schedtune_conf.png'.format(self.plotsdir)
         pl.savefig(figname, bbox_inches='tight')
