@@ -19,6 +19,8 @@ class Filters(object):
         self.trace = trace
         self.tasks = tasks
 
+        self.big_tasks = {}
+
         self.big_frequent_tasks_pids = None
         self.wkp_frequent_tasks_pids = None
 
@@ -53,6 +55,9 @@ class Filters(object):
         print big_topmost
 
         self.big_frequent_tasks_pids = list(big_topmost.index)
+
+        # Keep track of big tasks tload events
+        self.big_tasks['tload'] = big_tasks_events
         return self.big_frequent_tasks_pids
 
     def _taskIsBig(self, utilization):
