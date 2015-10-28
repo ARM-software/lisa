@@ -470,10 +470,10 @@ class TestEnv(ShareState):
                         'EnergyReport', ch)
                 clusters_nrg[ch] = '{:.6f}'.format(nrg_total)
         if 'LITTLE' not in clusters_nrg:
-                logging.warning('%14s - Failed to get energy for LITTLE cluster',
+                logging.warning('%14s - No energy data for LITTLE cluster',
                         'EnergyMeter')
         if 'big' not in clusters_nrg:
-                logging.warning('%14s - Failed to get energy for big cluster',
+                logging.warning('%14s - No energy data for big cluster',
                         'EnergyMeter')
         # Dump data as JSON file
         nrg_file = '{}/energy.json'.format(out_dir)
