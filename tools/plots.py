@@ -5,6 +5,7 @@ import sys
 #from utils.perf_analysis import PerfAnalysis
 #from utils.trace_analysis import TraceAnalysis
 from perf_analysis import PerfAnalysis
+from trace import Trace
 from trace_analysis import TraceAnalysis
 
 import os
@@ -27,21 +28,48 @@ TEST_DIR_RE = re.compile(
     )
 
 parser = argparse.ArgumentParser(
-        description='EAS RFC Configuration Comparator.')
+        description='EAS Performance and Trace Plotter')
 parser.add_argument('--results', type=str,
         default='./results_latest',
         help='Folder containing experimental results')
+parser.add_argument('--outdir', type=str,
+        default=None,
+        help='A single output folder we want to produce plots for')
 parser.add_argument('--tmin', type=float,
         default=None,
         help='Minimum timestamp for all plots')
 parser.add_argument('--tmax', type=float,
         default=None,
         help='Maximum timestamp for all plots')
+parser.add_argument('--plots', type=str,
+        default='all',
+        help='List of plots to produce (all,')
 
-if __name__ == "__main__":
+args = None
+
+def main():
+    global args
     args = parser.parse_args()
 
+    # Setup plots to produce
+    if args.plots == 'all':
+        args.plots = 'tasks clusters cpus stune ediff edspace'
+
     # For each rtapp and each run
+    if args.outdir is not None:
+
+        # Load platform descriptior
+        platform = None
+        plt_file = os.path.join(args.outdir, 'platform.json')
+        if os.path.isfile(plt_file):
+            with open(plt_file, 'r') as ifile:
+                platform = json.load(ifile)
+        logging.info('Platform description:')
+        logging.info('  %s', platform)
+
+        # Plot the specified results folder
+        return plotdir(args.outdir, platform)
+
     for test_idx in sorted(os.listdir(args.results)):
 
         match = TEST_DIR_RE.search(test_idx)
@@ -80,31 +108,51 @@ if __name__ == "__main__":
                 continue
 
             logging.info('Generate plots for [%s]...', run_dir)
+            plotdir(run_dir, platform)
 
-            # Load RTApp performance data
-            pa = PerfAnalysis(run_dir)
+def plotdir(run_dir, platform):
+    global args
+    tasks = None
+    pa = None
 
-            # Get the list of RTApp tasks
-            tasks = pa.tasks()
-            logging.info('Tasks: %s', tasks)
+    # Load RTApp performance data
+    try:
+        pa = PerfAnalysis(run_dir)
 
-            # Load Trace Analysis modules
-            ta = TraceAnalysis(platform, run_dir, tasks)
+        # Get the list of RTApp tasks
+        tasks = pa.tasks()
+        logging.info('Tasks: %s', tasks)
+    except ValueError:
+        pa = None
+        logging.info('No performance data found')
 
-            # Define time ranges for all the temporal plots
-            ta.setXTimeRange(args.tmin, args.tmax)
+    # Load Trace Analysis modules
+    trace = Trace(platform, run_dir, tasks)
+    ta = TraceAnalysis(trace, platform, tasks)
 
-            # Tasks plots
-            ta.plotTasks()
+    # Define time ranges for all the temporal plots
+    ta.setXTimeRange(args.tmin, args.tmax)
+
+    # Tasks plots
+    if 'tasks' in args.plots:
+        ta.plotTasks()
+        if pa:
             for task in tasks:
                 pa.plotPerf(task)
 
-            # Cluster and CPUs plots
-            ta.plotClusterFrequencies()
-            ta.plotCPU()
+    # Cluster and CPUs plots
+    if 'clusters' in args.plots:
+        ta.plotClusterFrequencies()
+    if 'cpus' in args.plots:
+        ta.plotCPU()
 
-            # SchedTune plots
-            ta.plotSchedTuneConf()
-            ta.plotEDiffTime();
-            ta.plotEDiffSpace();
+    # SchedTune plots
+    if 'stune' in args.plots:
+        ta.plotSchedTuneConf()
+    if 'ediff' in args.plots:
+        ta.plotEDiffTime();
+    if 'edspace' in args.plots:
+        ta.plotEDiffSpace();
 
+if __name__ == "__main__":
+    main()
