@@ -27,6 +27,25 @@ class Filters(object):
         self.big_cap = self.trace.platform['nrg_model']['big']['cpu']['cap_max']
         self.little_cap = self.trace.platform['nrg_model']['little']['cpu']['cap_max']
 
+        # Minimum and Maximum x_time to use for all plots
+        self.x_min = 0
+        self.x_max = self.trace.time_range
+
+        # Reset x axis time range to full scale
+        self.setXTimeRange()
+
+    def setXTimeRange(self, t_min=None, t_max=None):
+        if t_min is None:
+            self.x_min = 0
+        else:
+            self.x_min = t_min
+        if t_max is None:
+            self.x_max = self.trace.time_range
+        else:
+            self.x_max = t_max
+        logging.info('Set plots time range to (%.6f, %.6f)[s]',
+                self.x_min, self.x_max)
+
 
     def topBigTasks(self, max_tasks=10, min_samples=100, min_utilization=None):
         """
@@ -112,7 +131,7 @@ class Filters(object):
                             drawstyle='steps-post',
                             linewidth=1,
                             ax=ax_ratio)
-            ax_ratio.set_xlim(0, self.trace.time_range)
+            ax_ratio.set_xlim(self.x_min, self.x_max);
             ax_ratio.set_ylim(0, 1100)
             ax_ratio.set_ylabel('utilization')
 
@@ -168,12 +187,12 @@ class Filters(object):
 
             ax = axes[0]
             ax.set_title('Tasks Forks on big CPUs');
-            ax.set_xlim(0, self.trace.time_range);
+            ax.set_xlim(self.x_min, self.x_max);
             ntbc.pid.astype(int).plot(style=['g.'], ax=ax);
 
             ax = axes[1]
             ax.set_title('Tasks Forks on LITTLE CPUs');
-            ax.set_xlim(0, self.trace.time_range);
+            ax.set_xlim(self.x_min, self.x_max);
             ntlc.pid.astype(int).plot(style=['g.'], ax=ax);
 
         else:
@@ -182,12 +201,12 @@ class Filters(object):
             ax.set_title('Tasks WakeUps Events');
             df = self.trace.df('swkp')
             df.pid.astype(int).plot(style=['b.'], ax=ax);
-            ax.set_xlim(0, self.trace.time_range);
+            ax.set_xlim(self.x_min, self.x_max);
             ax.xaxis.set_visible(False);
 
             ax = axes[1]
             ax.set_title('Tasks Forks Events');
             df = self.trace.df('swkpn')
             df.pid.astype(int).plot(style=['r.'], ax=ax);
-            ax.set_xlim(0, self.trace.time_range);
+            ax.set_xlim(self.x_min, self.x_max);
             ax.xaxis.set_visible(False);
