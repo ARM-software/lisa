@@ -181,13 +181,11 @@ class Filters(object):
             # Get per cluster wakeup events
             df = self.trace.df('swkpn')
             big_frequent = (
-                    (df.target_cpu.astype(int).isin(self.big_cpus))  &
-                    (df.pid.isin(self.wkp_frequent_tasks_pids))
+                    (df.target_cpu.isin(self.big_cpus))
                     )
             ntbc = df[big_frequent]
             little_frequent = (
-                    (df.target_cpu.astype(int).isin(self.little_cpus))  &
-                    (df.pid.isin(self.wkp_frequent_tasks_pids))
+                    (df.target_cpu.isin(self.little_cpus))
                     )
             ntlc = df[little_frequent];
 
