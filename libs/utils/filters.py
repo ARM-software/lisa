@@ -161,7 +161,7 @@ class Filters(object):
         self.wkp_frequent_tasks_pids = list(wkp_topmost.index)
         return self.wkp_frequent_tasks_pids
 
-    def plotWakeupTasks(self, max_tasks=10, min_wakeups=100, per_cluster=False):
+    def plotWakeupTasks(self, max_tasks=10, min_wakeups=0, per_cluster=False):
 
         # Get the list of big and frequent tasks
         if self.wkp_frequent_tasks_pids is None:
