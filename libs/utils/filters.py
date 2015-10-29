@@ -26,6 +26,8 @@ class Filters(object):
 
         self.big_cap = self.trace.platform['nrg_model']['big']['cpu']['cap_max']
         self.little_cap = self.trace.platform['nrg_model']['little']['cpu']['cap_max']
+        self.big_cpus = self.trace.platform['clusters']['big']
+        self.little_cpus = self.trace.platform['clusters']['little']
 
         # Minimum and Maximum x_time to use for all plots
         self.x_min = 0
@@ -176,19 +178,15 @@ class Filters(object):
 
         if per_cluster:
 
-            # Get list of big/LITTLE CPUs
-            big_cpus = self.trace.platform['clusters']['big']
-            little_cpus = self.trace.platform['clusters']['little']
-
             # Get per cluster wakeup events
             df = self.trace.df('swkpn')
             big_frequent = (
-                    (df.target_cpu.astype(int).isin(big_cpus))  &
+                    (df.target_cpu.astype(int).isin(self.big_cpus))  &
                     (df.pid.isin(self.wkp_frequent_tasks_pids))
                     )
             ntbc = df[big_frequent]
             little_frequent = (
-                    (df.target_cpu.astype(int).isin(little_cpus))  &
+                    (df.target_cpu.astype(int).isin(self.little_cpus))  &
                     (df.pid.isin(self.wkp_frequent_tasks_pids))
                     )
             ntlc = df[little_frequent];
