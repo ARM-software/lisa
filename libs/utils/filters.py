@@ -262,3 +262,13 @@ class Filters(object):
         ax.set_title('Frequencies on "{}" cluster'.format(cluster_correct))
         df_freq['state'].plot(style=['-b'], ax=ax, drawstyle='steps-post');
         ax.set_xlim(self.x_min, self.x_max);
+
+    def rtTasks(self, max_prio = 100):
+        df = self.trace.df('sswitch')
+        df = df[df.next_prio <= max_prio]
+        df = df[['next_pid', 'next_comm']]
+        df = df.drop_duplicates()
+        rt_tasks = {}
+        for pid,task in df.values:
+                rt_tasks[pid] = task
+        return rt_tasks
