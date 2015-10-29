@@ -2,7 +2,7 @@
 # import glob
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
-# import numpy as np
+import numpy as np
 # import os
 # import pandas as pd
 # import pylab as pl
@@ -216,3 +216,49 @@ class Filters(object):
             df.pid.astype(int).plot(style=['r.'], ax=ax);
             ax.set_xlim(self.x_min, self.x_max);
             ax.xaxis.set_visible(False);
+
+    def plotTasksVsFrequency(self, big_cluster=True):
+
+        if big_cluster:
+            cluster_correct = 'big'
+            cluster_wrong = 'LITTLE'
+            cpus = self.big_cpus
+        else:
+            cluster_correct = 'LITTLE'
+            cluster_wrong = 'big'
+            cpus = self.little_cpus
+
+        fig, axes = plt.subplots(2, 1, figsize=(14, 5));
+        plt.subplots_adjust(wspace=0.2, hspace=0.3);
+
+        df_wkp  = self.big_tasks['tload']
+        # Add column of expected cluster, depending on utilization value and
+        # capacity of the selected cluster
+        bu_bc = ( \
+                (df_wkp['utilization'] > 500) & \
+                (df_wkp['cpu'].isin([2,3]))
+            )
+        su_lc = ( \
+                (df_wkp['utilization'] <= 500) & \
+                (df_wkp['cpu'].isin([0,1]))
+            )
+        df_wkp.loc[:,'ccap_mutil'] = np.select(
+            [(bu_bc | su_lc)], [True], False)
+
+        df_freq = self.trace.df('pfreq')
+        rd_freq = df_freq[df_freq['cpu'].isin(cpus)]
+
+        ax = axes[0]
+        ax.set_title('Big Tasks Utilization vs Allocation');
+        for ucolor, umatch in zip('gr', [True, False]):
+            cdata  = df_wkp[df_wkp['ccap_mutil'] == umatch]
+            if (len(cdata) > 0):
+                cdata['utilization'].plot(ax=ax,
+                        style=[ucolor+'.'], legend=False);
+        ax.set_xlim(self.x_min, self.x_max);
+        ax.xaxis.set_visible(False);
+
+        ax = axes[1]
+        ax.set_title('Frequencies on "{}" cluster'.format(cluster_correct))
+        df_freq['state'].plot(style=['-b'], ax=ax, drawstyle='steps-post');
+        ax.set_xlim(self.x_min, self.x_max);
