@@ -151,6 +151,9 @@ class TestEnv(ShareState):
         self.topology = Topology(clusters=CLUSTERS)
         logging.info('Target topology: %s', CLUSTERS)
 
+        # Initialize the platform descriptor
+        self.init_platform()
+
 
     def init_target(self, force = False):
 
@@ -234,8 +237,6 @@ class TestEnv(ShareState):
             tools_to_install.append(binary)
         self.target.setup(tools_to_install)
 
-        # Initialize the platform descriptor
-        self.init_platform()
 
     def init_ftrace(self, force=False):
 
@@ -298,6 +299,9 @@ class TestEnv(ShareState):
             len(self.platform['clusters']['big'])
         if 'nrg_model' in self.conf:
             self.platform['nrg_model'] = self.conf['nrg_model']
+
+        # Adding topology information
+        self.platform['topology'] = self.topology.get_level("cluster")
 
         logging.debug('%14s - Platform descriptor initialized\n%s',
             'Platform', self.platform)
