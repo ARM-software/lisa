@@ -192,12 +192,12 @@ class Filters(object):
             ax = axes[0]
             ax.set_title('Tasks Forks on big CPUs');
             ax.set_xlim(self.x_min, self.x_max);
-            ntbc.pid.astype(int).plot(style=['g.'], ax=ax);
+            ntbc.pid.plot(style=['g.'], ax=ax);
 
             ax = axes[1]
             ax.set_title('Tasks Forks on LITTLE CPUs');
             ax.set_xlim(self.x_min, self.x_max);
-            ntlc.pid.astype(int).plot(style=['g.'], ax=ax);
+            ntlc.pid.plot(style=['g.'], ax=ax);
 
         else:
 
