@@ -717,26 +717,12 @@ class Gem5Device(AndroidDevice):
         while command_index == -1:
             if conn.prompt():
                 output = re.sub(r' \r([^\n])', r'\1', conn.before)
+                output = re.sub(r'[\b]', r'', output)
+                # Deal with line wrapping
+                output = re.sub(r'[\r].+?<', r'', output)
                 command_index = output.find(command)
-                # The command was probably too long and wrapped. This bit of
-                # code is a total hack!
-                if command_index == -1:
-                    # We need to remove the backspace characters!
-                    output = re.sub(r'[\b]', r'', output)
-                    while True:
-                        first_cr = output.find('\r')
-                        first_lt = output.find('<')
-                        if first_cr == -1 or first_lt == -1:
-                            break
-                        if first_cr < first_lt:
-                            new_output = output[:first_cr]
-                            new_output += output[first_lt + 1:]
-                            output = new_output
-                            command_index = output.find(command)
-                        else:
-                            break
 
-                # If we STILL have -1, then we cannot match the command, but the
+                # If we have -1, then we cannot match the command, but the
                 # prompt has returned. Hence, we have a bit of an issue. We
                 # warn, and return the whole output.
                 if command_index == -1:
