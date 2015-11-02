@@ -462,7 +462,10 @@ class SchedAssert(object):
         agg = self._aggregator(sconf.period)
         period = agg.aggregate(level="all", window=window)[0]
         total, length = map(sum, zip(*period))
-        return (total * 1000) / length
+        if length == 0:
+            return float("NaN")
+        else:
+            return (total * 1000) / length
 
     def assertPeriod(
             self,
