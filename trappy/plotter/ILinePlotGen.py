@@ -220,6 +220,9 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         if "ylim" in self._attr:
             fig_params["valueRange"] = self._attr["ylim"]
 
+        if "xlim" in self._attr:
+            fig_params["dateWindow"] = self._attr["xlim"]
+
         json_file = os.path.join(IPythonConf.get_data_path(), fig_name + ".json")
         fh = open(json_file, "w")
         json.dump(fig_params, fh)
