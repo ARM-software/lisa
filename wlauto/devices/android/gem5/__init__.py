@@ -103,30 +103,41 @@ class Gem5Device(AndroidDevice):
         Parameter('core_names', default=[], override=True),
         Parameter('core_clusters', default=[], override=True),
         Parameter('gem5_description', kind=str, default='', override=True,
-                  description="Command line passed to the gem5 simulation. This command line is used "
-                  "to set up the simulated system, and should be the same as used for a standard "
-                  "gem5 simulation without workload automation. Note that this is simulation script "
-                  "specific and will hence need to be tailored to each particular use case."),
+                  description="Command line passed to the gem5 simulation. This"
+                  " command line is used to set up the simulated system, and "
+                  "should be the same as used for a standard gem5 simulation "
+                  "without workload automation. Note that this is simulation "
+                  "script specific and will hence need to be tailored to each "
+                  "particular use case."),
         Parameter('virtio_command', kind=str, default='', override=True,
-                  description="gem5 VirtIO command line used to enable the VirtIO device in the "
-                  "simulated system. At the very least, the root parameter of the VirtIO9PDiod device "
-                  "must be exposed on the command line. Please set this root mount to {}, as it will "
-                  "be replaced with the directory used by Workload Automation at runtime."),
+                  description="gem5 VirtIO command line used to enable the "
+                  "VirtIO device in the simulated system. At the very least, "
+                  "the root parameter of the VirtIO9PDiod device must be "
+                  "exposed on the command line. Please set this root mount to "
+                  "{}, as it will be replaced with the directory used by "
+                  "Workload Automation at runtime."),
         Parameter('temp_dir', kind=str, default='', override=True,
-                  description="Temporary directory used to pass files into the gem5 simulation. "
-                  "Workload Automation will automatically create a directory in this folder, and "
-                  "will remove it again once the simulation completes."),
-        Parameter('checkpoint_post_boot', kind=bool, default=False, mandatory=False, override=True,
-                  description="This parameter tells Workload Automation to create a checkpoint of "
-                  "the simulated system once the guest system has finished booting. This checkpoint "
-                  "can then be used at a later stage by other WA runs to avoid booting the guest system"
-                  " a second time. Set to True to take a checkpoint of the simulated system post boot."),
-        Parameter('run_delay', kind=int, default=0, mandatory=False, override=True,
-                  description="This sets the time that the system should sleep in the simulated system prior"
-                  " to running and workloads or taking checkpoints. This allows the system to quieten down"
-                  " prior to running the workloads. When this is combined with the checkpoint_post_boot"
-                  " option, it allows the checkpoint to be created post-sleep, and therefore the set of "
-                  "workloads resuming from this checkpoint will not be required to sleep.")
+                  description="Temporary directory used to pass files into the "
+                  "gem5 simulation. Workload Automation will automatically "
+                  "create a directory in this folder, and will remove it again "
+                  "once the simulation completes."),
+        Parameter('checkpoint_post_boot', kind=bool, default=False,
+                  mandatory=False, override=True, description="This parameter "
+                  "tells Workload Automation to create a checkpoint of the "
+                  "simulated system once the guest system has finished booting."
+                  " This checkpoint can then be used at a later stage by other "
+                  "WA runs to avoid booting the guest system a second time. Set"
+                  " to True to take a checkpoint of the simulated system post "
+                  "boot."),
+        Parameter('run_delay', kind=int, default=0, mandatory=False,
+                  override=True, description="This sets the time that the "
+                  "system should sleep in the simulated system prior to "
+                  "running and workloads or taking checkpoints. This allows "
+                  "the system to quieten down prior to running the workloads. "
+                  "When this is combined with the checkpoint_post_boot"
+                  " option, it allows the checkpoint to be created post-sleep,"
+                  " and therefore the set of workloads resuming from this "
+                  "checkpoint will not be required to sleep.")
     ]
 
     # Overwritten from Device. For documentation, see corresponding method in
@@ -198,7 +209,9 @@ class Gem5Device(AndroidDevice):
         self.logger.info("Using {} as the temporary directory.".format(self.temp_dir))
 
         if not kwargs.get('virtio_command'):
-            raise ConfigError('Please specify the VirtIO command specific to your script, ending with the root parameter of the device.')
+            raise ConfigError('Please specify the VirtIO command specific to '
+                              'your script, ending with the root parameter of '
+                              'the device.')
 
         self.gem5_vio_arg = kwargs.get('virtio_command').format(self.temp_dir)
         self.logger.debug("gem5 VirtIO command: {}".format(self.gem5_vio_arg))
@@ -241,7 +254,9 @@ class Gem5Device(AndroidDevice):
                                                                              self.gem5_args,
                                                                              self.gem5_vio_arg)
         self.logger.debug("gem5 command line: {}".format(command_line))
-        self.gem5 = subprocess.Popen(command_line.split(), stdout=self.stdout_file, stderr=self.stderr_file)
+        self.gem5 = subprocess.Popen(command_line.split(),
+                                     stdout=self.stdout_file,
+                                     stderr=self.stderr_file)
 
         while self.gem5_port == -1:
             # Check that gem5 is running!
@@ -306,13 +321,14 @@ class Gem5Device(AndroidDevice):
         the echo as this simplifies parsing the output when executing commands
         on the device.
         """
-        self.logger.info("Connecting to the gem5 simulation on port " + str(self.gem5_port))
+        self.logger.info("Connecting to the gem5 simulation on port {}".format(self.gem5_port))
         host = socket.gethostname()
         port = self.gem5_port
 
         # Connect to the gem5 telnet port. Use a short timeout here.
         self.sckt = ssh.TelnetConnection()
-        self.sckt.login(host, 'None', port=port, auto_prompt_reset=False, login_timeout=10)
+        self.sckt.login(host, 'None', port=port, auto_prompt_reset=False,
+                        login_timeout=10)
 
         self.logger.info("Connected! Waiting for prompt...")
 
@@ -388,7 +404,8 @@ class Gem5Device(AndroidDevice):
             self._logcat_poller.stop()
 
     def reset(self):
-        self.logger.warn("Attempt to restart the gem5 device. This is not supported!")
+        self.logger.warn("Attempt to restart the gem5 device. This is not "
+                         "supported!")
 
     def init(self):
         pass
@@ -536,7 +553,8 @@ class Gem5Device(AndroidDevice):
                                   'Busybox can only be deployed to rooted devices.')
             command = ' '.join([self.busybox, command])
         if background:
-            self.logger.debug("Attempt to execute in background. Not supported in gem5, hence ignored.")
+            self.logger.debug("Attempt to execute in background. Not supported "
+                              "in gem5, hence ignored.")
         return self.gem5_shell(command, as_root=as_root)
 
     def dump_logcat(self, outfile, filter_spec=None):
@@ -622,7 +640,8 @@ class Gem5Device(AndroidDevice):
 
     def get_pids_of(self, process_name):
         """ Returns a list of PIDs of all processes with the specified name. """
-        result = self.gem5_shell('ps | busybox grep {}'.format(process_name), check_exit_code=False).strip()
+        result = self.gem5_shell('ps | busybox grep {}'.format(process_name),
+                                 check_exit_code=False).strip()
         if result and 'not found' not in result and len(result.split('\n')) > 2:
             return [int(x.split()[1]) for x in result.split('\n')]
         else:
@@ -726,7 +745,8 @@ class Gem5Device(AndroidDevice):
                 # prompt has returned. Hence, we have a bit of an issue. We
                 # warn, and return the whole output.
                 if command_index == -1:
-                    self.logger.warn("gem5_shell: Unable to match command in command output. Expect parsing errors!")
+                    self.logger.warn("gem5_shell: Unable to match command in "
+                                     "command output. Expect parsing errors!")
                     command_index = 0
 
         output = output[command_index + len(command):].strip()
@@ -745,7 +765,9 @@ class Gem5Device(AndroidDevice):
         self.sckt.expect(r'\[PEXPECT\]\$', timeout=10000)
 
         if check_exit_code:
-            exit_code_text = self.gem5_shell('echo $?', as_root=as_root, timeout=timeout, check_exit_code=False, sync=False)
+            exit_code_text = self.gem5_shell('echo $?', as_root=as_root,
+                                             timeout=timeout, check_exit_code=False,
+                                             sync=False)
             try:
                 exit_code = int(exit_code_text.split()[0])
                 if exit_code:
@@ -765,7 +787,8 @@ class Gem5Device(AndroidDevice):
         Synchronise with the gem5 shell.
 
         Write some unique text to the gem5 device to allow us to synchronise
-        with the shell output. We actually get two prompts so we need to match both of these.
+        with the shell output. We actually get two prompts so we need to match
+        both of these.
         """
         self.sckt.send("echo \*\*sync\*\*\n")
         self.sckt.expect(r"\*\*sync\*\*", timeout=self.delay)
@@ -773,7 +796,10 @@ class Gem5Device(AndroidDevice):
         self.sckt.expect(r'\[PEXPECT\]\$', timeout=self.delay)
 
     def move_to_temp_dir(self, source):
-        """ Move a file to the temporary directory on the host for copying to the gem5 device """
+        """
+        Move a file to the temporary directory on the host for copying to the
+        gem5 device
+        """
         command = "cp {} {}".format(source, self.temp_dir)
         self.logger.debug("Local copy command: {}".format(command))
         subprocess.call(command.split())
