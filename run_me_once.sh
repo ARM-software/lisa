@@ -29,4 +29,11 @@ echo "Once tests have completed, you could report results by running"
 echo "./tools/report.py"
 echo
 echo
-
+echo "=== IPython Notebooks"
+echo "An example ipython notbeook is provided under the ipynb folder"
+echo "This folder contains also the script to properly start/stop"
+echo "the IPython server."
+echo "NOTE1: source the init_env before starting the server"
+echo "NOTE2: start the server from withint the ipynb folder"
+echo
+echo

@@ -1,0 +1,29 @@
+#!/bin/bash
+
+NETIF=${1:-eth0}
+
+# Get the IP Address of the local Ethernet interface
+IPADDR=$(ifconfig $NETIF 2>/dev/null  | \
+	awk '/inet addr:/ {print $2}' | \
+	sed 's/addr://')
+
+if [ "x$IPADDR" == "x" ]; then
+    echo
+    echo "$NETIF is not a valid network interface"
+    echo
+    echo "Usage: $0 <NETIF>"
+    echo " NETIF - The network interface to start the server on"
+    echo
+    exit 1
+fi
+
+echo 'Starting IPython Notebook server...'
+echo '  IP Address : ' $IPADDR
+echo '  Folder     : ' $(pwd)
+
+nohup ipython notebook --ip=$IPADDR &
+echo
+echo
+echo
+
+
