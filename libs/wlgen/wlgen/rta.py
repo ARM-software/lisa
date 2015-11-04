@@ -200,6 +200,15 @@ class RTA(Workload):
         else:
             logging.info('Workload duration defined by longest task')
 
+        # Setup default scheduling class
+        if 'policy' in self.sched:
+            policy = self.sched['policy'].upper()
+            if policy not in ['OTHER', 'FIFO', 'RR', 'DEADLINE']:
+                raise ValueError('scheduling class {} not supported'.format(policy))
+            global_conf['default_policy'] = 'SCHED_' + self.sched['policy']
+
+        logging.info('Default scheduling class: %s', global_conf['default_policy'])
+
         # Setup global configuration
         self.rta_profile['global'] = global_conf
 
@@ -475,6 +484,7 @@ class RTA(Workload):
              duration=None,
              cpus=None,
              cgroup=None,
+             sched={'policy': 'OTHER'},
              run_dir='./',
              loadref='big',
              exc_id=0):
@@ -515,7 +525,7 @@ class RTA(Workload):
 
 
         super(RTA, self).conf(kind, params, duration,
-                cpus, cgroup, run_dir, exc_id)
+                cpus, cgroup, sched, run_dir, exc_id)
 
         self.loadref = loadref
 

@@ -70,8 +70,8 @@ class Workload(object):
         # Map of task/s parameters
         self.params = {}
 
-
         logging.info('Setup new workload %s', self.name)
+
     def __callback(self, step, **kwords):
         if step not in self.steps.keys():
             raise ValueError('Callbacks for [%s] step not supported', step)
@@ -98,11 +98,13 @@ class Workload(object):
              duration,
              cpus=None,
              cgroup=None,
+             sched={'policy': 'OTHER'},
              run_dir='./',
              exc_id=0):
 
         self.cpus = cpus
         self.cgroup = cgroup
+        self.sched = sched
         self.duration = duration
         self.run_dir = run_dir
         self.exc_id = exc_id
