@@ -113,19 +113,6 @@ class Workload(object):
         # Map of task/s parameters
         self.params = {}
 
-        # Configure a periodic workload
-        if kind == 'periodic':
-            logging.debug('Configuring periodic workload...')
-            tid = 0
-            for p in params:
-                tid += 1
-                period = p[0]
-                duty_cycle = p[1]
-                sleep_time = period * (100 - duty_cycle) / 100
-                running_time = period - sleep_time
-                self._periodic(tid, period, duty_cycle,
-                        sleep_time, running_time)
-
         # Configure a profile workload
         if kind == 'profile':
             logging.debug('Configuring a profile-based workload...')
@@ -137,42 +124,6 @@ class Workload(object):
             logging.debug('Configuring custom workload...')
             self.params['custom'] = params
 
-    def _periodic(self,
-            tid,
-            period,
-            duty_cycle,
-            sleep_time,
-            running_time):
-
-        # Scale period and append unit of measure
-        if period < 1e3:
-            pstr = '{0:d}u'.format(period)
-        elif period < 1e6:
-            pstr = '{0:.0f}m'.format(period/1e3)
-        else:
-            pstr = '{0:.0f}s'.format(period/1e6)
-
-        name = '{0:s}{1:02d}_{2:s}{3:d}'\
-            .format(self.name, tid, pstr, duty_cycle)
-
-        # task name should be capped to 15 chars (plus null terminator)
-        # to avoid failures for the prctl call which set the custom thread name
-        name = name[:15]
-
-        logging.debug(' task [%s]: period %d [us], duty_cycle %d %%',
-                name, period, duty_cycle)
-        logging.debug('      run_time %d [us], sleep_time %d [us]',
-                running_time, sleep_time)
-
-        task_settings = {
-                'name': name,
-                'period': period,
-                'duty_cycle': duty_cycle,
-                'sleep_time': sleep_time,
-                'running_time': running_time,
-                }
-
-        self.params[name] = task_settings
 
     def run(self,
             ftrace=None,

@@ -42,7 +42,14 @@ class RTA(Workload):
             logging.info('CPU{0:d} calibration...'.format(cpu))
 
             rta = RTA(target, 'rta_calib')
-            rta.conf(kind='periodic', params=[(100000, 50)], cpus=[cpu], duration=1)
+            rta.conf(kind='profile',
+                    params = {
+                        'task1': RTA.periodic(
+                            period_ms=100,
+                            duty_cycle_pct=50,
+                            duration_s=1)
+                    },
+                    cpus=[cpu])
             rta.run()
 
             for line in rta.getOutput().split('\n'):
@@ -163,48 +170,6 @@ class RTA(Workload):
             ofile.write(line)
         ifile.close()
         ofile.close()
-
-        return self.json
-
-    def _confPeriodic(self):
-
-        # periodic task configuration
-        target_cpu = self.getTargetCpu(self.loadref)
-        self.rta_periodic = {
-            'tasks': {},
-            'global': {
-                'default_policy': 'SCHED_OTHER',
-                'duration': 5,
-                'calibration': 'CPU'+str(target_cpu),
-                'logdir': self.run_dir,
-            }
-        }
-
-        # Setup calibration data
-        calibration = self.getCalibrationConf(target_cpu)
-        self.rta_periodic['global']['calibration'] = calibration
-        if self.duration is not None:
-            self.rta_periodic['global']['duration'] = self.duration
-            logging.info('Configure workload duration to {0:d}[s]'\
-                        .format(self.rta_periodic['global']['duration']))
-
-        # Setup tasks parameters
-        for tid in self.params:
-            task = self.params[tid]
-            self.rta_periodic['global']['calibration'] = calibration
-            self.rta_periodic['tasks'][task['name']] = {
-                'loop': -1,
-                'run': task['running_time'],
-                'timer': {'ref': task['name'], 'period': task['period']}
-            }
-            # Append task name to the list of this workload tasks
-            self.tasks[task['name']] = {'pid': -1}
-
-        # Generate JSON configuraiton on local file
-        self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
-        with open(self.json, 'w') as outfile:
-            json.dump(self.rta_periodic, outfile,
-                    sort_keys=True, indent=4, separators=(',', ': '))
 
         return self.json
 
@@ -545,8 +510,6 @@ class RTA(Workload):
         # Setup class-specific configuration
         if (kind == 'custom'):
             self._confCustom()
-        elif (kind == 'periodic'):
-            self._confPeriodic()
         elif (kind == 'profile'):
             self._confProfile()
 
