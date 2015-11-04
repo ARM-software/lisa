@@ -102,6 +102,10 @@ class Gem5Device(AndroidDevice):
     parameters = [
         Parameter('core_names', default=[], override=True),
         Parameter('core_clusters', default=[], override=True),
+        Parameter('gem5_binary', kind=str, default='./build/ARM/gem5.fast',
+                  override=True, mandatory=False,
+                  description="Command used to execute gem5. Adjust according "
+                  "to needs."),
         Parameter('gem5_description', kind=str, default='', override=True,
                   description="Command line passed to the gem5 simulation. This"
                   " command line is used to set up the simulated system, and "
@@ -180,6 +184,8 @@ class Gem5Device(AndroidDevice):
         self.checkpoint = False
         self.sckt = None
 
+        self.gem5_binary = kwargs.get('gem5_binary')
+
         if not kwargs.get('gem5_description'):
             raise ConfigError('Please specify the system configuration with gem5_description')
         self.gem5_args = kwargs.get('gem5_description')
@@ -250,9 +256,10 @@ class Gem5Device(AndroidDevice):
         """
         self.logger.info("Starting the gem5 simulator")
 
-        command_line = "./build/ARM/gem5.fast --outdir={}/gem5 {} {}".format(settings.output_directory,
-                                                                             self.gem5_args,
-                                                                             self.gem5_vio_arg)
+        command_line = "{} --outdir={}/gem5 {} {}".format(self.gem5_binary,
+                                                          settings.output_directory,
+                                                          self.gem5_args,
+                                                          self.gem5_vio_arg)
         self.logger.debug("gem5 command line: {}".format(command_line))
         self.gem5 = subprocess.Popen(command_line.split(),
                                      stdout=self.stdout_file,
