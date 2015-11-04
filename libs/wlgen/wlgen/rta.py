@@ -208,7 +208,7 @@ class RTA(Workload):
                 raise ValueError('scheduling class {} not supported'.format(policy))
             global_conf['default_policy'] = 'SCHED_' + self.sched['policy']
 
-        logging.info('Default scheduling class: %s', global_conf['default_policy'])
+        logging.info('Default policy: %s', global_conf['default_policy'])
 
         # Setup global configuration
         self.rta_profile['global'] = global_conf
@@ -220,18 +220,22 @@ class RTA(Workload):
             # Initialize task configuration
             task_conf = {}
 
-            task['sclass'] = task['sclass'].upper()
-            if task['sclass'] == 'DEFAULT':
+            policy = task['sched']['policy'].upper()
+            if policy == 'DEFAULT':
                 task_conf['policy'] = global_conf['default_policy']
-            elif task['sclass'] not in ['OTHER', 'FIFO', 'RR', 'DEADLINE']:
+                sched_descr = 'sched: using default policy'
+            elif policy not in ['OTHER', 'FIFO', 'RR', 'DEADLINE']:
                 raise ValueError('scheduling class {} not supported'.format(task['sclass']))
             else:
-                task_conf['policy'] = 'SCHED_' + task['sclass']
+                task_conf.update(task['sched'])
+                task_conf['policy'] = 'SCHED_' + policy
+                sched_descr = 'sched: {0:s}'.format(task['sched'])
+
             # Initialize task phases
             task_conf['phases'] = {}
 
             logging.info('------------------------')
-            logging.info('task [{0:s}], {1:s}:'.format(tid, task_conf['policy']))
+            logging.info('task [{0:s}], {1:s}'.format(tid, sched_descr))
 
             if 'delay' in task.keys():
                 if task['delay'] > 0:
@@ -321,7 +325,7 @@ class RTA(Workload):
 
     @staticmethod
     def ramp(start_pct=0, end_pct=100, delta_pct=10, time_s=1, period_ms=100,
-            delay_s=0, loops=1, prio=0, sclass='DEFAULT'):
+            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}):
         """
         Configure a ramp load.
 
@@ -338,13 +342,11 @@ class RTA(Workload):
             period_ms (float): the pediod used to define the load in [ms], (default 100.0[ms])
             delay_s   (float): the delay in [s] before ramp start, (deafault 0[s])
             loops     (int): number of time to repeat the ramp, with the specified delay in between (deafault 0)
-            prio      (int): the task priority, (default 0)
-            sclass    (string): the class (OTHER|FIFO) of the workload
+            sched     (dict): the scheduler configuration for this task
         """
         task = {}
 
-        task['prio'] = prio
-        task['sclass'] = sclass
+        task['sched'] = sched
         task['delay'] = delay_s
         task['loops'] = loops
         task['phases'] = {}
@@ -376,7 +378,7 @@ class RTA(Workload):
 
     @staticmethod
     def step(start_pct=0, end_pct=100, time_s=1, period_ms=100,
-            delay_s=0, loops=1, prio=0, sclass='DEFAULT'):
+            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}):
         """
         Configure a step load.
 
@@ -390,16 +392,15 @@ class RTA(Workload):
             period_ms (float): the pediod used to define the load in [ms], (default 100.0[ms])
             delay_s   (float): the delay in [s] before ramp start, (deafault 0[s])
             loops     (int): number of time to repeat the ramp, with the specified delay in between (deafault 0)
-            prio      (int): the task priority, (default 0)
-            sclass    (string): the class (OTHER|FIFO) of the workload
+            sched     (dict): the scheduler configuration for this task
 
         """
         delta_pct = abs(end_pct - start_pct)
-        return RTA.ramp(start_pct, end_pct, delta_pct, time_s, period_ms, delay_s, loops, prio, sclass)
+        return RTA.ramp(start_pct, end_pct, delta_pct, time_s, period_ms, delay_s, loops, sched)
 
     @staticmethod
     def pulse(start_pct=100, end_pct=0, time_s=1, period_ms=100,
-            delay_s=0, loops=1, prio=0, sclass='DEFAULT'):
+            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}):
         """
         Configure a pulse load.
 
@@ -422,8 +423,7 @@ class RTA(Workload):
             period_ms (float): the pediod used to define the load in [ms], (default 100.0[ms])
             delay_s   (float): the delay in [s] before ramp start, (deafault 0[s])
             loops     (int): number of time to repeat the ramp, with the specified delay in between (deafault 0)
-            prio      (int): the task priority, (default 0)
-            sclass    (string): the class (OTHER|FIFO) of the workload
+            sched     (dict): the scheduler configuration for this task
 
         """
 
@@ -432,8 +432,7 @@ class RTA(Workload):
 
         task = {}
 
-        task['prio'] = prio
-        task['sclass'] = sclass
+        task['sched'] = sched
         task['delay'] = delay_s
         task['loops'] = loops
         task['phases'] = {}
@@ -458,7 +457,7 @@ class RTA(Workload):
 
     @staticmethod
     def periodic(duty_cycle_pct=50, duration_s=1, period_ms=100,
-            delay_s=0, prio=0, sclass='DEFAULT'):
+            delay_s=0, sched={'policy' : 'DEFAULT'}):
         """
         Configure a periodic load.
 
@@ -473,12 +472,11 @@ class RTA(Workload):
             duration_s      (float): the duration in [s] of the entire workload, (default 1.0[s])
             period_ms       (float): the pediod used to define the load in [ms], (default 100.0[ms])
             delay_s         (float): the delay in [s] before ramp start, (deafault 0[s])
-            prio            (int): the task priority, (default 0)
-            sclass          (string): the class (OTHER|FIFO) of the workload
+            sched     (dict): the scheduler configuration for this task
 
         """
 
-        return RTA.pulse(duty_cycle_pct, 0, duration_s, period_ms, delay_s, 1, prio, sclass)
+        return RTA.pulse(duty_cycle_pct, 0, duration_s, period_ms, delay_s, 1, sched)
 
     def conf(self,
              kind,
