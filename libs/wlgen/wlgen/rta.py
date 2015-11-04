@@ -49,7 +49,8 @@ class RTA(Workload):
                             duty_cycle_pct=50,
                             duration_s=1)
                     },
-                    cpus=[cpu])
+                    cpus=[cpu],
+                    sched={'policy': 'FIFO', 'prio': 99})
             rta.run()
 
             for line in rta.getOutput().split('\n'):
