@@ -175,33 +175,40 @@ class RTA(Workload):
 
     def _confProfile(self):
 
-        # periodic task configuration
+        # Task configuration
         target_cpu = self.getTargetCpu(self.loadref)
         self.rta_profile = {
             'tasks': {},
-            'global': {
+            'global': {}
+        }
+
+        # Initialize global configuration
+        global_conf = {
                 'default_policy': 'SCHED_OTHER',
                 'duration': -1,
                 'calibration': 'CPU'+str(target_cpu),
                 'logdir': self.run_dir,
             }
-        }
 
         # Setup calibration data
         calibration = self.getCalibrationConf(target_cpu)
-        self.rta_profile['global']['calibration'] = calibration
+        global_conf['calibration'] = calibration
         if self.duration is not None:
-            self.rta_profile['global']['duration'] = self.duration
-            logging.warn('Limiting workload duration to {0:d}[s]'\
-                .format(self.rta_profile['global']['duration']))
+            global_conf['duration'] = self.duration
+            logging.warn('Limiting workload duration to %d [s]',
+                    global_conf['duration'])
         else:
             logging.info('Workload duration defined by longest task')
+
+        # Setup global configuration
+        self.rta_profile['global'] = global_conf
 
         # Setup tasks parameters
         for tid in sorted(self.params['profile'].keys()):
             task = self.params['profile'][tid]
 
-            self.rta_profile['tasks'][tid] = {}
+            # Initialize task configuration
+            task_conf = {}
 
             task['sclass'] = task['sclass'].upper()
             if task['sclass'] not in ['OTHER', 'FIFO', 'RR', 'DEADLINE']:
@@ -209,6 +216,8 @@ class RTA(Workload):
             self.rta_profile['tasks'][tid]['policy'] = 'SCHED_' + task['sclass']
             self.rta_profile['tasks'][tid]['priority'] = task['prio']
             self.rta_profile['tasks'][tid]['phases'] = {}
+            # Initialize task phases
+            task_conf['phases'] = {}
 
             logging.info('------------------------')
             logging.info('task [{0:s}], SCHED_{1:s}:'.format(tid, task['sclass']))
@@ -216,15 +225,18 @@ class RTA(Workload):
             if 'delay' in task.keys():
                 if task['delay'] > 0:
                     task['delay'] = int(task['delay'] * 1e6)
-                    self.rta_profile['tasks'][tid]['phases']['p000000'] = {}
-                    self.rta_profile['tasks'][tid]['phases']['p000000']['sleep'] = task['delay']
+                    task_conf['phases']['p000000'] = {}
+                    task_conf['phases']['p000000']['sleep'] = task['delay']
                     logging.info(' | start delay: {0:.6f} [s]'\
                             .format(task['delay'] / 1e6))
 
             if 'loops' not in task.keys():
                 task['loops'] = 1
-            self.rta_profile['tasks'][tid]['loop'] = task['loops']
+            task_conf['loop'] = task['loops']
             logging.info(' | loops count: {0:d}'.format(task['loops']))
+
+            # Setup task configuration
+            self.rta_profile['tasks'][tid] = task_conf
 
             # Getting task phase descriptor
             pid=1
