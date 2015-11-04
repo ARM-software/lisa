@@ -220,16 +220,17 @@ class RTA(Workload):
             task_conf = {}
 
             task['sclass'] = task['sclass'].upper()
-            if task['sclass'] not in ['OTHER', 'FIFO', 'RR', 'DEADLINE']:
+            if task['sclass'] == 'DEFAULT':
+                task_conf['policy'] = global_conf['default_policy']
+            elif task['sclass'] not in ['OTHER', 'FIFO', 'RR', 'DEADLINE']:
                 raise ValueError('scheduling class {} not supported'.format(task['sclass']))
-            self.rta_profile['tasks'][tid]['policy'] = 'SCHED_' + task['sclass']
-            self.rta_profile['tasks'][tid]['priority'] = task['prio']
-            self.rta_profile['tasks'][tid]['phases'] = {}
+            else:
+                task_conf['policy'] = 'SCHED_' + task['sclass']
             # Initialize task phases
             task_conf['phases'] = {}
 
             logging.info('------------------------')
-            logging.info('task [{0:s}], SCHED_{1:s}:'.format(tid, task['sclass']))
+            logging.info('task [{0:s}], {1:s}:'.format(tid, task_conf['policy']))
 
             if 'delay' in task.keys():
                 if task['delay'] > 0:
@@ -319,7 +320,7 @@ class RTA(Workload):
 
     @staticmethod
     def ramp(start_pct=0, end_pct=100, delta_pct=10, time_s=1, period_ms=100,
-            delay_s=0, loops=1, prio=0, sclass='OTHER'):
+            delay_s=0, loops=1, prio=0, sclass='DEFAULT'):
         """
         Configure a ramp load.
 
@@ -374,7 +375,7 @@ class RTA(Workload):
 
     @staticmethod
     def step(start_pct=0, end_pct=100, time_s=1, period_ms=100,
-            delay_s=0, loops=1, prio=0, sclass='OTHER'):
+            delay_s=0, loops=1, prio=0, sclass='DEFAULT'):
         """
         Configure a step load.
 
@@ -397,7 +398,7 @@ class RTA(Workload):
 
     @staticmethod
     def pulse(start_pct=100, end_pct=0, time_s=1, period_ms=100,
-            delay_s=0, loops=1, prio=0, sclass='OTHER'):
+            delay_s=0, loops=1, prio=0, sclass='DEFAULT'):
         """
         Configure a pulse load.
 
@@ -456,7 +457,7 @@ class RTA(Workload):
 
     @staticmethod
     def periodic(duty_cycle_pct=50, duration_s=1, period_ms=100,
-            delay_s=0, prio=0, sclass='OTHER'):
+            delay_s=0, prio=0, sclass='DEFAULT'):
         """
         Configure a periodic load.
 
