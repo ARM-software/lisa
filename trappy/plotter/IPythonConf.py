@@ -28,7 +28,7 @@ IPLOT_RESOURCES = {
         "http://dygraphs.com/extras/synchronizer.js",
         "https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"],
     "EventPlot": [
-        "http://d3js.org/d3.v3.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js",
         "http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js",
         "js/EventPlot.js"]}
 
