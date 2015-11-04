@@ -471,11 +471,11 @@ def get_task_name(run, pid, cls=None):
         event = getattr(run, cls.name)
         df = event.data_frame
 
-    df = df[df["__pid"] == pid]
+    df = df[df["next_pid"] == pid]
     if not len(df):
         return ""
     else:
-        return df["__comm"].values[0]
+        return df["next_comm"].values[0]
 
 def sched_triggers(run, pid, sched_switch_class):
     """Returns the list of sched_switch triggers
