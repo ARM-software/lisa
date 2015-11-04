@@ -140,6 +140,13 @@ var EventPlot = (function () {
 
             var ePlot;
 
+
+            $("#" + div_name)
+                .append('<div class="pull-right">' +
+                    '<button type="button" class="btn btn-sm btn-info" ' +
+                    'onclick="EventPlot.create_help_dialog(' + base +
+                    ')">Help</button></div>')
+
             var iDesc = drawInfo(div_name, margin, width);
 
             chart = d3.select('#' + div_name)
@@ -828,8 +835,102 @@ var EventPlot = (function () {
 
     }
 
+    var create_help_dialog = function (base) {
+
+        var HELP_IMAGE = "plotter_scripts/EventPlot/EventPlot_help.jpg"
+
+        var element = $('<div/>');
+
+        // The documentation
+        var doc = $('<div/>')
+            .addClass('alert alert-info');
+
+        doc.append(
+            'EventPlot is a multi-lane timeline plot ' +
+            'which supports interative zooming and timing calculation'
+        );
+
+        element.append(doc);
+
+        var zoom = $("<div/>")
+            .addClass("media-left");
+
+        var addLabel = function (txt, cls) {
+            return '<span class="label label-' + cls + '" + ">' +
+                txt + '</span>'
+        }
+
+        var addListItem = function (txt) {
+            return '<li class="list-group-item">' + txt +
+                '</li>'
+        }
+
+        var addPlus = function () {
+            return " + "
+        }
+
+        var addBadge = function (txt) {
+            return '<span class="label label-default" style="border-radius: 10px">' +
+                txt + '</span>'
+        }
+
+        element.append(
+            '<img style="width: 100%;" class="media-object" src="' + base +
+            HELP_IMAGE + '"/>'
+        )
+
+        element.append('<ul class="list-group">')
+        element.append(addListItem('Scroll in the main area ' +
+            addBadge("1") + " to zoom interactively"))
+        element.append(addListItem(
+            'Click and drag in the main area ' + addBadge(
+                "1") + " to pan the zoom"))
+        element.append(addListItem(
+            'The summary of the plot is shown in ' +
+            addBadge("2")))
+        element.append(addListItem('Adjust the size of window ' +
+            addBadge("4") +
+            " set the X-Limits of the chart"))
+
+        element.append(addListItem(addLabel("Right-Click",
+                "default") +
+            " to place marker " + addLabel("A", "success")))
+
+        element.append(addListItem(addLabel("Ctrl", "primary") +
+            " + " + addLabel("Right-Click", "default") +
+            " to place marker " + addLabel("B", "danger")))
+
+        element.append(addListItem(
+            "The marker positions and delta will be shown in " +
+            addBadge("3")))
+
+        element.append(
+            addListItem(addLabel("Ctrl", "primary") + addPlus() +
+                addLabel("Alt", "primary") + addPlus() +
+                addLabel("Right-Click", "default") +
+                " on the rectange (eg. " + addBadge("6") +
+                " ) to show info in " + addBadge("5")))
+
+        element.append('</ul>')
+
+        dlg = IPython.dialog.modal({
+
+            title: "Help: EventPlot",
+            body: element,
+            destroy: false,
+            buttons: {
+                Close: {}
+            }
+
+        })
+
+        return dlg;
+
+    }
+
     return {
         generate: generate,
+        create_help_dialog: create_help_dialog
     };
 
 }());
