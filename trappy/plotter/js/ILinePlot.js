@@ -183,6 +183,7 @@ var ILinePlot = ( function() {
             drawPoints: t_info.drawPoints,
             strokeWidth: t_info.strokeWidth,
             pointSize: t_info.pointSize,
+            dateWindow: t_info.dateWindow
 
         });
 
