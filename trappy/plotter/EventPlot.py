@@ -67,14 +67,19 @@ class EventPlot(AbstractDataPlotter):
         :param keys: List of unique names in the data dictionary
         :type keys: list
 
+        :param domain: Domain of the event data
+        :type domain: tuple
+
         :param lane_prefix: A string prefix to be used to name each lane
         :type lane_prefix: str
 
         :param num_lanes: Total number of expected lanes
         :type num_lanes: int
 
-        :param domain: Domain of the event data
-        :type domain: tuple
+        :param summary: Show a mini plot below the main plot with an
+            overview of where your current view is with respect to the
+            whole trace
+        :type summary: bool
 
         :param stride: Stride can be used if the trace is very large.
             It results in sampled rendering
