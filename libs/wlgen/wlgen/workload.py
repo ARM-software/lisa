@@ -118,12 +118,14 @@ class Workload(object):
             logging.debug('Configuring a profile-based workload...')
             self.params['profile'] = params
 
-
         # Configure a custom workload
         elif kind == 'custom':
             logging.debug('Configuring custom workload...')
             self.params['custom'] = params
 
+        else:
+            logging.error('%s is not a supported RTApp workload kind', kind)
+            raise ValueError('RTApp workload kind not supported')
 
     def run(self,
             ftrace=None,
