@@ -445,7 +445,19 @@ class SchedAssert(object):
         return operator(run_time, expected_value)
 
     def getPeriod(self, window=None, align="start"):
-        """Return average period of the task in (ms)
+        """Return the period of the task in (ms)
+
+        Let's say a task started execution at the following times:
+
+            .. math::
+
+                T_1, T_2, ...T_n
+
+        The period is defined as:
+
+            .. math::
+
+                Median((T_2 - T_1), (T_4 - T_3), ....(T_n - T_{n-1}))
 
         :param window: A (start, end) tuple to limit the scope of the
             residency calculation.
@@ -460,12 +472,12 @@ class SchedAssert(object):
         """
 
         agg = self._aggregator(sconf.period)
-        period = agg.aggregate(level="all", window=window)[0]
-        total, length = map(sum, zip(*period))
-        if length == 0:
+        deltas = agg.aggregate(level="all", window=window)[0]
+
+        if not len(deltas):
             return float("NaN")
         else:
-            return (total * 1000) / length
+            return np.median(deltas) * 1000
 
     def assertPeriod(
             self,
