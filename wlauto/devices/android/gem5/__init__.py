@@ -318,35 +318,6 @@ class Gem5Device(AndroidDevice):
         self.sckt.setecho(False)
         self.sync_gem5_shell()
 
-    def mount_virtio(self):
-        """
-        Mount the VirtIO device in the simulated system.
-
-        We cannot assume any state for the VirtIO device in gem5 as it is not
-        serialised when checkpointing the system. Therefore, we unbind and
-        rebind the VirtIO device to force the driver to re-initialize the
-        device, prior to using it. We then mount the folder on the host system
-        using the VirtIo device.
-        """
-        self.logger.info("Mounting VirtIO device in simulated system")
-
-        # We always unbind, then re-bind the device. This ensures that the
-        # driver is re-loaded and that the device is re-initialized. Hence, this
-        # should work for both checkpointed and non-checkpointed gem5 systems.
-        vio_info = self.gem5_shell('ls /sys/bus/pci/drivers/virtio-pci/').strip().split()
-        mounts = []
-        for f in vio_info:
-            if len(f.split(':')) > 1:
-                mounts.append(f.strip())
-
-        # Unbind and rebind all of the
-        for mount in mounts:
-            self.gem5_shell('echo -n "{}" > /sys/bus/pci/drivers/virtio-pci/unbind'.format(mount))
-            self.gem5_shell('echo -n "{}" > /sys/bus/pci/drivers/virtio-pci/bind'.format(mount))
-
-        mount_command = "mount -t 9p -o trans=virtio,version=9p2000.L,aname={} gem5 /mnt/obb".format(self.temp_dir)
-        self.gem5_shell('busybox {}'.format(mount_command))
-
     def disconnect(self):
         """
         Close and disconnect from the gem5 simulation. Additionally, we remove
@@ -762,3 +733,12 @@ class Gem5Device(AndroidDevice):
         self.gem5_util("checkpoint")
         if end_simulation:
             self.disconnect()
+
+    def mount_virtio(self):
+        """
+        Mount the VirtIO device in the simulated system.
+        """
+        self.logger.info("Mounting VirtIO device in simulated system")
+
+        mount_command = "mount -t 9p -o trans=virtio,version=9p2000.L,aname={} gem5 /mnt/obb".format(self.temp_dir)
+        self.gem5_shell('busybox {}'.format(mount_command))
