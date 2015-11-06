@@ -138,9 +138,9 @@ class HWMon(EnergyMeter):
             nrg_total = nrg[ch]['total']
             logging.info('%14s - Energy [%16s]: %.6f',
                     'EnergyReport', ch, nrg_total)
-            if self.target.little_core.upper() in ch.upper():
+            if self._target.little_core.upper() in ch.upper():
                 clusters_nrg['LITTLE'] = '{:.6f}'.format(nrg_total)
-            elif self.target.big_core.upper() in ch.upper():
+            elif self._target.big_core.upper() in ch.upper():
                 clusters_nrg['big'] = '{:.6f}'.format(nrg_total)
             else:
                 logging.warning('%14s - Unable to bind hwmon channel [%s]'\
