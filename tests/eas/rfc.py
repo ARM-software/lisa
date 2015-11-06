@@ -21,9 +21,6 @@ from test_env import TestEnv
 
 import wlgen
 
-# Host specific paths
-HST_OUT_PREFIX = './results'
-HST_OUT_LAST   = './latest'
 
 # Target specific paths
 TGT_RUN_DIR     = 'run_dir'
@@ -56,10 +53,10 @@ class EAS_Tests(unittest.TestCase):
         logging.debug('Complete configuration %s', cls.conf)
 
         # Check for mandatory configurations
-        if 'confs' not in cls.conf or len(cls.conf['confs']) == 0:
+        if 'confs' not in cls.conf or not cls.conf['confs']:
             raise ValueError(
                     'Configuration error: missing \'conf\' definitions')
-        if 'wloads' not in cls.conf or len(cls.conf['wloads']) == 0:
+        if 'wloads' not in cls.conf or not cls.conf['wloads']:
             raise ValueError(
                     'Configuration error: missing \'wloads\' definitions')
 
@@ -239,8 +236,8 @@ class EAS_Tests(unittest.TestCase):
         # Initialize CGroups if required
         cls.schedtune_init()
         # Setup target folder for experiments execution
-        cls.env.run_dir = '{}/{}'\
-                .format(cls.env.target.working_directory, TGT_RUN_DIR)
+        cls.env.run_dir = os.path.join(
+                cls.env.target.working_directory, TGT_RUN_DIR)
         # Create run folder as tmpfs
         logging.debug('%14s - Setup RT-App run folder [%s]...',
                 'TargetSetup', cls.env.run_dir)
