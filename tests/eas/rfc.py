@@ -17,10 +17,14 @@ logging.basicConfig(
 
 # Add UnitTest support
 import unittest
-from test_env import TestEnv
+
+# Add support for Test Environment configuration
+from env import TestEnv
+
+# Add JSON parsing support
+from conf import JsonConf
 
 import wlgen
-
 
 # Target specific paths
 TGT_RUN_DIR     = 'run_dir'
@@ -38,19 +42,13 @@ class EAS_Tests(unittest.TestCase):
 
         cls.print_section('Main', 'Experiments configuration')
 
-        # Load target specific configuration
-        target_config = 'target.config'
-        logging.info('%14s - Loading target configuration [%s]...',
-                'Main', target_config)
-        cls.conf = cls.load_conf(target_config)
-
         # Load test specific configuration
-        class_config = 'tests/eas/rfc.config'
+        tests_config = 'tests/eas/rfc.config'
         logging.info('%14s - Loading EAS RFC tests configuration [%s]...',
-                'Main', class_config)
-        cls.conf.update(cls.load_conf(class_config))
+                'Main', tests_config)
+        json = JsonConf(tests_config)
+        cls.conf = json.load()
 
-        logging.debug('Complete configuration %s', cls.conf)
 
         # Check for mandatory configurations
         if 'confs' not in cls.conf or not cls.conf['confs']:
@@ -61,7 +59,7 @@ class EAS_Tests(unittest.TestCase):
                     'Configuration error: missing \'wloads\' definitions')
 
         # Setup devlib to access the configured target
-        cls.env = TestEnv(cls.conf)
+        cls.env = TestEnv(test_conf = cls.conf)
 
         # Compute total number of experiments
         cls.exp_count = cls.conf['iterations'] \
@@ -359,7 +357,7 @@ class EAS_Tests(unittest.TestCase):
                 task = conf['prefix'] + str(idx)
                 params[task] = wlgen.RTA.periodic(**conf['params'])
             rtapp = wlgen.RTA(cls.env.target,
-                        wl_idx, calibration = cls.env.calib)
+                        wl_idx, calibration = cls.env.calibration())
             rtapp.conf(kind='profile', params=params,
                     cpus=cpus, cgroup=cgroup,
                     run_dir=cls.env.run_dir)
@@ -455,13 +453,13 @@ class EAS_Tests(unittest.TestCase):
             cls.env.ftrace.start()
 
         # ENERGY: start sampling
-        cls.env.energy_reset()
+        cls.env.emeter.reset()
 
         # WORKLOAD: Run the configured workload
         wload.run(out_dir=cls.env.out_dir)
 
         # ENERGY: collect measurements
-        cls.env.energy_report(cls.env.out_dir)
+        cls.env.emeter.report(cls.env.out_dir)
 
         # FTRACE: stop and collect measurements
         if cls.env.ftrace:
