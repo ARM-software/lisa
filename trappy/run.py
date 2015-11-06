@@ -159,7 +159,13 @@ class Run(object):
         cmd.append(fname)
 
         with open(os.devnull) as devnull:
-            out = check_output(cmd, stderr=devnull)
+            try:
+                out = check_output(cmd, stderr=devnull)
+            except OSError as exc:
+                if exc.errno == 2 and not exc.filename:
+                    raise OSError(2, "trace-cmd not found in PATH, is it installed?")
+                else:
+                    raise
 
             # Add the -R flag to the trace-cmd
             # for raw parsing
