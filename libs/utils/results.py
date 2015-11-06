@@ -92,7 +92,12 @@ class Test(object):
 
         # Parse test's run results
         for run_idx in sorted(os.listdir(self.test_dir)):
-            run_dir = self.test_dir + '/' + run_idx
+
+            # Skip all files which are not folders
+            run_dir = os.path.join(self.test_dir,  run_idx)
+            if not os.path.isdir(run_dir):
+                continue
+
             run = self.parse_run(run_idx, run_dir)
             self.collect_energy(run)
             self.collect_performance(run)
