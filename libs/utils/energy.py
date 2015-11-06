@@ -75,7 +75,7 @@ class HWMon(EnergyMeter):
                     'EnergyMeter')
             logging.warning('%14s - Energy sampling disabled by configuration',
                     'EnergyMeter')
-            raise RuntimeError('HWMON module not available')
+            return
 
         # Initialize HWMON instrument
         self._hwmon = devlib.HwmonInstrument(self._target)
