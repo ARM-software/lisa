@@ -353,7 +353,7 @@ class TestEnv(ShareState):
         required = False
         if force:
             required = True
-        if 'rt-app' in self.conf['tools']:
+        if 'rt-app' in self.__tools:
             required = True
         elif 'wloads' in self.conf:
             wloads = self.conf['wloads']
