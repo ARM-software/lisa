@@ -39,10 +39,13 @@ class ShareState(object):
 
 class TestEnv(ShareState):
 
-    _init = False
+    _initialized = False
 
     def __init__(self, target_conf=None, test_conf=None):
         super(TestEnv, self).__init__()
+
+        if self._initialized:
+            return
 
         self.conf = None
         self.target = None
@@ -66,9 +69,6 @@ class TestEnv(ShareState):
 
         # The platform descriptor to be saved into the results folder
         self.platform = {}
-
-        if self._init:
-            return
 
         # Compute base installation path
         logging.info('%14s - Using base path: %s',
@@ -137,7 +137,7 @@ class TestEnv(ShareState):
             os.remove(res_lnk)
         os.symlink(self.res_dir, res_lnk)
 
-        self._init = True
+        self._initialized = True
 
     @staticmethod
     def loadTargetConfig(filepath='target.config'):
