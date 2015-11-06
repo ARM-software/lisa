@@ -61,13 +61,6 @@ class TestEnv(ShareState):
         self.kernel = None
         self.dtb = None
 
-        # Supported energy instruments
-        self.daq = None
-        self.hwmon = None
-
-        # Energy readings
-        self.energy_reading = {}
-
         # Energy meter configuration
         self.emeter = None
 
