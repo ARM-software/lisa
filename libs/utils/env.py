@@ -163,7 +163,7 @@ class TestEnv(ShareState):
 
     def init(self, force = False):
 
-        if self.feature('debug'):
+        if self._feature('debug'):
             logging.getLogger().setLevel(logging.DEBUG)
 
         # Initialize target
@@ -435,7 +435,7 @@ class TestEnv(ShareState):
 
     def reboot(self, reboot_time=60):
         # Send remote target a reboot command
-        if self.feature('no-reboot'):
+        if self._feature('no-reboot'):
             logging.warning('%14s - Reboot disabled by conf features', 'Reboot')
         else:
             self.target.execute('sleep 2 && reboot -f &', as_root=True)
@@ -466,7 +466,7 @@ class TestEnv(ShareState):
                 'KernelSetup', tc)
 
         # Install kernel/dtb via FTFP
-        if self.feature('no-kernel'):
+        if self._feature('no-kernel'):
             logging.warning('%14s - Kernel deploy disabled by conf features',
                     'KernelSetup')
 
@@ -525,7 +525,7 @@ class TestEnv(ShareState):
                     'FTFP', src)
             raise ValueError('copy error')
 
-    def feature(self, feature):
+    def _feature(self, feature):
         return feature in self.conf['__features__']
 
 IFCFG_BCAST_RE = re.compile(
