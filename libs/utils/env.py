@@ -131,7 +131,7 @@ class TestEnv(ShareState):
                 self.target, self.conf, force=True)
 
         # Initialize RT-App calibration values
-        self.calibrate()
+        self.calibration()
 
         # Initialize local results folder
         res_dir = os.path.join(basepath, OUT_PREFIX)
@@ -355,12 +355,14 @@ class TestEnv(ShareState):
         with open(plt_file, 'w') as ofile:
             json.dump(self.platform, ofile, sort_keys=True, indent=4)
 
-    def calibrate(self):
+    def calibration(self, force=False):
 
-        if self.calib is not None:
+        if not force and self.calib:
             return self.calib
 
         required = False
+        if force:
+            required = True
         if 'rt-app' in self.conf['tools']:
             required = True
         elif 'wloads' in self.conf:
@@ -374,7 +376,7 @@ class TestEnv(ShareState):
             logging.debug('No RT-App workloads, skipping calibration')
             return
 
-        if 'rtapp-calib' in self.conf:
+        if not force and 'rtapp-calib' in self.conf:
             logging.info('Loading RTApp calibration from configuration file...')
             self.calib = {
                     int(key): int(value)
@@ -385,6 +387,7 @@ class TestEnv(ShareState):
             self.calib = RTA.calibrate(self.target)
 
         logging.info('Using RT-App calibration values: %s', self.calib)
+        return self.calib
 
     def resolv_host(self, host=None):
         if host is None:
