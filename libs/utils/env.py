@@ -51,7 +51,7 @@ class TestEnv(ShareState):
         self.__tools = []
         self.__modules = []
         self.__connection_settings = None
-        self.calib = None
+        self._calib = None
 
         # Keep track of target IP and MAC address
         self.ip = None
@@ -357,8 +357,8 @@ class TestEnv(ShareState):
 
     def calibration(self, force=False):
 
-        if not force and self.calib:
-            return self.calib
+        if not force and self._calib:
+            return self._calib
 
         required = False
         if force:
@@ -378,16 +378,16 @@ class TestEnv(ShareState):
 
         if not force and 'rtapp-calib' in self.conf:
             logging.info('Loading RTApp calibration from configuration file...')
-            self.calib = {
+            self._calib = {
                     int(key): int(value)
                     for key, value in self.conf['rtapp-calib'].items()
                 }
         else:
             logging.info('Calibrating RTApp...')
-            self.calib = RTA.calibrate(self.target)
+            self._calib = RTA.calibrate(self.target)
 
-        logging.info('Using RT-App calibration values: %s', self.calib)
-        return self.calib
+        logging.info('Using RT-App calibration values: %s', self._calib)
+        return self._calib
 
     def resolv_host(self, host=None):
         if host is None:
