@@ -274,6 +274,8 @@ class TestEnv(ShareState):
                 tools_to_install.append(binary)
         self.target.setup(tools_to_install)
 
+    def ftrace_conf(self, conf):
+        self._init_ftrace(True, conf)
 
     def _init_ftrace(self, force=False, conf=None):
 
