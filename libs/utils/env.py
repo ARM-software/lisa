@@ -94,11 +94,9 @@ class TestEnv(ShareState):
             self.__tools = self.conf['tools']
         # Merge tests specific tools
         if test_conf and 'tools' in test_conf and test_conf['tools']:
-                self.__tools = list(set(
-                    self.conf['tools'],
-                    test_conf['tools']
-                ))
-
+            self.__tools = list(set(
+                self.conf['tools'] + test_conf['tools']
+            ))
 
         # Initialize modules to use on the target
         if 'modules' in self.conf:
@@ -106,8 +104,7 @@ class TestEnv(ShareState):
         # Merge tests specific modules
         if test_conf and 'modules' in test_conf and test_conf['modules']:
             self.__modules = list(set(
-                self.conf['modules'],
-                test_conf['modules']
+                self.conf['modules'] + test_conf['modules']
             ))
 
         # Initialize ftrace events
