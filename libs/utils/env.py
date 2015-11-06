@@ -114,10 +114,10 @@ class TestEnv(ShareState):
         if test_conf and 'ftrace' in test_conf:
             self.conf['ftrace'] = test_conf['ftrace']
 
-        self.init()
+        self._init()
 
         # Initialize FTrace events collection
-        self.init_ftrace(True)
+        self._init_ftrace(True)
 
         # Initialize energy probe instrument
         self.emeter = EnergyMeter.getInstance(
@@ -161,13 +161,13 @@ class TestEnv(ShareState):
         conf = JsonConf(conf_file)
         return conf.load()
 
-    def init(self, force = False):
+    def _init(self, force = False):
 
         if self._feature('debug'):
             logging.getLogger().setLevel(logging.DEBUG)
 
         # Initialize target
-        self.init_target(force)
+        self._init_target(force)
 
         # Initialize target Topology for behavior analysis
         CLUSTERS = []
@@ -187,10 +187,10 @@ class TestEnv(ShareState):
         logging.info('Target topology: %s', CLUSTERS)
 
         # Initialize the platform descriptor
-        self.init_platform()
+        self._init_platform()
 
 
-    def init_target(self, force = False):
+    def _init_target(self, force = False):
 
         if not force and self.target is not None:
             return self.target
@@ -278,7 +278,7 @@ class TestEnv(ShareState):
         self.target.setup(tools_to_install)
 
 
-    def init_ftrace(self, force=False, conf=None):
+    def _init_ftrace(self, force=False, conf=None):
 
         if not force and self.ftrace is not None:
             return self.ftrace
@@ -312,12 +312,12 @@ class TestEnv(ShareState):
 
         return self.ftrace
 
-    def init_energy(self, force):
+    def _init_energy(self, force):
 
         # Initialize energy probe to board default
         self.emeter = EnergyMeter.getInstance(self.target, self.conf, force)
 
-    def init_platform(self):
+    def _init_platform(self):
         self.platform = {
             'clusters' : {
                 'little'    : self.target.bl.littles,
@@ -449,10 +449,10 @@ class TestEnv(ShareState):
         force = True
 
         # Reset the connection to the target
-        self.init(force)
+        self._init(force)
 
         # Initialize FTrace events collection
-        self.init_ftrace(force)
+        self._init_ftrace(force)
 
         # Initialize energy probe instrument
         self.emeter = EnergyMeter.getInstance(self.target, self.conf, force)
