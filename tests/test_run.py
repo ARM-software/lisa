@@ -246,6 +246,12 @@ class TestRun(BaseTestThermal):
         self.assertEquals(run._version, None)
         self.assertTrue(len(run.thermal.data_frame) > 0)
 
+    def test_run_accepts_window(self):
+        """Run class accepts a window parameter"""
+        run = trappy.Run(window=(1.234726, 5.334726))
+        self.assertEquals(run.thermal.data_frame.iloc[0]["temp"], 68989)
+        self.assertEquals(run.thermal.data_frame.iloc[-1]["temp"], 69530)
+
 
 @unittest.skipUnless(utils_tests.trace_cmd_installed(),
                      "trace-cmd not installed")
