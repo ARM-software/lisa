@@ -339,10 +339,9 @@ def period(series, align="start", window=None):
     :type window: tuple
 
     :return:
-        A Unit vector of a tuple of the type
-        ::
+        A list of deltas of successive starts/stops
+        of a task
 
-            [(sum_deltas, num_delta)]
     """
 
     series = select_window(series, window)
@@ -357,10 +356,9 @@ def period(series, align="start", window=None):
         series = series[:1]
 
     if not len(series):
-        return [(0,0)]
+        return []
 
-    deltas = np.diff(series.index.values)
-    return [(np.sum(deltas), len(deltas))]
+    return list(np.diff(series.index.values))
 
 def last_time(series, value, window=None):
     """:func:`aggfunc` to:
