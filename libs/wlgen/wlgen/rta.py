@@ -56,7 +56,7 @@ class RTA(Workload):
 
             for line in rta.getOutput().split('\n'):
                 pload_match = re.search(pload_regexp, line)
-                if (pload_match is None):
+                if pload_match is None:
                     continue
                 pload[cpu] = int(pload_match.group(1))
                 logging.debug('>>> cpu{0:d}: {1:d}'.format(cpu, pload[cpu]))
@@ -144,7 +144,7 @@ class RTA(Workload):
         return target_cpu
 
     def getCalibrationConf(self, target_cpu=0):
-        if (self.pload is None):
+        if self.pload is None:
             return 'CPU{0:d}'.format(target_cpu)
         return self.pload[target_cpu]
 
@@ -290,7 +290,7 @@ class RTA(Workload):
                 else:
 
                     cloops = -1
-                    if (duration >= 0):
+                    if duration >= 0:
                         cloops = int(duration / period)
 
                     sleep_time = period * (100 - duty_cycle) / 100
@@ -531,9 +531,9 @@ class RTA(Workload):
         self.loadref = loadref
 
         # Setup class-specific configuration
-        if (kind == 'custom'):
+        if kind == 'custom':
             self._confCustom()
-        elif (kind == 'profile'):
+        elif kind == 'profile':
             self._confProfile()
 
         # Move configuration file to target
