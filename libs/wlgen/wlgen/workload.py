@@ -67,6 +67,9 @@ class Workload(object):
         # Setup kind specific parameters
         self.kind = None
 
+        # Scheduler class configuration
+        self.sched = None
+
         # Map of task/s parameters
         self.params = {}
 
