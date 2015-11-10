@@ -57,6 +57,9 @@ def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeou
             conn.login(host, username, password, port=port, login_timeout=timeout)
     except EOF:
         raise TargetError('Could not connect to {}; is the host name correct?'.format(host))
+    conn.setwinsize(500,200)
+    conn.sendline('')
+    conn.prompt()
     return conn
 
 
