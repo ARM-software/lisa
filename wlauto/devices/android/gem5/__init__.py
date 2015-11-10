@@ -28,7 +28,7 @@ from pexpect import EOF, TIMEOUT
 
 from wlauto import AndroidDevice, settings, Parameter
 from wlauto.core import signal as sig
-from wlauto.utils import ssh
+from wlauto.utils import ssh, types
 from wlauto.exceptions import DeviceError, ConfigError
 
 
@@ -84,14 +84,9 @@ class Gem5Device(AndroidDevice):
     """
 
     name = 'gem5_android'
-    default_working_directory = '/data/'
     has_gpu = False
     platform = 'android'
     path_module = 'posixpath'
-    default_package_data_directory = '/data/data/'
-    default_binaries_directory = '/system/bin'
-    default_external_storage_directory = '/data/data/'
-    default_adb_name = None
 
     # gem5 can be very slow. Hence, we use some very long timeouts!
     delay = 3600
@@ -103,30 +98,30 @@ class Gem5Device(AndroidDevice):
         Parameter('core_names', default=[], override=True),
         Parameter('core_clusters', default=[], override=True),
         Parameter('gem5_binary', kind=str, default='./build/ARM/gem5.fast',
-                  override=True, mandatory=False,
-                  description="Command used to execute gem5. Adjust according "
-                  "to needs."),
-        Parameter('gem5_description', kind=str, default='', override=True,
+                  mandatory=False, description="Command used to execute gem5. "
+                  "Adjust according to needs."),
+        Parameter('gem5_args', kind=types.arguments, mandatory=True,
                   description="Command line passed to the gem5 simulation. This"
                   " command line is used to set up the simulated system, and "
                   "should be the same as used for a standard gem5 simulation "
                   "without workload automation. Note that this is simulation "
                   "script specific and will hence need to be tailored to each "
                   "particular use case."),
-        Parameter('virtio_command', kind=str, default='', override=True,
+        Parameter('gem5_vio_args', kind=types.arguments, mandatory=True,
+                  constraint=lambda x: "{}" in str(x),
                   description="gem5 VirtIO command line used to enable the "
                   "VirtIO device in the simulated system. At the very least, "
                   "the root parameter of the VirtIO9PDiod device must be "
                   "exposed on the command line. Please set this root mount to "
                   "{}, as it will be replaced with the directory used by "
                   "Workload Automation at runtime."),
-        Parameter('temp_dir', kind=str, default='', override=True,
+        Parameter('temp_dir', kind=str, default='/tmp',
                   description="Temporary directory used to pass files into the "
                   "gem5 simulation. Workload Automation will automatically "
                   "create a directory in this folder, and will remove it again "
                   "once the simulation completes."),
-        Parameter('checkpoint_post_boot', kind=bool, default=False,
-                  mandatory=False, override=True, description="This parameter "
+        Parameter('checkpoint', kind=bool, default=False,
+                  mandatory=False, description="This parameter "
                   "tells Workload Automation to create a checkpoint of the "
                   "simulated system once the guest system has finished booting."
                   " This checkpoint can then be used at a later stage by other "
@@ -134,7 +129,8 @@ class Gem5Device(AndroidDevice):
                   " to True to take a checkpoint of the simulated system post "
                   "boot."),
         Parameter('run_delay', kind=int, default=0, mandatory=False,
-                  override=True, description="This sets the time that the "
+                  constraint=lambda x: x >= 0,
+                  description="This sets the time that the "
                   "system should sleep in the simulated system prior to "
                   "running and workloads or taking checkpoints. This allows "
                   "the system to quieten down prior to running the workloads. "
@@ -156,51 +152,16 @@ class Gem5Device(AndroidDevice):
         self.logger = logging.getLogger('gem5Device')
 
         super(Gem5Device, self).__init__(**kwargs)
-        self.adb_name = kwargs.get('adb_name') or self.default_adb_name
-        self.binaries_directory = kwargs.get('binaries_directory', self.default_binaries_directory)
-        self.package_data_directory = kwargs.get('package_data_directory', self.default_package_data_directory)
-        self.external_storage_directory = kwargs.get('external_storage_directory',
-                                                     self.default_external_storage_directory)
-        self.logcat_poll_period = kwargs.get('logcat_poll_period')
 
         # The gem5 subprocess
         self.gem5 = None
-
         self.gem5_port = -1
-        self.busybox = None
-        self._is_initialized = False
-        self._is_ready = False
-        self._just_rebooted = False
-        self._is_rooted = None
-        self._available_frequencies = {}
-        self._available_governors = {}
-        self._available_governor_tunables = {}
-        self._number_of_cores = None
-        self._logcat_poller = None
         self.gem5outdir = os.path.join(settings.output_directory, "gem5")
         self.stdout_file = None
         self.stderr_file = None
         self.stderr_filename = None
         self.checkpoint = False
         self.sckt = None
-
-        self.gem5_binary = kwargs.get('gem5_binary')
-
-        if not kwargs.get('gem5_description'):
-            raise ConfigError('Please specify the system configuration with gem5_description')
-        self.gem5_args = kwargs.get('gem5_description')
-
-        if kwargs.get('temp_dir'):
-            self.temp_dir = kwargs.get('temp_dir')
-        else:
-            self.logger.info("No temporary directory passed in. Defaulting to /tmp")
-            self.temp_dir = '/tmp'
-
-        if kwargs.get('checkpoint_post_boot'):
-            self.checkpoint = True
-
-        if kwargs.get('run_delay'):
-            self.run_delay = kwargs.get('run_delay')
 
         # Find the first one that does not exist. Ensures that we do not re-use
         # the directory used by someone else.
@@ -212,18 +173,15 @@ class Gem5Device(AndroidDevice):
             except OSError:
                 break
         self.temp_dir = directory
-        self.logger.info("Using {} as the temporary directory.".format(self.temp_dir))
-
-        if not kwargs.get('virtio_command'):
-            raise ConfigError('Please specify the VirtIO command specific to '
-                              'your script, ending with the root parameter of '
-                              'the device.')
-
-        self.gem5_vio_arg = kwargs.get('virtio_command').format(self.temp_dir)
-        self.logger.debug("gem5 VirtIO command: {}".format(self.gem5_vio_arg))
+        self.logger.debug("Using {} as the temporary directory.".format(self.temp_dir))
 
         # Start the gem5 simulation when WA starts a run using a signal.
         sig.connect(self.init_gem5, sig.RUN_START)
+
+    def validate(self):
+        # Assemble the virtio args
+        self.gem5_vio_args = str(self.gem5_vio_args).format(self.temp_dir)
+        self.logger.debug("gem5 VirtIO command: {}".format(self.gem5_vio_args))
 
     def init_gem5(self, _):
         """
@@ -259,7 +217,7 @@ class Gem5Device(AndroidDevice):
         command_line = "{} --outdir={}/gem5 {} {}".format(self.gem5_binary,
                                                           settings.output_directory,
                                                           self.gem5_args,
-                                                          self.gem5_vio_arg)
+                                                          self.gem5_vio_args)
         self.logger.debug("gem5 command line: {}".format(command_line))
         self.gem5 = subprocess.Popen(command_line.split(),
                                      stdout=self.stdout_file,
@@ -346,7 +304,7 @@ class Gem5Device(AndroidDevice):
             try:
                 # Try and force a prompt to be shown
                 self.sckt.send('\n')
-                self.sckt.expect([r'# ', r'\[PEXPECT\]\$'], timeout=self.delay)
+                self.sckt.expect([r'# ', self.sckt.UNIQUE_PROMPT], timeout=self.delay)
                 prompt_found = True
             except TIMEOUT:
                 pass
@@ -426,7 +384,7 @@ class Gem5Device(AndroidDevice):
         Checks, in the form of 'ls' with error code checking, are performed to
         ensure that the file is copied to the destination.
         """
-        filename = source.split('/')[-1]
+        filename = os.path.basename(source)
         self.logger.debug("Pushing {} to device.".format(source))
         self.logger.debug("temp_dir: {}".format(self.temp_dir))
         self.logger.debug("dest: {}".format(dest))
@@ -498,10 +456,8 @@ class Gem5Device(AndroidDevice):
             else:
                 return False
         except ValueError:
-            if output:
-                return True
-            else:
-                return False
+            # If we cannot process the output, assume that there is no file
+            return False
 
     def install(self, filepath, timeout=default_timeout):  # pylint: disable=W0221
         """ Install an APK or a normal executable """
@@ -690,7 +646,7 @@ class Gem5Device(AndroidDevice):
                 pass
 
         # If we didn't manage to do the above, call the parent class.
-        self.logger.debug("capture_screen: falling back to parent class implementation")
+        self.logger.warning("capture_screen: falling back to parent class implementation")
         super(Gem5Device, self).capture_screen(filepath)
 
     # gem5 might be slow. Hence, we need to make the ping timeout very long.
@@ -700,7 +656,7 @@ class Gem5Device(AndroidDevice):
 
     # Additional Android-specific methods.
     def forward_port(self, from_port, to_port):
-        raise DeviceError('we do not need forwarding')
+        self.logger.warning('Tried to forward port. We do not need any forwarding.')
 
     # Internal methods: do not use outside of the class.
 
@@ -769,7 +725,7 @@ class Gem5Device(AndroidDevice):
         # We get a second prompt. Hence, we need to eat one to make sure that we
         # stay in sync. If we do not do this, we risk getting out of sync for
         # slower simulations.
-        self.sckt.expect(r'\[PEXPECT\]\$', timeout=10000)
+        self.sckt.expect(self.sckt.UNIQUE_PROMPT, timeout=10000)
 
         if check_exit_code:
             exit_code_text = self.gem5_shell('echo $?', as_root=as_root,
@@ -799,8 +755,8 @@ class Gem5Device(AndroidDevice):
         """
         self.sckt.send("echo \*\*sync\*\*\n")
         self.sckt.expect(r"\*\*sync\*\*", timeout=self.delay)
-        self.sckt.expect(r'\[PEXPECT\]\$', timeout=self.delay)
-        self.sckt.expect(r'\[PEXPECT\]\$', timeout=self.delay)
+        self.sckt.expect(self.sckt.UNIQUE_PROMPT, timeout=self.delay)
+        self.sckt.expect(self.sckt.UNIQUE_PROMPT, timeout=self.delay)
 
     def move_to_temp_dir(self, source):
         """
