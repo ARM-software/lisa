@@ -47,11 +47,12 @@ class RTA(Workload):
                         'task1': RTA.periodic(
                             period_ms=100,
                             duty_cycle_pct=50,
-                            duration_s=1)
+                            duration_s=1,
+                            sched={'policy': 'FIFO', 'prio' : 0}
+                        )
                     },
-                    cpus=[cpu],
-                    sched={'policy': 'FIFO', 'prio': 99})
-            rta.run()
+                    cpus=[cpu])
+            rta.run(as_root=True)
 
             for line in rta.getOutput().split('\n'):
                 pload_match = re.search(pload_regexp, line)
