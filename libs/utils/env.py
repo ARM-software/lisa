@@ -94,6 +94,8 @@ class TestEnv(ShareState):
             self.__tools = self.conf['tools']
         # Merge tests specific tools
         if test_conf and 'tools' in test_conf and test_conf['tools']:
+            if 'tools' not in self.conf:
+                self.conf['tools'] = []
             self.__tools = list(set(
                 self.conf['tools'] + test_conf['tools']
             ))
@@ -103,6 +105,8 @@ class TestEnv(ShareState):
             self.__modules = self.conf['modules']
         # Merge tests specific modules
         if test_conf and 'modules' in test_conf and test_conf['modules']:
+            if 'modules' not in self.conf:
+                self.conf['modules'] = []
             self.__modules = list(set(
                 self.conf['modules'] + test_conf['modules']
             ))
