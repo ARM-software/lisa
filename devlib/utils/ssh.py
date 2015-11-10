@@ -60,6 +60,7 @@ def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeou
     conn.setwinsize(500,200)
     conn.sendline('')
     conn.prompt()
+    conn.setecho(False)
     return conn
 
 
