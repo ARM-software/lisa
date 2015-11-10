@@ -115,6 +115,10 @@ class TestEnv(ShareState):
         if test_conf and 'ftrace' in test_conf:
             self.conf['ftrace'] = test_conf['ftrace']
 
+        # Initialize features
+        if '__features__' not in target_conf:
+            target_conf['__features__'] = []
+
         self._init()
 
         # Initialize FTrace events collection
