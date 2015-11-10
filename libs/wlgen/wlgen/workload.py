@@ -100,13 +100,11 @@ class Workload(object):
              params,
              duration,
              cpus=None,
-             cgroup=None,
              sched={'policy': 'OTHER'},
              run_dir=None,
              exc_id=0):
 
         self.cpus = cpus
-        self.cgroup = cgroup
         self.sched = sched
         self.duration = duration
         self.run_dir = run_dir
@@ -138,9 +136,12 @@ class Workload(object):
 
     def run(self,
             ftrace=None,
+            cgroup=None,
             background=False,
             out_dir='./',
             as_root=False):
+
+        self.cgroup = cgroup
 
         if self.command is None:
             logging.error('Error: empty executor command')

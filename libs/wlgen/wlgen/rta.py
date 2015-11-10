@@ -492,7 +492,6 @@ class RTA(Workload):
              params,
              duration=None,
              cpus=None,
-             cgroup=None,
              sched={'policy': 'OTHER'},
              run_dir=None,
              loadref='big',
@@ -534,7 +533,7 @@ class RTA(Workload):
 
 
         super(RTA, self).conf(kind, params, duration,
-                cpus, cgroup, sched, run_dir, exc_id)
+                cpus, sched, run_dir, exc_id)
 
         self.loadref = loadref
 
