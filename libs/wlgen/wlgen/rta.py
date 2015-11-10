@@ -41,6 +41,11 @@ class RTA(Workload):
 
             logging.info('CPU{0:d} calibration...'.format(cpu))
 
+            max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
+            logging.debug('Max RT prio: %d', max_rtprio)
+            if max_rtprio > 10:
+                max_rtprio = 10
+
             rta = RTA(target, 'rta_calib')
             rta.conf(kind='profile',
                     params = {
@@ -48,7 +53,10 @@ class RTA(Workload):
                             period_ms=100,
                             duty_cycle_pct=50,
                             duration_s=1,
-                            sched={'policy': 'FIFO', 'prio' : 0}
+                            sched={
+                                'policy': 'FIFO',
+                                'prio' : max_rtprio
+                            }
                         )
                     },
                     cpus=[cpu])
