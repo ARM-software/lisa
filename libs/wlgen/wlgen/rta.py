@@ -485,7 +485,7 @@ class RTA(Workload):
              cpus=None,
              cgroup=None,
              sched={'policy': 'OTHER'},
-             run_dir='./',
+             run_dir=None,
              loadref='big',
              exc_id=0):
         """

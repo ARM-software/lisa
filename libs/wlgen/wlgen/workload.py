@@ -99,7 +99,7 @@ class Workload(object):
              cpus=None,
              cgroup=None,
              sched={'policy': 'OTHER'},
-             run_dir='./',
+             run_dir=None,
              exc_id=0):
 
         self.cpus = cpus
@@ -114,6 +114,10 @@ class Workload(object):
 
         # Map of task/s parameters
         self.params = {}
+
+        # Initialize run folder
+        if self.run_dir is None:
+            self.run_dir = self.target.working_directory
 
         # Configure a profile workload
         if kind == 'profile':
