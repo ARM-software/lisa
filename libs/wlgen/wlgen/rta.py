@@ -355,7 +355,7 @@ class RTA(Workload):
 
     @staticmethod
     def ramp(start_pct=0, end_pct=100, delta_pct=10, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}, cpus=None):
+            delay_s=0, loops=1, sched=None, cpus=None):
         """
         Configure a ramp load.
 
@@ -378,6 +378,8 @@ class RTA(Workload):
         task = {}
 
         task['cpus'] = cpus
+        if not sched:
+            sched = {'policy' : 'DEFAULT'}
         task['sched'] = sched
         task['delay'] = delay_s
         task['loops'] = loops
@@ -410,7 +412,7 @@ class RTA(Workload):
 
     @staticmethod
     def step(start_pct=0, end_pct=100, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}, cpus=None):
+            delay_s=0, loops=1, sched=None, cpus=None):
         """
         Configure a step load.
 
@@ -432,7 +434,7 @@ class RTA(Workload):
 
     @staticmethod
     def pulse(start_pct=100, end_pct=0, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}, cpus=None):
+            delay_s=0, loops=1, sched=None, cpus=None):
         """
         Configure a pulse load.
 
@@ -465,6 +467,8 @@ class RTA(Workload):
         task = {}
 
         task['cpus'] = cpus
+        if not sched:
+            sched = {'policy' : 'DEFAULT'}
         task['sched'] = sched
         task['delay'] = delay_s
         task['loops'] = loops
@@ -490,7 +494,7 @@ class RTA(Workload):
 
     @staticmethod
     def periodic(duty_cycle_pct=50, duration_s=1, period_ms=100,
-            delay_s=0, sched={'policy' : 'DEFAULT'}, cpus=None):
+            delay_s=0, sched=None, cpus=None):
         """
         Configure a periodic load.
 
@@ -516,7 +520,7 @@ class RTA(Workload):
              params,
              duration=None,
              cpus=None,
-             sched={'policy': 'OTHER'},
+             sched=None,
              run_dir=None,
              loadref='big',
              exc_id=0):
@@ -555,6 +559,8 @@ class RTA(Workload):
 
         """
 
+        if not sched:
+            sched = {'policy' : 'OTHER'}
 
         super(RTA, self).conf(kind, params, duration,
                 cpus, sched, run_dir, exc_id)
