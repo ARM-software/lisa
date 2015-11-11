@@ -46,8 +46,8 @@ class SchedMultiAssert(object):
         match.
     :type execname: list, str
 
-    :param pid: The process ID of the task to be analysed
-    :type pid: list, int
+    :param pids: The process IDs of the tasks to be analysed
+    :type pids: list, int
 
     Consider the following processes which need to be analysed
 
