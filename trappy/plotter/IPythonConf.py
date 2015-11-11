@@ -30,7 +30,8 @@ IPLOT_RESOURCES = {
     "EventPlot": [
         "https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js",
         "http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js",
-        "js/EventPlot.js"]}
+        "js/EventPlot.js",
+        "css/EventPlot_help.jpg"]}
 
 PROFILE_DIR_IPYTHON_V4 = os.path.expanduser("~/.local/share/jupyter")
 """The location of the IPython webserver in IPython version 4.0+"""
