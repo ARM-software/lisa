@@ -119,8 +119,8 @@ class TestEnv(ShareState):
             self.conf['ftrace'] = test_conf['ftrace']
 
         # Initialize features
-        if '__features__' not in target_conf:
-            target_conf['__features__'] = []
+        if '__features__' not in self.conf:
+            self.conf['__features__'] = []
 
         self._init()
 
