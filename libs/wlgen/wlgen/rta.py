@@ -29,6 +29,14 @@ class RTA(Workload):
         self.wtype = 'rtapp'
         self.executor = 'rt-app'
 
+        # Default initialization
+        self.json = None
+        self.rta_profile = None
+        self.loadref = None
+        self.rta_cmd  = None
+        self.rta_conf = None
+        self.test_label = None
+
         # Setup RTA callbacks
         self.setCallback('postrun', self.__postrun)
 
