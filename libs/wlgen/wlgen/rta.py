@@ -338,7 +338,8 @@ class RTA(Workload):
                         'timer': {'ref': tid, 'period': period},
                     }
 
-                self.rta_profile['tasks'][tid]['phases']['p'+str(pid).zfill(6)] = task_phase
+                self.rta_profile['tasks'][tid]['phases']\
+                    ['p'+str(pid).zfill(6)] = task_phase
 
                 pid+=1
 
@@ -365,13 +366,19 @@ class RTA(Workload):
         Args:
             start_pct (int, [0-100]): the initial load [%], (default 0[%])
             end_pct   (int, [0-100]): the final load [%], (default 100[%])
-            delta_pct (int, [0-100]): the load increase/decrease [%], (default 10[%])
+            delta_pct (int, [0-100]): the load increase/decrease [%],
+                                      default: 10[%]
                                       increaase if start_prc < end_prc
                                       decrease  if start_prc > end_prc
-            time_s    (float): the duration in [s] of each load step, (default 1.0[s])
-            period_ms (float): the pediod used to define the load in [ms], (default 100.0[ms])
-            delay_s   (float): the delay in [s] before ramp start, (deafault 0[s])
-            loops     (int): number of time to repeat the ramp, with the specified delay in between (deafault 0)
+            time_s    (float): the duration in [s] of each load step
+                               default: 1.0[s]
+            period_ms (float): the pediod used to define the load in [ms]
+                               default: 100.0[ms]
+            delay_s   (float): the delay in [s] before ramp start
+                               default: 0[s]
+            loops     (int):   number of time to repeat the ramp, with the
+                               specified delay in between
+                               default: 0
             sched     (dict): the scheduler configuration for this task
             cpus      (list): the list of CPUs on which task can run
         """
@@ -420,17 +427,25 @@ class RTA(Workload):
         initial and final load.
 
         Args:
-            start_pct (int, [0-100]): the initial load [%], (default 0[%])
-            end_pct   (int, [0-100]): the final load [%], (default 100[%])
-            time_s    (float): the duration in [s] of the start and end load, (default 1.0[s])
-            period_ms (float): the pediod used to define the load in [ms], (default 100.0[ms])
-            delay_s   (float): the delay in [s] before ramp start, (deafault 0[s])
-            loops     (int): number of time to repeat the ramp, with the specified delay in between (deafault 0)
+            start_pct (int, [0-100]): the initial load [%]
+                                      default 0[%])
+            end_pct   (int, [0-100]): the final load [%]
+                                      default 100[%]
+            time_s    (float): the duration in [s] of the start and end load
+                               default: 1.0[s]
+            period_ms (float): the pediod used to define the load in [ms]
+                               default 100.0[ms]
+            delay_s   (float): the delay in [s] before ramp start
+                               deafault 0[s]
+            loops     (int):   number of time to repeat the ramp, with the
+                               specified delay in between
+                               deafault: 0
             sched     (dict): the scheduler configuration for this task
             cpus      (list): the list of CPUs on which task can run
         """
         delta_pct = abs(end_pct - start_pct)
-        return RTA.ramp(start_pct, end_pct, delta_pct, time_s, period_ms, delay_s, loops, sched, cpus)
+        return RTA.ramp(start_pct, end_pct, delta_pct, time_s,
+                period_ms, delay_s, loops, sched, cpus)
 
     @staticmethod
     def pulse(start_pct=100, end_pct=0, time_s=1, period_ms=100,
@@ -449,16 +464,24 @@ class RTA(Workload):
         completed.
 
         Args:
-            start_pct (int, [0-100]): the initial load [%], (default 0[%])
-            end_pct   (int, [0-100]): the final load [%], (default 100[%])
+            start_pct (int, [0-100]): the initial load [%]
+                                      default: 0[%]
+            end_pct   (int, [0-100]): the final load [%]
+                                      default: 100[%]
                       NOTE: must be lower than start_pct value
-            time_s    (float): the duration in [s] of the start and end load, (default 1.0[s])
-                      NOTE: if end_pct is 0, the task end after the start_pct period completed
-            period_ms (float): the pediod used to define the load in [ms], (default 100.0[ms])
-            delay_s   (float): the delay in [s] before ramp start, (deafault 0[s])
-            loops     (int): number of time to repeat the ramp, with the specified delay in between (deafault 0)
-            sched     (dict): the scheduler configuration for this task
-            cpus      (list): the list of CPUs on which task can run
+            time_s    (float): the duration in [s] of the start and end load
+                               default: 1.0[s]
+                               NOTE: if end_pct is 0, the task end after the
+                               start_pct period completed
+            period_ms (float): the pediod used to define the load in [ms]
+                               default: 100.0[ms]
+            delay_s   (float): the delay in [s] before ramp start
+                               deafault: 0[s]
+            loops     (int):   number of time to repeat the ramp, with the
+                               specified delay in between
+                               deafault: 0
+            sched     (dict):  the scheduler configuration for this task
+            cpus      (list):  the list of CPUs on which task can run
         """
 
         if end_pct >= start_pct:
@@ -505,15 +528,20 @@ class RTA(Workload):
         load is generated as a sequence of pulse loads.
 
         Args:
-            cuty_cycle_pct  (int, [0-100]): the pulses load [%], (default 50[%])
-            duration_s      (float): the duration in [s] of the entire workload, (default 1.0[s])
-            period_ms       (float): the pediod used to define the load in [ms], (default 100.0[ms])
-            delay_s         (float): the delay in [s] before ramp start, (deafault 0[s])
-            sched     (dict): the scheduler configuration for this task
+            cuty_cycle_pct  (int, [0-100]): the pulses load [%]
+                                            default: 50[%]
+            duration_s  (float): the duration in [s] of the entire workload
+                                 default: 1.0[s]
+            period_ms   (float): the pediod used to define the load in [ms]
+                                 default: 100.0[ms]
+            delay_s     (float): the delay in [s] before ramp start
+                                 deafault: 0[s]
+            sched       (dict):  the scheduler configuration for this task
 
         """
 
-        return RTA.pulse(duty_cycle_pct, 0, duration_s, period_ms, delay_s, 1, sched, cpus)
+        return RTA.pulse(duty_cycle_pct, 0, duration_s,
+                period_ms, delay_s, 1, sched, cpus)
 
     def conf(self,
              kind,
