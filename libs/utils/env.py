@@ -76,10 +76,13 @@ class TestEnv(ShareState):
 
         # Setup target configuration
         if isinstance(target_conf, dict):
+            logging.info('%14s - Loading custom (inline) target configuration')
             self.conf = target_conf
         elif isinstance(target_conf, str):
+            logging.info('%14s - Loading custom (file) target configuration')
             self.conf = TestEnv.loadTargetConfig(target_conf)
         elif target_conf is None:
+            logging.info('%14s - Loading default (file) target configuration')
             self.conf = TestEnv.loadTargetConfig()
         else:
             raise ValueError('target_conf must be either a dictionary or a filepath')
@@ -164,7 +167,8 @@ class TestEnv(ShareState):
         logging.info('%14s - Loading target configuration [%s]...',
                 'Target', conf_file)
         conf = JsonConf(conf_file)
-        return conf.load()
+        conf.load()
+        return conf.json
 
     def _init(self, force = False):
 
