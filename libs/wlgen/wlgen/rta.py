@@ -551,8 +551,8 @@ class RTA(Workload):
              cpus=None,
              sched=None,
              run_dir=None,
-             loadref='big',
-             exc_id=0):
+             exc_id=0,
+             loadref='big'):
         """
         Configure a workload of a specified kind.
 
