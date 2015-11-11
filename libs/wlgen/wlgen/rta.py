@@ -241,7 +241,10 @@ class RTA(Workload):
             # Initialize task configuration
             task_conf = {}
 
-            policy = task['sched']['policy'].upper()
+            if 'sched' not in task:
+                policy = 'DEFAULT'
+            else:
+                policy = task['sched']['policy'].upper()
             if policy == 'DEFAULT':
                 task_conf['policy'] = global_conf['default_policy']
                 sched_descr = 'sched: using default policy'
