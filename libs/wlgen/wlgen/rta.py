@@ -361,18 +361,18 @@ class RTA(Workload):
         Configure a ramp load.
 
         This class defines a task which load is a ramp with a configured number
-        of steps according to the input paramters.
+        of steps according to the input parameters.
 
         Args:
             start_pct (int, [0-100]): the initial load [%], (default 0[%])
             end_pct   (int, [0-100]): the final load [%], (default 100[%])
             delta_pct (int, [0-100]): the load increase/decrease [%],
                                       default: 10[%]
-                                      increaase if start_prc < end_prc
+                                      increase if start_prc < end_prc
                                       decrease  if start_prc > end_prc
             time_s    (float): the duration in [s] of each load step
                                default: 1.0[s]
-            period_ms (float): the pediod used to define the load in [ms]
+            period_ms (float): the period used to define the load in [ms]
                                default: 100.0[ms]
             delay_s   (float): the delay in [s] before ramp start
                                default: 0[s]
@@ -433,13 +433,13 @@ class RTA(Workload):
                                       default 100[%]
             time_s    (float): the duration in [s] of the start and end load
                                default: 1.0[s]
-            period_ms (float): the pediod used to define the load in [ms]
+            period_ms (float): the period used to define the load in [ms]
                                default 100.0[ms]
             delay_s   (float): the delay in [s] before ramp start
-                               deafault 0[s]
+                               default 0[s]
             loops     (int):   number of time to repeat the ramp, with the
                                specified delay in between
-                               deafault: 0
+                               default: 0
             sched     (dict): the scheduler configuration for this task
             cpus      (list): the list of CPUs on which task can run
         """
@@ -473,13 +473,13 @@ class RTA(Workload):
                                default: 1.0[s]
                                NOTE: if end_pct is 0, the task end after the
                                start_pct period completed
-            period_ms (float): the pediod used to define the load in [ms]
+            period_ms (float): the period used to define the load in [ms]
                                default: 100.0[ms]
             delay_s   (float): the delay in [s] before ramp start
-                               deafault: 0[s]
+                               default: 0[s]
             loops     (int):   number of time to repeat the ramp, with the
                                specified delay in between
-                               deafault: 0
+                               default: 0
             sched     (dict):  the scheduler configuration for this task
             cpus      (list):  the list of CPUs on which task can run
         """
@@ -532,10 +532,10 @@ class RTA(Workload):
                                             default: 50[%]
             duration_s  (float): the duration in [s] of the entire workload
                                  default: 1.0[s]
-            period_ms   (float): the pediod used to define the load in [ms]
+            period_ms   (float): the period used to define the load in [ms]
                                  default: 100.0[ms]
             delay_s     (float): the delay in [s] before ramp start
-                                 deafault: 0[s]
+                                 default: 0[s]
             sched       (dict):  the scheduler configuration for this task
 
         """
@@ -580,7 +580,7 @@ class RTA(Workload):
 
           NAME   : string, the task name (max 16 chars)
           SCLASS : string, the scheduling class (OTHER, FIFO, RR)
-          PRIO   : int, the pririty of the task
+          PRIO   : int, the priority of the task
           PTIME  : float, length of the current phase in [s]
           PERIOD : float, task activation interval in [ms]
           DCYCLE : int, task running interval in [0..100]% within each period
