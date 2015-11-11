@@ -505,8 +505,6 @@ class RTA(Workload):
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
 
-        step_pct = start_pct - end_pct
-
         phases = []
         for load in [start_pct, end_pct]:
             if load == 0:
