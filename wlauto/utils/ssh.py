@@ -62,15 +62,20 @@ class TelnetConnection(pxssh.pxssh):
         cmd = 'telnet -l {} {} {}'.format(username, server, port)
 
         spawn._spawn(self, cmd)  # pylint: disable=protected-access
-        i = self.expect('(?i)(?:password)', timeout=login_timeout)
-        if i == 0:
-            self.sendline(password)
-            i = self.expect([original_prompt, 'Login incorrect'], timeout=login_timeout)
-        else:
-            raise pxssh.ExceptionPxssh('could not log in: did not see a password prompt')
-
-        if i:
-            raise pxssh.ExceptionPxssh('could not log in: password was incorrect')
+        try:
+            i = self.expect('(?i)(?:password)', timeout=login_timeout)
+            if i == 0:
+                self.sendline(password)
+                i = self.expect([original_prompt, 'Login incorrect'], timeout=login_timeout)
+            if i:
+                raise pxssh.ExceptionPxssh('could not log in: password was incorrect')
+        except TIMEOUT:
+            if not password:
+                # There was no password prompt before TIMEOUT, and we didn't
+                # have a password to enter. Assume everything is OK.
+                pass
+            else:
+                raise pxssh.ExceptionPxssh('could not log in: did not see a password prompt')
 
         if not self.sync_original_prompt(sync_multiplier):
             self.close()
