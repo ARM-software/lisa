@@ -6,6 +6,7 @@ import os
 import re
 
 from wlgen import Workload
+from devlib.utils.misc import ranges_to_list
 
 class RTA(Workload):
 
@@ -259,6 +260,11 @@ class RTA(Workload):
             task_conf['loop'] = task['loops']
             logging.info(' | loops count: {0:d}'.format(task['loops']))
 
+            # Setup task affinity
+            if 'cpus' in task and task['cpus']:
+                task_conf['cpus'] = ranges_to_list(task['cpus'])
+                logging.info(' | CPUs affinity: %s', task['cpus'])
+
             # Setup task configuration
             self.rta_profile['tasks'][tid] = task_conf
 
@@ -334,7 +340,7 @@ class RTA(Workload):
 
     @staticmethod
     def ramp(start_pct=0, end_pct=100, delta_pct=10, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}):
+            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}, cpus=None):
         """
         Configure a ramp load.
 
@@ -352,9 +358,11 @@ class RTA(Workload):
             delay_s   (float): the delay in [s] before ramp start, (deafault 0[s])
             loops     (int): number of time to repeat the ramp, with the specified delay in between (deafault 0)
             sched     (dict): the scheduler configuration for this task
+            cpus      (list): the list of CPUs on which task can run
         """
         task = {}
 
+        task['cpus'] = cpus
         task['sched'] = sched
         task['delay'] = delay_s
         task['loops'] = loops
@@ -387,7 +395,7 @@ class RTA(Workload):
 
     @staticmethod
     def step(start_pct=0, end_pct=100, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}):
+            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}, cpus=None):
         """
         Configure a step load.
 
@@ -402,14 +410,14 @@ class RTA(Workload):
             delay_s   (float): the delay in [s] before ramp start, (deafault 0[s])
             loops     (int): number of time to repeat the ramp, with the specified delay in between (deafault 0)
             sched     (dict): the scheduler configuration for this task
-
+            cpus      (list): the list of CPUs on which task can run
         """
         delta_pct = abs(end_pct - start_pct)
-        return RTA.ramp(start_pct, end_pct, delta_pct, time_s, period_ms, delay_s, loops, sched)
+        return RTA.ramp(start_pct, end_pct, delta_pct, time_s, period_ms, delay_s, loops, sched, cpus)
 
     @staticmethod
     def pulse(start_pct=100, end_pct=0, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}):
+            delay_s=0, loops=1, sched={'policy' : 'DEFAULT'}, cpus=None):
         """
         Configure a pulse load.
 
@@ -433,7 +441,7 @@ class RTA(Workload):
             delay_s   (float): the delay in [s] before ramp start, (deafault 0[s])
             loops     (int): number of time to repeat the ramp, with the specified delay in between (deafault 0)
             sched     (dict): the scheduler configuration for this task
-
+            cpus      (list): the list of CPUs on which task can run
         """
 
         if end_pct >= start_pct:
@@ -441,6 +449,7 @@ class RTA(Workload):
 
         task = {}
 
+        task['cpus'] = cpus
         task['sched'] = sched
         task['delay'] = delay_s
         task['loops'] = loops
@@ -466,7 +475,7 @@ class RTA(Workload):
 
     @staticmethod
     def periodic(duty_cycle_pct=50, duration_s=1, period_ms=100,
-            delay_s=0, sched={'policy' : 'DEFAULT'}):
+            delay_s=0, sched={'policy' : 'DEFAULT'}, cpus=None):
         """
         Configure a periodic load.
 
@@ -485,7 +494,7 @@ class RTA(Workload):
 
         """
 
-        return RTA.pulse(duty_cycle_pct, 0, duration_s, period_ms, delay_s, 1, sched)
+        return RTA.pulse(duty_cycle_pct, 0, duration_s, period_ms, delay_s, 1, sched, cpus)
 
     def conf(self,
              kind,
