@@ -1,7 +1,30 @@
-import report
-import perf_analysis
-import trace_analysis
-import energy
-import conf
-import env
 
+#    Copyright 2015-2015 ARM Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+"""Initialization for utils module"""
+
+from env import TestEnv
+
+from energy import EnergyMeter
+from conf import JsonConf
+
+from trace import Trace
+from trace_analsys import TraceAnalysis
+from perf_analysis import PerfAnalysis
+
+from filters import Filters
+
+from report import Report
