@@ -24,7 +24,7 @@ import re
 
 from wlauto import settings, Instrument, Parameter, ResourceGetter, GetterPriority, File
 from wlauto.exceptions import InstrumentError, DeviceError, ResourceError
-from wlauto.utils.misc import ensure_file_directory_exists as _f
+from wlauto.utils.misc import ensure_file_directory_exists as _f, which
 from wlauto.utils.types import boolean
 from wlauto.utils.log import StreamLogger, LogWriter, LineLogWriter
 
@@ -39,12 +39,12 @@ SESSION_TEXT_TEMPLATE = ('<?xml version="1.0" encoding="US-ASCII" ?>'
                          '    buffer_mode="streaming"'
                          '    sample_rate="none"'
                          '    duration="0"'
-                         '    target_host="127.0.0.1"'
+                         '    target_host="{}"'
                          '    target_port="{}"'
                          '    energy_cmd_line="{}">'
                          '</session>')
 
-VERSION_REGEX = re.compile(r'\(DS-5 v(.*?)\)')
+VERSION_REGEX = re.compile(r'Streamline (.*?) ')
 
 
 class StreamlineResourceGetter(ResourceGetter):
@@ -104,23 +104,7 @@ class StreamlineInstrument(Instrument):
     configuration.xml for the gator. The easiest way to obtain this file is to export it
     from event configuration dialog in DS-5 streamline GUI. The file should be called
     "configuration.xml" and it be placed in the same directory as the gator binaries.
-
-    With that done, you can enable streamline traces by adding the following entry to
-    instrumentation list in your ~/.workload_automation/config.py
-
-    ::
-
-        instrumentation = [
-            # ...
-            'streamline',
-            # ...
-        ]
-
-    You can also specify the following (optional) configuration in the same config file:
-
     """
-    supported_platforms = ['android']
-
     parameters = [
         Parameter('port', default='8080',
                   description='Specifies the port on which streamline will connect to gator'),
@@ -130,7 +114,7 @@ class StreamlineInstrument(Instrument):
         Parameter('report', kind=boolean, default=False, global_alias='streamline_report_csv',
                   description='Specifies whether a report should be generated from streamline data.'),
         Parameter('report_options', kind=str, default='-format csv',
-                  description='A string with options that will be added to stramline -report command.'),
+                  description='A string with options that will be added to streamline -report command.'),
     ]
 
     daemon = 'gatord'
@@ -147,7 +131,6 @@ class StreamlineInstrument(Instrument):
         self.configuration_file = None
         self.on_device_config = None
         self.daemon_process = None
-        self.enabled = False
         self.resource_getter = None
 
         self.host_daemon_file = None
@@ -156,26 +139,22 @@ class StreamlineInstrument(Instrument):
 
         self._check_has_valid_display()
 
-    def on_run_start(self, context):
-        if subprocess.call('which caiman', stdout=subprocess.PIPE, shell=True):
-            raise InstrumentError('caiman not in PATH. Cannot enable Streamline tracing.')
-        p = subprocess.Popen('caiman --version 2>&1', stdout=subprocess.PIPE, shell=True)
+    def validate(self):
+        if not which('streamline'):
+            raise InstrumentError('streamline not in PATH. Cannot enable Streamline tracing.')
+        p = subprocess.Popen('streamline --version 2>&1', stdout=subprocess.PIPE, shell=True)
         out, _ = p.communicate()
         match = VERSION_REGEX.search(out)
         if not match:
-            raise InstrumentError('caiman not in PATH. Cannot enable Streamline tracing.')
+            raise InstrumentError('Could not find streamline version.')
         version_tuple = tuple(map(int, match.group(1).split('.')))
         if version_tuple < (5, 17):
             raise InstrumentError('Need DS-5 v5.17 or greater; found v{}'.format(match.group(1)))
-        self.enabled = True
+
+    def initialize(self, context):
         self.resource_getter = _instantiate(context.resolver)
         self.resource_getter.register()
 
-    def on_run_end(self, context):
-        self.enabled = False
-        self.resource_getter.unregister()
-
-    def on_run_init(self, context):
         try:
             self.host_daemon_file = context.resolver.get(File(self, self.daemon))
             self.logger.debug('Using daemon from {}.'.format(self.host_daemon_file))
@@ -203,45 +182,44 @@ class StreamlineInstrument(Instrument):
         caiman_path = subprocess.check_output('which caiman', shell=True).strip()  # pylint: disable=E1103
         self.session_file = os.path.join(context.host_working_directory, 'streamline_session.xml')
         with open(self.session_file, 'w') as wfh:
-            wfh.write(SESSION_TEXT_TEMPLATE.format(self.port, caiman_path))
+            if self.device.platform == "android":
+                wfh.write(SESSION_TEXT_TEMPLATE.format('127.0.0.1', self.port, caiman_path))
+            else:
+                wfh.write(SESSION_TEXT_TEMPLATE.format(self.device.host, self.port, caiman_path))
 
-    def setup(self, context):
-        # Note: the config file needs to be copies on each iteration's setup
-        # because gator appears to "consume" it on invocation...
         if self.configuration_file:
             self.device.push_file(self.configuration_file, self.on_device_config)
         self._initialize_daemon()
+
+    def setup(self, context):
         self.capture_file = _f(os.path.join(context.output_directory, 'streamline', 'capture.apc'))
         self.report_file = _f(os.path.join(context.output_directory, 'streamline', 'streamline.csv'))
 
     def start(self, context):
-        if self.enabled:
-            command = ['streamline', '-capture', self.session_file, '-output', self.capture_file]
-            self.streamline = subprocess.Popen(command,
-                                               stdout=subprocess.PIPE,
-                                               stderr=subprocess.PIPE,
-                                               stdin=subprocess.PIPE,
-                                               preexec_fn=os.setpgrp)
-            outlogger = StreamLogger('streamline', self.streamline.stdout, klass=LineLogWriter)
-            errlogger = StreamLogger('streamline', self.streamline.stderr, klass=LineLogWriter)
-            outlogger.start()
-            errlogger.start()
+        command = ['streamline', '-capture', self.session_file, '-output', self.capture_file]
+        self.streamline = subprocess.Popen(command,
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE,
+                                           stdin=subprocess.PIPE,
+                                           preexec_fn=os.setpgrp)
+        outlogger = StreamLogger('streamline', self.streamline.stdout, klass=LineLogWriter)
+        errlogger = StreamLogger('streamline', self.streamline.stderr, klass=LineLogWriter)
+        outlogger.start()
+        errlogger.start()
 
     def stop(self, context):
-        if self.enabled:
-            os.killpg(self.streamline.pid, signal.SIGTERM)
+        os.killpg(self.streamline.pid, signal.SIGTERM)
 
     def update_result(self, context):
-        if self.enabled:
-            self._kill_daemon()
-            if self.report:
-                self.logger.debug('Creating report...')
-                command = ['streamline', '-report', self.capture_file, '-output', self.report_file]
-                command += self.report_options.split()
-                _run_streamline_command(command)
-                context.add_artifact('streamlinecsv', self.report_file, 'data')
+        if self.report:
+            self.logger.debug('Creating report...')
+            command = ['streamline', '-report', self.capture_file, '-output', self.report_file]
+            command += self.report_options.split()
+            _run_streamline_command(command)
+            context.add_artifact('streamlinecsv', self.report_file, 'data')
 
     def teardown(self, context):
+        self._kill_daemon()
         self.device.delete_file(self.on_device_config)
 
     def _check_has_valid_display(self):  # pylint: disable=R0201
@@ -265,8 +243,9 @@ class StreamlineInstrument(Instrument):
                     raise
                 self.logger.debug('Driver was already installed.')
         self._start_daemon()
-        port_spec = 'tcp:{}'.format(self.port)
-        self.device.forward_port(port_spec, port_spec)
+        if self.device.platform == "android":
+            port_spec = 'tcp:{}'.format(self.port)
+            self.device.forward_port(port_spec, port_spec)
 
     def _start_daemon(self):
         self.logger.debug('Starting gatord')
@@ -274,7 +253,6 @@ class StreamlineInstrument(Instrument):
         if self.configuration_file:
             command = '{} -c {}'.format(self.daemon, self.on_device_config)
         else:
-
             command = '{}'.format(self.daemon)
 
         self.daemon_process = self.device.execute(command, as_root=True, background=True)
@@ -299,4 +277,3 @@ def _run_streamline_command(command):
     output, error = streamline.communicate()
     LogWriter('streamline').write(output).close()
     LogWriter('streamline').write(error).close()
-
