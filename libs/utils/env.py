@@ -352,8 +352,8 @@ class TestEnv(ShareState):
             'Platform', self.platform)
         # self.platform_dump('./')
 
-    def platform_dump(self, dest_dir):
-        plt_file = os.path.join(dest_dir, 'platform.json')
+    def platform_dump(self, dest_dir, dest_file='platform.json'):
+        plt_file = os.path.join(dest_dir, dest_file)
         logging.debug('%14s - Dump platform descriptor in [%s]',
             'Platform', plt_file)
         with open(plt_file, 'w') as ofile:
