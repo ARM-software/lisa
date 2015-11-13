@@ -470,11 +470,15 @@ class TestEnv(ShareState):
 
     def install_kernel(self, tc, reboot=False):
 
+        # Default initialize the kernel/dtb settings
+        tc.setdefault('kernel', None)
+        tc.setdefault('dtb', None)
+
         if self.kernel == tc['kernel'] and self.dtb == tc['dtb']:
             return
 
         logging.info('%14s - Install kernel [%s] on target...',
-                'KernelSetup', tc)
+                'KernelSetup', tc['kernel'])
 
         # Install kernel/dtb via FTFP
         if self._feature('no-kernel'):
@@ -492,8 +496,9 @@ class TestEnv(ShareState):
 
             # Deploy DTB in TFTP folder (if provided)
             if 'dtb' not in tc:
-                logging.warn('%14s - DTB not provided for current conf: %s',
-                        'KernelSetup', tc)
+                logging.debug('%14s - DTB not provided, using exising one',
+                        'KernelSetup')
+                logging.debug('%14s - Current conf:\n%s', 'KernelSetup', tc)
                 logging.warn('%14s - Using pre-installed DTB', 'KernelSetup')
             else:
                 self.tftp_deploy(tc['dtb'])
