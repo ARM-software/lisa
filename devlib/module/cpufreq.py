@@ -326,3 +326,40 @@ class CpufreqModule(Module):
             self.target.write_value(sysfile, value)
         except ValueError:
             raise ValueError('Frequency must be an integer; got: "{}"'.format(frequency))
+
+    def set_governor_for_cpus(self, cpus, governor, **kwargs):
+        """
+        Set the governor for the specified list of CPUs.
+        See https://www.kernel.org/doc/Documentation/cpu-freq/governors.txt
+
+        :param cpus: The list of CPU for which the governor is to be set.
+        """
+        online_cpus = self.target.list_online_cpus()
+        for cpu in online_cpus:
+            self.set_governor(cpu, governor, kwargs)
+
+    def set_frequency_for_cpus(self, cpus, freq, exact=False):
+        """
+        Set the frequency for the specified list of CPUs.
+        See https://www.kernel.org/doc/Documentation/cpu-freq/governors.txt
+
+        :param cpus: The list of CPU for which the frequency has to be set.
+        """
+        online_cpus = self.target.list_online_cpus()
+        for cpu in online_cpus:
+            self.set_frequency(cpu, freq, exact)
+
+    def set_all_frequencies(self, freq, exact=False):
+        self.target.execute(
+                "for CPU in /sys/devices/system/cpu/cpu[0-9]*; do "\
+                        "echo {} > $CPU/cpufreq/scaling_cur_freq; "\
+                "done"\
+                .format(freq), as_root=True)
+
+    def set_all_governors(self, governor):
+        self.target.execute(
+                "for CPU in /sys/devices/system/cpu/cpu[0-9]*; do "\
+                        "echo {} > $CPU/cpufreq/scaling_governor; "\
+                "done"\
+                .format(governor), as_root=True)
+
