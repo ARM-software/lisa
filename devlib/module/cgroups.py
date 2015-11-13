@@ -22,9 +22,7 @@ from devlib.utils.misc import list_to_ranges, isiterable
 from devlib.utils.types import boolean
 
 
-class CgroupController(object):
-
-    kind = 'cpuset'
+class Controller(object):
 
     def __new__(cls, arg):
         if isinstance(arg, cls):
@@ -32,98 +30,90 @@ class CgroupController(object):
         else:
             return object.__new__(cls, arg)
 
-    def __init__(self, mount_name):
+    def __init__(self, kind):
+        self.mount_name = 'devlib_'+kind
+        self.kind = kind
+        self.target = None
+
+        self.logger = logging.getLogger('cgroups.'+self.kind)
         self.mount_point = None
-        self.mount_name = mount_name
-        self.logger = logging.getLogger(self.kind)
+        self._cgroups = {}
 
     def probe(self, target):
-        raise NotImplementedError()
+        try:
+            exists = target.execute('{} grep {} /proc/cgroups'\
+                    .format(target.busybox, self.kind))
+        except TargetError:
+            return False
+        return True
 
-    def mount(self, device, mount_root):
-        self.target = device
-        self.mount_point = device.path.join(mount_root, self.mount_name)
-        mounted = self.target.list_file_systems()
-        if self.mount_point in [e.mount_point for e in mounted]:
-            self.logger.debug('controller is already mounted.')
+    def mount(self, target, mount_root):
+
+        mounted = target.list_file_systems()
+        if self.mount_name in [e.device for e in mounted]:
+            # Identify mount point if controller is already in use
+            self.mount_point = [
+                    fs.mount_point
+                    for fs in mounted
+                    if fs.device == self.mount_name
+                ][0]
         else:
-            self.target.execute('mkdir -p {} 2>/dev/null'.format(self.mount_point),
-                                as_root=True)
-            self.target.execute('mount -t cgroup -o {} {} {}'.format(self.kind,
-                                                                     self.mount_name,
-                                                                     self.mount_point),
-                                as_root=True)
+            # Mount the controller if not already in use
+            self.mount_point = target.path.join(mount_root, self.mount_name)
+            target.execute('mkdir -p {} 2>/dev/null'\
+                    .format(self.mount_point), as_root=True)
+            target.execute('mount -t cgroup -o {} {} {}'\
+                    .format(self.kind,
+                            self.mount_name,
+                            self.mount_point),
+                            as_root=True)
 
+        self.logger.info('Controller %s mounted under: %s',
+            self.kind, self.mount_point)
 
-class CpusetGroup(object):
+        # Mark this contoller as available
+        self.target = target
 
-    def __init__(self, controller, name, cpus, mems):
-        self.controller = controller
-        self.target = controller.target
-        self.name = name
-        if name == 'root':
-            self.directory = controller.mount_point
-        else:
-            self.directory = self.target.path.join(controller.mount_point, name)
-            self.target.execute('mkdir -p {}'.format(self.directory), as_root=True)
-        self.cpus_file = self.target.path.join(self.directory, 'cpuset.cpus')
-        self.mems_file = self.target.path.join(self.directory, 'cpuset.mems')
-        self.tasks_file = self.target.path.join(self.directory, 'tasks')
-        self.set(cpus, mems)
+        # Create root control group
+        self.cgroup('/')
 
-    def set(self, cpus, mems):
-        if isiterable(cpus):
-            cpus = list_to_ranges(cpus)
-        if isiterable(mems):
-            mems = list_to_ranges(mems)
-        self.target.write_value(self.cpus_file, cpus)
-        self.target.write_value(self.mems_file, mems)
+    def cgroup(self, name):
+        if not self.target:
+            raise RuntimeError('CGroup creation failed: {} controller not mounted'\
+                    .format(self.kind))
+        if name not in self._cgroups:
+            self._cgroups[name] = CGroup(self, name)
+        return self._cgroups[name]
 
-    def get(self):
-        cpus = self.target.read_value(self.cpus_file)
-        mems = self.target.read_value(self.mems_file)
-        return (cpus, mems)
+    def exists(self, name):
+        if not self.target:
+            raise RuntimeError('CGroup creation failed: {} controller not mounted'\
+                    .format(self.kind))
+        if name not in self._cgroups:
+            self._cgroups[name] = CGroup(self, name, create=False)
+        return self._cgroups[name].existe()
 
-    def get_tasks(self):
-        task_ids = self.target.read_value(self.tasks_file).split()
-        return map(int, task_ids)
-
-    def add_tasks(self, tasks):
-        for tid in tasks:
-            self.add_task(tid)
-
-    def add_task(self, tid):
-        self.target.write_value(self.tasks_file, tid, verify=False)
-
-
-class CpusetController(CgroupController):
-
-    name = 'cpuset'
-
-    def __init__(self, *args, **kwargs):
-        super(CpusetController, self).__init__(*args, **kwargs)
-        self.groups = {}
-
-    def probe(self, target):
-        return target.config.is_enabled('cpusets')
-
-    def mount(self, device, mount_root):
-        super(CpusetController, self).mount(device, mount_root)
-        self.create_group('root', self.target.list_online_cpus(), 0)
-
-    def create_group(self, name, cpus, mems):
-        if not hasattr(self, 'target'):
-            raise RuntimeError('Attempting to create group for unmounted controller {}'.format(self.kind))
-        if name in self.groups:
-            raise ValueError('Group {} already exists'.format(name))
-        self.groups[name] = CpusetGroup(self, name, cpus, mems)
+    def list_all(self):
+        self.logger.debug('Listing groups for %s controller', self.kind)
+        output = self.target.execute('{} find {} -type d'\
+                .format(self.target.busybox, self.mount_point))
+        cgroups = []
+        for cg in output.split('\n'):
+            cg = cg.replace(self.mount_point + '/', '/')
+            cg = cg.replace(self.mount_point, '/')
+            cg = cg.strip()
+            if cg == '':
+                continue
+            self.logger.debug('Populate %s cgroup: %s', self.kind, cg)
+            cgroups.append(cg)
+        return cgroups
 
     def move_tasks(self, source, dest):
         try:
-            source_group = self.groups[source]
-            dest_group = self.groups[dest]
+            srcg = self._cgroups[source]
+            dstg = self._cgroups[dest]
             command = 'for task in $(cat {}); do echo $task>{}; done'
-            self.target.execute(command.format(source_group.tasks_file, dest_group.tasks_file),
+            self.target.execute(command.format(srcg.tasks_file, dstg.tasks_file),
                                 # this will always fail as some of the tasks
                                 # are kthreads that cannot be migrated, but we
                                 # don't care about those, so don't check exit
@@ -132,61 +122,146 @@ class CpusetController(CgroupController):
         except KeyError as e:
             raise ValueError('Unkown group: {}'.format(e))
 
-    def move_all_tasks_to(self, target_group):
-        for group in self.groups:
-            if group != target_group:
-                self.move_tasks(group, target_group)
+    def move_all_tasks_to(self, dest):
+        for cgroup in self._cgroups:
+            if cgroup != dest:
+                self.move_tasks(cgroup, dest)
 
-    def __getattr__(self, name):
+class CGroup(object):
+
+    def __init__(self, controller, name, create=True):
+        self.logger = logging.getLogger('cgroups.' + controller.kind)
+        self.target = controller.target
+        self.controller = controller
+        self.name = name
+
+        # Control cgroup path
+        self.directory = controller.mount_point
+        if name != '/':
+            self.directory = self.target.path.join(controller.mount_point, name[1:])
+
+        # Setup path for tasks file
+        self.tasks_file = self.target.path.join(self.directory, 'tasks')
+        self.procs_file = self.target.path.join(self.directory, 'cgroup.procs')
+
+        if not create:
+            return
+
+        self.logger.info('Creating cgroup %s', self.directory)
+        self.target.execute('[ -d {0} ] || mkdir -p {0}'\
+                .format(self.directory), as_root=True)
+
+    def exists(self):
         try:
-            return self.groups[name]
-        except KeyError:
-            raise AttributeError(name)
+            self.target.execute('[ -d {0} ]'\
+                .format(self.directory))
+            return True
+        except TargetError:
+            return False
 
+    def get(self):
+        conf = {}
 
+        logging.debug('Reading %s attributes from:',
+                self.controller.kind)
+        logging.debug('  %s',
+                self.directory)
+        output = self.target.execute('{} grep \'\' {}/{}.*'.format(
+                    self.target.busybox,
+                    self.directory,
+                    self.controller.kind))
+        for res in output.split('\n'):
+            if res.find(self.controller.kind) < 0:
+                continue
+            res = res.split('.')[1]
+            attr = res.split(':')[0]
+            value = res.split(':')[1]
+            conf[attr] = value
+
+        return conf
+
+    def set(self, **attrs):
+        for idx in attrs:
+            if isiterable(attrs[idx]):
+                attrs[idx] = list_to_ranges(attrs[idx])
+            # Build attribute path
+            path = '{}.{}'.format(self.controller.kind, idx)
+            path = self.target.path.join(self.directory, path)
+
+            self.logger.debug('Set attribute [%s] to: %s"',
+                    path, attrs[idx])
+
+            # Set the attribute value
+            self.target.write_value(path, attrs[idx])
+
+    def get_tasks(self):
+        task_ids = self.target.read_value(self.tasks_file).split()
+        logging.debug('Tasks: %s', task_ids)
+        return map(int, task_ids)
+
+    def add_task(self, tid):
+        self.target.write_value(self.tasks_file, tid, verify=False)
+
+    def add_tasks(self, tasks):
+        for tid in tasks:
+            self.add_task(tid)
+
+    def add_proc(self, pid):
+        self.target.write_value(self.procs_file, pid, verify=False)
 
 CgroupSubsystemEntry = namedtuple('CgroupSubsystemEntry', 'name hierarchy num_cgroups enabled')
-
 
 class CgroupsModule(Module):
 
     name = 'cgroups'
-    controller_cls = [
-        CpusetController,
-    ]
-
     cgroup_root = '/sys/fs/cgroup'
 
     @staticmethod
     def probe(target):
         return target.config.has('cgroups') and target.is_rooted
 
-
-
     def __init__(self, target):
         super(CgroupsModule, self).__init__(target)
+
+        self.logger = logging.getLogger('CGroups')
+
+        # Initialize controllers mount point
         mounted = self.target.list_file_systems()
         if self.cgroup_root not in [e.mount_point for e in mounted]:
-            self.target.execute('mount -t tmpfs {} {}'.format('cgroup_root', self.cgroup_root),
-                                as_root=True)
+            self.target.execute('mount -t tmpfs {} {}'\
+                    .format('cgroup_root',
+                            self.cgroup_root),
+                            as_root=True)
         else:
-            self.logger.debug('cgroup_root already mounted at {}'.format(self.cgroup_root))
-        self.controllers = []
-        for cls in self.controller_cls:
-            controller = cls('devlib_{}'.format(cls.name))
-            if controller.probe(self.target):
-                if controller.mount_name in [e.device for e in mounted]:
-                    self.logger.debug('controller {} is already mounted.'.format(controller.kind))
-                else:
-                    try:
-                        controller.mount(self.target, self.cgroup_root)
-                    except TargetError:
-                        message = 'cgroups {} controller is not supported by the target'
-                        raise TargetError(message.format(controller.kind))
+            self.logger.debug('cgroup_root already mounted at %s',
+                    self.cgroup_root)
+
+        # Load list of available controllers
+        controllers = []
+        subsys = self.list_subsystems()
+        for (n, h, c, e) in subsys:
+            controllers.append(n)
+        self.logger.info('Available controllers: %s', controllers)
+
+        # Initialize controllers
+        self.controllers = {}
+        for idx in controllers:
+            controller = Controller(idx)
+            self.logger.debug('Init %s controller...', controller.kind)
+            if not controller.probe(self.target):
+                continue
+            try:
+                controller.mount(self.target, self.cgroup_root)
+            except TargetError:
+                message = 'cgroups {} controller is not supported by the target'
+                raise TargetError(message.format(controller.kind))
+            self.logger.debug('Controller %s enabled', controller.kind)
+            self.controllers[idx] = controller
 
     def list_subsystems(self):
         subsystems = []
-        for line in self.target.execute('cat /proc/cgroups').split('\n')[1:]:
+        for line in self.target.execute('{} cat /proc/cgroups'\
+                .format(self.target.busybox)).split('\n')[1:]:
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
@@ -198,9 +273,9 @@ class CgroupsModule(Module):
         return subsystems
 
 
-    def get_cgroup_controller(self, kind):
-        for controller in self.controllers:
-            if controller.kind == kind:
-                return controller
-        raise ValueError(kind)
+    def controller(self, kind):
+        if kind not in self.controllers:
+            self.logger.warning('Controller %s not available', kind)
+            return None
+        return self.controllers[kind]
 
