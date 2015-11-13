@@ -127,7 +127,7 @@ class HWMon(EnergyMeter):
         logging.debug('RESET: %s', self.readings)
 
 
-    def report(self, out_dir):
+    def report(self, out_dir, out_file='energy.json'):
         if self._hwmon is None:
             return
         # Retrive energy consumption data
@@ -154,7 +154,7 @@ class HWMon(EnergyMeter):
                 logging.warning('%14s - No energy data for big cluster',
                         'EnergyMeter')
         # Dump data as JSON file
-        nrg_file = '{}/energy.json'.format(out_dir)
+        nrg_file = '{}/{}'.format(out_dir, out_file)
         with open(nrg_file, 'w') as ofile:
             json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
 
