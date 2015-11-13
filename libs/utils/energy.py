@@ -158,4 +158,6 @@ class HWMon(EnergyMeter):
         with open(nrg_file, 'w') as ofile:
             json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
 
+        return (clusters_nrg, nrg_file)
+
 # vim :set tabstop=4 shiftwidth=4 expandtab
