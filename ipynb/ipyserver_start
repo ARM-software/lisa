@@ -4,7 +4,7 @@ NETIF=${1:-eth0}
 
 # Get the IP Address of the local Ethernet interface
 IPADDR=$(ifconfig $NETIF 2>/dev/null  | \
-	awk '/inet addr:/ {print $2}' | \
+	awk '/inet / {print $2}' | \
 	sed 's/addr://')
 
 if [ "x$IPADDR" == "x" ]; then
