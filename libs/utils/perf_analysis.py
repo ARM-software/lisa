@@ -124,7 +124,7 @@ class PerfAnalysis(object):
             # Keep track of the loaded dataframe
             self.perf_data[task]['df'] = df
 
-    def plotPerf(self, task):
+    def plotPerf(self, task, title=None):
         """
         Plot the Latency/Slack and Performance data for the specified task
         """
@@ -133,8 +133,9 @@ class PerfAnalysis(object):
         gs.update(wspace=0.1, hspace=0.1);
         # Figure
         plt.figure(figsize=(16, 2*6));
-        plt.suptitle("Task Performances",
-                     y=.97, fontsize=16, horizontalalignment='center');
+        if title:
+            plt.suptitle(title, y=.97, fontsize=16,
+                    horizontalalignment='center');
         # Plot: Slack and Latency
         axes = plt.subplot(gs[0,0]);
         axes.set_title('Task [{0:s}] (start) Latency and (completion) Slack'\
