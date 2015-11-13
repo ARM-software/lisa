@@ -358,6 +358,7 @@ class TestEnv(ShareState):
             'Platform', plt_file)
         with open(plt_file, 'w') as ofile:
             json.dump(self.platform, ofile, sort_keys=True, indent=4)
+        return (self.platform, plt_file)
 
     def calibration(self, force=False):
 
