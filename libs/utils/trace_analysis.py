@@ -137,6 +137,8 @@ class TraceAnalysis(object):
         logging.info('big    cluster average frequency: %.3f GHz',
                 avg_bfreq/1e3)
 
+        return (avg_lfreq/1e3, avg_bfreq/1e3)
+
     def __addCapacityColum(self):
         df = self.trace.df('ccap')
         # Rename CPU and Capacity columns
