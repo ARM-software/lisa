@@ -181,7 +181,7 @@ class TraceAnalysis(object):
             axes.set_title('{0:s}CPU [{1:d}]'.format(label1, cpu));
             df1 = df['cload'][df['cload'].cpu == cpu]
             if (len(df1)):
-                df1[['utilization']].plot(ax=axes, drawstyle='steps-post', alpha=0.4);
+                df1[['util_avg']].plot(ax=axes, drawstyle='steps-post', alpha=0.4);
 
             # if self.trace.hasEvents('sched_boost_cpu'):
             #     df2 = df['cboost'][df['cboost'].cpu == cpu]
@@ -261,7 +261,7 @@ class TraceAnalysis(object):
             # Plot load and utilization
             axes = plt.subplot(gs[0,0]);
             axes.set_title('Task [{0:d}:{1:s}] Signals'.format(tid, task_name));
-            data = df[df.comm == task_name][['load', 'utilization']]
+            data = df[df.comm == task_name][['load_avg', 'util_avg']]
             data.plot(ax=axes, drawstyle='steps-post');
             # Plot boost utilization if available
             if self.trace.hasEvents('sched_boost_task'):
@@ -294,7 +294,7 @@ class TraceAnalysis(object):
             # Plot PELT signals
             axes = plt.subplot(gs[2,0]);
             axes.set_title('PELT Signals');
-            data = df[df.comm == task_name][['avg_period', 'runnable_avg_sum', 'running_avg_sum']]
+            data = df[df.comm == task_name][['load_sum', 'util_sum', 'period_contrib']]
             data.plot(ax=axes, drawstyle='steps-post');
             axes.set_xlim(self.x_min, self.x_max);
             axes.grid(True);

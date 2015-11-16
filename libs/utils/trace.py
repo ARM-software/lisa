@@ -269,13 +269,24 @@ class Trace(object):
 
     def __addClusterColum(self):
         df = self.df('tload')
+        if 'utilization' in df:
+            # Convert signals name from v5.0 to v5.1 format
+            df.rename(columns={'utilization':'util_avg'}, inplace=True)
+            df.rename(columns={'load':'load_avg'}, inplace=True)
+            df.rename(columns={'avg_period':'period_contrib'}, inplace=True)
+            df.rename(columns={'runnable_avg_sum':'load_sum'}, inplace=True)
+            df.rename(columns={'running_avg_sum':'util_sum'}, inplace=True)
         df['cluster'] = np.select(
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 ['LITTLE'], 'big')
 
     def __addCpuBoostColums(self):
         df = self.df('cboost')
-        df['boosted_usage'] = df['usage'] + df['margin']
+        if 'usage' in df:
+            # Convert signals name from to v5.1 format
+            df.rename(columns={'usage':'util'}, inplace=True)
+        df['boosted_util'] = df['util'] + df['margin']
+
 
     def __addBoostedColum(self):
         df = self.df('tboost')
