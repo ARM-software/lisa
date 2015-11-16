@@ -252,6 +252,12 @@ class TestRun(BaseTestThermal):
         self.assertEquals(run.thermal.data_frame.iloc[0]["temp"], 68989)
         self.assertEquals(run.thermal.data_frame.iloc[-1]["temp"], 69530)
 
+    def test_run_accepts_abs_window(self):
+        """Run class accepts an abs_window parameter"""
+        run = trappy.Run(abs_window=(1585, 1589.1))
+        self.assertEquals(run.thermal.data_frame.iloc[0]["temp"], 68989)
+        self.assertEquals(run.thermal.data_frame.iloc[-1]["temp"], 69530)
+
 
 @unittest.skipUnless(utils_tests.trace_cmd_installed(),
                      "trace-cmd not installed")

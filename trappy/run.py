@@ -71,11 +71,17 @@ class Run(object):
         the trace, set the second element to None.  If you want to use
         timestamps extracted from the trace file use "abs_window".
 
+    :param abs_window: a tuple indicating an absolute time window.
+        This parameter is similar to the "window" one but its values
+        represent timestamps that are not normalized, (i.e. the ones
+        you find in the trace file)
+
     :type path: str
     :type name: str
     :type normalize_time: bool
     :type scope: str
     :type window: tuple
+    :type abs_window: tuple
 
     This is a simple example:
     ::
@@ -92,7 +98,7 @@ class Run(object):
     dynamic_classes = {}
 
     def __init__(self, path=".", name="", normalize_time=True, scope="all",
-                 window=(0, None)):
+                 window=(0, None), abs_window=(0, None)):
         self.name = name
         self.trace_path, self.trace_path_raw = self.__process_path(path)
         self.class_definitions = self.dynamic_classes.copy()
@@ -112,8 +118,8 @@ class Run(object):
             setattr(self, attr, trace_class)
             self.trace_classes.append(trace_class)
 
-        self.__parse_trace_file(window)
-        self.__parse_trace_file(window, raw=True)
+        self.__parse_trace_file(window, abs_window)
+        self.__parse_trace_file(window, abs_window, raw=True)
         self.__finalize_objects()
 
         if normalize_time:
@@ -281,7 +287,8 @@ class Run(object):
             elif self.__populate_data_from_line(line, unique_words):
                 return
 
-    def __populate_data_from_line(self, line, unique_words, window=(0, None)):
+    def __populate_data_from_line(self, line, unique_words, window=(0, None),
+                                  abs_window=(0, None)):
         """Append to trace data from a txt trace line
 
         Returns true if the line contains valid trace data (that is,
@@ -306,10 +313,12 @@ class Run(object):
         if not self.basetime:
             self.basetime = timestamp
 
-        if timestamp < window[0] + self.basetime:
+        if (timestamp < window[0] + self.basetime) or \
+           (timestamp < abs_window[0]):
             return True
 
-        if window[1] and timestamp > window[1] + self.basetime:
+        if (window[1] and timestamp > window[1] + self.basetime) or \
+           (abs_window[1] and timestamp > abs_window[1]):
             raise StopIteration("Reached the end of the trace")
 
         try:
@@ -326,7 +335,7 @@ class Run(object):
                                                 data_str)
         return True
 
-    def __parse_trace_file(self, window, raw=False):
+    def __parse_trace_file(self, window, abs_window, raw=False):
         """parse the trace and create a pandas DataFrame"""
 
         # Memoize the unique words to speed up parsing the trace file
@@ -356,7 +365,8 @@ class Run(object):
 
             for line in fin:
                 try:
-                    self.__populate_data_from_line(line, unique_words, window)
+                    self.__populate_data_from_line(line, unique_words, window,
+                                                   abs_window)
                 except StopIteration:
                     pass
 
