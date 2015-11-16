@@ -345,7 +345,7 @@ class EAS_Tests(unittest.TestCase):
                 .format(wl_idx))
 
     @classmethod
-    def wload_rtapp(cls, wl_idx, wlspec, cpus, cgroup):
+    def wload_rtapp(cls, wl_idx, wlspec, cpus):
         conf = wlspec['conf']
         logging.debug(r'%14s - Configuring [%s] rt-app...',
                 'RTApp', conf['class'])
@@ -359,8 +359,7 @@ class EAS_Tests(unittest.TestCase):
             rtapp = wlgen.RTA(cls.env.target,
                         wl_idx, calibration = cls.env.calibration())
             rtapp.conf(kind='profile', params=params,
-                    cpus=cpus, cgroup=cgroup,
-                    run_dir=cls.env.run_dir)
+                    cpus=cpus, run_dir=cls.env.run_dir)
             return rtapp
 
         if conf['class'] == 'custom':
@@ -369,8 +368,7 @@ class EAS_Tests(unittest.TestCase):
             rtapp.conf(kind='custom',
                     params=conf['json'],
                     duration=conf['duration'],
-                    cpus=cpus, cgroup=cgroup,
-                    run_dir=cls.env.run_dir)
+                    cpus=cpus, run_dir=cls.env.run_dir)
             return rtapp
 
         raise ValueError('Configuration error - '
@@ -379,7 +377,7 @@ class EAS_Tests(unittest.TestCase):
                 .format(wl_idx))
 
     @classmethod
-    def wload_perf_bench(cls, wl_idx, wlspec, cpus, cgroup):
+    def wload_perf_bench(cls, wl_idx, wlspec, cpus):
         conf = wlspec['conf']
         logging.debug(r'%14s - Configuring perf_message...',
                 'PerfMessage')
@@ -402,18 +400,14 @@ class EAS_Tests(unittest.TestCase):
     @classmethod
     def wload_conf(cls, wl_idx, wlspec):
 
-        # CGROUP: setup execution on cgroup if required by configuration
-        # TODO: add cgroup specification support
-        cgroup = None
-
-        # CPUS: setup executioon on CPUs if required by configuration
+        # CPUS: setup execution on CPUs if required by configuration
         # TODO: add CPUs specification support
         cpus = None
 
         if wlspec['type'] == 'rt-app':
-            return cls.wload_rtapp(wl_idx, wlspec, cpus, cgroup)
+            return cls.wload_rtapp(wl_idx, wlspec, cpus)
         if wlspec['type'] == 'perf_bench':
-            return cls.wload_perf_bench(wl_idx, wlspec, cpus, cgroup)
+            return cls.wload_perf_bench(wl_idx, wlspec, cpus)
 
 
         raise ValueError('Configuration error - '
