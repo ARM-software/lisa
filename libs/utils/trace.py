@@ -253,9 +253,6 @@ class Trace(object):
 
     def __addCapacityColum(self):
         df = self.df('ccap')
-        # Rename CPU and Capacity columns
-        df.rename(columns={'cpu_id':'cpu'}, inplace=True)
-        df.rename(columns={'state':'cur_capacity'}, inplace=True)
         # Add column with LITTLE and big CPUs max capacities
         nrg_model = self.platform['nrg_model']
         max_lcap = nrg_model['little']['cpu']['cap_max']
