@@ -62,17 +62,6 @@ class Trace(object):
         self.trappy_cls['sched_wakeup_new'] = trappy.register_dynamic(
                 'SchedWakeupNew', 'sched_wakeup_new:', scope='sched', parse_raw=True);
 
-        # Additional (out-of-tree) custom events
-        self.trappy_cls['sched_load_avg_cpu'] = trappy.register_dynamic(
-                'SchedLoadAvgCpu', 'sched_load_avg_cpu', scope='sched');
-        self.trappy_cls['sched_load_avg_task'] = trappy.register_dynamic(
-                'SchedLoadAvgTask', 'sched_load_avg_task', scope='sched');
-
-        self.trappy_cls['sched_contrib_scale_f'] = trappy.register_dynamic(
-                'SchedContribScaleF', 'sched_contrib_scale_f')
-        self.trappy_cls['cpu_capacity'] = trappy.register_dynamic(
-                'CpuCapacity', 'cpu_capacity:', scope='sched')
-
         self.trappy_cls['sched_boost_cpu'] = trappy.register_dynamic(
                 'SchedBoostCpu', 'sched_boost_cpu:', scope='sched')
         self.trappy_cls['sched_boost_task'] = trappy.register_dynamic(
