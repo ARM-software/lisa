@@ -88,10 +88,21 @@ class CsvReportProcessor(ResultProcessor):
         if self.use_all_classifiers and self.extra_columns:
             raise ConfigError('extra_columns cannot be specified when use_all_classifiers is True')
 
+    def initialize(self, context):
+        self.results_so_far = []  # pylint: disable=attribute-defined-outside-init
+
+    def process_iteration_result(self, result, context):
+        self.results_so_far.append(result)
+        self._write_results(self.results_so_far, context)
+
     def process_run_result(self, result, context):
+        self._write_results(result.iteration_results, context)
+        context.add_artifact('run_result_csv', 'results.csv', 'export')
+
+    def _write_results(self, results, context):
         if self.use_all_classifiers:
             classifiers = set([])
-            for ir in result.iteration_results:
+            for ir in results:
                 for metric in ir.metrics:
                     classifiers.update(metric.classifiers.keys())
             extra_columns = list(classifiers)
@@ -105,13 +116,12 @@ class CsvReportProcessor(ResultProcessor):
             writer = csv.writer(wfh)
             writer.writerow(['id', 'workload', 'iteration', 'metric', ] +
                             extra_columns + ['value', 'units'])
-            for ir in result.iteration_results:
+            for ir in results:
                 for metric in ir.metrics:
                     row = ([ir.id, ir.spec.label, ir.iteration, metric.name] +
                            [str(metric.classifiers.get(c) or '') for c in extra_columns] +
                            [str(metric.value), metric.units or ''])
                     writer.writerow(row)
-        context.add_artifact('run_result_csv', 'results.csv', 'export')
 
 
 class JsonReportProcessor(ResultProcessor):
