@@ -84,10 +84,29 @@ SchedContribScaleFactor = register_dynamic("SchedContribScaleFactor",
                                            "sched")
 """Event to register tracing of contrib factor"""
 
-SchedCpuCapacity = register_dynamic("SchedCpuCapacity",
-                                    "sched_cpu_capacity:",
-                                    "sched")
-"""Event to register tracing of CPU capacities"""
+class SchedCpuCapacity(Base):
+    """Corresponds to Linux kernel trace event sched/cpu_capacity"""
+
+    unique_word = "cpu_capacity:"
+    """The unique word that will be matched in a trace line"""
+
+    name = "sched_cpu_capacity"
+    """The name of the :mod:`pandas.DataFrame` member that will be created in a
+    :mod:`trappy.run.Run` object"""
+
+    def __init__(self):
+        super(SchedCpuCapacity, self).__init__(
+            unique_word=self.unique_word,
+        )
+
+    def finalize_object(self):
+        """This renaming is necessary because our cpu related pivot is 'cpu'
+        and not 'cpu_id'. Otherwise you cannot 'mix and match' with other
+        classes
+        """
+        self.data_frame.rename(columns={'cpu_id':'cpu'}, inplace=True)
+
+Run.register_class(SchedCpuCapacity, "sched")
 
 SchedSwitch = register_dynamic("SchedSwitch",
                                "sched_switch",
