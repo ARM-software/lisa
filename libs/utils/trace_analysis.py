@@ -61,12 +61,12 @@ class TraceAnalysis(object):
         # and scale them to [MHz]
         if len(self.platform['clusters']['little']):
             lfreq = df[df.cpu == self.platform['clusters']['little'][-1]]
-            lfreq['state'] = lfreq['state']/1e3
+            lfreq['frequency'] = lfreq['frequency']/1e3
         else:
             lfreq = []
         if len(self.platform['clusters']['big']):
             bfreq = df[df.cpu == self.platform['clusters']['big'][-1]]
-            bfreq['state'] = bfreq['state']/1e3
+            bfreq['frequency'] = bfreq['frequency']/1e3
         else:
             bfreq = []
 
@@ -75,7 +75,7 @@ class TraceAnalysis(object):
         if len(lfreq) > 0:
             lfreq['timestamp'] = lfreq.index;
             lfreq['delta'] = (lfreq['timestamp'] - lfreq['timestamp'].shift()).fillna(0).shift(-1);
-            lfreq['cfreq'] = (lfreq['state'] * lfreq['delta']).fillna(0);
+            lfreq['cfreq'] = (lfreq['frequency'] * lfreq['delta']).fillna(0);
             timespan = lfreq.iloc[-1].timestamp - lfreq.iloc[0].timestamp;
             avg_lfreq = lfreq['cfreq'].sum()/timespan;
 
@@ -84,7 +84,7 @@ class TraceAnalysis(object):
         if len(bfreq) > 0:
             bfreq['timestamp'] = bfreq.index;
             bfreq['delta'] = (bfreq['timestamp'] - bfreq['timestamp'].shift()).fillna(0).shift(-1);
-            bfreq['cfreq'] = (bfreq['state'] * bfreq['delta']).fillna(0);
+            bfreq['cfreq'] = (bfreq['frequency'] * bfreq['delta']).fillna(0);
             timespan = bfreq.iloc[-1].timestamp - bfreq.iloc[0].timestamp;
             avg_bfreq = bfreq['cfreq'].sum()/timespan;
 
@@ -105,7 +105,7 @@ class TraceAnalysis(object):
                 (self.platform['freqs']['big'][-1] + 100000)/1e3
         );
         if len(bfreq) > 0:
-            bfreq.state.plot(style=['r-'], ax=axes,
+            bfreq['frequency'].plot(style=['r-'], ax=axes,
                     drawstyle='steps-post', alpha=0.4);
         axes.set_xlim(self.x_min, self.x_max);
         axes.set_ylabel('MHz')
@@ -122,7 +122,7 @@ class TraceAnalysis(object):
                 (self.platform['freqs']['little'][-1] + 100000)/1e3
         );
         if len(lfreq) > 0:
-            lfreq.state.plot(style=['b-'], ax=axes,
+            lfreq['frequency'].plot(style=['b-'], ax=axes,
                     drawstyle='steps-post', alpha=0.4);
         axes.set_xlim(self.x_min, self.x_max);
         axes.set_ylabel('MHz')
@@ -141,7 +141,6 @@ class TraceAnalysis(object):
         df = self.trace.df('ccap')
         # Rename CPU and Capacity columns
         df.rename(columns={'cpu_id':'cpu'}, inplace=True)
-        df.rename(columns={'state':'cur_capacity'}, inplace=True)
         # Add column with LITTLE and big CPUs max capacities
         nrg_model = self.platform['nrg_model']
         max_lcap = nrg_model['little']['cpu']['cap_max']
@@ -195,9 +194,9 @@ class TraceAnalysis(object):
             if self.trace.hasEvents('cpu_capacity'):
                 df2 = df['ccap'][df['ccap'].cpu == cpu]
                 if (len(df2)):
-                    # data = df2[['cur_capacity', 'tip_capacity', 'max_capacity']]
+                    # data = df2[['capacity', 'tip_capacity', 'max_capacity']]
                     # data.plot(ax=axes, style=['m', 'y', 'r'],
-                    data = df2[['cur_capacity', 'tip_capacity' ]]
+                    data = df2[['capacity', 'tip_capacity' ]]
                     data.plot(ax=axes, style=['m', '--y' ],
                         drawstyle='steps-post')
 
