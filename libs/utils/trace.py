@@ -253,6 +253,11 @@ class Trace(object):
 
     def __addCapacityColum(self):
         df = self.df('ccap')
+
+        # Add more columns if the energy model is available
+        if 'nrg_model' not in self.platform:
+            return
+
         # Add column with LITTLE and big CPUs max capacities
         nrg_model = self.platform['nrg_model']
         max_lcap = nrg_model['little']['cpu']['cap_max']
@@ -293,6 +298,8 @@ class Trace(object):
         df['boosted_utilization'] = df['utilization'] + df['margin']
 
     def __addNormalizedEnergy(self):
+        if 'nrg_model' not in self.platform:
+            return
         nrg_model = self.platform['nrg_model']
         em_lcluster = nrg_model['little']['cluster']
         em_bcluster = nrg_model['big']['cluster']
