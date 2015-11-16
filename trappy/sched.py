@@ -105,6 +105,7 @@ class SchedCpuCapacity(Base):
         classes
         """
         self.data_frame.rename(columns={'cpu_id':'cpu'}, inplace=True)
+        self.data_frame.rename(columns={'state' :'capacity'}, inplace=True)
 
 Run.register_class(SchedCpuCapacity, "sched")
 
@@ -136,5 +137,6 @@ class SchedCpuFrequency(Base):
         classes
         """
         self.data_frame.rename(columns={'cpu_id':'cpu'}, inplace=True)
+        self.data_frame.rename(columns={'state' :'frequency'}, inplace=True)
 
 Run.register_class(SchedCpuFrequency, "sched")
