@@ -48,7 +48,7 @@ class TraceAnalysis(object):
         logging.info('Set plots time range to (%.6f, %.6f)[s]',
                 self.x_min, self.x_max)
 
-    def plotClusterFrequencies(self):
+    def plotClusterFrequencies(self, title='Clusters Frequencies'):
         if not self.trace.hasEvents('sched_cpu_frequency'):
             logging.warn('Events [sched_cpu_frequency] not found, '\
                     'plot DISABLED!')
@@ -92,8 +92,8 @@ class TraceAnalysis(object):
 
         # Setup a dual cluster plot
         fig, pltaxes = plt.subplots(2, 1, figsize=(16, 8));
-        plt.suptitle("Clusters Frequencies",
-                     y=.97, fontsize=16, horizontalalignment='center');
+        plt.suptitle(title, y=.97, fontsize=16,
+                horizontalalignment='center');
 
         # Plot Cluster frequencies
         axes = pltaxes[0]
