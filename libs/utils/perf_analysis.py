@@ -90,18 +90,18 @@ class PerfAnalysis(object):
                 task_name = self.__taskNameFromLog(logfile)
                 self.perf_data[task_name] = {}
                 self.perf_data[task_name]['logfile'] = logfile
-                logging.info('Found rt-app logfile for task [%s]', task_name)
+                logging.debug('Found rt-app logfile for task [%s]', task_name)
         else:
             # Lookup for specified rt-app task logfile into specified datadir
             for task in tasks:
                 logfile = self.__logfileFromTaskName(task)
                 self.perf_data[task_name] = {}
                 self.perf_data[task_name]['logfile'] = logfile
-                logging.info('Found rt-app logfile for task [%s]', task_name)
+                logging.debug('Found rt-app logfile for task [%s]', task_name)
 
         # Load all the found logfile into a dataset
         for task in self.perf_data.keys():
-            logging.info('Loading dataframe for task [%s]...', task)
+            logging.debug('Loading dataframe for task [%s]...', task)
             df = pd.read_table(self.logfile(task),
                     sep='\s+',
                     skiprows=1,
