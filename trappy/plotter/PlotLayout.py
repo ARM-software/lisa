@@ -78,6 +78,12 @@ class PlotLayout(object):
                 self._attr["width"] * self.cols,
                 self._attr["length"] * self.rows))
 
+        if self._attr['title']:
+            self._attr["figure"].suptitle(
+                    self._attr['title'],
+                    fontsize=AttrConf.TITLE_SIZE,
+                    horizontalalignment='center')
+
     def _scale_plot(self):
         """Scale the graph in one
            plot per line use case"""

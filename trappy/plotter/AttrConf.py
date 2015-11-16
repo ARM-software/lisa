@@ -39,6 +39,10 @@ FILL = False
 and :mod:`trappy.plotter.ILinePlot`"""
 ALPHA = 0.75
 """Default value for the alpha channel"""
+TITLE = None
+"""Default figure title (no title)"""
+TITLE_SIZE = 24
+"""Default size for the figure title"""
 
 MPL_STYLE = {
     'axes.axisbelow': True,
