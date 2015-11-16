@@ -136,7 +136,7 @@ class TestRun(BaseTestThermal):
 
         basetime = run.thermal.data_frame.index[0]
 
-        self.assertEqual(run.get_basetime(), basetime)
+        self.assertEqual(run.basetime, basetime)
 
     def test_run_duration(self):
         """Test that duration calculation is correct"""
@@ -155,15 +155,14 @@ class TestRun(BaseTestThermal):
         prev_inpower_basetime = run.cpu_in_power.data_frame.index[0]
         prev_inpower_last = run.cpu_in_power.data_frame.index[-1]
 
-        basetime = run.thermal.data_frame.index[0]
-        run.normalize_time(basetime)
+        run.normalize_time()
 
         self.assertEquals(round(run.thermal.data_frame.index[0], 7), 0)
 
-        exp_inpower_first = prev_inpower_basetime - basetime
+        exp_inpower_first = prev_inpower_basetime - run.basetime
         self.assertEquals(round(run.cpu_in_power.data_frame.index[0] - exp_inpower_first, 7), 0)
 
-        exp_inpower_last = prev_inpower_last - basetime
+        exp_inpower_last = prev_inpower_last - run.basetime
         self.assertEquals(round(run.cpu_in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
 
     def test_get_all_freqs_data(self):
@@ -339,7 +338,7 @@ class TestRunSched(utils_tests.SetupDirectory):
 
         run = trappy.Run(normalize_time=False)
 
-        self.assertEqual(run.get_basetime(), 0)
+        self.assertEqual(run.basetime, 0)
 
     def test_run_normalize_some_tracepoints(self):
         """Test that normalizing time works if not all the tracepoints are in the trace"""

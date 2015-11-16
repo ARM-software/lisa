@@ -87,6 +87,7 @@ class Run(object):
         self.name = name
         self.trace_path, self.trace_path_raw = self.__process_path(path)
         self.class_definitions = self.dynamic_classes.copy()
+        self.basetime = 0
 
         if scope == "thermal":
             self.class_definitions.update(self.thermal_classes.items())
@@ -107,8 +108,7 @@ class Run(object):
         self.__finalize_objects()
 
         if normalize_time:
-            basetime = self.get_basetime()
-            self.normalize_time(basetime)
+            self.normalize_time()
 
     def __process_path(self, basepath):
         """Process the path and return the path to the trace text file"""
@@ -178,22 +178,6 @@ class Run(object):
         with open(raw_trace_output, "w") as fout:
             fout.write(raw_out)
 
-    def get_basetime(self):
-        """Returns the smallest time value of all classes,
-        returns 0 if the data frames of all classes are empty"""
-        basetimes = []
-
-        for trace_class in self.trace_classes:
-            try:
-                basetimes.append(trace_class.data_frame.index[0])
-            except IndexError:
-                pass
-
-        if len(basetimes) == 0:
-            return 0
-
-        return min(basetimes)
-
     def get_duration(self):
         """Returns the largest time value of all classes,
         returns 0 if the data frames of all classes are empty"""
@@ -208,7 +192,7 @@ class Run(object):
         if len(durations) == 0:
             return 0
 
-        return max(durations) - self.get_basetime()
+        return max(durations) - self.basetime
 
     @classmethod
     def register_class(cls, cobject, scope="all"):
@@ -242,7 +226,7 @@ class Run(object):
 
         return filters
 
-    def normalize_time(self, basetime):
+    def normalize_time(self):
         """Normalize the time of all the trace classes
 
         :param basetime: The offset which needs to be subtracted from
@@ -250,7 +234,7 @@ class Run(object):
         :type basetime: float
         """
         for trace_class in self.trace_classes:
-            trace_class.normalize_time(basetime)
+            trace_class.normalize_time(self.basetime)
 
     def __contains_unique_word(self, line, unique_words):
         """The line contains any unique word that we are matching"""
@@ -303,6 +287,9 @@ class Run(object):
         pid = int(special_fields_match.group(2))
         cpu = int(special_fields_match.group(3))
         timestamp = float(special_fields_match.group(4))
+
+        if not self.basetime:
+            self.basetime = timestamp
 
         try:
             data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
