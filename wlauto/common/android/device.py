@@ -502,10 +502,11 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
         self._update_build_properties(buildprop_file, props)
         context.add_run_artifact('build_properties', buildprop_file, 'export')
 
-        dumpsys_window_file = os.path.join(context.host_working_directory, 'window.dumpsys')
-        self.execute('{} > {}'.format('dumpsys window', 'window.dumpsys'))
-        self.pull_file('window.dumpsys', dumpsys_window_file)
-        context.add_run_artifact('dumpsys_window', dumpsys_window_file, 'meta')
+        dumpsys_target_file = self.device.path.join(self.device.working_directory, 'window.dumpsys')
+        dumpsys_host_file = os.path.join(context.host_working_directory, 'window.dumpsys')
+        self.execute('{} > {}'.format('dumpsys window', dumpsys_target_file))
+        self.pull_file(dumpsys_target_file, dumpsys_host_file)
+        context.add_run_artifact('dumpsys_window', dumpsys_host_file, 'meta')
         return props
 
     def getprop(self, prop=None):
