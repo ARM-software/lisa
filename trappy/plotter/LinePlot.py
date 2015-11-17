@@ -88,6 +88,9 @@ class LinePlot(AbstractDataPlotter):
     :param ylim: A tuple representing the upper and lower ylimits
     :type ylim: tuple
 
+    :param title: A title describing all the generated plots
+    :type title: str
+
     :param style: Created pre-styled graphs loaded from
         :mod:`trappy.plotter.AttrConf.MPL_STYLE`
     :type style: bool
@@ -165,6 +168,7 @@ class LinePlot(AbstractDataPlotter):
         self._attr["pivot"] = AttrConf.PIVOT
         self._attr["xlim"] = AttrConf.XLIM
         self._attr["ylim"] = AttrConf.XLIM
+        self._attr["title"] = AttrConf.TITLE
         self._attr["args_to_forward"] = {}
         self._attr["scatter"] = AttrConf.PLOT_SCATTER
 
@@ -188,7 +192,8 @@ class LinePlot(AbstractDataPlotter):
             self._attr["per_line"],
             len_pivots,
             width=self._attr["width"],
-            length=self._attr["length"])
+            length=self._attr["length"],
+            title=self._attr['title'])
 
         self._fig = self._layout.get_fig()
         legend_str = []
@@ -273,7 +278,8 @@ class LinePlot(AbstractDataPlotter):
 
         self._layout = PlotLayout(self._attr["per_line"], len(self.c_mgr),
                                   width=self._attr["width"],
-                                  length=self._attr["length"])
+                                  length=self._attr["length"],
+                                  title=self._attr['title'])
 
         self._fig = self._layout.get_fig()
         legend = [None] * len_pivots
