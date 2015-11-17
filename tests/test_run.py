@@ -136,7 +136,7 @@ class TestRun(BaseTestThermal):
 
         basetime = run.thermal.data_frame.index[0]
 
-        self.assertEqual(run.get_basetime(), basetime)
+        self.assertEqual(run.basetime, basetime)
 
     def test_run_duration(self):
         """Test that duration calculation is correct"""
@@ -155,15 +155,14 @@ class TestRun(BaseTestThermal):
         prev_inpower_basetime = run.cpu_in_power.data_frame.index[0]
         prev_inpower_last = run.cpu_in_power.data_frame.index[-1]
 
-        basetime = run.thermal.data_frame.index[0]
-        run.normalize_time(basetime)
+        run.normalize_time()
 
         self.assertEquals(round(run.thermal.data_frame.index[0], 7), 0)
 
-        exp_inpower_first = prev_inpower_basetime - basetime
+        exp_inpower_first = prev_inpower_basetime - run.basetime
         self.assertEquals(round(run.cpu_in_power.data_frame.index[0] - exp_inpower_first, 7), 0)
 
-        exp_inpower_last = prev_inpower_last - basetime
+        exp_inpower_last = prev_inpower_last - run.basetime
         self.assertEquals(round(run.cpu_in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
 
     def test_get_all_freqs_data(self):
@@ -246,6 +245,18 @@ class TestRun(BaseTestThermal):
         self.assertEquals(run._cpus, None)
         self.assertEquals(run._version, None)
         self.assertTrue(len(run.thermal.data_frame) > 0)
+
+    def test_run_accepts_window(self):
+        """Run class accepts a window parameter"""
+        run = trappy.Run(window=(1.234726, 5.334726))
+        self.assertEquals(run.thermal.data_frame.iloc[0]["temp"], 68989)
+        self.assertEquals(run.thermal.data_frame.iloc[-1]["temp"], 69530)
+
+    def test_run_accepts_abs_window(self):
+        """Run class accepts an abs_window parameter"""
+        run = trappy.Run(abs_window=(1585, 1589.1))
+        self.assertEquals(run.thermal.data_frame.iloc[0]["temp"], 68989)
+        self.assertEquals(run.thermal.data_frame.iloc[-1]["temp"], 69530)
 
 
 @unittest.skipUnless(utils_tests.trace_cmd_installed(),
@@ -339,7 +350,7 @@ class TestRunSched(utils_tests.SetupDirectory):
 
         run = trappy.Run(normalize_time=False)
 
-        self.assertEqual(run.get_basetime(), 0)
+        self.assertEqual(run.basetime, 0)
 
     def test_run_normalize_some_tracepoints(self):
         """Test that normalizing time works if not all the tracepoints are in the trace"""

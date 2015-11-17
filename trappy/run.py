@@ -64,10 +64,24 @@ class Run(object):
         the thermal classes are parsed.  If scope is sched, only the sched
         classes are parsed.
 
+    :param window: a tuple indicating a time window.  The first
+        element in the tuple is the start timestamp and the second one
+        the end timestamp.  Timestamps are relative to the first trace
+        event that's parsed.  If you want to trace until the end of
+        the trace, set the second element to None.  If you want to use
+        timestamps extracted from the trace file use "abs_window".
+
+    :param abs_window: a tuple indicating an absolute time window.
+        This parameter is similar to the "window" one but its values
+        represent timestamps that are not normalized, (i.e. the ones
+        you find in the trace file)
+
     :type path: str
     :type name: str
     :type normalize_time: bool
     :type scope: str
+    :type window: tuple
+    :type abs_window: tuple
 
     This is a simple example:
     ::
@@ -83,10 +97,12 @@ class Run(object):
 
     dynamic_classes = {}
 
-    def __init__(self, path=".", name="", normalize_time=True, scope="all"):
+    def __init__(self, path=".", name="", normalize_time=True, scope="all",
+                 window=(0, None), abs_window=(0, None)):
         self.name = name
         self.trace_path, self.trace_path_raw = self.__process_path(path)
         self.class_definitions = self.dynamic_classes.copy()
+        self.basetime = 0
 
         if scope == "thermal":
             self.class_definitions.update(self.thermal_classes.items())
@@ -102,13 +118,12 @@ class Run(object):
             setattr(self, attr, trace_class)
             self.trace_classes.append(trace_class)
 
-        self.__parse_trace_file()
-        self.__parse_trace_file(raw=True)
+        self.__parse_trace_file(window, abs_window)
+        self.__parse_trace_file(window, abs_window, raw=True)
         self.__finalize_objects()
 
         if normalize_time:
-            basetime = self.get_basetime()
-            self.normalize_time(basetime)
+            self.normalize_time()
 
     def __process_path(self, basepath):
         """Process the path and return the path to the trace text file"""
@@ -178,22 +193,6 @@ class Run(object):
         with open(raw_trace_output, "w") as fout:
             fout.write(raw_out)
 
-    def get_basetime(self):
-        """Returns the smallest time value of all classes,
-        returns 0 if the data frames of all classes are empty"""
-        basetimes = []
-
-        for trace_class in self.trace_classes:
-            try:
-                basetimes.append(trace_class.data_frame.index[0])
-            except IndexError:
-                pass
-
-        if len(basetimes) == 0:
-            return 0
-
-        return min(basetimes)
-
     def get_duration(self):
         """Returns the largest time value of all classes,
         returns 0 if the data frames of all classes are empty"""
@@ -208,7 +207,7 @@ class Run(object):
         if len(durations) == 0:
             return 0
 
-        return max(durations) - self.get_basetime()
+        return max(durations) - self.basetime
 
     @classmethod
     def register_class(cls, cobject, scope="all"):
@@ -242,7 +241,7 @@ class Run(object):
 
         return filters
 
-    def normalize_time(self, basetime):
+    def normalize_time(self):
         """Normalize the time of all the trace classes
 
         :param basetime: The offset which needs to be subtracted from
@@ -250,7 +249,7 @@ class Run(object):
         :type basetime: float
         """
         for trace_class in self.trace_classes:
-            trace_class.normalize_time(basetime)
+            trace_class.normalize_time(self.basetime)
 
     def __contains_unique_word(self, line, unique_words):
         """The line contains any unique word that we are matching"""
@@ -288,8 +287,15 @@ class Run(object):
             elif self.__populate_data_from_line(line, unique_words):
                 return
 
-    def __populate_data_from_line(self, line, unique_words):
-        """Append to trace data from a txt trace line"""
+    def __populate_data_from_line(self, line, unique_words, window=(0, None),
+                                  abs_window=(0, None)):
+        """Append to trace data from a txt trace line
+
+        Returns true if the line contains valid trace data (that is,
+        it's not part of the early part of the file that only has
+        metadata
+
+        """
 
         attr = self.__contains_unique_word(line, unique_words)
         if not attr:
@@ -303,6 +309,17 @@ class Run(object):
         pid = int(special_fields_match.group(2))
         cpu = int(special_fields_match.group(3))
         timestamp = float(special_fields_match.group(4))
+
+        if not self.basetime:
+            self.basetime = timestamp
+
+        if (timestamp < window[0] + self.basetime) or \
+           (timestamp < abs_window[0]):
+            return True
+
+        if (window[1] and timestamp > window[1] + self.basetime) or \
+           (abs_window[1] and timestamp > abs_window[1]):
+            raise StopIteration("Reached the end of the trace")
 
         try:
             data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
@@ -318,7 +335,7 @@ class Run(object):
                                                 data_str)
         return True
 
-    def __parse_trace_file(self, raw=False):
+    def __parse_trace_file(self, window, abs_window, raw=False):
         """parse the trace and create a pandas DataFrame"""
 
         # Memoize the unique words to speed up parsing the trace file
@@ -347,7 +364,11 @@ class Run(object):
             self.__populate_metadata(fin, unique_words)
 
             for line in fin:
-                self.__populate_data_from_line(line, unique_words)
+                try:
+                    self.__populate_data_from_line(line, unique_words, window,
+                                                   abs_window)
+                except StopIteration:
+                    pass
 
     def __finalize_objects(self):
         for trace_class in self.trace_classes:
