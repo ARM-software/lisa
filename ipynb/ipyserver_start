@@ -17,9 +17,15 @@ if [ "x$IPADDR" == "x" ]; then
     exit 1
 fi
 
+PYDIR=$(pwd)
+BASEDIR=$(dirname $PYDIR)
+export PYTHONPATH=$BASEDIR/libs/utils:$PYTHONPATH
+export PYTHONPATH=$BASEDIR/libs/wlgen:$PYTHONPATH
+
 echo 'Starting IPython Notebook server...'
 echo '  IP Address : ' $IPADDR
-echo '  Folder     : ' $(pwd)
+echo '  Folder     : ' $PYDIR
+echo '  PYTHONPATH : ' $PYTHONPATH
 
 nohup ipython notebook --ip=$IPADDR &
 echo
