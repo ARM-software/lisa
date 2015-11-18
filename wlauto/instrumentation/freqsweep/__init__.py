@@ -14,8 +14,10 @@
 # pylint: disable=access-member-before-definition,attribute-defined-outside-init
 
 import os
+from collections import OrderedDict
 from wlauto import Instrument, Parameter
 from wlauto.exceptions import ConfigError, InstrumentError
+from wlauto.utils.misc import merge_dicts
 from wlauto.utils.types import caseless_string
 
 
@@ -129,6 +131,14 @@ class FreqSweep(Instrument):
         for old_spec in old_specs:
             for freq in sweep_spec['frequencies']:
                 spec = old_spec.copy()
+                if 'runtime_params' in sweep_spec:
+                    spec.runtime_parameters = merge_dicts(spec.runtime_parameters,
+                                                          sweep_spec['runtime_params'],
+                                                          dict_type=OrderedDict)
+                if 'workload_params' in sweep_spec:
+                    spec.workload_parameters = merge_dicts(spec.runtime_parameters,
+                                                           sweep_spec['workload_params'],
+                                                           dict_type=OrderedDict)
                 spec.runtime_parameters['{}_governor'.format(sweep_spec['cluster'])] = "userspace"
                 spec.runtime_parameters['{}_frequency'.format(sweep_spec['cluster'])] = freq
                 spec.id = '{}_{}_{}'.format(spec.id, sweep_spec['label'], freq)
