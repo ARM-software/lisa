@@ -402,8 +402,9 @@ class Target(object):
                     return self.path.join(path, name)
             except TargetError:
                 pass  # directory does not exist or no executable premssions
-        if name in self.list_directory(self.executables_directory):
-            return self.path.join(self.executables_directory, name)
+        if self.file_exists(self.executables_directory):
+            if name in self.list_directory(self.executables_directory):
+                return self.path.join(self.executables_directory, name)
 
     which = get_installed
 
