@@ -176,6 +176,7 @@ class Target(object):
         self.platform.init_target_connection(self)
         tid = id(threading.current_thread())
         self._connections[tid] = self.get_connection(timeout=timeout)
+        self._resolve_paths()
         self.busybox = self.get_installed('busybox')
         self.platform.update_from_target(self)
         self._update_modules('connected')
@@ -437,6 +438,9 @@ class Target(object):
         else:
             self.logger.debug('Module {} is already installed.'.format(mod.name))
 
+    def _resolve_paths(self):
+        raise NotImplementedError()
+
 
 class LinuxTarget(Target):
 
@@ -473,13 +477,6 @@ class LinuxTarget(Target):
 
     def connect(self, timeout=None):
         super(LinuxTarget, self).connect(timeout=timeout)
-        if self.working_directory is None:
-            if self.connected_as_root:
-                self.working_directory = '/root/devlib-target'
-            else:
-                self.working_directory = '/home/{}/devlib-target'.format(self.user)
-        if self.executables_directory is None:
-            self.executables_directory = self.path.join(self.working_directory, 'bin')
 
     def kick_off(self, command, as_root=False):
         command = 'sh -c "{}" 1>/dev/null 2>/dev/null &'.format(escape_double_quotes(command))
@@ -547,6 +544,15 @@ class LinuxTarget(Target):
             message = e.message.split('OUTPUT:', 1)[1].strip()  # pylint: disable=no-member
             self.logger.debug('Could not take screenshot: {}'.format(message))
 
+    def _resolve_paths(self):
+        if self.working_directory is None:
+            if self.connected_as_root:
+                self.working_directory = '/root/devlib-target'
+            else:
+                self.working_directory = '/home/{}/devlib-target'.format(self.user)
+        if self.executables_directory is None:
+            self.executables_directory = self.path.join(self.working_directory, 'bin')
+
 
 class AndroidTarget(Target):
 
@@ -585,10 +591,6 @@ class AndroidTarget(Target):
             return (0, 0)
 
 
-    def __init__(self, *args, **kwargs):
-        super(AndroidTarget, self).__init__(*args, **kwargs)
-        self._file_transfer_cache = None
-
     def reset(self, fastboot=False):  # pylint: disable=arguments-differ
         try:
             self.execute('reboot {}'.format(fastboot and 'fastboot' or ''),
@@ -608,11 +610,6 @@ class AndroidTarget(Target):
             # always disconnect first.
             adb_disconnect(device)
         super(AndroidTarget, self).connect(timeout=timeout)
-        if self.working_directory is None:
-            self.working_directory = '/data/local/tmp/devlib-target'
-        self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
-        if self.executables_directory is None:
-            self.executables_directory = self.path.join(self.working_directory, 'bin')
 
         if check_boot_completed:
             boot_completed = boolean(self.getprop('sys.boot_completed'))
@@ -793,6 +790,13 @@ class AndroidTarget(Target):
         if not self.is_screen_on():
             self.execute('input keyevent 26')
 
+    def _resolve_paths(self):
+        if self.working_directory is None:
+            self.working_directory = '/data/local/tmp/devlib-target'
+        self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
+        if self.executables_directory is None:
+            self.executables_directory = self.path.join(self.working_directory, 'bin')
+
     def _ensure_executables_directory_is_writable(self):
         matched = []
         for entry in self.list_file_systems():
@@ -954,12 +958,11 @@ class LocalLinuxTarget(LinuxTarget):
 
     conn_cls = LocalConnection
 
-    def connect(self, timeout=None):
+    def _resolve_paths(self):
         if self.working_directory is None:
             self.working_directory = '/tmp'
         if self.executables_directory is None:
             self.executables_directory = '/tmp'
-        super(LocalLinuxTarget, self).connect(timeout)
 
 
 def _get_model_name(section):
