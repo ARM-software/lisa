@@ -98,6 +98,18 @@ trappy.thermal.Thermal:temp"
         eqn = "(numpy.mean(trappy.thermal.Thermal:temp) > 65000) || (numpy.mean(trappy.cpu_power.CpuOutPower) < 500)"
         self.assertTrue(parser.solve(eqn)[thermal_zone_id])
 
+    def test_super_indexing(self):
+        "Test if super-indexing works correctly"""
+
+        run = trappy.Run()
+        parser = Parser(run)
+        # The first event has less index values
+        sol1 = parser.solve("trappy.thermal.Thermal:temp")
+        # The second index has more index values
+        sol2 = parser.solve("trappy.pid_controller.PIDController:output")
+        # Super Indexing should result in len(sol2) > len(sol1)
+        self.assertGreater(len(sol2), len(sol1))
+
     def test_single_func_call(self):
         """Test Single Function Call"""
 
