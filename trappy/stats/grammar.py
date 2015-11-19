@@ -204,11 +204,6 @@ class Parser(object):
         accessed from within the grammar
     :type pvars: dict
 
-    :param topology: Future support for the usage of topologies in
-        grammar
-    :type topology: :mod:`trappy.stats.Topology`
-
-
     - **Operators**
 
         +----------------+----------------------+---------------+
@@ -276,7 +271,7 @@ class Parser(object):
 
     """
 
-    def __init__(self, data, pvars=None, topology=None):
+    def __init__(self, data, pvars=None):
         if pvars is None:
             pvars = {}
 
@@ -287,10 +282,6 @@ class Parser(object):
         self._parse_expr = get_parse_expression(
             self._parse_func, self._parse_var_id)
         self._agg_df = pd.DataFrame()
-        if not topology:
-            self.topology = Topology()
-        else:
-            self.topology = topology
         self._pivot_set = set()
         self._index_limit = None
 
