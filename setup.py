@@ -59,7 +59,7 @@ for root, dirs, files in os.walk(devlib_dir):
 params = dict(
     name='devlib',
     description='A framework for automating workload execution and measurment collection on ARM devices.',
-    version='0.0.1',
+    version='0.0.3',
     packages=packages,
     package_data=data_files,
     url='N/A',
