@@ -96,7 +96,7 @@ class TestSchedCpuFrequency(BaseTestSched):
 
         self.assertTrue(len(dfr) == 1)
         self.assertEquals(dfr["cpu"].iloc[0], 0)
-        self.assertEquals(dfr["state"].iloc[0], 600000)
+        self.assertEquals(dfr["frequency"].iloc[0], 600000)
         self.assertFalse("cpu_id" in dfr.columns)
 
 class TestGetFilters(BaseTestSched):
