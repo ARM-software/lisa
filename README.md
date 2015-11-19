@@ -23,19 +23,19 @@ system.
 
 ##### Install build essential tools
 
-	$ sudo apt-get install build-essential autoconf automake libtool
+	$ sudo apt-get install build-essential autoconf automake libtool pkg-config
 
 ##### Install required python packages
 
-	$ sudo apt-get install python-matplotlib python-numpy
+	$ sudo apt-get install python-matplotlib python-numpy libfreetype6-dev libpng12-dev
 
 ##### Install the Python package manager
 
 	$ sudo apt-get install python-pip python-dev
 
-##### Install required libraries
+##### Install (upgrade) required libraries
 
-	$ sudo pip install trappy bart-py devlib
+	$ sudo pip install --upgrade trappy bart-py devlib
 
 ## Clone the repository
 
