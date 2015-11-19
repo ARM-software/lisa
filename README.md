@@ -9,8 +9,11 @@ the toolkit is generic enough to accommodate other usages.
 The toolkit is based on a set of core libraries:
 
 - [devlib](http://github.com/ARM-software/devlib)
+  Documentation: [online](https://pythonhosted.org/devlib/index.html)
 - [TRAPpy](http://github.com/ARM-software/trappy)
+  Documentation: [online](http://arm-software.github.io/trappy/)
 - [BART](http://github.com/ARM-software/bart)
+  Documentation: [online](http://arm-software.github.io/bart/)
 
 TODO: add a figure which represent the toolkit structure
 
