@@ -136,7 +136,7 @@ class FreqSweep(Instrument):
                                                           sweep_spec['runtime_params'],
                                                           dict_type=OrderedDict)
                 if 'workload_params' in sweep_spec:
-                    spec.workload_parameters = merge_dicts(spec.runtime_parameters,
+                    spec.workload_parameters = merge_dicts(spec.workload_parameters,
                                                            sweep_spec['workload_params'],
                                                            dict_type=OrderedDict)
                 spec.runtime_parameters['{}_governor'.format(sweep_spec['cluster'])] = "userspace"
