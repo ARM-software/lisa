@@ -204,6 +204,20 @@ class Parser(object):
         accessed from within the grammar
     :type pvars: dict
 
+    :param method: The method to be used for reindexing data
+        This can be one of the standas :mod:`pandas.DataFrame`
+        methods (eg. pad, bfill, nearest). The default is pad
+        or use the last valid observation.
+    :type method: str
+
+    :param limit: The number of indices a value will be propagated
+        when reindexing. The default is None
+    :type limit: int
+
+    :param fill: Whether to fill the NaNs in the data.
+        The default value is True.
+    :type fill: bool
+
     - **Operators**
 
         +----------------+----------------------+---------------+
@@ -271,7 +285,7 @@ class Parser(object):
 
     """
 
-    def __init__(self, data, pvars=None):
+    def __init__(self, data, pvars=None, **kwargs):
         if pvars is None:
             pvars = {}
 
@@ -283,7 +297,9 @@ class Parser(object):
             self._parse_func, self._parse_var_id)
         self._agg_df = pd.DataFrame()
         self._pivot_set = set()
-        self._index_limit = None
+        self._limit = kwargs.get("limit", StatConf.REINDEX_LIMIT_DEFAULT)
+        self._method = kwargs.get("method", StatConf.REINDEX_METHOD_DEFAULT)
+        self._fill = kwargs.get("fill", StatConf.NAN_FILL_DEFAULT)
 
     def solve(self, expr):
         """Parses and solves the input expression
@@ -358,16 +374,16 @@ class Parser(object):
                 if len(self._agg_df):
                     data[val] = data[val].reindex(
                         index=self._agg_df.index,
-                        method="nearest",
-                        limit=1)
+                        method=self._method,
+                        limit=self._limit)
 
             return pd.concat(data, axis=1).swaplevel(0, 1, axis=1)
 
         if len(self._agg_df):
             data_frame = data_frame.reindex(
                 index=self._agg_df.index,
-                method="nearest",
-                limit=1)
+                method=self._method,
+                limit=self._limit)
 
         return pd.concat({StatConf.GRAMMAR_DEFAULT_PIVOT: data_frame[
                          [column]]}, axis=1).swaplevel(0, 1, axis=1)
@@ -390,6 +406,9 @@ class Parser(object):
         data_frame = self._pivot(cls, column)
         self._agg_df = pd.concat(
             [self._agg_df, data_frame], axis=1)
+
+        if self._fill:
+            self._agg_df = self._agg_df.fillna(method="pad")
 
         return self._agg_df[params[1]]
 

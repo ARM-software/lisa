@@ -20,3 +20,9 @@ DELTA_DEFAULT = 0.000025
 """The default delta for uniformly resampled data"""
 GRAMMAR_DEFAULT_PIVOT = "NO_PIVOT"
 """Default pivot value for :mod:`trappy.stats.grammar`"""
+REINDEX_METHOD_DEFAULT = "pad"
+"""Default method for reindexing and filling up NaNs"""
+REINDEX_LIMIT_DEFAULT = None
+"""Number or indices a value will be propagated forward when reindexing"""
+NAN_FILL_DEFAULT = True
+"""Fill NaN values by default"""
