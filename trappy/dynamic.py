@@ -62,7 +62,7 @@ def _get_name(name):
 
 
 def register_dynamic(class_name, unique_word, scope="all",
-                     parse_raw=False):
+                     parse_raw=False, pivot=None):
     """Create a Dynamic Type and register
     it with the TRAPpy Framework
 
@@ -81,6 +81,9 @@ def register_dynamic(class_name, unique_word, scope="all",
     :param parse_raw: If, true, raw trace output (-R flag)
         will be used
     :type parse_raw: bool
+
+    :param pivot: The data column about which the data can be grouped
+    :type pivot: str
 
     For example if a new unique word :code:`my_unique_word` has
     to be registered with TRAPpy:
@@ -104,7 +107,8 @@ def register_dynamic(class_name, unique_word, scope="all",
             "__init__": default_init,
             "unique_word": unique_word,
             "name": _get_name(class_name),
-            "parse_raw" : parse_raw
+            "parse_raw" : parse_raw,
+            "pivot": pivot
         }
     )
     Run.register_class(dyn_class, scope)
