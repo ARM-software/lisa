@@ -88,7 +88,7 @@ class Gem5LinuxDevice(BaseGem5Device, LinuxDevice):
     def __init__(self, **kwargs):
         self.logger = logging.getLogger('Gem5LinuxDevice')
         LinuxDevice.__init__(self, **kwargs)
-        BaseGem5Device.__init__(self, **kwargs)
+        BaseGem5Device.__init__(self)
 
     def login_to_device(self):
         # Wait for the login prompt

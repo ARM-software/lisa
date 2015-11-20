@@ -89,7 +89,7 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
     def __init__(self, **kwargs):
         self.logger = logging.getLogger('Gem5AndroidDevice')
         AndroidDevice.__init__(self, **kwargs)
-        BaseGem5Device.__init__(self, **kwargs)
+        BaseGem5Device.__init__(self)
 
     def login_to_device(self):
         pass
