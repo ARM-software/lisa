@@ -105,7 +105,7 @@ class BaseGem5Device(object):
         return True
 
     # pylint: disable=E0203
-    def __init__(self, _):
+    def __init__(self):
         self.logger = logging.getLogger('gem5Device')
 
         # The gem5 subprocess
