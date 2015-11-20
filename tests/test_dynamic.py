@@ -77,7 +77,6 @@ class TestDynamicEvents(BaseTestSched):
 	"""
         cls = trappy.register_dynamic("DynamicEvent", "dynamic_test_key")
         r1 = trappy.Run(name="first")
-	print r1.class_definitions
 	self.assertTrue(r1.class_definitions.has_key(cls.name))
 
     def test_register_class(self):
