@@ -293,6 +293,8 @@ class Parser(object):
         self._pvars = pvars
         self._accessor = Group(
             FUNC_NAME + COLON + IDENTIFIER).setParseAction(self._pre_process)
+        self._inspect = Group(
+            FUNC_NAME + COLON + IDENTIFIER).setParseAction(self._parse_for_info)
         self._parse_expr = get_parse_expression(
             self._parse_func, self._parse_var_id)
         self._agg_df = pd.DataFrame()
@@ -414,6 +416,32 @@ class Parser(object):
 
         return self._agg_df[params[1]]
 
+    def _parse_for_info(self, tokens):
+        """Parse Action for inspecting data accessors"""
+
+        params = tokens[0]
+        cls = params[0]
+        column = params[1]
+        info = {}
+        info["pivot"] = None
+        info["pivot_values"] = None
+
+        if cls in self._pvars:
+            cls = self._pvars[cls]
+        else:
+            cls = str_to_attr(cls)
+
+        data_frame = getattr(self.data, cls.name).data_frame
+
+        info["class"] = cls
+        info["length"] = len(data_frame)
+        if cls.pivot:
+            info["pivot"] = cls.pivot
+            info["pivot_values"] = list(np.unique(data_frame[cls.pivot]))
+        info["column"] = column
+        info["column_present"] = column in data_frame.columns
+        return info
+
     def _parse_var_id(self, tokens):
         """A function to parse a variable identifier
         """
@@ -452,3 +480,14 @@ class Parser(object):
         """
 
         return self._agg_df[mask]
+
+    def inspect(self, accessor):
+        """A function to inspect the accessor for information
+
+        :param accessor: A data accessor of the format
+            <event>:<column>
+        :type accessor: str
+
+        :return: A dictionary of information
+        """
+        return self._inspect.parseString(accessor)[0]
