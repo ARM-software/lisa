@@ -37,8 +37,8 @@ class Analyzer(object):
     :type config: dict
     """
 
-    def __init__(self, data, config, topology=None):
-        self._parser = Parser(data, config, topology)
+    def __init__(self, data, config, **kwargs):
+        self._parser = Parser(data, config, **kwargs)
 
     def assertStatement(self, statement, select=None):
         """Solve the statement for a boolean result
