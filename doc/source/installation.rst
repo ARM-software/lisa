@@ -42,9 +42,8 @@ and add ``<path_to_android_sdk>/sdk/platform-tools`` and ``<path_to_android_sdk>
 to your ``PATH``.  To test that you've installed it properly, run ``adb
 version``. The output should be similar to this::
 
-        $$ adb version
+        adb version
         Android Debug Bridge version 1.0.31
-        $$
 
 .. _here: https://developer.android.com/sdk/index.html
 
@@ -82,8 +81,8 @@ similar distributions, this may be done with APT::
           is recommended that you update pip and setuptools before proceeding
           with installation::
 
-                  sudo pip install --upgrade pip
-                  sudo pip install --upgrade setuptools
+                  sudo -H pip install --upgrade pip
+                  sudo -H pip install --upgrade setuptools
 
           If you do run  into this issue after already installing some packages,
           you can resolve it by running ::
@@ -110,11 +109,11 @@ Workload Automation 2 depends on the following additional libraries:
 
 You can install these with pip::
 
-        sudo pip install pexpect
-        sudo pip install pyserial
-        sudo pip install pyyaml
-        sudo pip install docutils
-        sudo pip install python-dateutil
+        sudo -H pip install pexpect
+        sudo -H pip install pyserial
+        sudo -H pip install pyyaml
+        sudo -H pip install docutils
+        sudo -H pip install python-dateutil
 
 Some of these may also be available in your distro's repositories, e.g. ::
 
@@ -157,13 +156,22 @@ may not always have Internet access).
 Installing
 ==========
 
-.. note:: If you downloaded the Workload Automation source code from GitHub, open
-          the README.rst file to start the setup process. A wlauto tarball will
-          be created under the dist directory once the process is complete.
+Installing the latest released version from PyPI (Python Package Index)::
 
-Download the tarball and run pip::
+       sudo -H pip install wlauto
 
-        sudo pip install wlauto-$version.tar.gz
+This will install WA along with its mandatory dependencies. If you would like to
+install all optional dependencies at the same time, do the following instead::
+
+       sudo -H pip install wlauto[all]
+
+Alternatively, you can also install the latest development version from GitHub
+(you will need git installed for this to work)::
+
+       git clone git@github.com:ARM-software/workload-automation.git workload-automation
+       sudo -H pip install ./workload-automation
+
+
 
 If the above succeeds, try ::
 
@@ -300,13 +308,14 @@ that location.
 If you have installed Workload Automation via ``pip`` and wish to remove it, run this command to
 uninstall it::
     
-    sudo pip uninstall wlauto
+    sudo -H pip uninstall wlauto
 
 .. Note:: This will *not* remove any user configuration (e.g. the ~/.workload_automation directory)
+
 
 (Optional) Upgrading
 ====================
 
 To upgrade Workload Automation to the latest version via ``pip``, run::
     
-    sudo pip install --upgrade --no-deps wlauto
+    sudo -H pip install --upgrade --no-deps wlauto

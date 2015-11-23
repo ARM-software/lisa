@@ -27,18 +27,12 @@ WA uses a number of its utilities, not just adb. For the SDK, make sure that eit
 In addition to the base Python 2.7 install, you will also need to have ``pip``
 (Python's package manager) installed as well. This is usually a separate package.
 
-Once you have the prerequisites and a tarball with the workload automation package,
-you can install it with pip::
+Once you have those, you can install WA with::
 
-        sudo pip install wlauto-$versiondev.tar.gz
+        sudo -H pip install wlauto
 
-Where $version is the current version of WA.
-
-.. note:: If you downloaded the Workload Automation source code from GitHub, open the
-          README.rst file to start the setup process. A wlauto tarball will be created
-          under the dist directory once the process is complete.
-
-This will install Workload Automation on your system, along with other dependencies.
+This will install Workload Automation on your system, along with its mandatory 
+dependencies.
 
 (Optional) Verify installation
 -------------------------------
