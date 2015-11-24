@@ -301,6 +301,9 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         output = self.execute('mount')
         fstab = []
         for line in output.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
             match = FSTAB_ENTRY_REGEX.search(line)
             if match:
                 fstab.append(FstabEntry(match.group(1), match.group(2),
