@@ -239,13 +239,13 @@ def adb_shell(device, command, timeout=None, check_exit_code=False, as_root=Fals
     full_command = 'adb {} shell "{}"'.format(device_string, escape_double_quotes(command))
     logger.debug(full_command)
     if check_exit_code:
-        actual_command = "adb {} shell '({}); echo $?'".format(device_string, escape_single_quotes(command))
+        actual_command = "adb {} shell '({}); echo; echo $?'".format(device_string, escape_single_quotes(command))
         raw_output, error = check_output(actual_command, timeout, shell=True)
         if raw_output:
             try:
-                output, exit_code, _ = raw_output.rsplit('\n', 2)
+                output, exit_code, _ = raw_output.rsplit('\r\n', 2)
             except ValueError:
-                exit_code, _ = raw_output.rsplit('\n', 1)
+                exit_code, _ = raw_output.rsplit('\r\n', 1)
                 output = ''
         else:  # raw_output is empty
             exit_code = '969696'  # just because
