@@ -57,7 +57,7 @@ def plot_trace(trace,
     :param trace: The path to the trace or a run object
     :type trace: str, :mod:`trappy.run.Run`
 
-    :param pids: List of execnames to be filtered. If not
+    :param execnames: List of execnames to be filtered. If not
         specified all execnames will be plotted
     :type execnames: list, str
 
