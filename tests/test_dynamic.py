@@ -54,10 +54,12 @@ class TestDynamicEvents(BaseTestSched):
            Test the attibutes of the dynamically
            generated class
         """
-        cls = trappy.register_dynamic("DynamicEvent", "dynamic_test_key")
+        cls = trappy.register_dynamic("DynamicEvent", "dynamic_test_key",
+              pivot="test_pivot")
         self.assertEquals(cls.__name__, "DynamicEvent")
         self.assertEquals(cls.name, "dynamic_event")
         self.assertEquals(cls.unique_word, "dynamic_test_key")
+        self.assertEquals(cls.pivot, "test_pivot")
 
     def test_dynamic_event_plot(self):
         """Test if plotter can accept a dynamic class
@@ -75,7 +77,6 @@ class TestDynamicEvents(BaseTestSched):
 	"""
         cls = trappy.register_dynamic("DynamicEvent", "dynamic_test_key")
         r1 = trappy.Run(name="first")
-	print r1.class_definitions
 	self.assertTrue(r1.class_definitions.has_key(cls.name))
 
     def test_register_class(self):

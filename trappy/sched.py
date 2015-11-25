@@ -32,6 +32,9 @@ class SchedLoadAvgSchedGroup(Base):
 
     _cpu_mask_column = "cpus"
 
+    pivot = "cpus"
+    """The Pivot along which the data is orthogonal"""
+
     def __init__(self):
         super(SchedLoadAvgSchedGroup, self).__init__(
             unique_word=self.unique_word,
@@ -57,6 +60,9 @@ class SchedLoadAvgTask(Base):
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
     :mod:`trappy.run.Run` object"""
 
+    pivot = "pid"
+    """The Pivot along which the data is orthogonal"""
+
     def __init__(self):
         super(SchedLoadAvgTask, self).__init__(
             unique_word=self.unique_word,
@@ -76,7 +82,7 @@ Run.register_class(SchedLoadAvgTask, "sched")
 # pylint: disable=invalid-name
 SchedLoadAvgCpu = register_dynamic("SchedLoadAvgCpu",
                                    "sched_load_avg_cpu:",
-                                   "sched")
+                                   "sched", pivot="cpu")
 """Load and Utilization Signals for CPUs"""
 
 SchedContribScaleFactor = register_dynamic("SchedContribScaleFactor",
@@ -93,6 +99,9 @@ class SchedCpuCapacity(Base):
     name = "sched_cpu_capacity"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
     :mod:`trappy.run.Run` object"""
+
+    pivot = "cpu"
+    """The Pivot along which the data is orthogonal"""
 
     def __init__(self):
         super(SchedCpuCapacity, self).__init__(
@@ -125,6 +134,9 @@ class SchedCpuFrequency(Base):
     name = "sched_cpu_frequency"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
     :mod:`trappy.run.Run` object"""
+
+    pivot = "cpu"
+    """The Pivot along which the data is orthogonal"""
 
     def __init__(self):
         super(SchedCpuFrequency, self).__init__(

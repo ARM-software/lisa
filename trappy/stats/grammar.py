@@ -204,10 +204,19 @@ class Parser(object):
         accessed from within the grammar
     :type pvars: dict
 
-    :param topology: Future support for the usage of topologies in
-        grammar
-    :type topology: :mod:`trappy.stats.Topology`
+    :param method: The method to be used for reindexing data
+        This can be one of the standas :mod:`pandas.DataFrame`
+        methods (eg. pad, bfill, nearest). The default is pad
+        or use the last valid observation.
+    :type method: str
 
+    :param limit: The number of indices a value will be propagated
+        when reindexing. The default is None
+    :type limit: int
+
+    :param fill: Whether to fill the NaNs in the data.
+        The default value is True.
+    :type fill: bool
 
     - **Operators**
 
@@ -276,7 +285,7 @@ class Parser(object):
 
     """
 
-    def __init__(self, data, pvars=None, topology=None):
+    def __init__(self, data, pvars=None, **kwargs):
         if pvars is None:
             pvars = {}
 
@@ -284,15 +293,15 @@ class Parser(object):
         self._pvars = pvars
         self._accessor = Group(
             FUNC_NAME + COLON + IDENTIFIER).setParseAction(self._pre_process)
+        self._inspect = Group(
+            FUNC_NAME + COLON + IDENTIFIER).setParseAction(self._parse_for_info)
         self._parse_expr = get_parse_expression(
             self._parse_func, self._parse_var_id)
         self._agg_df = pd.DataFrame()
-        if not topology:
-            self.topology = Topology()
-        else:
-            self.topology = topology
         self._pivot_set = set()
-        self._index_limit = None
+        self._limit = kwargs.get("limit", StatConf.REINDEX_LIMIT_DEFAULT)
+        self._method = kwargs.get("method", StatConf.REINDEX_METHOD_DEFAULT)
+        self._fill = kwargs.get("fill", StatConf.NAN_FILL_DEFAULT)
 
     def solve(self, expr):
         """Parses and solves the input expression
@@ -361,22 +370,24 @@ class Parser(object):
             pivot = cls.pivot
             pivot_vals = list(np.unique(data_frame[pivot].values))
             data = {}
+            new_index = self._agg_df.index.union(data_frame.index)
+
 
             for val in pivot_vals:
                 data[val] = data_frame[data_frame[pivot] == val][[column]]
                 if len(self._agg_df):
                     data[val] = data[val].reindex(
-                        index=self._agg_df.index,
-                        method="nearest",
-                        limit=1)
+                        index=new_index,
+                        method=self._method,
+                        limit=self._limit)
 
             return pd.concat(data, axis=1).swaplevel(0, 1, axis=1)
 
         if len(self._agg_df):
             data_frame = data_frame.reindex(
-                index=self._agg_df.index,
-                method="nearest",
-                limit=1)
+                index=new_index,
+                method=self._method,
+                limit=self._limit)
 
         return pd.concat({StatConf.GRAMMAR_DEFAULT_PIVOT: data_frame[
                          [column]]}, axis=1).swaplevel(0, 1, axis=1)
@@ -400,7 +411,36 @@ class Parser(object):
         self._agg_df = pd.concat(
             [self._agg_df, data_frame], axis=1)
 
+        if self._fill:
+            self._agg_df = self._agg_df.fillna(method="pad")
+
         return self._agg_df[params[1]]
+
+    def _parse_for_info(self, tokens):
+        """Parse Action for inspecting data accessors"""
+
+        params = tokens[0]
+        cls = params[0]
+        column = params[1]
+        info = {}
+        info["pivot"] = None
+        info["pivot_values"] = None
+
+        if cls in self._pvars:
+            cls = self._pvars[cls]
+        else:
+            cls = str_to_attr(cls)
+
+        data_frame = getattr(self.data, cls.name).data_frame
+
+        info["class"] = cls
+        info["length"] = len(data_frame)
+        if cls.pivot:
+            info["pivot"] = cls.pivot
+            info["pivot_values"] = list(np.unique(data_frame[cls.pivot]))
+        info["column"] = column
+        info["column_present"] = column in data_frame.columns
+        return info
 
     def _parse_var_id(self, tokens):
         """A function to parse a variable identifier
@@ -440,3 +480,14 @@ class Parser(object):
         """
 
         return self._agg_df[mask]
+
+    def inspect(self, accessor):
+        """A function to inspect the accessor for information
+
+        :param accessor: A data accessor of the format
+            <event>:<column>
+        :type accessor: str
+
+        :return: A dictionary of information
+        """
+        return self._inspect.parseString(accessor)[0]
