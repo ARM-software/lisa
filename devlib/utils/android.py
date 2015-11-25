@@ -173,6 +173,15 @@ class AdbConnection(object):
     def pull(self, source, dest, timeout=None):
         if timeout is None:
             timeout = self.timeout
+        # Pull all files matching a wildcard expression
+        if os.path.isdir(dest) and \
+            ('*' in source or '?' in source):
+            command = 'shell ls {}'.format(source)
+            output = adb_command(self.device, command, timeout=timeout)
+            for line in output.splitlines():
+                command = 'pull {} {}'.format(line, dest)
+                adb_command(self.device, command, timeout=timeout)
+            return
         command = 'pull {} {}'.format(source, dest)
         return adb_command(self.device, command, timeout=timeout)
 
