@@ -16,6 +16,10 @@
 """Utility functions for sheye"""
 
 import trappy
+import numpy as np
+
+# pylint fails to recognize numpy members.
+# pylint: disable=no-member
 
 def init_run(trace):
     """Initialize the Run Object
@@ -52,3 +56,67 @@ def select_window(series, window):
     selector = ((ix >= start) & (ix <= stop))
     window_series = series[selector]
     return window_series
+
+
+def interval_sum(series, value=None):
+    """A function that returns the sum of the
+    intervals where the value of series is equal to
+    the expected value. Consider the following time
+    series data
+
+    ====== =======
+     Time   Value
+    ====== =======
+      1      0
+      2      0
+      3      1
+      4      1
+      5      1
+      6      1
+      7      0
+      8      1
+      9      0
+     10      1
+     11      1
+    ====== =======
+
+    1 occurs contiguously between the following indices
+    the series:
+
+        - 3 to 6
+        - 10 to 11
+
+    There for `interval_sum` for the value 1 is
+
+    .. math::
+
+            (6 - 3) + (11 - 10) = 4
+
+    :param series: The time series data
+    :type series: :mod:`pandas.Series`
+
+    :param value: The value to checked for in the series. If the
+        value is None, the truth value of the elements in the
+        series will be used
+    :type value: element
+    """
+
+    index = series.index
+    array = series.values
+
+    time_splits = np.append(np.where(np.diff(array) != 0), len(array) - 1)
+
+    prev = 0
+    time = 0
+
+    for split in time_splits:
+
+        first_val = series[index[split]]
+        check = (first_val == value) if value else first_val
+
+        if check and prev != split:
+            time += index[split] - index[prev]
+
+        prev = split + 1
+
+    return time
