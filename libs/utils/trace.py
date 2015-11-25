@@ -105,6 +105,7 @@ class Trace(object):
         if self.hasEvents('sched_load_avg_cpu'):
             self.trace_data['cload'] = \
                 self.run.sched_load_avg_cpu.data_frame
+            self._sanitize_SchedLoadAvgCpu()
 
         if self.hasEvents('sched_load_avg_task'):
             self.trace_data['tload'] = \
@@ -271,6 +272,13 @@ class Trace(object):
         df['tip_capacity'] = np.select(
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 [tip_lcap], tip_bcap)
+
+    def _sanitize_SchedLoadAvgCpu(self):
+        df = self.df('cload')
+        if 'utilization' in df:
+            # Convert signals name from v5.0 to v5.1 format
+            df.rename(columns={'utilization':'util_avg'}, inplace=True)
+            df.rename(columns={'load':'load_avg'}, inplace=True)
 
     def _sanitize_SchedLoadAvgTask(self):
         df = self.df('tload')
