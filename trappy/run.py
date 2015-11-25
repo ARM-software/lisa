@@ -108,7 +108,7 @@ class Run(object):
             self.class_definitions.update(self.thermal_classes.items())
         elif scope == "sched":
             self.class_definitions.update(self.sched_classes.items())
-        else:
+        elif scope != "custom":
             self.class_definitions.update(self.thermal_classes.items() +
                                           self.sched_classes.items())
 

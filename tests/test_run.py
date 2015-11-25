@@ -70,6 +70,22 @@ class TestRun(BaseTestThermal):
         for attr in run.sched_classes.iterkeys():
             self.assertTrue(hasattr(run, attr))
 
+    def test_run_has_no_classes_scope_dynamic(self):
+        """The Run() class has only dynamically registered classes with scope=custom"""
+
+        run = trappy.Run(scope="custom")
+
+        for attr in run.thermal_classes.iterkeys():
+            self.assertFalse(hasattr(run, attr))
+
+        for attr in run.sched_classes.iterkeys():
+            self.assertFalse(hasattr(run, attr))
+
+        trappy.register_dynamic("ADynamicEvent", "a_dynamic_event")
+        run = trappy.Run(scope="custom")
+
+        self.assertTrue(hasattr(run, "a_dynamic_event"))
+
     def test_run_accepts_name(self):
         """The Run() class has members for all classes"""
 
