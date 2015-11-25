@@ -109,22 +109,22 @@ class Trace(object):
         if self.hasEvents('sched_load_avg_task'):
             self.trace_data['tload'] = \
                 self.run.sched_load_avg_task.data_frame
-            self.__addClusterColum()
+            self._sanitize_SchedLoadAvgTask()
 
         if self.hasEvents('cpu_capacity'):
             self.trace_data['ccap'] = \
                 self.run.cpu_capacity.data_frame
-            self.__addCapacityColum()
+            self._sanitize_SchedCpuCapacity()
 
         if self.hasEvents('sched_boost_cpu'):
             self.trace_data['cboost'] = \
                 self.run.sched_boost_cpu.data_frame
-            self.__addCpuBoostColums()
+            self._sanitize_SchedBoostCpu()
 
         if self.hasEvents('sched_boost_task'):
             self.trace_data['tboost'] = \
                 self.run.sched_boost_task.data_frame
-            self.__addBoostedColum()
+            self._sanitize_SchedBoostTask()
 
         if self.hasEvents('sched_contrib_scale_f'):
             self.trace_data['scalef'] = \
@@ -133,7 +133,7 @@ class Trace(object):
         if self.hasEvents('sched_energy_diff'):
             self.trace_data['ediff'] = \
                     self.run.sched_energy_diff.data_frame
-            self.__addNormalizedEnergy()
+            self._sanitize_SchedEnergyDiff()
 
         if self.hasEvents('sched_tune_config'):
             self.trace_data['stune'] = \
@@ -251,7 +251,7 @@ class Trace(object):
                     .format(event, self.trace_data.keys()))
         return self.trace_data[event]
 
-    def __addCapacityColum(self):
+    def _sanitize_SchedCpuCapacity(self):
         df = self.df('ccap')
 
         # Add more columns if the energy model is available
@@ -272,7 +272,7 @@ class Trace(object):
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 [tip_lcap], tip_bcap)
 
-    def __addClusterColum(self):
+    def _sanitize_SchedLoadAvgTask(self):
         df = self.df('tload')
         if 'utilization' in df:
             # Convert signals name from v5.0 to v5.1 format
@@ -285,7 +285,7 @@ class Trace(object):
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 ['LITTLE'], 'big')
 
-    def __addCpuBoostColums(self):
+    def _sanitize_SchedBoostCpu(self):
         df = self.df('cboost')
         if 'usage' in df:
             # Convert signals name from to v5.1 format
@@ -293,11 +293,11 @@ class Trace(object):
         df['boosted_util'] = df['util'] + df['margin']
 
 
-    def __addBoostedColum(self):
+    def _sanitize_SchedBoostTask(self):
         df = self.df('tboost')
         df['boosted_utilization'] = df['utilization'] + df['margin']
 
-    def __addNormalizedEnergy(self):
+    def _sanitize_SchedEnergyDiff(self):
         if 'nrg_model' not in self.platform:
             return
         nrg_model = self.platform['nrg_model']
