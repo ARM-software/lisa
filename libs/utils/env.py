@@ -208,7 +208,7 @@ class TestEnv(ShareState):
             'username' : USERNAME_DEFAULT,
         }
 
-        if 'usename' in self.conf:
+        if 'username' in self.conf:
             self.__connection_settings['username'] = self.conf['username']
         if 'keyfile' in self.conf:
             self.__connection_settings['keyfile'] = self.conf['keyfile']
