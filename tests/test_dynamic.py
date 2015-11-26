@@ -29,11 +29,6 @@ class DynamicEvent(Base):
     unique_word = "dynamic_test_key"
     name = "dynamic_event"
 
-    def __init__(self):
-        super(DynamicEvent, self).__init__(
-            unique_word=self.unique_word,
-        )
-
 
 class TestDynamicEvents(BaseTestSched):
 

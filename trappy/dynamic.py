@@ -32,7 +32,6 @@ def default_init(self):
     """
 
     super(type(self), self).__init__(
-        unique_word=self.unique_word,
         parse_raw=self.parse_raw
     )
 

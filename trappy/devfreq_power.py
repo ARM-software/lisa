@@ -34,9 +34,6 @@ FTrace dump"""
     unique_word="thermal_power_devfreq_get_power:"
     """The event name in the trace"""
 
-    def __init__(self):
-        super(DevfreqInPower, self).__init__(unique_word=self.unique_word)
-
     def get_all_freqs(self):
         """Return a :mod:`pandas.DataFrame` with
         the frequencies for the devfreq device
@@ -62,9 +59,6 @@ ftrace dump"""
 
     unique_word="thermal_power_devfreq_limit:"
     """The event name in the trace"""
-
-    def __init__(self):
-        super(DevfreqOutPower, self).__init__(unique_word=self.unique_word)
 
     def get_all_freqs(self):
         """Return a :mod:`pandas.DataFrame` with

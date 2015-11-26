@@ -38,9 +38,6 @@ class Thermal(Base):
     pivot = "id"
     """The Pivot along which the data is orthogonal"""
 
-    def __init__(self):
-        super(Thermal, self).__init__(unique_word=self.unique_word)
-
     def plot_temperature(self, control_temperature=None, title="", width=None,
                          height=None, ylim="range", ax=None, legend_label=""):
         """Plot the temperature.
@@ -118,11 +115,6 @@ class ThermalGovernor(Base):
 
     pivot = "thermal_zone_id"
     """The Pivot along which the data is orthogonal"""
-
-    def __init__(self):
-        super(ThermalGovernor, self).__init__(
-            unique_word=self.unique_word,
-        )
 
     def plot_temperature(self, title="", width=None, height=None, ylim="range",
                          ax=None, legend_label=""):

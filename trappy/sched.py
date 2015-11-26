@@ -35,11 +35,6 @@ class SchedLoadAvgSchedGroup(Base):
     pivot = "cpus"
     """The Pivot along which the data is orthogonal"""
 
-    def __init__(self):
-        super(SchedLoadAvgSchedGroup, self).__init__(
-            unique_word=self.unique_word,
-        )
-
     def finalize_object(self):
         """This condition is necessary to force column 'cpus' to be printed
         as 8 digits w/ leading 0
@@ -62,11 +57,6 @@ class SchedLoadAvgTask(Base):
 
     pivot = "pid"
     """The Pivot along which the data is orthogonal"""
-
-    def __init__(self):
-        super(SchedLoadAvgTask, self).__init__(
-            unique_word=self.unique_word,
-        )
 
     def get_pids(self, key=""):
         """Returns a list of (comm, pid) that contain
@@ -103,11 +93,6 @@ class SchedCpuCapacity(Base):
     pivot = "cpu"
     """The Pivot along which the data is orthogonal"""
 
-    def __init__(self):
-        super(SchedCpuCapacity, self).__init__(
-            unique_word=self.unique_word,
-        )
-
     def finalize_object(self):
         """This renaming is necessary because our cpu related pivot is 'cpu'
         and not 'cpu_id'. Otherwise you cannot 'mix and match' with other
@@ -137,11 +122,6 @@ class SchedCpuFrequency(Base):
 
     pivot = "cpu"
     """The Pivot along which the data is orthogonal"""
-
-    def __init__(self):
-        super(SchedCpuFrequency, self).__init__(
-            unique_word=self.unique_word,
-        )
 
     def finalize_object(self):
         """This renaming is necessary because our cpu related pivot is 'cpu'
