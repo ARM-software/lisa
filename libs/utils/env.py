@@ -188,7 +188,7 @@ class TestEnv(ShareState):
                 [i for i,t in enumerate(self.target.core_names)
                             if t == self.target.big_core])
         elif self.target.abi == 'x86_64':
-            for c in set(self.target.core_cluster):
+            for c in set(self.target.core_clusters):
                 CLUSTERS.append(
                     [i for i,v in enumerate(self.target.core_clusters)
                                 if v == c])
