@@ -113,8 +113,8 @@ class Run(object):
                                           self.sched_classes.items())
 
         self.trace_classes = []
-        for attr, class_name in self.class_definitions.iteritems():
-            trace_class = globals()[class_name]()
+        for attr, class_def in self.class_definitions.iteritems():
+            trace_class = class_def()
             setattr(self, attr, trace_class)
             self.trace_classes.append(trace_class)
 
@@ -222,10 +222,9 @@ class Run(object):
         """
         # Add the class to the classes dictionary
         if scope == "all":
-            cls.dynamic_classes[cobject.name] = cobject.__name__
+            cls.dynamic_classes[cobject.name] = cobject
         else:
-            getattr(cls, scope + "_classes")[cobject.name] = cobject.__name__
-        globals()[cobject.__name__] = cobject
+            getattr(cls, scope + "_classes")[cobject.name] = cobject
 
     def get_filters(self, key=""):
         """Returns an array with the available filters.
