@@ -17,17 +17,7 @@
 objects
 """
 import collections
-
-
-def listify(to_select):
-    """Utitlity function to handle both single and
-    list inputs
-    """
-
-    if not isinstance(to_select, list):
-        to_select = [to_select]
-
-    return to_select
+from trappy.utils import listify
 
 
 def normalize_list(val, lst):

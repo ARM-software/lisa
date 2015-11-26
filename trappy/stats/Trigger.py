@@ -25,7 +25,7 @@
 """
 
 import types
-from trappy.plotter.Utils import listify
+from trappy.utils import listify
 
 
 class Trigger(object):

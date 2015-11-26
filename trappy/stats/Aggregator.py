@@ -20,7 +20,7 @@ is expected to handle its "aggregation" mechanism.
 """
 
 
-from trappy.plotter.Utils import listify
+from trappy.utils import listify
 from trappy.stats.Indexer import MultiTriggerIndexer
 from abc import ABCMeta, abstractmethod
 
