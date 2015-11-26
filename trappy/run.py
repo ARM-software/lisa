@@ -260,19 +260,36 @@ class Run(object):
             trace_class.normalize_time(self.basetime)
 
     def __add_events(self, events):
-        """Add events to the class_definitions"""
+        """Add events to the class_definitions
+
+        If the events are known to trappy just add that class to the
+        class definitions list.  Otherwise, register a class to parse
+        that event
+
+        """
 
         from trappy.dynamic import DynamicTypeFactory, default_init
         from trappy.base import Base
 
+        # TODO: scopes should not be hardcoded (nor here nor in the Run object)
+        all_scopes = [self.thermal_classes, self.sched_classes,
+                      self.dynamic_classes]
+        known_events = {k: v for sc in all_scopes for k, v in sc.iteritems()}
+
         for event_name in events:
-            kwords = {
-                "__init__": default_init,
-                "unique_word": event_name + ":",
-                "name": event_name,
+            for cls in known_events.itervalues():
+                if (event_name == cls.unique_word) or \
+                   (event_name + ":" == cls.unique_word):
+                    self.class_definitions[event_name] = cls
+                    break
+            else:
+                kwords = {
+                    "__init__": default_init,
+                    "unique_word": event_name + ":",
+                    "name": event_name,
                 }
-            trace_class = DynamicTypeFactory(event_name, (Base,), kwords)
-            self.class_definitions[event_name] = trace_class
+                trace_class = DynamicTypeFactory(event_name, (Base,), kwords)
+                self.class_definitions[event_name] = trace_class
 
     def __contains_unique_word(self, line, unique_words):
         """The line contains any unique word that we are matching"""

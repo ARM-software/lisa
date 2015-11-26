@@ -192,6 +192,14 @@ class TestRun(BaseTestThermal):
         run = trappy.Run(scope="custom", events="foo")
         self.assertTrue(hasattr(run, "foo"))
 
+    def test_run_already_registered_events_are_not_registered_again(self):
+        """Run(events="foo") uses class for foo if it is a known class for trappy"""
+        events = ["sched_switch", "sched_load_avg_sg"]
+        run = trappy.Run(scope="custom", events=events)
+
+        self.assertTrue(run.sched_switch.parse_raw)
+        self.assertEquals(run.sched_load_avg_sg.pivot, "cpus")
+
     def test_get_all_freqs_data(self):
         """Test get_all_freqs_data()"""
 
