@@ -45,6 +45,8 @@ class EnergyMeter(object):
                 emeter = DEFAULT_ENERGY_METER[conf['board']]
                 logging.debug('%14s - using default energy meter for [%s]',
                         'EnergyMeter', conf['board'])
+        else:
+            return None
 
         if emeter['instrument'] == 'hwmon':
             EnergyMeter._meter = HWMon(target, emeter['conf'])
