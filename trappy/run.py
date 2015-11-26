@@ -22,6 +22,7 @@ import re
 import pandas as pd
 
 import trappy.plot_utils
+from trappy.utils import listify
 
 def _plot_freq_hists(allfreqs, what, axis, title):
     """Helper function for plot_freq_hists
@@ -64,6 +65,11 @@ class Run(object):
         the thermal classes are parsed.  If scope is sched, only the sched
         classes are parsed.
 
+    :param events: A list of strings containing the name of the trace
+        events that you want to include in this run object.  The
+        string must correspond to the event name (what you would pass
+        to "trace-cmd -e", i.e. 4th field in trace.txt)
+
     :param window: a tuple indicating a time window.  The first
         element in the tuple is the start timestamp and the second one
         the end timestamp.  Timestamps are relative to the first trace
@@ -80,6 +86,7 @@ class Run(object):
     :type name: str
     :type normalize_time: bool
     :type scope: str
+    :type events: list
     :type window: tuple
     :type abs_window: tuple
 
@@ -98,11 +105,13 @@ class Run(object):
     dynamic_classes = {}
 
     def __init__(self, path=".", name="", normalize_time=True, scope="all",
-                 window=(0, None), abs_window=(0, None)):
+                 events=[], window=(0, None), abs_window=(0, None)):
         self.name = name
         self.trace_path, self.trace_path_raw = self.__process_path(path)
         self.class_definitions = self.dynamic_classes.copy()
         self.basetime = 0
+
+        self.__add_events(listify(events))
 
         if scope == "thermal":
             self.class_definitions.update(self.thermal_classes.items())
@@ -249,6 +258,21 @@ class Run(object):
         """
         for trace_class in self.trace_classes:
             trace_class.normalize_time(self.basetime)
+
+    def __add_events(self, events):
+        """Add events to the class_definitions"""
+
+        from trappy.dynamic import DynamicTypeFactory, default_init
+        from trappy.base import Base
+
+        for event_name in events:
+            kwords = {
+                "__init__": default_init,
+                "unique_word": event_name + ":",
+                "name": event_name,
+                }
+            trace_class = DynamicTypeFactory(event_name, (Base,), kwords)
+            self.class_definitions[event_name] = trace_class
 
     def __contains_unique_word(self, line, unique_words):
         """The line contains any unique word that we are matching"""

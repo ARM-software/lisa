@@ -181,6 +181,17 @@ class TestRun(BaseTestThermal):
         exp_inpower_last = prev_inpower_last - run.basetime
         self.assertEquals(round(run.cpu_in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
 
+    def test_run_accepts_events(self):
+        """The Run class accepts an events parameter with only the parameters interesting for a run"""
+
+        run = trappy.Run(scope="custom", events=["cdev_update"])
+
+        self.assertGreater(len(run.cdev_update.data_frame), 1)
+
+        # If you specify events as a string by mistake, trappy does the right thing
+        run = trappy.Run(scope="custom", events="foo")
+        self.assertTrue(hasattr(run, "foo"))
+
     def test_get_all_freqs_data(self):
         """Test get_all_freqs_data()"""
 
