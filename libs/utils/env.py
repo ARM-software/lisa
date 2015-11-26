@@ -328,7 +328,7 @@ class TestEnv(ShareState):
         # Initialize energy probe to board default
         self.emeter = EnergyMeter.getInstance(self.target, self.conf, force)
 
-    def _init_platform(self):
+    def _init_platform_bl(self):
         self.platform = {
             'clusters' : {
                 'little'    : self.target.bl.littles,
@@ -342,6 +342,14 @@ class TestEnv(ShareState):
         self.platform['cpus_count'] = \
             len(self.platform['clusters']['little']) + \
             len(self.platform['clusters']['big'])
+
+    def _init_platform(self):
+        if 'bl' in self.target.modules:
+            self._init_platform_bl()
+        else:
+            raise RuntimeError('Non big.LITTLE platforms not supported')
+
+        # Adding energy model information
         if 'nrg_model' in self.conf:
             self.platform['nrg_model'] = self.conf['nrg_model']
 
