@@ -197,6 +197,22 @@ class Target(object):
         self.execute('mkdir -p {}'.format(self.working_directory))
         self.execute('mkdir -p {}'.format(self.executables_directory))
         self.busybox = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, self.abi, 'busybox'))
+
+        # Setup shutils script for the target
+        shutils_ifile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils.in')
+        shutils_ofile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils')
+        shell_path = '/bin/sh'
+        if self.os == 'android':
+            shell_path = '/system/bin/sh'
+        with open(shutils_ifile) as fh:
+            lines = fh.readlines()
+        with open(shutils_ofile, 'w') as ofile:
+            for line in lines:
+                line = line.replace("__DEVLIB_SHELL__", shell_path)
+                line = line.replace("__DEVLIB_BUSYBOX__", self.busybox)
+                ofile.write(line)
+        self.shutils = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils'))
+
         for host_exe in (executables or []):  # pylint: disable=superfluous-parens
             self.install(host_exe)
 
@@ -226,6 +242,10 @@ class Target(object):
         return self.conn.pull(source, dest, timeout=timeout)
 
     # execution
+
+    def _execute_util(self, command, timeout=None, check_exit_code=True, as_root=False):
+        command = '{} {}'.format(self.shutils, command)
+        return self.conn.execute(command, timeout, check_exit_code, as_root)
 
     def execute(self, command, timeout=None, check_exit_code=True, as_root=False):
         return self.conn.execute(command, timeout, check_exit_code, as_root)

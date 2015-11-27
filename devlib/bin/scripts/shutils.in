@@ -1,0 +1,21 @@
+#!__DEVLIB_SHELL__
+
+CMD=$1
+shift
+
+BUSYBOX=${BUSYBOX:-__DEVLIB_BUSYBOX__}
+GREP=${GREP:-$BUSYBOX grep}
+SED=${SED:-$BUSYBOX sed}
+
+
+################################################################################
+# Main Function Dispatcher
+################################################################################
+
+case $CMD in
+*)
+    echo "Command [$CMD] not supported"
+    exit -1
+esac
+
+# vim: tabstop=4 shiftwidth=4
