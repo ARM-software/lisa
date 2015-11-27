@@ -349,30 +349,27 @@ class CpufreqModule(Module):
         for cpu in online_cpus:
             self.set_frequency(cpu, freq, exact)
 
-    def set_all_frequencies(self, freq, exact=False):
-        self.target.execute(
-                "for CPU in /sys/devices/system/cpu/cpu[0-9]*; do "\
-                        "echo {} > $CPU/cpufreq/scaling_cur_freq; "\
-                "done"\
-                .format(freq), as_root=True)
+    def set_all_frequencies(self, freq):
+        """
+        Set the specified (minimum) frequency for all the (online) CPUs
+        """
+        return self.target._execute_util(
+                'cpufreq_set_all_frequencies {}'.format(freq),
+                as_root=True)
+
 
     def set_all_governors(self, governor):
-        self.target.execute(
-                "for CPU in /sys/devices/system/cpu/cpu[0-9]*; do "\
-                        "echo {} > $CPU/cpufreq/scaling_governor; "\
-                "done"\
-                .format(governor), as_root=True)
+        """
+        Set the specified governor for all the (online) CPUs
+        """
+        return self.target._execute_util(
+                'cpufreq_set_all_governors {}'.format(governor),
+                as_root=True)
+
 
     def trace_frequencies(self):
         """
         Report current frequencies on trace file
         """
-        self.target.execute(
-                'FREQS=$(cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq); '
-                'CPU=0; for F in $FREQS; do '
-                '   echo "cpu_frequency:        state=$F cpu_id=$CPU" > /sys/kernel/debug/tracing/trace_marker; '
-                '   let CPU++; '
-                'done',
-                as_root=True
-        )
+        return self.target._execute_util('cpufreq_trace_all_frequencies', as_root=True)
 
