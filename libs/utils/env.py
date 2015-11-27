@@ -355,11 +355,26 @@ class TestEnv(ShareState):
             len(self.platform['clusters']['little']) + \
             len(self.platform['clusters']['big'])
 
+    def _init_platform_smp(self):
+        self.platform = {
+            'clusters' : {},
+            'freqs' : {}
+        }
+        for cpu_id,node_id in enumerate(self.target.core_clusters):
+            if node_id not in self.platform['clusters']:
+                self.platform['clusters'][node_id] = []
+            self.platform['clusters'][node_id].append(cpu_id)
+
+        # TODO: get the supported frequencies for each cluster and/or
+        # performance boundaries in case of intel_pstate driver
+
+        self.platform['cpus_count'] = len(self.target.core_clusters)
+
     def _init_platform(self):
         if 'bl' in self.target.modules:
             self._init_platform_bl()
         else:
-            raise RuntimeError('Non big.LITTLE platforms not supported')
+            self._init_platform_smp()
 
         # Adding energy model information
         if 'nrg_model' in self.conf:
