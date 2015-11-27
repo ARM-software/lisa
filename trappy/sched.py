@@ -26,7 +26,7 @@ class SchedLoadAvgSchedGroup(Base):
     unique_word = "sched_load_avg_sg:"
     """The unique word that will be matched in a trace line"""
 
-    name = "sched_load_avg_sched_group"
+    name = "sched_load_avg_sg"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
     :mod:`trappy.run.Run` object"""
 
@@ -86,7 +86,7 @@ class SchedCpuCapacity(Base):
     unique_word = "cpu_capacity:"
     """The unique word that will be matched in a trace line"""
 
-    name = "sched_cpu_capacity"
+    name = "cpu_capacity"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
     :mod:`trappy.run.Run` object"""
 
@@ -116,7 +116,7 @@ class SchedCpuFrequency(Base):
     unique_word = "cpu_frequency:"
     """The unique word that will be matched in a trace line"""
 
-    name = "sched_cpu_frequency"
+    name = "cpu_frequency"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
     :mod:`trappy.run.Run` object"""
 

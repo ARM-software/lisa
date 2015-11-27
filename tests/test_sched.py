@@ -33,7 +33,7 @@ class TestSchedLoadAvgSchedGroup(BaseTestSched):
 
     def test_get_dataframe(self):
         """Test that SchedLoadAvgSchedGroup creates a proper data_frame"""
-        dfr = trappy.Run().sched_load_avg_sched_group.data_frame
+        dfr = trappy.Run().sched_load_avg_sg.data_frame
 
         self.assertTrue(len(dfr) == 1)
         self.assertEquals(dfr["cpus"].iloc[0], "00000002")
@@ -81,7 +81,7 @@ class TestSchedCpuCapacity(BaseTestSched):
 
     def test_get_dataframe(self):
         """Test that SchedCpuCapacity creates a proper data_frame"""
-        dfr = trappy.Run().sched_cpu_capacity.data_frame
+        dfr = trappy.Run().cpu_capacity.data_frame
 
         self.assertTrue(len(dfr) == 1)
         self.assertEquals(dfr["cpu"].iloc[0], 3)
@@ -91,8 +91,8 @@ class TestSchedCpuCapacity(BaseTestSched):
 class TestSchedCpuFrequency(BaseTestSched):
 
     def test_get_dataframe(self):
-        """Test that CpuFrequency creates a proper data_frame"""
-        dfr = trappy.Run().sched_cpu_frequency.data_frame
+        """Test that SchedCpuFrequency creates a proper data_frame"""
+        dfr = trappy.Run().cpu_frequency.data_frame
 
         self.assertTrue(len(dfr) == 1)
         self.assertEquals(dfr["cpu"].iloc[0], 0)
@@ -110,8 +110,14 @@ class TestGetFilters(BaseTestSched):
         self.assertTrue(len(classes) == len(filters))
         self.assertTrue(sorted(classes) == sorted(filters))
 
-        sched_classes = run.sched_classes
+        sched_classes = run.sched_classes.copy()
         sched_filters = run.get_filters("sched")
+
+        # cpu_capacity and cpu_frequency are in the sched scope but they should
+        # not be captured by get_filters("sched")
+        del sched_classes["cpu_capacity"]
+        del sched_classes["cpu_frequency"]
+
         self.assertTrue(len(sched_classes) == len(sched_filters))
         self.assertTrue(sorted(sched_classes) == sorted(sched_filters))
 
