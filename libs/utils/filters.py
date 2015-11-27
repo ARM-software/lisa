@@ -58,7 +58,7 @@ class Filters(object):
             min_utilization = self.little_cap
 
         df = self.trace.df('tload')
-        big_tasks_events = df[df.utilization > min_utilization]
+        big_tasks_events = df[df.util_avg > min_utilization]
         big_tasks = big_tasks_events.pid.unique()
 
         big_tasks_count = big_tasks.size
@@ -102,7 +102,8 @@ class Filters(object):
         big_frequent_tasks_events = df[df.pid.isin(self.big_frequent_tasks_pids)]
 
         # Add a column to represent big status
-        big_frequent_tasks_events['isbig'] = big_frequent_tasks_events['utilization'].map(self._taskIsBig)
+        big_frequent_tasks_events.loc[:,'isbig'] = \
+                big_frequent_tasks_events['util_avg'].map(self._taskIsBig)
 
 
         # Define axes for side-by-side plottings
@@ -128,14 +129,14 @@ class Filters(object):
             ax_ratio.set_title(task_name);
 
             # Left axis: utilization
-            ax_ratio = group.plot(y=['utilization', 'isbig'],
+            ax_ratio = group.plot(y=['util_avg', 'isbig'],
                             style=['r.', '-b'],
                             drawstyle='steps-post',
                             linewidth=1,
                             ax=ax_ratio)
             ax_ratio.set_xlim(self.x_min, self.x_max);
             ax_ratio.set_ylim(0, 1100)
-            ax_ratio.set_ylabel('utilization')
+            ax_ratio.set_ylabel('util_avg')
 
             plot_idx+=1
 
@@ -233,11 +234,11 @@ class Filters(object):
         # Add column of expected cluster, depending on utilization value and
         # capacity of the selected cluster
         bu_bc = ( \
-                (df_wkp['utilization'] > 500) & \
+                (df_wkp['util_avg'] > 500) & \
                 (df_wkp['cpu'].isin([2,3]))
             )
         su_lc = ( \
-                (df_wkp['utilization'] <= 500) & \
+                (df_wkp['util_avg'] <= 500) & \
                 (df_wkp['cpu'].isin([0,1]))
             )
         df_wkp.loc[:,'ccap_mutil'] = np.select(
@@ -251,14 +252,14 @@ class Filters(object):
         for ucolor, umatch in zip('gr', [True, False]):
             cdata  = df_wkp[df_wkp['ccap_mutil'] == umatch]
             if (len(cdata) > 0):
-                cdata['utilization'].plot(ax=ax,
+                cdata['util_avg'].plot(ax=ax,
                         style=[ucolor+'.'], legend=False);
         ax.set_xlim(self.x_min, self.x_max);
         ax.xaxis.set_visible(False);
 
         ax = axes[1]
         ax.set_title('Frequencies on "{}" cluster'.format(cluster_correct))
-        df_freq['state'].plot(style=['-b'], ax=ax, drawstyle='steps-post');
+        df_freq['frequency'].plot(style=['-b'], ax=ax, drawstyle='steps-post');
         ax.set_xlim(self.x_min, self.x_max);
 
     def rtTasks(self, max_prio = 100):
