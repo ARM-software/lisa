@@ -15,7 +15,7 @@ import logging
 
 class Trace(object):
 
-    def __init__(self, platform, datadir, tasks=None):
+    def __init__(self, platform, datadir, events, tasks=None):
 
         # The platform used to run the experiments
         self.platform = None
@@ -38,6 +38,9 @@ class Trace(object):
         # The dictionary of tasks descriptors available in the dataset
         self.tasks = {}
 
+        # List of events required by user
+        self.events = []
+
         # List of events available in the parsed trace
         self.available_events = []
 
@@ -47,37 +50,24 @@ class Trace(object):
         # Platform descriptor
         self.platform = platform
 
-        self.__registerTraceEvents()
+        self.__registerTraceEvents(events)
         self.__parseTrace(datadir, tasks)
         self.__computeTimeSpan()
 
-    def __registerTraceEvents(self):
+    def __registerTraceEvents(self, events):
 
-        # Additional standard events
-        self.trappy_cls['sched_migrate_task'] = trappy.register_dynamic(
-                'SchedMigrateTask', 'sched_migrate_task:', scope='sched');
+        if isinstance(events, basestring):
+            self.events = events.split(' ')
+        elif isinstance(events, list):
+            self.events = events
+        else:
+            raise ValueError('Events must be a string or a list of strings')
 
-        self.trappy_cls['sched_wakeup'] = trappy.register_dynamic(
-                'SchedWakeup', 'sched_wakeup:', scope='sched', parse_raw=True);
-        self.trappy_cls['sched_wakeup_new'] = trappy.register_dynamic(
-                'SchedWakeupNew', 'sched_wakeup_new:', scope='sched', parse_raw=True);
-
-        self.trappy_cls['sched_boost_cpu'] = trappy.register_dynamic(
-                'SchedBoostCpu', 'sched_boost_cpu:', scope='sched')
-        self.trappy_cls['sched_boost_task'] = trappy.register_dynamic(
-                'SchedBoostTask', 'sched_boost_task:', scope='sched')
-
-        self.trappy_cls['sched_energy_diff'] = trappy.register_dynamic(
-                'SchedEnergyDiff', 'sched_energy_diff:', scope='sched')
-        self.trappy_cls['sched_tune_config'] = trappy.register_dynamic(
-                'SchedTuneConfig', 'sched_tune_config:', scope='sched')
-        self.trappy_cls['sched_tune_tasks_update'] = trappy.register_dynamic(
-                'SchedTuneTasksUpdate', 'sched_tune_tasks_update:',
-                scope='sched')
 
     def __parseTrace(self, datadir, tasks):
         logging.debug('Loading [sched] events from trace in [%s]...', datadir)
-        self.run = trappy.Run(datadir, scope="sched")
+        logging.debug("Parsing events: %s", self.events)
+        self.run = trappy.Run(datadir, scope="custom", events=self.events)
 
         # Check for events available on the parsed trace
         self.__checkAvailableEvents()
