@@ -30,10 +30,8 @@ class PIDController(Base):
     pivot = "thermal_zone_id"
     """The Pivot along which the data is orthogonal"""
 
-    def __init__(self):
-        super(PIDController, self).__init__(
-            unique_word="thermal_power_allocator_pid",
-        )
+    unique_word="thermal_power_allocator_pid"
+    """The event name in the trace"""
 
     def plot_controller(self, title="", width=None, height=None, ax=None):
         """Plot a summary of the controller data

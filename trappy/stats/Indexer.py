@@ -20,7 +20,7 @@
 
 import pandas as pd
 import numpy as np
-from trappy.plotter.Utils import listify
+from trappy.utils import listify
 from trappy.stats import StatConf
 
 class Indexer(object):

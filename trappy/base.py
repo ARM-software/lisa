@@ -71,20 +71,21 @@ def trace_parser_explode_array(string, array_lengths):
 class Base(object):
     """Base class to parse trace.dat dumps.
 
-    Don't use directly, create a subclass that defines the unique_word
-    you want to match in the output
-
-    :param unique_word: Unique Word to identify the event in the trace
-    :type unique_word: str
+    Don't use directly, create a subclass that has a unique_word class
+    variable.  unique_word is a string that can uniquely identify
+    lines in the trace that correspond to this event.  This is usually
+    the trace_name (optionally followed by a semicolong,
+    e.g. "sched_switch:") but it can be anything else for trace points
+    generated using trace_printk().
 
     :param parse_raw: If :code:`True`, raw trace data (-R option) to
         trace-cmd will be used
 
     This class acts as a base class for all TRAPpy events
+
     """
-    def __init__(self, unique_word, parse_raw=False):
+    def __init__(self, parse_raw=False):
         self.data_frame = pd.DataFrame()
-        self.unique_word = unique_word
         self.data_array = []
         self.time_array = []
         self.comm_array = []

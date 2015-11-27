@@ -26,7 +26,7 @@ class SchedLoadAvgSchedGroup(Base):
     unique_word = "sched_load_avg_sg:"
     """The unique word that will be matched in a trace line"""
 
-    name = "sched_load_avg_sched_group"
+    name = "sched_load_avg_sg"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
     :mod:`trappy.run.Run` object"""
 
@@ -34,11 +34,6 @@ class SchedLoadAvgSchedGroup(Base):
 
     pivot = "cpus"
     """The Pivot along which the data is orthogonal"""
-
-    def __init__(self):
-        super(SchedLoadAvgSchedGroup, self).__init__(
-            unique_word=self.unique_word,
-        )
 
     def finalize_object(self):
         """This condition is necessary to force column 'cpus' to be printed
@@ -62,11 +57,6 @@ class SchedLoadAvgTask(Base):
 
     pivot = "pid"
     """The Pivot along which the data is orthogonal"""
-
-    def __init__(self):
-        super(SchedLoadAvgTask, self).__init__(
-            unique_word=self.unique_word,
-        )
 
     def get_pids(self, key=""):
         """Returns a list of (comm, pid) that contain
@@ -96,17 +86,12 @@ class SchedCpuCapacity(Base):
     unique_word = "cpu_capacity:"
     """The unique word that will be matched in a trace line"""
 
-    name = "sched_cpu_capacity"
+    name = "cpu_capacity"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
     :mod:`trappy.run.Run` object"""
 
     pivot = "cpu"
     """The Pivot along which the data is orthogonal"""
-
-    def __init__(self):
-        super(SchedCpuCapacity, self).__init__(
-            unique_word=self.unique_word,
-        )
 
     def finalize_object(self):
         """This renaming is necessary because our cpu related pivot is 'cpu'
@@ -131,17 +116,12 @@ class SchedCpuFrequency(Base):
     unique_word = "cpu_frequency:"
     """The unique word that will be matched in a trace line"""
 
-    name = "sched_cpu_frequency"
+    name = "cpu_frequency"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
     :mod:`trappy.run.Run` object"""
 
     pivot = "cpu"
     """The Pivot along which the data is orthogonal"""
-
-    def __init__(self):
-        super(SchedCpuFrequency, self).__init__(
-            unique_word=self.unique_word,
-        )
 
     def finalize_object(self):
         """This renaming is necessary because our cpu related pivot is 'cpu'

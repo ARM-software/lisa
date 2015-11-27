@@ -106,11 +106,6 @@ class CpuOutPower(Base):
     pivot = "cpus"
     """The Pivot along which the data is orthogonal"""
 
-    def __init__(self):
-        super(CpuOutPower, self).__init__(
-            unique_word=self.unique_word,
-        )
-
     def get_all_freqs(self, mapping_label):
         """Get a :mod:`pandas.DataFrame` with the maximum frequencies allowed by the governor
 
@@ -140,11 +135,6 @@ class CpuInPower(Base):
 
     pivot = "cpus"
     """The Pivot along which the data is orthogonal"""
-
-    def __init__(self):
-        super(CpuInPower, self).__init__(
-            unique_word=self.unique_word,
-        )
 
     def _get_load_series(self):
         """get a :mod:`pandas.Series` with the aggregated load"""

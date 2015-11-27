@@ -31,10 +31,8 @@ FTrace dump"""
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
     :mod:`trappy.run.Run` object"""
 
-    def __init__(self):
-        super(DevfreqInPower, self).__init__(
-            unique_word="thermal_power_devfreq_get_power:",
-        )
+    unique_word="thermal_power_devfreq_get_power:"
+    """The event name in the trace"""
 
     def get_all_freqs(self):
         """Return a :mod:`pandas.DataFrame` with
@@ -59,10 +57,8 @@ ftrace dump"""
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
     :mod:`trappy.run.Run` object"""
 
-    def __init__(self):
-        super(DevfreqOutPower, self).__init__(
-            unique_word="thermal_power_devfreq_limit:",
-        )
+    unique_word="thermal_power_devfreq_limit:"
+    """The event name in the trace"""
 
     def get_all_freqs(self):
         """Return a :mod:`pandas.DataFrame` with

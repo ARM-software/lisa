@@ -70,6 +70,22 @@ class TestRun(BaseTestThermal):
         for attr in run.sched_classes.iterkeys():
             self.assertTrue(hasattr(run, attr))
 
+    def test_run_has_no_classes_scope_dynamic(self):
+        """The Run() class has only dynamically registered classes with scope=custom"""
+
+        run = trappy.Run(scope="custom")
+
+        for attr in run.thermal_classes.iterkeys():
+            self.assertFalse(hasattr(run, attr))
+
+        for attr in run.sched_classes.iterkeys():
+            self.assertFalse(hasattr(run, attr))
+
+        trappy.register_dynamic("ADynamicEvent", "a_dynamic_event")
+        run = trappy.Run(scope="custom")
+
+        self.assertTrue(hasattr(run, "a_dynamic_event"))
+
     def test_run_accepts_name(self):
         """The Run() class has members for all classes"""
 
@@ -164,6 +180,25 @@ class TestRun(BaseTestThermal):
 
         exp_inpower_last = prev_inpower_last - run.basetime
         self.assertEquals(round(run.cpu_in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
+
+    def test_run_accepts_events(self):
+        """The Run class accepts an events parameter with only the parameters interesting for a run"""
+
+        run = trappy.Run(scope="custom", events=["cdev_update"])
+
+        self.assertGreater(len(run.cdev_update.data_frame), 1)
+
+        # If you specify events as a string by mistake, trappy does the right thing
+        run = trappy.Run(scope="custom", events="foo")
+        self.assertTrue(hasattr(run, "foo"))
+
+    def test_run_already_registered_events_are_not_registered_again(self):
+        """Run(events="foo") uses class for foo if it is a known class for trappy"""
+        events = ["sched_switch", "sched_load_avg_sg"]
+        run = trappy.Run(scope="custom", events=events)
+
+        self.assertTrue(run.sched_switch.parse_raw)
+        self.assertEquals(run.sched_load_avg_sg.pivot, "cpus")
 
     def test_get_all_freqs_data(self):
         """Test get_all_freqs_data()"""

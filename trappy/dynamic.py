@@ -31,10 +31,14 @@ def default_init(self):
     :mod:`trappy.dynamic.DynamicTypeFactory`
     """
 
-    super(type(self), self).__init__(
-        unique_word=self.unique_word,
-        parse_raw=self.parse_raw
-    )
+    kwords = {}
+
+    try:
+        kwords["parse_raw"] = self.parse_raw
+    except AttributeError:
+        pass
+
+    super(type(self), self).__init__(**kwords)
 
 
 class DynamicTypeFactory(type):

@@ -27,7 +27,8 @@ a data column, data event and the requisite filters is
 :mod:`trappy.plotter.Constraint.Constraint`
 """
 # pylint: disable=R0913
-from trappy.plotter.Utils import decolonize, listify, normalize_list
+from trappy.plotter.Utils import decolonize, normalize_list
+from trappy.utils import listify
 from trappy.plotter import AttrConf
 
 
