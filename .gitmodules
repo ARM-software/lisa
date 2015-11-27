@@ -1,0 +1,12 @@
+[submodule "devlib-next"]
+	path = libs/devlib
+	url = https://github.com/derkling/devlib.git
+	branch = devlib-next
+[submodule "trappy-next"]
+	path = libs/trappy
+	url = https://github.com/derkling/trappy.git
+	branch = trappy-next
+[submodule "bart-next"]
+	path = libs/bart
+	url = https://github.com/derkling/bart.git
+	branch = bart-next

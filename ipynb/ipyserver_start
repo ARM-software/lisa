@@ -19,11 +19,33 @@ fi
 
 PYDIR=$(pwd)
 BASEDIR=$(dirname $PYDIR)
-export PYTHONPATH=$BASEDIR/libs/utils:$PYTHONPATH
-export PYTHONPATH=$BASEDIR/libs/wlgen:$PYTHONPATH
+
+export PYTHONPATH=''
+export PYTHONPATH=`pwd`/../libs/utils:$PYTHONPATH
+export PYTHONPATH=`pwd`/../libs/wlgen:$PYTHONPATH
+
+if [ "x$DEVMODE" == "x1" ]; then
+	export PYTHONPATH=`pwd`/../libs/devlib:$PYTHONPATH
+	export PYTHONPATH=`pwd`/../libs/trappy:$PYTHONPATH
+	export PYTHONPATH=`pwd`/../libs/bart:$PYTHONPATH
+
+	echo
+	echo 'Developer mode ENABLED, using libraries provided by submodules'
+	echo 'PYTHONPATH: '
+	echo $PYTHONPATH
+	echo
+
+	if [ ! -f libs/devlib/README.rst ]; then
+		echo 'Initializing submodules...'
+		git submodule init
+	fi
+	echo 'Update submodules if required'
+	git submodule update
+	echo 'DONE'
+fi
 
 echo 'Starting IPython Notebook server...'
-echo '  IP Address : ' $IPADDR
+echo "  IP Address :  http://$IPADDR:8888/"
 echo '  Folder     : ' $PYDIR
 echo '  PYTHONPATH : ' $PYTHONPATH
 
@@ -31,5 +53,4 @@ nohup ipython notebook --ip=$IPADDR &
 echo
 echo
 echo
-
 
