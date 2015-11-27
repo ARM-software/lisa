@@ -68,7 +68,7 @@ class Filters(object):
         big_tasks_stats = big_tasks_events.groupby('pid')\
                             .describe(include=['object']);
         big_tasks_pids = big_tasks_stats.unstack()['comm']\
-                            .sort(columns=['count'], ascending=False)
+                            .sort_values(by=['count'], ascending=False)
         big_tasks_pids = big_tasks_pids[big_tasks_pids['count'] > min_samples]
 
         big_topmost = big_tasks_pids.head(max_tasks)
@@ -152,7 +152,7 @@ class Filters(object):
 
         wkp_tasks_stats = df.groupby('pid').describe(include=['object'])
         wkp_tasks_pids = wkp_tasks_stats.unstack()['comm']\
-                        .sort(columns=['count'], ascending=False)
+                        .sort_values(by=['count'], ascending=False)
         wkp_tasks_pids = wkp_tasks_pids[wkp_tasks_pids['count'] > min_wakeups]
 
         wkp_topmost = wkp_tasks_pids.head(max_tasks)
