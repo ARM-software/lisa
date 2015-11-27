@@ -87,19 +87,35 @@ class ILinePlot(AbstractDataPlotter):
             the drawstyle. This creates a step plot.
 
     :type drawstyle: str
+
+    :param signals: A string of the type event_name:column
+        to indicate the value that needs to be plotted
+
+        .. note::
+
+            - Only one of `signals` or both `templates` and
+              `columns` should be specified
+            - Signals format won't work for :mod:`pandas.DataFrame`
+              input
+
+    :type signals: str
     """
 
     def __init__(self, runs, templates=None, **kwargs):
         # Default keys, each can be overridden in kwargs
-        self._attr = {}
-        self.runs = runs
-        self.templates = templates
-        self.set_defaults()
         self._layout = None
+        super(ILinePlot, self).__init__(runs=runs,
+                                        templates=templates)
 
-        self._check_data()
+        self.set_defaults()
+
         for key in kwargs:
             self._attr[key] = kwargs[key]
+
+        if "signals" in self._attr:
+            self._describe_signals()
+
+        self._check_data()
 
         if "column" not in self._attr:
             raise RuntimeError("Value Column not specified")
@@ -109,11 +125,10 @@ class ILinePlot(AbstractDataPlotter):
 
         zip_constraints = not self._attr["permute"]
 
-        self.c_mgr = ConstraintManager(runs, self._attr["column"], templates,
+        self.c_mgr = ConstraintManager(runs, self._attr["column"], self.templates,
                                        self._attr["pivot"],
                                        self._attr["filters"], zip_constraints)
 
-        super(ILinePlot, self).__init__()
 
     def savefig(self, *args, **kwargs):
         raise NotImplementedError("Not Available for ILinePlot")

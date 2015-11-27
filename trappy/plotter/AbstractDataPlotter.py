@@ -18,6 +18,7 @@ from abc import abstractmethod, ABCMeta
 from pandas import DataFrame
 from trappy.utils import listify
 from functools import reduce
+from trappy.stats.grammar import Group, IDENTIFIER, COLON
 # pylint: disable=R0921
 # pylint: disable=R0903
 
@@ -27,6 +28,18 @@ class AbstractDataPlotter(object):
        for the various Plotting Classes"""
 
     __metaclass__ = ABCMeta
+
+    def __init__(self, runs=None, attr=None, templates=None):
+        self._value_parser = Group(
+            IDENTIFIER +
+            COLON +
+            IDENTIFIER).setParseAction(
+            self._parse_value)
+
+        self._event_map = {}
+        self._attr = attr if attr else {}
+        self.runs = runs
+        self.templates = templates if templates else []
 
     @abstractmethod
     def view(self):
@@ -50,8 +63,46 @@ class AbstractDataPlotter(object):
         if len(data):
             mask = map(lambda x: isinstance(x, DataFrame), data)
             data_frame = reduce(lambda x, y: x and y, mask)
-            if not data_frame and not self.templates:
+            sig_or_template = self.templates or "signals" in self._attr
+
+            if not data_frame and not sig_or_template:
                 raise ValueError(
                     "Cannot understand data. Accepted DataFormats are pandas.DataFrame and trappy.Run (with templates)")
+            elif data_frame and not self._attr["column"]:
+                raise ValueError("Column not specified for DataFrame input")
         else:
             raise ValueError("Empty Data received")
+
+    def _parse_value(self, tokens):
+        """Grammar parser function to parse a signal"""
+
+        event, column = tokens[0]
+
+        try:
+            return self._event_map[event], column
+        except KeyError:
+            for run in listify(self.runs):
+
+                if event in run.class_definitions:
+                    self._event_map[event] = run.class_definitions[event]
+                    return self._event_map[event], column
+
+            raise ValueError(
+                "Event: " +
+                event +
+                " not found in any Run Object")
+
+    def _describe_signals(self):
+        """Internal Function for populating templates and columns
+        from signals
+        """
+
+        if "column" in self._attr or self.templates:
+            raise ValueError("column/templates specified with values")
+
+        self._attr["column"] = []
+
+        for value in listify(self._attr["signals"]):
+            template, column = self._value_parser.parseString(value)[0]
+            self.templates.append(template)
+            self._attr["column"].append(column)
