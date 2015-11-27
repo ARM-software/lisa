@@ -357,6 +357,19 @@ class CpufreqModule(Module):
                 'cpufreq_set_all_frequencies {}'.format(freq),
                 as_root=True)
 
+    def get_all_frequencies(self):
+        """
+        Get the current frequency for all the (online) CPUs
+        """
+        output = self.target._execute_util(
+                'cpufreq_get_all_frequencies', as_root=True)
+        frequencies = {}
+        for x in output.splitlines():
+            kv = x.split(' ')
+            if kv[0] == '':
+                break
+            frequencies[kv[0]] = kv[1]
+        return frequencies
 
     def set_all_governors(self, governor):
         """
@@ -366,6 +379,19 @@ class CpufreqModule(Module):
                 'cpufreq_set_all_governors {}'.format(governor),
                 as_root=True)
 
+    def get_all_governors(self):
+        """
+        Get the current governor for all the (online) CPUs
+        """
+        output = self.target._execute_util(
+                'cpufreq_get_all_governors', as_root=True)
+        governors = {}
+        for x in output.splitlines():
+            kv = x.split(' ')
+            if kv[0] == '':
+                break
+            governors[kv[0]] = kv[1]
+        return governors
 
     def trace_frequencies(self):
         """

@@ -18,11 +18,21 @@ cpufreq_set_all_frequencies() {
 	done
 }
 
+cpufreq_get_all_frequencies() {
+	$GREP '' /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq | \
+		$SED -e 's|/sys/devices/system/cpu/cpu||' -e 's|/cpufreq/scaling_cur_freq:| |'
+}
+
 cpufreq_set_all_governors() {
 	GOV=$1
 	for CPU in /sys/devices/system/cpu/cpu[0-9]*; do
 		echo $GOV > $CPU/cpufreq/scaling_governor
 	done
+}
+
+cpufreq_get_all_governors() {
+	$GREP '' /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor | \
+		$SED -e 's|/sys/devices/system/cpu/cpu||' -e 's|/cpufreq/scaling_governor:| |'
 }
 
 cpufreq_trace_all_frequencies() {
@@ -41,8 +51,14 @@ case $CMD in
 cpufreq_set_all_frequencies)
     cpufreq_set_all_frequencies $*
     ;;
+cpufreq_get_all_frequencies)
+    cpufreq_get_all_frequencies
+    ;;
 cpufreq_set_all_governors)
     cpufreq_set_all_governors $*
+    ;;
+cpufreq_get_all_governors)
+    cpufreq_get_all_governors
     ;;
 cpufreq_trace_all_frequencies)
     cpufreq_trace_all_frequencies $*
