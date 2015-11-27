@@ -204,12 +204,15 @@ class TestEnv(ShareState):
         if not force and self.target is not None:
             return self.target
 
-        self.__connection_settings = {
-            'username' : USERNAME_DEFAULT,
-        }
+        self.__connection_settings = {}
 
+        # Configure username
         if 'username' in self.conf:
             self.__connection_settings['username'] = self.conf['username']
+        else:
+            self.__connection_settings['username'] = USERNAME_DEFAULT
+
+        # Configure password or SSH keyfile
         if 'keyfile' in self.conf:
             self.__connection_settings['keyfile'] = self.conf['keyfile']
         elif 'password' in self.conf:
@@ -217,22 +220,32 @@ class TestEnv(ShareState):
         else:
             self.__connection_settings['password'] = PASSWORD_DEFAULT
 
-        try:
-            if ':' in self.conf['host']:
-                (self.mac, self.ip) = self.resolv_host(self.conf['host'])
-            else:
-                self.ip = self.conf['host']
-            self.__connection_settings['host'] = self.ip
-        except KeyError:
-            raise ValueError('Config error: missing [host] parameter')
+        # Configure the host IP/MAC address
+        if 'host' in self.conf:
+            try:
+                if ':' in self.conf['host']:
+                    (self.mac, self.ip) = self.resolv_host(self.conf['host'])
+                else:
+                    self.ip = self.conf['host']
+                self.__connection_settings['host'] = self.ip
+            except KeyError:
+                raise ValueError('Config error: missing [host] parameter')
 
         try:
             platform_type = self.conf['platform']
         except KeyError:
             raise ValueError('Config error: missing [platform] parameter')
 
-        logging.info(r'%14s - Connecing %s target with: %s',
-                'Target', platform_type, self.__connection_settings)
+        # If the target is Android, we need just (eventually) the device
+        if platform_type.lower() == 'android':
+            self.__connection_settings = None
+            if 'device' in self.conf:
+                self.__connection_settings['device'] = self.conf['device']
+            logging.info(r'%14s - Connecing Android target [%s]',
+                    'Target', self.__connection_settings or 'DEFAULT')
+        else:
+            logging.info(r'%14s - Connecing %s target with: %s',
+                    'Target', platform_type, self.__connection_settings)
 
         if platform_type.lower() == 'linux':
             logging.debug('%14s - Setup LINUX target...', 'Target')
@@ -261,7 +274,6 @@ class TestEnv(ShareState):
         elif platform_type.lower() == 'host':
             logging.debug('%14s - Setup HOST target...', 'Target')
             self.target = devlib.LocalLinuxTarget(
-                    connection_settings = self.__connection_settings,
                     load_default_modules = False,
                     modules = self.__modules)
         else:
