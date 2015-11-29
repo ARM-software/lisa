@@ -57,6 +57,103 @@ def select_window(series, window):
     window_series = series[selector]
     return window_series
 
+def area_under_curve(series, sign=None, method="trapz", step="post"):
+    """Return the area under the time series curve (Integral)
+
+    :param series: The time series to be integrated
+    :type series: :mod:`pandas.Series`
+
+    :param sign: Clip the data for the area in positive
+        or negative regions. Can have two values
+
+        - `"+"`
+        - `"-"`
+    :type sign: str
+
+    :param method: The method for area calculation. This can
+        be any of the integration methods supported in `numpy`
+        or `rect`
+    :type param: str
+
+    :param step: The step behaviour for `rect` method
+    :type step: str
+
+    *Rectangular Method*
+
+        - Step: Post
+
+            Consider the following time series data
+
+            .. code::
+
+                2            *----*----*----+
+                             |              |
+                1            |              *----*----+
+                             |
+                0  *----*----+
+                   0    1    2    3    4    5    6    7
+
+            .. code::
+
+                import pandas as pd
+                a = [0, 0, 2, 2, 2, 1, 1]
+                s = pd.Series(a)
+
+            The area under the curve is:
+
+            .. math::
+
+                \sum_{k=0}^{N-1} (x_{k+1} - {x_k}) \\times f(x_k) \\\\
+                (2 \\times 3) + (1 \\times 2) = 8
+
+        - Step: Pre
+
+            .. code::
+
+                2       +----*----*----*
+                        |              |
+                1       |              +----*----*----+
+                        |
+                0  *----*
+                   0    1    2    3    4    5    6    7
+
+            .. code::
+
+                import pandas as pd
+                a = [0, 0, 2, 2, 2, 1, 1]
+                s = pd.Series(a)
+
+            The area under the curve is:
+
+            .. math::
+
+                \sum_{k=1}^{N} (x_k - x_{k-1}) \\times f(x_k) \\\\
+                (2 \\times 3) + (1 \\times 3) = 9
+    """
+
+    if sign == "+":
+        series = series.clip_lower(0)
+    elif sign == "=":
+        series = series.clip_upper(0)
+
+    series = series.dropna()
+
+    if method == "rect":
+
+        if step == "post":
+            values = series.values[:-1]
+        elif step == "pre":
+            values = series.values[1:]
+        else:
+            raise ValueError("Invalid Value for step: {}".format(step))
+
+        return (values * np.diff(series.index)).sum()
+
+    if hasattr(np, method):
+        np_integ_method = getattr(np, method)
+        np_integ_method(series.values, series.index)
+    else:
+        raise ValueError("Invalid method: {}".format(method))
 
 def interval_sum(series, value=None):
     """A function that returns the sum of the
