@@ -76,6 +76,18 @@ trappy.thermal.Thermal:temp"
                 parser.data.thermal.data_frame["temp"]) *
             2)
 
+    def test_parser_with_name(self):
+        """Test equation using event name"""
+
+        thermal_zone_id = 0
+        parser = Parser(trappy.Run())
+        # Equation with functions as parameters (Mixed)
+        eqn = "numpy.mean(thermal:temp) + 1000"
+        self.assertEquals(
+            parser.solve(eqn)[thermal_zone_id],
+            np.mean(
+                parser.data.thermal.data_frame["temp"]) + 1000)
+
     def test_bool_ops_vector(self):
         """Test Logical Operations: Vector"""
 

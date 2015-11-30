@@ -263,6 +263,15 @@ class Parser(object):
             parser = Parser(run)
             parser.solve("THERMAL:temp * 2")
 
+        *Using Event Name*
+        ::
+
+            import trappy
+            from trappy.stats.grammar import Parser
+            run = trappy.Run("path/to/trace/file")
+            parser = Parser(run)
+            parser.solve("thermal:temp * 2")
+
         The event :mod:`trappy.thermal.Thermal` is aliased
         as **THERMAL** in the grammar
 
@@ -404,6 +413,8 @@ class Parser(object):
 
         if cls in self._pvars:
             cls = self._pvars[cls]
+        elif cls in self.data.class_definitions:
+            cls = self.data.class_definitions[cls]
         else:
             cls = str_to_attr(cls)
 
@@ -428,6 +439,8 @@ class Parser(object):
 
         if cls in self._pvars:
             cls = self._pvars[cls]
+        elif cls in self.data.class_definitions:
+            cls = self.data.class_definitions[cls]
         else:
             cls = str_to_attr(cls)
 
