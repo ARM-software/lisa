@@ -94,24 +94,41 @@ class LinePlot(AbstractDataPlotter):
     :param style: Created pre-styled graphs loaded from
         :mod:`trappy.plotter.AttrConf.MPL_STYLE`
     :type style: bool
+
+    :param signals: A string of the type event_name:column
+        to indicate the value that needs to be plotted
+
+        .. note::
+
+            - Only one of `signals` or both `templates` and
+              `columns` should be specified
+            - Signals format won't work for :mod:`pandas.DataFrame`
+              input
+
+    :type signals: str
+
     """
 
     def __init__(self, runs, templates=None, **kwargs):
         # Default keys, each can be overridden in kwargs
-        self._attr = {}
-        self.runs = runs
-        self.templates = templates
-        self.set_defaults()
+
         self._fig = None
         self._layout = None
+        super(LinePlot, self).__init__(runs=runs,
+                                       templates=templates)
 
-        self._check_data()
+        self.set_defaults()
 
         for key in kwargs:
             if key in AttrConf.ARGS_TO_FORWARD:
                 self._attr["args_to_forward"][key] = kwargs[key]
             else:
                 self._attr[key] = kwargs[key]
+
+        if "signals" in self._attr:
+            self._describe_signals()
+
+        self._check_data()
 
         if "column" not in self._attr:
             raise RuntimeError("Value Column not specified")
@@ -120,11 +137,10 @@ class LinePlot(AbstractDataPlotter):
         self.c_mgr = ConstraintManager(
             runs,
             self._attr["column"],
-            templates,
+            self.templates,
             self._attr["pivot"],
             self._attr["filters"], zip_constraints)
         self._check_add_scatter()
-        super(LinePlot, self).__init__()
 
     def savefig(self, *args, **kwargs):
         """Save the plot as a PNG fill. This calls into

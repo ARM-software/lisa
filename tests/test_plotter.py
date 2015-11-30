@@ -135,3 +135,51 @@ class TestPlotter(BaseTestThermal):
         l.savefig(png_file)
         self.assertTrue(os.path.isfile(png_file))
         os.remove(png_file)
+
+
+    def test_signals(self):
+        """Test signals input for LinePlot"""
+
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
+
+        l = trappy.LinePlot([run1,
+                          run2],
+                         signals=["cpu_in_power:dynamic_power",
+                                 "cpu_out_power:power"],
+                         pivot="cpus")
+
+        l.view(test=True)
+
+
+    def test_signals_exceptions(self):
+        """Test incorrect input combinations: signals"""
+
+        run1 = trappy.Run(name="first")
+        run2 = trappy.Run(name="second")
+
+        with self.assertRaises(ValueError):
+            l = trappy.LinePlot([run1, run2],
+                            column=[
+                                "dynamic_power",
+                                "load1"],
+                            signals=["cpu_in_power:dynamic_power",
+                                 "cpu_out_power:power"],
+                            pivot="cpus")
+
+        with self.assertRaises(ValueError):
+            l = trappy.LinePlot([run1, run2],
+                            trappy.cpu_power.CpuInPower,
+                            signals=["cpu_in_power:dynamic_power",
+                                 "cpu_out_power:power"],
+                            pivot="cpus")
+
+        with self.assertRaises(ValueError):
+            l = trappy.LinePlot([run1, run2],
+                            trappy.cpu_power.CpuInPower,
+                            column=[
+                                "dynamic_power",
+                                "load1"],
+                            signals=["cpu_in_power:dynamic_power",
+                                 "cpu_out_power:power"],
+                            pivot="cpus")
