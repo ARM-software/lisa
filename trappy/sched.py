@@ -26,10 +26,6 @@ class SchedLoadAvgSchedGroup(Base):
     unique_word = "sched_load_avg_sg:"
     """The unique word that will be matched in a trace line"""
 
-    name = "sched_load_avg_sg"
-    """The name of the :mod:`pandas.DataFrame` member that will be created in a
-    :mod:`trappy.run.Run` object"""
-
     _cpu_mask_column = "cpus"
 
     pivot = "cpus"
@@ -50,10 +46,6 @@ class SchedLoadAvgTask(Base):
 
     unique_word = "sched_load_avg_task:"
     """The unique word that will be matched in a trace line"""
-
-    name = "sched_load_avg_task"
-    """The name of the :mod:`pandas.DataFrame` member that will be created in a
-    :mod:`trappy.run.Run` object"""
 
     pivot = "pid"
     """The Pivot along which the data is orthogonal"""
@@ -86,10 +78,6 @@ class SchedCpuCapacity(Base):
     unique_word = "cpu_capacity:"
     """The unique word that will be matched in a trace line"""
 
-    name = "cpu_capacity"
-    """The name of the :mod:`pandas.DataFrame` member that will be created in a
-    :mod:`trappy.run.Run` object"""
-
     pivot = "cpu"
     """The Pivot along which the data is orthogonal"""
 
@@ -115,10 +103,6 @@ class SchedCpuFrequency(Base):
 
     unique_word = "cpu_frequency:"
     """The unique word that will be matched in a trace line"""
-
-    name = "cpu_frequency"
-    """The name of the :mod:`pandas.DataFrame` member that will be created in a
-    :mod:`trappy.run.Run` object"""
 
     pivot = "cpu"
     """The Pivot along which the data is orthogonal"""
