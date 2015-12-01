@@ -444,11 +444,10 @@ class BaseGem5Device(object):
         try:
             if int(output):
                 return True
-            else:
-                return False
         except ValueError:
             # If we cannot process the output, assume that there is no file
-            return False
+            pass
+        return False
 
     def disconnect(self):
         """
