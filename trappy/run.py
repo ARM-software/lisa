@@ -229,6 +229,10 @@ class Run(object):
             :mod:`trappy.dynamic.register_dynamic` :mod:`trappy.dynamic.register_class`
 
         """
+
+        if not hasattr(cobject, "name"):
+            cobject.name = cobject.unique_word.split(":")[0]
+
         # Add the class to the classes dictionary
         if scope == "all":
             cls.dynamic_classes[cobject.name] = cobject
