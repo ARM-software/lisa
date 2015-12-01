@@ -22,7 +22,7 @@ import subprocess
 from collections import defaultdict
 
 from wlauto import Instrument, Parameter, Executable
-from wlauto.exceptions import InstrumentError, ConfigError
+from wlauto.exceptions import InstrumentError, ConfigError, DeviceError
 from wlauto.core import signal
 from wlauto.utils.types import boolean
 
@@ -133,18 +133,22 @@ class TraceCmdInstrument(Instrument):
                   """),
         Parameter('report', kind=boolean, default=True,
                   description="""
-                  Specifies whether host-side reporting should be performed once the binary trace has been
-                  pulled form the device.
-
-                  .. note:: This requires the latest version of trace-cmd to be installed on the host (the
-                            one in your distribution's repos may be too old).
-
+                  Specifies whether reporting should be performed once the binary trace has been generated.
                   """),
         Parameter('no_install', kind=boolean, default=False,
                   description="""
                   Do not install the bundled trace-cmd  and use the one on the device instead. If there is
                   not already a trace-cmd on the device, an error is raised.
 
+                  """),
+        Parameter('report_on_target', kind=boolean, default=False,
+                  description="""
+                  When enabled generation of reports will be done host-side because the generated file is
+                  very large. If trace-cmd is not available on the host device this setting and be disabled
+                  and the report will be generated on the target device.
+
+                  .. note:: This requires the latest version of trace-cmd to be installed on the host (the
+                            one in your distribution's repos may be too old).
                   """),
     ]
 
@@ -227,45 +231,35 @@ class TraceCmdInstrument(Instrument):
         # The size of trace.dat will depend on how long trace-cmd was running.
         # Therefore timout for the pull command must also be adjusted
         # accordingly.
-        pull_timeout = (self.stop_time - self.start_time)
-        self.device.pull_file(self.output_file, context.output_directory, timeout=pull_timeout)
+        self._pull_timeout = (self.stop_time - self.start_time)  # pylint: disable=attribute-defined-outside-init
+        self.device.pull_file(self.output_file, context.output_directory, timeout=self._pull_timeout)
         context.add_iteration_artifact('bintrace', OUTPUT_TRACE_FILE, kind='data',
                                        description='trace-cmd generated ftrace dump.')
 
-        local_trace_file = os.path.join(context.output_directory, OUTPUT_TRACE_FILE)
         local_txt_trace_file = os.path.join(context.output_directory, OUTPUT_TEXT_FILE)
 
         if self.report:
             # To get the output of trace.dat, trace-cmd must be installed
-            # This is done host-side because the generated file is very large
-            if not os.path.isfile(local_trace_file):
-                self.logger.warning('Not generating trace.txt, as {} does not exist.'.format(OUTPUT_TRACE_FILE))
-            try:
-                command = 'trace-cmd report {} > {}'.format(local_trace_file, local_txt_trace_file)
-                self.logger.debug(command)
-                process = subprocess.Popen(command, stderr=subprocess.PIPE, shell=True)
-                _, error = process.communicate()
-                if process.returncode:
-                    raise InstrumentError('trace-cmd returned non-zero exit code {}'.format(process.returncode))
-                if error:
-                    # logged at debug level, as trace-cmd always outputs some
-                    # errors that seem benign.
-                    self.logger.debug(error)
-                if os.path.isfile(local_txt_trace_file):
-                    context.add_iteration_artifact('txttrace', OUTPUT_TEXT_FILE, kind='export',
-                                                   description='trace-cmd generated ftrace dump.')
-                    self.logger.debug('Verifying traces.')
-                    with open(local_txt_trace_file) as fh:
-                        for line in fh:
-                            if 'EVENTS DROPPED' in line:
-                                self.logger.warning('Dropped events detected.')
-                                break
-                        else:
-                            self.logger.debug('Trace verified.')
-                else:
-                    self.logger.warning('Could not generate trace.txt.')
-            except OSError:
-                raise InstrumentError('Could not find trace-cmd. Please make sure it is installed and is in PATH.')
+            # By default this is done host-side because the generated file is
+            # very large
+            if self.report_on_target:
+                self._generate_report_on_target(context)
+            else:
+                self._generate_report_on_host(context)
+
+            if os.path.isfile(local_txt_trace_file):
+                context.add_iteration_artifact('txttrace', OUTPUT_TEXT_FILE, kind='export',
+                                               description='trace-cmd generated ftrace dump.')
+                self.logger.debug('Verifying traces.')
+                with open(local_txt_trace_file) as fh:
+                    for line in fh:
+                        if 'EVENTS DROPPED' in line:
+                            self.logger.warning('Dropped events detected.')
+                            break
+                    else:
+                        self.logger.debug('Trace verified.')
+            else:
+                self.logger.warning('Could not generate trace.txt.')
 
     def teardown(self, context):
         self.device.delete_file(os.path.join(self.device.working_directory, OUTPUT_TRACE_FILE))
@@ -315,8 +309,37 @@ class TraceCmdInstrument(Instrument):
                 self.logger.warning('Failed to set trace buffer size to {}, value set was {}'.format(target_buffer_size, buffer_size))
                 break
 
+    def _generate_report_on_target(self, context):
+        try:
+            trace_file = self.output_file
+            txt_trace_file = os.path.join(self.device.working_directory, OUTPUT_TEXT_FILE)
+            command = 'trace-cmd report {} > {}'.format(trace_file, txt_trace_file)
+            self.device.execute(command)
+            self.device.pull_file(txt_trace_file, context.output_directory, timeout=self._pull_timeout)
+        except DeviceError:
+            raise InstrumentError('Could not generate TXT report on target.')
+
+    def _generate_report_on_host(self, context):
+        local_trace_file = os.path.join(context.output_directory, OUTPUT_TRACE_FILE)
+        local_txt_trace_file = os.path.join(context.output_directory, OUTPUT_TEXT_FILE)
+        command = 'trace-cmd report {} > {}'.format(local_trace_file, local_txt_trace_file)
+        self.logger.debug(command)
+        if not os.path.isfile(local_trace_file):
+            self.logger.warning('Not generating trace.txt, as {} does not exist.'.format(OUTPUT_TRACE_FILE))
+        else:
+            try:
+                process = subprocess.Popen(command, stderr=subprocess.PIPE, shell=True)
+                _, error = process.communicate()
+                if process.returncode:
+                    raise InstrumentError('trace-cmd returned non-zero exit code {}'.format(process.returncode))
+                if error:
+                    # logged at debug level, as trace-cmd always outputs some
+                    # errors that seem benign.
+                    self.logger.debug(error)
+            except OSError:
+                raise InstrumentError('Could not find trace-cmd. Please make sure it is installed and is in PATH.')
+
 
 def _build_trace_events(events):
     event_string = ' '.join(['-e {}'.format(e) for e in events])
     return event_string
-
