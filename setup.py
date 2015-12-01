@@ -16,7 +16,7 @@
 from setuptools import setup, find_packages
 
 
-VERSION = "3.0.0"
+VERSION = "4.0.0"
 
 LONG_DESCRIPTION = """TRAPpy is a framework written in python for
 analysing and plotting FTrace data by converting it into standardised
