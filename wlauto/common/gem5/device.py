@@ -363,7 +363,8 @@ class BaseGem5Device(object):
     def init(self):
         pass
 
-    def push_file(self, source, dest, _):
+    # pylint: disable=unused-argument
+    def push_file(self, source, dest, **kwargs):
         """
         Push a file to the gem5 device using VirtIO
 
@@ -389,7 +390,8 @@ class BaseGem5Device(object):
         self.gem5_shell("ls -al /mnt/obb/")
         self.logger.debug("Push complete.")
 
-    def pull_file(self, source, dest, _):
+    # pylint: disable=unused-argument
+    def pull_file(self, source, dest, **kwargs):
         """
         Pull a file from the gem5 device using m5 writefile
 
@@ -429,7 +431,8 @@ class BaseGem5Device(object):
         shutil.move(os.path.join(self.gem5outdir, filename), dest)
         self.logger.debug("Pull complete.")
 
-    def delete_file(self, filepath, _):
+    # pylint: disable=unused-argument
+    def delete_file(self, filepath, **kwargs):
         """ Delete a file on the device """
         self._check_ready()
         self.gem5_shell("rm '{}'".format(filepath))
