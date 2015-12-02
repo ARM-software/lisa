@@ -27,6 +27,10 @@ class TestSignalCompare(TestBART):
     def test_conditional_compare(self):
         """Test conditional_compare"""
 
+        # Refer to the example in
+        # bart.common.signal.SignalCompare.conditional_compare
+        # doc-strings which explains the calculation for the
+        # data set below
         A = [0, 0, 0, 3, 3, 0, 0, 0]
         B = [0, 0, 2, 2, 2, 2, 1, 1]
 

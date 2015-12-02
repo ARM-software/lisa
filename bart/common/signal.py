@@ -250,3 +250,51 @@ class SignalCompare(object):
                 result = area, duration
 
         return result
+
+    def get_overshoot(self, **kwargs):
+        """Special case for :func:`conditional_compare`
+        where the condition is:
+        ::
+
+            "sig_a > sig_b"
+
+        :param method: The method for area calculation. This can
+            be any of the integration methods supported in `numpy`
+            or `rect`
+        :type param: str
+
+        :param step: The step behaviour for calculation of area
+            and time summation
+        :type step: str
+
+        .. seealso::
+
+            :func:`conditional_compare`
+        """
+
+        condition = " ".join([self._a, ">", self._b])
+        return self.conditional_compare(condition, **kwargs)
+
+    def get_undershoot(self, **kwargs):
+        """Special case for :func:`conditional_compare`
+        where the condition is:
+        ::
+
+            "sig_a < sig_b"
+
+        :param method: The method for area calculation. This can
+            be any of the integration methods supported in `numpy`
+            or `rect`
+        :type param: str
+
+        :param step: The step behaviour for calculation of area
+            and time summation
+        :type step: str
+
+        .. seealso::
+
+            :func:`conditional_compare`
+        """
+
+        condition = " ".join([self._a, "<", self._b])
+        return self.conditional_compare(condition, **kwargs)
