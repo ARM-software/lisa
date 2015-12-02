@@ -23,6 +23,16 @@ import tempfile
 TESTS_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
 
 
+def trace_cmd_installed():
+    """Return true if trace-cmd is installed, false otherwise"""
+    with open(os.devnull) as devnull:
+        try:
+            subprocess.check_call(["trace-cmd", "options"], stdout=devnull)
+        except OSError:
+            return False
+
+    return True
+
 class SetupDirectory(unittest.TestCase):
 
     def __init__(self, files_to_copy, *args, **kwargs):
