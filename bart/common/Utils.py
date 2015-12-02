@@ -151,7 +151,7 @@ def area_under_curve(series, sign=None, method="trapz", step="post"):
 
     if hasattr(np, method):
         np_integ_method = getattr(np, method)
-        np_integ_method(series.values, series.index)
+        return np_integ_method(series.values, series.index)
     else:
         raise ValueError("Invalid method: {}".format(method))
 
