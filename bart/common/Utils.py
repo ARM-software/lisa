@@ -155,39 +155,77 @@ def area_under_curve(series, sign=None, method="trapz", step="post"):
     else:
         raise ValueError("Invalid method: {}".format(method))
 
-def interval_sum(series, value=None):
+def interval_sum(series, value=None, step="post"):
     """A function that returns the sum of the
     intervals where the value of series is equal to
     the expected value. Consider the following time
-    series data
+    series data:
 
     ====== =======
      Time   Value
     ====== =======
+      0      0
       1      0
-      2      0
+      2      1
       3      1
       4      1
       5      1
-      6      1
-      7      0
-      8      1
-      9      0
-     10      1
+      8      0
+      9      1
+     10      0
      11      1
+     12      1
     ====== =======
 
-    1 occurs contiguously between the following indices
-    the series:
+    .. note::
 
-        - 3 to 6
-        - 10 to 11
+        The time/index values, in general, may not be
+        uniform. This causes difference in the
+        the values of :func:`interval_sum` for **step-pre**
+        and **step-post** behaviours
 
-    There for `interval_sum` for the value 1 is
+    .. code::
 
-    .. math::
+        import pandas
 
-            (6 - 3) + (11 - 10) = 4
+        values = [0, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1]
+        index = [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12]
+        series = pandas.Series(values, index=index)
+
+    The :func:`interval_sum` for the value 1 is calculated differently
+    for **step-post** and **step-pre** behaviours as follows:
+
+        - **Step-Post**
+
+
+          .. code::
+
+            1            *----*----*----*-------------+    *----+    *----*
+                         |                            |    |    |    |
+            0  *----*----+                            *----+    *----+
+               0    1    2    3    4    5    6    7   8    9    10   11   12
+
+          .. math::
+
+            (8-2) + (10-9) + (12-11) = 6 + 1 + 1 = 8
+
+        - **Step-Pre**
+
+          .. code::
+
+            1       +----*----*----*----*              +----*    +----*----*
+                    |                   |              |    |    |
+            0  *----*                   +--------------*    +----*
+               0    1    2    3    4    5    6    7    8    9    10   11   12
+
+          .. math::
+
+                (5-1) + (9-8) + (12-10) = 4 + 1 + 2 = 7
+
+        .. note::
+
+            The asterisks (*) on the plots above represent the values of the time
+            series data and these do not vary between the two step styles
 
     :param series: The time series data
     :type series: :mod:`pandas.Series`
@@ -196,6 +234,13 @@ def interval_sum(series, value=None):
         value is None, the truth value of the elements in the
         series will be used
     :type value: element
+
+    :param step: The step behaviour as described above
+        ::
+
+            step="post"
+            step="pre
+    :type step: str
     """
 
     index = series.index
@@ -205,14 +250,27 @@ def interval_sum(series, value=None):
 
     prev = 0
     time = 0
+    step_post = True
+
+    if step == "pre":
+        step_post = False
+    elif step != "post":
+        raise ValueError("Invalid value for step: {}".format(step))
 
     for split in time_splits:
 
         first_val = series.iloc[split]
         check = (first_val == value) if value else first_val
+        if check:
+            start = prev
+            end = split
 
-        if check and prev != split:
-            time += index[split] - index[prev]
+            if step_post:
+                end = split + 1 if split < len(series) - 1 else split
+            else:
+                start = prev - 1 if prev > 1 else prev
+
+            time += index[end] - index[start]
 
         prev = split + 1
 
