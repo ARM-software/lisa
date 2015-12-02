@@ -208,7 +208,7 @@ def interval_sum(series, value=None):
 
     for split in time_splits:
 
-        first_val = series[index[split]]
+        first_val = series.iloc[split]
         check = (first_val == value) if value else first_val
 
         if check and prev != split:
