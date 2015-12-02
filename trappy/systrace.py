@@ -55,6 +55,11 @@ class SysTrace(GenericFTrace):
         super(SysTrace, self).__init__(name, normalize_time, scope, events,
                                        window, abs_window)
 
+        try:
+            self._cpus = 1 + self.sched_switch.data_frame["__cpu"].max()
+        except AttributeError:
+            pass
+
     def trace_hasnt_started(self):
         return drop_before_trace()
 
