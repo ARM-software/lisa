@@ -78,3 +78,8 @@ class TestDynamicEvents(BaseTestSched):
         trappy.register_class(DynamicEvent)
         r = trappy.Run(name="first")
         self.assertTrue(len(r.dynamic_event.data_frame) == 1)
+
+    def test_no_none_pivot(self):
+        """register_dynamic() with default value for pivot doesn't create a class with a pivot=None"""
+        cls = trappy.register_dynamic("MyEvent", "my_dyn_test_key")
+        self.assertFalse(hasattr(cls, "pivot"))

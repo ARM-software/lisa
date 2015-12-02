@@ -106,15 +106,17 @@ def register_dynamic(class_name, unique_word, scope="all",
     :return: A class object of type :mod:`trappy.base.Base`
     """
 
-    dyn_class = DynamicTypeFactory(
-        class_name, (Base,), {
+    kwords = {
             "__init__": default_init,
             "unique_word": unique_word,
             "name": _get_name(class_name),
             "parse_raw" : parse_raw,
-            "pivot": pivot
         }
-    )
+
+    if pivot:
+        kwords["pivot"] = pivot
+
+    dyn_class = DynamicTypeFactory(class_name, (Base,), kwords)
     Run.register_class(dyn_class, scope)
     return dyn_class
 
