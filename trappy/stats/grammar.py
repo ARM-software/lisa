@@ -448,7 +448,7 @@ class Parser(object):
 
         info["class"] = cls
         info["length"] = len(data_frame)
-        if cls.pivot:
+        if hasattr(cls, "pivot") and cls.pivot:
             info["pivot"] = cls.pivot
             info["pivot_values"] = list(np.unique(data_frame[cls.pivot]))
         info["column"] = column
