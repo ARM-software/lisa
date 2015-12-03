@@ -97,6 +97,7 @@ class lmbench(Workload):
         with open(outfile, 'w') as wfh:
             for output in self.output:
                 wfh.write(output)
+        context.add_artifact('lmbench', 'lmbench.output', 'data')
 
     def teardown(self, context):
         self.device.uninstall_executable(self.test)
