@@ -255,3 +255,10 @@ this command:
 This script will produce, for each run of the experiments, a set of plots saved
 as PNG images into the output folder of the experiment.
 
+
+# Contributions / Pull Requests
+
+All contributions are Apache 2.0. Only submit contributions where you have
+authored all of the code. If you do this on work time make sure your employer
+is cool with this.
+
