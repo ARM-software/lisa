@@ -374,12 +374,12 @@ class Parser(object):
         """Pivot Data for concatenation"""
 
         data_frame = getattr(self.data, cls.name).data_frame
+        new_index = self._agg_df.index.union(data_frame.index)
 
         if hasattr(cls, "pivot") and cls.pivot:
             pivot = cls.pivot
             pivot_vals = list(np.unique(data_frame[pivot].values))
             data = {}
-            new_index = self._agg_df.index.union(data_frame.index)
 
 
             for val in pivot_vals:
@@ -448,7 +448,7 @@ class Parser(object):
 
         info["class"] = cls
         info["length"] = len(data_frame)
-        if cls.pivot:
+        if hasattr(cls, "pivot") and cls.pivot:
             info["pivot"] = cls.pivot
             info["pivot_values"] = list(np.unique(data_frame[cls.pivot]))
         info["column"] = column
