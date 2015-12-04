@@ -16,6 +16,7 @@
 
 import matplotlib
 import os
+import pandas as pd
 import re
 import shutil
 import subprocess
@@ -85,6 +86,30 @@ class TestRun(BaseTestThermal):
         run = trappy.Run(scope="custom")
 
         self.assertTrue(hasattr(run, "a_dynamic_event"))
+
+    def test_run_can_add_parsed_event(self):
+        """The Run() class can add parsed events to its collection of trace events"""
+        run = trappy.Run(scope="custom")
+        dfr = pd.DataFrame({"l1_misses": [24, 535,  41],
+                            "l2_misses": [155, 11, 200],
+                            "cpu":       [ 0,   1,   0]},
+                           index=pd.Series([1.020, 1.342, 1.451], name="Time"))
+        run.add_parsed_event("pmu_counters", dfr)
+
+        self.assertEquals(len(run.pmu_counters.data_frame), 3)
+        self.assertEquals(run.pmu_counters.data_frame["l1_misses"].iloc[0], 24)
+
+        run.add_parsed_event("pivoted_counters", dfr, pivot="cpu")
+        self.assertEquals(run.pivoted_counters.pivot, "cpu")
+
+    def test_run_doesnt_overwrite_parsed_event(self):
+        """Run().add_parsed_event() should not override an event that's already present"""
+        run = trappy.Run()
+        dfr = pd.DataFrame({"temp": [45000, 46724, 45520]},
+                           index=pd.Series([1.020, 1.342, 1.451], name="Time"))
+
+        with self.assertRaises(ValueError):
+            run.add_parsed_event("sched_switch", dfr)
 
     def test_run_accepts_name(self):
         """The Run() class has members for all classes"""

@@ -263,6 +263,44 @@ class Run(object):
         for trace_class in self.trace_classes:
             trace_class.normalize_time(self.basetime)
 
+    def add_parsed_event(self, name, dfr, pivot=None):
+        """Add a dataframe to the events in this Run
+
+        This function lets you add other events that have been parsed
+        by other tools to the collection of events in this instance.  For
+        example, assuming you have some events in a csv, you could add
+        them to a run instance like this:
+
+        >>> run = trappy.Run()
+        >>> counters_dfr = pd.DataFrame.from_csv("counters.csv")
+        >>> run.add_parsed_event("pmu_counters", counters_dfr)
+
+        Now you can access :code:`run.pmu_counters` as you would with any
+        other trace event and other trappy classes can interact with
+        them.
+
+        :param name: The attribute name in this Run instance.  As in the example above, if :code:`name` is "pmu_counters", the parsed event will be accessible using :code:`run.pmu_counters`.
+        :type name: str
+
+        :param dfr: :mod:`pandas.DataFrame` containing the events.  Its index should be time in seconds.  Its columns are the events.
+        :type dfr: :mod:`pandas.DataFrame`
+
+        :param pivot: The data column about which the data can be grouped
+        :type pivot: str
+
+        """
+        from trappy.base import Base
+
+        if hasattr(self, name):
+            raise ValueError("event {} already present".format(name))
+
+        event = Base()
+        event.data_frame = dfr
+        if pivot:
+            event.pivot = pivot
+
+        setattr(self, name, event)
+
     def __add_events(self, events):
         """Add events to the class_definitions
 
