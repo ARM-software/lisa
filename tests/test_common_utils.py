@@ -26,21 +26,35 @@ class TestCommonUtils(unittest.TestCase):
     def test_interval_sum(self):
         """Test Utils Function: interval_sum"""
 
-        array = [0, 0, 1, 1, 1, 1, 0, 0]
+        # A series with a non uniform index
+        # Refer to the example illustrations in the
+        # the interval sum docs-strings which explains
+        # the difference between step-post and ste-pre
+        # calculations
+        values = [0, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1]
+        index = [0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12]
+        series = pd.Series(values, index=index)
+
+        self.assertEqual(Utils.interval_sum(series, 1, step="post"), 8)
+        self.assertEqual(Utils.interval_sum(series, 1, step="pre"), 7)
+
+        # check left boundary
+        array = [1, 1, 0, 0]
         series = pd.Series(array)
-        self.assertEqual(Utils.interval_sum(series, 1), 3)
+
+        self.assertEqual(Utils.interval_sum(series, 1, step="post"), 2)
+        self.assertEqual(Utils.interval_sum(series, 1, step="pre"), 1)
+
+        # check right boundary
+        array = [0, 0, 1, 1]
+        series = pd.Series(array)
+
+        self.assertEqual(Utils.interval_sum(series, 1, step="post"), 1)
+        self.assertEqual(Utils.interval_sum(series, 1, step="pre"), 2)
 
         array = [False, False, True, True, True, True, False, False]
         series = pd.Series(array)
-        self.assertEqual(Utils.interval_sum(series), 3)
-
-        array = [0, 0, 1, 0, 0, 0]
-        series = pd.Series(array)
-        self.assertEqual(Utils.interval_sum(series, 1), 0)
-
-        array = [0, 0, 1, 0, 1, 1]
-        series = pd.Series(array)
-        self.assertEqual(Utils.interval_sum(series, 1), 1)
+        self.assertEqual(Utils.interval_sum(series), 4)
 
     def test_area_under_curve(self):
         """Test Utils function: area_under_curve"""
