@@ -6,7 +6,46 @@ kernel developer to assess the impact of modification in core parts of the
 kernel. The main focus is on scheduler and power management frameworks, however
 the toolkit is generic enough to accommodate other usages.
 
-The toolkit is based on a set of core libraries:
+The toolkit depends on a set of external core libraries to provide an API,
+which exploits and enrich the functionalities provided by the core libraries,
+and a set of test-cases to support regression testing on core kernel features.
+On top of these components a set of IPython Notebooks allows to easy use
+the available APIs to do live experiment on a target and/or support the
+development and testing of new use-cases.
+
+This is an overall view of the toolkit:
+
+	+---------------------------------------+
+	| +-----------------------------------+ |
+	| |           LISA Toolkit            | |
+	| |  +-----------------------------+  | |
+	| |  |      IPython Notebooks      |  | |
+	| |  +-----------------------------+  | |
+	| |  +-------+ +-------+ +---------+  | |
+	| |  | wlgen | | tests | | reports |  | |
+	| |  +-------+ +-------+ +---------+  | |
+	| +-----------------------------------+ |
+	| +----------+ +-------+                |
+	| |          | | BART  |                |
+	| |          | +-------+                |
+	| |  devlib  | +----------------------+ |
+	| |          | |      TRAPpy          | |
+	| +--^-------+ +----------------------+ |
+	|   ||                                  |
+	|   ||                           HOST   |
+	+---------------------------------------+
+	    ||
+	    || SSH/ADB
+	    |+
+	+---V-----------------------------------+
+	|                              TARGET   |
+	|                                       |
+	|                         Linux/Android |
+	|                          or Localhost |
+	+---------------------------------------+
+
+
+The core libraries provides a rich documentation of their APIs:
 
 - [devlib](http://github.com/ARM-software/devlib)
   Documentation: [online](https://pythonhosted.org/devlib/index.html)
@@ -15,7 +54,6 @@ The toolkit is based on a set of core libraries:
 - [BART](http://github.com/ARM-software/bart)
   Documentation: [online](http://arm-software.github.io/bart/)
 
-TODO: add a figure which represent the toolkit structure
 
 # Installation
 
