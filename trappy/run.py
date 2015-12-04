@@ -110,6 +110,7 @@ class Run(object):
         self.trace_path, self.trace_path_raw = self.__process_path(path)
         self.class_definitions = self.dynamic_classes.copy()
         self.basetime = 0
+        self.normalized_time = normalize_time
 
         self.__add_events(listify(events))
 
@@ -216,7 +217,10 @@ class Run(object):
         if len(durations) == 0:
             return 0
 
-        return max(durations) - self.basetime
+        if self.normalized_time:
+            return max(durations)
+        else:
+            return max(durations) - self.basetime
 
     @classmethod
     def register_class(cls, cobject, scope="all"):

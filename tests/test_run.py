@@ -155,13 +155,23 @@ class TestRun(BaseTestThermal):
         self.assertEqual(run.basetime, basetime)
 
     def test_run_duration(self):
-        """Test that duration calculation is correct"""
+        """Test get_duration: normalize_time=False"""
+
+        run = trappy.Run(normalize_time=True)
+
+        duration = run.thermal_governor.data_frame.index[-1] - run.thermal.data_frame.index[0]
+
+        self.assertEqual(run.get_duration(), duration)
+
+    def test_run_duration_not_normalized(self):
+        """Test get_duration: normalize_time=True"""
 
         run = trappy.Run(normalize_time=False)
 
         duration = run.thermal_governor.data_frame.index[-1] - run.thermal.data_frame.index[0]
 
         self.assertEqual(run.get_duration(), duration)
+
 
     def test_run_normalize_time(self):
         """Run().normalize_time() works accross all classes"""
