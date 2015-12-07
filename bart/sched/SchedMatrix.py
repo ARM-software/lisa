@@ -70,7 +70,6 @@ import trappy
 import numpy as np
 from trappy.stats.Aggregator import MultiTriggerAggregator
 from trappy.stats.Correlator import Correlator
-from trappy.plotter.Utils import listify
 from trappy.stats import SchedConf as sconf
 from bart.common import Utils
 
@@ -156,7 +155,7 @@ class SchedMatrix(object):
         run = Utils.init_run(trace)
         reference_run = Utils.init_run(reference_trace)
 
-        self._execnames = listify(execnames)
+        self._execnames = Utils.listify(execnames)
         self._reference_pids = self._populate_pids(reference_run)
         self._pids = self._populate_pids(run)
         self._dimension = len(self._pids)

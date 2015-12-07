@@ -20,7 +20,6 @@ import re
 import inspect
 import trappy
 from trappy.stats import SchedConf as sconf
-from trappy.plotter.Utils import listify
 from bart.sched.SchedAssert import SchedAssert
 from bart.common import Utils
 
@@ -144,7 +143,7 @@ class SchedMultiAssert(object):
         if execnames and pids:
             raise ValueError('Either pids or execnames must be specified')
         if execnames:
-            self._execnames = listify(execnames)
+            self._execnames = Utils.listify(execnames)
             self._pids = self._populate_pids()
         elif pids:
             self._pids = pids

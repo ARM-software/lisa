@@ -21,6 +21,16 @@ import numpy as np
 # pylint fails to recognize numpy members.
 # pylint: disable=no-member
 
+def listify(to_select):
+    """Utitlity function to handle both single and
+    list inputs
+    """
+
+    if not isinstance(to_select, list):
+        to_select = [to_select]
+
+    return to_select
+
 def init_run(trace):
     """Initialize the Run Object
 
