@@ -22,7 +22,6 @@ to aggregate statistics over processor hierarchies.
 import trappy
 import itertools
 import math
-from trappy.plotter.Utils import listify
 from trappy.stats.Aggregator import MultiTriggerAggregator
 from trappy.stats import SchedConf as sconf
 from bart.common import Utils
@@ -609,7 +608,7 @@ class SchedAssert(object):
         """
 
         first_cpu = self.getFirstCpu(window=window)
-        cpus = listify(cpus)
+        cpus = Utils.listify(cpus)
         return first_cpu in cpus
 
     def generate_events(self, level, start_id=0, window=None):
