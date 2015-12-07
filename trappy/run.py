@@ -21,7 +21,6 @@ import os
 import re
 import pandas as pd
 
-import trappy.plot_utils
 from trappy.utils import listify
 
 def _plot_freq_hists(allfreqs, what, axis, title):
@@ -32,6 +31,8 @@ def _plot_freq_hists(allfreqs, what, axis, title):
     "out"
 
     """
+    import trappy.plot_utils
+
     for ax, actor in zip(axis, allfreqs):
         this_title = "freq {} {}".format(what, actor)
         this_title = trappy.plot_utils.normalize_title(this_title, title)
@@ -498,6 +499,7 @@ class Run(object):
         will appear in the legend.
 
         """
+        import trappy.plot_utils
 
         load_data = self.cpu_in_power.get_load_data(mapping_label)
         try:
@@ -526,6 +528,7 @@ class Run(object):
         will appear in the legend.
 
         """
+        import trappy.plot_utils
 
         load_data = self.cpu_in_power.get_normalized_load_data(mapping_label)
         if "load" in self.devfreq_in_power.data_frame:
@@ -554,6 +557,8 @@ class Run(object):
         ax
 
         """
+        import trappy.plot_utils
+
         all_freqs = self.get_all_freqs_data(map_label)
 
         setup_plot = False

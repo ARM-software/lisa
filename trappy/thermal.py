@@ -19,11 +19,9 @@ directory's trace.dat"""
 from collections import OrderedDict
 import pandas as pd
 import re
-from matplotlib import pyplot as plt
 
 from trappy.base import Base
 from trappy.run import Run
-from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup, plot_hist
 
 class Thermal(Base):
     """Process the thermal framework data in a FTrace dump"""
@@ -64,6 +62,9 @@ class Thermal(Base):
         :param height: The height of the plot
         :type int: int
         """
+        from matplotlib import pyplot as plt
+        from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
+
         title = normalize_title("Temperature", title)
 
         if len(self.data_frame) == 0:
@@ -94,6 +95,7 @@ class Thermal(Base):
         :param title: The title of the plot
         :type title: str
         """
+        from trappy.plot_utils import normalize_title, plot_hist
 
         temps = self.data_frame["temp"] / 1000
         title = normalize_title("Temperature", title)
@@ -119,6 +121,9 @@ class ThermalGovernor(Base):
     def plot_temperature(self, title="", width=None, height=None, ylim="range",
                          ax=None, legend_label=""):
         """Plot the temperature"""
+        from matplotlib import pyplot as plt
+        from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
+
         dfr = self.data_frame
         curr_temp = dfr["current_temperature"]
         control_temp_series = (curr_temp + dfr["delta_temperature"]) / 1000
@@ -165,6 +170,7 @@ class ThermalGovernor(Base):
 
         :type actor_order: list
         """
+        from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
         dfr = self.data_frame
         in_cols = [s for s in dfr.columns if re.match("req_power[0-9]+", s)]
@@ -206,6 +212,7 @@ class ThermalGovernor(Base):
         :param height: The height of the plot
         :type int: int
         """
+        from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
         dfr = self.data_frame
         in_cols = [s for s in dfr.columns if re.match(r"req_power\d+", s)]
@@ -251,6 +258,7 @@ class ThermalGovernor(Base):
 
         :type actor_order: list
         """
+        from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
         out_cols = [s for s in self.data_frame.columns
                     if re.match("granted_power[0-9]+", s)]
@@ -273,6 +281,7 @@ class ThermalGovernor(Base):
         :param title: The title of the plot
         :type title: str
         """
+        from trappy.plot_utils import normalize_title
         dfr = self.data_frame
 
         actors = []

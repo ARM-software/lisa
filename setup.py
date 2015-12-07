@@ -28,11 +28,17 @@ TRAPpy also provides functionality to build complex statistical analysis
 based on the underlying FTrace data.
 """
 REQUIRES = [
-    "matplotlib>=1.3.1",
+    "numpy",
+    "pyparsing",
     "pandas>=0.13.1",
-    "ipython>=3.0.0",
-    "jupyter>=1.0.0",
 ]
+
+EXTRAS = {
+    "notebook": ["matplotlib>=1.3.1",
+                 "ipython>=3.0.0",
+                 "jupyter>=1.0.0",
+             ],
+}
 
 data_files = {"trappy.plotter": ["js/EventPlot.js",
                                  "js/ILinePlot.js",
@@ -62,5 +68,6 @@ setup(name='TRAPpy',
           "Topic :: System :: Operating System Kernels :: Linux",
           "Topic :: Scientific/Engineering :: Visualization"
       ],
-      install_requires=REQUIRES
+      install_requires=REQUIRES,
+      extras_requires=EXTRAS
       )

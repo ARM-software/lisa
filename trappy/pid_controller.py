@@ -18,7 +18,6 @@ current directory's trace.dat"""
 
 from trappy.base import Base
 from trappy.run import Run
-from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
 
 class PIDController(Base):
     """Process the power allocator PID controller data in a FTrace dump"""
@@ -48,12 +47,14 @@ class PIDController(Base):
         :param height: The height of the plot
         :type int: int
         """
-        title = normalize_title("PID", title)
+        import trappy.plot_utils
+
+        title = trappy.plot_utils.normalize_title("PID", title)
 
         if not ax:
-            ax = pre_plot_setup(width, height)
+            ax = trappy.plot_utils.pre_plot_setup(width, height)
 
         self.data_frame[["output", "p", "i", "d"]].plot(ax=ax)
-        post_plot_setup(ax, title=title)
+        trappy.plot_utils.post_plot_setup(ax, title=title)
 
 Run.register_class(PIDController, "thermal")

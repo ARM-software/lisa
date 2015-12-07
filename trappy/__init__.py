@@ -17,7 +17,12 @@
 import pkg_resources
 from trappy.compare_runs import summary_plots, compare_runs
 from trappy.run import Run
-from trappy.plotter.LinePlot import LinePlot
+try:
+    from trappy.plotter.LinePlot import LinePlot
+except ImportError as exc:
+    class LinePlot(object):
+        def __init__(self, *args, **kwargs):
+            raise exc
 try:
     from trappy.plotter.ILinePlot import ILinePlot
     from trappy.plotter.EventPlot import EventPlot
@@ -29,7 +34,8 @@ from trappy.dynamic import register_dynamic, register_class
 import os
 for fname in os.listdir(os.path.dirname(__file__)):
     import_name, extension = os.path.splitext(fname)
-    if (extension == ".py") and (fname != "__init__.py"):
+    if (extension == ".py") and (fname != "__init__.py") and \
+       (fname != "plot_utils.py"):
         __import__("trappy.{}".format(import_name))
 
 del fname, import_name, extension

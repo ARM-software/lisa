@@ -14,9 +14,7 @@
 #
 
 
-import trappy.plot_utils
 import trappy.run
-import trappy.wa
 
 def compare_runs(actor_order, map_label, runs, **kwords):
     """A side by side comparison of multiple runs
@@ -56,6 +54,8 @@ def compare_runs(actor_order, map_label, runs, **kwords):
     :type map_label: dict
     :type runs: list
     """
+    import trappy.plot_utils
+    import trappy.wa
 
     if not isinstance(actor_order, list):
         raise TypeError("actor_order has to be an array")

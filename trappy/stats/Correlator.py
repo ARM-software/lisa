@@ -16,7 +16,6 @@
 """The module responsible for correlation
 and related functionality
 """
-from trappy.plotter.PlotLayout import PlotLayout
 from trappy.stats import StatConf
 from trappy.stats.Indexer import get_unified_indexer
 import numpy as np
@@ -111,6 +110,7 @@ class Correlator(object):
         :param per_line: Number of plots per line
         :type per_line: int
         """
+        from trappy.plotter.PlotLayout import PlotLayout
 
         num_plots = self._first_agg.topology.level_span(level)
         result_1 = self._first_agg.aggregate(level=level, **self._agg_kwargs)
