@@ -26,7 +26,7 @@ import subprocess
 import sys
 import tarfile
 import time
-from pexpect import EOF, TIMEOUT
+from pexpect import EOF, TIMEOUT, pxssh
 
 from wlauto import settings, Parameter
 from wlauto.core import signal as sig
@@ -238,9 +238,19 @@ class BaseGem5Device(object):
         port = self.gem5_port
 
         # Connect to the gem5 telnet port. Use a short timeout here.
-        self.sckt = ssh.TelnetConnection()
-        self.sckt.login(host, 'None', port=port, auto_prompt_reset=False,
-                        login_timeout=10)
+        attempts = 0
+        while attempts < 10:
+            attempts += 1
+            try:
+                self.sckt = ssh.TelnetConnection()
+                self.sckt.login(host, 'None', port=port, auto_prompt_reset=False,
+                                login_timeout=10)
+                break
+            except pxssh.ExceptionPxssh:
+                pass
+        else:
+            self.gem5.kill()
+            raise DeviceError("Failed to connect to the gem5 telnet session.")
 
         self.logger.info("Connected! Waiting for prompt...")
 
