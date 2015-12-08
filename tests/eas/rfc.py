@@ -360,6 +360,29 @@ class EAS_Tests(unittest.TestCase):
                 .format(wl_idx))
 
     @classmethod
+    def wload_cpus(cls, wl_idx, wlspec):
+        cpus = wlspec['conf']['cpus']
+
+        if type(cpus) == int:
+            return list(cpus)
+        if cpus.startswith('littles'):
+            if 'first' in cpus:
+                return [ cls.env.target.bl.littles_online[0] ]
+            if 'last' in cpus:
+                return [ cls.env.target.bl.littles_online[-1] ]
+            return cls.env.target.bl.littles_online
+        if cpus.startswith('bigs'):
+            if 'first' in cpus:
+                return [ cls.env.target.bl.bigs_online[0] ]
+            if 'last' in cpus:
+                return [ cls.env.target.bl.bigs_online[-1] ]
+            return cls.env.target.bl.bigs_online
+        raise ValueError('Configuration error - '
+                'unsupported [{}] \'cpus\' value for [{}] '\
+                'workload specification'\
+                .format(cpus, wl_idx))
+
+    @classmethod
     def wload_rtapp(cls, wl_idx, wlspec, cpus):
         conf = wlspec['conf']
         logging.debug(r'%14s - Configuring [%s] rt-app...',
@@ -416,8 +439,7 @@ class EAS_Tests(unittest.TestCase):
     def wload_conf(cls, wl_idx, wlspec):
 
         # CPUS: setup execution on CPUs if required by configuration
-        # TODO: add CPUs specification support
-        cpus = None
+        cpus = cls.wload_cpus(wl_idx, wlspec)
 
         if wlspec['type'] == 'rt-app':
             return cls.wload_rtapp(wl_idx, wlspec, cpus)
