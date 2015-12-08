@@ -528,6 +528,14 @@ class EAS(TestBase):
     def setUpClass(cls):
         super(EAS, cls).setUpTest('rfc_eas.config')
 
+
+class SFreq(TestBase):
+
+    @classmethod
+    def setUpClass(cls):
+        super(SFreq, cls).setUpTest('rfc_sfreq.config')
+
+
 ################################################################################
 # Globals
 ################################################################################
