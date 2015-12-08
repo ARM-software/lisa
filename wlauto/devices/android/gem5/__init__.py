@@ -71,8 +71,6 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
 
         * m5 binary. Please make sure that the m5 binary is on the device and
           can by found in the path.
-        * Busybox. Due to restrictions, we assume that busybox is installed in
-          the guest system, and can be found in the path.
     """
 
     name = 'gem5_android'
@@ -133,8 +131,8 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
             self.push_file(filepath, on_device_path)
             # We need to make sure that the folder permissions are set
             # correctly, else the APK does not install correctly.
-            self.gem5_shell('busybox chmod 775 /data/local/tmp')
-            self.gem5_shell('busybox chmod 774 {}'.format(on_device_path))
+            self.gem5_shell('chmod 775 /data/local/tmp')
+            self.gem5_shell('chmod 774 {}'.format(on_device_path))
             self.logger.debug("Actually installing the APK: {}".format(on_device_path))
             return self.gem5_shell("pm install {}".format(on_device_path))
         else:
@@ -146,8 +144,11 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
         on_device_file = self.path.join(self.working_directory, executable_name)
         on_device_executable = self.path.join(self.binaries_directory, executable_name)
         self.push_file(filepath, on_device_file)
-        self.execute('busybox cp {} {}'.format(on_device_file, on_device_executable))
-        self.execute('busybox chmod 0777 {}'.format(on_device_executable))
+        if self.busybox:
+            self.execute('{} cp {} {}'.format(self.busybox, on_device_file, on_device_executable))
+        else:
+            self.execute('cat {} > {}'.format(on_device_file, on_device_executable))
+        self.execute('chmod 0777 {}'.format(on_device_executable))
         return on_device_executable
 
     def uninstall(self, package):

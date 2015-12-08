@@ -276,9 +276,9 @@ class BaseGem5Device(object):
         # Try and avoid line wrapping as much as possible. Don't check the error
         # codes from these command because some of them WILL fail.
         self.gem5_shell('stty columns 1024', check_exit_code=False)
-        self.gem5_shell('busybox stty columns 1024', check_exit_code=False)
+        self.gem5_shell('{} stty columns 1024'.format(self.busybox), check_exit_code=False)
         self.gem5_shell('stty cols 1024', check_exit_code=False)
-        self.gem5_shell('busybox stty cols 1024', check_exit_code=False)
+        self.gem5_shell('{} stty cols 1024'.format(self.busybox), check_exit_code=False)
         self.gem5_shell('reset', check_exit_code=False)
 
     def get_properties(self, context):  # pylint: disable=R0801
@@ -323,7 +323,7 @@ class BaseGem5Device(object):
 
     def get_pids_of(self, process_name):
         """ Returns a list of PIDs of all processes with the specified name. """
-        result = self.gem5_shell('ps | busybox grep {}'.format(process_name),
+        result = self.gem5_shell('ps | {} grep {}'.format(self.busybox, process_name),
                                  check_exit_code=False).strip()
         if result and 'not found' not in result and len(result.split('\n')) > 2:
             return [int(x.split()[1]) for x in result.split('\n')]
@@ -384,8 +384,11 @@ class BaseGem5Device(object):
 
         # Back to the gem5 world
         self.gem5_shell("ls -al /mnt/obb/{}".format(filename))
-        self.gem5_shell("busybox cp /mnt/obb/{} {}".format(filename, dest))
-        self.gem5_shell("busybox sync")
+        if self.busybox:
+            self.gem5_shell("{} cp /mnt/obb/{} {}".format(self.busybox, filename, dest))
+        else:
+            self.gem5_shell("cat /mnt/obb/{} > {}".format(filename, dest))
+        self.gem5_shell("sync")
         self.gem5_shell("ls -al {}".format(dest))
         self.gem5_shell("ls -al /mnt/obb/")
         self.logger.debug("Push complete.")
@@ -417,8 +420,9 @@ class BaseGem5Device(object):
         # We don't check the exit code here because it is non-zero if the source
         # and destination are the same. The ls below will cause an error if the
         # file was not where we expected it to be.
-        self.gem5_shell("busybox cp {} {}".format(source, filename), check_exit_code=False)
-        self.gem5_shell("busybox sync")
+        self.gem5_shell("{} cp {} {}".format(self.busybox, source, filename),
+                        check_exit_code=False)
+        self.gem5_shell("sync")
         self.gem5_shell("ls -la {}".format(filename))
         self.logger.debug('Finished the copy in the simulator')
         self.gem5_util("writefile {}".format(filename))
@@ -641,10 +645,8 @@ class BaseGem5Device(object):
         """
         self.logger.info("Mounting VirtIO device in simulated system")
 
-        self.gem5_shell('busybox mkdir -p /mnt/obb')
+        self.gem5_shell('mkdir -p /mnt/obb')
 
         mount_command = "mount -t 9p -o trans=virtio,version=9p2000.L,aname={} gem5 /mnt/obb".format(self.temp_dir)
-        if self.platform == 'linux':
-            self.gem5_shell(mount_command)
-        else:
-            self.gem5_shell('busybox {}'.format(mount_command))
+        self.gem5_shell(mount_command)
+

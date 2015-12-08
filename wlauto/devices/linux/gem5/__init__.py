@@ -68,8 +68,6 @@ class Gem5LinuxDevice(BaseGem5Device, LinuxDevice):
 
         * m5 binary. Please make sure that the m5 binary is on the device and
           can by found in the path.
-        * Busybox. Due to restrictions, we assume that busybox is installed in
-          the guest system, and can be found in the path.
     """
 
     name = 'gem5_linux'
