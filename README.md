@@ -83,6 +83,21 @@ system.
 TODO: add notes on how to clone and initialize the repostiory
 
 
+# Target platform requirements
+
+The target to use for the experiments must satisfay these requirements:
+
+## Linux Targets
+
+- allow *ssh* access, preferably as root, using either a password or an SSH key
+- support *sudo*, even if it's accessed as root user
+
+## Android Targets
+
+- allow *adb* access, eventually by specifying a DEVICE ID
+- the local shell should define the *ANDROID_HOME* environment variable pointing
+  to an Android SDK installation
+
 
 # Toolkit organization
 
