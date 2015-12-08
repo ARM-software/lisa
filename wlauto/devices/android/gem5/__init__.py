@@ -204,3 +204,6 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
         # If we didn't manage to do the above, call the parent class.
         self.logger.warning("capture_screen: falling back to parent class implementation")
         AndroidDevice.capture_screen(self, filepath)
+
+    def initialize(self, context):
+        self.resize_shell()

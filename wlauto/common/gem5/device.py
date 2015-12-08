@@ -272,14 +272,7 @@ class BaseGem5Device(object):
 
         self.sckt.setecho(False)
         self.sync_gem5_shell()
-
-        # Try and avoid line wrapping as much as possible. Don't check the error
-        # codes from these command because some of them WILL fail.
-        self.gem5_shell('stty columns 1024', check_exit_code=False)
-        self.gem5_shell('{} stty columns 1024'.format(self.busybox), check_exit_code=False)
-        self.gem5_shell('stty cols 1024', check_exit_code=False)
-        self.gem5_shell('{} stty cols 1024'.format(self.busybox), check_exit_code=False)
-        self.gem5_shell('reset', check_exit_code=False)
+        self.resize_shell()
 
     def get_properties(self, context):  # pylint: disable=R0801
         """ Get the property files from the device """
@@ -621,6 +614,19 @@ class BaseGem5Device(object):
         self.sckt.expect(r"\*\*sync\*\*", timeout=self.delay)
         self.sckt.expect([self.sckt.UNIQUE_PROMPT, self.sckt.PROMPT], timeout=self.delay)
         self.sckt.expect([self.sckt.UNIQUE_PROMPT, self.sckt.PROMPT], timeout=self.delay)
+
+    def resize_shell(self):
+        """
+        Resize the shell to avoid line wrapping issues.
+
+        """
+        # Try and avoid line wrapping as much as possible. Don't check the error
+        # codes from these command because some of them WILL fail.
+        self.gem5_shell('stty columns 1024', check_exit_code=False)
+        self.gem5_shell('{} stty columns 1024'.format(self.busybox), check_exit_code=False)
+        self.gem5_shell('stty cols 1024', check_exit_code=False)
+        self.gem5_shell('{} stty cols 1024'.format(self.busybox), check_exit_code=False)
+        self.gem5_shell('reset', check_exit_code=False)
 
     def move_to_temp_dir(self, source):
         """
