@@ -416,7 +416,7 @@ class Run(object):
                     self.__populate_data_from_line(line, unique_words, window,
                                                    abs_window)
                 except StopIteration:
-                    pass
+                    break
 
     def __finalize_objects(self):
         for trace_class in self.trace_classes:
