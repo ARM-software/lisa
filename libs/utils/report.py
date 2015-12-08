@@ -189,7 +189,9 @@ class Report(object):
             if 'absolute' in formats:
                 res_line += ' {0:10.2f}'.format(speedup_cnt)
             else:
-                speedup_pct =  100.0 * speedup_cnt / res_base
+                speedup_pct = 0
+                if res_base != 0:
+                    speedup_pct =  100.0 * speedup_cnt / res_base
                 res_line += ' {0:s}'\
                         .format(TestColors.rate(
                             speedup_pct,
