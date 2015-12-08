@@ -236,7 +236,8 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
         .. note:: This will get reset on userdata erasure.
 
         """
-        return self.execute('settings get secure android_id').strip()
+        output = self.execute('content query --uri content://settings/secure --projection value --where "name=\'android_id\'"').strip()
+        return output.split('value=')[-1]
 
     def get_sdk_version(self):
         try:
