@@ -45,10 +45,14 @@ import wlgen
 TGT_RUN_DIR     = 'run_dir'
 TGT_CGR_ROOT    = '/sys/fs/cgroup'
 
-class EAS_Tests(unittest.TestCase):
+################################################################################
+# Base RFC class
+################################################################################
+
+class TestBase(unittest.TestCase):
 
     @classmethod
-    def setUpClass(cls):
+    def setUpTest(cls, tests_config):
 
         # Initialize globals
         cls.kernel = None
@@ -58,11 +62,11 @@ class EAS_Tests(unittest.TestCase):
         cls.print_section('Main', 'Experiments configuration')
 
         # Load test specific configuration
-        tests_config = 'tests/eas/rfc.config'
+        tests_config = os.path.join('tests/eas', tests_config)
         logging.info('%14s - Loading EAS RFC tests configuration [%s]...',
                 'Main', tests_config)
-        json = JsonConf(tests_config)
-        cls.conf = json.load()
+        json_conf = JsonConf(tests_config)
+        cls.conf = json_conf.load()
 
 
         # Check for mandatory configurations
@@ -99,6 +103,7 @@ class EAS_Tests(unittest.TestCase):
                     exp_idx += 1
 
         cls.print_section('Main', 'Experiments post-processing')
+
 
 ################################################################################
 # Test cases
@@ -512,6 +517,20 @@ class EAS_Tests(unittest.TestCase):
         # cls.env.target.execute('rm {}/output.txt'\
         #         .format(target_dir), as_root=True)
 
+
+################################################################################
+# Specific RFC test cases
+################################################################################
+
+class EAS(TestBase):
+
+    @classmethod
+    def setUpClass(cls):
+        super(EAS, cls).setUpTest('rfc_eas.config')
+
+################################################################################
+# Globals
+################################################################################
 
 # Regular expression for comments
 JSON_COMMENTS_RE = re.compile(
