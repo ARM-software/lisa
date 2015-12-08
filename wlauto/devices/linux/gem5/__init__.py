@@ -111,3 +111,4 @@ class Gem5LinuxDevice(BaseGem5Device, LinuxDevice):
 
     def initialize(self, context):
         self.resize_shell()
+        self.deploy_m5(context, force=False)

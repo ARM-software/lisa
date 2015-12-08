@@ -207,3 +207,4 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
 
     def initialize(self, context):
         self.resize_shell()
+        self.deploy_m5(context, force=False)
