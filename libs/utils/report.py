@@ -101,11 +101,11 @@ class Report(object):
             print ''
 
         # Dump headers
-        print '{:9s}   {:20s} |'\
+        print '{:13s}   {:20s} |'\
                 ' {:33s} | {:54s} |'\
                 .format('Test Id', 'Comparision',
                         nrg_lable, prf_lable)
-        print '{:9s}   {:20s} |'\
+        print '{:13s}   {:20s} |'\
                 ' {:>10s} {:>10s} {:>10s}  |'\
                 ' {:>10s} {:>10s} {:>10s} {:>10s} {:>10s} |'\
                 .format('', '',
@@ -127,7 +127,7 @@ class Report(object):
                         if test_idx == base_idx:
                             continue
                         if new_test:
-                            print '{:-<33s}+{:-<35s}+{:-<56s}+'\
+                            print '{:-<37s}+{:-<35s}+{:-<56s}+'\
                                     .format('','', '')
                             self.__rtapp_reference(tid, base_idx)
                             new_test = False
@@ -142,7 +142,7 @@ class Report(object):
 
         logging.debug('Test %s: compare against [%s] base',
                 tid, base_idx)
-        res_line = '{0:8s}: {1:22s} | '.format(tid, base_idx)
+        res_line = '{0:12s}: {1:22s} | '.format(tid, base_idx)
 
         # Dump all energy metrics
         for cpus in ['LITTLE', 'big', 'Total']:
@@ -179,7 +179,7 @@ class Report(object):
 
         logging.debug('Test %s: compare %s with %s',
                 tid, base_idx, test_idx)
-        res_line = '{0:8s}:   {1:20s} | '.format(tid, test_idx)
+        res_line = '{0:12s}:   {1:20s} | '.format(tid, test_idx)
 
         # Dump all energy metrics
         for cpus in ['LITTLE', 'big', 'Total']:
@@ -288,7 +288,7 @@ class Report(object):
                             if test_idx == base_idx:
                                 continue
                             if new_test:
-                                print '{:-<33s}+{:-<35s}+{:-<56s}+'\
+                                print '{:-<37s}+{:-<35s}+{:-<56s}+'\
                                         .format('','', '')
                                 new_test = False
                             if not test_rexp.match(test_idx):
