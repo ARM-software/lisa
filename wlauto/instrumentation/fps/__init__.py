@@ -27,17 +27,16 @@ import tempfile
 
 from distutils.version import LooseVersion
 
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 from wlauto import Instrument, Parameter, IterationResult
 from wlauto.instrumentation import instrument_is_installed
 from wlauto.exceptions import (InstrumentError, WorkerThreadError, ConfigError,
                                DeviceNotRespondingError, TimeoutError)
 from wlauto.utils.types import boolean, numeric
-
-try:
-    import pandas as pd
-except ImportError:
-    pd = None
 
 
 VSYNC_INTERVAL = 16666667

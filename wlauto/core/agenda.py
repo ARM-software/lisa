@@ -16,12 +16,11 @@
 import os
 from copy import copy
 from collections import OrderedDict, defaultdict
+import yaml
 
 from wlauto.exceptions import ConfigError
 from wlauto.utils.misc import load_struct_from_yaml, LoadSyntaxError
 from wlauto.utils.types import counter, reset_counter
-
-import yaml
 
 
 def get_aliased_param(d, aliases, default=None, pop=True):

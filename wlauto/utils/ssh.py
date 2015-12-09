@@ -43,7 +43,7 @@ def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeou
             raise ConfigError('keyfile may not be used with a telnet connection.')
         conn = TelnetConnection()
     else:  # ssh
-        conn = pxssh.pxssh()
+        conn = pxssh.pxssh()  # pylint: disable=redefined-variable-type
     try:
         if keyfile:
             conn.login(host, username, ssh_key=keyfile, port=port, login_timeout=timeout)
@@ -274,4 +274,3 @@ def process_backspaces(text):
         else:
             chars.append(c)
     return ''.join(chars)
-

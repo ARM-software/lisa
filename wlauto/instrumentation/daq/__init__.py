@@ -31,6 +31,7 @@ from wlauto.exceptions import ConfigError, InstrumentError, DeviceError
 from wlauto.utils.misc import ensure_directory_exists as _d
 from wlauto.utils.types import list_of_ints, list_of_strs, boolean
 
+# pylint: disable=wrong-import-position,wrong-import-order
 daqpower_path = os.path.join(os.path.dirname(__file__), '..', '..', 'external', 'daq_server', 'src')
 sys.path.insert(0, daqpower_path)
 try:
@@ -283,7 +284,7 @@ class Daq(Instrument):
         self._results = None
         self._metrics = set()
         if self.labels:
-            if not (len(self.labels) == len(self.resistor_values)):  # pylint: disable=superfluous-parens
+            if len(self.labels) != len(self.resistor_values):
                 raise ConfigError('Number of DAQ port labels does not match the number of resistor values.')
         else:
             self.labels = ['PORT_{}'.format(i) for i, _ in enumerate(self.resistor_values)]
@@ -319,7 +320,7 @@ class Daq(Instrument):
                 for name in old_names:
                     if name not in self.labels:
                         raise ConfigError("No channel with label {} specified".format(name))
-            self.label_map = self.merge_channels
+            self.label_map = self.merge_channels  # pylint: disable=redefined-variable-type
             self.merge_channels = True
         else:  # Should never reach here
             raise AssertionError("Merge files is of invalid type")

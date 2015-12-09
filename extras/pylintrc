@@ -16,7 +16,7 @@
 #
 [MASTER]
 
-profile=no
+#profile=no
 
 ignore=external
 

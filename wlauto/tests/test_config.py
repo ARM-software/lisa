@@ -51,6 +51,7 @@ workloads:
       instrumentation: [fsp]
 """
 
+
 class MockExtensionLoader(object):
 
     def __init__(self):
@@ -94,7 +95,7 @@ class NamedMock(object):
         self.parameters = []
 
     def __getattr__(self, name):
-        if not name in self.__attrs:
+        if name not in self.__attrs:
             self.__attrs[name] = NamedMock(name)
         return self.__attrs[name]
 
@@ -164,7 +165,7 @@ class ConfigTest(TestCase):
 
     def test_list_defaults_params(self):
         ws = AgendaWorkloadEntry(id='a', iterations=1,
-                                 name='defaults_workload', workload_parameters={'param':[3]})
+                                 name='defaults_workload', workload_parameters={'param': [3]})
         self.config.set_agenda(MockAgenda(ws))
         spec = self.config.workload_specs[0]
         assert_equal(spec.workload_parameters, {'param': [3]})

@@ -148,7 +148,7 @@ class PerfInstrument(Instrument):
             self.events = [self.events]
         if not self.labels:  # pylint: disable=E0203
             self.labels = ['perf_{}'.format(i) for i in xrange(len(self.optionstrings))]
-        if not len(self.labels) == len(self.optionstrings):
+        if len(self.labels) != len(self.optionstrings):
             raise ConfigError('The number of labels must match the number of optstrings provided for perf.')
 
     def _build_commands(self):
@@ -173,4 +173,3 @@ class PerfInstrument(Instrument):
                                                event_string,
                                                self._get_device_outfile(label))
         return command
-

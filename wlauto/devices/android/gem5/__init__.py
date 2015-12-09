@@ -98,8 +98,8 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
         self.logger.info("Waiting for Android to boot...")
         while True:
             try:
-                booted = (1 == int('0' + self.gem5_shell('getprop sys.boot_completed', check_exit_code=False)))
-                anim_finished = (1 == int('0' + self.gem5_shell('getprop service.bootanim.exit', check_exit_code=False)))
+                booted = (int('0' + self.gem5_shell('getprop sys.boot_completed', check_exit_code=False)) == 1)
+                anim_finished = (int('0' + self.gem5_shell('getprop service.bootanim.exit', check_exit_code=False)) == 1)
                 if booted and anim_finished:
                     break
             except (DeviceError, ValueError):

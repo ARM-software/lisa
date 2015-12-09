@@ -35,10 +35,10 @@ compare_versions() {
 }
 
 pylint_version=$(python -c 'from pylint.__pkginfo__ import version; print version')
-compare_versions $pylint_version "1.3.0"
+compare_versions $pylint_version "1.5.1"
 result=$?
 if [ "$result" == "2" ]; then
-	echo "ERROR: pylint version must be at least 1.3.0; found $pylint_version"
+	echo "ERROR: pylint version must be at least 1.5.1; found $pylint_version"
 	exit 1
 fi
 

@@ -79,7 +79,7 @@ class Antutu(AndroidUiAutoBenchmark):
             if self.version == '4.0.3':
                 metrics = extract_version4_metrics(fh)
             else:
-                metrics = extract_older_version_metrics(fh)
+                metrics = extract_older_version_metrics(fh)  # pylint: disable=redefined-variable-type
         for key, value in metrics.iteritems():
             key = key.replace(' ', '_')
             context.result.add_metric(key, value)
@@ -118,7 +118,7 @@ def extract_older_version_metrics(fh):
     for line in fh:
         if 'i/antutu' in line.lower():
             parts = line.split(':')
-            if not len(parts) == 3:
+            if len(parts) != 3:
                 continue
             metric = parts[1].strip()
             value = int(parts[2].strip())
@@ -132,4 +132,3 @@ def extract_older_version_metrics(fh):
 
             metrics[metric] = value
     return metrics
-

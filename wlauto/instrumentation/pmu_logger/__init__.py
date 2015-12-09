@@ -146,7 +146,7 @@ class CciPmuLogger(Instrument):
             raise ConfigError('To use cci_pmu_logger, trace-cmd instrument must also be enabled.')
         if not self.event_labels:  # pylint: disable=E0203
             self.event_labels = ['event_{}'.format(e) for e in self.events]
-        elif not len(self.events) == len(self.event_labels):
+        elif len(self.events) != len(self.event_labels):
             raise ConfigError('cci_pmu_events and cci_pmu_event_labels must be of the same length.')
         if len(self.events) > NUMBER_OF_CCI_PMU_COUNTERS:
             raise ConfigError('The number cci_pmu_counters must be at most {}'.format(NUMBER_OF_CCI_PMU_COUNTERS))

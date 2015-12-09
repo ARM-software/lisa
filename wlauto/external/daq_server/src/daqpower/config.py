@@ -59,7 +59,7 @@ class DeviceConfiguration(Serializable):
     def validate(self):
         if not self.number_of_ports:
             raise ConfigurationError('No resistor values were specified.')
-        if not len(self.resistor_values) == len(self.labels):
+        if len(self.resistor_values) != len(self.labels):
             message = 'The number  of resistors ({}) does not match the number of labels ({})'
             raise ConfigurationError(message.format(len(self.resistor_values), len(self.labels)))
 
@@ -151,4 +151,3 @@ def get_config_parser(server=True, device=True):
         parser.add_argument('--host', action=UpdateServerConfig)
         parser.add_argument('--port', action=UpdateServerConfig, type=int)
     return parser
-

@@ -248,7 +248,7 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         self.execute('echo {} > \'{}\''.format(value, sysfile), check_exit_code=False, as_root=True)
         if verify:
             output = self.get_sysfile_value(sysfile)
-            if not output.strip() == value:  # pylint: disable=E1103
+            if output.strip() != value:  # pylint: disable=E1103
                 message = 'Could not set the value of {} to {}'.format(sysfile, value)
                 raise DeviceError(message)
         self._written_sysfiles.append(sysfile)
@@ -476,7 +476,7 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
             if isinstance(on_cpus, basestring):
                 on_cpus = ranges_to_list(on_cpus)
             if isiterable(on_cpus):
-                on_cpus = list_to_mask(on_cpus)
+                on_cpus = list_to_mask(on_cpus)  # pylint: disable=redefined-variable-type
             command = '{} taskset 0x{:x} {}'.format(self.busybox, on_cpus, command)
         if in_directory:
             command = 'cd {} && {}'.format(in_directory, command)
@@ -807,4 +807,3 @@ class LinuxDevice(BaseLinuxDevice):
 
     def ensure_screen_is_on(self):
         pass  # TODO
-

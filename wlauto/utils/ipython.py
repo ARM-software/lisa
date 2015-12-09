@@ -18,6 +18,7 @@ import os
 import subprocess
 from distutils.version import StrictVersion
 
+# pylint: disable=wrong-import-position
 import_error_str = ''
 try:
     import IPython
@@ -28,7 +29,7 @@ except ImportError as import_error:
     if import_error.message.startswith("No module named"):  # pylint: disable=E1101
         import_error_str = 'ipynb_exporter requires ipython package to be installed'
     else:
-        import_error_str = import_error.message
+        import_error_str = import_error.message  # pylint: disable=redefined-variable-type
 
 # The current code generates notebooks version 3
 NBFORMAT_VERSION = 3

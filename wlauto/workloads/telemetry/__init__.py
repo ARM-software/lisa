@@ -300,8 +300,7 @@ def parse_telemetry_results(filepath):
 
 
 if __name__ == '__main__':
-    import sys
-    from pprint import pprint
+    import sys  # pylint: disable=wrong-import-order,wrong-import-position
+    from pprint import pprint  # pylint: disable=wrong-import-order,wrong-import-position
     path = sys.argv[1]
     pprint(parse_telemetry_results(path))
-

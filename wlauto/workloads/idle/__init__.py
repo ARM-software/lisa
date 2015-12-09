@@ -44,7 +44,7 @@ class IdleWorkload(Workload):
 
     def setup(self, context):
         if self.stop_android:
-            if not self.device.platform == 'android':
+            if self.device.platform != 'android':
                 raise ConfigError('stop_android can only be set for Android devices')
             if not self.device.is_rooted:
                 raise WorkloadError('Idle workload requires the device to be rooted in order to stop Android.')
@@ -66,4 +66,3 @@ class IdleWorkload(Workload):
                 time.sleep(0.2)
             while self.device.execute('getprop init.svc.bootanim').strip() == 'running':
                 time.sleep(1)
-

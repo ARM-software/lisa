@@ -119,10 +119,7 @@ class Spec2000(Workload):
     #      (also more than just summary/non-summary classification?)
     class _SPECSummaryMetrics(object):
         def __contains__(self, item):
-            if item.endswith('_real'):
-                return True
-            else:
-                return False
+            return item.endswith('_real')
 
     asset_file = 'spec2000-assets.tar.gz'
 
@@ -351,4 +348,3 @@ class CommandSpec(object):
         self.datadir = None
         self.command = None
         self.threads = None
-

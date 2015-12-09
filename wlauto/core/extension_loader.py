@@ -80,7 +80,7 @@ class GlobalParameterAlias(object):
                     other_param.kind != param.kind):
                 message = 'Duplicate global alias {} declared in {} and {} extensions with different types'
                 raise LoaderError(message.format(self.name, ext.name, other_ext.name))
-            if not param.name == other_param.name:
+            if param.name != other_param.name:
                 message = 'Two params {} in {} and {} in {} both declare global alias {}'
                 raise LoaderError(message.format(param.name, ext.name,
                                                  other_param.name, other_ext.name, self.name))
@@ -320,7 +320,7 @@ class ExtensionLoader(object):
                 if should_skip:
                     continue
                 for fname in files:
-                    if not os.path.splitext(fname)[1].lower() == '.py':
+                    if os.path.splitext(fname)[1].lower() != '.py':
                         continue
                     filepath = os.path.join(root, fname)
                     try:
@@ -401,4 +401,3 @@ def _instantiate(cls, args=None, kwargs=None):
         return cls(*args, **kwargs)
     except Exception:
         raise LoaderError('Could not load {}'.format(cls), sys.exc_info())
-

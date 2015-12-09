@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # pylint: disable=attribute-defined-outside-init
-
-from wlauto import Workload, Parameter, Executable
-from wlauto.exceptions import ConfigError
-from wlauto.utils.types import list_of_ints
 from collections import OrderedDict
 from itertools import izip_longest
 import os
 import re
 import csv
+
+
+from wlauto import Workload, Parameter, Executable
+from wlauto.exceptions import ConfigError
+from wlauto.utils.types import list_of_ints
+
 
 iozone_results_txt = 'iozone_results.txt'
 

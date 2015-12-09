@@ -250,7 +250,7 @@ def get_traceback(exc=None):
 
 
 def merge_dicts(*args, **kwargs):
-    if not len(args) >= 2:
+    if len(args) < 2:
         raise ValueError('Must specify at least two dicts to merge.')
     func = partial(_merge_two_dicts, **kwargs)
     return reduce(func, args)
@@ -314,7 +314,7 @@ def _merge_two_dicts(base, other, list_duplicates='all', match_types=False,  # p
 
 
 def merge_lists(*args, **kwargs):
-    if not len(args) >= 2:
+    if len(args) < 2:
         raise ValueError('Must specify at least two lists to merge.')
     func = partial(_merge_two_lists, **kwargs)
     return reduce(func, args)
@@ -696,7 +696,7 @@ def load_struct_from_python(filepath=None, text=None):
                     for k, v in mod.__dict__.iteritems()
                     if not k.startswith('_'))
     except SyntaxError as e:
-        raise LoadSyntaxError(e.message, e.filepath, e.lineno)
+        raise LoadSyntaxError(e.message, filepath, e.lineno)
 
 
 def load_struct_from_yaml(filepath=None, text=None):
@@ -713,7 +713,7 @@ def load_struct_from_yaml(filepath=None, text=None):
     except yaml.YAMLError as e:
         lineno = None
         if hasattr(e, 'problem_mark'):
-            lineno = e.problem_mark.line
+            lineno = e.problem_mark.line  # pylint: disable=no-member
         raise LoadSyntaxError(e.message, filepath=filepath, lineno=lineno)
 
 

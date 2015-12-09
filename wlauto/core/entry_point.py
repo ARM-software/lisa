@@ -18,6 +18,7 @@ import sys
 import argparse
 import logging
 import subprocess
+import warnings
 
 from wlauto.core.bootstrap import settings
 from wlauto.core.extension_loader import ExtensionLoader
@@ -28,7 +29,6 @@ from wlauto.utils.cli import init_argument_parser
 from wlauto.utils.doc import format_body
 
 
-import warnings
 warnings.filterwarnings(action='ignore', category=UserWarning, module='zope')
 
 
@@ -89,4 +89,3 @@ def main():
         logging.critical(tb)
         logging.critical('{}({})'.format(e.__class__.__name__, e))
         sys.exit(2)
-

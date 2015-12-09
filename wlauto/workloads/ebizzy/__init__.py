@@ -14,10 +14,10 @@
 
 # pylint: disable=W0201, C0103
 
-from wlauto import Workload, Parameter, Executable
-
 import os
 import re
+
+from wlauto import Workload, Parameter, Executable
 
 results_txt = 'ebizzy_results.txt'
 record_regex = re.compile(r'(?P<record>\d+) records/s')

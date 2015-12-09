@@ -20,15 +20,17 @@ import os
 import shutil
 import webbrowser
 
+try:
+    import jinja2
+except ImportError:
+    jinja2 = None
+
 from wlauto import File, Parameter, ResultProcessor
 from wlauto.exceptions import ConfigError, ResultProcessorError
 import wlauto.utils.ipython as ipython
 from wlauto.utils.misc import open_file
 
-try:
-    import jinja2
-except ImportError:
-    jinja2 = None
+
 
 DEFAULT_NOTEBOOK_TEMPLATE = 'template.ipynb'
 
