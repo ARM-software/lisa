@@ -17,6 +17,7 @@
 # pylint can't see any of the dynamically allocated classes of Run
 # pylint: disable=no-member
 
+from itertools import ifilter
 import os
 import re
 import pandas as pd
@@ -300,16 +301,7 @@ class Run(object):
                 trace_class = DynamicTypeFactory(event_name, (Base,), kwords)
                 self.class_definitions[event_name] = trace_class
 
-    def __contains_unique_word(self, line, unique_words):
-        """The line contains any unique word that we are matching"""
-
-        for unique_word, trace_name in unique_words:
-            if unique_word in line:
-                return trace_name
-        return None
-
-
-    def __populate_metadata(self, trace_fh, unique_words):
+    def __populate_metadata(self, trace_fh):
         """Populates trace metadata"""
 
         # Meta Data as expected to be found in the parsed trace header
@@ -332,73 +324,76 @@ class Run(object):
                 setattr(self, "_" + match.group(1), match.group(2))
                 metadata_keys.remove(match.group(1))
 
-            # Reached a valid trace line, abort metadata population
-            elif self.__populate_data_from_line(line, unique_words):
+            if re.search(r"^\s+[^\[]+-\d+\s+\[\d+\]\s+\d+\.\d+:", line):
+                # Reached a valid trace line, abort metadata population
                 return
 
-    def __populate_data_from_line(self, line, unique_words, window=(0, None),
-                                  abs_window=(0, None)):
-        """Append to trace data from a txt trace line
+    def __populate_data(self, fin, cls_for_unique_word, window, abs_window):
+        """Append to trace data from a txt trace"""
 
-        Returns true if the line contains valid trace data (that is,
-        it's not part of the early part of the file that only has
-        metadata
-
-        """
-
-        attr = self.__contains_unique_word(line, unique_words)
-        if not attr:
+        def contains_unique_word(line, unique_words=cls_for_unique_word.keys()):
+            for unique_word in unique_words:
+                if unique_word in line:
+                    return True
             return False
 
-        line = line[:-1]
+        special_fields_regexp = re.compile(r"^\s+([^\[]+)-(\d+)\s+\[(\d+)\]\s+([0-9]+\.[0-9]+):")
+        start_match = re.compile(r"[A-Za-z0-9_]+=")
 
-        special_fields_match = re.search(r"^\s+([^\[]+)-(\d+)\s+\[(\d+)\]\s+([0-9]+\.[0-9]+):",
-                                                 line)
-        comm = special_fields_match.group(1)
-        pid = int(special_fields_match.group(2))
-        cpu = int(special_fields_match.group(3))
-        timestamp = float(special_fields_match.group(4))
+        for line in ifilter(contains_unique_word, fin):
+            for unique_word, cls in cls_for_unique_word.iteritems():
+                if unique_word in line:
+                    trace_class = cls
+                    break
+            else:
+                raise ValueError("No unique in {}".format(line))
 
-        if not self.basetime:
-            self.basetime = timestamp
+            line = line[:-1]
 
-        if (timestamp < window[0] + self.basetime) or \
-           (timestamp < abs_window[0]):
-            return True
+            special_fields_match = special_fields_regexp.match(line)
+            comm = special_fields_match.group(1)
+            pid = int(special_fields_match.group(2))
+            cpu = int(special_fields_match.group(3))
+            timestamp = float(special_fields_match.group(4))
 
-        if (window[1] and timestamp > window[1] + self.basetime) or \
-           (abs_window[1] and timestamp > abs_window[1]):
-            raise StopIteration("Reached the end of the trace")
+            if not self.basetime:
+                self.basetime = timestamp
 
-        try:
-            data_start_idx = re.search(r"[A-Za-z0-9_]+=", line).start()
-        except AttributeError:
-            return False
+            if (timestamp < window[0] + self.basetime) or \
+               (timestamp < abs_window[0]):
+                continue
 
-        data_str = line[data_start_idx:]
+            if (window[1] and timestamp > window[1] + self.basetime) or \
+               (abs_window[1] and timestamp > abs_window[1]):
+                return
 
-        # Remove empty arrays from the trace
-        data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
+            try:
+                data_start_idx =  start_match.search(line).start()
+            except AttributeError:
+                continue
 
-        getattr(self, attr).append_data(timestamp, comm, pid, cpu,
-                                                data_str)
-        return True
+            data_str = line[data_start_idx:]
+
+            # Remove empty arrays from the trace
+            data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
+
+            trace_class.append_data(timestamp, comm, pid, cpu, data_str)
 
     def __parse_trace_file(self, window, abs_window, raw=False):
         """parse the trace and create a pandas DataFrame"""
 
         # Memoize the unique words to speed up parsing the trace file
-        unique_words = []
+        cls_for_unique_word = {}
         for trace_name in self.class_definitions.iterkeys():
-            parse_raw = getattr(self, trace_name).parse_raw
+            trace_class = getattr(self, trace_name)
 
-            if parse_raw != raw:
+            if trace_class.parse_raw != raw:
                 continue
 
-            unique_word = getattr(self, trace_name).unique_word
-            unique_words.append((unique_word, trace_name))
+            unique_word = trace_class.unique_word
+            cls_for_unique_word[unique_word] = trace_class
 
-        if len(unique_words) == 0:
+        if len(cls_for_unique_word) == 0:
             return
 
         if raw:
@@ -410,14 +405,12 @@ class Run(object):
             trace_file = self.trace_path
 
         with open(trace_file) as fin:
-            self.__populate_metadata(fin, unique_words)
+            self.__populate_metadata(fin)
 
-            for line in fin:
-                try:
-                    self.__populate_data_from_line(line, unique_words, window,
-                                                   abs_window)
-                except StopIteration:
-                    pass
+            # Rewind the file
+            fin.seek(0)
+
+            self.__populate_data(fin, cls_for_unique_word, window, abs_window)
 
     def __finalize_objects(self):
         for trace_class in self.trace_classes:
