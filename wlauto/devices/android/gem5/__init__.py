@@ -93,15 +93,27 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
         pass
 
     def wait_for_boot(self):
+        """
+        Wait for the system to boot
+
+        We monitor the sys.boot_completed and service.bootanim.exit system
+        properties to determine when the system has finished booting. In the
+        event that we cannot coerce the result of service.bootanim.exit to an
+        integer, we assume that the boot animation was disabled and do not wait
+        for it to finish.
+
+        """
         self.logger.info("Waiting for Android to boot...")
         while True:
+            booted = False
+            anim_finished = True  # Assume boot animation was disabled on except
             try:
-                booted = (int('0' + self.gem5_shell('getprop sys.boot_completed', check_exit_code=False)) == 1)
-                anim_finished = (int('0' + self.gem5_shell('getprop service.bootanim.exit', check_exit_code=False)) == 1)
-                if booted and anim_finished:
-                    break
-            except (DeviceError, ValueError):
+                booted = (int('0' + self.gem5_shell('getprop sys.boot_completed', check_exit_code=False).strip()) == 1)
+                anim_finished = (int(self.gem5_shell('getprop service.bootanim.exit', check_exit_code=False).strip()) == 1)
+            except ValueError:
                 pass
+            if booted and anim_finished:
+                break
             time.sleep(60)
 
         self.logger.info("Android booted")
