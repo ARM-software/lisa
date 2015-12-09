@@ -102,13 +102,16 @@ class EventPlot(AbstractDataPlotter):
 
         self._html = []
         self._fig_name = self._generate_fig_name()
-        avgFunc = lambda x: sum([(evt[1] - evt[0]) for evt in x]) / len(x)
+        # Function to get the average duration of each event
+        avgFunc = lambda x: sum([(evt[1] - evt[0]) for evt in x]) / float(len(x) + 1)
         avg = {k: avgFunc(v) for k, v in data.iteritems()}
+        # Filter keys with zero average time
+        keys = filter(lambda x : avg[x] != 0, avg)
         graph = {}
         graph["data"] = data
         graph["lanes"] = self._get_lanes(lanes, lane_prefix, num_lanes, data)
         graph["xDomain"] = domain
-        graph["keys"] = sorted(avg, key=lambda x: avg[x], reverse=True)
+        graph["keys"] = sorted(keys, key=lambda x: avg[x], reverse=True)
         graph["showSummary"] = summary
         graph["stride"] = AttrConf.EVENT_PLOT_STRIDE
 
