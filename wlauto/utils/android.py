@@ -222,11 +222,7 @@ def poll_for_file(device, dfile):
     command = "adb " + device_string + " shell \" if [ -f " + dfile + " ] ; then true ; else false ; fi\" "
     logger.debug(command)
     result = subprocess.call(command, stderr=subprocess.PIPE, shell=True)
-    if not result:
-        return True
-    else:
-        return False
-
+    return not bool(result)
 
 am_start_error = re.compile(r"Error: Activity class {[\w|.|/]*} does not exist")
 

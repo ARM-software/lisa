@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # pylint: disable=attribute-defined-outside-init
+import os
+import re
 
 from wlauto import Workload, Parameter, Executable
 
-import os
-import re
 
 stream_results_txt = 'stream_results.txt'
 system_array_regex = re.compile(r'^This system uses (\d)')

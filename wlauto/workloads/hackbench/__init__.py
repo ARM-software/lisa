@@ -14,10 +14,11 @@
 
 # pylint: disable=W0201, C0103
 
-from wlauto import Workload, Parameter, Executable
-
 import os
 import re
+
+from wlauto import Workload, Parameter, Executable
+
 
 hackbench_results_txt = 'hackbench_results.txt'
 

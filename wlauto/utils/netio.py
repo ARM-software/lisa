@@ -51,7 +51,7 @@ class KshellConnection(object):
 
     def login(self, user, password):
         code, out = self.send_command('login {} {}\r\n'.format(user, password))
-        if not code == 250:
+        if code != 250:
             raise NetioError('Login failed. Got: {} {}'.format(code, out))
 
     def enable_port(self, port):
@@ -64,7 +64,7 @@ class KshellConnection(object):
 
     def set_port(self, port, value):
         code, out = self.send_command('port {} {}'.format(port, value))
-        if not code == 250:
+        if code != 250:
             raise NetioError('Could not set {} on port {}. Got: {} {}'.format(value, port, code, out))
 
     def send_command(self, command):
@@ -95,4 +95,3 @@ class KshellConnection(object):
 
     def close(self):
         self.conn.close()
-

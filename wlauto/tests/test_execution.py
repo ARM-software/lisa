@@ -82,8 +82,10 @@ class BadDeviceMeta(DeviceMeta):
                 basemethods = [getattr(b, vmname) for b in bases if hasattr(b, vmname)]
                 methods[vmname] = [bm for bm in basemethods if bm != clsmethod]
                 methods[vmname].append(clsmethod)
+
                 def generate_method_wrapper(vname):
                     name__ = vmname
+
                     def wrapper(self, *args, **kwargs):
                         for dm in methods[name__]:
                             dm(self, *args, **kwargs)
@@ -101,31 +103,31 @@ class BadDevice(Device):
         self.exception = exception
 
     def connect(self):
-        if 'connect' == self.when_to_fail:
+        if self.when_to_fail == 'connect':
             raise self.exception("Connection failure")
 
     def initialize(self, _):
-        if 'initialize' == self.when_to_fail:
+        if self.when_to_fail == 'initialize':
             raise self.exception("Initialisation failure")
 
     def get_properties(self, _):
-        if 'get_properties' == self.when_to_fail:
+        if self.when_to_fail == 'get_properties':
             raise self.exception("Failure getting propeties")
 
     def start(self):
-        if 'start' == self.when_to_fail:
+        if self.when_to_fail == 'start':
             raise self.exception("Start failure")
 
     def set_device_parameters(self, **_):
-        if 'set_device_parameters' == self.when_to_fail:
+        if self.when_to_fail == 'set_device_parameters':
             raise self.exception("Failure setting parameter")
 
     def stop(self):
-        if 'stop' == self.when_to_fail:
+        if self.when_to_fail == 'stop':
             raise self.exception("Stop failure")
 
     def disconnect(self):
-        if 'disconnect' == self.when_to_fail:
+        if self.when_to_fail == 'disconnect':
             raise self.exception("Disconnection failure")
 
     def ping(self):
@@ -718,14 +720,14 @@ class RunnerTest(TestCase):
         expected_signals = [
             signal.RUN_START.name,
             signal.RUN_INIT.name,
-            signal.WORKLOAD_SPEC_START.name, #Fail Setup
+            signal.WORKLOAD_SPEC_START.name,  # Fail Setup
                 signal.ITERATION_START.name,
                     signal.BEFORE_WORKLOAD_SETUP.name,
                     signal.AFTER_WORKLOAD_SETUP.name,
                 signal.ITERATION_END.name,
                 #Skipped iteration
             signal.WORKLOAD_SPEC_END.name,
-            signal.WORKLOAD_SPEC_START.name, #Fail Run
+            signal.WORKLOAD_SPEC_START.name,  # Fail Run
                 signal.ITERATION_START.name,
                     signal.BEFORE_WORKLOAD_SETUP.name,
                     signal.SUCCESSFUL_WORKLOAD_SETUP.name,
@@ -753,7 +755,7 @@ class RunnerTest(TestCase):
                     signal.AFTER_WORKLOAD_TEARDOWN.name,
                 signal.ITERATION_END.name,
             signal.WORKLOAD_SPEC_END.name,
-            signal.WORKLOAD_SPEC_START.name, # Fail Result Update
+            signal.WORKLOAD_SPEC_START.name,  # Fail Result Update
                 signal.ITERATION_START.name,
                     signal.BEFORE_WORKLOAD_SETUP.name,
                     signal.SUCCESSFUL_WORKLOAD_SETUP.name,
@@ -781,7 +783,7 @@ class RunnerTest(TestCase):
                     signal.AFTER_WORKLOAD_TEARDOWN.name,
                 signal.ITERATION_END.name,
             signal.WORKLOAD_SPEC_END.name,
-            signal.WORKLOAD_SPEC_START.name, # Fail Teardown
+            signal.WORKLOAD_SPEC_START.name,  # Fail Teardown
                 signal.ITERATION_START.name,
                     signal.BEFORE_WORKLOAD_SETUP.name,
                     signal.SUCCESSFUL_WORKLOAD_SETUP.name,
@@ -809,7 +811,7 @@ class RunnerTest(TestCase):
                     signal.AFTER_WORKLOAD_TEARDOWN.name,
                 signal.ITERATION_END.name,
             signal.WORKLOAD_SPEC_END.name,
-            signal.WORKLOAD_SPEC_START.name, #OK
+            signal.WORKLOAD_SPEC_START.name,  # OK
                 signal.ITERATION_START.name,
                     signal.BEFORE_WORKLOAD_SETUP.name,
                     signal.SUCCESSFUL_WORKLOAD_SETUP.name,
@@ -1065,4 +1067,3 @@ class RunnerTest(TestCase):
 def _instantiate(cls, *args, **kwargs):
     # Needed to get around Extension's __init__ checks
     return cls(*args, **kwargs)
-

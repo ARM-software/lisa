@@ -820,7 +820,7 @@ def _adjust_for_thermal(data, filt_method=lambda x: x, thresh=0.9, window=5000, 
 
 
 if __name__ == '__main__':
-    import sys
+    import sys   # pylint: disable=wrong-import-position,wrong-import-order
     indir, outdir = sys.argv[1], sys.argv[2]
     device_name = 'odroidxu3'
     big_core = 'a15'

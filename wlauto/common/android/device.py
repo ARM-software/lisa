@@ -164,7 +164,7 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
             raise DeviceError('Could not boot {} ({}).'.format(self.name, self.adb_name))
 
         while iteration_number < max_iterations:
-            available = (1 == int('0' + adb_shell(self.adb_name, 'getprop sys.boot_completed', timeout=self.default_timeout)))
+            available = (int('0' + (adb_shell(self.adb_name, 'getprop sys.boot_completed', timeout=self.default_timeout))) == 1)
             if available:
                 break
             else:
@@ -331,10 +331,7 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
         self._check_ready()
         output = adb_shell(self.adb_name, 'if [ -e \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath),
                            timeout=self.default_timeout)
-        if int(output):
-            return True
-        else:
-            return False
+        return bool(int(output))
 
     def install(self, filepath, timeout=default_timeout, with_name=None):  # pylint: disable=W0221
         ext = os.path.splitext(filepath)[1].lower()
@@ -739,4 +736,3 @@ class BigLittleDevice(AndroidDevice):  # pylint: disable=W0223
     parameters = [
         Parameter('scheduler', default='hmp', override=True),
     ]
-

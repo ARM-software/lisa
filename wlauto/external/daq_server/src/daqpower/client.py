@@ -14,7 +14,7 @@
 #
 
 
-# pylint: disable=E1101,E1103
+# pylint: disable=E1101,E1103,wrong-import-position
 import os
 import sys
 

@@ -14,7 +14,7 @@
 #
 
 
-# pylint: disable=E1101,W0613
+# pylint: disable=E1101,W0613,wrong-import-position
 from __future__ import division
 import os
 import sys
@@ -30,12 +30,12 @@ from twisted.internet.protocol import Factory, Protocol
 from twisted.internet import reactor, interfaces
 from twisted.internet.error import ConnectionLost, ConnectionDone
 
-
 if __name__ == "__main__":  # for debugging
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from daqpower import log
 from daqpower.config import DeviceConfiguration
 from daqpower.common import DaqServerRequest, DaqServerResponse, Status
+
 try:
     from daqpower.daq import DaqRunner, list_available_devices, CAN_ENUMERATE_DEVICES
     __import_error = None
@@ -66,7 +66,7 @@ class DummyDaqRunner(object):
         self.is_running = False
 
     def start(self):
-        import csv, random
+        import csv, random  # pylint: disable=multiple-imports
         log.info('runner started')
         for i in xrange(self.config.number_of_ports):
             rows = [['power', 'voltage']] + [[random.gauss(1.0, 1.0), random.gauss(1.0, 0.1)]

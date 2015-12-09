@@ -19,6 +19,8 @@ from contextlib import contextmanager
 from distutils.version import StrictVersion as V
 
 import serial
+
+# pylint: disable=ungrouped-imports
 import pexpect
 if V(pexpect.__version__) < V('4.0.0'):
     import fdpexpect  # pylint: disable=import-error
@@ -118,5 +120,3 @@ def open_serial_connection(timeout, get_conn=False, init_dtr=None, *args, **kwar
 
     target.close()  # Closes the file descriptor used by the conn.
     del conn
-
-

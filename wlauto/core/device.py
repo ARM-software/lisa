@@ -303,7 +303,7 @@ class Device(Extension):
         params = OrderedDict((k.lower(), v) for k, v in params.iteritems() if v is not None)
 
         expected_keys = rtp_map.keys()
-        if not set(params.keys()) <= set(expected_keys):
+        if not set(params.keys()).issubset(set(expected_keys)):
             unknown_params = list(set(params.keys()).difference(set(expected_keys)))
             raise ConfigError('Unknown runtime parameter(s): {}'.format(unknown_params))
 
@@ -447,4 +447,3 @@ class Device(Extension):
         except Exception as e:
             self.ping()
             raise e
-

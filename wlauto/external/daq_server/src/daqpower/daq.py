@@ -42,7 +42,7 @@ Port 0
 :sampling_rate: The rate at which DAQ takes a sample from each channel.
 
 """
-# pylint: disable=F0401,E1101,W0621,no-name-in-module
+# pylint: disable=F0401,E1101,W0621,no-name-in-module,wrong-import-position,wrong-import-order
 import os
 import sys
 import csv
@@ -302,7 +302,7 @@ class DaqRunner(object):
         if callbacks_supported:
             self.task = ReadSamplesCallbackTask(config, self.processor)
         else:
-            self.task = ReadSamplesThreadedTask(config, self.processor)
+            self.task = ReadSamplesThreadedTask(config, self.processor)  # pylint: disable=redefined-variable-type
         self.is_running = False
 
     def start(self):
@@ -334,7 +334,7 @@ if __name__ == '__main__':
     resistor_values = [0.005]
     labels = ['PORT_0']
     dev_config = DeviceConfig('Dev1', channel_map, resistor_values, 2.5, 0.2, 10000, len(resistor_values), labels)
-    if not len(sys.argv) == 3:
+    if len(sys.argv) != 3:
         print 'Usage: {} OUTDIR DURATION'.format(os.path.basename(__file__))
         sys.exit(1)
     output_directory = sys.argv[1]
