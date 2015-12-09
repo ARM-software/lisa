@@ -28,8 +28,6 @@ PIVOT = "__TRAPPY_PIVOT_DEFAULT"
 """Default pivot when None specified"""
 PIVOT_VAL = "__TRAPPY_DEFAULT_PIVOT_VAL"
 """Default PivotValue for the default pivot"""
-DUPLICATE_VALUE_MAX_DELTA = 0.000001
-"""Maximum interval for duplicate value adjustment"""
 XLIM = None
 """Default value for xlimit"""
 YLIM = None

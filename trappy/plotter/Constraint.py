@@ -30,6 +30,7 @@ a data column, data event and the requisite filters is
 from trappy.plotter.Utils import decolonize, normalize_list
 from trappy.utils import listify
 from trappy.plotter import AttrConf
+from trappy.utils import handle_duplicate_index
 
 
 class Constraint(object):
@@ -145,29 +146,9 @@ class Constraint(object):
 
     def _handle_duplicate_index(self):
         """Handle duplicate values in index"""
-        data = self._data
+
+        self._data = handle_duplicate_index(self._data)
         self._dup_resolved = True
-        index = data.index
-        new_index = index.values
-
-        dups = index.get_duplicates()
-        for dup in dups:
-            # Leave one of the values intact
-            dup_index_left = index.searchsorted(dup, side="left")
-            dup_index_right = index.searchsorted(dup, side="right") - 1
-            num_dups = dup_index_right - dup_index_left + 1
-            delta = (index[dup_index_right + 1] - dup) / num_dups
-
-            if delta > AttrConf.DUPLICATE_VALUE_MAX_DELTA:
-                delta = AttrConf.DUPLICATE_VALUE_MAX_DELTA
-
-            # Add a delta to the others
-            dup_index_left += 1
-            while dup_index_left <= dup_index_right:
-                new_index[dup_index_left] += delta
-                delta += delta
-                dup_index_left += 1
-        self._data = self._data.reindex(new_index)
 
     def _uses_trappy_run(self):
         if not self._template:
