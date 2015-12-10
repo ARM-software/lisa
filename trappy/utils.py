@@ -25,3 +25,75 @@ def listify(to_select):
         to_select = [to_select]
 
     return to_select
+
+def handle_duplicate_index(data,
+                           max_delta=0.000001):
+    """Handle duplicate values in index
+
+    :param data: The timeseries input
+    :type data: :mod:`pandas.Series`
+
+    :param max_delta: Maximum interval adjustment value that
+        will be added to duplicate indices
+    :type max_delta: float
+
+    Consider the following case where a series needs to be reindexed
+    to a new index (which can be required when different series need to
+    be combined and compared):
+    ::
+
+        import pandas
+        values = [0, 1, 2, 3, 4]
+        index = [0.0, 1.0, 1.0, 6.0, 7.0]
+        series = pandas.Series(values, index=index)
+        new_index = [0.0, 1.0, 2.0, 3.0, 4.0, 6.0, 7.0]
+        series.reindex(new_index)
+
+    The above code fails with:
+    ::
+
+        ValueError: cannot reindex from a duplicate axis
+
+    The function :func:`handle_duplicate_axis` changes the duplicate values
+    to
+    ::
+
+        >>> import pandas
+        >>> from trappy.utils import handle_duplicate_index
+
+        >>> values = [0, 1, 2, 3, 4]
+        index = [0.0, 1.0, 1.0, 6.0, 7.0]
+        series = pandas.Series(values, index=index)
+        series = handle_duplicate_index(series)
+        print series.index.values
+        >>> [ 0.        1.        1.000001  6.        7.      ]
+
+    """
+
+    index = data.index
+    new_index = index.values
+
+    dups = index.get_duplicates()
+
+    for dup in dups:
+        # Leave one of the values intact
+        dup_index_left = index.searchsorted(dup, side="left")
+        dup_index_right = index.searchsorted(dup, side="right") - 1
+        num_dups = dup_index_right - dup_index_left + 1
+
+        # Calculate delta that needs to be added to each duplicate
+        # index
+        delta = (index[dup_index_right + 1] - dup) / num_dups
+
+        # Clamp the maximum delta added to max_delta
+        if delta > max_delta:
+            delta = max_delta
+
+        # Add a delta to the others
+        dup_index_left += 1
+        while dup_index_left <= dup_index_right:
+            new_index[dup_index_left] += delta
+            delta += delta
+            dup_index_left += 1
+
+    return data.reindex(new_index)
