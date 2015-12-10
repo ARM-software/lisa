@@ -31,7 +31,6 @@ import wlauto.utils.ipython as ipython
 from wlauto.utils.misc import open_file
 
 
-
 DEFAULT_NOTEBOOK_TEMPLATE = 'template.ipynb'
 
 
