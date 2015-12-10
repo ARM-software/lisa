@@ -366,6 +366,8 @@ class TestBase(unittest.TestCase):
 
     @classmethod
     def wload_cpus(cls, wl_idx, wlspec):
+        if not 'cpus' in wlspec['conf']:
+            return None
         cpus = wlspec['conf']['cpus']
 
         if type(cpus) == int:
