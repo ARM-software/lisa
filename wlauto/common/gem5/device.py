@@ -398,23 +398,12 @@ class BaseGem5Device(object):
         """
         Pull a file from the gem5 device using m5 writefile
 
-        First, we check the extension of the file to be copied. If the file ends
-        in .gz, then gem5 wrongly assumes that it should create a gzipped output
-        stream, which results in a gem5 error. Therefore, we rename the file on
-        the local device prior to the writefile command when required. Next, the
-        file is copied to the local directory within the guest as the m5
+        The file is copied to the local directory within the guest as the m5
         writefile command assumes that the file is local. The file is then
         written out to the host system using writefile, prior to being moved to
         the destination on the host.
         """
         filename = os.path.basename(source)
-        self.logger.debug("Pulling {} from device.".format(filename))
-
-        # gem5 assumes that files ending in .gz are gzip-compressed. We need to
-        # work around this, else gem5 panics on us. Rename the file for use in
-        # gem5
-        if filename[-3:] == '.gz':
-            filename += '.fugem5'
 
         self.logger.debug("pull_file {} {}".format(source, filename))
         # We don't check the exit code here because it is non-zero if the source
