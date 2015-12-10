@@ -355,9 +355,6 @@ class BaseGem5Device(object):
 
         self.sckt.PROMPT = prompt
 
-    def login(self):
-        pass
-
     def close(self):
         if self._logcat_poller:
             self._logcat_poller.stop()
@@ -365,9 +362,6 @@ class BaseGem5Device(object):
     def reset(self):
         self.logger.warn("Attempt to restart the gem5 device. This is not "
                          "supported!")
-
-    def init(self):
-        pass
 
     # pylint: disable=unused-argument
     def push_file(self, source, dest, **kwargs):
