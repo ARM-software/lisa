@@ -30,7 +30,7 @@ PERF_COMMAND_TEMPLATE = '{} stat {} {} sleep 1000 > {} 2>&1 '
 DEVICE_RESULTS_FILE = '/data/local/perf_results.txt'
 HOST_RESULTS_FILE_BASENAME = 'perf.txt'
 
-PERF_COUNT_REGEX = re.compile(r'^\s*(\d+)\s*(.*?)\s*(\[\s*\d+\.\d+%\s*\])?\s*$')
+PERF_COUNT_REGEX = re.compile(r'^(CPU\d+)?\s*(\d+)\s*(.*?)\s*(\[\s*\d+\.\d+%\s*\])?\s*$')
 
 
 class PerfInstrument(Instrument):
@@ -130,9 +130,13 @@ class PerfInstrument(Instrument):
                             line = line.split('#')[0]  # comment
                             match = PERF_COUNT_REGEX.search(line)
                             if match:
-                                count = int(match.group(1))
-                                metric = '{}_{}'.format(label, match.group(2))
-                                context.result.add_metric(metric, count)
+                                classifiers = {}
+                                cpu = match.group(1)
+                                if cpu is not None:
+                                    classifiers['cpu'] = int(cpu.replace('CPU', ''))
+                                count = int(match.group(2))
+                                metric = '{}_{}'.format(label, match.group(3))
+                                context.result.add_metric(metric, count, classifiers=classifiers)
 
     def teardown(self, context):  # pylint: disable=R0201
         self._clean_device()
