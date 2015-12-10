@@ -71,8 +71,6 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
 
         * m5 binary. Please make sure that the m5 binary is on the device and
           can by found in the path.
-        * Busybox. Due to restrictions, we assume that busybox is installed in
-          the guest system, and can be found in the path.
     """
 
     name = 'gem5_android'
@@ -95,15 +93,27 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
         pass
 
     def wait_for_boot(self):
+        """
+        Wait for the system to boot
+
+        We monitor the sys.boot_completed and service.bootanim.exit system
+        properties to determine when the system has finished booting. In the
+        event that we cannot coerce the result of service.bootanim.exit to an
+        integer, we assume that the boot animation was disabled and do not wait
+        for it to finish.
+
+        """
         self.logger.info("Waiting for Android to boot...")
         while True:
+            booted = False
+            anim_finished = True  # Assume boot animation was disabled on except
             try:
-                booted = (int('0' + self.gem5_shell('getprop sys.boot_completed', check_exit_code=False)) == 1)
-                anim_finished = (int('0' + self.gem5_shell('getprop service.bootanim.exit', check_exit_code=False)) == 1)
-                if booted and anim_finished:
-                    break
-            except (DeviceError, ValueError):
+                booted = (int('0' + self.gem5_shell('getprop sys.boot_completed', check_exit_code=False).strip()) == 1)
+                anim_finished = (int(self.gem5_shell('getprop service.bootanim.exit', check_exit_code=False).strip()) == 1)
+            except ValueError:
                 pass
+            if booted and anim_finished:
+                break
             time.sleep(60)
 
         self.logger.info("Android booted")
@@ -133,8 +143,8 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
             self.push_file(filepath, on_device_path)
             # We need to make sure that the folder permissions are set
             # correctly, else the APK does not install correctly.
-            self.gem5_shell('busybox chmod 775 /data/local/tmp')
-            self.gem5_shell('busybox chmod 774 {}'.format(on_device_path))
+            self.gem5_shell('chmod 775 /data/local/tmp')
+            self.gem5_shell('chmod 774 {}'.format(on_device_path))
             self.logger.debug("Actually installing the APK: {}".format(on_device_path))
             return self.gem5_shell("pm install {}".format(on_device_path))
         else:
@@ -146,8 +156,11 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
         on_device_file = self.path.join(self.working_directory, executable_name)
         on_device_executable = self.path.join(self.binaries_directory, executable_name)
         self.push_file(filepath, on_device_file)
-        self.execute('busybox cp {} {}'.format(on_device_file, on_device_executable))
-        self.execute('busybox chmod 0777 {}'.format(on_device_executable))
+        if self.busybox:
+            self.execute('{} cp {} {}'.format(self.busybox, on_device_file, on_device_executable))
+        else:
+            self.execute('cat {} > {}'.format(on_device_file, on_device_executable))
+        self.execute('chmod 0777 {}'.format(on_device_executable))
         return on_device_executable
 
     def uninstall(self, package):
@@ -203,3 +216,7 @@ class Gem5AndroidDevice(BaseGem5Device, AndroidDevice):
         # If we didn't manage to do the above, call the parent class.
         self.logger.warning("capture_screen: falling back to parent class implementation")
         AndroidDevice.capture_screen(self, filepath)
+
+    def initialize(self, context):
+        self.resize_shell()
+        self.deploy_m5(context, force=False)

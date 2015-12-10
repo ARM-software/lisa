@@ -1,0 +1,6 @@
+The gem5 simulator can be obtained from http://repo.gem5.org/gem5/ and the
+corresponding documentation can be found at http://www.gem5.org.
+
+The source for the m5 binaries bundled with Workload Automation (found at
+wlauto/common/bin/arm64/m5 and wlauto/common/bin/armeabi/m5) can be found at
+util/m5 in the gem5 source at http://repo.gem5.org/gem5/.

@@ -26,9 +26,11 @@ import subprocess
 import sys
 import tarfile
 import time
-from pexpect import EOF, TIMEOUT
+from pexpect import EOF, TIMEOUT, pxssh
 
 from wlauto import settings, Parameter
+from wlauto.core.resource import NO_ONE
+from wlauto.common.resources import Executable
 from wlauto.core import signal as sig
 from wlauto.exceptions import DeviceError
 from wlauto.utils import ssh, types
@@ -112,6 +114,7 @@ class BaseGem5Device(object):
         self.gem5 = None
         self.gem5_port = -1
         self.gem5outdir = os.path.join(settings.output_directory, "gem5")
+        self.m5_path = 'm5'
         self.stdout_file = None
         self.stderr_file = None
         self.stderr_filename = None
@@ -238,9 +241,19 @@ class BaseGem5Device(object):
         port = self.gem5_port
 
         # Connect to the gem5 telnet port. Use a short timeout here.
-        self.sckt = ssh.TelnetConnection()
-        self.sckt.login(host, 'None', port=port, auto_prompt_reset=False,
-                        login_timeout=10)
+        attempts = 0
+        while attempts < 10:
+            attempts += 1
+            try:
+                self.sckt = ssh.TelnetConnection()
+                self.sckt.login(host, 'None', port=port, auto_prompt_reset=False,
+                                login_timeout=10)
+                break
+            except pxssh.ExceptionPxssh:
+                pass
+        else:
+            self.gem5.kill()
+            raise DeviceError("Failed to connect to the gem5 telnet session.")
 
         self.logger.info("Connected! Waiting for prompt...")
 
@@ -272,14 +285,7 @@ class BaseGem5Device(object):
 
         self.sckt.setecho(False)
         self.sync_gem5_shell()
-
-        # Try and avoid line wrapping as much as possible. Don't check the error
-        # codes from these command because some of them WILL fail.
-        self.gem5_shell('stty columns 1024', check_exit_code=False)
-        self.gem5_shell('busybox stty columns 1024', check_exit_code=False)
-        self.gem5_shell('stty cols 1024', check_exit_code=False)
-        self.gem5_shell('busybox stty cols 1024', check_exit_code=False)
-        self.gem5_shell('reset', check_exit_code=False)
+        self.resize_shell()
 
     def get_properties(self, context):  # pylint: disable=R0801
         """ Get the property files from the device """
@@ -323,7 +329,7 @@ class BaseGem5Device(object):
 
     def get_pids_of(self, process_name):
         """ Returns a list of PIDs of all processes with the specified name. """
-        result = self.gem5_shell('ps | busybox grep {}'.format(process_name),
+        result = self.gem5_shell('ps | {} grep {}'.format(self.busybox, process_name),
                                  check_exit_code=False).strip()
         if result and 'not found' not in result and len(result.split('\n')) > 2:
             return [int(x.split()[1]) for x in result.split('\n')]
@@ -349,9 +355,6 @@ class BaseGem5Device(object):
 
         self.sckt.PROMPT = prompt
 
-    def login(self):
-        pass
-
     def close(self):
         if self._logcat_poller:
             self._logcat_poller.stop()
@@ -359,9 +362,6 @@ class BaseGem5Device(object):
     def reset(self):
         self.logger.warn("Attempt to restart the gem5 device. This is not "
                          "supported!")
-
-    def init(self):
-        pass
 
     # pylint: disable=unused-argument
     def push_file(self, source, dest, **kwargs):
@@ -384,8 +384,11 @@ class BaseGem5Device(object):
 
         # Back to the gem5 world
         self.gem5_shell("ls -al /mnt/obb/{}".format(filename))
-        self.gem5_shell("busybox cp /mnt/obb/{} {}".format(filename, dest))
-        self.gem5_shell("busybox sync")
+        if self.busybox:
+            self.gem5_shell("{} cp /mnt/obb/{} {}".format(self.busybox, filename, dest))
+        else:
+            self.gem5_shell("cat /mnt/obb/{} > {}".format(filename, dest))
+        self.gem5_shell("sync")
         self.gem5_shell("ls -al {}".format(dest))
         self.gem5_shell("ls -al /mnt/obb/")
         self.logger.debug("Push complete.")
@@ -395,30 +398,20 @@ class BaseGem5Device(object):
         """
         Pull a file from the gem5 device using m5 writefile
 
-        First, we check the extension of the file to be copied. If the file ends
-        in .gz, then gem5 wrongly assumes that it should create a gzipped output
-        stream, which results in a gem5 error. Therefore, we rename the file on
-        the local device prior to the writefile command when required. Next, the
-        file is copied to the local directory within the guest as the m5
+        The file is copied to the local directory within the guest as the m5
         writefile command assumes that the file is local. The file is then
         written out to the host system using writefile, prior to being moved to
         the destination on the host.
         """
         filename = os.path.basename(source)
-        self.logger.debug("Pulling {} from device.".format(filename))
-
-        # gem5 assumes that files ending in .gz are gzip-compressed. We need to
-        # work around this, else gem5 panics on us. Rename the file for use in
-        # gem5
-        if filename[-3:] == '.gz':
-            filename += '.fugem5'
 
         self.logger.debug("pull_file {} {}".format(source, filename))
         # We don't check the exit code here because it is non-zero if the source
         # and destination are the same. The ls below will cause an error if the
         # file was not where we expected it to be.
-        self.gem5_shell("busybox cp {} {}".format(source, filename), check_exit_code=False)
-        self.gem5_shell("busybox sync")
+        self.gem5_shell("{} cp {} {}".format(self.busybox, source, filename),
+                        check_exit_code=False)
+        self.gem5_shell("sync")
         self.gem5_shell("ls -la {}".format(filename))
         self.logger.debug('Finished the copy in the simulator')
         self.gem5_util("writefile {}".format(filename))
@@ -602,7 +595,7 @@ class BaseGem5Device(object):
 
     def gem5_util(self, command):
         """ Execute a gem5 utility command using the m5 binary on the device """
-        self.gem5_shell('/sbin/m5 ' + command)
+        self.gem5_shell('{} {}'.format(self.m5_path, command))
 
     def sync_gem5_shell(self):
         """
@@ -617,6 +610,19 @@ class BaseGem5Device(object):
         self.sckt.expect(r"\*\*sync\*\*", timeout=self.delay)
         self.sckt.expect([self.sckt.UNIQUE_PROMPT, self.sckt.PROMPT], timeout=self.delay)
         self.sckt.expect([self.sckt.UNIQUE_PROMPT, self.sckt.PROMPT], timeout=self.delay)
+
+    def resize_shell(self):
+        """
+        Resize the shell to avoid line wrapping issues.
+
+        """
+        # Try and avoid line wrapping as much as possible. Don't check the error
+        # codes from these command because some of them WILL fail.
+        self.gem5_shell('stty columns 1024', check_exit_code=False)
+        self.gem5_shell('{} stty columns 1024'.format(self.busybox), check_exit_code=False)
+        self.gem5_shell('stty cols 1024', check_exit_code=False)
+        self.gem5_shell('{} stty cols 1024'.format(self.busybox), check_exit_code=False)
+        self.gem5_shell('reset', check_exit_code=False)
 
     def move_to_temp_dir(self, source):
         """
@@ -641,10 +647,38 @@ class BaseGem5Device(object):
         """
         self.logger.info("Mounting VirtIO device in simulated system")
 
-        self.gem5_shell('busybox mkdir -p /mnt/obb')
+        self.gem5_shell('mkdir -p /mnt/obb')
 
         mount_command = "mount -t 9p -o trans=virtio,version=9p2000.L,aname={} gem5 /mnt/obb".format(self.temp_dir)
-        if self.platform == 'linux':
-            self.gem5_shell(mount_command)
-        else:
-            self.gem5_shell('busybox {}'.format(mount_command))
+        self.gem5_shell(mount_command)
+
+    def deploy_m5(self, context, force=False):
+        """
+        Deploys the m5 binary to the device and returns the path to the binary
+        on the device.
+
+        :param force: by default, if the binary is already present on the
+                    device, it will not be deployed again. Setting force to
+                    ``True`` overrides that behaviour and ensures that the
+                    binary is always copied. Defaults to ``False``.
+
+        :returns: The on-device path to the m5 binary.
+
+        """
+        on_device_executable = self.path.join(self.binaries_directory, 'm5')
+        if not force and self.file_exists(on_device_executable):
+            # We want to check the version of the binary. We cannot directly
+            # check this because the m5 binary itself is unversioned. We also
+            # need to make sure not to check the error code as "m5 --help"
+            # returns a non-zero error code.
+            output = self.gem5_shell('m5 --help', check_exit_code=False)
+            if "writefile" in output:
+                self.logger.debug("Using the m5 binary on the device...")
+                self.m5_path = on_device_executable
+                return on_device_executable
+            else:
+                self.logger.debug("m5 on device does not support writefile!")
+        host_file = context.resolver.get(Executable(NO_ONE, self.abi, 'm5'))
+        self.logger.info("Installing the m5 binary to the device...")
+        self.m5_path = self.install(host_file)
+        return self.m5_path

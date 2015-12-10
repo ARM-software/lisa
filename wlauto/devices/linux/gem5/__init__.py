@@ -19,6 +19,7 @@ import logging
 
 from wlauto import LinuxDevice, Parameter
 from wlauto.common.gem5.device import BaseGem5Device
+from wlauto.utils import types
 
 
 class Gem5LinuxDevice(BaseGem5Device, LinuxDevice):
@@ -68,8 +69,6 @@ class Gem5LinuxDevice(BaseGem5Device, LinuxDevice):
 
         * m5 binary. Please make sure that the m5 binary is on the device and
           can by found in the path.
-        * Busybox. Due to restrictions, we assume that busybox is installed in
-          the guest system, and can be found in the path.
     """
 
     name = 'gem5_linux'
@@ -80,6 +79,11 @@ class Gem5LinuxDevice(BaseGem5Device, LinuxDevice):
         Parameter('core_clusters', default=[], override=True),
         Parameter('host', default='localhost', override=True,
                   description='Host name or IP address for the device.'),
+        Parameter('login_prompt', kind=types.list_of_strs,
+                  default=['login:', 'AEL login:', 'username:'],
+                  mandatory=False),
+        Parameter('login_password_prompt', kind=types.list_of_strs,
+                  default=['password:'], mandatory=False),
     ]
 
     # Overwritten from Device. For documentation, see corresponding method in
@@ -92,14 +96,14 @@ class Gem5LinuxDevice(BaseGem5Device, LinuxDevice):
 
     def login_to_device(self):
         # Wait for the login prompt
-        i = self.sckt.expect([r'login:', r'username:', self.sckt.UNIQUE_PROMPT],
-                             timeout=10)
+        prompt = self.login_prompt + [self.sckt.UNIQUE_PROMPT]
+        i = self.sckt.expect(prompt, timeout=10)
         # Check if we are already at a prompt, or if we need to log in.
-        if i < 2:
+        if i < len(prompt) - 1:
             self.sckt.sendline("{}".format(self.username))
-            j = self.sckt.expect([r'password:', r'# ', self.sckt.UNIQUE_PROMPT],
-                                 timeout=self.delay)
-            if j == 2:
+            password_prompt = self.login_password_prompt + [r'# ', self.sckt.UNIQUE_PROMPT]
+            j = self.sckt.expect(password_prompt, timeout=self.delay)
+            if j < len(password_prompt) - 2:
                 self.sckt.sendline("{}".format(self.password))
                 self.sckt.expect([r'# ', self.sckt.UNIQUE_PROMPT], timeout=self.delay)
 
@@ -110,3 +114,7 @@ class Gem5LinuxDevice(BaseGem5Device, LinuxDevice):
         # If we didn't manage to do the above, call the parent class.
         self.logger.warning("capture_screen: falling back to parent class implementation")
         LinuxDevice.capture_screen(self, filepath)
+
+    def initialize(self, context):
+        self.resize_shell()
+        self.deploy_m5(context, force=False)
