@@ -16,14 +16,16 @@
 import collections
 import sys
 
-from wlauto import ResultProcessor
-from wlauto.core.result import IterationResult
-from wlauto.exceptions import ResultProcessorError
 
 try:
     import notify2
 except ImportError:
     notify2 = None
+
+
+from wlauto import ResultProcessor
+from wlauto.core.result import IterationResult
+from wlauto.exceptions import ResultProcessorError
 
 
 class NotifyProcessor(ResultProcessor):
