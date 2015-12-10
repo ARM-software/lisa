@@ -119,7 +119,7 @@ class CsvReportProcessor(ResultProcessor):
             for ir in results:
                 for metric in ir.metrics:
                     row = ([ir.id, ir.spec.label, ir.iteration, metric.name] +
-                           [str(metric.classifiers.get(c) or '') for c in extra_columns] +
+                           [str(metric.classifiers.get(c, '')) for c in extra_columns] +
                            [str(metric.value), metric.units or ''])
                     writer.writerow(row)
 
