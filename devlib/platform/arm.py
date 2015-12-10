@@ -174,6 +174,7 @@ class Juno(VersatileExpressPlatform):
                  baudrate=115200,
                  bootloader='u-boot',
                  hard_reset_method='dtr',
+                 big_core='a57',
                  **kwargs
                  ):
         super(Juno, self).__init__('juno',
@@ -181,6 +182,7 @@ class Juno(VersatileExpressPlatform):
                                    baudrate=baudrate,
                                    bootloader=bootloader,
                                    hard_reset_method=hard_reset_method,
+                                   big_core='a57',
                                    **kwargs)
 
 
@@ -191,6 +193,7 @@ class TC2(VersatileExpressPlatform):
                  baudrate=38400,
                  bootloader='bootmon',
                  hard_reset_method='reboottxt',
+                 big_core='a15',
                  **kwargs
                  ):
         super(TC2, self).__init__('tc2',
@@ -198,6 +201,7 @@ class TC2(VersatileExpressPlatform):
                                   baudrate=baudrate,
                                   bootloader=bootloader,
                                   hard_reset_method=hard_reset_method,
+                                  big_core='a15',
                                   **kwargs)
 
 

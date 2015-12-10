@@ -25,7 +25,6 @@ class Platform(object):
         self.logger = logging.getLogger(self.name)
         if not self.core_clusters and self.core_names:
             self._set_core_clusters_from_core_names()
-        self._validate()
 
     def init_target_connection(self, target):
         # May be ovewritten by subclasses to provide target-specific
@@ -76,6 +75,8 @@ class Platform(object):
             raise ValueError(message.format(self.big_core,
                                             ', '.join(set(self.core_names))))
         if self.big_core:
-            little_idx = self.core_clusters.index(min(self.core_clusters))
-            self.little_core = self.core_names[little_idx]
+            for core in self.core_names:
+                if core != self.big_core:
+                    self.little_core = core
+                    break
 
