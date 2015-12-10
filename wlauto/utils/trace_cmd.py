@@ -164,7 +164,11 @@ def regex_body_parser(regex, flags=0):
     def regex_parser_func(event, text):
         match = regex.search(text)
         if match:
-            event.fields.update(match.groupdict())
+            for k, v in match.groupdict().iteritems():
+                try:
+                    event.fields[k] = int(v)
+                except ValueError:
+                    event.fields[k] = v
 
     return regex_parser_func
 
@@ -178,6 +182,11 @@ def regex_body_parser(regex, flags=0):
 # regex). In case of a string/regex, it's named groups will be used to populate
 # the event's attributes.
 EVENT_PARSER_MAP = {
+    'sched_switch': re.compile(
+        r'(?P<prev_comm>\S.*):(?P<prev_pid>\d+) \[(?P<prev_prio>\d+)\] (?P<status>\S+)'
+        r' ==> '
+        r'(?P<next_comm>\S.*):(?P<next_pid>\d+) \[(?P<next_prio>\d+)\]'
+    ),
 }
 
 TRACE_EVENT_REGEX = re.compile(r'^\s+(?P<thread>\S+.*?\S+)\s+\[(?P<cpu_id>\d+)\]\s+(?P<ts>[\d.]+):\s+'
@@ -248,7 +257,7 @@ class TraceCmdTrace(object):
                         continue
 
                 body_parser = EVENT_PARSER_MAP.get(event_name, default_body_parser)
-                if isinstance(body_parser, basestring):
+                if isinstance(body_parser, basestring) or isinstance(body_parser, re._pattern_type):  # pylint: disable=protected-access
                     body_parser = regex_body_parser(body_parser)
                 yield TraceCmdEvent(parser=body_parser, **match.groupdict())
 
