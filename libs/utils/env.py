@@ -252,6 +252,14 @@ class TestEnv(ShareState):
         except KeyError:
             raise ValueError('Config error: missing [platform] parameter')
 
+        # Initialize platform if known
+        if self.conf['board'].upper() == 'TC2':
+            platform = devlib.platform.arm.TC2()
+        elif self.conf['board'].upper() == 'JUNO':
+            platform = devlib.platform.arm.Juno()
+        else:
+            platform = None
+
         # If the target is Android, we need just (eventually) the device
         if platform_type.lower() == 'android':
             self.__connection_settings = None
@@ -266,12 +274,14 @@ class TestEnv(ShareState):
         if platform_type.lower() == 'linux':
             logging.debug('%14s - Setup LINUX target...', 'Target')
             self.target = devlib.LinuxTarget(
+                    platform = platform,
                     connection_settings = self.__connection_settings,
                     load_default_modules = False,
                     modules = self.__modules)
         elif platform_type.lower() == 'android':
             logging.debug('%14s - Setup ANDROID target...', 'Target')
             self.target = devlib.AndroidTarget(
+                    platform = platform,
                     connection_settings = self.__connection_settings,
                     load_default_modules = False,
                     modules = self.__modules)
@@ -290,6 +300,7 @@ class TestEnv(ShareState):
         elif platform_type.lower() == 'host':
             logging.debug('%14s - Setup HOST target...', 'Target')
             self.target = devlib.LocalLinuxTarget(
+                    platform = platform,
                     load_default_modules = False,
                     modules = self.__modules)
         else:
