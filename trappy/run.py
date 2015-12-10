@@ -296,11 +296,21 @@ class Run(object):
 
         """
         from trappy.base import Base
+        from trappy.dynamic import DynamicTypeFactory, default_init
 
         if hasattr(self, name):
             raise ValueError("event {} already present".format(name))
 
-        event = Base()
+        kwords = {
+            "__init__": default_init,
+            "unique_word": name + ":",
+            "name": name,
+        }
+
+        trace_class = DynamicTypeFactory(name, (Base,), kwords)
+        self.class_definitions[name] = trace_class
+
+        event = trace_class()
         event.data_frame = dfr
         if pivot:
             event.pivot = pivot
