@@ -189,3 +189,16 @@ trappy.thermal.Thermal:temp"
         parser = Parser(trappy.Run(), pvars=pvars)
         eqn = "mean(therm:temp) < control_temp"
         self.assertTrue(parser.solve(eqn)[thermal_zone_id])
+
+    def test_for_parsed_event(self):
+        """Test if an added parsed event can be accessed"""
+
+        run = trappy.Run(scope="custom")
+        dfr = pandas.DataFrame({"l1_misses": [24, 535,  41],
+                                "l2_misses": [155, 11, 200],
+                                "cpu":       [ 0,   1,   0]},
+                           index=pandas.Series([1.020, 1.342, 1.451], name="Time"))
+        run.add_parsed_event("pmu_counters", dfr)
+
+        p = Parser(run)
+        self.assertTrue(len(p.solve("pmu_counters:cpu")), 3)
