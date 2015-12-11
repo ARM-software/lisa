@@ -293,7 +293,7 @@ def adb_shell(device, command, timeout=None, check_exit_code=False, as_root=Fals
                                              escape_double_quotes(command))
     logger.debug(full_command)
     if check_exit_code:
-        actual_command = "adb{} shell '({}); echo; echo $?'".format(device_string,
+        actual_command = "adb{} shell '({}); echo \"\n$?\"'".format(device_string,
                                                                     escape_single_quotes(command))
         raw_output, error = check_output(actual_command, timeout, shell=True)
         if raw_output:
