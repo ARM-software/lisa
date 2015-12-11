@@ -31,10 +31,10 @@ import pandas as pd
 
 class Trigger(object):
     """Trigger is an event-value relationship which
-    accepts a run object to "generate" qualified data
+    accepts a trace object to "generate" qualified data
 
-    :param run: A trappy Run object
-    :type run: :mod:`trappy.run.Run`
+    :param trace: A trappy FTrace object
+    :type trace: :mod:`trappy.trace.FTrace`
 
     :param template: A trappy Event to act as a trigger
     :type template: trappy.Base
@@ -66,23 +66,23 @@ class Trigger(object):
     :type pivot: str
     """
 
-    def __init__(self, run, template, filters, value, pivot):
+    def __init__(self, trace, template, filters, value, pivot):
 
         self.template = template
         self._filters = filters
         self._value = value
         self._pivot = pivot
-        self.run = run
+        self.trace = trace
 
     def generate(self, pivot_val):
         """Generate the trigger data for a given pivot value
-        and a run index
+        and a trace index
 
         :param pivot_val: The pivot to generate data for
         :type pivot_val: hashable
         """
 
-        trappy_event = getattr(self.run, self.template.name)
+        trappy_event = getattr(self.trace, self.template.name)
         data_frame = trappy_event.data_frame
 
         mask = (data_frame[self._pivot] == pivot_val)

@@ -39,17 +39,10 @@ def decolonize(val):
     return val.strip(":")
 
 
-def get_trace_event_data(run,
-                         execnames=None,
-                         pids=None):
-    """
-        Args:
-            trappy.Run: A trappy.Run object
+def get_trace_event_data(trace, execnames=None, pids=None):
+    """Create a list of objects that can be consumed by EventPlot to plot
+    task residency like kernelshark
 
-        Returns:
-            A list of objects that can be
-            consumed by EventPlot to plot task
-            residency like kernelshark
     """
 
     if execnames:
@@ -61,7 +54,7 @@ def get_trace_event_data(run,
     data = collections.defaultdict(list)
     pmap = {}
 
-    data_frame = run.sched_switch.data_frame
+    data_frame = trace.sched_switch.data_frame
     start_idx = data_frame.index.values[0]
     end_idx = data_frame.index.values[-1]
 

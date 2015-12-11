@@ -16,7 +16,7 @@
 
 import pkg_resources
 from trappy.compare_runs import summary_plots, compare_runs
-from trappy.run import Run
+from trappy.ftrace import FTrace
 try:
     from trappy.plotter.LinePlot import LinePlot
 except ImportError as exc:
@@ -30,7 +30,15 @@ except ImportError:
     pass
 from trappy.dynamic import register_dynamic, register_class
 
-# Load all the modules to make sure all classes are registered with Run
+# For backwards compatibility.  Remove by 2016-12-31
+class Run(FTrace):
+    """This class is deprecated.  Use trappy.FTrace instead"""
+    def __init__(self, *args, **kwargs):
+        import warnings
+        warnings.warn("The Run object is deprecated.  Use trappy.FTrace instead")
+        super(Run, self).__init__(*args, **kwargs)
+
+# Load all the modules to make sure all classes are registered with FTrace
 import os
 for fname in os.listdir(os.path.dirname(__file__)):
     import_name, extension = os.path.splitext(fname)

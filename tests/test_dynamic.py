@@ -41,8 +41,8 @@ class TestDynamicEvents(BaseTestSched):
            in the data frame
         """
         trappy.register_dynamic("DynamicEvent", "dynamic_test_key")
-        r = trappy.Run(name="first")
-        self.assertTrue(len(r.dynamic_event.data_frame) == 1)
+        t = trappy.FTrace(name="first")
+        self.assertTrue(len(t.dynamic_event.data_frame) == 1)
 
     def test_dynamic_class_attr(self):
         """
@@ -61,23 +61,23 @@ class TestDynamicEvents(BaseTestSched):
             for a template argument"""
 
         cls = trappy.register_dynamic("DynamicEvent", "dynamic_test_key")
-        r = trappy.Run(name="first")
-        l = trappy.LinePlot(r, cls, column="load")
+        t = trappy.FTrace(name="first")
+        l = trappy.LinePlot(t, cls, column="load")
         l.view(test=True)
 
     def test_dynamic_event_scope(self):
 	"""Test the case when an "all" scope class is
 	registered. it should appear in both thermal and sched
-	run class definitions when scoped run objects are created
+	ftrace class definitions when scoped ftrace objects are created
 	"""
         cls = trappy.register_dynamic("DynamicEvent", "dynamic_test_key")
-        r1 = trappy.Run(name="first")
-	self.assertTrue(r1.class_definitions.has_key(cls.name))
+        t1 = trappy.FTrace(name="first")
+	self.assertTrue(t1.class_definitions.has_key(cls.name))
 
     def test_register_class(self):
         trappy.register_class(DynamicEvent)
-        r = trappy.Run(name="first")
-        self.assertTrue(len(r.dynamic_event.data_frame) == 1)
+        t = trappy.FTrace(name="first")
+        self.assertTrue(len(t.dynamic_event.data_frame) == 1)
 
     def test_no_none_pivot(self):
         """register_dynamic() with default value for pivot doesn't create a class with a pivot=None"""

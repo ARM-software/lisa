@@ -90,8 +90,8 @@ class TestBase(utils_tests.SetupDirectory):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        run = trappy.Run()
-        dfr = run.cpu_in_power.data_frame
+        trace = trappy.FTrace()
+        dfr = trace.cpu_in_power.data_frame
 
         self.assertEquals(set(dfr.columns), expected_columns)
         self.assertEquals(dfr["power"].iloc[0], 61)
@@ -123,8 +123,8 @@ class TestBase(utils_tests.SetupDirectory):
             fout.write(in_data)
 
         trappy.register_dynamic('Event0', 'event0', scope="sched")
-        run = trappy.Run()
-        dfr = run.event0.data_frame
+        trace = trappy.FTrace()
+        dfr = trace.event0.data_frame
 
         self.assertEquals(set(dfr.columns), expected_columns)
 
@@ -148,8 +148,8 @@ class TestBase(utils_tests.SetupDirectory):
 
         trappy.register_dynamic('sched_stat_runtime', 'my_sched_stat_runtime',
                              scope="sched")
-        run = trappy.Run()
-        dfr = run.sched_stat_runtime.data_frame
+        trace = trappy.FTrace()
+        dfr = trace.sched_stat_runtime.data_frame
 
         self.assertEquals(set(dfr.columns), expected_columns)
         self.assertEquals(dfr["comm"].iloc[0], "Space separated taskname")
@@ -160,7 +160,7 @@ class TestBase(utils_tests.SetupDirectory):
     def test_get_dataframe(self):
         """TestBase: Thermal.data_frame["thermal_zone"] exists and
            it contains a known value"""
-        dfr = trappy.Run().thermal.data_frame
+        dfr = trappy.FTrace().thermal.data_frame
 
         self.assertTrue("thermal_zone" in dfr.columns)
         self.assertEquals(dfr["temp"].iloc[0], 68786)
@@ -170,7 +170,7 @@ class TestBase(utils_tests.SetupDirectory):
         from csv import DictReader
 
         fname = "thermal.csv"
-        trappy.Run().thermal.write_csv(fname)
+        trappy.FTrace().thermal.write_csv(fname)
 
         with open(fname) as fin:
             csv_reader = DictReader(fin)
@@ -184,7 +184,7 @@ class TestBase(utils_tests.SetupDirectory):
 
     def test_normalize_time(self):
         """TestBase: Base::normalize_time() normalizes the time of the trace"""
-        thrm = trappy.Run().thermal
+        thrm = trappy.FTrace().thermal
 
         last_prev_time = thrm.data_frame.index[-1]
 

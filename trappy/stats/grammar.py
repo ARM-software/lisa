@@ -239,7 +239,7 @@ class Parser(object):
 
         Since the goal of the grammar is to provide an
         easy language to access and compare data
-        from a :mod:`trappy.run.Run` object. The parser provides
+        from a :mod:`trappy.trace.FTrace` object. The parser provides
         a simple notation to access this data.
 
         *Statically Defined Events*
@@ -248,8 +248,8 @@ class Parser(object):
             import trappy
             from trappy.stats.grammar import Parser
 
-            run = trappy.Run("path/to/trace/file")
-            parser = Parser(run)
+            trace = trappy.FTrace("path/to/trace/file")
+            parser = Parser(trace)
             parser.solve("trappy.thermal.Thermal:temp * 2")
 
         *Aliasing*
@@ -260,8 +260,8 @@ class Parser(object):
 
             pvars = {}
             pvars["THERMAL"] = trappy.thermal.Thermal
-            run = trappy.Run("path/to/trace/file")
-            parser = Parser(run)
+            trace = trappy.FTrace("path/to/trace/file")
+            parser = Parser(trace)
             parser.solve("THERMAL:temp * 2")
 
         *Using Event Name*
@@ -269,8 +269,8 @@ class Parser(object):
 
             import trappy
             from trappy.stats.grammar import Parser
-            run = trappy.Run("path/to/trace/file")
-            parser = Parser(run)
+            trace = trappy.FTrace("path/to/trace/file")
+            parser = Parser(trace)
             parser.solve("thermal:temp * 2")
 
         The event :mod:`trappy.thermal.Thermal` is aliased
@@ -287,8 +287,8 @@ class Parser(object):
 
             pvars = {}
             pvars["CUSTOM"] = cls
-            run = trappy.Run("path/to/trace/file")
-            parser = Parser(run)
+            trace = trappy.FTrace("path/to/trace/file")
+            parser = Parser(trace)
             parser.solve("CUSTOM:col * 2")
 
         .. seealso:: :mod:`trappy.dynamic.register_dynamic`
@@ -328,8 +328,8 @@ class Parser(object):
                 import trappy
                 from trappy.stats.grammar import Parser
 
-                run = trappy.Run("path/to/trace/file")
-                parser = Parser(run)
+                trace = trappy.FTrace("path/to/trace/file")
+                parser = Parser(trace)
                 parser.solve("trappy.thermal.Thermal:temp * 2")
 
             **Scalar**
@@ -338,8 +338,8 @@ class Parser(object):
                 import trappy
                 from trappy.stats.grammar import Parser
 
-                run = trappy.Run("path/to/trace/file")
-                parser = Parser(run)
+                trace = trappy.FTrace("path/to/trace/file")
+                parser = Parser(trace)
                 parser.solve("numpy.mean(trappy.thermal.Thermal:temp)")
 
             **Vector Mask**
@@ -348,8 +348,8 @@ class Parser(object):
                 import trappy
                 from trappy.stats.grammar import Parser
 
-                run = trappy.Run("path/to/trace/file")
-                parser = Parser(run)
+                trace = trappy.FTrace("path/to/trace/file")
+                parser = Parser(trace)
                 parser.solve("trappy.thermal.Thermal:temp > 65000")
         """
 

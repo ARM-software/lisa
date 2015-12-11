@@ -14,11 +14,11 @@
 #
 
 
-"""Definitions of scheduler events registered by the Run class"""
+"""Definitions of scheduler events registered by the FTrace class"""
 
 from trappy.base import Base
 from trappy.dynamic import register_dynamic
-from trappy.run import Run
+from trappy.ftrace import FTrace
 
 class SchedLoadAvgSchedGroup(Base):
     """Corresponds to Linux kernel trace event sched_load_avg_sched_group"""
@@ -39,7 +39,7 @@ class SchedLoadAvgSchedGroup(Base):
             dfr = self.data_frame[self._cpu_mask_column].apply('{:0>8}'.format)
             self.data_frame[self._cpu_mask_column] = dfr
 
-Run.register_class(SchedLoadAvgSchedGroup, "sched")
+FTrace.register_class(SchedLoadAvgSchedGroup, "sched")
 
 class SchedLoadAvgTask(Base):
     """Corresponds to Linux kernel trace event sched_load_avg_task"""
@@ -58,7 +58,7 @@ class SchedLoadAvgTask(Base):
 
         return dfr[dfr['comm'].str.contains(key)].values.tolist()
 
-Run.register_class(SchedLoadAvgTask, "sched")
+FTrace.register_class(SchedLoadAvgTask, "sched")
 
 # pylint doesn't like globals that are not ALL_CAPS
 # pylint: disable=invalid-name
@@ -89,7 +89,7 @@ class SchedCpuCapacity(Base):
         self.data_frame.rename(columns={'cpu_id':'cpu'}, inplace=True)
         self.data_frame.rename(columns={'state' :'capacity'}, inplace=True)
 
-Run.register_class(SchedCpuCapacity, "sched")
+FTrace.register_class(SchedCpuCapacity, "sched")
 
 SchedSwitch = register_dynamic("SchedSwitch",
                                "sched_switch",
@@ -115,4 +115,4 @@ class SchedCpuFrequency(Base):
         self.data_frame.rename(columns={'cpu_id':'cpu'}, inplace=True)
         self.data_frame.rename(columns={'state' :'frequency'}, inplace=True)
 
-Run.register_class(SchedCpuFrequency, "sched")
+FTrace.register_class(SchedCpuFrequency, "sched")

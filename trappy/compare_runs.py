@@ -14,7 +14,7 @@
 #
 
 
-import trappy.run
+import trappy.ftrace
 
 def compare_runs(actor_order, map_label, runs, **kwords):
     """A side by side comparison of multiple runs
@@ -70,7 +70,7 @@ def compare_runs(actor_order, map_label, runs, **kwords):
 
     run_data = []
     for name, path in runs:
-        run_data.append(trappy.Run(name=name, path=path, scope="thermal"))
+        run_data.append(trappy.FTrace(name=name, path=path, scope="thermal"))
         trappy.wa.SysfsExtractor(path).pretty_print_in_ipython()
 
     trappy.plot_utils.plot_temperature(run_data, **kwords)

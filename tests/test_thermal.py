@@ -44,7 +44,7 @@ class TestThermal(BaseTestThermal):
 
         """
 
-        th_data = trappy.Run().thermal
+        th_data = trappy.FTrace().thermal
         dfr = th_data.data_frame
         ct_series = pd.Series([57, 57], index=(dfr.index[0], dfr.index[-1]))
 
@@ -65,7 +65,7 @@ class TestThermal(BaseTestThermal):
         """Test that plot_temperature_hist() doesn't bomb"""
 
         _, ax = matplotlib.pyplot.subplots()
-        trappy.Run().thermal.plot_temperature_hist(ax, "Foo")
+        trappy.FTrace().thermal.plot_temperature_hist(ax, "Foo")
         matplotlib.pyplot.close('all')
 
 class TestThermalGovernor(BaseTestThermal):
@@ -74,7 +74,7 @@ class TestThermalGovernor(BaseTestThermal):
         self.actor_order = ["GPU", "A15", "A7"]
 
     def test_get_dataframe(self):
-        dfr = trappy.Run().thermal_governor.data_frame
+        dfr = trappy.FTrace().thermal_governor.data_frame
 
         self.assertTrue(len(dfr) > 0)
         self.assertEquals(dfr["current_temperature"].iloc[0], 68775)
@@ -85,7 +85,7 @@ class TestThermalGovernor(BaseTestThermal):
         """Test ThermalGovernor.plot_temperature()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        gov = trappy.Run().thermal_governor
+        gov = trappy.FTrace().thermal_governor
 
         gov.plot_temperature()
         gov.plot_temperature(legend_label="power allocator", ylim=(0, 72))
@@ -93,7 +93,7 @@ class TestThermalGovernor(BaseTestThermal):
 
     def test_plot_input_power(self):
         """plot_input_power() doesn't bomb"""
-        gov = trappy.Run().thermal_governor
+        gov = trappy.FTrace().thermal_governor
 
         gov.plot_input_power(self.actor_order)
         matplotlib.pyplot.close('all')
@@ -108,7 +108,7 @@ class TestThermalGovernor(BaseTestThermal):
     def test_plot_weighted_input_power(self):
         """plot_weighted_input_power() doesn't bomb"""
 
-        gov = trappy.Run().thermal_governor
+        gov = trappy.FTrace().thermal_governor
         weights = zip(self.actor_order, [1024, 256, 512])
 
         _, ax = matplotlib.pyplot.subplots()
@@ -119,7 +119,7 @@ class TestThermalGovernor(BaseTestThermal):
         """Test plot_output_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        gov = trappy.Run().thermal_governor
+        gov = trappy.FTrace().thermal_governor
 
         gov.plot_output_power(self.actor_order)
         matplotlib.pyplot.close('all')
@@ -135,8 +135,8 @@ class TestThermalGovernor(BaseTestThermal):
         """Test plot_inout_power()
 
         Can't check that the graph is ok, so just see that the method doesn't blow up"""
-        trappy.Run().thermal_governor.plot_inout_power()
-        trappy.Run().thermal_governor.plot_inout_power(title="Antutu")
+        trappy.FTrace().thermal_governor.plot_inout_power()
+        trappy.FTrace().thermal_governor.plot_inout_power(title="Antutu")
         matplotlib.pyplot.close('all')
 
 class TestEmptyThermalGovernor(unittest.TestCase):
@@ -171,11 +171,11 @@ CPU:7 [204600 EVENTS DROPPED]
         shutil.rmtree(self.out_dir)
 
     def test_empty_trace_txt(self):
-        dfr = trappy.Run(normalize_time=False).thermal_governor.data_frame
+        dfr = trappy.FTrace(normalize_time=False).thermal_governor.data_frame
         self.assertEquals(len(dfr), 0)
 
     def test_empty_plot_temperature(self):
-        """run.thermal.plot_temperature() raises ValueError() on an empty
+        """trace.thermal.plot_temperature() raises ValueError() on an empty
         thermal trace"""
-        run = trappy.Run()
-        self.assertRaises(ValueError, run.thermal.plot_temperature)
+        trace = trappy.FTrace()
+        self.assertRaises(ValueError, trace.thermal.plot_temperature)

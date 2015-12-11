@@ -14,7 +14,7 @@
 #
 
 
-# pylint can't see any of the dynamically allocated classes of Run
+# pylint can't see any of the dynamically allocated classes of FTrace
 # pylint: disable=no-member
 
 from itertools import ifilter
@@ -42,10 +42,10 @@ def _plot_freq_hists(allfreqs, what, axis, title):
         trappy.plot_utils.plot_hist(allfreqs[actor], ax, this_title, "KHz", 20,
                              "Frequency", xlim, "default")
 
-class Run(object):
+class FTrace(object):
     """A wrapper class that initializes all the classes of a given run
 
-    - The run class can receive the following optional parameters.
+    - The FTrace class can receive the following optional parameters.
 
     :param path: Path contains the path to the trace file.  If no path is given, it
         uses the current directory by default.  If path is a file, and ends in
@@ -68,7 +68,7 @@ class Run(object):
         classes are parsed.
 
     :param events: A list of strings containing the name of the trace
-        events that you want to include in this run object.  The
+        events that you want to include in this FTrace object.  The
         string must correspond to the event name (what you would pass
         to "trace-cmd -e", i.e. 4th field in trace.txt)
 
@@ -96,7 +96,7 @@ class Run(object):
     ::
 
         import trappy
-        trappy.Run("trace_dir")
+        trappy.FTrace("trace_dir")
 
     """
 
@@ -270,22 +270,22 @@ class Run(object):
             trace_class.normalize_time(self.basetime)
 
     def add_parsed_event(self, name, dfr, pivot=None):
-        """Add a dataframe to the events in this Run
+        """Add a dataframe to the events in this trace
 
         This function lets you add other events that have been parsed
         by other tools to the collection of events in this instance.  For
         example, assuming you have some events in a csv, you could add
-        them to a run instance like this:
+        them to a trace instance like this:
 
-        >>> run = trappy.Run()
+        >>> trace = trappy.FTrace()
         >>> counters_dfr = pd.DataFrame.from_csv("counters.csv")
-        >>> run.add_parsed_event("pmu_counters", counters_dfr)
+        >>> trace.add_parsed_event("pmu_counters", counters_dfr)
 
-        Now you can access :code:`run.pmu_counters` as you would with any
+        Now you can access :code:`trace.pmu_counters` as you would with any
         other trace event and other trappy classes can interact with
         them.
 
-        :param name: The attribute name in this Run instance.  As in the example above, if :code:`name` is "pmu_counters", the parsed event will be accessible using :code:`run.pmu_counters`.
+        :param name: The attribute name in this FTrace instance.  As in the example above, if :code:`name` is "pmu_counters", the parsed event will be accessible using :code:`trace.pmu_counters`.
         :type name: str
 
         :param dfr: :mod:`pandas.DataFrame` containing the events.  Its index should be time in seconds.  Its columns are the events.
@@ -329,7 +329,7 @@ class Run(object):
         from trappy.dynamic import DynamicTypeFactory, default_init
         from trappy.base import Base
 
-        # TODO: scopes should not be hardcoded (nor here nor in the Run object)
+        # TODO: scopes should not be hardcoded (nor here nor in the FTrace object)
         all_scopes = [self.thermal_classes, self.sched_classes,
                       self.dynamic_classes]
         known_events = {k: v for sc in all_scopes for k, v in sc.iteritems()}

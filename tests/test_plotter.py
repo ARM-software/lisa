@@ -34,24 +34,24 @@ class TestPlotter(BaseTestThermal):
 
     def test_plot_no_pivot(self):
         """Tests LinePlot with no pivot"""
-        run1 = trappy.Run(name="first")
-        l = trappy.LinePlot(run1, trappy.thermal.Thermal, column="temp")
+        trace1 = trappy.FTrace(name="first")
+        l = trappy.LinePlot(trace1, trappy.thermal.Thermal, column="temp")
         l.view(test=True)
 
-    def test_plot_multi_run(self):
-        """Tests LinePlot with no Pivot multi runs"""
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
+    def test_plot_multi_trace(self):
+        """Tests LinePlot with no Pivot multi traces"""
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
         l = trappy.LinePlot(
-            [run1, run2], trappy.thermal.Thermal, column="temp")
+            [trace1, trace2], trappy.thermal.Thermal, column="temp")
         l.view(test=True)
 
     def test_plot_multi(self):
         """Tests LinePlot with no Pivot multi attrs"""
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
-        l = trappy.LinePlot([run1,
-                          run2],
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+        l = trappy.LinePlot([trace1,
+                          trace2],
                          [trappy.thermal.Thermal,
                           trappy.thermal.ThermalGovernor],
                          column=["temp",
@@ -60,10 +60,10 @@ class TestPlotter(BaseTestThermal):
 
     def test_plot_filter(self):
         """Tests LinePlot with no Pivot with filters"""
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
-        l = trappy.LinePlot([run1,
-                          run2],
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+        l = trappy.LinePlot([trace1,
+                          trace2],
                          [trappy.cpu_power.CpuOutPower],
                          column=["power"],
                          filters={"cdev_state": [1]})
@@ -71,28 +71,28 @@ class TestPlotter(BaseTestThermal):
 
     def test_plot_pivot(self):
         """Tests LinePlot with Pivot"""
-        run1 = trappy.Run(name="first")
+        trace1 = trappy.FTrace(name="first")
         l = trappy.LinePlot(
-            run1,
+            trace1,
             trappy.thermal.Thermal,
             column="temp",
             pivot="thermal_zone")
         l.view(test=True)
 
-    def test_plot_multi_run_pivot(self):
-        """Tests LinePlot with Pivot multi runs"""
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
+    def test_plot_multi_trace_pivot(self):
+        """Tests LinePlot with Pivot multi traces"""
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
         l = trappy.LinePlot(
-            [run1, run2], trappy.cpu_power.CpuOutPower, column="power", pivot="cpus")
+            [trace1, trace2], trappy.cpu_power.CpuOutPower, column="power", pivot="cpus")
         l.view(test=True)
 
     def test_plot_multi_pivot(self):
         """Tests LinePlot with Pivot with multi attrs"""
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
-        l = trappy.LinePlot([run1,
-                          run2],
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+        l = trappy.LinePlot([trace1,
+                          trace2],
                          [trappy.cpu_power.CpuInPower,
                           trappy.cpu_power.CpuOutPower],
                          column=["dynamic_power",
@@ -102,10 +102,10 @@ class TestPlotter(BaseTestThermal):
 
     def test_plot_multi_pivot_filter(self):
         """Tests LinePlot with Pivot and filters"""
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
         l = trappy.LinePlot(
-            run1,
+            trace1,
             trappy.cpu_power.CpuInPower,
             column=[
                 "dynamic_power",
@@ -119,10 +119,10 @@ class TestPlotter(BaseTestThermal):
 
     def test_plot_savefig(self):
         """Tests plotter: savefig"""
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
         l = trappy.LinePlot(
-            run1,
+            trace1,
             trappy.cpu_power.CpuInPower,
             column=[
                 "dynamic_power",
@@ -141,11 +141,11 @@ class TestPlotter(BaseTestThermal):
     def test_signals(self):
         """Test signals input for LinePlot"""
 
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
 
-        l = trappy.LinePlot([run1,
-                          run2],
+        l = trappy.LinePlot([trace1,
+                          trace2],
                          signals=["cpu_in_power:dynamic_power",
                                  "cpu_out_power:power"],
                          pivot="cpus")
@@ -156,11 +156,11 @@ class TestPlotter(BaseTestThermal):
     def test_signals_exceptions(self):
         """Test incorrect input combinations: signals"""
 
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
 
         with self.assertRaises(ValueError):
-            l = trappy.LinePlot([run1, run2],
+            l = trappy.LinePlot([trace1, trace2],
                             column=[
                                 "dynamic_power",
                                 "load1"],
@@ -169,14 +169,14 @@ class TestPlotter(BaseTestThermal):
                             pivot="cpus")
 
         with self.assertRaises(ValueError):
-            l = trappy.LinePlot([run1, run2],
+            l = trappy.LinePlot([trace1, trace2],
                             trappy.cpu_power.CpuInPower,
                             signals=["cpu_in_power:dynamic_power",
                                  "cpu_out_power:power"],
                             pivot="cpus")
 
         with self.assertRaises(ValueError):
-            l = trappy.LinePlot([run1, run2],
+            l = trappy.LinePlot([trace1, trace2],
                             trappy.cpu_power.CpuInPower,
                             column=[
                                 "dynamic_power",
@@ -189,7 +189,7 @@ class TestPlotter(BaseTestThermal):
         """get_trace_event_data() works with a corrupted trace"""
         from trappy.plotter.Utils import get_trace_event_data
 
-        run = trappy.Run()
+        trace = trappy.FTrace()
 
         # We create this trace:
         #
@@ -221,10 +221,10 @@ class TestPlotter(BaseTestThermal):
             'prev_state': ["S", "R", "S", "S", "S"]},
             index=pd.Series(range(1, 6), name="Time"))
 
-        run.sched_switch.data_frame = broken_trace
+        trace.sched_switch.data_frame = broken_trace
 
         with warnings.catch_warnings(record=True) as warn:
-            data, procs, window = get_trace_event_data(run)
+            data, procs, window = get_trace_event_data(trace)
             self.assertEquals(len(warn), 1)
 
             warn_str = str(warn[-1])

@@ -33,7 +33,7 @@ class TestSchedLoadAvgSchedGroup(BaseTestSched):
 
     def test_get_dataframe(self):
         """Test that SchedLoadAvgSchedGroup creates a proper data_frame"""
-        dfr = trappy.Run().sched_load_avg_sg.data_frame
+        dfr = trappy.FTrace().sched_load_avg_sg.data_frame
 
         self.assertTrue(len(dfr) == 1)
         self.assertEquals(dfr["cpus"].iloc[0], "00000002")
@@ -44,7 +44,7 @@ class TestSchedLoadAvgTask(BaseTestSched):
 
     def test_get_dataframe(self):
         """Test that SchedLoadAvgTask creates a proper data_frame"""
-        dfr = trappy.Run().sched_load_avg_task.data_frame
+        dfr = trappy.FTrace().sched_load_avg_task.data_frame
 
         self.assertTrue(len(dfr) == 1)
         self.assertEquals(dfr["comm"].iloc[0], "sshd")
@@ -59,7 +59,7 @@ class TestSchedLoadAvgCpu(BaseTestSched):
 
     def test_get_dataframe(self):
         """Test that SchedLoadAvgCpu creates a proper data_frame"""
-        dfr = trappy.Run().sched_load_avg_cpu.data_frame
+        dfr = trappy.FTrace().sched_load_avg_cpu.data_frame
 
         self.assertTrue(len(dfr) == 1)
         self.assertEquals(dfr["cpu"].iloc[0], 0)
@@ -70,7 +70,7 @@ class TestSchedContribScaleFactor(BaseTestSched):
 
     def test_get_dataframe(self):
         """Test that SchedContribScaleFactor creates a proper data_frame"""
-        dfr = trappy.Run().sched_contrib_scale_factor.data_frame
+        dfr = trappy.FTrace().sched_contrib_scale_factor.data_frame
 
         self.assertTrue(len(dfr) == 1)
         self.assertEquals(dfr["cpu"].iloc[0], 0)
@@ -81,7 +81,7 @@ class TestSchedCpuCapacity(BaseTestSched):
 
     def test_get_dataframe(self):
         """Test that SchedCpuCapacity creates a proper data_frame"""
-        dfr = trappy.Run().cpu_capacity.data_frame
+        dfr = trappy.FTrace().cpu_capacity.data_frame
 
         self.assertTrue(len(dfr) == 1)
         self.assertEquals(dfr["cpu"].iloc[0], 3)
@@ -92,7 +92,7 @@ class TestSchedCpuFrequency(BaseTestSched):
 
     def test_get_dataframe(self):
         """Test that SchedCpuFrequency creates a proper data_frame"""
-        dfr = trappy.Run().cpu_frequency.data_frame
+        dfr = trappy.FTrace().cpu_frequency.data_frame
 
         self.assertTrue(len(dfr) == 1)
         self.assertEquals(dfr["cpu"].iloc[0], 0)
@@ -102,16 +102,16 @@ class TestSchedCpuFrequency(BaseTestSched):
 class TestGetFilters(BaseTestSched):
 
     def test_get_filters(self):
-        """Test that Run::get_filters returns correct list of filters"""
+        """Test that FTrace::get_filters returns correct list of filters"""
 
-        run = trappy.Run()
-        classes = run.class_definitions
-        filters = run.get_filters()
+        trace = trappy.FTrace()
+        classes = trace.class_definitions
+        filters = trace.get_filters()
         self.assertTrue(len(classes) == len(filters))
         self.assertTrue(sorted(classes) == sorted(filters))
 
-        sched_classes = run.sched_classes.copy()
-        sched_filters = run.get_filters("sched")
+        sched_classes = trace.sched_classes.copy()
+        sched_filters = trace.get_filters("sched")
 
         # cpu_capacity and cpu_frequency are in the sched scope but they should
         # not be captured by get_filters("sched")
@@ -124,12 +124,12 @@ class TestGetFilters(BaseTestSched):
 class TestSpacedValueAttributes(BaseTestSched):
 
     def test_spaced_value_attr(self):
-        """Test that Run object parses spaced value attributes correctly"""
+        """Test that FTrace object parses spaced value attributes correctly"""
 
         with open("trace.txt", "a") as fout:
             fout.write("       <...>-2971  [004]  6550.056871: sched_load_avg_task:  comm=AsyncTask #2 pid=6163 ")
 
-        dfr = trappy.Run().sched_load_avg_task.data_frame
+        dfr = trappy.FTrace().sched_load_avg_task.data_frame
         self.assertTrue(len(dfr) == 2)
         self.assertEquals(dfr["comm"].iloc[1], "AsyncTask #2")
         self.assertEquals(dfr["pid"].iloc[1], 6163)
@@ -145,7 +145,7 @@ class TestNoSchedTraces(utils_tests.SetupDirectory):
     def test_empty_trace_txt(self):
         """Test that empty objects are created with empty trace file"""
 
-        run = trappy.Run()
+        trace = trappy.FTrace()
 
-        for attr in run.sched_classes.iterkeys():
-            self.assertTrue(len(getattr(run, attr).data_frame) == 0)
+        for attr in trace.sched_classes.iterkeys():
+            self.assertTrue(len(getattr(trace, attr).data_frame) == 0)

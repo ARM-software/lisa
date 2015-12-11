@@ -19,7 +19,7 @@ directory's trace.dat"""
 import pandas as pd
 
 from trappy.base import Base
-from trappy.run import Run
+from trappy.ftrace import FTrace
 
 def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
     """Pivot a :mod:`pandas.DataFrame` row into columns
@@ -101,7 +101,7 @@ class CpuOutPower(Base):
 
     name = "cpu_out_power"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
-    :mod:`trappy.run.Run` object"""
+    :mod:`trappy.ftrace.FTrace` object"""
 
     pivot = "cpus"
     """The Pivot along which the data is orthogonal"""
@@ -120,7 +120,7 @@ class CpuOutPower(Base):
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
-Run.register_class(CpuOutPower, "thermal")
+FTrace.register_class(CpuOutPower, "thermal")
 
 class CpuInPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump
@@ -131,7 +131,7 @@ class CpuInPower(Base):
 
     name = "cpu_in_power"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
-    :mod:`trappy.run.Run` object"""
+    :mod:`trappy.ftrace.FTrace` object"""
 
     pivot = "cpus"
     """The Pivot along which the data is orthogonal"""
@@ -195,4 +195,4 @@ class CpuInPower(Base):
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
-Run.register_class(CpuInPower, "thermal")
+FTrace.register_class(CpuInPower, "thermal")

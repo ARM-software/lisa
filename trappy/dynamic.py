@@ -21,7 +21,7 @@ pattern
 """
 from trappy.base import Base
 import re
-from trappy.run import Run
+from trappy.ftrace import FTrace
 
 
 def default_init(self):
@@ -95,10 +95,10 @@ def register_dynamic(class_name, unique_word, scope="all",
 
         import trappy
         custom_class = trappy.register_dynamic("MyEvent", "my_unique_word")
-        run = trappy.Run("/path/to/trace_file")
+        trace = trappy.FTrace("/path/to/trace_file")
 
-        # New data member created in the run object
-        run.my_event
+        # New data member created in the ftrace object
+        trace.my_event
 
     .. note:: The name of the member is :code:`my_event` from **MyEvent**
 
@@ -117,7 +117,7 @@ def register_dynamic(class_name, unique_word, scope="all",
         kwords["pivot"] = pivot
 
     dyn_class = DynamicTypeFactory(class_name, (Base,), kwords)
-    Run.register_class(dyn_class, scope)
+    FTrace.register_class(dyn_class, scope)
     return dyn_class
 
 
@@ -133,4 +133,4 @@ def register_class(cls):
     """
 
     # Check the argspec of the class
-    Run.register_class(cls)
+    FTrace.register_class(cls)

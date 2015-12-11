@@ -143,7 +143,7 @@ def number_freq_plots(runs, map_label):
 def plot_temperature(runs, width=None, height=None, ylim="range"):
     """Plot temperatures
 
-    runs is an array of Run() instances.  Extract the control_temp
+    runs is an array of FTrace() instances.  Extract the control_temp
     from the governor data and plot the temperatures reported by the
     thermal framework.  The governor doesn't track temperature when
     it's off, so the thermal framework trace is more reliable.

@@ -32,7 +32,7 @@ class TestStatsGrammar(BaseTestThermal):
     def test_sum_operator(self):
         """Test Addition And Subtraction: Numeric"""
 
-        parser = Parser(trappy.Run())
+        parser = Parser(trappy.FTrace())
         # Simple equation
         eqn = "10 + 2 - 3"
         self.assertEquals(parser.solve(eqn), 9)
@@ -46,7 +46,7 @@ class TestStatsGrammar(BaseTestThermal):
         """Test Addition And Subtraction: Data"""
 
         thermal_zone_id = 0
-        parser = Parser(trappy.Run())
+        parser = Parser(trappy.FTrace())
         # Equation with dataframe accessors
         eqn = "trappy.thermal.Thermal:temp + \
 trappy.thermal.Thermal:temp"
@@ -60,7 +60,7 @@ trappy.thermal.Thermal:temp"
         """Test Addition And Subtraction: Functions"""
 
         thermal_zone_id = 0
-        parser = Parser(trappy.Run())
+        parser = Parser(trappy.FTrace())
         # Equation with functions as parameters (Mixed)
         eqn = "numpy.mean(trappy.thermal.Thermal:temp) + 1000"
         self.assertEquals(
@@ -80,7 +80,7 @@ trappy.thermal.Thermal:temp"
         """Test equation using event name"""
 
         thermal_zone_id = 0
-        parser = Parser(trappy.Run())
+        parser = Parser(trappy.FTrace())
         # Equation with functions as parameters (Mixed)
         eqn = "numpy.mean(thermal:temp) + 1000"
         self.assertEquals(
@@ -93,7 +93,7 @@ trappy.thermal.Thermal:temp"
 
         thermal_zone_id = 0
         # The equation returns a vector mask
-        parser = Parser(trappy.Run())
+        parser = Parser(trappy.FTrace())
         eqn = "(trappy.thermal.ThermalGovernor:current_temperature > 77000)\
                 & (trappy.pid_controller.PIDController:output > 2500)"
         mask = parser.solve(eqn)
@@ -103,7 +103,7 @@ trappy.thermal.Thermal:temp"
         """Test Logical Operations: Vector"""
 
         thermal_zone_id=0
-        parser = Parser(trappy.Run())
+        parser = Parser(trappy.FTrace())
         # The equation returns a boolean scalar
         eqn = "(numpy.mean(trappy.thermal.Thermal:temp) > 65000) && (numpy.mean(trappy.cpu_power.CpuOutPower) > 500)"
         self.assertTrue(parser.solve(eqn)[thermal_zone_id])
@@ -113,8 +113,8 @@ trappy.thermal.Thermal:temp"
     def test_super_indexing(self):
         "Test if super-indexing works correctly"""
 
-        run = trappy.Run()
-        parser = Parser(run)
+        trace = trappy.FTrace()
+        parser = Parser(trace)
         # The first event has less index values
         sol1 = parser.solve("trappy.thermal.Thermal:temp")
         # The second index has more index values
@@ -126,7 +126,7 @@ trappy.thermal.Thermal:temp"
         """Test Single Function Call"""
 
         thermal_zone_id = 0
-        parser = Parser(trappy.Run())
+        parser = Parser(trappy.FTrace())
         eqn = "numpy.mean(trappy.thermal.Thermal:temp)"
         self.assertEquals(
             parser.solve(eqn)[thermal_zone_id],
@@ -136,7 +136,7 @@ trappy.thermal.Thermal:temp"
     def test_mul_ops(self):
         """Test Mult and Division: Numeric"""
 
-        parser = Parser(trappy.Run())
+        parser = Parser(trappy.FTrace())
         eqn = "(10 * 2 / 10)"
         self.assertEquals(parser.solve(eqn), 2)
         eqn = "-2 * 2 + 2 * 10 / 10"
@@ -148,7 +148,7 @@ trappy.thermal.Thermal:temp"
         """Test Mult and Division: Data"""
 
         thermal_zone_id = 0
-        parser = Parser(trappy.Run())
+        parser = Parser(trappy.FTrace())
         eqn = "trappy.thermal.Thermal:temp * 10.0"
         series = parser.data.thermal.data_frame["temp"]
         assert_series_equal(parser.solve(eqn)[thermal_zone_id], series * 10.0, check_names=False)
@@ -161,7 +161,7 @@ trappy.thermal.Thermal:temp"
         thermal_zone_id = 0
         pvars = {}
         pvars["control_temp"] = 78000
-        parser = Parser(trappy.Run(), pvars=pvars)
+        parser = Parser(trappy.FTrace(), pvars=pvars)
         eqn = "numpy.mean(trappy.thermal.Thermal:temp) < control_temp"
         self.assertTrue(parser.solve(eqn)[thermal_zone_id])
 
@@ -172,7 +172,7 @@ trappy.thermal.Thermal:temp"
         pvars = {}
         pvars["mean"] = np.mean
         pvars["control_temp"] = 78000
-        parser = Parser(trappy.Run(), pvars=pvars)
+        parser = Parser(trappy.FTrace(), pvars=pvars)
         eqn = "mean(trappy.thermal.Thermal:temp) < control_temp"
         self.assertTrue(parser.solve(eqn)[thermal_zone_id])
 
@@ -186,19 +186,19 @@ trappy.thermal.Thermal:temp"
         pvars["therm"] = cls
 
         thermal_zone_id = 0
-        parser = Parser(trappy.Run(), pvars=pvars)
+        parser = Parser(trappy.FTrace(), pvars=pvars)
         eqn = "mean(therm:temp) < control_temp"
         self.assertTrue(parser.solve(eqn)[thermal_zone_id])
 
     def test_for_parsed_event(self):
         """Test if an added parsed event can be accessed"""
 
-        run = trappy.Run(scope="custom")
+        trace = trappy.FTrace(scope="custom")
         dfr = pandas.DataFrame({"l1_misses": [24, 535,  41],
                                 "l2_misses": [155, 11, 200],
                                 "cpu":       [ 0,   1,   0]},
                            index=pandas.Series([1.020, 1.342, 1.451], name="Time"))
-        run.add_parsed_event("pmu_counters", dfr)
+        trace.add_parsed_event("pmu_counters", dfr)
 
-        p = Parser(run)
+        p = Parser(trace)
         self.assertTrue(len(p.solve("pmu_counters:cpu")), 3)

@@ -32,8 +32,8 @@ class Indexer(object):
                     non-unoform and non-unique
     :type index: :mod:`pandas.Index`
 
-    :param runs: trappy Run list/singular object
-    :type runs: :mod:`trappy.run.Run`
+    :param traces: trappy FTrace list/singular object
+    :type traces: :mod:`trappy.trace.FTrace`
     """
 
     def __init__(self, index):
@@ -94,8 +94,8 @@ class MultiTriggerIndexer(Indexer):
 
         idx = pd.Index([])
         for trigger in self._triggers:
-            run = trigger.run
-            trappy_event = getattr(run, trigger.template.name)
+            trace = trigger.trace
+            trappy_event = getattr(trace, trigger.template.name)
             idx = idx.union(trappy_event.data_frame.index)
 
 
