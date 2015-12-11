@@ -32,7 +32,7 @@ from wlauto.utils.android import (adb_shell, adb_background_shell, adb_list_devi
                                   adb_command, AndroidProperties, ANDROID_VERSION_MAP)
 
 
-SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn)=([0-9]+|true|false)', re.I)
+SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|Display Power: state)=([0-9]+|true|false|ON|OFF)', re.I)
 SCREEN_SIZE_REGEX = re.compile(r'mUnrestrictedScreen=\(\d+,\d+\)\s+(?P<width>\d+)x(?P<height>\d+)')
 
 
@@ -72,9 +72,10 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
                   Specified whether the device should make sure that the screen is on
                   during initialization.
                   """),
-        Parameter('swipe_to_unlock', kind=boolean, default=False,
+        Parameter('swipe_to_unlock', kind=str, default=None,
+                  allowed_values=[None, "horizontal", "vertical"],
                   description="""
-                  If set to ``True``, a horisonal swipe will be performed 2/3 down the screen.
+                  If set a swipe of the specified direction will be performed.
                   This should unlock the screen.
                   """),
     ]
@@ -570,13 +571,20 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
         else:
             return (0, 0)
 
-    def swipe_to_unlock(self):
+    def perform_unlock_swipe(self):
         width, height = self.get_screen_size()
-        swipe_heigh = height * 2 // 3
-        start = 100
-        stop = width - start
         command = 'input swipe {} {} {} {}'
-        self.execute(command.format(start, swipe_heigh, stop, swipe_heigh))
+        if self.swipe_to_unlock == "horizontal":
+            swipe_heigh = height * 2 // 3
+            start = 100
+            stop = width - start
+            self.execute(command.format(start, swipe_heigh, stop, swipe_heigh))
+        if self.swipe_to_unlock == "vertical":
+            swipe_middle = height / 2
+            swipe_heigh = height * 2 // 3
+            self.execute(command.format(swipe_middle, swipe_heigh, swipe_middle, 0))
+        else:  # Should never reach here
+            raise DeviceError("Invalid swipe direction: {}".format(self.swipe_to_unlock))
 
     def capture_screen(self, filepath):
         """Caputers the current device screen into the specified file in a PNG format."""
@@ -597,6 +605,8 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
     def ensure_screen_is_on(self):
         if not self.is_screen_on():
             self.execute('input keyevent 26')
+            if self.swipe_to_unlock:
+                self.perform_unlock_swipe()
 
     def disable_screen_lock(self):
         """
