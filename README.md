@@ -68,7 +68,7 @@ system.
 
 ##### Install required python packages
 
-	$ sudo apt-get install python-matplotlib python-numpy libfreetype6-dev libpng12-dev
+	$ sudo apt-get install sshpass python-matplotlib python-numpy libfreetype6-dev libpng12-dev
 
 ##### Install the Python package manager
 
@@ -76,7 +76,7 @@ system.
 
 ##### Install (upgrade) required libraries
 
-	$ sudo pip install --upgrade trappy bart-py devlib
+	$ sudo pip install --upgrade trappy bart-py devlib pexpect
 
 ## Clone the repository
 
