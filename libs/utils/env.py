@@ -313,6 +313,17 @@ class TestEnv(ShareState):
         logging.debug('%14s -      CPUs: %s', 'Target', self.target.cpuinfo)
         logging.debug('%14s -  Clusters: %s', 'Target', self.target.core_clusters)
 
+        # Verify that all the required modules have been initialized
+        for module in self.__modules:
+            logging.debug('%14s - Check for module [%s]...', 'Target', module)
+            if not hasattr(self.target, module):
+                logging.warning('%14s - Unable to initialize [%s] module',
+                        'Target', module)
+                logging.error('%14s - Fix your target kernel configuration or '
+                        'disable module from configuration', 'Target')
+                raise RuntimeError('Failed to initialized [{}] module, '
+                        'update your kernel or test configurations'.format(module))
+
         logging.info('%14s - Initializing target workdir [%s]',
                     'Target', self.target.working_directory)
         tools_to_install = []
