@@ -287,7 +287,7 @@ def _ping(device):
 def adb_shell(device, command, timeout=None, check_exit_code=False, as_root=False):  # NOQA
     _check_env()
     if as_root:
-        command = 'echo "{}" | su'.format(escape_double_quotes(command))
+        command = 'echo \'{}\' | su'.format(escape_single_quotes(command))
     device_string = ' -s {}'.format(device) if device else ''
     full_command = 'adb{} shell "{}"'.format(device_string,
                                              escape_double_quotes(command))
