@@ -17,7 +17,6 @@
 from trappy.stats import Aggregator
 from trappy.stats import Correlator
 from trappy.stats import Trigger
-from trappy.stats import SchedConf
 from trappy.stats import Topology
 from trappy.stats import Indexer
 from trappy.stats import StatConf
