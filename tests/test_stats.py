@@ -15,6 +15,12 @@
 
 import unittest
 from trappy.stats.Topology import Topology
+from trappy.stats.Trigger import Trigger
+
+import trappy
+from trappy.base import Base
+import pandas as pd
+from pandas.util.testing import assert_series_equal
 
 
 class TestTopology(unittest.TestCase):
@@ -84,3 +90,46 @@ class TestTopology(unittest.TestCase):
 
         self.assertEqual(topology.get_index(level, [1, 2]), 0)
         self.assertEqual(topology.get_index(level, [0, 3, 4, 5]), 1)
+
+# TODO: Remove inheritance from SetupDirectory when a
+# Run object can be created without a trace file
+from utils_tests import SetupDirectory
+
+
+class BaseTestStats(SetupDirectory):
+
+    def __init__(self, *args, **kwargs):
+        super(BaseTestStats, self).__init__(
+            [("../doc/trace_stats.dat", "trace.dat")],
+            *args,
+            **kwargs)
+
+    def setUp(self):
+
+        super(BaseTestStats, self).setUp()
+        run = trappy.Run()
+        data = {
+
+            "identifier": [
+                0,
+                0,
+                0,
+                1,
+                1,
+                1,
+            ],
+            "result": [
+                "fire",
+                "blank",
+                "fire",
+                "blank",
+                "fire",
+                "blank",
+            ],
+        }
+
+        index = pd.Series([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], name="Time")
+        data_frame = pd.DataFrame(data, index=index)
+        run.add_parsed_event("aim_and_fire", data_frame)
+        self._run = run
+        self.topology = Topology(clusters=[[0], [1]])
