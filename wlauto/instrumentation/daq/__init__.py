@@ -303,16 +303,17 @@ class Daq(Instrument):
         except ConfigurationError, ex:
             raise ConfigError('DAQ configuration: ' + ex.message)  # Re-raise as a WA error
         self.grouped_suffixes = defaultdict(str)
-        if isinstance(self.merge_channels, bool) and self.merge_channels:
-            # Create a dict of potential prefixes and a list of their suffixes
-            grouped_suffixes = {label[:-1]: label for label in sorted(self.labels) if len(label) > 1}
-            # Only merge channels if more than one channel has the same prefix and the prefixes
-            # are consecutive letters starting with 'a'.
-            self.label_map = {}
-            for channel, suffixes in grouped_suffixes.iteritems():
-                if len(suffixes) > 1:
-                    if "".join([s[-1] for s in suffixes]) in ascii_lowercase[:len(suffixes)]:
-                        self.label_map[channel] = suffixes
+        if isinstance(self.merge_chnnels, bool):
+            if self.merge_channels:
+                # Create a dict of potential prefixes and a list of their suffixes
+                grouped_suffixes = {label[:-1]: label for label in sorted(self.labels) if len(label) > 1}
+                # Only merge channels if more than one channel has the same prefix and the prefixes
+                # are consecutive letters starting with 'a'.
+                self.label_map = {}
+                for channel, suffixes in grouped_suffixes.iteritems():
+                    if len(suffixes) > 1:
+                        if "".join([s[-1] for s in suffixes]) in ascii_lowercase[:len(suffixes)]:
+                            self.label_map[channel] = suffixes
 
         elif isinstance(self.merge_channels, dict):
             # Check if given channel names match labels
@@ -323,7 +324,7 @@ class Daq(Instrument):
             self.label_map = self.merge_channels  # pylint: disable=redefined-variable-type
             self.merge_channels = True
         else:  # Should never reach here
-            raise AssertionError("Merge files is of invalid type")
+            raise AssertionError("``merge_channels`` is of invalid type")
 
     def before_overall_results_processing(self, context):
         if self._results:
