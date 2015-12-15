@@ -383,13 +383,14 @@ def _initialize_with_android_home(env):
 
 
 def _initialize_without_android_home(env):
-    if which('adb'):
+    adb_full_path = which('adb')
+    if adb_full_path:
         env.adb = 'adb'
     else:
         raise HostError('ANDROID_HOME is not set and adb is not in PATH. '
                         'Have you installed Android SDK?')
     logger.debug('Discovering ANDROID_HOME from adb path.')
-    env.platform_tools = os.path.dirname(env.adb)
+    env.platform_tools = os.path.dirname(adb_full_path)
     env.android_home = os.path.dirname(env.platform_tools)
     _init_common(env)
     return env
