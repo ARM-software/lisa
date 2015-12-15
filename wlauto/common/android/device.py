@@ -618,7 +618,7 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
 
         """
         lockdb = '/data/system/locksettings.db'
-        sqlcommand = "update locksettings set value=\\'0\\' where name=\\'screenlock.disabled\\';"
+        sqlcommand = "update locksettings set value='0' where name='screenlock.disabled';"
         self.execute('sqlite3 {} "{}"'.format(lockdb, sqlcommand), as_root=True)
 
     def disable_selinux(self):
