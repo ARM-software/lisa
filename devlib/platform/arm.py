@@ -145,9 +145,12 @@ class VersatileExpressPlatform(Platform):
                                                          'bootargs': self.bootargs,
                                                          }})
         elif self.bootloader == 'u-boot':
+            uboot_env = None
+            if self.bootargs:
+                uboot_env = {'bootargs': self.bootargs}
             self.modules.append({'vexpress-u-boot': {'port': self.serial_port,
                                                      'baudrate': self.baudrate,
-                                                     'env': {'bootargs': self.bootargs},
+                                                     'env': uboot_env,
                                                      }})
         elif self.bootloader == 'bootmon':
             self.modules.append({'vexpress-bootmon': {'port': self.serial_port,
