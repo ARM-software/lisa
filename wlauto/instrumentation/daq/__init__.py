@@ -303,7 +303,7 @@ class Daq(Instrument):
         except ConfigurationError, ex:
             raise ConfigError('DAQ configuration: ' + ex.message)  # Re-raise as a WA error
         self.grouped_suffixes = defaultdict(str)
-        if isinstance(self.merge_chnnels, bool):
+        if isinstance(self.merge_channels, bool):
             if self.merge_channels:
                 # Create a dict of potential prefixes and a list of their suffixes
                 grouped_suffixes = {label[:-1]: label for label in sorted(self.labels) if len(label) > 1}
