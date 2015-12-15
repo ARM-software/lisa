@@ -20,7 +20,7 @@ import time
 import pexpect
 
 from devlib.platform import Platform
-from devlib.instrument import Instrument, InstrumentChannel, MeasurementsCsv, CONTINUOUS
+from devlib.instrument import Instrument, InstrumentChannel, MeasurementsCsv, Measurement,  CONTINUOUS,  INSTANTANEOUS
 from devlib.exception import TargetError, HostError
 from devlib.host import PACKAGE_BIN_DIRECTORY
 from devlib.utils.serial_port import open_serial_connection
@@ -208,7 +208,7 @@ class TC2(VersatileExpressPlatform):
 class JunoEnergyInstrument(Instrument):
 
     binname = 'readenergy'
-    mode = CONTINUOUS
+    mode = CONTINUOUS | INSTANTANEOUS
 
     _channels = [
         InstrumentChannel('sys_curr', 'sys', 'current'),
@@ -238,6 +238,7 @@ class JunoEnergyInstrument(Instrument):
             self.channels[chan.name] = chan
         self.on_target_file = self.target.tempfile('energy', '.csv')
         self.command = '{} -o {}'.format(self.binary, self.on_target_file)
+        self.command2 = '{}'.format(self.binary)
 
     def setup(self):
         self.binary = self.target.install(os.path.join(PACKAGE_BIN_DIRECTORY,
@@ -280,5 +281,17 @@ class JunoEnergyInstrument(Instrument):
                     writer.writerow(write_row)
 
         return MeasurementsCsv(output_file, self.active_channels)
+
+    def take_measurement(self):
+        result = []
+        output = self.target.execute(self.command2).split()
+        reader=csv.reader(output)
+        headings=reader.next()
+        values = reader.next()
+        for chan in self.active_channels:
+            value = values[headings.index(chan.name)]
+            result.append(Measurement(value, chan))
+        print result
+        return result
 
 

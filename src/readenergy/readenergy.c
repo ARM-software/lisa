@@ -141,9 +141,10 @@ int nsleep(const struct timespec *req, struct timespec *rem)
  
 void print_help()
 {
-	fprintf(stderr, "Usage: readenergy [-t PERIOD] -o OUTFILE\n\n"
+	fprintf(stderr, "Usage: readenergy [-t PERIOD] [-o OUTFILE]\n\n"
 			"Read Juno energy counters every PERIOD milliseconds, writing them\n"
-			"to OUTFILE in CSV format until SIGTERM is received.\n\n"
+			"to OUTFILE in CSV format until SIGTERM is received.\n"
+			"If OUTFILE is not specified, stdout will be used.\n\n"
 			"Parameters:\n"
 			"	PERIOD is the counter poll period in milliseconds.\n"
 			"	       (Defaults to 100 milliseconds.)\n"
@@ -197,13 +198,6 @@ void config_init(struct config *this, int argc, char *argv[])
 				exit(EXIT_FAILURE);
 		}
 	}
-
-	if (this->output_file == NULL)
-	{
-		fprintf(stderr, "ERROR: Mandatory -o option not specified.\n\n");
-		print_help();
-		exit(EXIT_FAILURE);
-	}
 }
 
 // -------------------------------------- /config ---------------------------------------------------
@@ -219,13 +213,17 @@ struct emeter
 
 void emeter_init(struct emeter *this, char *outfile)
 {
-	this->out = fopen(outfile, "w");
-	if (this->out == NULL)
+	if(outfile)
 	{
-		fprintf(stderr, "ERROR: Could not open output file %s; got %s\n", outfile, strerror(errno));
-		exit(EXIT_FAILURE);
+		this->out = fopen(outfile, "w");
+		if (this->out == NULL)
+		{
+			fprintf(stderr, "ERROR: Could not open output file %s; got %s\n", outfile, strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+	} else {
+		this->out = stdout;
 	}
-
         this->fd = open("/dev/mem", O_RDONLY);
         if(this->fd < 0)
         {
@@ -243,10 +241,12 @@ void emeter_init(struct emeter *this, char *outfile)
 		exit(EXIT_FAILURE);
 	}
 
-	fprintf(this->out, "sys_curr,a57_curr,a53_curr,gpu_curr,"
- 			   "sys_volt,a57_volt,a53_volt,gpu_volt,"
-			   "sys_pow,a57_pow,a53_pow,gpu_pow,"
-			   "sys_cenr,a57_cenr,a53_cenr,gpu_cenr\n");
+	if(this->out) {
+		fprintf(this->out, "sys_curr,a57_curr,a53_curr,gpu_curr,"
+				   "sys_volt,a57_volt,a53_volt,gpu_volt,"
+				   "sys_pow,a57_pow,a53_pow,gpu_pow,"
+				   "sys_cenr,a57_cenr,a53_cenr,gpu_cenr\n");
+	}
 }
 
 void emeter_read_measurements(struct emeter *this, struct reading *reading)
@@ -333,11 +333,16 @@ int main(int argc, char *argv[])
 	config_init(&config, argc, argv);
 	emeter_init(&emeter, config.output_file);
 
-	struct timespec remaining;
-	while (!done) 
+	if(config.output_file)
 	{
+		struct timespec remaining;
+		while (!done)
+		{
+			emeter_take_reading(&emeter);
+			nsleep(&config.period, &remaining);
+		}
+	} else 	{
 		emeter_take_reading(&emeter);
-		nsleep(&config.period, &remaining);
 	}
 
 	emeter_finalize(&emeter);
