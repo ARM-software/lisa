@@ -26,6 +26,7 @@
 
 import types
 from trappy.utils import listify
+import pandas as pd
 
 
 class Trigger(object):
@@ -69,7 +70,7 @@ class Trigger(object):
 
         self.template = template
         self._filters = filters
-        self.value = value
+        self._value = value
         self._pivot = pivot
         self.run = run
 
@@ -95,7 +96,12 @@ class Trigger(object):
                 value = operator
                 mask = apply_filter_kv(key, value, data_frame, mask)
 
-        return data_frame[mask]
+        data_frame = data_frame[mask]
+
+        if isinstance(self._value, str):
+            return data_frame[value]
+        else:
+            return pd.Series(self._value, index=data_frame.index)
 
 
 def apply_filter_kv(key, value, data_frame, mask):
