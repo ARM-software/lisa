@@ -860,8 +860,12 @@ class Cpuinfo(object):
                     continue
                 if 'Features' in section:
                     return section.get('Features').split()
+                elif 'flags' in section:
+                    return section.get('flags').split()
             elif 'Features' in section:
                 global_features = section.get('Features').split()
+            elif 'flags' in section:
+                global_features = section.get('flags').split()
         return global_features
 
     def parse(self, text):
