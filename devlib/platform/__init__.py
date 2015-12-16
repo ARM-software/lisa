@@ -1,6 +1,9 @@
 import logging
 
 
+BIG_CPUS = ['A15', 'A57', 'A72']
+
+
 class Platform(object):
 
     @property
@@ -36,8 +39,7 @@ class Platform(object):
             self.core_names = target.cpuinfo.cpu_names
             self._set_core_clusters_from_core_names()
         if not self.big_core and self.number_of_clusters == 2:
-            big_idx = self.core_clusters.index(max(self.core_clusters))
-            self.big_core = self.core_names[big_idx]
+            self.big_core = self._identify_big_core()
         if not self.core_clusters and self.core_names:
             self._set_core_clusters_from_core_names()
         if not self.model:
@@ -63,6 +65,13 @@ class Platform(object):
                                             as_root=True).strip()
             except Exception:  # pylint: disable=broad-except
                 pass  # this is best-effort
+
+    def _identify_big_core(self):
+        for core in self.core_names:
+            if core.upper() in  BIG_CPUS:
+                return core
+        big_idx = self.core_clusters.index(max(self.core_clusters))
+        return self.core_names[big_idx]
 
     def _validate(self):
         if len(self.core_names) != len(self.core_clusters):
