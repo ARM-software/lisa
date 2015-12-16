@@ -16,6 +16,7 @@
 import unittest
 from trappy.stats.Topology import Topology
 from trappy.stats.Trigger import Trigger
+from trappy.stats.Aggregator import MultiTriggerAggregator
 
 import trappy
 from trappy.base import Base
@@ -159,3 +160,119 @@ class TestTrigger(BaseTestStats):
 
         expected = pd.Series([1], index=pd.Index([0.5], name="Time"))
         assert_series_equal(expected, trigger.generate(1))
+
+
+class TestAggregator(BaseTestStats):
+
+    def test_scalar_aggfunc_single_trigger(self):
+        """TestAggregator: 1 trigger scalar aggfunc"""
+
+        def aggfunc(series):
+            return series.sum()
+
+        filters = {
+            "result": "fire"
+        }
+
+        event_class = self._run.aim_and_fire
+        value = 1
+        pivot = "identifier"
+
+        trigger = Trigger(self._run,
+                          event_class,
+                          filters,
+                          value,
+                          pivot)
+
+        aggregator = MultiTriggerAggregator([trigger],
+                        self.topology,
+                        aggfunc=aggfunc)
+
+        # There are three "fire" in total
+        # The all level in topology looks like
+        # [[0, 1]]
+        result = aggregator.aggregate(level="all")
+        self.assertEqual(result, [3.0])
+
+        # There are two "fire" on the first node group and a
+        # a single "fire" on the second node group at the cluster
+        # level which looks like
+        # [[0], [1]]
+        result = aggregator.aggregate(level="cluster")
+        self.assertEqual(result, [2.0, 1.0])
+
+    def test_vector_aggfunc_single_trigger(self):
+        """TestAggregator: 1 trigger vector aggfunc"""
+
+        def aggfunc(series):
+            return series.cumsum()
+
+        filters = {
+            "result": "fire"
+        }
+
+        event_class = self._run.aim_and_fire
+        value = 1
+        pivot = "identifier"
+
+        trigger = Trigger(self._run,
+                          event_class,
+                          filters,
+                          value,
+                          pivot)
+
+        aggregator = MultiTriggerAggregator([trigger],
+                        self.topology,
+                        aggfunc=aggfunc)
+
+        # There are three "fire" in total
+        # The all level in topology looks like
+        # [[0, 1]]
+        result = aggregator.aggregate(level="all")
+        expected_result = pd.Series([1.0, 1.0, 2.0, 2.0, 3.0, 3.0],
+                                      index=pd.Index([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+                          )
+        assert_series_equal(result[0], expected_result)
+
+    def test_vector_aggfunc_multiple_trigger(self):
+        """TestAggregator: multi trigger vector aggfunc"""
+
+        def aggfunc(series):
+            return series.cumsum()
+
+        filters = {
+            "result": "fire"
+        }
+
+        event_class = self._run.aim_and_fire
+        value = 1
+        pivot = "identifier"
+
+        trigger_fire = Trigger(self._run,
+                          event_class,
+                          filters,
+                          value,
+                          pivot)
+
+        filters = {
+            "result": "blank"
+        }
+        value = -1
+        trigger_blank = Trigger(self._run,
+                          event_class,
+                          filters,
+                          value,
+                          pivot)
+
+        aggregator = MultiTriggerAggregator([trigger_fire, trigger_blank],
+                        self.topology,
+                        aggfunc=aggfunc)
+
+        # There are three "fire" in total
+        # The all level in topology looks like
+        # [[0, 1]]
+        result = aggregator.aggregate(level="all")
+        expected_result = pd.Series([1.0, 0.0, 1.0, 0.0, 1.0, 0.0],
+                                      index=pd.Index([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+                          )
+        assert_series_equal(result[0], expected_result)
