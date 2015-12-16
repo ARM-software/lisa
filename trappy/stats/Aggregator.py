@@ -49,29 +49,21 @@ class AbstractAggregator(object):
         self._aggfunc = aggfunc
         self.indexer = indexer
 
-    def _add_result(self, pivot, data_frame, value):
+    def _add_result(self, pivot, series):
         """Add the result for the given pivot and run
 
         :param pivot: The pivot for which the result is being generated
         :type pivot(hashable)
 
-        :param data_frame (pandas.DataFrame): pandas data frame of result values
-        :type data_frame :mod:`pandas.DataFrame`
-
-        :param value: If value is str, the corresponding
-            column is used as a vector of resultant values. If
-            numeric, each index in data frame gets the numeric
-        :type value: str, numeric
+        :param series: series to be added to result
+        :type series: :mod:`pandas.Series`
         """
 
         if pivot not in self._result:
             self._result[pivot] = self.indexer.series()
 
-        for idx in data_frame.index:
-            if isinstance(value, basestring):
-                self._result[pivot][idx] = data_frame[value][idx]
-            else:
-                self._result[pivot][idx] = value
+        for idx in series.index:
+                self._result[pivot][idx] = series[idx]
 
     @abstractmethod
     def aggregate(self, run_idx, **kwargs):
@@ -173,7 +165,7 @@ class MultiTriggerAggregator(AbstractAggregator):
 
         for trigger in self._triggers:
             for node in self.topology.flatten():
-                result_df = trigger.generate(node)
-                self._add_result(node, result_df, trigger.value)
+                result_series = trigger.generate(node)
+                self._add_result(node, result_series)
 
         self._aggregated = True
