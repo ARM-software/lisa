@@ -133,3 +133,29 @@ class BaseTestStats(SetupDirectory):
         run.add_parsed_event("aim_and_fire", data_frame)
         self._run = run
         self.topology = Topology(clusters=[[0], [1]])
+
+
+class TestTrigger(BaseTestStats):
+
+    def test_trigger_generation(self):
+        """TestTrigger: generate"""
+
+        filters = {
+            "result": "fire"
+        }
+
+        event_class = self._run.aim_and_fire
+        value = 1
+        pivot = "identifier"
+
+        trigger = Trigger(self._run,
+                          event_class,
+                          filters,
+                          value,
+                          pivot)
+
+        expected = pd.Series([1, 1], index=pd.Index([0.1, 0.3], name="Time"))
+        assert_series_equal(expected, trigger.generate(0))
+
+        expected = pd.Series([1], index=pd.Index([0.5], name="Time"))
+        assert_series_equal(expected, trigger.generate(1))
