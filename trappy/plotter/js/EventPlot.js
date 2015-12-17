@@ -835,6 +835,57 @@ var EventPlot = (function () {
 
     }
 
+    var create_dialog_body = function (body, title) {
+
+        var element = $("<div/>")
+            .addClass("modal fade")
+            .attr("role", "dialog")
+            .attr("tabindex", -1)
+
+        element.append(
+            $("<div/>")
+            .addClass("modal-dialog")
+            .attr("role", "document")
+            .append(
+                $("<div/>")
+                .addClass("modal-content")
+                .append(
+                    $("<div/>")
+                    .addClass("modal-header")
+                    .append(
+                        $("<button>")
+                        .addClass("close")
+                        .attr("data-dismiss",
+                            "modal")
+                        .append($("<span/>")
+                            .html("&times;"))
+                    )
+                    .append($("<h4/>")
+                        .addClass("modal-title")
+                        .text(title)
+                    )
+                    .append($("<div/>")
+                        .addClass("modal-body")
+                        .append(body)
+                    )
+                    .append(
+                        $("<div/>")
+                        .addClass("modal-footer")
+                        .append(
+                            $("<button>")
+                            .addClass("btn btn-default")
+                            .attr("data-dismiss", "modal")
+                            .text("Close")
+                        )
+                    )
+                )
+            )
+        )
+
+        return element.modal();
+
+    }
+
     var create_help_dialog = function (base) {
 
         var HELP_IMAGE = "plotter_scripts/EventPlot/EventPlot_help.jpg"
@@ -913,18 +964,8 @@ var EventPlot = (function () {
 
         element.append('</ul>')
 
-        dlg = IPython.dialog.modal({
-
-            title: "Help: EventPlot",
-            body: element,
-            destroy: false,
-            buttons: {
-                Close: {}
-            }
-
-        })
-
-        return dlg;
+        var dialog = create_dialog_body(element, "Help: EventPlot");
+        dialog.show();
 
     }
 
