@@ -17,6 +17,7 @@
 objects
 """
 import collections
+import warnings
 from trappy.utils import listify
 
 
@@ -76,8 +77,17 @@ def get_trace_event_data(run,
             data[name][-1][1] = index
             del pmap[prev_pid]
 
+        name = "{}-{}".format(next_comm, next_pid)
+
         if next_pid in pmap:
-            raise ValueError("Malformed data for PID: {}".format(next_pid))
+            # Corrupted trace probably due to dropped events.  We
+            # don't know when the pid in pmap finished.  We just
+            # ignore it and don't plot it
+            warn_str = "Corrupted trace (dropped events) for PID {} at time {}". \
+                       format(next_pid, index)
+            warnings.warn(warn_str)
+            del pmap[next_pid]
+            del data[name][-1]
 
         if next_pid != 0 and not next_comm.startswith("migration"):
 
@@ -87,7 +97,6 @@ def get_trace_event_data(run,
             if pids and next_pid not in pids:
                 continue
 
-            name = "{}-{}".format(next_comm, next_pid)
             data[name].append([index, end_idx, row["__cpu"]])
             pmap[next_pid] = name
             procs.add(name)
