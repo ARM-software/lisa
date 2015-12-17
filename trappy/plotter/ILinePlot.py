@@ -161,6 +161,7 @@ class ILinePlot(AbstractDataPlotter):
         self._attr["draw_line"] = True
         self._attr["scatter"] = AttrConf.PLOT_SCATTER
         self._attr["point_size"] = AttrConf.POINT_SIZE
+        self._attr["map_label"] = {}
 
     def _plot(self, permute):
         """Internal Method called to draw the plot"""
@@ -192,7 +193,7 @@ class ILinePlot(AbstractDataPlotter):
             if pivot == AttrConf.PIVOT_VAL:
                 title += ",".join(self._attr["column"])
             else:
-                title += "{0}: {1}".format(self._attr["pivot"], pivot)
+                title += "{0}: {1}".format(self._attr["pivot"], self._attr["map_label"].get(pivot, pivot))
 
             self._layout.add_plot(plot_index, data_frame, title)
             plot_index += 1
@@ -218,7 +219,7 @@ class ILinePlot(AbstractDataPlotter):
                     if pivot == AttrConf.PIVOT_VAL:
                         key = ",".join(self._attr["column"])
                     else:
-                        key = "{0}: {1}".format(self._attr["pivot"], pivot)
+                        key = "{0}: {1}".format(self._attr["pivot"], self._attr["map_label"].get(pivot, pivot))
 
                     data_frame[key] = result[pivot]
 
