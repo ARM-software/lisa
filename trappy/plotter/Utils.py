@@ -71,12 +71,12 @@ def get_trace_event_data(run,
         next_pid = row["next_pid"]
         next_comm = row["next_comm"]
 
-        if prev_pid in pmap.keys():
+        if prev_pid in pmap:
             name = pmap[prev_pid]
             data[name][-1][1] = index
             del pmap[prev_pid]
 
-        if next_pid in pmap.keys():
+        if next_pid in pmap:
             raise ValueError("Malformed data for PID: {}".format(next_pid))
 
         if next_pid != 0 and not next_comm.startswith("migration"):
