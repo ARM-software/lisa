@@ -273,7 +273,10 @@ class LinePlot(AbstractDataPlotter):
                 l_index += 1
 
             if pivot == AttrConf.PIVOT_VAL:
-                title += ",".join(self._attr["column"])
+                if type(self._attr["column"]) is list:
+                    title += ", ".join(self._attr["column"])
+                else:
+                    title += self._attr["column"]
             else:
                 title += "{0}: {1}".format(self._attr["pivot"],
                                            self._attr["map_label"].get(pivot, pivot))
