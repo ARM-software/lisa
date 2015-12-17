@@ -64,7 +64,7 @@ def get_trace_event_data(run,
     start_idx = data_frame.index.values[0]
     end_idx = data_frame.index.values[-1]
 
-    procs = {}
+    procs = set()
 
     for index, row in data_frame.iterrows():
         prev_pid = row["prev_pid"]
@@ -90,6 +90,6 @@ def get_trace_event_data(run,
             name = "{}-{}".format(next_comm, next_pid)
             data[name].append([index, end_idx, row["__cpu"]])
             pmap[next_pid] = name
-            procs[name] = 1
+            procs.add(name)
 
-    return data, procs.keys(), [start_idx, end_idx]
+    return data, procs, [start_idx, end_idx]
