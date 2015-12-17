@@ -187,6 +187,7 @@ class LinePlot(AbstractDataPlotter):
         self._attr["title"] = AttrConf.TITLE
         self._attr["args_to_forward"] = {}
         self._attr["scatter"] = AttrConf.PLOT_SCATTER
+        self._attr["map_label"] = {}
 
     def _check_add_scatter(self):
         """Check if a scatter plot is needed
@@ -274,7 +275,8 @@ class LinePlot(AbstractDataPlotter):
             if pivot == AttrConf.PIVOT_VAL:
                 title += ",".join(self._attr["column"])
             else:
-                title += "{0}: {1}".format(self._attr["pivot"], pivot)
+                title += "{0}: {1}".format(self._attr["pivot"],
+                                           self._attr["map_label"].get(pivot, pivot))
 
             axis.set_title(title)
             plot_index += 1
@@ -339,8 +341,8 @@ class LinePlot(AbstractDataPlotter):
                     if pivot == AttrConf.PIVOT_VAL:
                         legend_str[pivot_index] = self._attr["column"]
                     else:
-                        legend_str[pivot_index] = "{0}: {1}".format(self._attr["pivot"], pivot)
-
+                        legend_str[pivot_index] = "{0}: {1}".format(self._attr["pivot"],
+                                                                    self._attr["map_label"].get(pivot, pivot))
                 else:
                     axis = self._layout.get_axis(plot_index)
                     axis.plot(
