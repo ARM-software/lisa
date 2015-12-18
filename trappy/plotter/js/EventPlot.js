@@ -98,13 +98,14 @@ var EventPlot = (function () {
             lanes = d.lanes;
             var names = d.keys;
             var showSummary = d.showSummary;
+            var div = $("#" + div_name);
 
             margin = {
                     top: 15,
                     right: 15,
                     bottom: 15,
                     left: 70
-                }, width = 960 - margin.left - margin.right,
+                }, width = div.width() - margin.left - margin.right,
 
                 mainHeight = 50 * lanes.length - margin.top - margin.bottom;
 
@@ -219,6 +220,7 @@ var EventPlot = (function () {
             var ePlot;
 
             ePlot = {
+                div: div,
                 div_name: div_name,
                 margin: margin,
                 chart: chart,
