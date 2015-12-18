@@ -19,6 +19,7 @@ import matplotlib
 import pandas as pd
 import tempfile
 import os
+import warnings
 
 from test_thermal import BaseTestThermal
 import trappy
@@ -183,3 +184,58 @@ class TestPlotter(BaseTestThermal):
                             signals=["cpu_in_power:dynamic_power",
                                  "cpu_out_power:power"],
                             pivot="cpus")
+
+    def test_get_trace_event_data_corrupted_trace(self):
+        """get_trace_event_data() works with a corrupted trace"""
+        from trappy.plotter.Utils import get_trace_event_data
+
+        run = trappy.Run()
+
+        # We create this trace:
+        #
+        # 1 15414 -> 15411
+        # 2 15411 -> 15414
+        # 3 15414 -> 15411 (corrupted, should be dropped)
+        # 4 15413 -> 15411
+        # 5 15411 -> 15413
+        #
+        # Which should plot like:
+        #
+        # CPU
+        #    +-------+-------+
+        #  0 | 15411 | 15414 |
+        #    +-------+-------+       +-------+
+        #  1                         | 15411 |
+        #                            +-------+
+        #    +-------+-------+-------+-------+
+        #   0.1     0.2     0.3     0.4     0.5
+
+        broken_trace = pd.DataFrame({
+            '__comm': ["task2", "task1", "task2", "task3", "task1"],
+            '__cpu':  [0, 0, 0, 1, 1],
+            '__pid':  [15414, 15411, 15414, 15413, 15411],
+            'next_comm': ["task1", "task2", "task1", "task1", "task3"],
+            'next_pid':  [15411, 15414, 15411, 15411, 15413],
+            'prev_comm': ["task2", "task1", "task2", "task3", "task1"],
+            'prev_pid':  [15414, 15411, 15414, 15413, 15411],
+            'prev_state': ["S", "R", "S", "S", "S"]},
+            index=pd.Series(range(1, 6), name="Time"))
+
+        run.sched_switch.data_frame = broken_trace
+
+        with warnings.catch_warnings(record=True) as warn:
+            data, procs, window = get_trace_event_data(run)
+            self.assertEquals(len(warn), 1)
+
+            warn_str = str(warn[-1])
+            self.assertTrue("15411" in warn_str)
+            self.assertTrue("4" in warn_str)
+
+        zipped_comms = zip(broken_trace["next_comm"], broken_trace["next_pid"])
+        expected_procs = set("-".join([comm, str(pid)]) for comm, pid in zipped_comms)
+
+        self.assertTrue([1, 2, 0] in data["task1-15411"])
+        self.assertTrue([2, 3, 0] in data["task2-15414"])
+        self.assertTrue([4, 5, 1] in data["task1-15411"])
+        self.assertEquals(procs, expected_procs)
+        self.assertEquals(window, [1, 5])

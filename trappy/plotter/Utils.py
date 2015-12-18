@@ -17,6 +17,7 @@
 objects
 """
 import collections
+import warnings
 from trappy.utils import listify
 
 
@@ -64,20 +65,29 @@ def get_trace_event_data(run,
     start_idx = data_frame.index.values[0]
     end_idx = data_frame.index.values[-1]
 
-    procs = {}
+    procs = set()
 
     for index, row in data_frame.iterrows():
         prev_pid = row["prev_pid"]
         next_pid = row["next_pid"]
         next_comm = row["next_comm"]
 
-        if prev_pid in pmap.keys():
+        if prev_pid in pmap:
             name = pmap[prev_pid]
             data[name][-1][1] = index
             del pmap[prev_pid]
 
-        if next_pid in pmap.keys():
-            raise ValueError("Malformed data for PID: {}".format(next_pid))
+        name = "{}-{}".format(next_comm, next_pid)
+
+        if next_pid in pmap:
+            # Corrupted trace probably due to dropped events.  We
+            # don't know when the pid in pmap finished.  We just
+            # ignore it and don't plot it
+            warn_str = "Corrupted trace (dropped events) for PID {} at time {}". \
+                       format(next_pid, index)
+            warnings.warn(warn_str)
+            del pmap[next_pid]
+            del data[name][-1]
 
         if next_pid != 0 and not next_comm.startswith("migration"):
 
@@ -87,9 +97,8 @@ def get_trace_event_data(run,
             if pids and next_pid not in pids:
                 continue
 
-            name = "{}-{}".format(next_comm, next_pid)
             data[name].append([index, end_idx, row["__cpu"]])
             pmap[next_pid] = name
-            procs[name] = 1
+            procs.add(name)
 
-    return data, procs.keys(), [start_idx, end_idx]
+    return data, procs, [start_idx, end_idx]
