@@ -98,13 +98,14 @@ var EventPlot = (function () {
             lanes = d.lanes;
             var names = d.keys;
             var showSummary = d.showSummary;
+            var div = $("#" + div_name);
 
             margin = {
                     top: 15,
                     right: 15,
                     bottom: 15,
                     left: 70
-                }, width = 960 - margin.left - margin.right,
+                }, width = div.width() - margin.left - margin.right,
 
                 mainHeight = 50 * lanes.length - margin.top - margin.bottom;
 
@@ -219,6 +220,7 @@ var EventPlot = (function () {
             var ePlot;
 
             ePlot = {
+                div: div,
                 div_name: div_name,
                 margin: margin,
                 chart: chart,
@@ -240,7 +242,7 @@ var EventPlot = (function () {
             ePlot.zoomScale = zoomScale;
 
             if (showSummary)
-                ePlot.mini = drawMini(ePlot);
+                drawMini(ePlot);
 
             var outgoing;
             var zoomed = function () {
@@ -416,10 +418,77 @@ var EventPlot = (function () {
             drawMain(ePlot, xMin, xMax);
             ePlot.main.select('.main.axis')
                 .call(ePlot.mainAxis)
+
+            var resize = function() {
+
+                var width = div.width() - margin.left
+                    - margin.right;
+
+                /* Update scale ranges */
+                x.range([0, width]);
+                zoomScale.range([0, width]);
+                brushScale.range([0, width]);
+                ePlot.width = width;
+
+                resize_main(ePlot);
+                resize_info(ePlot);
+                resize_mini(ePlot);
+                zoomed();
+
+            }
+
+            d3.select(window)
+                .on("resize", resize)
+
             return ePlot;
 
         });
     };
+
+
+    var resize_mini = function(ePlot) {
+
+        d3.select(ePlot.mini.node().parentNode)
+            .attr("width", ePlot.div.width());
+        ePlot.iDesc.info_svg
+            .attr("width", ePlot.div.width());
+        ePlot.mini.selectAll("line")
+            .attr("x2", ePlot.width);
+        ePlot.mini.call(ePlot.miniAxis);
+        ePlot.mini.selectAll(".miniItem").remove();
+        drawMiniPaths(ePlot);
+    }
+
+    var resize_main = function(ePlot) {
+
+        d3.select(ePlot.main.node().parentNode)
+            .attr("width", ePlot.div.width());
+        ePlot.main.selectAll("line")
+            .attr("x2", ePlot.width);
+    }
+
+    var resize_info = function(ePlot) {
+
+        var width_box_one = infoProps.BOX_WIDTH_RATIO * ePlot.width;
+        var width_box_two = ePlot.width - width_box_one;
+
+        ePlot.iDesc.info
+            .attr("width", width);
+        ePlot.iDesc.guiderInfo
+            .attr("width", width_box_one - infoProps.BOX_BUFFER);
+        ePlot.iDesc.currentDisp
+            .attr("x", width_box_one + infoProps.BOX_BUFFER);
+        ePlot.iDesc.currentDisp
+            .attr("width", width_box_two - infoProps.BOX_BUFFER);
+        ePlot.iDesc.deltaText
+            .attr("x", (width_box_one / 2) - infoProps.XPAD)
+        ePlot.iDesc.endText
+            .attr("x", width_box_one - infoProps.XPAD)
+        ePlot.iDesc.currentProc
+            .attr("x", width_box_one + infoProps.XPAD + infoProps.BOX_BUFFER)
+        ePlot.iDesc.currentInfo
+            .attr("x", ePlot.width - infoProps.XPAD)
+    }
 
     var drawInfo = function (div_name, margin, width) {
 
@@ -432,21 +501,22 @@ var EventPlot = (function () {
         var width_box_one = infoProps.BOX_WIDTH_RATIO * width;
         var width_box_two = width - width_box_one
 
-        var info_svg = d3.select("#" + div_name)
+        iDesc.info_svg = d3.select("#" + div_name)
             .append(
                 "svg:svg")
             .attr('width', width + margin.right +
                 margin.left)
             .attr('height', infoHeight + infoProps.TOP_MARGIN + LINE_WIDTH)
+            .attr('class', 'info')
 
-        iDesc.info = info_svg.append("g")
+        iDesc.info = iDesc.info_svg.append("g")
             .attr("transform", "translate(" + margin.left +
                  "," + infoProps.TOP_MARGIN + ")")
             .attr('width', width)
             .attr("class", "main")
             .attr('height', infoProps.HEIGHT)
 
-        iDesc.info.append("rect")
+        iDesc.guiderInfo = iDesc.info.append("rect")
             .attr("x", 0)
             .attr("y", 0)
             .attr("width", width_box_one - infoProps.BOX_BUFFER)
@@ -613,6 +683,25 @@ var EventPlot = (function () {
 
     }
 
+    var drawMiniPaths = function(ePlot) {
+
+        ePlot.mini.append('g')
+            .selectAll('miniItems')
+            .data(getPaths(ePlot, ePlot.x, ePlot.yMini))
+            .enter()
+            .append('path')
+            .attr('class', function (d) {
+                return 'miniItem'
+            })
+            .attr('d', function (d) {
+                return d.path;
+            })
+            .attr("stroke", function (d) {
+                return d.color
+            })
+            .attr("class", "miniItem");
+    }
+
     var drawMini = function (ePlot) {
 
         var miniHeight = ePlot.lanes.length * 12 + 50;
@@ -671,21 +760,8 @@ var EventPlot = (function () {
             .attr('class', 'axis')
             .call(ePlot.miniAxis);
 
-
-        mini.append('g')
-            .selectAll('miniItems')
-            .data(getPaths(ePlot, ePlot.x, ePlot.yMini))
-            .enter()
-            .append('path')
-            .attr('class', function (d) {
-                return 'miniItem'
-            })
-            .attr('d', function (d) {
-                return d.path;
-            })
-            .attr("stroke", function (d) {
-                return d.color
-            })
+        ePlot.mini = mini
+        drawMiniPaths(ePlot);
 
         mini.append('g')
             .selectAll('.laneText')
