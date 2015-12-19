@@ -242,7 +242,7 @@ var EventPlot = (function () {
             ePlot.zoomScale = zoomScale;
 
             if (showSummary)
-                ePlot.mini = drawMini(ePlot);
+                drawMini(ePlot);
 
             var outgoing;
             var zoomed = function () {
@@ -615,6 +615,25 @@ var EventPlot = (function () {
 
     }
 
+    var drawMiniPaths = function(ePlot) {
+
+        ePlot.mini.append('g')
+            .selectAll('miniItems')
+            .data(getPaths(ePlot, ePlot.x, ePlot.yMini))
+            .enter()
+            .append('path')
+            .attr('class', function (d) {
+                return 'miniItem'
+            })
+            .attr('d', function (d) {
+                return d.path;
+            })
+            .attr("stroke", function (d) {
+                return d.color
+            })
+            .attr("class", "miniItem");
+    }
+
     var drawMini = function (ePlot) {
 
         var miniHeight = ePlot.lanes.length * 12 + 50;
@@ -673,21 +692,8 @@ var EventPlot = (function () {
             .attr('class', 'axis')
             .call(ePlot.miniAxis);
 
-
-        mini.append('g')
-            .selectAll('miniItems')
-            .data(getPaths(ePlot, ePlot.x, ePlot.yMini))
-            .enter()
-            .append('path')
-            .attr('class', function (d) {
-                return 'miniItem'
-            })
-            .attr('d', function (d) {
-                return d.path;
-            })
-            .attr("stroke", function (d) {
-                return d.color
-            })
+        ePlot.mini = mini
+        drawMiniPaths(ePlot);
 
         mini.append('g')
             .selectAll('.laneText')
