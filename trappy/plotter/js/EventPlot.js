@@ -418,10 +418,77 @@ var EventPlot = (function () {
             drawMain(ePlot, xMin, xMax);
             ePlot.main.select('.main.axis')
                 .call(ePlot.mainAxis)
+
+            var resize = function() {
+
+                var width = div.width() - margin.left
+                    - margin.right;
+
+                /* Update scale ranges */
+                x.range([0, width]);
+                zoomScale.range([0, width]);
+                brushScale.range([0, width]);
+                ePlot.width = width;
+
+                resize_main(ePlot);
+                resize_info(ePlot);
+                resize_mini(ePlot);
+                zoomed();
+
+            }
+
+            d3.select(window)
+                .on("resize", resize)
+
             return ePlot;
 
         });
     };
+
+
+    var resize_mini = function(ePlot) {
+
+        d3.select(ePlot.mini.node().parentNode)
+            .attr("width", ePlot.div.width());
+        ePlot.iDesc.info_svg
+            .attr("width", ePlot.div.width());
+        ePlot.mini.selectAll("line")
+            .attr("x2", ePlot.width);
+        ePlot.mini.call(ePlot.miniAxis);
+        ePlot.mini.selectAll(".miniItem").remove();
+        drawMiniPaths(ePlot);
+    }
+
+    var resize_main = function(ePlot) {
+
+        d3.select(ePlot.main.node().parentNode)
+            .attr("width", ePlot.div.width());
+        ePlot.main.selectAll("line")
+            .attr("x2", ePlot.width);
+    }
+
+    var resize_info = function(ePlot) {
+
+        var width_box_one = infoProps.BOX_WIDTH_RATIO * ePlot.width;
+        var width_box_two = ePlot.width - width_box_one;
+
+        ePlot.iDesc.info
+            .attr("width", width);
+        ePlot.iDesc.guiderInfo
+            .attr("width", width_box_one - infoProps.BOX_BUFFER);
+        ePlot.iDesc.currentDisp
+            .attr("x", width_box_one + infoProps.BOX_BUFFER);
+        ePlot.iDesc.currentDisp
+            .attr("width", width_box_two - infoProps.BOX_BUFFER);
+        ePlot.iDesc.deltaText
+            .attr("x", (width_box_one / 2) - infoProps.XPAD)
+        ePlot.iDesc.endText
+            .attr("x", width_box_one - infoProps.XPAD)
+        ePlot.iDesc.currentProc
+            .attr("x", width_box_one + infoProps.XPAD + infoProps.BOX_BUFFER)
+        ePlot.iDesc.currentInfo
+            .attr("x", ePlot.width - infoProps.XPAD)
+    }
 
     var drawInfo = function (div_name, margin, width) {
 
