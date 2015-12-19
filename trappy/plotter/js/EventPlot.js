@@ -434,21 +434,22 @@ var EventPlot = (function () {
         var width_box_one = infoProps.BOX_WIDTH_RATIO * width;
         var width_box_two = width - width_box_one
 
-        var info_svg = d3.select("#" + div_name)
+        iDesc.info_svg = d3.select("#" + div_name)
             .append(
                 "svg:svg")
             .attr('width', width + margin.right +
                 margin.left)
             .attr('height', infoHeight + infoProps.TOP_MARGIN + LINE_WIDTH)
+            .attr('class', 'info')
 
-        iDesc.info = info_svg.append("g")
+        iDesc.info = iDesc.info_svg.append("g")
             .attr("transform", "translate(" + margin.left +
                  "," + infoProps.TOP_MARGIN + ")")
             .attr('width', width)
             .attr("class", "main")
             .attr('height', infoProps.HEIGHT)
 
-        iDesc.info.append("rect")
+        iDesc.guiderInfo = iDesc.info.append("rect")
             .attr("x", 0)
             .attr("y", 0)
             .attr("width", width_box_one - infoProps.BOX_BUFFER)
