@@ -87,20 +87,6 @@ class TestFTrace(BaseTestThermal):
 
         self.assertTrue(hasattr(trace, "a_dynamic_event"))
 
-    def test_ftrace_can_add_parsed_event(self):
-        """The FTrace() class can add parsed events to its collection of trace events"""
-        trace = trappy.FTrace(scope="custom")
-        dfr = pd.DataFrame({"l1_misses": [24, 535,  41],
-                            "l2_misses": [155, 11, 200],
-                            "cpu":       [ 0,   1,   0]},
-                           index=pd.Series([1.020, 1.342, 1.451], name="Time"))
-        trace.add_parsed_event("pmu_counters", dfr)
-
-        self.assertEquals(len(trace.pmu_counters.data_frame), 3)
-        self.assertEquals(trace.pmu_counters.data_frame["l1_misses"].iloc[0], 24)
-
-        trace.add_parsed_event("pivoted_counters", dfr, pivot="cpu")
-        self.assertEquals(trace.pivoted_counters.pivot, "cpu")
 
     def test_ftrace_doesnt_overwrite_parsed_event(self):
         """FTrace().add_parsed_event() should not override an event that's already present"""
@@ -110,13 +96,6 @@ class TestFTrace(BaseTestThermal):
 
         with self.assertRaises(ValueError):
             trace.add_parsed_event("sched_switch", dfr)
-
-    def test_ftrace_accepts_name(self):
-        """The FTrace() class has members for all classes"""
-
-        trace = trappy.FTrace(name="foo")
-
-        self.assertEquals(trace.name, "foo")
 
     def test_fail_if_no_trace_dat(self):
         """Raise an IOError with the path if there's no trace.dat and trace.txt"""
@@ -215,21 +194,6 @@ class TestFTrace(BaseTestThermal):
 
         exp_inpower_last = prev_inpower_last - trace.basetime
         self.assertEquals(round(trace.cpu_in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
-
-    def test_ftrace_normalize_time_accepts_basetime(self):
-        """FTrace().normalize_time() accepts an arbitrary basetime"""
-
-        trace = trappy.FTrace(normalize_time=False)
-
-        prev_inpower_first = trace.cpu_in_power.data_frame.index[0]
-        basetime = 3
-
-        trace.normalize_time(basetime)
-
-        self.assertEquals(trace.basetime, 3)
-
-        exp_inpower_first = prev_inpower_first - 3
-        self.assertEquals(round(trace.cpu_in_power.data_frame.index[0] - exp_inpower_first, 7), 0)
 
     def test_ftrace_accepts_events(self):
         """The FTrace class accepts an events parameter with only the parameters interesting for a trace"""

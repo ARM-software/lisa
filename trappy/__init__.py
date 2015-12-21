@@ -15,6 +15,7 @@
 
 
 import pkg_resources
+from trappy.bare_trace import BareTrace
 from trappy.compare_runs import summary_plots, compare_runs
 from trappy.ftrace import FTrace
 try:
