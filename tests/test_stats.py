@@ -92,23 +92,9 @@ class TestTopology(unittest.TestCase):
         self.assertEqual(topology.get_index(level, [1, 2]), 0)
         self.assertEqual(topology.get_index(level, [0, 3, 4, 5]), 1)
 
-# TODO: Remove inheritance from SetupDirectory when we implement
-# BareTrace
-from utils_tests import SetupDirectory
-
-
-class BaseTestStats(SetupDirectory):
-
-    def __init__(self, *args, **kwargs):
-        super(BaseTestStats, self).__init__(
-            [("../doc/trace_stats.dat", "trace.dat")],
-            *args,
-            **kwargs)
-
+class BaseTestStats(unittest.TestCase):
     def setUp(self):
-
-        super(BaseTestStats, self).setUp()
-        trace = trappy.FTrace()
+        trace = trappy.BareTrace()
         data = {
 
             "identifier": [
