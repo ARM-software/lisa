@@ -438,7 +438,7 @@ var EventPlot = (function () {
             }
 
             d3.select(window)
-                .on("resize", resize)
+                .on("resize." + ePlot.div_name, resize)
 
             return ePlot;
 
