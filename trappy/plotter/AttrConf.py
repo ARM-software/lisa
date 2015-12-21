@@ -105,8 +105,6 @@ ARGS_TO_FORWARD = [
     "drawstyle"]
 """kwargs that will be forwarded to matplotlib API calls
 """
-HTML_WIDTH =  900
-"""Default width for HTML based plots"""
 HTML_HEIGHT = 400
 """Default height for HTML based plots"""
 DEFAULT_SYNC_ZOOM = False

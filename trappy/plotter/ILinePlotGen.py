@@ -53,7 +53,6 @@ class ILinePlotGen(object):
     def _add_graph_cell(self, fig_name):
         """Add a HTML table cell to hold the plot"""
 
-        width = int(self._attr["width"] / self._cols)
         div_js = """
             <script>
             var ilp_req = require.config( {
@@ -80,21 +79,15 @@ class ILinePlotGen(object):
             </script>
         """
 
-        cell = '<td style="border-style: hidden;"><div class="ilineplot" id="{0}" style="width: \
-{1}px; height: {2}px;">{3}</div></td>'.format(fig_name,
-                                           width,
-                                           self._attr["height"], div_js)
+        cell = '<td style="border-style: hidden;"><div class="ilineplot" id="{}">{}</div></td>'.format(fig_name, div_js)
 
         self._html.append(cell)
 
     def _add_legend_cell(self, fig_name):
         """Add HTML table cell for the legend"""
 
-        width = int(self._attr["width"] / self._cols)
         legend_div_name = fig_name + "_legend"
-        cell = '<td style="border-style: hidden;"><div style="text-align:right; \
-width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
-                                                           legend_div_name)
+        cell = '<td style="border-style: hidden;"><div style="text-align:right" id="{}"></div></td>'.format(legend_div_name)
 
         self._html.append(cell)
 
@@ -124,9 +117,7 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
     def _init_html(self):
         """Initialize HTML code for the plots"""
 
-        width = self._attr["width"]
-        table = '<table style="width: {0}px; border-style: hidden;">'.format(
-            width)
+        table = '<table style="border-style: hidden;">'
         self._html.append(table)
 
         for _ in range(self._rows):
@@ -168,7 +159,6 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         if self.num_plots % self._cols != 0:
             self._rows += 1
 
-        self._attr["width"] = AttrConf.HTML_WIDTH
         self._attr["height"] = AttrConf.HTML_HEIGHT
         self._init_html()
 
@@ -207,6 +197,8 @@ width: {0}px; height: auto;"; id="{1}"></div></td>'.format(width,
         fig_params["title"] = title
         fig_params["step_plot"] = self._attr["step_plot"]
         fig_params["fill_graph"] = self._attr["fill"]
+        fig_params["per_line"] = self._attr["per_line"]
+        fig_params["height"] = self._attr["height"]
 
         self._check_add_scatter(fig_params)
 
