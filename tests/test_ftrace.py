@@ -216,6 +216,21 @@ class TestFTrace(BaseTestThermal):
         exp_inpower_last = prev_inpower_last - trace.basetime
         self.assertEquals(round(trace.cpu_in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
 
+    def test_ftrace_normalize_time_accepts_basetime(self):
+        """FTrace().normalize_time() accepts an arbitrary basetime"""
+
+        trace = trappy.FTrace(normalize_time=False)
+
+        prev_inpower_first = trace.cpu_in_power.data_frame.index[0]
+        basetime = 3
+
+        trace.normalize_time(basetime)
+
+        self.assertEquals(trace.basetime, 3)
+
+        exp_inpower_first = prev_inpower_first - 3
+        self.assertEquals(round(trace.cpu_in_power.data_frame.index[0] - exp_inpower_first, 7), 0)
+
     def test_ftrace_accepts_events(self):
         """The FTrace class accepts an events parameter with only the parameters interesting for a trace"""
 

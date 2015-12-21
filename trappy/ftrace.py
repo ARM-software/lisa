@@ -259,13 +259,17 @@ class FTrace(object):
 
         return filters
 
-    def normalize_time(self):
+    def normalize_time(self, basetime=None):
         """Normalize the time of all the trace classes
 
         :param basetime: The offset which needs to be subtracted from
             the time index
         :type basetime: float
         """
+
+        if basetime is not None:
+            self.basetime = basetime
+
         for trace_class in self.trace_classes:
             trace_class.normalize_time(self.basetime)
 
