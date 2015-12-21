@@ -112,7 +112,7 @@ class FTrace(object):
         self.trace_path, self.trace_path_raw = self.__process_path(path)
         self.class_definitions = self.dynamic_classes.copy()
         self.basetime = 0
-        self.normalized_time = normalize_time
+        self.normalized_time = False
 
         self.__add_events(listify(events))
 
@@ -268,6 +268,8 @@ class FTrace(object):
         """
         for trace_class in self.trace_classes:
             trace_class.normalize_time(self.basetime)
+
+        self.normalized_time = True
 
     def add_parsed_event(self, name, dfr, pivot=None):
         """Add a dataframe to the events in this trace
