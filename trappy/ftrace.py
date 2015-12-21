@@ -313,6 +313,7 @@ class FTrace(object):
         self.class_definitions[name] = trace_class
 
         event = trace_class()
+        self.trace_classes.append(event)
         event.data_frame = dfr
         if pivot:
             event.pivot = pivot
