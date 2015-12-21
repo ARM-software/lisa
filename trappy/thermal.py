@@ -103,7 +103,7 @@ class Thermal(Base):
 
         plot_hist(temps, ax, title, "C", 30, "Temperature", xlim, "default")
 
-FTrace.register_class(Thermal, "thermal")
+FTrace.register_parser(Thermal, "thermal")
 
 class ThermalGovernor(Base):
     """Process the power allocator data in a ftrace dump"""
@@ -295,4 +295,4 @@ class ThermalGovernor(Base):
             this_title = normalize_title(actor, title)
             dfr[cols].plot(title=this_title)
 
-FTrace.register_class(ThermalGovernor, "thermal")
+FTrace.register_parser(ThermalGovernor, "thermal")

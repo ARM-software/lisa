@@ -46,7 +46,7 @@ FTrace dump"""
 
         return pd.DataFrame(self.data_frame["freq"] / 1000000)
 
-FTrace.register_class(DevfreqInPower, "thermal")
+FTrace.register_parser(DevfreqInPower, "thermal")
 
 
 class DevfreqOutPower(Base):
@@ -72,4 +72,4 @@ ftrace dump"""
 
         return pd.DataFrame(self.data_frame["freq"] / 1000000)
 
-FTrace.register_class(DevfreqOutPower, "thermal")
+FTrace.register_parser(DevfreqOutPower, "thermal")

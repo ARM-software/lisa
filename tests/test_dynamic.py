@@ -40,7 +40,7 @@ class TestDynamicEvents(BaseTestSched):
            Test if the dynamic events are populated
            in the data frame
         """
-        trappy.register_dynamic("DynamicEvent", "dynamic_test_key")
+        trappy.register_dynamic_ftrace("DynamicEvent", "dynamic_test_key")
         t = trappy.FTrace(name="first")
         self.assertTrue(len(t.dynamic_event.data_frame) == 1)
 
@@ -49,7 +49,7 @@ class TestDynamicEvents(BaseTestSched):
            Test the attibutes of the dynamically
            generated class
         """
-        cls = trappy.register_dynamic("DynamicEvent", "dynamic_test_key",
+        cls = trappy.register_dynamic_ftrace("DynamicEvent", "dynamic_test_key",
               pivot="test_pivot")
         self.assertEquals(cls.__name__, "DynamicEvent")
         self.assertEquals(cls.name, "dynamic_event")
@@ -60,7 +60,7 @@ class TestDynamicEvents(BaseTestSched):
         """Test if plotter can accept a dynamic class
             for a template argument"""
 
-        cls = trappy.register_dynamic("DynamicEvent", "dynamic_test_key")
+        cls = trappy.register_dynamic_ftrace("DynamicEvent", "dynamic_test_key")
         t = trappy.FTrace(name="first")
         l = trappy.LinePlot(t, cls, column="load")
         l.view(test=True)
@@ -70,16 +70,16 @@ class TestDynamicEvents(BaseTestSched):
 	registered. it should appear in both thermal and sched
 	ftrace class definitions when scoped ftrace objects are created
 	"""
-        cls = trappy.register_dynamic("DynamicEvent", "dynamic_test_key")
+        cls = trappy.register_dynamic_ftrace("DynamicEvent", "dynamic_test_key")
         t1 = trappy.FTrace(name="first")
 	self.assertTrue(t1.class_definitions.has_key(cls.name))
 
-    def test_register_class(self):
-        trappy.register_class(DynamicEvent)
+    def test_register_ftrace_parser(self):
+        trappy.register_ftrace_parser(DynamicEvent)
         t = trappy.FTrace(name="first")
         self.assertTrue(len(t.dynamic_event.data_frame) == 1)
 
     def test_no_none_pivot(self):
-        """register_dynamic() with default value for pivot doesn't create a class with a pivot=None"""
-        cls = trappy.register_dynamic("MyEvent", "my_dyn_test_key")
+        """register_dynamic_ftrace() with default value for pivot doesn't create a class with a pivot=None"""
+        cls = trappy.register_dynamic_ftrace("MyEvent", "my_dyn_test_key")
         self.assertFalse(hasattr(cls, "pivot"))

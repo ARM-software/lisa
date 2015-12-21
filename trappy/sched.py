@@ -17,7 +17,7 @@
 """Definitions of scheduler events registered by the FTrace class"""
 
 from trappy.base import Base
-from trappy.dynamic import register_dynamic
+from trappy.dynamic import register_dynamic_ftrace
 from trappy.ftrace import FTrace
 
 class SchedLoadAvgSchedGroup(Base):
@@ -39,7 +39,7 @@ class SchedLoadAvgSchedGroup(Base):
             dfr = self.data_frame[self._cpu_mask_column].apply('{:0>8}'.format)
             self.data_frame[self._cpu_mask_column] = dfr
 
-FTrace.register_class(SchedLoadAvgSchedGroup, "sched")
+FTrace.register_parser(SchedLoadAvgSchedGroup, "sched")
 
 class SchedLoadAvgTask(Base):
     """Corresponds to Linux kernel trace event sched_load_avg_task"""
@@ -58,18 +58,18 @@ class SchedLoadAvgTask(Base):
 
         return dfr[dfr['comm'].str.contains(key)].values.tolist()
 
-FTrace.register_class(SchedLoadAvgTask, "sched")
+FTrace.register_parser(SchedLoadAvgTask, "sched")
 
 # pylint doesn't like globals that are not ALL_CAPS
 # pylint: disable=invalid-name
-SchedLoadAvgCpu = register_dynamic("SchedLoadAvgCpu",
-                                   "sched_load_avg_cpu:",
-                                   "sched", pivot="cpu")
+SchedLoadAvgCpu = register_dynamic_ftrace("SchedLoadAvgCpu",
+                                          "sched_load_avg_cpu:", "sched",
+                                          pivot="cpu")
 """Load and Utilization Signals for CPUs"""
 
-SchedContribScaleFactor = register_dynamic("SchedContribScaleFactor",
-                                           "sched_contrib_scale_f:",
-                                           "sched")
+SchedContribScaleFactor = register_dynamic_ftrace("SchedContribScaleFactor",
+                                                  "sched_contrib_scale_f:",
+                                                  "sched")
 """Event to register tracing of contrib factor"""
 
 class SchedCpuCapacity(Base):
@@ -89,12 +89,10 @@ class SchedCpuCapacity(Base):
         self.data_frame.rename(columns={'cpu_id':'cpu'}, inplace=True)
         self.data_frame.rename(columns={'state' :'capacity'}, inplace=True)
 
-FTrace.register_class(SchedCpuCapacity, "sched")
+FTrace.register_parser(SchedCpuCapacity, "sched")
 
-SchedSwitch = register_dynamic("SchedSwitch",
-                               "sched_switch",
-                               "sched",
-                               parse_raw=True)
+SchedSwitch = register_dynamic_ftrace("SchedSwitch", "sched_switch", "sched",
+                                      parse_raw=True)
 """Register SchedSwitch Event"""
 # pylint: enable=invalid-name
 
@@ -115,4 +113,4 @@ class SchedCpuFrequency(Base):
         self.data_frame.rename(columns={'cpu_id':'cpu'}, inplace=True)
         self.data_frame.rename(columns={'state' :'frequency'}, inplace=True)
 
-FTrace.register_class(SchedCpuFrequency, "sched")
+FTrace.register_parser(SchedCpuFrequency, "sched")

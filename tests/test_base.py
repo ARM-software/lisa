@@ -122,7 +122,7 @@ class TestBase(utils_tests.SetupDirectory):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        trappy.register_dynamic('Event0', 'event0', scope="sched")
+        trappy.register_dynamic_ftrace("Event0", "event0", scope="sched")
         trace = trappy.FTrace()
         dfr = trace.event0.data_frame
 
@@ -146,8 +146,8 @@ class TestBase(utils_tests.SetupDirectory):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        trappy.register_dynamic('sched_stat_runtime', 'my_sched_stat_runtime',
-                             scope="sched")
+        trappy.register_dynamic_ftrace("sched_stat_runtime",
+                                       "my_sched_stat_runtime", scope="sched")
         trace = trappy.FTrace()
         dfr = trace.sched_stat_runtime.data_frame
 

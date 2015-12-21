@@ -120,7 +120,7 @@ class CpuOutPower(Base):
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
-FTrace.register_class(CpuOutPower, "thermal")
+FTrace.register_parser(CpuOutPower, "thermal")
 
 class CpuInPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump
@@ -195,4 +195,4 @@ class CpuInPower(Base):
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
-FTrace.register_class(CpuInPower, "thermal")
+FTrace.register_parser(CpuInPower, "thermal")

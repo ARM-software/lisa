@@ -283,7 +283,7 @@ class Parser(object):
             from trappy.stats.grammar import Parser
 
             # Register Dynamic Event
-            cls = trappy.register_dynamic("my_unique_word", "event_name")
+            cls = trappy.register_dynamic_ftrace("my_unique_word", "event_name")
 
             pvars = {}
             pvars["CUSTOM"] = cls
@@ -291,7 +291,7 @@ class Parser(object):
             parser = Parser(trace)
             parser.solve("CUSTOM:col * 2")
 
-        .. seealso:: :mod:`trappy.dynamic.register_dynamic`
+        .. seealso:: :mod:`trappy.dynamic.register_dynamic_ftrace`
 
     """
 

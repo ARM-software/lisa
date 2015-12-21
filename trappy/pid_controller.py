@@ -57,4 +57,4 @@ class PIDController(Base):
         self.data_frame[["output", "p", "i", "d"]].plot(ax=ax)
         trappy.plot_utils.post_plot_setup(ax, title=title)
 
-FTrace.register_class(PIDController, "thermal")
+FTrace.register_parser(PIDController, "thermal")

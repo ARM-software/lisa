@@ -205,14 +205,14 @@ class FTrace(BareTrace):
             fout.write(raw_out)
 
     @classmethod
-    def register_class(cls, cobject, scope="all"):
+    def register_parser(cls, cobject, scope="all"):
         """Register the class as an Event. This function
         can be used to register a class which is associated
         with an FTrace unique word.
 
         .. seealso::
 
-            :mod:`trappy.dynamic.register_dynamic` :mod:`trappy.dynamic.register_class`
+            :mod:`trappy.dynamic.register_dynamic_ftrace` :mod:`trappy.dynamic.register_ftrace_parser`
 
         """
 
