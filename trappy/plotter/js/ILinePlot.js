@@ -184,7 +184,19 @@ var ILinePlot = ( function() {
             strokeWidth: t_info.strokeWidth,
             pointSize: t_info.pointSize,
             dateWindow: t_info.dateWindow
+        });
 
+        var width = $("#" + t_info.name)
+            .closest(".output_subarea").width() / t_info.per_line
+
+        graph.resize(width, t_info.height);
+
+        $(window).on("resize." + t_info.name, function() {
+
+            var width = $("#" + t_info.name)
+                .closest(".output_subarea").width() / t_info.per_line
+
+            graph.resize(width, t_info.height);
         });
 
         graphs[t_info.name] =
