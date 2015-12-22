@@ -21,7 +21,7 @@ pattern
 """
 from trappy.base import Base
 import re
-from trappy.run import Run
+from trappy.ftrace import FTrace
 
 
 def default_init(self):
@@ -46,7 +46,7 @@ class DynamicTypeFactory(type):
     """Override the type class to create
     a dynamic type on the fly. This Factory
     class is used internally by
-    :mod:`trappy.dynamic.register_dynamic`
+    :mod:`trappy.dynamic.register_dynamic_ftrace`
     """
 
     def __new__(mcs, name, bases, dct):
@@ -65,10 +65,9 @@ def _get_name(name):
     return re.sub('(?!^)([A-Z]+)', r'_\1', name).lower()
 
 
-def register_dynamic(class_name, unique_word, scope="all",
-                     parse_raw=False, pivot=None):
-    """Create a Dynamic Type and register
-    it with the TRAPpy Framework
+def register_dynamic_ftrace(class_name, unique_word, scope="all",
+                            parse_raw=False, pivot=None):
+    """Create a Dynamic FTrace parser and register it with the FTrace class
 
     :param class_name: The name of the class to be registered
         (Should be in CamelCase)
@@ -94,11 +93,11 @@ def register_dynamic(class_name, unique_word, scope="all",
     ::
 
         import trappy
-        custom_class = trappy.register_dynamic("MyEvent", "my_unique_word")
-        run = trappy.Run("/path/to/trace_file")
+        custom_class = trappy.register_dynamic_ftrace("MyEvent", "my_unique_word")
+        trace = trappy.FTrace("/path/to/trace_file")
 
-        # New data member created in the run object
-        run.my_event
+        # New data member created in the ftrace object
+        trace.my_event
 
     .. note:: The name of the member is :code:`my_event` from **MyEvent**
 
@@ -117,15 +116,15 @@ def register_dynamic(class_name, unique_word, scope="all",
         kwords["pivot"] = pivot
 
     dyn_class = DynamicTypeFactory(class_name, (Base,), kwords)
-    Run.register_class(dyn_class, scope)
+    FTrace.register_parser(dyn_class, scope)
     return dyn_class
 
 
-def register_class(cls):
-    """Register a new class implementation
-    Should be used when the class has
-    complex helper methods and does not
-    expect to use the default constructor
+def register_ftrace_parser(cls):
+    """Register a new FTrace parser class implementation
+
+    Should be used when the class has complex helper methods and does
+    not expect to use the default constructor.
 
     :param cls: The class to be registered for
         enabling the parsing of an event in trace
@@ -133,4 +132,4 @@ def register_class(cls):
     """
 
     # Check the argspec of the class
-    Run.register_class(cls)
+    FTrace.register_parser(cls)

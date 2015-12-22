@@ -92,23 +92,9 @@ class TestTopology(unittest.TestCase):
         self.assertEqual(topology.get_index(level, [1, 2]), 0)
         self.assertEqual(topology.get_index(level, [0, 3, 4, 5]), 1)
 
-# TODO: Remove inheritance from SetupDirectory when a
-# Run object can be created without a trace file
-from utils_tests import SetupDirectory
-
-
-class BaseTestStats(SetupDirectory):
-
-    def __init__(self, *args, **kwargs):
-        super(BaseTestStats, self).__init__(
-            [("../doc/trace_stats.dat", "trace.dat")],
-            *args,
-            **kwargs)
-
+class BaseTestStats(unittest.TestCase):
     def setUp(self):
-
-        super(BaseTestStats, self).setUp()
-        run = trappy.Run()
+        trace = trappy.BareTrace()
         data = {
 
             "identifier": [
@@ -131,8 +117,8 @@ class BaseTestStats(SetupDirectory):
 
         index = pd.Series([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], name="Time")
         data_frame = pd.DataFrame(data, index=index)
-        run.add_parsed_event("aim_and_fire", data_frame)
-        self._run = run
+        trace.add_parsed_event("aim_and_fire", data_frame)
+        self._trace = trace
         self.topology = Topology(clusters=[[0], [1]])
 
 
@@ -145,11 +131,11 @@ class TestTrigger(BaseTestStats):
             "result": "fire"
         }
 
-        event_class = self._run.aim_and_fire
+        event_class = self._trace.aim_and_fire
         value = 1
         pivot = "identifier"
 
-        trigger = Trigger(self._run,
+        trigger = Trigger(self._trace,
                           event_class,
                           filters,
                           value,
@@ -174,11 +160,11 @@ class TestAggregator(BaseTestStats):
             "result": "fire"
         }
 
-        event_class = self._run.aim_and_fire
+        event_class = self._trace.aim_and_fire
         value = 1
         pivot = "identifier"
 
-        trigger = Trigger(self._run,
+        trigger = Trigger(self._trace,
                           event_class,
                           filters,
                           value,
@@ -211,15 +197,11 @@ class TestAggregator(BaseTestStats):
             "result": "fire"
         }
 
-        event_class = self._run.aim_and_fire
+        event_class = self._trace.aim_and_fire
         value = 1
         pivot = "identifier"
 
-        trigger = Trigger(self._run,
-                          event_class,
-                          filters,
-                          value,
-                          pivot)
+        trigger = Trigger(self._trace, event_class, filters, value, pivot)
 
         aggregator = MultiTriggerAggregator([trigger],
                         self.topology,
@@ -244,11 +226,11 @@ class TestAggregator(BaseTestStats):
             "result": "fire"
         }
 
-        event_class = self._run.aim_and_fire
+        event_class = self._trace.aim_and_fire
         value = 1
         pivot = "identifier"
 
-        trigger_fire = Trigger(self._run,
+        trigger_fire = Trigger(self._trace,
                           event_class,
                           filters,
                           value,
@@ -258,11 +240,8 @@ class TestAggregator(BaseTestStats):
             "result": "blank"
         }
         value = -1
-        trigger_blank = Trigger(self._run,
-                          event_class,
-                          filters,
-                          value,
-                          pivot)
+        trigger_blank = Trigger(self._trace, event_class, filters, value,
+                                pivot)
 
         aggregator = MultiTriggerAggregator([trigger_fire, trigger_blank],
                         self.topology,

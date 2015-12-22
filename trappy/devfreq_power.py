@@ -20,7 +20,7 @@ directory's trace.dat"""
 import pandas as pd
 
 from trappy.base import Base
-from trappy.run import Run
+from trappy.ftrace import FTrace
 
 
 class DevfreqInPower(Base):
@@ -29,7 +29,7 @@ FTrace dump"""
 
     name = "devfreq_in_power"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
-    :mod:`trappy.run.Run` object"""
+    :mod:`trappy.ftrace.FTrace` object"""
 
     unique_word="thermal_power_devfreq_get_power:"
     """The event name in the trace"""
@@ -46,7 +46,7 @@ FTrace dump"""
 
         return pd.DataFrame(self.data_frame["freq"] / 1000000)
 
-Run.register_class(DevfreqInPower, "thermal")
+FTrace.register_parser(DevfreqInPower, "thermal")
 
 
 class DevfreqOutPower(Base):
@@ -55,7 +55,7 @@ ftrace dump"""
 
     name = "devfreq_out_power"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
-    :mod:`trappy.run.Run` object"""
+    :mod:`trappy.ftrace.FTrace` object"""
 
     unique_word="thermal_power_devfreq_limit:"
     """The event name in the trace"""
@@ -72,4 +72,4 @@ ftrace dump"""
 
         return pd.DataFrame(self.data_frame["freq"] / 1000000)
 
-Run.register_class(DevfreqOutPower, "thermal")
+FTrace.register_parser(DevfreqOutPower, "thermal")

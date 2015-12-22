@@ -23,8 +23,7 @@ import math
 
 
 class Correlator(object):
-    """Class that allows to align and correlate two
-    runs
+    """Class that allows to align and correlate two traces
     :param first: First Aggregator
     :type first: :mod:`trappy.stats.Aggregator`
 
@@ -59,8 +58,7 @@ class Correlator(object):
         return series.reindex(index=new_index, method="pad")
 
     def correlate(self, level, resample=True):
-        """This function returns the correlation between two
-           runs
+        """This function returns the correlation between two traces
 
         :param level: The level at which the correlation is
             required

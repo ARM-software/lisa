@@ -118,8 +118,8 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
         """Calculate the number of frequency plots correctly"""
         trace_out = ""
 
-        run = trappy.Run()
-        self.assertEquals(plot_utils.number_freq_plots([run], self.map_label),
+        trace = trappy.FTrace()
+        self.assertEquals(plot_utils.number_freq_plots([trace], self.map_label),
                           3)
 
         # Strip out devfreq traces
@@ -133,108 +133,108 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
             fout.write(trace_out)
 
         # Without devfreq there should only be two plots
-        run = trappy.Run()
-        self.assertEquals(plot_utils.number_freq_plots([run], self.map_label),
+        trace = trappy.FTrace()
+        self.assertEquals(plot_utils.number_freq_plots([trace], self.map_label),
                           2)
 
     def test_plot_temperature(self):
         """Test that plot_utils.plot_temperature() doesn't bomb"""
 
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
-        runs = [run1, run2]
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+        traces = [trace1, trace2]
 
-        plot_utils.plot_temperature(runs, ylim="default")
+        plot_utils.plot_temperature(traces, ylim="default")
         matplotlib.pyplot.close('all')
 
     def test_plot_load(self):
         """Test that plot_utils.plot_load() doesn't bomb"""
 
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
-        runs = [run1, run2]
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+        traces = [trace1, trace2]
 
-        plot_utils.plot_load(runs, self.map_label, height=5)
+        plot_utils.plot_load(traces, self.map_label, height=5)
         matplotlib.pyplot.close('all')
 
-    def test_plot_load_single_run(self):
-        """plot_utils.plot_load() can be used with a single run"""
-        run = trappy.Run()
+    def test_plot_load_single_trace(self):
+        """plot_utils.plot_load() can be used with a single trace"""
+        trace = trappy.FTrace()
 
-        plot_utils.plot_load([run], self.map_label)
+        plot_utils.plot_load([trace], self.map_label)
         matplotlib.pyplot.close('all')
 
     def test_plot_allfreqs(self):
         """Test that plot_utils.plot_allfreqs() doesn't bomb"""
 
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
-        runs = [run1, run2]
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+        traces = [trace1, trace2]
 
-        plot_utils.plot_allfreqs(runs, self.map_label, width=20)
+        plot_utils.plot_allfreqs(traces, self.map_label, width=20)
         matplotlib.pyplot.close('all')
 
-    def test_plot_allfreqs_single_run(self):
-        """plot_utils.plot_allfreqs() can be used with a single run"""
-        run = trappy.Run()
+    def test_plot_allfreqs_single_trace(self):
+        """plot_utils.plot_allfreqs() can be used with a single trace"""
+        trace = trappy.FTrace()
 
-        plot_utils.plot_allfreqs([run], self.map_label)
+        plot_utils.plot_allfreqs([trace], self.map_label)
         matplotlib.pyplot.close('all')
 
     def test_plot_controller(self):
         """plot_utils.plot_controller() doesn't bomb"""
 
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
-        runs = [run1, run2]
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+        traces = [trace1, trace2]
 
-        plot_utils.plot_controller(runs, height=5)
+        plot_utils.plot_controller(traces, height=5)
         matplotlib.pyplot.close('all')
 
     def test_plot_input_power(self):
         """plot_utils.plot_input_power() doesn't bomb"""
 
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
-        runs = [run1, run2]
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+        traces = [trace1, trace2]
 
-        plot_utils.plot_input_power(runs, self.actor_order, width=20)
+        plot_utils.plot_input_power(traces, self.actor_order, width=20)
         matplotlib.pyplot.close('all')
 
     def test_plot_output_power(self):
         """plot_utils.plot_output_power() doesn't bomb"""
 
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
-        runs = [run1, run2]
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+        traces = [trace1, trace2]
 
-        plot_utils.plot_output_power(runs, self.actor_order, width=20)
+        plot_utils.plot_output_power(traces, self.actor_order, width=20)
         matplotlib.pyplot.close('all')
 
     def test_plot_freq_hists(self):
         """plot_utils.plot_freq_hists() doesn't bomb"""
 
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
-        runs = [run1, run2]
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+        traces = [trace1, trace2]
 
-        plot_utils.plot_freq_hists(runs, self.map_label)
+        plot_utils.plot_freq_hists(traces, self.map_label)
         matplotlib.pyplot.close('all')
 
-    def test_plot_freq_hists_single_run(self):
-        """plot_utils.plot_freq_hists() works with a single run"""
+    def test_plot_freq_hists_single_trace(self):
+        """plot_utils.plot_freq_hists() works with a single trace"""
 
-        run = trappy.Run()
+        trace = trappy.FTrace()
 
-        plot_utils.plot_freq_hists([run], self.map_label)
+        plot_utils.plot_freq_hists([trace], self.map_label)
         matplotlib.pyplot.close('all')
 
     def test_plot_temperature_hist(self):
         """plot_utils.plot_temperature_hist() doesn't bomb"""
 
-        run1 = trappy.Run(name="first")
-        run2 = trappy.Run(name="second")
-        runs = [run1, run2]
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+        traces = [trace1, trace2]
 
-        plot_utils.plot_temperature_hist(runs)
+        plot_utils.plot_temperature_hist(traces)
         matplotlib.pyplot.close('all')

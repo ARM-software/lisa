@@ -14,7 +14,7 @@
 #
 
 
-# pylint can't see any of the dynamically allocated classes of Run
+# pylint can't see any of the dynamically allocated classes of FTrace
 # pylint: disable=no-member
 
 from itertools import ifilter
@@ -22,6 +22,7 @@ import os
 import re
 import pandas as pd
 
+from trappy.bare_trace import BareTrace
 from trappy.utils import listify
 
 def _plot_freq_hists(allfreqs, what, axis, title):
@@ -42,10 +43,10 @@ def _plot_freq_hists(allfreqs, what, axis, title):
         trappy.plot_utils.plot_hist(allfreqs[actor], ax, this_title, "KHz", 20,
                              "Frequency", xlim, "default")
 
-class Run(object):
+class FTrace(BareTrace):
     """A wrapper class that initializes all the classes of a given run
 
-    - The run class can receive the following optional parameters.
+    - The FTrace class can receive the following optional parameters.
 
     :param path: Path contains the path to the trace file.  If no path is given, it
         uses the current directory by default.  If path is a file, and ends in
@@ -68,7 +69,7 @@ class Run(object):
         classes are parsed.
 
     :param events: A list of strings containing the name of the trace
-        events that you want to include in this run object.  The
+        events that you want to include in this FTrace object.  The
         string must correspond to the event name (what you would pass
         to "trace-cmd -e", i.e. 4th field in trace.txt)
 
@@ -96,7 +97,7 @@ class Run(object):
     ::
 
         import trappy
-        trappy.Run("trace_dir")
+        trappy.FTrace("trace_dir")
 
     """
 
@@ -108,11 +109,10 @@ class Run(object):
 
     def __init__(self, path=".", name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
-        self.name = name
+        super(FTrace, self).__init__(name)
+
         self.trace_path, self.trace_path_raw = self.__process_path(path)
-        self.class_definitions = self.dynamic_classes.copy()
-        self.basetime = 0
-        self.normalized_time = normalize_time
+        self.class_definitions.update(self.dynamic_classes.items())
 
         self.__add_events(listify(events))
 
@@ -124,7 +124,6 @@ class Run(object):
             self.class_definitions.update(self.thermal_classes.items() +
                                           self.sched_classes.items())
 
-        self.trace_classes = []
         for attr, class_def in self.class_definitions.iteritems():
             trace_class = class_def()
             setattr(self, attr, trace_class)
@@ -132,7 +131,7 @@ class Run(object):
 
         self.__parse_trace_file(window, abs_window)
         self.__parse_trace_file(window, abs_window, raw=True)
-        self.__finalize_objects()
+        self.finalize_objects()
 
         if normalize_time:
             self.normalize_time()
@@ -205,34 +204,15 @@ class Run(object):
         with open(raw_trace_output, "w") as fout:
             fout.write(raw_out)
 
-    def get_duration(self):
-        """Returns the largest time value of all classes,
-        returns 0 if the data frames of all classes are empty"""
-        durations = []
-
-        for trace_class in self.trace_classes:
-            try:
-                durations.append(trace_class.data_frame.index[-1])
-            except IndexError:
-                pass
-
-        if len(durations) == 0:
-            return 0
-
-        if self.normalized_time:
-            return max(durations)
-        else:
-            return max(durations) - self.basetime
-
     @classmethod
-    def register_class(cls, cobject, scope="all"):
+    def register_parser(cls, cobject, scope="all"):
         """Register the class as an Event. This function
         can be used to register a class which is associated
         with an FTrace unique word.
 
         .. seealso::
 
-            :mod:`trappy.dynamic.register_dynamic` :mod:`trappy.dynamic.register_class`
+            :mod:`trappy.dynamic.register_dynamic_ftrace` :mod:`trappy.dynamic.register_ftrace_parser`
 
         """
 
@@ -244,78 +224,6 @@ class Run(object):
             cls.dynamic_classes[cobject.name] = cobject
         else:
             getattr(cls, scope + "_classes")[cobject.name] = cobject
-
-    def get_filters(self, key=""):
-        """Returns an array with the available filters.
-
-        :param key: If specified, returns a subset of the available filters
-            that contain 'key' in their name (e.g., :code:`key="sched"` returns
-            only the :code:`"sched"` related filters)."""
-        filters = []
-
-        for cls in self.class_definitions:
-            if re.search(key, cls):
-                filters.append(cls)
-
-        return filters
-
-    def normalize_time(self):
-        """Normalize the time of all the trace classes
-
-        :param basetime: The offset which needs to be subtracted from
-            the time index
-        :type basetime: float
-        """
-        for trace_class in self.trace_classes:
-            trace_class.normalize_time(self.basetime)
-
-    def add_parsed_event(self, name, dfr, pivot=None):
-        """Add a dataframe to the events in this Run
-
-        This function lets you add other events that have been parsed
-        by other tools to the collection of events in this instance.  For
-        example, assuming you have some events in a csv, you could add
-        them to a run instance like this:
-
-        >>> run = trappy.Run()
-        >>> counters_dfr = pd.DataFrame.from_csv("counters.csv")
-        >>> run.add_parsed_event("pmu_counters", counters_dfr)
-
-        Now you can access :code:`run.pmu_counters` as you would with any
-        other trace event and other trappy classes can interact with
-        them.
-
-        :param name: The attribute name in this Run instance.  As in the example above, if :code:`name` is "pmu_counters", the parsed event will be accessible using :code:`run.pmu_counters`.
-        :type name: str
-
-        :param dfr: :mod:`pandas.DataFrame` containing the events.  Its index should be time in seconds.  Its columns are the events.
-        :type dfr: :mod:`pandas.DataFrame`
-
-        :param pivot: The data column about which the data can be grouped
-        :type pivot: str
-
-        """
-        from trappy.base import Base
-        from trappy.dynamic import DynamicTypeFactory, default_init
-
-        if hasattr(self, name):
-            raise ValueError("event {} already present".format(name))
-
-        kwords = {
-            "__init__": default_init,
-            "unique_word": name + ":",
-            "name": name,
-        }
-
-        trace_class = DynamicTypeFactory(name, (Base,), kwords)
-        self.class_definitions[name] = trace_class
-
-        event = trace_class()
-        event.data_frame = dfr
-        if pivot:
-            event.pivot = pivot
-
-        setattr(self, name, event)
 
     def __add_events(self, events):
         """Add events to the class_definitions
@@ -329,7 +237,7 @@ class Run(object):
         from trappy.dynamic import DynamicTypeFactory, default_init
         from trappy.base import Base
 
-        # TODO: scopes should not be hardcoded (nor here nor in the Run object)
+        # TODO: scopes should not be hardcoded (nor here nor in the FTrace object)
         all_scopes = [self.thermal_classes, self.sched_classes,
                       self.dynamic_classes]
         known_events = {k: v for sc in all_scopes for k, v in sc.iteritems()}
@@ -459,11 +367,6 @@ class Run(object):
             fin.seek(0)
 
             self.__populate_data(fin, cls_for_unique_word, window, abs_window)
-
-    def __finalize_objects(self):
-        for trace_class in self.trace_classes:
-            trace_class.create_dataframe()
-            trace_class.finalize_object()
 
     # TODO: Move thermal specific functionality
 

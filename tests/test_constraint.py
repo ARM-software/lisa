@@ -49,8 +49,8 @@ class TestConstraintManager(unittest.TestCase):
         self.assertEquals(series.to_dict().values(),
                           dfr["load"].to_dict().values())
 
-    def test_no_pivot_multiple_runs(self):
-        """Test that the constraint manager works with multiple runs and no pivots"""
+    def test_no_pivot_multiple_traces(self):
+        """Test that the constraint manager works with multiple traces and no pivots"""
 
         c_mgr = ConstraintManager(self.dfrs, "load", None, AttrConf.PIVOT, {})
 
@@ -61,8 +61,8 @@ class TestConstraintManager(unittest.TestCase):
             self.assertEquals(series.to_dict().values(),
                               orig_dfr["load"].to_dict().values())
 
-    def test_no_pivot_zipped_columns_and_runs(self):
-        """Test the constraint manager with multiple columns and runs zipped"""
+    def test_no_pivot_zipped_columns_and_traces(self):
+        """Test the constraint manager with multiple columns and traces zipped"""
 
         c_mgr = ConstraintManager(self.dfrs, self.cols, None, AttrConf.PIVOT, {})
 
@@ -73,8 +73,8 @@ class TestConstraintManager(unittest.TestCase):
             self.assertEquals(series.to_dict().values(),
                               orig_dfr[col].to_dict().values())
 
-    def test_no_pivot_multicolumns_multiruns(self):
-        """Test the constraint manager with multiple runs that can have each multiple columns"""
+    def test_no_pivot_multicolumns_multitraces(self):
+        """Test the constraint manager with multiple traces that can have each multiple columns"""
 
         c_mgr = ConstraintManager(self.dfrs, self.cols, None, AttrConf.PIVOT,
                                   {}, zip_constraints=False)
@@ -106,7 +106,7 @@ class TestConstraintManager(unittest.TestCase):
         self.assertEquals(series_second_frame.to_dict().values(), [3, 2])
 
     def test_pivoted_data(self):
-        """Test the constraint manager with a pivot and one run"""
+        """Test the constraint manager with a pivot and one trace"""
 
         c_mgr = ConstraintManager(self.dfrs[0], "load", None, "cpu", {})
 
@@ -118,8 +118,8 @@ class TestConstraintManager(unittest.TestCase):
 
         self.assertEquals(results, expected_results)
 
-    def test_pivoted_multirun(self):
-        """Test the constraint manager with a pivot and multiple runs"""
+    def test_pivoted_multitrace(self):
+        """Test the constraint manager with a pivot and multiple traces"""
 
         c_mgr = ConstraintManager(self.dfrs, "load", None, "cpu", {})
 
@@ -132,8 +132,8 @@ class TestConstraintManager(unittest.TestCase):
         constraint = constraint_iter.next()
         self.assertEquals(constraint.result[1].to_dict().values(), [2, 2])
 
-    def test_pivoted_multiruns_multicolumns(self):
-        """Test the constraint manager with multiple runs and columns"""
+    def test_pivoted_multitraces_multicolumns(self):
+        """Test the constraint manager with multiple traces and columns"""
 
         c_mgr = ConstraintManager(self.dfrs, ["load", "freq"], None, "cpu", {})
         self.assertEquals(len(c_mgr), 2)

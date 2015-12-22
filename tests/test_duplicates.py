@@ -46,9 +46,9 @@ cpus=6
        rcuos/2-22 [001] 6550.018627: sched_load_avg_sg: cpus=00000002 load=1 utilization=7
        rcuos/2-22 [001] 6550.018628: sched_load_avg_sg: cpus=00000004 load=2 utilization=8\n""")
             fout.close()
-        run1 = trappy.Run(name="first")
+        trace1 = trappy.FTrace(name="first")
         l = trappy.LinePlot(
-            run1,
+            trace1,
             trappy.sched.SchedLoadAvgSchedGroup,
             column=['utilization'],
             filters={
@@ -80,9 +80,9 @@ cpus=6
        rcuos/2-22 [001] 6550.018628: sched_load_avg_sg: cpus=00000004 load=2 utilization=8\n""")
             fout.close()
 
-        run1 = trappy.Run(name="first")
+        trace1 = trappy.FTrace(name="first")
         l = trappy.LinePlot(
-            run1,
+            trace1,
             trappy.sched.SchedLoadAvgSchedGroup,
             column=['utilization'],
             filters={

@@ -20,7 +20,7 @@ constraint application.
 An implementation of :mod:`trappy.plotter.AbstractDataPlotter`
 is expected to use the :mod:`trappy.plotter.Constraint.ConstraintManager`
 class to pivot and filter data and handle multiple column,
-run and event inputs.
+trace and event inputs.
 
 The underlying object that encapsulates a unique set of
 a data column, data event and the requisite filters is
@@ -66,8 +66,8 @@ class Constraint(object):
         result["a"] = pd.Series.filtered()
 
 
-    :param trappy_run: Input Data
-    :type trappy_run: :mod:`pandas.DataFrame`, :mod:`trappy.run.Run`
+    :param trappy_trace: Input Data
+    :type trappy_trace: :mod:`pandas.DataFrame`, :mod:`trappy.trace.FTrace`
 
     :param column: The data column
     :type column: str
@@ -75,17 +75,17 @@ class Constraint(object):
     :param template: TRAPpy Event
     :type template: :mod:`trappy.base.Base` event
 
-    :param run_index: The index of the run/data in the overall constraint
+    :param trace_index: The index of the trace/data in the overall constraint
         data
-    :type run_index: int
+    :type trace_index: int
 
     :param filters: A dictionary of filter values
     :type filters: dict
     """
 
-    def __init__(
-            self, trappy_run, pivot, column, template, run_index, filters):
-        self._trappy_run = trappy_run
+    def __init__(self, trappy_trace, pivot, column, template, trace_index,
+                 filters):
+        self._trappy_trace = trappy_trace
         self._filters = filters
         self._pivot = pivot
         self._column = column
@@ -103,7 +103,7 @@ class Constraint(object):
                 except:
                     raise ValueError("Unable to handle duplicates")
 
-        self.run_index = run_index
+        self.trace_index = trace_index
 
     def _apply(self):
         """This method applies the filter on the resultant data
@@ -150,7 +150,7 @@ class Constraint(object):
         self._data = handle_duplicate_index(self._data)
         self._dup_resolved = True
 
-    def _uses_trappy_run(self):
+    def _uses_trappy_trace(self):
         if not self._template:
             return False
         else:
@@ -158,11 +158,11 @@ class Constraint(object):
 
     def populate_data_frame(self):
         """Return the populated :mod:`pandas.DataFrame`"""
-        if not self._uses_trappy_run():
-            return self._trappy_run
+        if not self._uses_trappy_trace():
+            return self._trappy_trace
 
         data_container = getattr(
-            self._trappy_run,
+            self._trappy_trace,
             decolonize(self._template.name))
         return data_container.data_frame
 
@@ -189,7 +189,7 @@ class Constraint(object):
 
         name = self.get_data_name()
 
-        if not self._uses_trappy_run():
+        if not self._uses_trappy_trace():
             return name + ":" + self._column
 
         return name + ":" + \
@@ -204,13 +204,13 @@ class Constraint(object):
 
         :returns: The name of the data member
         """
-        if self._uses_trappy_run():
-            if self._trappy_run.name != "":
-                return self._trappy_run.name
+        if self._uses_trappy_trace():
+            if self._trappy_trace.name != "":
+                return self._trappy_trace.name
             else:
-                return "Run {}".format(self.run_index)
+                return "Trace {}".format(self.trace_index)
         else:
-            return "DataFrame {}".format(self.run_index)
+            return "DataFrame {}".format(self.trace_index)
 
 class ConstraintManager(object):
 
@@ -218,8 +218,8 @@ class ConstraintManager(object):
     to constraints and also ensuring sanity
 
 
-    :param runs: Input Run data
-    :type runs: :mod:`trappy.run.Run`, list(:mod:`trappy.run.Run`)
+    :param traces: Input Trace data
+    :type traces: :mod:`trappy.trace.FTrace`, list(:mod:`trappy.trace.FTrace`)
     :param columns: The column values from the corresponding
         :mod:`pandas.DataFrame`
     :type columns: str, list(str)
@@ -229,16 +229,16 @@ class ConstraintManager(object):
     :param filters: A dictionary of values to be applied on the
         respective columns
     :type filters: dict
-    :param zip_constraints: Permutes the columns and runs instead
+    :param zip_constraints: Permutes the columns and traces instead
         of a one-to-one correspondence
     :type zip_constraints: bool
     """
 
-    def __init__(self, runs, columns, templates, pivot, filters,
+    def __init__(self, traces, columns, templates, pivot, filters,
                  zip_constraints=True):
 
         self._ip_vec = []
-        self._ip_vec.append(listify(runs))
+        self._ip_vec.append(listify(traces))
         self._ip_vec.append(listify(columns))
         self._ip_vec.append(listify(templates))
 
@@ -248,7 +248,7 @@ class ConstraintManager(object):
         self._filters = filters
         self._constraints = []
 
-        self._run_expanded = False
+        self._trace_expanded = False
         self._expand()
         if zip_constraints:
             self._populate_zip_constraints()
@@ -261,19 +261,19 @@ class ConstraintManager(object):
         expansion:
         ::
 
-            Len[runs] == Len[columns] == Len[templates]
+            Len[traces] == Len[columns] == Len[templates]
 
         Or:
         ::
 
             Permute(
-                Len[runs] = 1
+                Len[traces] = 1
                 Len[columns] = 1
                 Len[templates] != 1
             )
 
             Permute(
-                   Len[runs] = 1
+                   Len[traces] = 1
                    Len[columns] != 1
                    Len[templates] != 1
             )
@@ -298,27 +298,27 @@ class ConstraintManager(object):
 
             for val in max_pos_comp:
                 if val == 0:
-                    self._run_expanded = True
+                    self._trace_expanded = True
                 self._ip_vec[val] = normalize_list(self._max_len,
                                                    self._ip_vec[val])
 
     def _populate_constraints(self):
         """Populate the constraints creating one for each column in
-        each run
+        each trace
 
-        In a multi-run, multicolumn scenario, constraints are created for
-        all the columns in each of the runs.  _populate_constraints()
-        creates one constraint for the first run and first column, the
-        next for the second run and second column,...  This function
-        creates a constraint for every combination of runs and columns
+        In a multi-trace, multicolumn scenario, constraints are created for
+        all the columns in each of the traces.  _populate_constraints()
+        creates one constraint for the first trace and first column, the
+        next for the second trace and second column,...  This function
+        creates a constraint for every combination of traces and columns
         possible.
         """
 
-        for run_idx, run in enumerate(self._ip_vec[0]):
+        for trace_idx, trace in enumerate(self._ip_vec[0]):
             for col in self._ip_vec[1]:
-                template = self._ip_vec[2][run_idx]
-                constraint = Constraint(run, self._pivot, col, template,
-                                        run_idx, self._filters)
+                template = self._ip_vec[2][trace_idx]
+                constraint = Constraint(trace, self._pivot, col, template,
+                                        trace_idx, self._filters)
                 self._constraints.append(constraint)
 
     def get_column_index(self, constraint):
@@ -327,33 +327,28 @@ class ConstraintManager(object):
     def _populate_zip_constraints(self):
         """Populate the expanded constraints
 
-        In a multirun, multicolumn scenario, create constraints for
-        the first run and the first column, second run and second
-        column,... that is, as if you run zip(runs, columns)
+        In a multitrace, multicolumn scenario, create constraints for
+        the first trace and the first column, second trace and second
+        column,... that is, as if you run zip(traces, columns)
         """
 
         for idx in range(self._max_len):
-            if self._run_expanded:
-                run_idx = 0
+            if self._trace_expanded:
+                trace_idx = 0
             else:
-                run_idx = idx
+                trace_idx = idx
 
-            run = self._ip_vec[0][idx]
+            trace = self._ip_vec[0][idx]
             col = self._ip_vec[1][idx]
             template = self._ip_vec[2][idx]
             self._constraints.append(
-                Constraint(
-                    run,
-                    self._pivot,
-                    col,
-                    template,
-                    run_idx,
-                    self._filters))
+                Constraint(trace, self._pivot, col, template, trace_idx,
+                           self._filters))
 
     def generate_pivots(self, permute=False):
         """Return a union of the pivot values
 
-        :param permute: Permute the Runs and Columns
+        :param permute: Permute the Traces and Columns
         :type permute: bool
         """
         pivot_vals = []
@@ -361,7 +356,7 @@ class ConstraintManager(object):
             pivot_vals += constraint.result.keys()
 
         p_list = list(set(pivot_vals))
-        runs = range(self._lens[0])
+        traces = range(self._lens[0])
 
         try:
             sorted_plist = sorted(p_list, key=int)
@@ -372,7 +367,7 @@ class ConstraintManager(object):
                 sorted_plist = sorted(p_list)
 
         if permute:
-            pivot_gen = ((run_idx, pivot) for run_idx in runs for pivot in sorted_plist)
+            pivot_gen = ((trace_idx, pivot) for trace_idx in traces for pivot in sorted_plist)
             return pivot_gen, len(sorted_plist) * self._lens[0]
         else:
             return sorted_plist, len(sorted_plist)

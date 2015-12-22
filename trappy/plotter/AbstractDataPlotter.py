@@ -29,7 +29,7 @@ class AbstractDataPlotter(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, runs=None, attr=None, templates=None):
+    def __init__(self, traces=None, attr=None, templates=None):
         self._value_parser = Group(
             IDENTIFIER +
             COLON +
@@ -38,7 +38,7 @@ class AbstractDataPlotter(object):
 
         self._event_map = {}
         self._attr = attr if attr else {}
-        self.runs = runs
+        self.traces = traces
         self.templates = templates if templates else []
 
     @abstractmethod
@@ -58,7 +58,7 @@ class AbstractDataPlotter(object):
     def _check_data(self):
         """Internal function to check the received data"""
 
-        data = listify(self.runs)
+        data = listify(self.traces)
 
         if len(data):
             mask = map(lambda x: isinstance(x, DataFrame), data)
@@ -67,7 +67,7 @@ class AbstractDataPlotter(object):
 
             if not data_frame and not sig_or_template:
                 raise ValueError(
-                    "Cannot understand data. Accepted DataFormats are pandas.DataFrame and trappy.Run (with templates)")
+                    "Cannot understand data. Accepted DataFormats are pandas.DataFrame and trappy.FTrace (with templates)")
             elif data_frame and not self._attr["column"]:
                 raise ValueError("Column not specified for DataFrame input")
         else:
@@ -81,16 +81,16 @@ class AbstractDataPlotter(object):
         try:
             return self._event_map[event], column
         except KeyError:
-            for run in listify(self.runs):
+            for trace in listify(self.traces):
 
-                if event in run.class_definitions:
-                    self._event_map[event] = run.class_definitions[event]
+                if event in trace.class_definitions:
+                    self._event_map[event] = trace.class_definitions[event]
                     return self._event_map[event], column
 
             raise ValueError(
                 "Event: " +
                 event +
-                " not found in any Run Object")
+                " not found in any FTrace Object")
 
     def _describe_signals(self):
         """Internal Function for populating templates and columns

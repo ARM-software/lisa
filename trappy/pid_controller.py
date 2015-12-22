@@ -17,14 +17,14 @@
 current directory's trace.dat"""
 
 from trappy.base import Base
-from trappy.run import Run
+from trappy.ftrace import FTrace
 
 class PIDController(Base):
     """Process the power allocator PID controller data in a FTrace dump"""
 
     name = "pid_controller"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
-    :mod:`trappy.run.Run` object"""
+    :mod:`trappy.ftrace.FTrace` object"""
 
     pivot = "thermal_zone_id"
     """The Pivot along which the data is orthogonal"""
@@ -57,4 +57,4 @@ class PIDController(Base):
         self.data_frame[["output", "p", "i", "d"]].plot(ax=ax)
         trappy.plot_utils.post_plot_setup(ax, title=title)
 
-Run.register_class(PIDController, "thermal")
+FTrace.register_parser(PIDController, "thermal")

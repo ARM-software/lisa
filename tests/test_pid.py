@@ -22,7 +22,7 @@ import trappy
 class TestPIDController(BaseTestThermal):
     def test_dataframe(self):
         """Test that PIDController() generates a valid data_frame"""
-        pid = trappy.Run().pid_controller
+        pid = trappy.FTrace().pid_controller
 
         self.assertTrue(len(pid.data_frame) > 0)
         self.assertTrue("err_integral" in pid.data_frame.columns)
@@ -32,7 +32,7 @@ class TestPIDController(BaseTestThermal):
         """Test PIDController.plot_controller()
 
         As it happens with all plot functions, just test that it doesn't explode"""
-        pid = trappy.Run().pid_controller
+        pid = trappy.FTrace().pid_controller
 
         pid.plot_controller()
         matplotlib.pyplot.close('all')

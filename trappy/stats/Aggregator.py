@@ -50,7 +50,7 @@ class AbstractAggregator(object):
         self.indexer = indexer
 
     def _add_result(self, pivot, series):
-        """Add the result for the given pivot and run
+        """Add the result for the given pivot and trace
 
         :param pivot: The pivot for which the result is being generated
         :type pivot(hashable)
@@ -66,12 +66,12 @@ class AbstractAggregator(object):
                 self._result[pivot][idx] = series[idx]
 
     @abstractmethod
-    def aggregate(self, run_idx, **kwargs):
+    def aggregate(self, trace_idx, **kwargs):
         """Abstract Method for aggregating data for various
         pivots.
 
-        :param run_idx: Index of the run to be aggregated
-        :type run_idx: int
+        :param trace_idx: Index of the trace to be aggregated
+        :type trace_idx: int
 
         :return: The aggregated result
 

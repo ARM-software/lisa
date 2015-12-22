@@ -54,8 +54,8 @@ def plot_trace(trace,
                pids=None):
     """Creates a kernelshark like plot of the trace file
 
-    :param trace: The path to the trace or a run object
-    :type trace: str, :mod:`trappy.run.Run`
+    :param trace: The path to the trace or a trace object
+    :type trace: str, :mod:`trappy.trace.FTrace`
 
     :param execnames: List of execnames to be filtered. If not
         specified all execnames will be plotted
@@ -69,13 +69,11 @@ def plot_trace(trace,
     if not IPythonConf.check_ipython():
         raise RuntimeError("plot_trace needs ipython environment")
 
-    if not isinstance(trace, trappy.Run):
-        run = trappy.Run(trace)
-    else:
-        run = trace
+    if not isinstance(trace, trappy.FTrace):
+        trace = trappy.FTrace(trace)
 
-    data, procs, domain = Utils.get_trace_event_data(run, execnames, pids)
+    data, procs, domain = Utils.get_trace_event_data(trace, execnames, pids)
     trace_graph = EventPlot.EventPlot(data, procs, domain,
                                       lane_prefix="CPU :",
-                                      num_lanes=int(run._cpus))
+                                      num_lanes=int(trace._cpus))
     trace_graph.view()

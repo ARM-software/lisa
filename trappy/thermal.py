@@ -21,7 +21,7 @@ import pandas as pd
 import re
 
 from trappy.base import Base
-from trappy.run import Run
+from trappy.ftrace import FTrace
 
 class Thermal(Base):
     """Process the thermal framework data in a FTrace dump"""
@@ -31,7 +31,7 @@ class Thermal(Base):
 
     name = "thermal"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
-    :mod:`trappy.run.Run` object"""
+    :mod:`trappy.ftrace.FTrace` object"""
 
     pivot = "id"
     """The Pivot along which the data is orthogonal"""
@@ -103,7 +103,7 @@ class Thermal(Base):
 
         plot_hist(temps, ax, title, "C", 30, "Temperature", xlim, "default")
 
-Run.register_class(Thermal, "thermal")
+FTrace.register_parser(Thermal, "thermal")
 
 class ThermalGovernor(Base):
     """Process the power allocator data in a ftrace dump"""
@@ -113,7 +113,7 @@ class ThermalGovernor(Base):
 
     name = "thermal_governor"
     """The name of the :mod:`pandas.DataFrame` member that will be created in a
-    :mod:`trappy.run.Run` object"""
+    :mod:`trappy.ftrace.FTrace` object"""
 
     pivot = "thermal_zone_id"
     """The Pivot along which the data is orthogonal"""
@@ -295,4 +295,4 @@ class ThermalGovernor(Base):
             this_title = normalize_title(actor, title)
             dfr[cols].plot(title=this_title)
 
-Run.register_class(ThermalGovernor, "thermal")
+FTrace.register_parser(ThermalGovernor, "thermal")
