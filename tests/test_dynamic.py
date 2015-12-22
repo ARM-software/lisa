@@ -83,3 +83,33 @@ class TestDynamicEvents(BaseTestSched):
         """register_dynamic_ftrace() with default value for pivot doesn't create a class with a pivot=None"""
         cls = trappy.register_dynamic_ftrace("MyEvent", "my_dyn_test_key")
         self.assertFalse(hasattr(cls, "pivot"))
+
+    def test_unregister_dynamic_ftrace(self):
+        """Test that dynamic events can be unregistered"""
+        dyn_event = trappy.register_dynamic_ftrace("DynamicEvent",
+                                                   "dynamic_test_key")
+        trace = trappy.FTrace(name="first")
+        self.assertTrue(len(trace.dynamic_event.data_frame) == 1)
+
+        trappy.unregister_dynamic_ftrace(dyn_event)
+        trace = trappy.FTrace(name="first")
+
+        self.assertFalse(hasattr(trace, "dynamic_event"))
+
+        dyn_event = trappy.register_dynamic_ftrace("DynamicEvent",
+                                                   "dynamic_test_key",
+                                                   scope="sched")
+        trace = trappy.FTrace(name="first")
+        self.assertTrue(len(trace.dynamic_event.data_frame) == 1)
+
+        trappy.unregister_dynamic_ftrace(dyn_event)
+        trace = trappy.FTrace(name="first")
+
+        self.assertFalse(hasattr(trace, "dynamic_event"))
+
+    def test_unregister_ftrace_parser(self):
+        """unregister_ftrace_parser() works"""
+        trappy.register_ftrace_parser(DynamicEvent)
+        trappy.unregister_ftrace_parser(DynamicEvent)
+        trace = trappy.FTrace()
+        self.assertFalse(hasattr(trace, "dynamic_event"))

@@ -225,6 +225,24 @@ class FTrace(BareTrace):
         else:
             getattr(cls, scope + "_classes")[cobject.name] = cobject
 
+    @classmethod
+    def unregister_parser(cls, cobject):
+        """Unregister a parser
+
+        This is the opposite of FTrace.register_parser(), it removes a class
+        from the list of classes that will be parsed on the trace
+
+        """
+
+        # TODO: scopes should not be hardcoded (nor here nor in the FTrace object)
+        all_scopes = [cls.thermal_classes, cls.sched_classes,
+                      cls.dynamic_classes]
+        known_events = ((n, c, sc) for sc in all_scopes for n, c in sc.items())
+
+        for name, obj, scope_classes in known_events:
+            if cobject == obj:
+                del scope_classes[name]
+
     def __add_events(self, events):
         """Add events to the class_definitions
 
