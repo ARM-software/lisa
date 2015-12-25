@@ -265,6 +265,22 @@ class TestFTrace(BaseTestThermal):
         trace.plot_allfreqs(self.map_label, ax=axis)
         matplotlib.pyplot.close('all')
 
+    def test_plot_allfreqs_with_one_actor(self):
+        """Check that plot_allfreqs() works with one actor"""
+
+        in_data = """     kworker/4:1-397   [004]   720.741349: thermal_power_cpu_get: cpus=00000000,00000006 freq=1400000 raw_cpu_power=189 load={23, 12} power=14
+     kworker/4:1-397   [004]   720.741349: thermal_power_cpu_limit: cpus=00000000,00000006 freq=1400000 cdev_state=1 power=14"""
+
+        with open("trace.txt", "w") as fout:
+            fout.write(in_data)
+
+        trace = trappy.FTrace()
+        map_label = {"00000000,00000006": "A57"}
+        _, axis = matplotlib.pyplot.subplots(nrows=1)
+
+        trace.plot_allfreqs(map_label, ax=axis)
+        matplotlib.pyplot.close('all')
+
     def test_trace_metadata(self):
         """Test if metadata gets populated correctly"""
 
