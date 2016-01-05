@@ -69,5 +69,5 @@ setup(name='TRAPpy',
           "Topic :: Scientific/Engineering :: Visualization"
       ],
       install_requires=REQUIRES,
-      extras_requires=EXTRAS
+      extras_require=EXTRAS
       )
