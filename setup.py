@@ -43,6 +43,7 @@ EXTRAS = {
 data_files = {"trappy.plotter": ["js/EventPlot.js",
                                  "js/ILinePlot.js",
                                  "css/EventPlot.css",
+                                 "css/EventPlot_help.jpg",
                              ]
 }
 
