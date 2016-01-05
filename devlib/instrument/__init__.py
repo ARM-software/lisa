@@ -14,6 +14,7 @@
 #
 import csv
 import logging
+import collections
 
 from devlib.utils.types import numeric
 
@@ -167,7 +168,7 @@ class Instrument(object):
     def __init__(self, target):
         self.target = target
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.channels = {}
+        self.channels = collections.OrderedDict()
         self.active_channels = []
 
     # channel management
