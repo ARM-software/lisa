@@ -107,6 +107,25 @@ class TestTrappy(BaseTestThermal):
         trappy.summary_plots(self.actor_order, self.map_label)
         matplotlib.pyplot.close('all')
 
+    def test_summary_plots_one_actor(self):
+        """summary_plots() works if there is only one actor"""
+
+        # Strip out devfreq and little traces
+        trace_out = ""
+        with open("trace.txt") as fin:
+            for line in fin:
+                if ("thermal_power_devfreq_get_power:" not in line) and \
+                   ("thermal_power_devfreq_limit:" not in line) and \
+                   ("thermal_power_cpu_get_power: cpus=00000000,00000039" not in line) and \
+                   ("thermal_power_cpu_limit: cpus=00000000,00000039" not in line):
+                    trace_out += line
+
+        with open("trace.txt", "w") as fout:
+            fout.write(trace_out)
+
+        map_label = {"00000000,00000006": "A57"}
+        trappy.summary_plots(self.actor_order, map_label)
+        matplotlib.pyplot.close('all')
 
     def test_compare_runs(self):
         """Basic compare_runs() functionality"""
