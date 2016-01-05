@@ -82,10 +82,13 @@ class TestFTrace(BaseTestThermal):
         for attr in trace.sched_classes.iterkeys():
             self.assertFalse(hasattr(trace, attr))
 
-        trappy.register_dynamic_ftrace("ADynamicEvent", "a_dynamic_event")
+        ftrace_parser = trappy.register_dynamic_ftrace("ADynamicEvent",
+                                                       "a_dynamic_event")
         trace = trappy.FTrace(scope="custom")
 
         self.assertTrue(hasattr(trace, "a_dynamic_event"))
+
+        trappy.unregister_dynamic_ftrace(ftrace_parser)
 
 
     def test_ftrace_doesnt_overwrite_parsed_event(self):

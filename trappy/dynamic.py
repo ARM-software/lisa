@@ -133,3 +133,15 @@ def register_ftrace_parser(cls):
 
     # Check the argspec of the class
     FTrace.register_parser(cls)
+
+def unregister_ftrace_parser(ftrace_parser):
+    """Unregister an ftrace parser
+
+    :param ftrace_parser: An ftrace parser class that was registered
+        with register_ftrace_parser() or register_dynamic_ftrace().
+        If done with the latter, the cls parameter is the return value
+        of register_dynamic_ftrace()
+    :type ftrace_parser: class derived from :mod:`trappy.base.Base`
+
+    """
+    FTrace.unregister_parser(ftrace_parser)

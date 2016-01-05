@@ -30,7 +30,15 @@ try:
     from trappy.plotter.EventPlot import EventPlot
 except ImportError:
     pass
-from trappy.dynamic import register_dynamic_ftrace, register_ftrace_parser
+from trappy.dynamic import register_dynamic_ftrace, register_ftrace_parser, \
+    unregister_ftrace_parser
+
+# We define unregister_dynamic_ftrace() because it undoes what
+# register_dynamic_ftrace().  Internally it does exactly the same as
+# unregister_ftrace_parser() though but with these two names the API
+# makes more sense: register with register_dynamic_ftrace(),
+# unregister with unregister_dynamic_ftrace()
+unregister_dynamic_ftrace = unregister_ftrace_parser
 
 # For backwards compatibility.  Remove by 2016-12-31
 class Run(FTrace):

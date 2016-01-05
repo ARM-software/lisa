@@ -122,7 +122,7 @@ class TestBase(utils_tests.SetupDirectory):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        trappy.register_dynamic_ftrace("Event0", "event0", scope="sched")
+        ftrace_parser = trappy.register_dynamic_ftrace("Event0", "event0", scope="sched")
         trace = trappy.FTrace()
         dfr = trace.event0.data_frame
 
@@ -135,6 +135,8 @@ class TestBase(utils_tests.SetupDirectory):
             self.assertEquals(dfr["__pid"].iloc[idx],  events[timestap]['pid'])
             self.assertEquals(dfr["__cpu"].iloc[idx],  events[timestap]['cpu'])
 
+        trappy.unregister_dynamic_ftrace(ftrace_parser)
+
 
     def test_parse_values_concatenation(self):
         """TestBase: Trace with space separated values created a valid DataFrame"""
@@ -146,7 +148,7 @@ class TestBase(utils_tests.SetupDirectory):
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
 
-        trappy.register_dynamic_ftrace("sched_stat_runtime",
+        ftrace_parser = trappy.register_dynamic_ftrace("sched_stat_runtime",
                                        "my_sched_stat_runtime", scope="sched")
         trace = trappy.FTrace()
         dfr = trace.sched_stat_runtime.data_frame
@@ -156,6 +158,8 @@ class TestBase(utils_tests.SetupDirectory):
         self.assertEquals(dfr["pid"].iloc[0], 7)
         self.assertEquals(dfr["runtime"].iloc[0], 262875)
         self.assertEquals(dfr["vruntime"].iloc[0], 17096359856)
+
+        trappy.unregister_dynamic_ftrace(ftrace_parser)
 
     def test_get_dataframe(self):
         """TestBase: Thermal.data_frame["thermal_zone"] exists and
