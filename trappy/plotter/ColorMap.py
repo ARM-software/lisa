@@ -16,6 +16,7 @@
 """Defines a generic indexable ColorMap Class"""
 import matplotlib.colors as clrs
 import matplotlib.cm as cmx
+from matplotlib.colors import ListedColormap, Normalize
 
 
 class ColorMap(object):
@@ -27,9 +28,9 @@ class ColorMap(object):
     :type num_colors: int
     """
 
-    def __init__(self, num_colors):
+    def __init__(self, num_colors, cmap='hsv'):
         self.color_norm = clrs.Normalize(vmin=0, vmax=num_colors)
-        self.scalar_map = cmx.ScalarMappable(norm=self.color_norm, cmap='hsv')
+        self.scalar_map = cmx.ScalarMappable(norm=self.color_norm, cmap=cmap)
         self.num_colors = num_colors
 
     def cmap(self, index):
@@ -49,3 +50,19 @@ class ColorMap(object):
         :return: The color at :math:`N_{colors} - i`
         """
         return self.cmap(self.num_colors - index)
+
+    @classmethod
+    def rgb_cmap(cls, rgb_list):
+        """Constructor for a ColorMap from an rgb_list
+
+        :param rgb_list: A list of rgb tuples for red, green and blue.
+            The rgb values should be in the range 0-255.
+        :type rgb_list: list of tuples
+        """
+
+        rgb_list = [[x / 255.0 for x in rgb[:3]] for rgb in rgb_list]
+
+        rgb_map = ListedColormap(rgb_list, name='default_color_map', N=None)
+        num_colors = len(rgb_list)
+
+        return cls(num_colors, cmap=rgb_map)

@@ -247,7 +247,11 @@ class StaticPlot(AbstractDataPlotter):
         # Initialise legend data and colormap
         self._attr["_legend_handles"] = [None] * legend_len
         self._attr["_legend_labels"] = [None] * legend_len
-        self._cmap = ColorMap(legend_len)
+
+        if "colors" in self._attr:
+            self._cmap = ColorMap.rgb_cmap(self._attr["colors"])
+        else:
+            self._cmap = ColorMap(legend_len)
 
         # Group constraints/series with the axis they are to be plotted on
         figure_data = ddict(list)
