@@ -25,6 +25,15 @@ from operator import itemgetter
 from wlauto import Instrument, File, Parameter
 from wlauto.exceptions import InstrumentError
 
+UNIT_MAP = {
+    'curr': 'Amps',
+    'volt': 'Volts',
+    'cenr': 'Joules',
+    'pow': 'Watts',
+}
+
+JUNO_MAX_INT = 0x7fffffffffffffff
+
 
 class JunoEnergy(Instrument):
 
@@ -43,7 +52,15 @@ class JunoEnergy(Instrument):
 
     parameters = [
         Parameter('period', kind=float, default=0.1,
-                  description='Specifies the time, in Seconds, between polling energy counters.'),
+                  description="""
+                  Specifies the time, in Seconds, between polling energy counters.
+                  """),
+        Parameter('strict', kind=bool, default=True,
+                  description="""
+                  Setting this to ``False`` will omit the check that the ``device`` is
+                  ``"juno"``. This is useful if the underlying board is actually Juno
+                  but WA connects via a different interface (e.g. ``generic_linux``).
+                  """),
     ]
 
     def on_run_init(self, context):
@@ -67,11 +84,26 @@ class JunoEnergy(Instrument):
         self.device.pull_file(self.device_output_file, self.host_output_file)
         context.add_artifact('junoenergy', self.host_output_file, 'data')
 
+        with open(self.host_output_file) as fh:
+            reader = csv.reader(fh)
+            headers = reader.next()
+            columns = zip(*reader)
+            for header, data in zip(headers, columns):
+                data = map(float, data)
+                if header.endswith('cenr'):
+                    value = data[-1] - data[0]
+                    if value < 0:  # counter wrapped
+                        value = JUNO_MAX_INT + value
+                else:  # not cumulative energy
+                    value = sum(data) / len(data)
+                context.add_metric(header, value, UNIT_MAP[header.split('_')[-1]])
+
     def teardown(self, conetext):
         self.device.delete_file(self.device_output_file)
 
     def validate(self):
-        if self.device.name.lower() != 'juno':
-            message = 'juno_energy instrument is only supported on juno devices; found {}'
-            raise InstrumentError(message.format(self.device.name))
+        if self.strict:
+            if self.device.name.lower() != 'juno':
+                message = 'juno_energy instrument is only supported on juno devices; found {}'
+                raise InstrumentError(message.format(self.device.name))
 
