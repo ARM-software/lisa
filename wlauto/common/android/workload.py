@@ -236,6 +236,11 @@ class ApkWorkload(Workload):
         self.device.execute('am force-stop {}'.format(self.package))
         self.device.execute('pm clear {}'.format(self.package))
 
+        # As of android API level 23, apps can request permissions at runtime,
+        # this will grant all of them so requests do not pop up when running the app
+        if self.device.get_sdk_version() >= 23:
+            self._grant_requested_permissions()
+
     def install_apk(self, context):
         output = self.device.install(self.apk_file, self.install_timeout)
         if 'Failure' in output:
@@ -246,6 +251,23 @@ class ApkWorkload(Workload):
         else:
             self.logger.debug(output)
         self.do_post_install(context)
+
+    def _grant_requested_permissions(self):
+        dumpsys_output = self.device.execute(command="dumpsys package {}".format(self.package))
+        permissions = []
+        lines = iter(dumpsys_output.splitlines())
+        for line in lines:
+            if "requested permissions:" in line:
+                break
+
+        for line in lines:
+            if "android.permission." in line:
+                permissions.append(line.split(":")[0].strip())
+            else:
+                break
+
+        for permission in permissions:
+            self.device.execute("pm grant {} {}".format(self.package, permission))
 
     def do_post_install(self, context):
         """ May be overwritten by dervied classes."""
