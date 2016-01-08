@@ -34,36 +34,60 @@ import com.android.uiautomator.testrunner.UiAutomatorTestCase;
 
 import com.arm.wlauto.uiauto.BaseUiAutomation;
 
-public class UiAutomation extends BaseUiAutomation {   
+public class UiAutomation extends BaseUiAutomation {
 
     public static String TAG = "antutu";
-
+    public static String TestButton5 = "com.antutu.ABenchMark:id/start_test_region";
+    public static String TestButton6 = "com.antutu.ABenchMark:id/start_test_text";
     private static int initialTimeoutSeconds = 20;
 
     public void runUiAutomation() throws Exception{
         Bundle parameters = getParams();
 
         String version = parameters.getString("version");
-        boolean enableSdTests = Boolean.parseBoolean(parameters.getString("enable_sd_tests")); 
+        boolean enableSdTests = Boolean.parseBoolean(parameters.getString("enable_sd_tests"));
 
         int times = Integer.parseInt(parameters.getString("times"));
         if (times < 1) {
                 times = 1;
         }
 
-        if (version.equals("4.0.3") || version.equals("5.3.0")){
+        if (version.equals("3.3.2")) { // version earlier than 4.0.3
+            dismissReleaseNotesDialogIfNecessary();
+            if(!enableSdTests){
+               disableSdCardTests();
+            }
+            hitStart();
+            waitForAndViewResults();
+        }
+        else {
             int iteration = 0;
             dismissNewVersionNotificationIfNecessary();
-            hitTestButton();
             while (true) {
-                    if (version.equals("5.3.0"))
-                        hitTestButtonVersion5();
+                    if(version.equals("6.0.1"))
+                        hitTestButtonVersion5(TestButton6);
+                    else if (version.equals("5.3.0")) {
+                        hitTestButton();
+                        hitTestButtonVersion5(TestButton5);
+                    }
+                    else if (version.equals("4.0.3")) {
+                        hitTestButton();
+                        hitTestButton();
+                    }
                     else
                         hitTestButton();
 
-                    waitForVersion4Results();
-                    viewDetails();
-                    extractResults();
+                    if(version.equals("6.0.1"))
+                    {
+                        waitForVersion6Results();
+                        extractResults6();
+                    }
+                    else
+                    {
+                        waitForVersion4Results();
+                        viewDetails();
+                        extractResults();
+                    }
 
                     iteration++;
                     if (iteration >= times) {
@@ -74,13 +98,6 @@ public class UiAutomation extends BaseUiAutomation {
                     dismissRateDialogIfNecessary();
                     testAgain();
             }
-        } else { // version earlier than 4.0.3
-            dismissReleaseNotesDialogIfNecessary();
-            if(!enableSdTests){
-               disableSdCardTests();
-            }
-            hitStart();
-            waitForAndViewResults();
         }
 
         Bundle status = new Bundle();
@@ -98,7 +115,7 @@ public class UiAutomation extends BaseUiAutomation {
             return false;
         }
     }
-    
+
     public boolean dismissReleaseNotesDialogIfNecessary() throws Exception {
         UiSelector selector = new UiSelector();
         UiObject closeButton = new UiObject(selector.text("Close"));
@@ -118,11 +135,11 @@ public class UiAutomation extends BaseUiAutomation {
         // Sometimes, dismissing the dialog the first time does not work properly --
         // it starts to disappear but is then immediately re-created; so may need to
         // dismiss it as long as keeps popping up.
-        while (closeButton.waitForExists(2)) { 
+        while (closeButton.waitForExists(2)) {
             closeButton.click();
             sleep(1); // diaglog dismissal
             dismissed = true;
-        } 
+        }
         return dismissed;
     }
 
@@ -137,14 +154,15 @@ public class UiAutomation extends BaseUiAutomation {
 
    /* In version 5 of antutu, the test has been changed from a button widget to a textview */
 
-   public void hitTestButtonVersion5() throws Exception {
+   public void hitTestButtonVersion5(String id) throws Exception {
         UiSelector selector = new UiSelector();
-        UiObject test = new UiObject(selector.resourceId("com.antutu.ABenchMark:id/start_test_region")
+        UiObject test = new UiObject(selector.resourceId(id)
                                              .className("android.widget.TextView"));
         test.waitForExists(initialTimeoutSeconds);
         test.click();
         sleep(1); // possible tab transtion
     }
+
 
     public void hitTest() throws Exception {
         UiSelector selector = new UiSelector();
@@ -193,11 +211,46 @@ public class UiAutomation extends BaseUiAutomation {
         }
     }
 
+    public void waitForVersion6Results() throws Exception {
+        UiObject qrText = new UiObject(new UiSelector().className("android.widget.TextView")
+                                                       .text("QRCode of result"));
+        for (int i = 0; i < 120; i++) {
+            if (qrText.exists()) {
+                break;
+            }
+            sleep(5);
+        }
+    }
+
     public void viewDetails() throws Exception {
         UiSelector selector = new UiSelector();
         UiObject detailsButton = new UiObject(new UiSelector().className("android.widget.Button")
                                                               .text("Details"));
         detailsButton.clickAndWaitForNewWindow();
+    }
+
+    public void extractResults6() throws Exception {
+        //Overal result
+        UiObject result = new UiObject(new UiSelector().resourceId("com.antutu.ABenchMark:id/tv_score_name"));
+        if (result.exists()) {
+            Log.v(TAG, String.format("ANTUTU RESULT: Overall Score: %s", result.getText()));
+        }
+
+        // individual scores
+        extractSectionResults6("3d");
+        extractSectionResults6("ux");
+        extractSectionResults6("cpu");
+        extractSectionResults6("ram");
+    }
+
+    public void extractSectionResults6(String section) throws Exception {
+        UiSelector selector = new UiSelector();
+        UiObject resultLayout = new UiObject(selector.resourceId("com.antutu.ABenchMark:id/hcf_" + section));
+        UiObject result = resultLayout.getChild(selector.resourceId("com.antutu.ABenchMark:id/tv_score_value"));
+
+        if (result.exists()) {
+            Log.v(TAG, String.format("ANTUTU RESULT: %s Score: %s", section, result.getText()));
+        }
     }
 
     public void extractResults() throws Exception {

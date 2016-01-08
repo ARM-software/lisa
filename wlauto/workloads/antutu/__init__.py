@@ -16,7 +16,8 @@
 import os
 from collections import defaultdict, OrderedDict
 
-from wlauto import AndroidUiAutoBenchmark, Parameter
+from wlauto import AndroidUiAutoBenchmark, Parameter, File
+from wlauto.utils.android import ApkInfo
 
 
 class Antutu(AndroidUiAutoBenchmark):
@@ -46,7 +47,7 @@ class Antutu(AndroidUiAutoBenchmark):
     activity = ".ABenchMarkStart"
     summary_metrics = ['score', 'Overall_Score']
 
-    valid_versions = ['3.3.2', '4.0.3', '5.3.0']
+    valid_versions = ['3.3.2', '4.0.3', '5.3.0', '6.0.1']
 
     device_prefs_directory = '/data/data/com.antutu.ABenchMark/shared_prefs'
     device_prefs_file = '/'.join([device_prefs_directory, 'com.antutu.ABenchMark_preferences.xml'])
@@ -68,18 +69,26 @@ class Antutu(AndroidUiAutoBenchmark):
 
     def __init__(self, device, **kwargs):  # pylint: disable=W0613
         super(Antutu, self).__init__(device, **kwargs)
-        self.run_timeout = 6 * 60 * self.times
+        self.run_timeout = 10 * 60 * self.times
         self.uiauto_params['version'] = self.version
         self.uiauto_params['times'] = self.times
         self.uiauto_params['enable_sd_tests'] = self.enable_sd_tests
 
+    def setup(self, context):
+        if self.version == "6.0.1":
+            antutu_3d = context.resolver.get(File(self, "com.antutu.benchmark.full-1.apk"))
+            info = ApkInfo(antutu_3d)
+            if not context.device.is_installed(info.package):
+                self.device.install_apk(antutu_3d, timeout=120)
+        super(Antutu, self).setup(context)
+
     def update_result(self, context):
         super(Antutu, self).update_result(context)
         with open(self.logcat_log) as fh:
-            if self.version == '4.0.3':
-                metrics = extract_version4_metrics(fh)
+            if self.version == '3.3.2':
+                metrics = extract_older_version_metrics(fh)
             else:
-                metrics = extract_older_version_metrics(fh)  # pylint: disable=redefined-variable-type
+                metrics = extract_metrics(fh)  # pylint: disable=redefined-variable-type
         for key, value in metrics.iteritems():
             key = key.replace(' ', '_')
             context.result.add_metric(key, value)
@@ -87,7 +96,7 @@ class Antutu(AndroidUiAutoBenchmark):
 
 # Utility functions
 
-def extract_version4_metrics(fh):
+def extract_metrics(fh):
     metrics = OrderedDict()
     metric_counts = defaultdict(int)
     for line in fh:
