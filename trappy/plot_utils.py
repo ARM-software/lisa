@@ -201,7 +201,12 @@ def plot_allfreqs(runs, map_label, width=None, height=None):
                           ncols=num_runs)
 
     if num_runs == 1:
-        axis = [axis]
+        if nrows == 1:
+            axis = [[axis]]
+        else:
+            axis = [axis]
+    elif nrows == 1:
+        axis = [[ax] for ax in axis]
     else:
         axis = zip(*axis)
 

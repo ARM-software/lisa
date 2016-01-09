@@ -181,6 +181,21 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
         plot_utils.plot_allfreqs([trace], self.map_label)
         matplotlib.pyplot.close('all')
 
+    def test_plot_allfreqs_one_actor(self):
+        """plot_utils.plot_allfreqs work when there is only one actor"""
+
+        in_data = """     kworker/4:1-397   [004]   720.741349: thermal_power_cpu_get: cpus=00000000,00000006 freq=1400000 raw_cpu_power=189 load={23, 12} power=14
+     kworker/4:1-397   [004]   720.741349: thermal_power_cpu_limit: cpus=00000000,00000006 freq=1400000 cdev_state=1 power=14"""
+
+        with open("trace.txt", "w") as fout:
+            fout.write(in_data)
+
+        traces = [trappy.FTrace(name="first"), trappy.FTrace(name="second")]
+        map_label = {"00000000,00000006": "A57"}
+
+        plot_utils.plot_allfreqs(traces, map_label)
+        matplotlib.pyplot.close("all")
+
     def test_plot_controller(self):
         """plot_utils.plot_controller() doesn't bomb"""
 

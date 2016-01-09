@@ -281,7 +281,7 @@ class TestFTrace(BaseTestThermal):
         map_label = {"00000000,00000006": "A57"}
         _, axis = matplotlib.pyplot.subplots(nrows=1)
 
-        trace.plot_allfreqs(map_label, ax=axis)
+        trace.plot_allfreqs(map_label, ax=[axis])
         matplotlib.pyplot.close('all')
 
     def test_trace_metadata(self):

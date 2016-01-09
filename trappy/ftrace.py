@@ -523,14 +523,10 @@ class FTrace(BareTrace):
 
         all_freqs = self.get_all_freqs_data(map_label)
 
-        # when len(all_freqs) == 1, ax is a copy of axis but not an
-        # array so zip report errors, should convert to array
         setup_plot = False
         if ax is None:
             ax = [None] * len(all_freqs)
             setup_plot = True
-        elif len(all_freqs) == 1:
-            ax = [ax]
 
         for this_ax, (label, dfr) in zip(ax, all_freqs):
             this_title = trappy.plot_utils.normalize_title("allfreqs " + label,
