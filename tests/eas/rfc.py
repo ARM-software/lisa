@@ -385,6 +385,27 @@ class TestBase(unittest.TestCase):
         if 'prefix' not in conf:
             conf['prefix'] = 'task_'
 
+        if conf['class'] == 'profile':
+            params = {}
+            # Load each task specification
+            for task_name in conf['params']:
+                task = conf['params'][task_name]
+                task_name = conf['prefix'] + task_name
+                if task['kind'] not in wlgen.RTA.__dict__:
+                    logging.error(r'%14s - RTA task of kind [%s] not supported',
+                            'RTApp', task['kind'])
+                    raise ValueError('Configuration error - '
+                        'unsupported \'kind\' value for task [{}] '\
+                        'in RT-App workload specification'\
+                        .format(task))
+                task_ctor = getattr(wlgen.RTA, task['kind'])
+                params[task_name] = task_ctor(**task['params'])
+            rtapp = wlgen.RTA(cls.env.target,
+                        wl_idx, calibration = cls.env.calibration())
+            rtapp.conf(kind='profile', params=params,
+                    cpus=cpus, run_dir=cls.env.run_dir)
+            return rtapp
+
         if conf['class'] == 'periodic':
             task_idxs = cls.wload_rtapp_task_idxs(wl_idx, conf['tasks'])
             params = {}
