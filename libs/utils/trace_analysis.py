@@ -65,8 +65,8 @@ class TraceAnalysis(object):
                 self.x_min, self.x_max)
 
     def plotClusterFrequencies(self, title='Clusters Frequencies'):
-        if not self.trace.hasEvents('sched_cpu_frequency'):
-            logging.warn('Events [sched_cpu_frequency] not found, '\
+        if not self.trace.hasEvents('cpu_frequency'):
+            logging.warn('Events [cpu_frequency] not found, '\
                     'plot DISABLED!')
             return
         df = self.trace.df('pfreq')

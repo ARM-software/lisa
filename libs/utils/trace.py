@@ -104,9 +104,9 @@ class Trace(object):
             self.trace_data['swkpn'] = \
                 self.run.sched_wakeup_new.data_frame
 
-        if self.hasEvents('sched_cpu_frequency'):
+        if self.hasEvents('cpu_frequency'):
             self.trace_data['pfreq'] = \
-                self.run.sched_cpu_frequency.data_frame
+                self.run.cpu_frequency.data_frame
 
         if self.hasEvents('sched_load_avg_cpu'):
             self.trace_data['cload'] = \
