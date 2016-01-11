@@ -114,16 +114,6 @@ class TestBase(unittest.TestCase):
         logging.info(r'Check for data being collected')
         return True
 
-    # def test_two(self):
-    #     """Test 2"""
-    #     logging.info(r'Test2')
-    #     return True
-    #
-    # def test_three(self):
-    #     """Test 3"""
-    #     logging.info(r'Test3')
-    #     return True
-
 
 ################################################################################
 # Utility methods
@@ -526,7 +516,7 @@ class TestBase(unittest.TestCase):
 
         target_dir = cls.env.target.working_directory
         logging.debug('%14s - setup target directory [%s]',
-                'SchedTune', target_dir)
+                'MultiRun', target_dir)
         # cls.env.target.execute('rm {}/output.txt'\
         #         .format(target_dir), as_root=True)
 
