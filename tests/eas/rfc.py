@@ -375,6 +375,11 @@ class TestBase(unittest.TestCase):
         if 'prefix' not in conf:
             conf['prefix'] = 'task_'
 
+        # Setup a default loadref CPU
+        loadref = None
+        if 'loadref' in wlspec:
+            loadref = wlspec['loadref']
+
         if conf['class'] == 'profile':
             params = {}
             # Load each task specification
@@ -392,7 +397,7 @@ class TestBase(unittest.TestCase):
                 params[task_name] = task_ctor(**task['params'])
             rtapp = wlgen.RTA(cls.env.target,
                         wl_idx, calibration = cls.env.calibration())
-            rtapp.conf(kind='profile', params=params,
+            rtapp.conf(kind='profile', params=params, loadref=loadref,
                     cpus=cpus, run_dir=cls.env.run_dir)
             return rtapp
 
@@ -404,7 +409,7 @@ class TestBase(unittest.TestCase):
                 params[task] = wlgen.RTA.periodic(**conf['params'])
             rtapp = wlgen.RTA(cls.env.target,
                         wl_idx, calibration = cls.env.calibration())
-            rtapp.conf(kind='profile', params=params,
+            rtapp.conf(kind='profile', params=params, loadref=loadref,
                     cpus=cpus, run_dir=cls.env.run_dir)
             return rtapp
 
@@ -414,6 +419,7 @@ class TestBase(unittest.TestCase):
             rtapp.conf(kind='custom',
                     params=conf['json'],
                     duration=conf['duration'],
+                    loadref=loadref,
                     cpus=cpus, run_dir=cls.env.run_dir)
             return rtapp
 
