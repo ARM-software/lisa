@@ -57,6 +57,7 @@ class TestBase(unittest.TestCase):
         cls.kernel = None
         cls.dtb = None
         cls.governor = None
+        cls.cgroup = None
 
         cls.print_section('Main', 'Experiments configuration')
 
@@ -268,6 +269,9 @@ class TestBase(unittest.TestCase):
     def setup_cgroups(cls, tc):
         if 'cgroups' not in tc:
             return True
+        # Setup default CGroup to run tasks into
+        if 'default' in tc['cgroups']:
+            cls.cgroup = tc['cgroups']['default']
         # Configure each required controller
         if 'conf' not in tc['cgroups']:
             return True
@@ -476,7 +480,7 @@ class TestBase(unittest.TestCase):
         cls.env.emeter.reset()
 
         # WORKLOAD: Run the configured workload
-        wload.run(out_dir=cls.env.out_dir)
+        wload.run(out_dir=cls.env.out_dir, cgroup=cls.cgroup)
 
         # ENERGY: collect measurements
         cls.env.emeter.report(cls.env.out_dir)
