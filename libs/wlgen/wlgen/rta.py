@@ -286,6 +286,8 @@ class RTA(Workload):
                     self.logger.info(' | start delay: %.6f [s]',
                             task['delay'] / 1e6)
 
+            self.logger.info(' | calibration CPU: %d', target_cpu)
+
             if 'loops' not in task.keys():
                 task['loops'] = 1
             task_conf['loop'] = task['loops']
