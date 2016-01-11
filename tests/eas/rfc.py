@@ -549,6 +549,13 @@ class SFreq(TestBase):
         super(SFreq, cls).setUpTest('rfc_sfreq.config')
 
 
+class STune(TestBase):
+
+    @classmethod
+    def setUpClass(cls):
+        super(STune, cls).setUpTest('rfc_stune.config')
+
+
 ################################################################################
 # Globals
 ################################################################################
