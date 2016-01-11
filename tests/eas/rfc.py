@@ -43,7 +43,6 @@ import wlgen
 
 # Target specific paths
 TGT_RUN_DIR     = 'run_dir'
-TGT_CGR_ROOT    = '/sys/fs/cgroup'
 
 ################################################################################
 # Base RFC class
@@ -181,64 +180,27 @@ class TestBase(unittest.TestCase):
         logging.info(r'%14s - %s', tag, message)
 
     @classmethod
-    def schedtune_supported(cls):
-        # TODO: check for STune support available on target system
-        return False
-
-    @classmethod
-    def schedtune_init(cls):
-
-        cls.env.cgroup = None
-
-        if cls.env.target.file_exists(cls.schedtune_cgpath('/schedtest')):
-            return
-
-        if not cls.schedtune_supported():
-            logging.warning(r'%14s - SchedTune not supported, '\
-                    'related experiments will be skipped',
-                    'CGroups')
-            return
-
-        logging.info(r'%14s - Initialize CGroups for SchedTune support...',
-                'CGroups')
-
-        cls.env.target.execute('mount -t tmpfs cgroup {}'\
-                .format(TGT_CGR_ROOT), as_root=True)
-        cls.env.target.execute('mkdir -p {}/stune'\
-                .format(TGT_CGR_ROOT), as_root=True)
-        cls.env.target.execute('mount -t cgroup -o schedtune stune {}/stune'\
-                .format(TGT_CGR_ROOT), as_root=True)
-        cls.env.target.execute('mkdir {}/stune/schedtest || echo'\
-                .format(TGT_CGR_ROOT), as_root=True)
-
-        # Keep track of SchedTune CGroup support being available
-        cls.env.cgroup = cls.schedtune_cgpath('/schedtest')
-
-    @classmethod
-    def schedtune_cgpath(cls, cgroup='', attr=None):
-        if attr is None:
-            attr=''
-        else:
-            attr='/'+attr
-        return '{}/stune{}{}'.format(TGT_CGR_ROOT, cgroup, attr)
-
-    @classmethod
-    def schedtune_boost(cls, cg, boost):
-        if cg != '/':
-            logging.debug(r'%14s - reset [/] cgroup boost value', 'CGroups')
-            cls.env.target.write_value(
-                    cls.schedtune_cgpath('/', 'schedtune.boost'), 0)
-        logging.debug(r'%14s - set [%s] cgroup boost value to [%d]',
-                    'CGroups', cg, boost)
-        cls.env.target.write_value(
-                cls.schedtune_cgpath('/', 'schedtune.boost'), boost)
+    def cgroups_init(cls, tc):
+        if 'cgroups' not in tc:
+            return True
+        logging.info(r'%14s - Initialize CGroups support...', 'CGroups')
+        errors = False
+        for kind in tc['cgroups']['conf']:
+            logging.info(r'%14s - Setup [%s] controller...',
+                    'CGroups', kind)
+            controller = cls.env.target.cgroups.controller(kind)
+            if not controller:
+                logging.warning(r'%14s - CGroups controller [%s] NOT available',
+                        'CGroups', kind)
+                errors = True
+        return not errors
 
     @classmethod
     def setup_kernel(cls, tc):
         # Deploy kernel on the device
         cls.env.install_kernel(tc, reboot=True)
         # Setup the rootfs for the experiments
-        cls.setup_rootfs()
+        cls.setup_rootfs(tc)
 
     @classmethod
     def setup_sched_features(cls, tc):
@@ -250,9 +212,9 @@ class TestBase(unittest.TestCase):
             cls.env.target.execute('echo {} > /sys/kernel/debug/sched_features'.format(feat))
 
     @classmethod
-    def setup_rootfs(cls):
+    def setup_rootfs(cls, tc):
         # Initialize CGroups if required
-        cls.schedtune_init()
+        cls.cgroups_init(tc)
         # Setup target folder for experiments execution
         cls.env.run_dir = os.path.join(
                 cls.env.target.working_directory, TGT_RUN_DIR)
@@ -304,26 +266,46 @@ class TestBase(unittest.TestCase):
 
     @classmethod
     def setup_cgroups(cls, tc):
-
-        if cls.env.cgroup is None:
-            if 'cgroup' not in tc:
-                return True
-            else:
-                logging.warning(r'%14s - Configuration error: '\
-                        'CGroup support NOT available',
-                        'SchedTune')
-                return False
-
-        if 'cgroup' not in tc:
-            logging.debug(r'%14s - reset root control group boost value', \
-                    'SchedTune')
-            cls.schedtune_boost('/', 0)
+        if 'cgroups' not in tc:
             return True
+        # Configure each required controller
+        if 'conf' not in tc['cgroups']:
+            return True
+        errors = False
+        for kind in tc['cgroups']['conf']:
+            controller = cls.env.target.cgroups.controller(kind)
+            if not controller:
+                logging.warning(r'%14s - Configuration error: '\
+                        '[%s] contoller NOT supported',
+                        'CGroups', kind)
+                errors = True
+                continue
+            cls.setup_controller(tc, controller)
+        return not errors
 
-        logging.info(r'%14s - setup [%s] with boost value [%s]',
-                'SchedTune', tc['cgroup'], tc['boost'])
-        cls.schedtune_boost(tc['cgroup'], tc['boost'])
-        return True
+    @classmethod
+    def setup_controller(cls, tc, controller):
+        kind = controller.kind
+        # Configure each required groups for that controller
+        errors = False
+        for name in tc['cgroups']['conf'][controller.kind]:
+            group = controller.cgroup(name)
+            if not group:
+                logging.warning(r'%14s - Configuration error: '\
+                        '[%s/%s] cgroup NOT available',
+                        'CGroups', kind, name)
+                errors = True
+                continue
+            cls.setup_group(tc, group)
+        return not errors
+
+    @classmethod
+    def setup_group(cls, tc, group):
+        kind = group.controller.kind
+        name = group.name
+        # Configure each required attribute
+        group.set(**tc['cgroups']['conf'][kind][name])
+
 
     @classmethod
     def target_reboot(cls):
