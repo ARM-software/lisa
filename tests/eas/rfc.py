@@ -381,6 +381,10 @@ class TestBase(unittest.TestCase):
         logging.debug(r'%14s - Configuring [%s] rt-app...',
                 'RTApp', conf['class'])
 
+        # Setup a default "empty" task name prefix
+        if 'prefix' not in conf:
+            conf['prefix'] = 'task_'
+
         if conf['class'] == 'periodic':
             task_idxs = cls.wload_rtapp_task_idxs(wl_idx, conf['tasks'])
             params = {}
