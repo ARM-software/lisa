@@ -106,7 +106,7 @@ class Juno(BigLittleDevice):
         if self.bootloader == 'uefi':
             self._boot_via_uefi()
         else:
-            self._boot_via_uboot(**self.bootargs)
+            self._boot_via_uboot(bootargs=self.bootargs)
 
     def _boot_via_uboot(self, **kwargs):
         if not kwargs:
