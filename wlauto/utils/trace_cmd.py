@@ -196,13 +196,15 @@ HEADER_REGEX = re.compile(r'^\s*(?:version|cpus)\s*=\s*([\d.]+)\s*$')
 
 DROPPED_EVENTS_REGEX = re.compile(r'CPU:(?P<cpu_id>\d+) \[\d*\s*EVENTS DROPPED\]')
 
+EMPTY_CPU_REGEX = re.compile(r'CPU \d+ is empty')
+
 
 class TraceCmdTrace(object):
 
     def __init__(self, filter_markers=True):
         self.filter_markers = filter_markers
 
-    def parse(self, filepath, names=None, check_for_markers=True):  # pylint: disable=too-many-branches
+    def parse(self, filepath, names=None, check_for_markers=True):  # pylint: disable=too-many-branches,too-many-locals
         """
         This is a generator for the trace event stream.
 
@@ -217,6 +219,7 @@ class TraceCmdTrace(object):
                 else:
                     # maker not found force filtering by marker to False
                     self.filter_markers = False
+
         with open(filepath) as fh:
             for line in fh:
                 # if processing trace markers, skip marker lines as well as all
@@ -235,9 +238,14 @@ class TraceCmdTrace(object):
                     yield DroppedEventsEvent(match.group('cpu_id'))
                     continue
 
-                match = HEADER_REGEX.search(line)
-                if match:
-                    logger.debug(line.strip())
+                matched = False
+                for rx in [HEADER_REGEX, EMPTY_CPU_REGEX]:
+                    match = rx.search(line)
+                    if match:
+                        logger.debug(line.strip())
+                        matched = True
+                        break
+                if matched:
                     continue
 
                 match = TRACE_EVENT_REGEX.search(line)
