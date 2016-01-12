@@ -131,6 +131,21 @@ class LinePlot(StaticPlot):
                 self._attr["args_to_forward"]["markersize"] = \
                     self._attr["point_size"]
 
+    def fill_line(self, axis, line_2d, cmap_index):
+        """Fill the area under a line"""
+        drawstyle = line_2d.get_drawstyle()
+        if drawstyle.startswith("steps"):
+            # This has been fixed in upstream matplotlib
+            raise UserWarning("matplotlib does not support fill for step plots")
+
+        xdat, ydat = line_2d.get_data(orig=False)
+        axis.fill_between(
+            xdat,
+            axis.get_ylim()[0],
+            ydat,
+            facecolor=self._cmap.cmap(cmap_index),
+            alpha=AttrConf.ALPHA)
+
     def plot(self, series_index, axis, data_index, data_values, args_to_forward):
         """Internal Method called to draw a series on an axis"""
         line_2d_list = axis.plot(
