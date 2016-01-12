@@ -107,7 +107,7 @@ class ForkMigration(unittest.TestCase):
         cls.task_prefix = "task"
         cls.env = TestEnv(test_conf=TEST_CONF)
         cls.trace_file = os.path.join(cls.env.res_dir, "fork_migration.dat")
-        cls.log_file = os.path.join(cls.env.res_dir, "fork_migration.out")
+        cls.log_file = os.path.join(cls.env.res_dir, "fork_migration.json")
         cls.populate_params()
         cls.tasks = cls.params.keys()
         cls.num_tasks = len(cls.tasks)
@@ -170,7 +170,7 @@ class SmallTaskPacking(unittest.TestCase):
         cls.trace_file = os.path.join(
             cls.env.res_dir,
             "small_task_packing.dat")
-        cls.log_file = os.path.join(cls.env.res_dir, "small_task_packing.out")
+        cls.log_file = os.path.join(cls.env.res_dir, "small_task_packing.json")
         cls.num_tasks = len(cls.env.target.bl.bigs + cls.env.target.bl.littles)
         cls.populate_params()
         cls.tasks = cls.params.keys()
@@ -242,7 +242,7 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
         cls.params = {}
         cls.env = TestEnv(test_conf=TEST_CONF)
         cls.trace_file = os.path.join(cls.env.res_dir, "offload_idle_pull.dat")
-        cls.log_file = os.path.join(cls.env.res_dir, "offload_idle_pull.out")
+        cls.log_file = os.path.join(cls.env.res_dir, "offload_idle_pull.json")
         cls.early_starters = []
         cls.migrators = []
         cls.num_tasks = len(cls.env.target.bl.bigs)
@@ -434,7 +434,7 @@ class WakeMigration(unittest.TestCase):
         cls.env = TestEnv(test_conf=TEST_CONF)
         cls.task_prefix = "wake_migration"
         cls.trace_file = os.path.join(cls.env.res_dir, "wake_migration.dat")
-        cls.log_file = os.path.join(cls.env.res_dir, "wake_migration.out")
+        cls.log_file = os.path.join(cls.env.res_dir, "wake_migration.json")
         cls.populate_params()
         cls.tasks = cls.params.keys()
         cls.num_tasks = len(cls.tasks)
