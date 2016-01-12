@@ -18,7 +18,7 @@ import os
 import subprocess
 from distutils.version import StrictVersion
 
-# pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-position,ungrouped-imports
 import_error_str = ''
 try:
     import IPython
@@ -36,14 +36,29 @@ NBFORMAT_VERSION = 3
 
 
 if IPython:
-    if StrictVersion('4.0.0') > StrictVersion(IPython.__version__) >= StrictVersion('3.0.0'):
-        import IPython.kernel
+    if StrictVersion('5.0.0') > StrictVersion(IPython.__version__) >= StrictVersion('4.0.0'):
+        import nbformat
+        from jupyter_client.manager import KernelManager
+
+        def read_notebook(notebook_in):  # pylint: disable=function-redefined
+            return nbformat.reads(notebook_in, NBFORMAT_VERSION)  # pylint: disable=E1101
+
+        def write_notebook(notebook, fout):  # pylint: disable=function-redefined
+            nbformat.write(notebook, fout)  # pylint: disable=E1101
+
+        NotebookNode = nbformat.NotebookNode  # pylint: disable=E1101
+
+        IPYTHON_NBCONVERT_HTML = ['jupyter', 'nbconvert', '--to html']
+        IPYTHON_NBCONVERT_PDF = ['jupyter', 'nbconvert', '--to pdf']
+
+    elif StrictVersion('4.0.0') > StrictVersion(IPython.__version__) >= StrictVersion('3.0.0'):
+        from IPython.kernel import KernelManager
         import IPython.nbformat
 
-        def read_notebook(notebook_in):
+        def read_notebook(notebook_in):  # pylint: disable=function-redefined
             return IPython.nbformat.reads(notebook_in, NBFORMAT_VERSION)  # pylint: disable=E1101
 
-        def write_notebook(notebook, fout):
+        def write_notebook(notebook, fout):  # pylint: disable=function-redefined
             IPython.nbformat.write(notebook, fout)  # pylint: disable=E1101
 
         NotebookNode = IPython.nbformat.NotebookNode  # pylint: disable=E1101
@@ -51,13 +66,13 @@ if IPython:
         IPYTHON_NBCONVERT_HTML = ['ipython', 'nbconvert', '--to=html']
         IPYTHON_NBCONVERT_PDF = ['ipython', 'nbconvert', '--to=pdf']
     elif StrictVersion('3.0.0') > StrictVersion(IPython.__version__) >= StrictVersion('2.0.0'):
-        import IPython.kernel
+        from IPython.kernel import KernelManager
         import IPython.nbformat.v3
 
-        def read_notebook(notebook_in):
+        def read_notebook(notebook_in):  # pylint: disable=function-redefined
             return IPython.nbformat.v3.reads_json(notebook_in)  # pylint: disable=E1101
 
-        def write_notebook(notebook, fout):
+        def write_notebook(notebook, fout):  # pylint: disable=function-redefined
             IPython.nbformat.v3.nbjson.JSONWriter().write(notebook, fout)  # pylint: disable=E1101
 
         NotebookNode = IPython.nbformat.v3.NotebookNode  # pylint: disable=E1101
@@ -127,8 +142,7 @@ def run_cell(kernel_client, cell):
 
 def run_notebook(notebook):
     """Run the notebook"""
-
-    kernel_manager = IPython.kernel.KernelManager()
+    kernel_manager = KernelManager()
     kernel_manager.start_kernel(stderr=open(os.devnull, 'w'))
     kernel_client = kernel_manager.client()
     kernel_client.start_channels()
