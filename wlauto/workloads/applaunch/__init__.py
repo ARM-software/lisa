@@ -106,6 +106,7 @@ class ApplaunchWorkload(Workload):
             wfh.write(template.render(device=self.device,  # pylint: disable=maybe-no-member
                                       sensors=self.sensors,
                                       iterations=self.times,
+                                      cleanup=self.cleanup,
                                       package=APP_CONFIG[self.app]['package'],
                                       activity=APP_CONFIG[self.app]['activity'],
                                       options=APP_CONFIG[self.app]['options'],
