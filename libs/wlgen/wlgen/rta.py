@@ -121,6 +121,23 @@ class RTA(Workload):
                 ofile.write(line+'\n')
 
     def _getFirstBiggest(self, cpus):
+        # Non big.LITTLE system:
+        if 'bl' not in self.target.modules:
+            # return the first CPU of the last cluster
+            platform = self.target.platform
+            cluster_last = list(set(platform.core_clusters))[-1]
+            cluster_cpus = [cpu_id
+                    for cpu_id, cluster_id in enumerate(platform.core_clusters)
+                                           if cluster_id == cluster_last]
+            # If CPUs have been specified': return the fist in the last cluster
+            if cpus:
+                for cpu_id in cpus:
+                    if cpu_id in cluster_cpus:
+                        return cpu_id
+            # Otherwise just return the first cpu of the last cluster
+            return cluster_cpus[0]
+
+        # big.LITTLE system:
         for c in cpus:
              if c not in self.target.bl.bigs:
                 continue
@@ -130,6 +147,9 @@ class RTA(Workload):
         return cpus[0]
 
     def _getFirstBig(self, cpus=None):
+        # Non big.LITTLE system:
+        if 'bl' not in self.target.modules:
+            return self._getFirstBigges(cpus)
         if cpus:
             for c in cpus:
                 if c not in self.target.bl.bigs:
@@ -143,6 +163,22 @@ class RTA(Workload):
         return 0
 
     def _getFirstLittle(self, cpus=None):
+        # Non big.LITTLE system:
+        if 'bl' not in self.target.modules:
+            # return the first CPU of the first cluster
+            platform = self.target.platform
+            cluster_first = list(set(platform.core_clusters))[0]
+            cluster_cpus = [cpu_id
+                    for cpu_id, cluster_id in enumerate(platform.core_clusters)
+                                           if cluster_id == cluster_first]
+            # If CPUs have been specified': return the fist in the first cluster
+            if cpus:
+                for cpu_id in cpus:
+                    if cpu_id in cluster_cpus:
+                        return cpu_id
+            # Otherwise just return the first cpu of the first cluster
+            return cluster_cpus[0]
+
         # Try to return one LITTLE CPUs among the specified ones
         if cpus:
             for c in cpus:
