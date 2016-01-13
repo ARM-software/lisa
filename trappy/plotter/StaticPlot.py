@@ -14,6 +14,7 @@
 #
 """Base matplotlib plotter module"""
 from abc import abstractmethod, ABCMeta
+from collections import defaultdict as ddict
 import matplotlib.pyplot as plt
 from trappy.plotter import AttrConf
 from trappy.plotter.Constraint import ConstraintManager
@@ -158,6 +159,8 @@ class StaticPlot(AbstractDataPlotter):
         self._attr["title"] = AttrConf.TITLE
         self._attr["args_to_forward"] = {}
         self._attr["map_label"] = {}
+        self._attr["_legend_handles"] = []
+        self._attr["_legend_labels"] = []
 
     def view(self, test=False):
         """Displays the graph"""
@@ -194,6 +197,10 @@ class StaticPlot(AbstractDataPlotter):
                                        self._attr["map_label"].get(pivot, pivot))
         return title
 
+    def add_to_legend(self, series_index, line_2d, label):
+        self._attr["_legend_handles"][series_index] = line_2d
+        self._attr["_legend_labels"][series_index] = label
+
     def _resolve(self, permute=False):
         """Determine what data to plot"""
         pivot_vals, len_pivots = self.c_mgr.generate_pivots(permute)
@@ -208,49 +215,42 @@ class StaticPlot(AbstractDataPlotter):
             title=self._attr['title'])
 
         self._fig = self._layout.get_fig()
-        legend_str = []
 
         #Determine what constraint to plot and the corresponding pivot value
         if permute:
-            legend = [None] * self.c_mgr._max_len # pylint: disable=protected-access
-            self._cmap = ColorMap(self.c_mgr._max_len) # pylint: disable=protected-access
+            legend_len = self.c_mgr._max_len
             pivots = [y for _, y in pivot_vals]
-            to_plot = [(c, p) for c in self.c_mgr for p in sorted(set(pivots))]
+            cp_pairs = [(c, p) for c in self.c_mgr for p in sorted(set(pivots))]
         else:
-            legend = [None] * len(self.c_mgr)
-            self._cmap = ColorMap(len(self.c_mgr))
+            legend_len = len(self.c_mgr)
             pivots = pivot_vals
-            to_plot = [(c, p) for c in self.c_mgr for p in pivots if p in c.result]
+            cp_pairs = [(c, p) for c in self.c_mgr for p in pivots if p in c.result]
 
-        #Counts up the number of series plotted on each axis (for coloring etc)
-        axis_series = dict((self._layout.get_axis(i), 0) for i in range(len(to_plot)))
+        #Initialise legend data and colormap
+        self._attr["_legend_handles"] = [None] * legend_len
+        self._attr["_legend_labels"] = [None] * legend_len
+        self._cmap = ColorMap(legend_len)
 
-        #Plot each series of data on the appropriate axis
-        for i, (constraint, pivot) in enumerate(to_plot):
-            result = constraint.result
+        #Group constraints/series with the axis they are to be plotted on
+        figure_data = ddict(list)
+        for i, (constraint, pivot) in enumerate(cp_pairs):
             axis = self._layout.get_axis(i)
-            series_index = axis_series[axis]
-            axis_series[axis] += 1
-            line_2d_list = self.plot(
-                series_index,
+            title = self.make_title(constraint, pivot, permute)
+            figure_data[(axis, pivot)].append(constraint)
+
+        #Plot each axis
+        for (axis, pivot), series_list in figure_data.iteritems():
+            self.plot_axis(
                 axis,
-                result[pivot].index,
-                result[pivot].values,
-                args_to_forward=self._attr["args_to_forward"])
+                pivot,
+                series_list,
+                permute,
+                args_to_forward=self._attr["args_to_forward"]
+            )
 
-            if self._attr["fill"]:
-                self.fill_line(axis, line_2d_list[0], i)
-
-            legend[series_index] = line_2d_list[0]
-            legend_str.append(str(constraint))
-
-            axis.set_title(self.make_title(constraint, pivot, permute))
-
-        for l_idx, legend_line in enumerate(legend):
-            if not legend_line:
-                del legend[l_idx]
-                del legend_str[l_idx]
-        self._fig.legend(legend, legend_str)
+        #Add the legend to the figure
+        self._fig.legend(self._attr["_legend_handles"],
+                         self._attr["_legend_labels"])
         self._layout.finish(len_pivots)
 
     def _resolve_concat(self):
@@ -330,4 +330,7 @@ class StaticPlot(AbstractDataPlotter):
     @abstractmethod
     def plot(self, axis, series_index, data_index, data_values, args_to_forward):
         """Internal Method called to draw a series on an axis"""
+        raise NotImplementedError("Method Not Implemented")
+
+    def plot_axis(self, axis, pivot, series_list, permute, **kwargs):
         raise NotImplementedError("Method Not Implemented")
