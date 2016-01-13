@@ -28,6 +28,7 @@ except ImportError as exc:
 try:
     from trappy.plotter.ILinePlot import ILinePlot
     from trappy.plotter.EventPlot import EventPlot
+    from trappy.plotter.BarPlot import BarPlot
 except ImportError:
     pass
 from trappy.dynamic import register_dynamic_ftrace, register_ftrace_parser, \
