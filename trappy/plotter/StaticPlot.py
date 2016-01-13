@@ -181,13 +181,16 @@ class StaticPlot(AbstractDataPlotter):
             else:
                 self._resolve(self._attr["permute"])
 
-    def make_title(self, constraint, pivot, permute):
+    def make_title(self, constraint, pivot, permute, concat):
+        """Generates a title string for an axis"""
+        if concat:
+            return str(constraint)
         title = ""
         if permute:
             title += constraint.get_data_name() + ":"
 
         if pivot == AttrConf.PIVOT_VAL:
-            if type(self._attr["column"]) is list:
+            if isinstance(self._attr["column"], list):
                 title += ", ".join(self._attr["column"])
             else:
                 title += self._attr["column"]
@@ -196,9 +199,24 @@ class StaticPlot(AbstractDataPlotter):
                                        self._attr["map_label"].get(pivot, pivot))
         return title
 
-    def add_to_legend(self, series_index, line_2d, label):
-        self._attr["_legend_handles"][series_index] = line_2d
-        self._attr["_legend_labels"][series_index] = label
+    def add_to_legend(self, series_index, handle, constraint, pivot, concat):
+        """
+        Add series handles and names to the legend
+        A handle is returned from a plot on an axis
+        e.g. Line2D from axis.plot()
+        """
+        self._attr["_legend_handles"][series_index] = handle
+        legend_labels = self._attr["_legend_labels"]
+
+        if concat and pivot == AttrConf.PIVOT_VAL:
+            legend_labels[series_index] = self._attr["column"]
+        elif concat:
+            legend_labels[series_index] = "{0}: {1}".format(
+                self._attr["pivot"],
+                self._attr["map_label"].get(pivot, pivot)
+            )
+        else:
+            legend_labels[series_index] = str(constraint)
 
     def _resolve(self, permute=False):
         """Determine what data to plot"""
@@ -234,16 +252,15 @@ class StaticPlot(AbstractDataPlotter):
         figure_data = ddict(list)
         for i, (constraint, pivot) in enumerate(cp_pairs):
             axis = self._layout.get_axis(i)
-            title = self.make_title(constraint, pivot, permute)
-            figure_data[(axis, pivot)].append(constraint)
+            figure_data[axis].append((constraint, pivot))
 
         #Plot each axis
-        for (axis, pivot), series_list in figure_data.iteritems():
+        for axis, series_list in figure_data.iteritems():
             self.plot_axis(
                 axis,
-                pivot,
                 series_list,
                 permute,
+                self._attr["concat"],
                 args_to_forward=self._attr["args_to_forward"]
             )
 
@@ -254,82 +271,50 @@ class StaticPlot(AbstractDataPlotter):
 
     def _resolve_concat(self):
         """Plot all lines on a single figure"""
+        pivot_vals, len_pivots = self.c_mgr.generate_pivots(False)
+        pivot_vals = list(pivot_vals)
 
-        pivot_vals, len_pivots = self.c_mgr.generate_pivots()
-        self._cmap = ColorMap(len_pivots)
-
-        self._layout = PlotLayout(self._attr["per_line"], len(self.c_mgr),
-                                  width=self._attr["width"],
-                                  length=self._attr["length"],
-                                  title=self._attr['title'])
+        # Create a 2D Layout
+        self._layout = PlotLayout(
+            self._attr["per_line"],
+            len(self.c_mgr),
+            width=self._attr["width"],
+            length=self._attr["length"],
+            title=self._attr['title'])
 
         self._fig = self._layout.get_fig()
-        legend = [None] * len_pivots
-        legend_str = [""] * len_pivots
-        plot_index = 0
 
-        for constraint in self.c_mgr:
-            result = constraint.result
-            title = str(constraint)
-            result = constraint.result
-            pivot_index = 0
-            for pivot in pivot_vals:
+        #Determine what constraint to plot and the corresponding pivot value
+        legend_len = len_pivots
+        pivots = pivot_vals
+        cp_pairs = [(c, p) for c in self.c_mgr for p in pivots if p in c.result]
 
-                if pivot in result:
-                    axis = self._layout.get_axis(plot_index)
-                    line_2d_list = self.plot(
-                        pivot_index,
-                        axis,
-                        result[pivot].index,
-                        result[pivot].values,
-                        args_to_forward=self._attr["args_to_forward"])
+        #Initialise legend data and colormap
+        self._attr["_legend_handles"] = [None] * legend_len
+        self._attr["_legend_labels"] = [None] * legend_len
+        self._cmap = ColorMap(legend_len)
 
-                    if self._attr["xlim"] != None:
-                        axis.set_xlim(self._attr["xlim"])
-                    if self._attr["ylim"] != None:
-                        axis.set_ylim(self._attr["ylim"])
-                    legend[pivot_index] = line_2d_list[0]
+        #Group constraints/series with the axis they are to be plotted on
+        figure_data = ddict(list)
+        for i, (constraint, pivot) in enumerate(cp_pairs):
+            axis = self._layout.get_axis(constraint.trace_index)
+            figure_data[axis].append((constraint, pivot))
 
-                    if self._attr["fill"]:
-                        drawstyle = line_2d_list[0].get_drawstyle()
-                        if drawstyle.startswith("steps"):
-                            # This has been fixed in upstream matplotlib
-                            raise UserWarning("matplotlib does not support fill for step plots")
+        #Plot each axis
+        for axis, series_list in figure_data.iteritems():
+            self.plot_axis(
+                axis,
+                series_list,
+                False,
+                self._attr["concat"],
+                self._attr["args_to_forward"]
+            )
 
-                        xdat, ydat = line_2d_list[0].get_data(orig=False)
-                        axis.fill_between(
-                            xdat,
-                            axis.get_ylim()[0],
-                            ydat,
-                            facecolor=self._cmap.cmap(pivot_index),
-                            alpha=AttrConf.ALPHA)
-
-                    if pivot == AttrConf.PIVOT_VAL:
-                        legend_str[pivot_index] = self._attr["column"]
-                    else:
-                        legend_str[pivot_index] = "{0}: {1}".format(self._attr["pivot"],
-                                                                    self._attr["map_label"].get(pivot, pivot))
-                else:
-                    axis = self._layout.get_axis(plot_index)
-                    axis.plot(
-                        [],
-                        [],
-                        color=self._cmap.cmap(pivot_index),
-                        **self._attr["args_to_forward"])
-                pivot_index += 1
-            plot_index += 1
-
-        self._fig.legend(legend, legend_str)
-        plot_index = 0
-        for constraint in self.c_mgr:
-            self._layout.get_axis(plot_index).set_title(str(constraint))
-            plot_index += 1
+        #Add the legend to the figure
+        self._fig.legend(self._attr["_legend_handles"],
+                         self._attr["_legend_labels"])
         self._layout.finish(len(self.c_mgr))
 
-    @abstractmethod
-    def plot(self, axis, series_index, data_index, data_values, args_to_forward):
-        """Internal Method called to draw a series on an axis"""
-        raise NotImplementedError("Method Not Implemented")
-
-    def plot_axis(self, axis, pivot, series_list, permute, **kwargs):
+    def plot_axis(self, axis, series_list, permute, concat, args_to_forward):
+        """Internal Method called to plot data (series_list) on a given axis"""
         raise NotImplementedError("Method Not Implemented")
