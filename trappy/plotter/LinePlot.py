@@ -119,6 +119,7 @@ class LinePlot(StaticPlot):
         """Sets the default attrs"""
         super(LinePlot, self).set_defaults()
         self._attr["scatter"] = AttrConf.PLOT_SCATTER
+        self._attr["fill"] = AttrConf.FILL
 
     def _check_add_scatter(self):
         """Check if a scatter plot is needed

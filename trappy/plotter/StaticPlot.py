@@ -149,7 +149,6 @@ class StaticPlot(AbstractDataPlotter):
         self._attr["length"] = AttrConf.LENGTH
         self._attr["per_line"] = AttrConf.PER_LINE
         self._attr["concat"] = AttrConf.CONCAT
-        self._attr["fill"] = AttrConf.FILL
         self._attr["filters"] = {}
         self._attr["style"] = True
         self._attr["permute"] = False
