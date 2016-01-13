@@ -168,18 +168,12 @@ class StaticPlot(AbstractDataPlotter):
             self._attr["style"] = True
             AttrConf.MPL_STYLE["interactive"] = False
 
-        if self._attr["concat"]:
-            if self._attr["style"]:
-                with plt.rc_context(AttrConf.MPL_STYLE):
-                    self._resolve_concat()
-            else:
-                self._resolve_concat()
+        permute = self._attr["permute"] and not self._attr["concat"]
+        if self._attr["style"]:
+            with plt.rc_context(AttrConf.MPL_STYLE):
+                self._resolve(permute, self._attr["concat"])
         else:
-            if self._attr["style"]:
-                with plt.rc_context(AttrConf.MPL_STYLE):
-                    self._resolve(self._attr["permute"])
-            else:
-                self._resolve(self._attr["permute"])
+            self._resolve(permute, self._attr["concat"])
 
     def make_title(self, constraint, pivot, permute, concat):
         """Generates a title string for an axis"""
@@ -218,15 +212,17 @@ class StaticPlot(AbstractDataPlotter):
         else:
             legend_labels[series_index] = str(constraint)
 
-    def _resolve(self, permute=False):
-        """Determine what data to plot"""
+    def _resolve(self, permute, concat):
+        """Determine what data to plot on which axis"""
         pivot_vals, len_pivots = self.c_mgr.generate_pivots(permute)
         pivot_vals = list(pivot_vals)
+
+        num_of_axes = len(self.c_mgr) if concat else len_pivots
 
         # Create a 2D Layout
         self._layout = PlotLayout(
             self._attr["per_line"],
-            len_pivots,
+            num_of_axes,
             width=self._attr["width"],
             length=self._attr["length"],
             title=self._attr['title'])
@@ -239,7 +235,7 @@ class StaticPlot(AbstractDataPlotter):
             pivots = [y for _, y in pivot_vals]
             cp_pairs = [(c, p) for c in self.c_mgr for p in sorted(set(pivots))]
         else:
-            legend_len = len(self.c_mgr)
+            legend_len = len_pivots if concat else len(self.c_mgr)
             pivots = pivot_vals
             cp_pairs = [(c, p) for c in self.c_mgr for p in pivots if p in c.result]
 
@@ -251,7 +247,7 @@ class StaticPlot(AbstractDataPlotter):
         #Group constraints/series with the axis they are to be plotted on
         figure_data = ddict(list)
         for i, (constraint, pivot) in enumerate(cp_pairs):
-            axis = self._layout.get_axis(i)
+            axis = self._layout.get_axis(constraint.trace_index if concat else i)
             figure_data[axis].append((constraint, pivot))
 
         #Plot each axis
@@ -261,59 +257,14 @@ class StaticPlot(AbstractDataPlotter):
                 series_list,
                 permute,
                 self._attr["concat"],
-                args_to_forward=self._attr["args_to_forward"]
-            )
-
-        #Add the legend to the figure
-        self._fig.legend(self._attr["_legend_handles"],
-                         self._attr["_legend_labels"])
-        self._layout.finish(len_pivots)
-
-    def _resolve_concat(self):
-        """Plot all lines on a single figure"""
-        pivot_vals, len_pivots = self.c_mgr.generate_pivots(False)
-        pivot_vals = list(pivot_vals)
-
-        # Create a 2D Layout
-        self._layout = PlotLayout(
-            self._attr["per_line"],
-            len(self.c_mgr),
-            width=self._attr["width"],
-            length=self._attr["length"],
-            title=self._attr['title'])
-
-        self._fig = self._layout.get_fig()
-
-        #Determine what constraint to plot and the corresponding pivot value
-        legend_len = len_pivots
-        pivots = pivot_vals
-        cp_pairs = [(c, p) for c in self.c_mgr for p in pivots if p in c.result]
-
-        #Initialise legend data and colormap
-        self._attr["_legend_handles"] = [None] * legend_len
-        self._attr["_legend_labels"] = [None] * legend_len
-        self._cmap = ColorMap(legend_len)
-
-        #Group constraints/series with the axis they are to be plotted on
-        figure_data = ddict(list)
-        for i, (constraint, pivot) in enumerate(cp_pairs):
-            axis = self._layout.get_axis(constraint.trace_index)
-            figure_data[axis].append((constraint, pivot))
-
-        #Plot each axis
-        for axis, series_list in figure_data.iteritems():
-            self.plot_axis(
-                axis,
-                series_list,
-                False,
-                self._attr["concat"],
                 self._attr["args_to_forward"]
             )
 
         #Add the legend to the figure
         self._fig.legend(self._attr["_legend_handles"],
                          self._attr["_legend_labels"])
-        self._layout.finish(len(self.c_mgr))
+
+        self._layout.finish(num_of_axes)
 
     def plot_axis(self, axis, series_list, permute, concat, args_to_forward):
         """Internal Method called to plot data (series_list) on a given axis"""
