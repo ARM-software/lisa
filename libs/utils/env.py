@@ -415,8 +415,16 @@ class TestEnv(ShareState):
                 self.platform['clusters'][node_id] = []
             self.platform['clusters'][node_id].append(cpu_id)
 
-        # TODO: get the supported frequencies for each cluster and/or
-        # performance boundaries in case of intel_pstate driver
+        if 'cpufreq' in self.target.modules:
+            # Try loading frequencies using the cpufreq module
+            for cluster_id in self.platform['clusters']:
+                core_id = self.platform['clusters'][cluster_id][0]
+                self.platform['freqs'][cluster_id] = \
+                    self.target.cpufreq.list_frequencies(core_id)
+        else:
+            logging.warn('%14s - Unable to identify cluster frequencies')
+
+        # TODO: get the performance boundaries in case of intel_pstate driver
 
         self.platform['cpus_count'] = len(self.target.core_clusters)
 
