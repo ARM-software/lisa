@@ -456,9 +456,10 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
 
     def get_pids_of(self, process_name):
         """Returns a list of PIDs of all processes with the specified name."""
-        result = self.execute('ps {}'.format(process_name[-15:]), check_exit_code=False).strip()
+        result = self.execute('ps | {} grep {}'.format(self.busybox, process_name),
+                              check_exit_code=False).strip()
         if result and 'not found' not in result:
-            return [int(x.split()[1]) for x in result.split('\n')[1:]]
+            return [int(x.split()[1]) for x in result.split('\n')]
         else:
             return []
 
