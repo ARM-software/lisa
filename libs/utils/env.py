@@ -199,14 +199,23 @@ class TestEnv(ShareState):
 
         # Initialize target Topology for behavior analysis
         CLUSTERS = []
-        if self.target.abi == 'arm64' or self.target.abi == 'armeabi':
-            CLUSTERS.append(
-                [i for i,t in enumerate(self.target.core_names)
-                            if t == self.target.little_core])
-            CLUSTERS.append(
-                [i for i,t in enumerate(self.target.core_names)
-                            if t == self.target.big_core])
-        elif self.target.abi == 'x86_64':
+
+        # Build topology for a big.LITTLE systems
+        if self.target.big_core and \
+           self.target.abi == 'arm64' or self.target.abi == 'armeabi':
+            # Populate cluster for a big.LITTLE platform
+            if self.target.big_core:
+                # Load cluster of LITTLE cores
+                CLUSTERS.append(
+                    [i for i,t in enumerate(self.target.core_names)
+                                if t == self.target.little_core])
+                # Load cluster of big cores
+                CLUSTERS.append(
+                    [i for i,t in enumerate(self.target.core_names)
+                                if t == self.target.big_core])
+        # Build topology for an SMP systems
+        elif not self.target.big_core or \
+             self.target.abi == 'x86_64':
             for c in set(self.target.core_clusters):
                 CLUSTERS.append(
                     [i for i,v in enumerate(self.target.core_clusters)
