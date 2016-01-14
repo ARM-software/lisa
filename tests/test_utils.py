@@ -17,6 +17,7 @@
 import unittest
 from trappy import utils
 import pandas
+from pandas.util.testing import assert_series_equal
 
 
 class TestUtils(unittest.TestCase):
@@ -34,5 +35,11 @@ class TestUtils(unittest.TestCase):
         with self.assertRaises(ValueError):
             series.reindex(new_index)
 
-        series = utils.handle_duplicate_index(series)
+        max_delta = 0.001
+        expected_index = [0.0, 1.0, 1 + max_delta, 6.0, 7.0]
+        expected_series = pandas.Series(values, index=expected_index)
+        series = utils.handle_duplicate_index(series, max_delta)
+        assert_series_equal(series, expected_series)
+
+        # Make sure that the reindex doesn't raise ValueError any more
         series.reindex(new_index)
