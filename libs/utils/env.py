@@ -484,7 +484,9 @@ class TestEnv(ShareState):
             logging.info('Calibrating RTApp...')
             self._calib = RTA.calibrate(self.target)
 
-        logging.info('Using RT-App calibration values: %s', self._calib)
+        logging.info('Using RT-App calibration values: %s',
+                "{" + ", ".join('"%r": %r' % (key, self._calib[key])
+                                for key in sorted(self._calib)) + "}")
         return self._calib
 
     def resolv_host(self, host=None):

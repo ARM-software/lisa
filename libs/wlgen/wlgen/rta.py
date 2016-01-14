@@ -99,7 +99,8 @@ class RTA(Workload):
         # target.cpufreq.load_governors()
 
         logging.info('Target RT-App calibration:')
-        logging.info('%s', pload)
+        logging.info('%s',
+                "{" + ", ".join('"%r": %r' % (key, pload[key]) for key in pload) + "}")
 
         return pload
 
