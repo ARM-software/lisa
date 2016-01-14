@@ -11,7 +11,7 @@ interesting of these are
             can be benchmarks, high-level use cases, or pretty much anything else.
 :devices: These are interfaces to the physical devices (development boards or end-user
           devices, such as smartphones) that use cases run on. Typically each model of a
-          physical device would require it's own interface class (though some functionality
+          physical device would require its own interface class (though some functionality
           may be reused by subclassing from an existing base).
 :instruments: Instruments allow collecting additional data from workload execution (e.g.
               system traces). Instruments are not specific to a particular Workload. Instruments

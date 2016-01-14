@@ -64,7 +64,7 @@ you might want to change are outlined below.
    advanced WA functionality (like setting of core-related runtime parameters
    such as governors, frequencies, etc). ``core_names`` should be a list of
    core names matching the order in which they are exposed in sysfs. For
-   example, ARM TC2 SoC is a 2x3 big.LITTLE system; it's core_names would be
+   example, ARM TC2 SoC is a 2x3 big.LITTLE system; its core_names would be
    ``['a7', 'a7', 'a7', 'a15', 'a15']``, indicating that cpu0-cpu2 in cpufreq
    sysfs structure are A7's and cpu3 and cpu4 are A15's.
 

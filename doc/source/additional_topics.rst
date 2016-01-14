@@ -6,10 +6,10 @@ Modules
 
 Modules are essentially plug-ins for Extensions. They provide a way of defining 
 common and reusable functionality. An Extension can load zero or more modules
-during it's creation. Loaded modules will then add their capabilities (see
+during its creation. Loaded modules will then add their capabilities (see
 Capabilities_) to those of the Extension. When calling code tries to access an
 attribute of an Extension the Extension doesn't have, it will try to find the
-attribute among it's loaded modules and will return that instead. 
+attribute among its loaded modules and will return that instead.
 
 .. note:: Modules are themselves extensions, and can therefore load their own
           modules. *Do not* abuse this.
