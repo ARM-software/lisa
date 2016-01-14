@@ -14,8 +14,10 @@
 #
 
 from bart.common import Utils
+from bart.common.Analyzer import Analyzer
 import unittest
 import pandas as pd
+import trappy
 
 
 class TestCommonUtils(unittest.TestCase):
@@ -96,3 +98,18 @@ class TestCommonUtils(unittest.TestCase):
                 method="rect",
                 step="pre"),
             0)
+
+
+class TestAnalyzer(unittest.TestCase):
+
+    def test_assert_statement_bool(self):
+        """Check that asssertStatement() works with a simple boolean case"""
+
+        rolls_dfr = pd.DataFrame({"results": [1, 3, 2, 6, 2, 4]})
+        trace = trappy.BareTrace()
+        trace.add_parsed_event("dice_rolls", rolls_dfr)
+        config = {"MAX_DICE_NUMBER": 6}
+
+        t = Analyzer(trace, config)
+        statement = "numpy.max(dice_rolls:results) <= MAX_DICE_NUMBER"
+        self.assertTrue(t.assertStatement(statement, select=0))
