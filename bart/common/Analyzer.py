@@ -22,6 +22,7 @@ implemented yet.
 from trappy.stats.grammar import Parser
 import warnings
 import numpy as np
+import pandas as pd
 
 # pylint: disable=invalid-name
 
@@ -56,12 +57,12 @@ class Analyzer(object):
 
         result = self.getStatement(statement, select=select)
 
-        # pylint: disable=no-member
-        if not (isinstance(result, bool) or isinstance(result, np.bool_)):
-            warnings.warn(
-                "solution of {} is not an instance of bool".format(statement))
+        if isinstance(result, pd.DataFrame):
+            result = result.all().all()
+        elif not(isinstance(result, bool) or isinstance(result, np.bool_)): # pylint: disable=no-member
+            warnings.warn("solution of {} is not boolean".format(statement))
+
         return result
-        # pylint: enable=no-member
 
     def getStatement(self, statement, reference=False, select=None):
         """Evaluate the statement"""

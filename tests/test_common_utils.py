@@ -113,3 +113,18 @@ class TestAnalyzer(unittest.TestCase):
         t = Analyzer(trace, config)
         statement = "numpy.max(dice_rolls:results) <= MAX_DICE_NUMBER"
         self.assertTrue(t.assertStatement(statement, select=0))
+
+    def test_assert_statement_dataframe(self):
+        """assertStatement() works if the generated statement creates a pandas.DataFrame of bools"""
+
+        rolls_dfr = pd.DataFrame({"results": [1, 3, 2, 6, 2, 4]})
+        trace = trappy.BareTrace()
+        trace.add_parsed_event("dice_rolls", rolls_dfr)
+        config = {"MIN_DICE_NUMBER": 1, "MAX_DICE_NUMBER": 6}
+        t = Analyzer(trace, config)
+
+        statement = "(dice_rolls:results <= MAX_DICE_NUMBER) & (dice_rolls:results >= MIN_DICE_NUMBER)"
+        self.assertTrue(t.assertStatement(statement))
+
+        statement = "dice_rolls:results == 3"
+        self.assertFalse(t.assertStatement(statement))
