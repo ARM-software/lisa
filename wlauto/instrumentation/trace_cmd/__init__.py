@@ -164,11 +164,12 @@ class TraceCmdInstrument(Instrument):
             raise InstrumentError('trace-cmd instrument cannot be used on an unrooted device.')
         if not self.no_install:
             host_file = context.resolver.get(Executable(self, self.device.abi, 'trace-cmd'))
-            self.trace_cmd = self.device.install_executable(host_file)
+            self.trace_cmd = self.device.install(host_file)
         else:
-            if not self.device.is_installed('trace-cmd'):
+            self.trace_cmd = self.device.get_binary_path("trace-cmd")
+            if not self.trace_cmd:
                 raise ConfigError('No trace-cmd found on device and no_install=True is specified.')
-            self.trace_cmd = 'trace-cmd'
+
         # Register ourselves as absolute last event before and
         #   first after so we can mark the trace at the right time
         signal.connect(self.insert_start_mark, signal.BEFORE_WORKLOAD_EXECUTION, priority=11)

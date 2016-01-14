@@ -61,11 +61,8 @@ class Hackbench(Workload):
         self.run_timeout = self.duration + timeout_buf
 
         self.binary_name = 'hackbench'
-        if not self.device.is_installed(self.binary_name):
-            host_binary = context.resolver.get(Executable(self, self.device.abi, self.binary_name))
-            self.device_binary = self.device.install(host_binary)
-        else:
-            self.device_binary = self.binary_name
+        host_binary = context.resolver.get(Executable(self, self.device.abi, self.binary_name))
+        self.device_binary = self.device.install(host_binary)
 
         self.command = self.command.format(self.device_binary, self.datasize, self.groups,
                                            self.loops, self.extra_params, self.hackbench_result)

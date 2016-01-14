@@ -89,6 +89,8 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
                   These paths do not have to exist and will be ignored if the path is not present on a
                   particular device.
                   '''),
+        Parameter('binaries_directory',
+                  description='Location of executable binaries on this device (must be in PATH).'),
 
     ]
 
@@ -183,11 +185,14 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
 
     def initialize(self, context):
         self.execute('mkdir -p {}'.format(self.working_directory))
-        if self.is_rooted:
-            if not self.is_installed('busybox'):
-                self.busybox = self.deploy_busybox(context)
-            else:
-                self.busybox = 'busybox'
+        if not self.binaries_directory:
+            self._set_binaries_dir()
+        self.execute('mkdir -p {}'.format(self.binaries_directory))
+        self.busybox = self.deploy_busybox(context)
+
+    def _set_binaries_dir(self):
+        # pylint: disable=attribute-defined-outside-init
+        self.binaries_directory = self.path.join(self.working_directory, "bin")
 
     def is_file(self, filepath):
         output = self.execute('if [ -f \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
@@ -281,7 +286,6 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         Deploys the busybox binary to the specified device and returns
         the path to the binary on the device.
 
-        :param device: device to deploy the binary to.
         :param context: an instance of ExecutionContext
         :param force: by default, if the binary is already present on the
                     device, it will not be deployed again. Setting force
@@ -291,11 +295,61 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
         :returns: The on-device path to the busybox binary.
 
         """
-        on_device_executable = self.path.join(self.binaries_directory, 'busybox')
-        if not force and self.file_exists(on_device_executable):
-            return on_device_executable
-        host_file = context.resolver.get(Executable(NO_ONE, self.abi, 'busybox'))
-        return self.install(host_file)
+        on_device_executable = self.get_binary_path("busybox", search_system_binaries=False)
+        if force or not on_device_executable:
+            host_file = context.resolver.get(Executable(NO_ONE, self.abi, 'busybox'))
+            return self.install(host_file)
+        return on_device_executable
+
+    def is_installed(self, name):  # pylint: disable=unused-argument,no-self-use
+        raise AttributeError("""Instead of using is_installed, please use
+            ``get_binary_path`` or ``install_if_needed`` instead. You should
+            use the path returned by these functions to then invoke the binary
+
+            please see: https://pythonhosted.org/wlauto/writing_extensions.html""")
+
+    def get_binary_path(self, name, search_system_binaries=True):
+        """
+        Searches the devices ``binary_directory`` for the given binary,
+        if it cant find it there it tries using which to find it.
+
+        :param name: The name of the binary
+        :param search_system_binaries: By default this function will try using
+                                       which to find the binary if it isn't in
+                                       ``binary_directory``. When this is set
+                                       to ``False`` it will not try this.
+
+        :returns: The on-device path to the binary.
+
+        """
+        wa_binary = self.path.join(self.binaries_directory, name)
+        if self.file_exists(wa_binary):
+            return wa_binary
+        if search_system_binaries:
+            try:
+                return self.execute('{} which {}'.format(self.busybox, name)).strip()
+            except DeviceError:
+                pass
+        return None
+
+    def install_if_needed(self, host_path, search_system_binaries=True):
+        """
+        Similar to get_binary_path but will install the binary if not found.
+
+        :param host_path: The path to the binary on the host
+        :param search_system_binaries: By default this function will try using
+                                       which to find the binary if it isn't in
+                                       ``binary_directory``. When this is set
+                                       to ``False`` it will not try this.
+
+        :returns: The on-device path to the binary.
+
+        """
+        binary_path = self.get_binary_path(os.path.split(host_path)[1],
+                                           search_system_binaries=search_system_binaries)
+        if not binary_path:
+            binary_path = self.install(host_path)
+        return binary_path
 
     def list_file_systems(self):
         output = self.execute('mount')
@@ -527,8 +581,6 @@ class LinuxDevice(BaseLinuxDevice):
                   has write permissions. This will default to /home/<username>/wa (or to /root/wa, if
                   username is 'root').
                   '''),
-        Parameter('binaries_directory', default='/usr/local/bin',
-                  description='Location of executable binaries on this device (must be in PATH).'),
     ]
 
     @property
@@ -554,7 +606,6 @@ class LinuxDevice(BaseLinuxDevice):
     def __init__(self, *args, **kwargs):
         super(LinuxDevice, self).__init__(*args, **kwargs)
         self.shell = None
-        self.local_binaries_directory = None
         self._is_rooted = None
 
     def validate(self):
@@ -563,12 +614,9 @@ class LinuxDevice(BaseLinuxDevice):
                 self.working_directory = '/root/wa'  # pylint: disable=attribute-defined-outside-init
             else:
                 self.working_directory = '/home/{}/wa'.format(self.username)  # pylint: disable=attribute-defined-outside-init
-        self.local_binaries_directory = self.path.join(self.working_directory, 'bin')
 
     def initialize(self, context, *args, **kwargs):
-        self.execute('mkdir -p {}'.format(self.local_binaries_directory))
         self.execute('mkdir -p {}'.format(self.binaries_directory))
-        self.execute('export PATH={}:$PATH'.format(self.local_binaries_directory))
         self.execute('export PATH={}:$PATH'.format(self.binaries_directory))
         super(LinuxDevice, self).initialize(context, *args, **kwargs)
 
@@ -747,36 +795,21 @@ class LinuxDevice(BaseLinuxDevice):
         return [x.strip() for x in contents.split('\n')]  # pylint: disable=maybe-no-member
 
     def install(self, filepath, timeout=default_timeout, with_name=None):  # pylint: disable=W0221
-        if self.is_rooted:
-            destpath = self.path.join(self.binaries_directory,
-                                      with_name and with_name or self.path.basename(filepath))
-            self.push_file(filepath, destpath, as_root=True)
-            self.execute('chmod a+x {}'.format(destpath), timeout=timeout, as_root=True)
-        else:
-            destpath = self.path.join(self.local_binaries_directory,
-                                      with_name and with_name or self.path.basename(filepath))
-            self.push_file(filepath, destpath)
-            self.execute('chmod a+x {}'.format(destpath), timeout=timeout)
+        destpath = self.path.join(self.binaries_directory,
+                                  with_name or self.path.basename(filepath))
+        self.push_file(filepath, destpath, as_root=True)
+        self.execute('chmod a+x {}'.format(destpath), timeout=timeout, as_root=True)
         return destpath
 
     install_executable = install  # compatibility
 
-    def uninstall(self, name):
-        if self.is_rooted:
-            path = self.path.join(self.binaries_directory, name)
-            self.delete_file(path, as_root=True)
-        else:
-            path = self.path.join(self.local_binaries_directory, name)
-            self.delete_file(path)
+    def uninstall(self, executable_name):
+        on_device_executable = self.get_binary_path(executable_name, search_system_binaries=False)
+        if not on_device_executable:
+            raise DeviceError("Could not uninstall {}, binary not found".format(on_device_executable))
+        self.delete_file(on_device_executable, as_root=self.is_rooted)
 
     uninstall_executable = uninstall  # compatibility
-
-    def is_installed(self, name):
-        try:
-            self.execute('which {}'.format(name))
-            return True
-        except DeviceError:
-            return False
 
     # misc
 
@@ -788,7 +821,7 @@ class LinuxDevice(BaseLinuxDevice):
             raise DeviceNotRespondingError(self.host)
 
     def capture_screen(self, filepath):
-        if not self.is_installed('scrot'):
+        if not self.get_binary_path('scrot'):
             self.logger.debug('Could not take screenshot as scrot is not installed.')
             return
         try:

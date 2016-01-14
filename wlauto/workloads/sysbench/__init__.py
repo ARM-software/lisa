@@ -132,13 +132,13 @@ class Sysbench(Workload):
         self.device.delete_file(self.results_file)
 
     def _check_executable(self):
-        self.on_device_binary = self.device.path.join(self.device.binaries_directory, 'sysbench')
-        if self.device.is_installed('sysbench') and not self.force_install:
-            self.logger.debug('sysbench found on device')
-            return
-        if not self.on_host_binary:
+        self.on_device_binary = self.device.get_binary_path("sysbench")
+        if not self.on_device_binary and not self.on_host_binary:
             raise WorkloadError('sysbench binary is not installed on the device, and it is not found on the host.')
-        self.device.install(self.on_host_binary)
+        if self.force_install:
+            self.device.install(self.on_host_binary)
+        else:
+            self.device.install_if_needed(self.on_host_binary)
 
     def _build_command(self, **parameters):
         param_strings = ['--{}={}'.format(k.replace('_', '-'), v)

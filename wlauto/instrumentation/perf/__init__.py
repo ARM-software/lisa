@@ -91,11 +91,11 @@ class PerfInstrument(Instrument):
     ]
 
     def on_run_init(self, context):
-        if not self.device.is_installed('perf') or self.force_install:
-            binary = context.resolver.get(Executable(self, self.device.abi, 'perf'))
+        binary = context.resolver.get(Executable(self, self.device.abi, 'perf'))
+        if self.force_install:
             self.binary = self.device.install(binary)
         else:
-            self.binary = 'perf'
+            self.binary = self.device.install_if_needed(binary)
         self.commands = self._build_commands()
 
     def setup(self, context):
