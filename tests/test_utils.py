@@ -43,3 +43,17 @@ class TestUtils(unittest.TestCase):
 
         # Make sure that the reindex doesn't raise ValueError any more
         series.reindex(new_index)
+
+    def test_handle_duplicate_index_duplicate_end(self):
+        """handle_duplicate_index copes with duplicates at the end of the series"""
+
+        max_delta = 0.001
+        values = [0, 1, 2, 3, 4]
+        index = [0.0, 1.0, 2.0, 6.0, 6.0]
+        expected_index = index[:]
+        expected_index[-1] += max_delta
+        series = pandas.Series(values, index=index)
+        expected_series = pandas.Series(values, index=expected_index)
+
+        series = utils.handle_duplicate_index(series, max_delta)
+        assert_series_equal(series, expected_series)
