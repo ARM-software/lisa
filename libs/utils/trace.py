@@ -309,7 +309,10 @@ class Trace(object):
 
     def _sanitize_SchedBoostTask(self):
         df = self.df('tboost')
-        df['boosted_utilization'] = df['utilization'] + df['margin']
+        if 'utilization' in df:
+            # Convert signals name from to v5.1 format
+            df.rename(columns={'utilization':'util'}, inplace=True)
+        df['boosted_util'] = df['util'] + df['margin']
 
     def _sanitize_SchedEnergyDiff(self):
         if 'nrg_model' not in self.platform:

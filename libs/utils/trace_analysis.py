@@ -283,7 +283,7 @@ class TraceAnalysis(object):
             # Plot boost utilization if available
             if self.trace.hasEvents('sched_boost_task'):
                 df2 = self.trace.trace_data['tboost']
-                data = df2[df2.comm == task_name][['boosted_utilization']]
+                data = df2[df2.comm == task_name][['boosted_util']]
                 if len(data):
                     data.plot(ax=axes, style=['y-'], drawstyle='steps-post');
             axes.set_ylim(0, 1100);
