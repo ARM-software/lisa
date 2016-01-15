@@ -15,12 +15,14 @@
 # limitations under the License.
 #
 
+from bart.common.Analyzer import Analyzer
 import collections
 import datetime
 import json
 import os
 import re
 import time
+import trappy
 
 # Configure logging
 import logging
@@ -559,6 +561,52 @@ class STune(TestBase):
     @classmethod
     def setUpClass(cls):
         super(STune, cls).setUpTest('rfc_stune.config')
+
+    def test_boosted_utilization_signal(self):
+        """The boosted utilization signal is appropriately boosted
+
+        The margin should match the formula
+        (sched_load_scale - utilization) * boost"""
+
+        for tc in self.conf["confs"]:
+            test_id = tc["tag"]
+
+            wload_idx = self.conf["wloads"].keys()[0]
+            run_dir = os.path.join(self.env.res_dir,
+                                   "rtapp:{}:{}".format(test_id, wload_idx),
+                                   "1")
+
+            ftrace_events = ["sched_boost_task"]
+            ftrace = trappy.FTrace(run_dir, scope="custom",
+                                   events=ftrace_events)
+
+            first_task_params = self.conf["wloads"][wload_idx]["conf"]["params"]
+            first_task_name = first_task_params.keys()[0]
+            rta_task_name = "task_{}".format(first_task_name)
+
+            sbt_dfr = ftrace.sched_boost_task.data_frame
+            boost_task_rtapp = sbt_dfr[sbt_dfr.comm == rta_task_name]
+
+            # Avoid the first period as the task starts with a very
+            # high load and it overutilizes the CPU
+            rtapp_period = first_task_params[first_task_name]["params"]["period_ms"]
+            task_start = boost_task_rtapp.index[0]
+            after_first_period = task_start + rtapp_period
+            boost_task_rtapp = boost_task_rtapp.ix[after_first_period:]
+
+            sched_load_scale = 1024
+            boost = tc["cgroups"]["conf"]["schedtune"]["/stune"]["boost"] / 100.
+            utilization = boost_task_rtapp["utilization"]
+            expected_margin = (sched_load_scale - utilization) * boost
+            expected_margin = expected_margin.astype(int)
+            boost_task_rtapp["expected_margin"] = expected_margin
+            ftrace.add_parsed_event("boost_task_rtapp", boost_task_rtapp)
+
+            analyzer = Analyzer(ftrace, {})
+            statement = "boost_task_rtapp:margin == boost_task_rtapp:expected_margin"
+            error_msg = "task was not boosted to the expected margin: {}".\
+                        format(boost)
+            self.assertTrue(analyzer.assertStatement(statement), msg=error_msg)
 
 
 ################################################################################
