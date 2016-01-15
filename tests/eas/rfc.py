@@ -90,16 +90,15 @@ class TestBase(unittest.TestCase):
         # Run all the configured experiments
         exp_idx = 1
         for tc in cls.conf['confs']:
-            tc_idx = tc['tag']
             # TARGET: configuration
             if not cls.target_configure(tc):
                 continue
             for wl_idx in cls.conf['wloads']:
                 # TEST: configuration
-                wload = cls.wload_init(tc_idx, wl_idx)
+                wload = cls.wload_init(tc, wl_idx)
                 for itr_idx in range(1, cls.conf['iterations']+1):
                     # WORKLOAD: execution
-                    cls.wload_run(exp_idx, tc_idx, wl_idx, wload, itr_idx)
+                    cls.wload_run(exp_idx, tc, wl_idx, wload, itr_idx)
                     exp_idx += 1
 
         cls.print_section('Main', 'Experiments post-processing')
@@ -317,6 +316,16 @@ class TestBase(unittest.TestCase):
         cls.setup_cpufreq(tc)
         return cls.setup_cgroups(tc)
 
+    @classmethod
+    def target_conf_flag(cls, tc, flag):
+        if 'flags' not in tc:
+            has_flag = False
+        else:
+            has_flag = flag in tc['flags']
+        logging.debug('%14s - Check if target conf [%s] has flag [%s]: %s',
+                'TargetConf', tc['tag'], flag, has_flag)
+        return has_flag
+
     # def cleanup(cls):
     #     target.execute('umount ' + wl_logs, as_root=True)
     #     target.execute('rmdir ' + wl_logs, as_root=True)
@@ -467,7 +476,8 @@ class TestBase(unittest.TestCase):
                 .format(wl_idx))
 
     @classmethod
-    def wload_init(cls, tc_idx, wl_idx):
+    def wload_init(cls, tc, wl_idx):
+        tc_idx = tc['tag']
 
         # Configure the test workload
         wlspec = cls.conf['wloads'][wl_idx]
@@ -482,7 +492,8 @@ class TestBase(unittest.TestCase):
         return wload
 
     @classmethod
-    def wload_run(cls, exp_idx, tc_idx, wl_idx, wload, run_idx):
+    def wload_run(cls, exp_idx, tc, wl_idx, wload, run_idx):
+        tc_idx = tc['tag']
 
         cls.print_title('MultiRun', 'Experiment {}/{}, [{}:{}] {}/{}'\
                 .format(exp_idx, cls.exp_count,
@@ -493,7 +504,7 @@ class TestBase(unittest.TestCase):
         cls.wload_run_init(run_idx)
 
         # FTRACE: start (if a configuration has been provided)
-        if cls.env.ftrace:
+        if cls.env.ftrace and cls.target_conf_flag(tc, 'ftrace'):
             logging.warning('%14s - Starting FTrace', 'MultiRun')
             cls.env.ftrace.start()
 
@@ -507,7 +518,7 @@ class TestBase(unittest.TestCase):
         cls.env.emeter.report(cls.env.out_dir)
 
         # FTRACE: stop and collect measurements
-        if cls.env.ftrace:
+        if cls.env.ftrace and cls.target_conf_flag(tc, 'ftrace'):
             cls.env.ftrace.stop()
             cls.env.ftrace.get_trace(cls.env.out_dir + '/trace.dat')
 
