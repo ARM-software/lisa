@@ -77,6 +77,10 @@ class ApplaunchWorkload(Workload):
                   .. note:: This depends on appropriate sensors to be exposed through HWMON.
 
                   """),
+        Parameter('io_stress', kind=boolean, default=False,
+                  description='Specifies whether to stress IO during App launch.'),
+        Parameter('io_scheduler', allowed_values=['noop', 'deadline', 'row', 'cfq', 'bfq'],
+                  description='Set the IO scheduler to test on the device.'),
         Parameter('cleanup', kind=boolean, default=True,
                   description='Specifies whether to clean up temporary files on the device.'),
     ]
@@ -106,6 +110,8 @@ class ApplaunchWorkload(Workload):
             wfh.write(template.render(device=self.device,  # pylint: disable=maybe-no-member
                                       sensors=self.sensors,
                                       iterations=self.times,
+                                      io_stress=self.io_stress,
+                                      io_scheduler=self.io_scheduler,
                                       cleanup=self.cleanup,
                                       package=APP_CONFIG[self.app]['package'],
                                       activity=APP_CONFIG[self.app]['activity'],
@@ -117,11 +123,20 @@ class ApplaunchWorkload(Workload):
         self.device.clear_logcat()
 
     def run(self, context):
-        self.device.execute('sh {}'.format(self.device_script_file), timeout=300)
+        self.device.execute('sh {}'.format(self.device_script_file), timeout=300, as_root=self.io_stress)
 
     def update_result(self, context):
         result_files = ['time.result']
         result_files += ['{}.result'.format(sensor.label) for sensor in self.sensors]
+        metric_suffix = ''
+        if self.io_stress:
+            host_scheduler_file = os.path.join(context.output_directory, 'scheduler')
+            device_scheduler_file = '/sys/block/mmcblk0/queue/scheduler'
+            self.device.pull_file(device_scheduler_file, host_scheduler_file)
+            with open(host_scheduler_file) as fh:
+                scheduler = fh.read()
+                scheduler_used = scheduler[scheduler.index("[") + 1:scheduler.index("]")]
+                metric_suffix = '_' + scheduler_used
         for filename in result_files:
             host_result_file = os.path.join(context.output_directory, filename)
             device_result_file = self.device.path.join(self.device.working_directory, filename)
@@ -130,7 +145,7 @@ class ApplaunchWorkload(Workload):
             with open(host_result_file) as fh:
                 if filename == 'time.result':
                     values = [v / 1000 for v in map(int, fh.read().split())]
-                    _add_metric(context, 'time', values, 'Seconds')
+                    _add_metric(context, 'time' + metric_suffix, values, 'Seconds')
                 else:
                     metric = filename.replace('.result', '').lower()
                     numbers = iter(map(int, fh.read().split()))
@@ -168,4 +183,3 @@ def _add_metric(context, metric, values, units):
     mean, sd = get_meansd(values)
     context.result.add_metric(metric, mean, units)
     context.result.add_metric(metric + ' sd', sd, units, lower_is_better=True)
-
