@@ -38,11 +38,25 @@ $STOP_COMMAND
 $LAUNCH_COMMAND
 $STOP_COMMAND
 
+{% if io_scheduler != None %}
+echo {{ io_scheduler }} > /sys/block/mmcblk0/queue/scheduler
+{% endif %}
+
 for i in $(busybox seq 1 {{ iterations }})
 do
     {% for sensor in sensors %}
     {{ sensor.label }}="${{ sensor.label }} `$GET_{{ sensor.label }}`"
     {% endfor %}
+
+    {% if io_stress %}
+    # Drop caches to get a cold start.
+    sync; echo 3 > /proc/sys/vm/drop_caches
+    # Run IO stress during App launch.
+    busybox dd if=/dev/zero of=write.img bs=1048576 count=2000 conv=fsync > dd_write.txt 2>&1 &
+    io_write=$!
+    busybox dd if=/dev/block/mmcblk0 of=/dev/null bs=1048576 > dd_read.txt 2>&1 &
+    io_read=$!
+    {% endif %}
 
     $LAUNCH_COMMAND > $TEMP_FILE
     
@@ -54,6 +68,11 @@ do
     TIME_RESULT="$TIME_RESULT $TIME"
     {% if cleanup %}
     rm $TEMP_FILE
+    {% if io_stress %}
+    kill $io_write
+    kill $io_read
+    rm -f write.img
+    {% endif %}
     {% endif %}
 
     $STOP_COMMAND
