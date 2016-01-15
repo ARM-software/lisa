@@ -39,7 +39,7 @@ class AbstractDataPlotter(object):
         self._event_map = {}
         self._attr = attr if attr else {}
         self.traces = traces
-        self.templates = templates if templates else []
+        self.templates = templates
 
     @abstractmethod
     def view(self):
@@ -101,6 +101,9 @@ class AbstractDataPlotter(object):
             raise ValueError("column/templates specified with values")
 
         self._attr["column"] = []
+
+        if self.templates is None:
+            self.templates = []
 
         for value in listify(self._attr["signals"]):
             template, column = self._value_parser.parseString(value)[0]

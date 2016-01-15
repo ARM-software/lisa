@@ -16,6 +16,7 @@
 
 import unittest
 import matplotlib
+import numpy as np
 import pandas as pd
 import tempfile
 import os
@@ -184,6 +185,12 @@ class TestPlotter(BaseTestThermal):
                             signals=["cpu_in_power:dynamic_power",
                                  "cpu_out_power:power"],
                             pivot="cpus")
+
+    def test_lineplot_dataframe(self):
+        """LinePlot plots DataFrames without exploding"""
+        data = np.random.randn(4, 2)
+        dfr = pd.DataFrame(data, columns=["tick", "tock"]).cumsum()
+        trappy.LinePlot(dfr, column=["tick"]).view(test=True)
 
     def test_get_trace_event_data_corrupted_trace(self):
         """get_trace_event_data() works with a corrupted trace"""
