@@ -110,9 +110,7 @@ class TestBase(unittest.TestCase):
 
     def test_execution_complete(self):
         """Check that data have been collected from the target"""
-        logging.info(r'Check for data being collected')
-        return True
-
+        # TODO
 
 ################################################################################
 # Utility methods
