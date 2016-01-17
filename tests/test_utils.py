@@ -17,6 +17,7 @@
 import unittest
 from trappy import utils
 import pandas
+from pandas.util.testing import assert_series_equal
 
 
 class TestUtils(unittest.TestCase):
@@ -34,5 +35,25 @@ class TestUtils(unittest.TestCase):
         with self.assertRaises(ValueError):
             series.reindex(new_index)
 
-        series = utils.handle_duplicate_index(series)
+        max_delta = 0.001
+        expected_index = [0.0, 1.0, 1 + max_delta, 6.0, 7.0]
+        expected_series = pandas.Series(values, index=expected_index)
+        series = utils.handle_duplicate_index(series, max_delta)
+        assert_series_equal(series, expected_series)
+
+        # Make sure that the reindex doesn't raise ValueError any more
         series.reindex(new_index)
+
+    def test_handle_duplicate_index_duplicate_end(self):
+        """handle_duplicate_index copes with duplicates at the end of the series"""
+
+        max_delta = 0.001
+        values = [0, 1, 2, 3, 4]
+        index = [0.0, 1.0, 2.0, 6.0, 6.0]
+        expected_index = index[:]
+        expected_index[-1] += max_delta
+        series = pandas.Series(values, index=index)
+        expected_series = pandas.Series(values, index=expected_index)
+
+        series = utils.handle_duplicate_index(series, max_delta)
+        assert_series_equal(series, expected_series)

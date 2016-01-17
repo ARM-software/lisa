@@ -83,7 +83,12 @@ def handle_duplicate_index(data,
 
         # Calculate delta that needs to be added to each duplicate
         # index
-        delta = (index[dup_index_right + 1] - dup) / num_dups
+        try:
+            delta = (index[dup_index_right + 1] - dup) / num_dups
+        except IndexError:
+            # dup_index_right + 1 is outside of the series (i.e. the
+            # dup is at the end of the series).
+            delta = max_delta
 
         # Clamp the maximum delta added to max_delta
         if delta > max_delta:
