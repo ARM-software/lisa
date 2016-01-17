@@ -18,6 +18,7 @@
 import devlib
 import json
 import logging
+import time
 
 # Default energy measurements for each board
 DEFAULT_ENERGY_METER = {
@@ -38,6 +39,11 @@ DEFAULT_ENERGY_METER = {
             'sites' : [ 'a53', 'a57' ],
             'kinds' : [ 'energy' ]
         }
+    },
+
+    # Hikey: by default use AEP
+    'hikey' : {
+        'instrument' : 'aep',
     }
 
 }
@@ -66,6 +72,8 @@ class EnergyMeter(object):
 
         if emeter['instrument'] == 'hwmon':
             EnergyMeter._meter = HWMon(target, emeter['conf'])
+        elif emeter['instrument'] == 'aep':
+            EnergyMeter._meter = Aep(target)
         return EnergyMeter._meter
 
     def sample(self):
@@ -168,6 +176,92 @@ class HWMon(EnergyMeter):
         if 'big' not in clusters_nrg:
                 logging.warning('%14s - No energy data for big cluster',
                         'EnergyMeter')
+
+        # Dump data as JSON file
+        nrg_file = '{}/{}'.format(out_dir, out_file)
+        with open(nrg_file, 'w') as ofile:
+            json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
+
+        return (clusters_nrg, nrg_file)
+
+class Aep(EnergyMeter):
+
+    def __init__(self, target):
+        super(Aep, self).__init__(target)
+
+        # Energy readings
+        self.readings = {}
+
+        # Time (start and diff) for power measurment
+        self.time = {}
+
+        # Initialize instrument
+        # Only one channel (first AEP channel: pc1 ... probe channel 1) is used
+        self._aep = devlib.EnergyProbeInstrument(self._target, labels=["pc1"], resistor_values=[0.033])
+
+        # Configure channels for energy measurements
+        logging.debug('EnergyMeter - Enabling channels')
+        self._aep.reset()
+
+        # Logging enabled channels
+        logging.info('%14s - Channels selected for energy sampling:\n%s',
+                'EnergyMeter', str(self._aep.active_channels))
+
+    def __calc_nrg(self, samples):
+
+        power = {'sum' : 0, 'count' : 0, 'avg' : 0}
+
+        for s in samples:
+            power['sum'] += s[1].value # s[1] ... power value of channel 1
+            power['count'] += 1
+
+        power['avg'] =  power['sum'] / power['count']
+
+        nrg = power['avg'] * self.time['diff']
+
+        logging.debug('avg power: %.6f count: %s time: %.6f nrg: %.6f',
+	              power['avg'], power['count'], self.time['diff'] , nrg)
+        return nrg
+
+    def sample(self):
+        if self._aep is None:
+            return
+
+        self.time['diff'] = time.time() - self.time['start']
+        self._aep.stop()
+
+        csv_data = self._aep.get_data("/tmp/aep.csv")
+        samples = csv_data.measurements()
+
+        value = self.__calc_nrg(samples)
+
+        self.readings['last'] = value
+        self.readings['delta'] = value
+        self.readings['total'] = value
+
+        logging.debug('SAMPLE: %s', self.readings)
+        return self.readings
+
+    def reset(self):
+        if self._aep is None:
+            return
+
+        logging.debug('RESET: %s', self.readings)
+
+        self._aep.start()
+        self.time['start'] = time.time()
+
+    def report(self, out_dir, out_file='energy.json'):
+        if self._aep is None:
+            return
+
+        # Retrieve energy consumption data
+        nrg = self.sample()
+
+        # Reformat data for output generation
+        clusters_nrg = {}
+        clusters_nrg['LITTLE'] = '{:.6f}'.format(self.readings['total'])
+
         # Dump data as JSON file
         nrg_file = '{}/{}'.format(out_dir, out_file)
         with open(nrg_file, 'w') as ofile:
