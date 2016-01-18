@@ -52,7 +52,7 @@ class Ebizzy(Workload):
     def setup(self, context):
         timeout_buf = 10
         self.command = '{} -t {} -S {} -n {} {} > {}'
-        self.ebizzy_results = os.path.join(self.device.working_directory, results_txt)
+        self.ebizzy_results = self.device.path.join(self.device.working_directory, results_txt)
         self.device_binary = None
         self.run_timeout = self.seconds + timeout_buf
 
