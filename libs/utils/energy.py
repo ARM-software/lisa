@@ -125,13 +125,9 @@ class HWMon(EnergyMeter):
                         }
                 continue
 
-            last  = self.readings[label]['last']
-            delta = value - last
-            total = self.readings[label]['total']
-
+            self.readings[label]['delta'] = value - self.readings[label]['last']
             self.readings[label]['last']  = value
-            self.readings[label]['delta'] = delta
-            self.readings[label]['total'] = total + delta
+            self.readings[label]['total'] += self.readings[label]['delta']
 
         logging.debug('SAMPLE: %s', self.readings)
         return self.readings
