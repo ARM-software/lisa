@@ -268,7 +268,7 @@ class TraceCmdInstrument(Instrument):
         pass
 
     def validate(self):
-        if self.report and os.system('which trace-cmd > /dev/null'):
+        if self.report and not self.report_on_target and os.system('which trace-cmd > /dev/null'):
             raise InstrumentError('trace-cmd is not in PATH; is it installed?')
         if self.buffer_size:
             if self.mode == 'record':
