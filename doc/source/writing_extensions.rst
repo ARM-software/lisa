@@ -31,7 +31,7 @@ Extension Basics
 ================
 
 This sub-section covers things common to implementing extensions of all types.
-It is recommended you familiarize  yourself with the information here before 
+It is recommended you familiarize  yourself with the information here before
 proceeding onto guidance for specific extension types.
 
 To create an extension, you basically subclass an appropriate base class and them
@@ -41,22 +41,22 @@ The Context
 -----------
 
 The majority of methods in extensions accept a context argument. This is an
-instance of :class:`wlauto.core.execution.ExecutionContext`. If contains 
+instance of :class:`wlauto.core.execution.ExecutionContext`. If contains
 of information about current state of execution of WA and keeps track of things
 like which workload is currently running and the current iteration.
 
 Notable attributes of the context are
 
-context.spec 
+context.spec
         the current workload specification being executed. This is an
         instance of :class:`wlauto.core.configuration.WorkloadRunSpec`
         and defines the workload and the parameters under which it is
-        being executed. 
+        being executed.
 
-context.workload 
+context.workload
         ``Workload`` object that is currently being executed.
 
-context.current_iteration 
+context.current_iteration
         The current iteration of the spec that is being executed. Note that this
         is the iteration for that spec, i.e. the number of times that spec has
         been run, *not* the total number of all iterations have been executed so
@@ -79,9 +79,9 @@ In addition to these, context also defines a few useful paths (see below).
 Paths
 -----
 
-You should avoid using hard-coded absolute paths in your extensions whenever 
+You should avoid using hard-coded absolute paths in your extensions whenever
 possible, as they make your code too dependent on a particular environment and
-may mean having to make adjustments when moving to new (host and/or device) 
+may mean having to make adjustments when moving to new (host and/or device)
 platforms. To help avoid hard-coded absolute paths, WA automation defines
 a number of standard locations. You should strive to define your paths relative
 to one of those.
@@ -95,7 +95,7 @@ extension methods.
 context.run_output_directory
         This is the top-level output directory for all WA results (by default,
         this will be "wa_output" in the directory in which WA was invoked.
-        
+
 context.output_directory
         This is the output directory for the current iteration. This will an
         iteration-specific subdirectory under the main results location. If
@@ -104,7 +104,7 @@ context.output_directory
 
 context.host_working_directory
         This an addition location that may be used by extensions to store
-        non-iteration specific intermediate files (e.g. configuration).  
+        non-iteration specific intermediate files (e.g. configuration).
 
 Additionally, the global ``wlauto.settings`` object exposes on other location:
 
@@ -132,12 +132,63 @@ device, the ``os.path`` modules should *not* be used for on-device path
 manipulation. Instead device has an equipment module exposed through
 ``device.path`` attribute. This has all the same attributes and behaves the
 same way as ``os.path``, but is guaranteed to produce valid paths for the device,
-irrespective of the host's path notation.
+irrespective of the host's path notation. For example:
+
+.. code:: python
+
+    result_file = self.device.path.join(self.device.working_directory, "result.txt")
+    self.command = "{} -a -b -c {}".format(target_binary, result_file)
 
 .. note:: result processors, unlike workloads and instruments, do not have their
           own device attribute; however they can access the device through the
           context.
 
+Deploying executables to a device
+---------------------------------
+
+Some devices may have certain restrictions on where executable binaries may be
+placed and how they should be invoked. To ensure your extension works with as
+wide a range of devices as possible, you should use WA APIs for deploying and
+invoking executables on a device, as outlined below.
+
+As with other resources (see :ref:`resources`) , host-side paths to the exectuable
+ binary to be deployed should be obtained via the resource resolver. A special
+ resource type, ``Executable`` is used to identify  a binary to be deployed.
+ This  is simiar to the regular ``File`` resource, however it takes an additional
+ parameter that specifies the ABI for which executable was compiled.
+
+In order for the binary to be obtained in this way, it must be stored in one of
+the locations scanned by the resource resolver in a directry structure
+``<root>/bin/<abi>/<binary>`` (where ``root`` is the base resource location to
+be searched, e.g. ``~/.workload_automation/depencencies/<extension name>``, and
+ ``<abi>`` is the ABI for which the exectuable has been compiled, as returned by
+  ``self.device.abi``).
+
+Once the path to the host-side binary has been obtained, it may be deployed using
+one of two methods of a ``Device`` instace -- ``install`` or ``install_if_needed``.
+The latter will check a version of that binary has been perviously deployed by
+WA and will not try to re-install.
+
+.. code:: python
+
+  from wlauto import Executable
+
+  host_binary = context.resolver.get(Executable(self, self.device.abi, 'some_binary'))
+  target_binary = self.device.install_if_needed(host_binary)
+
+
+.. note:: Please also note that the check is done based solely on the binary name.
+          For more information please see: :func:`wlauto.common.linux.BaseLinuxDevice.install_if_needed`
+
+Both of the above methods will return the path to the installed binary on the
+device. The executable should be invoked *only* via that path; do **not** assume
+ that it will be in ``PATH`` on the target (or that the executable with the same
+  name in ``PATH`` is the version deployed by WA.
+
+.. code:: python
+
+  self.command = "{} -a -b -c".format(target_binary)
+  self.device.execute(self.command)
 
 Parameters
 ----------
@@ -188,11 +239,11 @@ mandatory
                   and there really is no sensible default that could be given
                   (e.g. something like login credentials), should you consider
                   making it mandatory.
-                  
+
 constraint
         This is an additional constraint to be enforced on the parameter beyond
-        its type or fixed allowed values set. This should be a predicate (a function 
-        that takes a single argument -- the user-supplied value -- and returns 
+        its type or fixed allowed values set. This should be a predicate (a function
+        that takes a single argument -- the user-supplied value -- and returns
         a ``bool`` indicating whether the constraint has been satisfied).
 
 override
@@ -201,7 +252,7 @@ override
         with the same name as already exists, you will get an error. If you do
         want to override a parameter from further up in the inheritance
         hierarchy, you can indicate that by setting ``override`` attribute to
-        ``True``. 
+        ``True``.
 
         When overriding, you do not need to specify every other attribute of the
         parameter, just the ones you what to override. Values for the rest will
@@ -222,7 +273,7 @@ surrounding environment (e.g. that the device has been initialized).
 
 The contract for ``validate`` method is that it should raise an exception
 (either ``wlauto.exceptions.ConfigError`` or extension-specific exception type -- see
-further on this page) if some validation condition has not, and cannot, been met. 
+further on this page) if some validation condition has not, and cannot, been met.
 If the method returns without raising an exception, then the extension is in a
 valid internal state.
 
@@ -242,7 +293,7 @@ everything it is doing, so you shouldn't need to add much additional logging in
 your expansion's. But you might what to log additional information,  e.g.
 what settings your extension is using, what it is doing on the host, etc.
 Operations on the host will not normally be logged, so your extension should
-definitely log what it is doing on the host. One situation in particular where 
+definitely log what it is doing on the host. One situation in particular where
 you should add logging is before doing something that might take a significant amount
 of time, such as downloading a file.
 
@@ -259,7 +310,7 @@ Subsequent paragraphs (separated by blank lines) can then provide  a more
 detailed description, including any limitations and setup instructions.
 
 For parameters, the description is passed as an argument on creation. Please
-note that if ``default``, ``allowed_values``, or ``constraint``, are set in the 
+note that if ``default``, ``allowed_values``, or ``constraint``, are set in the
 parameter, they do not need to be explicitly mentioned in the description (wa
 documentation utilities will automatically pull those). If the ``default`` is set
 in ``validate`` or additional cross-parameter constraints exist, this *should*
@@ -304,7 +355,7 @@ Utils
 Workload Automation defines a number of utilities collected under
 :mod:`wlauto.utils` subpackage. These utilities were created to help with the
 implementation of the framework itself, but may be also be useful when
-implementing extensions. 
+implementing extensions.
 
 
 Adding a Workload
@@ -329,7 +380,7 @@ The Workload class defines the following interface::
 
         def validate(self):
             pass
-            
+
         def initialize(self, context):
             pass
 
@@ -359,7 +410,7 @@ The interface should be implemented as follows
     :name: This identifies the workload (e.g. it used to specify it in the
            agenda_.
     :init_resources: This method may be optionally override to implement dynamic
-                     resource discovery for the workload. This method executes 
+                     resource discovery for the workload. This method executes
                      early on, before the device has been initialized, so it
                      should only be used to initialize resources that do not
                      depend on the device to resolve. This method is executed
@@ -368,12 +419,12 @@ The interface should be implemented as follows
                makes about the environment (e.g. that required files are
                present, environment variables are set, etc) and should raise
                a :class:`wlauto.exceptions.WorkloadError` if that is not the
-               case. The base class implementation only makes sure sure that 
+               case. The base class implementation only makes sure sure that
                the name attribute has been set.
     :initialize: This method will be executed exactly once per run (no matter
                  how many instances of the workload there are). It will run
                  after the device has been initialized, so it may be used to
-                 perform device-dependent initialization that does not need to 
+                 perform device-dependent initialization that does not need to
                  be repeated on each iteration (e.g. as installing executables
                  required by the workload on the device).
     :setup: Everything that needs to be in place for workload execution should
@@ -536,17 +587,17 @@ device name(case sensitive) then followed by a dot '.' then the stage name
 then '.revent'. All your custom revent files should reside at
 '~/.workload_automation/dependencies/WORKLOAD NAME/'. These are the current
 supported stages:
-        
+
         :setup: This stage is where the game is loaded. It is a good place to
                 record revent here to modify the game settings and get it ready
                 to start.
         :run: This stage is where the game actually starts. This will allow for
               more accurate results if the revent file for this stage only
               records the game being played.
-               
+
 For instance, to add a custom revent files for a device named mydevice and
-a workload name mygame, you create a new directory called mygame in 
-'~/.workload_automation/dependencies/'. Then you add the revent files for 
+a workload name mygame, you create a new directory called mygame in
+'~/.workload_automation/dependencies/'. Then you add the revent files for
 the stages you want in ~/.workload_automation/dependencies/mygame/::
 
     mydevice.setup.revent
@@ -555,7 +606,7 @@ the stages you want in ~/.workload_automation/dependencies/mygame/::
 Any revent file in the dependencies will always overwrite the revent file in the
 workload directory. So it is possible for example to just provide one revent for
 setup in the dependencies and use the run.revent that is in the workload directory.
-                       
+
 Adding an Instrument
 ====================
 
@@ -751,19 +802,19 @@ table::
             with open(outfile, 'w') as wfh:
                 write_table(rows, wfh)
 
- 
+
 Adding a Resource Getter
 ========================
 
 A resource getter is a new extension type added in version 2.1.3. A resource
 getter implement a method of acquiring resources of a particular type (such as
 APK files or additional workload assets). Resource getters are invoked in
-priority order until one returns the desired resource. 
+priority order until one returns the desired resource.
 
 If you want WA to look for resources somewhere it doesn't by default (e.g. you
 have a repository of APK files), you can implement a getter for the resource and
 register it with a higher priority than the standard WA getters, so that it gets
-invoked first. 
+invoked first.
 
 Instances of a resource getter should implement the following interface::
 
@@ -775,7 +826,7 @@ Instances of a resource getter should implement the following interface::
 
         def get(self, resource, **kwargs):
             raise NotImplementedError()
-            
+
 The getter should define a name (as with all extensions), a resource
 type, which should be a string, e.g. ``'jar'``, and a priority (see `Getter
 Prioritization`_ below). In addition, ``get`` method should be implemented. The
@@ -847,7 +898,7 @@ looks for the file under
             elif not found_files:
                 return None
             else:
-                raise ResourceError('More than one .apk found in {} for {}.'.format(resource_dir, 
+                raise ResourceError('More than one .apk found in {} for {}.'.format(resource_dir,
                                                                                     resource.owner.name))
 
 .. _adding_a_device:
@@ -947,7 +998,7 @@ top-level package directory is created by default, and it is OK to have
 everything in there.
 
 .. note:: When discovering extensions thorugh this mechanism, WA traveries the
-          Python module/submodule tree, not the directory strucuter, therefore, 
+          Python module/submodule tree, not the directory strucuter, therefore,
           if you are going to create subdirectories under the top level dictory
           created for you, it is important that your make sure they are valid
           Python packages; i.e.  each subdirectory must contain a __init__.py
@@ -958,7 +1009,7 @@ At this stage, you may want to edit ``params`` structure near the bottom of
 the ``setup.py`` to add correct author, license and contact information (see
 "Writing the Setup Script" section in standard Python documentation for
 details). You may also want to add a README and/or a COPYING file at the same
-level as the setup.py.  Once you have the contents of your package sorted, 
+level as the setup.py.  Once you have the contents of your package sorted,
 you can generate the package by running ::
 
         cd my_wa_exts
