@@ -429,7 +429,11 @@ class Target(object):
             if mod.probe(self):
                 self._install_module(mod, **params)
             else:
-                self.logger.debug('Module {} is not supported by the target'.format(mod.name))
+                msg = 'Module {} is not supported by the target'.format(mod.name)
+                if self.load_default_modules:
+                    self.logger.debug(msg)
+                else:
+                    self.logger.warning(msg)
 
     def _install_module(self, mod, **params):
         if mod.name not in self._installed_modules:
