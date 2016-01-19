@@ -150,7 +150,7 @@ class RTA(Workload):
     def _getFirstBig(self, cpus=None):
         # Non big.LITTLE system:
         if 'bl' not in self.target.modules:
-            return self._getFirstBigges(cpus)
+            return self._getFirstBiggest(cpus)
         if cpus:
             for c in cpus:
                 if c not in self.target.bl.bigs:
