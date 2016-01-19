@@ -197,7 +197,7 @@ class RTA(Workload):
         # Select CPU for task calibration, which is the first little
         # of big depending on the loadref tag
         if self.pload is not None:
-            if loadref.upper() == 'LITTLE':
+            if loadref and loadref.upper() == 'LITTLE':
                 target_cpu = self._getFirstLittle()
                 self.logger.debug('ref on LITTLE cpu: %d', target_cpu)
             else:
