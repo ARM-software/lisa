@@ -18,7 +18,7 @@
 import os
 import re
 
-from wlauto import Workload, Parameter
+from wlauto import Workload, Parameter, Executable
 
 
 THIS_DIR = os.path.dirname(__file__)
@@ -54,11 +54,10 @@ class MemcpyTest(Workload):
     ]
 
     def setup(self, context):
-        self.host_binary = os.path.join(THIS_DIR, 'memcpy')
-        if not self.device.is_installed('memcpy'):
-            self.device_binary = self.device.install(self.host_binary)
-        else:
-            self.device_binary = 'memcpy'
+        self.binary_name = 'memcpy'
+        host_binary = context.resolver.get(Executable(self, self.device.abi, self.binary_name))
+        self.device_binary = self.device.install_if_needed(host_binary)
+
         self.command = '{} -i {} -s {}'.format(self.device_binary, self.iterations, self.buffer_size)
         if self.cpus:
             for c in self.cpus:

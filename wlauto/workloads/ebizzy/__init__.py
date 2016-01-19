@@ -52,16 +52,13 @@ class Ebizzy(Workload):
     def setup(self, context):
         timeout_buf = 10
         self.command = '{} -t {} -S {} -n {} {} > {}'
-        self.ebizzy_results = os.path.join(self.device.working_directory, results_txt)
+        self.ebizzy_results = self.device.path.join(self.device.working_directory, results_txt)
         self.device_binary = None
         self.run_timeout = self.seconds + timeout_buf
 
         self.binary_name = 'ebizzy'
-        if not self.device.is_installed(self.binary_name):
-            host_binary = context.resolver.get(Executable(self, self.device.abi, self.binary_name))
-            self.device_binary = self.device.install(host_binary)
-        else:
-            self.device_binary = self.binary_name
+        host_binary = context.resolver.get(Executable(self, self.device.abi, self.binary_name))
+        self.device_binary = self.device.install_if_needed(host_binary)
 
         self.command = self.command.format(self.device_binary, self.threads, self.seconds,
                                            self.chunks, self.extra_params, self.ebizzy_results)

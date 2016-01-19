@@ -51,7 +51,7 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
                   description='The format  of matching the shell prompt in Android.'),
         Parameter('working_directory', default='/sdcard/wa-working',
                   description='Directory that will be used WA on the device for output files etc.'),
-        Parameter('binaries_directory', default='/system/bin',
+        Parameter('binaries_directory', default='/data/local/tmp', override=True,
                   description='Location of binaries on the device.'),
         Parameter('package_data_directory', default='/data/data',
                   description='Location of of data for an installed package (APK).'),
@@ -78,6 +78,8 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
                   If set a swipe of the specified direction will be performed.
                   This should unlock the screen.
                   """),
+        Parameter('binaries_directory', default="/data/local/tmp", override=True,
+                  description='Location of executable binaries on this device (must be in PATH).'),
     ]
 
     default_timeout = 30
@@ -193,9 +195,7 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
         self._is_ready = True
 
     def initialize(self, context):
-        self.execute('mkdir -p {}'.format(self.working_directory))
         if self.is_rooted:
-            self.busybox = self.deploy_busybox(context)
             self.disable_screen_lock()
             self.disable_selinux()
         if self.enable_screen_check:
@@ -281,11 +281,24 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
         """
         return package_name in self.list_packages()
 
-    def executable_is_installed(self, executable_name):
-        return executable_name in self.listdir(self.binaries_directory)
+    def executable_is_installed(self, executable_name):  # pylint: disable=unused-argument,no-self-use
+        raise AttributeError("""Instead of using is_installed, please use
+            ``get_binary_path`` or ``install_if_needed`` instead. You should
+            use the path returned by these functions to then invoke the binary
+
+            please see: https://pythonhosted.org/wlauto/writing_extensions.html""")
 
     def is_installed(self, name):
-        return self.executable_is_installed(name) or self.package_is_installed(name)
+        if self.package_is_installed(name):
+            return True
+        elif "." in name:  # assumes android packages have a . in their name and binaries documentation
+            return False
+        else:
+            raise AttributeError("""Instead of using is_installed, please use
+                ``get_binary_path`` or ``install_if_needed`` instead. You should
+                use the path returned by these functions to then invoke the binary
+
+                please see: https://pythonhosted.org/wlauto/writing_extensions.html""")
 
     def listdir(self, path, as_root=False, **kwargs):
         contents = self.execute('ls {}'.format(path), as_root=as_root)
@@ -352,7 +365,7 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
 
     def install_executable(self, filepath, with_name=None):
         """
-        Installs a binary executable on device. Requires root access. Returns
+        Installs a binary executable on device. Returns
         the path to the installed binary, or ``None`` if the installation has failed.
         Optionally, ``with_name`` parameter may be used to specify a different name under
         which the executable will be installed.
@@ -376,12 +389,13 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
 
     def uninstall_executable(self, executable_name):
         """
-        Requires root access.
 
         Added in version 2.1.3.
 
         """
-        on_device_executable = self.path.join(self.binaries_directory, executable_name)
+        on_device_executable = self.get_binary_path(executable_name, search_system_binaries=False)
+        if not on_device_executable:
+            raise DeviceError("Could not uninstall {}, binary not found".format(on_device_executable))
         self._ensure_binaries_directory_is_writable()
         self.delete_file(on_device_executable, as_root=self.is_rooted)
 
@@ -405,7 +419,7 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
 
                             Added in version 2.1.3
 
-                            .. note:: The device must be rooted to be able to use busybox.
+                            .. note:: The device must be rooted to be able to use some busybox features.
 
             :param as_root: If ``True``, will attempt to execute command in privileged mode. The device
                             must be rooted, otherwise an error will be raised. Defaults to ``False``.
@@ -424,9 +438,6 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
         if as_root and not self.is_rooted:
             raise DeviceError('Attempting to execute "{}" as root on unrooted device.'.format(command))
         if busybox:
-            if not self.is_rooted:
-                DeviceError('Attempting to execute "{}" with busybox. '.format(command) +
-                            'Busybox can only be deployed to rooted devices.')
             command = ' '.join([self.busybox, command])
         if background:
             return adb_background_shell(self.adb_name, command, as_root=as_root)

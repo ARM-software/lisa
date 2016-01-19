@@ -79,11 +79,8 @@ class Cyclictest(Workload):
         if not self.device.is_rooted:
             raise WorkloadError("This workload requires a device with root premissions to run")
 
-        if not self.device.is_installed('cyclictest'):
-            host_binary = context.resolver.get(Executable(self, self.device.abi, 'cyclictest'))
-            self.device_binary = self.device.install(host_binary)
-        else:
-            self.device_binary = 'cyclictest'
+        host_binary = context.resolver.get(Executable(self, self.device.abi, 'cyclictest'))
+        self.device_binary = self.device.install(host_binary)
 
         self.cyclictest_command = self.cyclictest_command.format(self.device_binary,
                                                                  0 if self.clock == 'monotonic' else 1,

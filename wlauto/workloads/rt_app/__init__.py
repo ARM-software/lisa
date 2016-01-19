@@ -216,14 +216,13 @@ class RtApp(Workload):
 
     def _deploy_rt_app_binary_if_necessary(self):
         # called from initialize() so gets invoked once per run
-        if self.force_install or not self.device.is_installed(BINARY_NAME):
+        RtApp.device_binary = self.device.get_binary_path("rt-app")
+        if self.force_install or not RtApp.device_binary:
             if not self.host_binary:
                 message = '''rt-app is not installed on the device and could not be
                              found in workload resources'''
                 raise ResourceError(message)
             RtApp.device_binary = self.device.install(self.host_binary)
-        else:
-            RtApp.device_binary = BINARY_NAME
 
     def _load_json_config(self, context):
         user_config_file = self._get_raw_json_config(context.resolver)
@@ -280,4 +279,3 @@ class RtApp(Workload):
             tf.extractall(context.output_directory)
         os.remove(host_path)
         self.device.execute('rm -rf {}/*'.format(self.device_working_directory))
-

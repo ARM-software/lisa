@@ -1,3 +1,5 @@
+.. _resources:
+
 Dynamic Resource Resolution
 ===========================
 
@@ -7,10 +9,10 @@ The idea is to decouple resource identification from resource discovery.
 Workloads/instruments/devices/etc state *what* resources they need, and not
 *where* to look for them -- this instead is left to the resource resolver that
 is now part of the execution context. The actual discovery of resources is
-performed by resource getters that are registered with the resolver. 
+performed by resource getters that are registered with the resolver.
 
 A resource type is defined by a subclass of
-:class:`wlauto.core.resource.Resource`. An instance of this class describes a 
+:class:`wlauto.core.resource.Resource`. An instance of this class describes a
 resource that is to be obtained. At minimum, a ``Resource`` instance has an
 owner (which is typically the object that is looking for the resource), but
 specific resource types may define other parameters that describe an instance of
