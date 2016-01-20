@@ -50,7 +50,7 @@ class Recentfling(Workload):
     ]
 
     def initialise(self, context):  # pylint: disable=no-self-use
-        if context.device.get_sdk_version() >= 23:
+        if context.device.get_sdk_version() < 23:
             raise WorkloadError("This workload relies on ``dumpsys gfxinfo`` \
                                  only present in Android M and onwards")
 

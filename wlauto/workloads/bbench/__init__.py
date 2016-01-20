@@ -122,6 +122,11 @@ class BBench(Workload):
             self.device.execute('sync')
             self.device.set_sysfile_value('/proc/sys/vm/drop_caches', 3)
 
+        #On android 6+ the web browser requires permissions to access the sd card
+        if self.device.get_sdk_version() >= 23:
+            self.device.execute("pm grant com.android.browser android.permission.READ_EXTERNAL_STORAGE")
+            self.device.execute("pm grant com.android.browser android.permission.WRITE_EXTERNAL_STORAGE")
+
         # Launch the background music
         if self.with_audio:
             self.device.execute('am start -W -S -n com.android.music/.MediaPlaybackActivity -d {}'.format(self.audio_on_device))
@@ -189,6 +194,12 @@ class BBench(Workload):
         shutil.copy(os.path.join(PATCH_FILES, "bbench.js"), self.dependencies_directory)
         shutil.copy(os.path.join(PATCH_FILES, "results.html"), self.dependencies_directory)
         shutil.copy(os.path.join(PATCH_FILES, "index_noinput.html"), self.dependencies_directory)
+        shutil.copy(os.path.join(PATCH_FILES, "bbc.html"),
+                    os.path.join(self.dependencies_directory, "sites", "bbc", "www.bbc.co.uk", "index.html"))
+        shutil.copy(os.path.join(PATCH_FILES, "cnn.html"),
+                    os.path.join(self.dependencies_directory, "sites", "cnn", "www.cnn.com", "index.html"))
+        shutil.copy(os.path.join(PATCH_FILES, "twitter.html"),
+                    os.path.join(self.dependencies_directory, "sites", "twitter", "twitter.com", "index.html"))
 
 
 def _parse_metrics(logfile, indexfile, output_directory):  # pylint: disable=R0914
