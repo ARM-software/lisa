@@ -100,6 +100,24 @@ The target to use for the experiments must satisfy these requirements:
 - the local shell should define the *ANDROID_HOME* environment variable pointing
   to an Android SDK installation
 
+## Kernel features
+
+Most of the tests targets a kernel with support for some new frameworks which
+are currently in-development:
+
+- Energy-Aware Scheduler (EAS)
+- SchedFreq: the CPUFreq governor
+- SchedTune: the central, scheduler-driven, power-perfomance control
+
+Tests targeting an evaluation of these frameworks requires also a set of
+tracepoint which are not available in mainline kernel. The series of patches
+required to add to a recent kernel the tracepoints required by some tests are
+available on this git repository:
+
+  git://www.linux-arm.org/linux-power.git lisa/debug
+
+The patches required are: lisa/debug_base..lisa/debug
+
 
 # Toolkit organization
 
