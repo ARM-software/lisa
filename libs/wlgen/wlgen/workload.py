@@ -58,9 +58,6 @@ class Workload(object):
         self.taskset = None
         self.taskset_cmd = ''
 
-        # target.deploy(target.tools, ['taskset'])
-        logging.error('Assuming taskset is preinstalled')
-
         # The command to execute a workload (defined by a derived class)
         self.command = None
 

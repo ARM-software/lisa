@@ -136,6 +136,16 @@ class TestEnv(ShareState):
         # Initialize ftrace events
         if test_conf and 'ftrace' in test_conf:
             self.conf['ftrace'] = test_conf['ftrace']
+            self.__tools.append('trace-cmd')
+
+        # Add tools dependencies
+        if 'rt-app' in self.__tools:
+            self.__tools.append('taskset')
+            self.__tools.append('trace-cmd')
+            self.__tools.append('perf')
+            self.__tools.append('cgroup_run_into.sh')
+        # Sanitize list of dependencies to remove duplicates
+        self.__tools = list(set(self.__tools))
 
         # Initialize features
         if '__features__' not in self.conf:
