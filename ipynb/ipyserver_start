@@ -2,6 +2,9 @@
 
 NETIF=${1:-eth0}
 
+# By default use internal libraries
+DEVMODE=${DEVMODE:-1}
+
 # Get the IP Address of the local Ethernet interface
 IPADDR=$(ifconfig $NETIF 2>/dev/null  | \
 	awk '/inet / {print $2}' | \

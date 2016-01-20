@@ -1,4 +1,7 @@
 
+# By default use internal libraries
+DEVMODE=${DEVMODE:-1}
+
 export PYTHONPATH=''
 export PYTHONPATH=`pwd`/libs/utils:$PYTHONPATH
 export PYTHONPATH=`pwd`/libs/wlgen:$PYTHONPATH

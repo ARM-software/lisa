@@ -171,7 +171,7 @@ html plots to a browser on the same machine or over a local network.
 	# Enter the ipynb folder
 	$ cd ipynb
 	# Start the server
-        $ DEVMODE=1 ./ipyserver_start lo
+        $ ./ipyserver_start lo
 
 This will start the server and open the index page in a new browser tab.  If
 the index is not automatically loaded in the browser, visit the link reported
@@ -259,7 +259,7 @@ compared from both a performance and an energy standpoint.
 To run this regression test, first set up the local execution environment by
 sourcing the initialization script:
 
-	$ DEVMODE=1 source init_env
+	$ source init_env
 
 Next, check the target configuration which is defined in *target.config*. This
 file has to be updated to at least define the login credentials for the target
