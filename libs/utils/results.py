@@ -166,17 +166,19 @@ class Energy(object):
     def __init__(self, nrg_file):
 
         # Set of exposed attributes
-        self.little = 0
-        self.big = 0
-        self.total = 0
+        self.little = 0.0
+        self.big = 0.0
+        self.total = 0.0
 
         logging.debug('%14s - Parse [%s]...', 'Energy', nrg_file)
 
         with open(nrg_file, 'r') as infile:
             nrg = json.load(infile)
 
-        self.little = float(nrg['LITTLE'])
-        self.big = float(nrg['big'])
+        if 'LITTLE' in nrg:
+            self.little = float(nrg['LITTLE'])
+        if 'big' in nrg:
+            self.big = float(nrg['big'])
         self.total = self.little + self.big
 
         logging.debug('%14s - Energy LITTLE [%s], big [%s], Total [%s]',
