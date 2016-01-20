@@ -64,6 +64,10 @@ system.
 
 	$ sudo apt-get install build-essential autoconf automake libtool pkg-config
 
+##### Install additiona tools required for some tests and functionalities
+
+	$ sudo apt-get install nmap trace-cmd
+
 ##### Install required python packages
 
 	$ sudo apt-get install python-matplotlib python-numpy libfreetype6-dev libpng12-dev
