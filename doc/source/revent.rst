@@ -17,6 +17,11 @@ to Android UI Automator for providing automation for workloads. ::
                         info:shows info about each event char device
                         any additional parameters make it verbose
 
+
+.. note:: There are now also WA commands that perform the below steps.
+          Please see ``wa show record/replay`` and ``wa record/replay --help``
+          for details.
+
 Recording
 ---------
 
