@@ -1,3 +1,9 @@
+
+*__NOTE__: This is still a work in progress project, suitable for:*
+*developers, contributors and testers.*<br>
+*None of the provided tests should be considered stable and/or suitable*
+*for the evaluation of a product.*
+
 # Introduction
 
 This project provides a collection of tools to support regression testing and
