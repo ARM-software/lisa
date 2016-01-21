@@ -329,6 +329,9 @@ class TestEnv(ShareState):
         logging.debug('%14s -      CPUs: %s', 'Target', self.target.cpuinfo)
         logging.debug('%14s -  Clusters: %s', 'Target', self.target.core_clusters)
 
+        # Ensure rootfs is RW mounted
+        self.target.execute('mount -o remount,rw /', as_root=True)
+
         # Verify that all the required modules have been initialized
         for module in self.__modules:
             logging.debug('%14s - Check for module [%s]...', 'Target', module)
