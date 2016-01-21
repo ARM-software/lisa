@@ -242,9 +242,13 @@ class TestBase(unittest.TestCase):
             cls.env.target.execute(
                     'for CPU in /sys/devices/system/cpu/cpu[0-9]*; do   '\
                     '   echo {} > $CPU/cpufreq/scaling_governor;  '\
-                    '   echo {} > $CPU/cpufreq/ondemand/sampling_rate;  '\
+                    '   if [ -e $CPU/cpufreq/ondemand/sampling_rate ]; then'\
+                    '       echo {} > $CPU/cpufreq/ondemand/sampling_rate;'\
+                    '   else'\
+                    '       echo {} > $CPU/../cpufreq/ondemand/sampling_rate;'\
+                    '   fi;'\
                     'done'\
-                    .format('ondemand', sampling_rate))
+                    .format('ondemand', sampling_rate, sampling_rate))
         else:
             cls.env.target.execute(
                     'for CPU in /sys/devices/system/cpu/cpu[0-9]*; do   '\
