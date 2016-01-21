@@ -429,7 +429,9 @@ class TestEnv(ShareState):
                 self.platform['freqs'][cluster_id] = \
                     self.target.cpufreq.list_frequencies(core_id)
         else:
-            logging.warn('%14s - Unable to identify cluster frequencies')
+            logging.warn(
+                    '%14s - Unable to identify cluster frequencies',
+                    'Target')
 
         # TODO: get the performance boundaries in case of intel_pstate driver
 
