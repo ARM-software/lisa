@@ -125,6 +125,45 @@ available on this git repository:
 The patches required are: lisa/debug_base..lisa/debug
 
 
+# Testing your installation
+
+An easy way to test your installation is to give a run to the EAS RFC tests.
+These are a set of experiments which allows to compare EAS performance and
+energy consumption with respect to standard kernel.
+
+*NOTE:* The following [tutorial](Quickstart tutorial) is still recommended it
+you want to get a better grasp on how the framework is organized and how to use
+it at your best.
+
+Let's assume your target is running an EAS enabled kernel, to run such tests
+just run these few steps:
+
+1. Check the *target.config* file in the root folder of the toolkit<br>
+   In that file you to specify the proper value for at least *platform* and
+   *board*, as well as the *host* IP address of the target and the login
+   credentials (i.e. *username* and *password*).
+
+2. Setup the execution environment by sourcing the provided initialization file
+   from the shell you will use to run the experiments
+
+	```sh
+	$ source init_env
+
+	```
+
+3. Run the EAS RFC test using the standard nosetest command:
+
+	```sh
+	$ nosetests -v tests/eas/rfc.py:EAS
+	```
+
+4. Wait for the test to complete and than you can report the results with:
+
+	```sh
+	./tools/report.py  --base noeas --tests eas
+	```
+
+
 # Toolkit organization
 
 The toolkit provides these resources:
