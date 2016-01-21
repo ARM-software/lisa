@@ -6,16 +6,19 @@
 
 # Introduction
 
-This project provides a collection of tools to support regression testing and
-interactive analysis of workload behavior. Its goal is to support Linux kernel
-developers to measure the impact of modifications in core parts of the kernel.
-The focus is on scheduler, power management and thermal frameworks, however the
-toolkit is generic to be used for other purposes.
+The LISA project provides a toolkit that supports regression testing and
+interactive analysis of workload behavior. LISA stands for Linux
+Integrated/Interactive System Analysis. LISA's goal is to help Linux
+kernel developers to measure the impact of modifications in core parts
+of the kernel.  The focus is on the scheduler, power management and
+thermal frameworks. However LISA is generic and can be used for other
+purposes too.
 
-The toolkit depends on a set of external core libraries to provide an API, and
-a set of test-cases to support regression testing on core kernel features.  A
-set of IPython Notebooks also allows live experiments on a target and supports
-the development and testing of new use-cases.
+LISA provides an API for modeling use-cases of interest and developing
+regression tests for use-cases.  A ready made set of test-cases to
+support regression testing of core kernel features is provided.  In
+addition, LISA uses the excellent IPython notebook framework and a set
+of notebooks are provided for live experiments on a target platform.
 
 This is an overall view of the toolkit:
 
@@ -48,8 +51,7 @@ This is an overall view of the toolkit:
 	|                          or Localhost |
 	+---------------------------------------+
 
-
-The core python libraries provide documentation of their APIs:
+LISA depends on the following external python libraries:
 
 - [devlib](http://github.com/ARM-software/devlib)
   Documentation: [online](https://pythonhosted.org/devlib/index.html)
@@ -58,15 +60,14 @@ The core python libraries provide documentation of their APIs:
 - [BART](http://github.com/ARM-software/bart)
   Documentation: [online](http://arm-software.github.io/bart/)
 
-
 # Installation
 
-This notes assumes an installation from scratch on a freshly installed Debian
-system.
+This note assumes installation from scratch on a freshly installed
+Debian system.
 
 ## Required dependencies
 
-##### Install build essential tools
+##### Install common build related tools
 
 	$ sudo apt-get install build-essential autoconf automake libtool pkg-config
 
@@ -88,12 +89,12 @@ system.
 
 ## Clone the repository
 
-TODO: add notes on how to clone and initialize the repostiory
-
+TODO: add notes on how to clone and initialize the repository
 
 # Target platform requirements
 
-The target to use for the experiments must satisfy these requirements:
+The target platform to be used for experiments with LISA must satisfy
+the following requirements:
 
 ## Linux Targets
 
@@ -216,54 +217,54 @@ are required to run tests on the target device:
 	    `-- x86
 
 (these are provided in binary form because they correspond to specific
-known-good versions and it avoids having to cross-compile for the target)
+known-good versions and it avoids having to cross-compile these tools
+for the target)
 
 # Quickstart tutorial
 
-This section provide a quick start guide on understanding the toolkit by guiding
-the user though a set of example usages.
-
+This section provides a quick start guide on understanding the toolkit
+by guiding the user though a set of example usage scenarios.
 
 ## 1. IPython server
 
 [IPython](http://ipython.org/notebook.html) is a web based interactive python
 programming interface. This toolkit provides a set of IPython notebooks ready
-to use. To use these notebooks, an IPython server must be started to serve up
-html plots to a browser on the same machine or over a local network.
+to use. To use these notebooks, an IPython server must be started to
+serve pages to a browser on the same host machine or over a local
+network.
 
 	# Enter the ipynb folder
 	$ cd ipynb
 	# Start the server
         $ ./ipyserver_start lo
 
-This will start the server and open the index page in a new browser tab.  If
-the index is not automatically loaded in the browser, visit the link reported
-by the server startup script.
+This will start the IPython server and open the index page in a new
+browser tab.  If the index is not automatically loaded in the browser,
+visit the link reported by the server startup script.
 
 The index page is an HTML representation of the local ipynb folder.
 From that page we can access all the IPython notebooks provided by the toolkit.
 
-
 ## 2. Setup the TestEnv module
 
 Typical notebooks and tests will make use of the TestEnv class to initialize
-and access a remote target device. An overall view of the functionalities
+and access a remote target device. An overall view of the functionality
 exposed by this class can be seen in this notebook:
 [utils/testenv_example.ipynb](http://localhost:8888/notebooks/utils/testenv_example.ipynb)
-
 
 ## 3. Typical experiment workflow
 
 RT-App is a configurable synthetic workload generator used to run different
-intensity experiments on a target. The toolkit provides a python API to
+intensity experiments on a target. LISA provides a python wrapper API to
 simplify the definition of RT-App based workloads and their execution on a
 target.
 
 This notebook:
 [wlgen/simple_rtapp.ipynb](http://localhost:8888/notebooks/wlgen/simple_rtapp.ipynb)
-is a complete example of experiment setup, execution and data collection.
+is a complete example of setting up an experiment, execution and data
+collection.
 
-Specifically it shows how to:
+Specifically it demonstrates how to:
 1. configure a target for an experiment
 2. configure FTrace for event collection
 3. configure an HWMon based energy meter for energy measurements
@@ -274,50 +275,57 @@ Specifically it shows how to:
    the TRAPpy library
 7. visualize some simple performance metrics for the tasks
 
+## 4. Regression test example 1
 
-## 4. Example of a smoke test for sched-DVFS
-
-One of the main aims of this toolkit is to become a repository for
-regression tests on scheduler and power management behavior.
-A common pattern on defining new test cases is to start from an IPython
-notebook to design an experiment and compute metrics of interest.
-The notebook can then be converted into a self-contained test to run in batch
-mode.
+One of the main aims of LISA is to become a repository for regression
+tests on scheduler and power management behavior. A common pattern for
+defining new test cases is to start with an IPython notebook to design
+an experiment and compute metrics of interest. The notebook can then be
+converted into a self-contained test to run in batch mode.
 
 An example of such a notebook is:
 [sched_dvfs/smoke_test.ipynb](http://localhost:8888/notebooks/sched_dvfs/smoke_test.ipynb)
 
-In this notebook the toolkit API is more extensively used to defined an
+sched-DVFS is a technique for scheduler driven DVFS operation and is a
+key part of Energy Aware Scheduling (EAS). LISA is used extensively for
+EAS analysis and some of the examples listed in this README are taken
+from the EAS testing and evaluation experience. To know more about EAS
+and sched-DVFS, see:
+(http://www.linaro.org/blog/core-dump/energy-aware-scheduling-eas-progress-update/)
+
+In this notebook the toolkit API is more extensively used to define an
 experiment to:
-1. select and configure three different CPUFreq governor
+1. select and configure three different CPUFreq governors
 2. run a couple of RTApp based test workloads in each configuration
 3. collect and plot scheduler and CPUFreq events
 4. collect and compare the energy consumption during workload execution
    in each of the different configurations
 
-The notebook compares three different CPUFreq governor: "performance", "sched"
-and "ondemand". New configurations are easy to add. For each configuration the
-notebook generate plots and tabular reports regarding working frequencies and
-energy consumption.
+The notebook compares three different CPUFreq governors: "performance",
+"sched" and "ondemand". New configurations are easy to add. For each
+configuration the notebook generate plots and tabular reports regarding
+working frequencies and energy consumption.
 
-This notebook is a good example of usage of the toolkit to define a new set of
-experiments which can than be transformed into a standalone regression test.
+This notebook is a good example of using LISA to build a new set of
+experiments which can then be transformed into a standalone regression
+test.
 
-## 5. Example of regression test: EAS RFC
+## 5. Regression test example 2
 
-Once a new set of tests have been defined and verified, perhaps using a
-notebook to develop them, they can be transformed into a standalone regression
-test. Regression tests are written using the same API used to develop a
-notebook, thus their transformation in a batch task is generally quite easy,
-especially considering that a notebook can be exported as a standalone python
-script.
+Once a new set of tests have been defined and verified, perhaps by using
+a notebook to develop them, they can be transformed into a standalone
+regression test. Regression tests are written using the same API used to
+develop a notebook, thus their transformation into a batch task is
+generally quite easy, especially considering that a notebook can be
+exported as a standalone python script.
 
 An example of such a regression test is:
 
 	tests/eas/rfc.py
 
-This test is designed to allow different configurations and workloads to be
-compared from both a performance and an energy standpoint.
+This test, which is used for EAS analysis, is designed to allow
+different configurations and workloads to be compared from both a
+performance and an energy standpoint.
 
 To run this regression test, first set up the local execution environment by
 sourcing the initialization script:
@@ -329,27 +337,28 @@ file has to be updated to at least define the login credentials for the target
 to use, and the kind of platform (e.g. "linux" or "android") and the board (if
 it is supported by the toolkit, e.g. "tc2" or "juno")
 
-The set of target configuration considered by the test as well as the set of
-workloads to execute on each configuration is defined by a test specific
-configuration file. In the case of the EAS regression suite, this file is
-*tests/eas/rfc_eas.config*.  Have a look at this file and ensure to enable/tune
-the "confs" and "wloads" sections. The default configuration runs a predefined
-set of tests which are commonly used for EAS RFC postings.
+The set of target configurations considered by the test as well as the
+set of workloads to execute with each configuration is defined by a test
+specific configuration file. In the case of the EAS regression suite,
+this file is *tests/eas/rfc_eas.config*. Have a look at this file and
+ensure to enable/tune the "confs" and "wloads" sections. The default
+configuration runs a predefined set of tests which are commonly used for
+EAS RFC postings.
 
 Once eveything has been configured to run the test, execute it with:
 
 	nosetests -v tests/eas/rfc.py:EAS
 
 This command will run all the configured experiments and collect the results
-into the output folder generated by the TestEnv and pointed to by
+into the output folder generated by the TestEnv and pointed to by the
 "results_latest" symlink in the top folder.
 
 Once the test has completed, report the results using the command:
 
 	./tools/report.py  --base noeas --tests eas
 
-which will generate a table comparing energy/performance metrics for the "eas"
-configuration with respect to the "noeas" configuration.
+This will generate a table comparing energy/performance metrics for the
+"eas" configuration with respect to the "noeas" configuration.
 
 ### Target configuration
 
@@ -357,9 +366,9 @@ Regression tests make use of the test environment generated by the TestEnv
 module. By default, this module configures the target defined by the
 __target.conf__ file present at the top level folder.
 
-The comments in this file should be good enought to understand how to properly
-setup a target to be used for the execution of all the tests provided by the
-toolkit.
+The comments in this file should be good enough to understand how to
+properly setup a target to be used for the execution of all the tests
+provided by the toolkit.
 
 ### Experiments configuration
 
@@ -369,7 +378,8 @@ tests/eas/rfc.py tests is provided by the __tests/eas/rfc.conf__.
 
 This configuration file describes:
 1. which devlib modules are required by this experiment
-2. which binary tools needs to be deployed in the target to run the experiments
+2. which binary tools need to be deployed in the target to run the
+   experiments
 3. other devlib specific configurations (e.g. FTrace events of interest)
 4. the set of __target configurations__ (confs) to test
 5. the set of __workloads__ (wloads) to run
@@ -384,7 +394,7 @@ has completed using this command:
 
 	./tools/report.py --bases <regexp1> --tests <regexp2>
 
-This script compares a base configuration (which name matches the
+This script compares a base configuration (whose name matches the
 regular expression __regexp1__), to each target configuration which
 name matches the __regexp2__ regular expression.
 
