@@ -112,9 +112,7 @@ class HWMon(EnergyMeter):
             return
         samples = self._hwmon.take_measurement()
         for s in samples:
-            label = s.channel.label\
-                    .replace('_energy', '')\
-                    .replace(" ", "_")
+            label = s.channel.label.replace('_energy', '')
             value = s.value
 
             if label not in self.readings:
