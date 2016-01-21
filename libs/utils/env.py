@@ -274,11 +274,17 @@ class TestEnv(ShareState):
         except KeyError:
             raise ValueError('Config error: missing [platform] parameter')
 
-        # Initialize platform if known
+        # Setup board default if not specified by configuration
+        if 'board' not in self.conf:
+            self.conf['board'] = 'UNKNOWN'
+
+        # Initialize a specific board (if known)
         if self.conf['board'].upper() == 'TC2':
             platform = devlib.platform.arm.TC2()
         elif self.conf['board'].upper() == 'JUNO':
             platform = devlib.platform.arm.Juno()
+        elif self.conf['board'].upper() == 'OAK':
+            platform = Platform(model='MT8173')
         else:
             platform = None
 
@@ -307,18 +313,6 @@ class TestEnv(ShareState):
                     connection_settings = self.__connection_settings,
                     load_default_modules = False,
                     modules = self.__modules)
-        # TO BE REMOVED: Temporary fix for dmidecode not working on Chromebook
-        elif platform_type.lower() == 'oak':
-            logging.debug('%14s - Setup OAK target...', 'Target')
-            self.target = devlib.LinuxTarget(
-                    connection_settings = self.__connection_settings,
-                    load_default_modules = False,
-                    platform = Platform(model='MT8173'),
-                    modules = self.__modules)
-            # Reset the target to a standard linux target
-            platform_type == 'linux'
-            # Ensure rootfs is RW mounted
-            self.target.execute('mount -o remount,rw /', as_root=True)
         elif platform_type.lower() == 'host':
             logging.debug('%14s - Setup HOST target...', 'Target')
             self.target = devlib.LocalLinuxTarget(
