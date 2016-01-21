@@ -104,7 +104,7 @@ class ForkMigration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.params = {}
-        cls.task_prefix = "task"
+        cls.task_prefix = "fmig"
         cls.env = TestEnv(test_conf=TEST_CONF)
         cls.trace_file = os.path.join(cls.env.res_dir, "fork_migration.dat")
         cls.log_file = os.path.join(cls.env.res_dir, "fork_migration.json")
@@ -133,11 +133,12 @@ class ForkMigration(unittest.TestCase):
     def run_workload(cls):
         wload = RTA(
             cls.env.target,
-            "profile",
+            "fork_migration",
             calibration=cls.env.calibration())
         wload.conf(kind="profile", params=cls.params)
         cls.env.ftrace.start()
         wload.run(
+            out_dir=cls.env.res_dir,
             background=False)
         cls.env.ftrace.stop()
         trace = cls.env.ftrace.get_trace(cls.trace_file)
@@ -165,7 +166,7 @@ class SmallTaskPacking(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.params = {}
-        cls.task_prefix = "task"
+        cls.task_prefix = "stp"
         cls.env = TestEnv(test_conf=TEST_CONF)
         cls.trace_file = os.path.join(
             cls.env.res_dir,
@@ -196,11 +197,12 @@ class SmallTaskPacking(unittest.TestCase):
     def run_workload(cls):
         wload = RTA(
             cls.env.target,
-            "profile",
+            "small_task_packing",
             calibration=cls.env.calibration())
         wload.conf(kind="profile", params=cls.params)
         cls.env.ftrace.start()
-        trace = wload.run(
+        wload.run(
+            out_dir=cls.env.res_dir,
             background=False)
         cls.env.ftrace.stop()
         trace = cls.env.ftrace.get_trace(cls.trace_file)
@@ -288,11 +290,12 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
 
         wload = RTA(
             cls.env.target,
-            "profile",
+            "offload_idle_pull",
             calibration=cls.env.calibration())
         wload.conf(kind="profile", params=cls.params)
         cls.env.ftrace.start()
         wload.run(
+            out_dir=cls.env.res_dir,
             background=False)
         cls.env.ftrace.stop()
         trace = cls.env.ftrace.get_trace(cls.trace_file)
@@ -432,7 +435,7 @@ class WakeMigration(unittest.TestCase):
     def setUpClass(cls):
         cls.params = {}
         cls.env = TestEnv(test_conf=TEST_CONF)
-        cls.task_prefix = "wake_migration"
+        cls.task_prefix = "wmig"
         cls.trace_file = os.path.join(cls.env.res_dir, "wake_migration.dat")
         cls.log_file = os.path.join(cls.env.res_dir, "wake_migration.json")
         cls.populate_params()
@@ -460,11 +463,12 @@ class WakeMigration(unittest.TestCase):
     def run_workload(cls):
         wload = RTA(
             cls.env.target,
-            "profile",
+            "wake_migration",
             calibration=cls.env.calibration())
         wload.conf(kind="profile", params=cls.params)
         cls.env.ftrace.start()
         wload.run(
+            out_dir=cls.env.res_dir,
             background=False)
         cls.env.ftrace.stop()
         trace = cls.env.ftrace.get_trace(cls.trace_file)
