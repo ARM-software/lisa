@@ -158,7 +158,8 @@ class ForkMigration(unittest.TestCase):
         self.assertTrue(
             f_assert.assertFirstCpu(
                 self.env.target.bl.bigs,
-                rank=self.num_tasks))
+                rank=self.num_tasks),
+            msg="Not all the new generated tasks started on a big CPU")
 
 
 class SmallTaskPacking(unittest.TestCase):
@@ -215,7 +216,8 @@ class SmallTaskPacking(unittest.TestCase):
         self.assertTrue(
             self.s_assert.assertFirstCpu(
                 self.env.target.bl.bigs,
-                rank=self.num_tasks))
+                rank=self.num_tasks),
+            msg="Not all the new generated tasks started on a big CPU")
 
     def test_small_task_residency(self):
         "Small Task Packing: Test Residency (Little Cluster)"
@@ -234,7 +236,9 @@ class SmallTaskPacking(unittest.TestCase):
                 EXPECTED_RESIDENCY_PCT,
                 operator.ge,
                 percent=True,
-                rank=self.num_tasks))
+                rank=self.num_tasks),
+            msg="Not all tasks are running on LITTLE cores for at least {}% of their execution time"\
+                    .format(EXPECTED_RESIDENCY_PCT))
 
 
 class OffloadMigrationAndIdlePull(unittest.TestCase):
@@ -318,7 +322,8 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
         self.assertTrue(
             self.e_assert.assertFirstCpu(
                 self.env.target.bl.bigs,
-                rank=self.num_tasks))
+                rank=self.num_tasks),
+            msg="Not all the new 'early starter' tasks started on a big CPU")
 
     def test_first_cpu_migrators(self):
         "Offload Migration and Idle Pull: Test First CPU (Migrators)"
@@ -332,7 +337,8 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
         self.assertTrue(
             self.m_assert.assertFirstCpu(
                 self.env.target.bl.bigs,
-                rank=self.num_tasks))
+                rank=self.num_tasks),
+            msg="Not all the new 'migrator' tasks started on a big CPU")
 
     def test_little_res_migrators(self):
         "Offload Migration and Idle Pull: Test Little Residency (Migrators)"
@@ -357,7 +363,9 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
                 operator.ge,
                 percent=True,
                 window=little_residency_window,
-                rank=self.num_tasks))
+                rank=self.num_tasks),
+            msg="Not all 'migrator' tasks are running on LITTLE cores for at least {}% of their execution time"\
+                    .format(EXPECTED_RESIDENCY_PCT))
 
     def test_big_res_migrators(self):
         "Offload Migration and Idle Pull: Test Big Residency (Migrators)"
@@ -382,7 +390,10 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
                 operator.ge,
                 percent=True,
                 window=big_residency_window,
-                rank=self.num_tasks))
+                rank=self.num_tasks),
+            msg="Not all 'migrator' tasks are running on big cores for at least {}% of their execution time"\
+                    .format(EXPECTED_RESIDENCY_PCT))
+
 
     def test_migrators_switch(self):
         "Offload Migration and Idle Pull: Test LITTLE -> BIG Idle Pull Switch (Migrators)"
@@ -403,7 +414,9 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
                 self.env.target.bl.littles,
                 self.env.target.bl.bigs,
                 window=switch_window,
-                rank=self.num_tasks))
+                rank=self.num_tasks),
+            msg="Not all 'migrator' tasks are pulled by idle big cores when expected")
+
 
     def test_big_res_early_starters(self):
         """Offload Migration and Idle Pull: Test Big Residency (EarlyStarters)"""
@@ -426,7 +439,9 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
                 operator.ge,
                 percent=True,
                 window=big_residency_window,
-                rank=self.num_tasks))
+                rank=self.num_tasks),
+            msg="Not all 'early starter' tasks are running on big cores for at least {}% of their execution time"\
+                    .format(EXPECTED_RESIDENCY_PCT))
 
 
 class WakeMigration(unittest.TestCase):
@@ -490,7 +505,9 @@ class WakeMigration(unittest.TestCase):
         self.assertTrue(
             self.s_assert.assertFirstCpu(
                 self.env.target.bl.bigs,
-                rank=self.num_tasks))
+                rank=self.num_tasks),
+            msg="Not all the new generated tasks started on a big CPU")
+
 
     def test_little_big_switch1(self):
         """Wake Migration: LITTLE -> BIG: 1"""
@@ -517,7 +534,9 @@ class WakeMigration(unittest.TestCase):
                 self.env.target.bl.littles,
                 self.env.target.bl.bigs,
                 rank=self.num_tasks,
-                window=switch_window))
+                window=switch_window),
+            msg="Not all tasks are wake-migrated to big cores in the expected window: {}"\
+                    .format(switch_window))
 
     def test_little_big_switch2(self):
         """Wake Migration: LITTLE -> BIG: 2"""
@@ -545,7 +564,9 @@ class WakeMigration(unittest.TestCase):
                 self.env.target.bl.littles,
                 self.env.target.bl.bigs,
                 rank=self.num_tasks,
-                window=switch_window))
+                window=switch_window),
+            msg="Not all tasks are wake-migrated to big cores in the expected window: {}"\
+                    .format(switch_window))
 
     def test_big_little_switch1(self):
         """Wake Migration: BIG -> LITLLE: 1"""
@@ -569,7 +590,9 @@ class WakeMigration(unittest.TestCase):
                 self.env.target.bl.bigs,
                 self.env.target.bl.littles,
                 rank=self.num_tasks,
-                window=switch_window))
+                window=switch_window),
+            msg="Not all tasks are wake-migrated to LITTLE cores in the expected window: {}"\
+                    .format(switch_window))
 
     def test_big_little_switch2(self):
         """Wake Migration: BIG -> LITLLE: 2"""
@@ -597,4 +620,6 @@ class WakeMigration(unittest.TestCase):
                 self.env.target.bl.bigs,
                 self.env.target.bl.littles,
                 rank=self.num_tasks,
-                window=switch_window))
+                window=switch_window),
+            msg="Not all tasks are wake-migrated to LITTLE cores in the expected window: {}"\
+                    .format(switch_window))
