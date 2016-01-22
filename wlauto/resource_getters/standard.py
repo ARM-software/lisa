@@ -180,17 +180,15 @@ class DependencyFileGetter(ResourceGetter):
     resource_type = 'file'
     relative_path = ''  # May be overridden by subclasses.
 
-    default_mount_point = '/'
     priority = GetterPriority.remote
 
     parameters = [
-        Parameter('mount_point', default='/', global_alias='filer_mount_point',
+        Parameter('mount_point', default='/', global_alias='remote_assets_path',
                   description='Local mount point for the remote filer.'),
     ]
 
     def __init__(self, resolver, **kwargs):
         super(DependencyFileGetter, self).__init__(resolver, **kwargs)
-        self.mount_point = settings.filer_mount_point or self.default_mount_point
 
     def get(self, resource, **kwargs):
         force = kwargs.get('force')
@@ -260,7 +258,6 @@ class ExtensionAssetGetter(DependencyFileGetter):
 
     name = 'extension_asset'
     resource_type = 'extension_asset'
-    relative_path = 'workload_automation/assets'
 
 
 class HttpGetter(ResourceGetter):

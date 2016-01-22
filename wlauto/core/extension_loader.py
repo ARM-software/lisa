@@ -80,8 +80,8 @@ class GlobalParameterAlias(object):
                     other_param.kind != param.kind):
                 message = 'Duplicate global alias {} declared in {} and {} extensions with different types'
                 raise LoaderError(message.format(self.name, ext.name, other_ext.name))
-            if param.name != other_param.name:
-                message = 'Two params {} in {} and {} in {} both declare global alias {}'
+            if param.kind != other_param.kind:
+                message = 'Two params {} in {} and {} in {} both declare global alias {}, and are of different kinds'
                 raise LoaderError(message.format(param.name, ext.name,
                                                  other_param.name, other_ext.name, self.name))
 
