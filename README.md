@@ -94,7 +94,6 @@ cloned from the official GitHub repository with this command:
 
         $ git clone https://github.com/ARM-software/lisa.git
 
-
 # Target platform requirements
 
 The target platform to be used for experiments with LISA must satisfy
@@ -128,7 +127,6 @@ available on this git repository:
   git://www.linux-arm.org/linux-power.git lisa/debug
 
 The patches required are: lisa/debug_base..lisa/debug
-
 
 # Testing your installation
 
@@ -167,7 +165,6 @@ just run these few steps:
 	```sh
 	./tools/report.py  --base noeas --tests eas
 	```
-
 
 # Toolkit organization
 
@@ -269,6 +266,7 @@ is a complete example of setting up an experiment, execution and data
 collection.
 
 Specifically it demonstrates how to:
+
 1. configure a target for an experiment
 2. configure FTrace for event collection
 3. configure an HWMon based energy meter for energy measurements
