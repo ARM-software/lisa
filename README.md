@@ -89,7 +89,11 @@ Debian system.
 
 ## Clone the repository
 
-TODO: add notes on how to clone and initialize the repository
+The code of the LISA toolkit with all the supported tests and Notebooks can be
+cloned from the official GitHub repository with this command:
+
+        $ git clone https://github.com/ARM-software/lisa.git
+
 
 # Target platform requirements
 
