@@ -41,7 +41,7 @@ class ApkLaunchWorkload(Workload):
 
     def setup(self, context):
         apk_file = context.resolver.get(File(self, self.apk_file))
-        self.package = ApkInfo(apk_file).package
+        self.package = ApkInfo(apk_file).package  # pylint: disable=attribute-defined-outside-init
 
         self.logger.info('Installing {}'.format(apk_file))
         return self.device.install(apk_file)

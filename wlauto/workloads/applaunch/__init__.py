@@ -138,19 +138,7 @@ class ApplaunchWorkload(Workload):
                 scheduler_used = scheduler[scheduler.index("[") + 1:scheduler.index("]")]
                 metric_suffix = '_' + scheduler_used
         for filename in result_files:
-            host_result_file = os.path.join(context.output_directory, filename)
-            device_result_file = self.device.path.join(self.device.working_directory, filename)
-            self.device.pull_file(device_result_file, host_result_file)
-
-            with open(host_result_file) as fh:
-                if filename == 'time.result':
-                    values = [v / 1000 for v in map(int, fh.read().split())]
-                    _add_metric(context, 'time' + metric_suffix, values, 'Seconds')
-                else:
-                    metric = filename.replace('.result', '').lower()
-                    numbers = iter(map(int, fh.read().split()))
-                    deltas = [(after - before) / 1000000 for before, after in zip(numbers, numbers)]
-                    _add_metric(context, metric, deltas, 'Joules')
+            self._extract_results_from_file(context, filename, metric_suffix)
 
     def teardown(self, context):
         if self.set_launcher_affinity:
@@ -177,6 +165,21 @@ class ApplaunchWorkload(Workload):
     def _reset_launcher_affinity(self):
         command = 'taskset -p 0x{:X} {}'.format(self._old_launcher_affinity, self._launcher_pid)
         self.device.execute(command, busybox=True, as_root=True)
+
+    def _extract_results_from_file(self, context, filename, metric_suffix):
+        host_result_file = os.path.join(context.output_directory, filename)
+        device_result_file = self.device.path.join(self.device.working_directory, filename)
+        self.device.pull_file(device_result_file, host_result_file)
+
+        with open(host_result_file) as fh:
+            if filename == 'time.result':
+                values = [v / 1000 for v in map(int, fh.read().split())]
+                _add_metric(context, 'time' + metric_suffix, values, 'Seconds')
+            else:
+                metric = filename.replace('.result', '').lower()
+                numbers = iter(map(int, fh.read().split()))
+                deltas = [(after - before) / 1000000 for before, after in zip(numbers, numbers)]
+                _add_metric(context, metric, deltas, 'Joules')
 
 
 def _add_metric(context, metric, values, units):
