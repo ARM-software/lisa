@@ -54,7 +54,7 @@ class JsonConf(object):
 
             # Return json file
             self.json = json.loads(content, parse_int=int)
-            logging.debug('Target config: %s', self.json)
+            logging.debug('Loaded JSON configuration:\n%s', self.json)
 
         return self.json
 

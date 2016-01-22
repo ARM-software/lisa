@@ -437,6 +437,21 @@ class TestEnv(ShareState):
 
         self.platform['cpus_count'] = len(self.target.core_clusters)
 
+    def _load_em(self, board):
+        em_path = os.path.join(basepath,
+                'libs/utils/platforms', board.lower() + '.json')
+        logging.debug('%14s - Trying to load default EM from %s',
+                'Platform', em_path)
+        if not os.path.exists(em_path):
+            return None
+        logging.info('%14s - Loading default EM [%s]...',
+                'Platform', em_path)
+        board = JsonConf(em_path)
+        board.load()
+        if 'nrg_model' not in board.json:
+            return None
+        return board.json['nrg_model']
+
     def _init_platform(self):
         if 'bl' in self.target.modules:
             self._init_platform_bl()
@@ -446,6 +461,9 @@ class TestEnv(ShareState):
         # Adding energy model information
         if 'nrg_model' in self.conf:
             self.platform['nrg_model'] = self.conf['nrg_model']
+        # Try to load the default energy model (if available)
+        else:
+            self.platform['nrg_model'] = self._load_em(self.conf['board'])
 
         # Adding topology information
         self.platform['topology'] = self.topology.get_level("cluster")
