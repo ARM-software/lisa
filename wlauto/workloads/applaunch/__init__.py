@@ -125,7 +125,7 @@ class ApplaunchWorkload(Workload):
     def run(self, context):
         self.device.execute('sh {}'.format(self.device_script_file), timeout=300, as_root=self.io_stress)
 
-    def update_result(self, context):
+    def update_result(self, context):  # pylint: disable=too-many-locals
         result_files = ['time.result']
         result_files += ['{}.result'.format(sensor.label) for sensor in self.sensors]
         metric_suffix = ''

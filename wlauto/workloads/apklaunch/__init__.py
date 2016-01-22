@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+# pylint: disable=attribute-defined-outside-init
 import os
 
 from time import sleep
