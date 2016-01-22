@@ -23,6 +23,8 @@
 #include <limits.h>
 #include <linux/input.h>
 #include <sys/stat.h>
+#include <signal.h>
+#include <ctype.h>
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -91,14 +93,14 @@ typedef struct {
 
 
 bool_t verbose = FALSE;
-
+bool_t wait_for_stdin = TRUE;
 
 bool_t is_numeric(char *string)
 {
     int len = strlen(string);
 
     int i = 0;
-    while(i < len) 
+    while(i < len)
     {
        if(!isdigit(string[i]))
            return FALSE;
@@ -115,7 +117,7 @@ off_t get_file_size(const char *filename) {
         return st.st_size;
 
     die("Cannot determine size of %s: %s\n", filename, strerror(errno));
-} 
+}
 
 int inpdev_init(inpdev_t **inpdev, int devid)
 {
@@ -242,15 +244,15 @@ int replay_buffer_init(replay_buffer_t **buffer, const char *logfile)
         die("out of memory\n");
 
     int fdin = open(logfile, O_RDONLY);
-    if (fdin < 0) 
+    if (fdin < 0)
         die("Could not open eventlog %s\n", logfile);
 
     size_t rb = read(fdin, &(buff->num_fds), sizeof(buff->num_fds));
-    if (rb!=sizeof(buff->num_fds)) 
+    if (rb!=sizeof(buff->num_fds))
         die("problems reading eventlog\n");
 
     buff->fds = malloc(sizeof(int) * buff->num_fds);
-    if (!buff->fds) 
+    if (!buff->fds)
         die("out of memory\n");
 
     int32_t len, i;
@@ -258,10 +260,10 @@ int replay_buffer_init(replay_buffer_t **buffer, const char *logfile)
     for (i = 0; i < buff->num_fds; i++) {
         memset(path_buff, 0, sizeof(path_buff));
         rb = read(fdin, &len, sizeof(len));
-        if (rb!=sizeof(len)) 
+        if (rb!=sizeof(len))
             die("problems reading eventlog\n");
         rb = read(fdin, &path_buff[0], len);
-        if (rb != len) 
+        if (rb != len)
             die("problems reading eventlog\n");
 
         buff->fds[i] = open(path_buff, O_WRONLY | O_NDELAY);
@@ -274,7 +276,7 @@ int replay_buffer_init(replay_buffer_t **buffer, const char *logfile)
     i = 0;
     while(1) {
         rb = read(fdin, &rep_ev, sizeof(rep_ev));
-        if (rb < (int)sizeof(rep_ev)) 
+        if (rb < (int)sizeof(rep_ev))
             break;
 
         if (i == 0) {
@@ -321,7 +323,7 @@ int replay_buffer_play(replay_buffer_t *buff)
         struct input_event ev = (buff->events[i]).event;
         while((i < buff->num_events) && !timercmp(&ev.time, &last_event_delta, !=)) {
             rb = write(buff->fds[idx], &ev, sizeof(ev));
-            if (rb!=sizeof(ev)) 
+            if (rb!=sizeof(ev))
                 die("problems writing\n");
             dprintf("replayed event: type %d code %d value %d\n", ev.type, ev.code, ev.value);
 
@@ -346,101 +348,6 @@ void replay(const char *logfile)
 #endif
     replay_buffer_close(replay_buffer);
 }
-
-void record(inpdev_t *inpdev, int delay, const char *logfile)
-{
-    fd_set readfds;
-    FILE* fdout;
-    struct input_event ev;
-    int32_t i;
-    int32_t _padding = 0xdeadbeef;
-    int32_t maxfd = 0;
-    int32_t keydev=0;
-
-    int* fds = malloc(sizeof(int)*inpdev->id_pathc);
-    if (!fds) die("out of memory\n");
-
-    fdout = fopen(logfile, "wb");
-    if (!fdout) die("Could not open eventlog %s\n", logfile);
-
-    fwrite(&inpdev->id_pathc, sizeof(inpdev->id_pathc), 1, fdout);
-    for (i=0; i<inpdev->id_pathc; i++) {
-        int32_t len = strlen(inpdev->id_pathv[i]);
-        fwrite(&len, sizeof(len), 1, fdout);
-        fwrite(inpdev->id_pathv[i], len, 1, fdout);
-    }
-
-    for (i=0; i < inpdev->id_pathc; i++)
-    {
-        fds[i] = open(inpdev->id_pathv[i], O_RDONLY);
-        if (fds[i]>maxfd) maxfd = fds[i];
-        dprintf("opened %s with %d\n", inpdev->id_pathv[i], fds[i]);
-        if (fds[i]<0) die("could not open \%s\n", inpdev->id_pathv[i]);
-    }
-
-    int count =0;
-    struct timeval tout;
-    while(1)
-    {
-        FD_ZERO(&readfds);
-        FD_SET(STDIN_FILENO, &readfds);
-        for (i=0; i < inpdev->id_pathc; i++)
-            FD_SET(fds[i], &readfds);
-        /* wait for input */
-        tout.tv_sec = delay;
-        tout.tv_usec = 0;
-        int32_t r = select(maxfd+1, &readfds, NULL, NULL, &tout);
-        /* dprintf("got %d (err %d)\n", r, errno); */
-        if (!r) break;
-        if (FD_ISSET(STDIN_FILENO, &readfds)) {
-            // in this case the key down for the return key will be recorded
-            // so we need to up the key up
-            memset(&ev, 0, sizeof(ev));
-            ev.type = EV_KEY;
-            ev.code = KEY_ENTER;
-            ev.value = 0;
-            gettimeofday(&ev.time, NULL);
-            fwrite(&keydev, sizeof(keydev), 1, fdout);
-            fwrite(&_padding, sizeof(_padding), 1, fdout);
-            fwrite(&ev, sizeof(ev), 1, fdout);
-            memset(&ev, 0, sizeof(ev)); // SYN
-            gettimeofday(&ev.time, NULL);
-            fwrite(&keydev, sizeof(keydev), 1, fdout);
-            fwrite(&_padding, sizeof(_padding), 1, fdout);
-            fwrite(&ev, sizeof(ev), 1, fdout);
-            dprintf("added fake return exiting...\n");
-            break;
-        }
-
-        for (i=0; i < inpdev->id_pathc; i++)
-        {
-            if (FD_ISSET(fds[i], &readfds))
-            {
-                dprintf("Got event from %s\n", inpdev->id_pathv[i]);
-                memset(&ev, 0, sizeof(ev));
-                size_t rb = read(fds[i], (void*) &ev, sizeof(ev));
-                dprintf("%d event: type %d code %d value %d\n",
-                        (unsigned int)rb, ev.type, ev.code, ev.value);
-                if (ev.type == EV_KEY && ev.code == KEY_ENTER && ev.value == 1)
-                    keydev = i;
-                fwrite(&i, sizeof(i), 1, fdout);
-                fwrite(&_padding, sizeof(_padding), 1, fdout);
-                fwrite(&ev, sizeof(ev), 1, fdout);
-                count++;
-            }
-        }
-    }
-
-    for (i=0; i < inpdev->id_pathc; i++)
-    {
-        close(fds[i]);
-    }
-
-    fclose(fdout);
-    free(fds);
-    dprintf("Recorded %d events\n", count);
-}
-
 
 void usage()
 {
@@ -490,7 +397,7 @@ void revent_args_init(revent_args_t **rargs, int argc, char** argv)
     revent_args->file = NULL;
 
     int opt;
-    while ((opt = getopt(argc, argv, "ht:d:v")) != -1)
+    while ((opt = getopt(argc, argv, "ht:d:vs")) != -1)
     {
         switch (opt) {
             case 'h':
@@ -516,6 +423,10 @@ void revent_args_init(revent_args_t **rargs, int argc, char** argv)
             case 'v':
                 verbose = TRUE;
                 break;
+            case 's':
+                wait_for_stdin = FALSE;
+                break;
+
             default:
                 die("Unexpected option: %c", opt);
         }
@@ -526,13 +437,13 @@ void revent_args_init(revent_args_t **rargs, int argc, char** argv)
         usage();
         die("Must specify a command.\n");
     }
-    if (!strcmp(argv[next_arg], "record")) 
+    if (!strcmp(argv[next_arg], "record"))
         revent_args->mode = RECORD;
-    else if (!strcmp(argv[next_arg], "replay")) 
+    else if (!strcmp(argv[next_arg], "replay"))
         revent_args->mode = REPLAY;
-    else if (!strcmp(argv[next_arg], "dump")) 
+    else if (!strcmp(argv[next_arg], "dump"))
         revent_args->mode = DUMP;
-    else if (!strcmp(argv[next_arg], "info")) 
+    else if (!strcmp(argv[next_arg], "info"))
         revent_args->mode = INFO;
     else {
         usage();
@@ -569,15 +480,138 @@ int revent_args_close(revent_args_t *rargs)
         return 0;
 }
 
+int* fds = NULL;
+FILE* fdout = NULL;
+revent_args_t *rargs = NULL;
+inpdev_t *inpdev = NULL;
+int count;
+
+void term_handler(int signum)
+{
+    int32_t i;
+    for (i=0; i < inpdev->id_pathc; i++)
+    {
+        close(fds[i]);
+    }
+
+    fclose(fdout);
+    free(fds);
+    dprintf("Recorded %d events\n", count);
+
+    inpdev_close(inpdev);
+    revent_args_close(rargs);
+    exit(0);
+}
+
+void record(inpdev_t *inpdev, int delay, const char *logfile)
+{
+    fd_set readfds;
+    struct input_event ev;
+    int32_t i;
+    int32_t _padding = 0xdeadbeef;
+    int32_t maxfd = 0;
+    int32_t keydev=0;
+
+    //signal handler
+    struct sigaction action;
+    memset(&action, 0, sizeof(struct sigaction));
+    action.sa_handler = term_handler;
+    sigaction(SIGTERM, &action, NULL);
+
+    fds = malloc(sizeof(int)*inpdev->id_pathc);
+    if (!fds) die("out of memory\n");
+
+    fdout = fopen(logfile, "wb");
+    if (!fdout) die("Could not open eventlog %s\n", logfile);
+
+    fwrite(&inpdev->id_pathc, sizeof(inpdev->id_pathc), 1, fdout);
+    for (i=0; i<inpdev->id_pathc; i++) {
+        int32_t len = strlen(inpdev->id_pathv[i]);
+        fwrite(&len, sizeof(len), 1, fdout);
+        fwrite(inpdev->id_pathv[i], len, 1, fdout);
+    }
+
+    for (i=0; i < inpdev->id_pathc; i++)
+    {
+        fds[i] = open(inpdev->id_pathv[i], O_RDONLY);
+        if (fds[i]>maxfd) maxfd = fds[i];
+        dprintf("opened %s with %d\n", inpdev->id_pathv[i], fds[i]);
+        if (fds[i]<0) die("could not open \%s\n", inpdev->id_pathv[i]);
+    }
+
+    count = 0;
+    struct timeval tout;
+    while(1)
+    {
+        FD_ZERO(&readfds);
+        if (wait_for_stdin)
+        {
+            FD_SET(STDIN_FILENO, &readfds);
+        }
+        for (i=0; i < inpdev->id_pathc; i++)
+            FD_SET(fds[i], &readfds);
+        /* wait for input */
+        tout.tv_sec = delay;
+        tout.tv_usec = 0;
+        int32_t r = select(maxfd+1, &readfds, NULL, NULL, &tout);
+        /* dprintf("got %d (err %d)\n", r, errno); */
+        if (!r) break;
+        if (wait_for_stdin && FD_ISSET(STDIN_FILENO, &readfds)) {
+            // in this case the key down for the return key will be recorded
+            // so we need to up the key up
+            memset(&ev, 0, sizeof(ev));
+            ev.type = EV_KEY;
+            ev.code = KEY_ENTER;
+            ev.value = 0;
+            gettimeofday(&ev.time, NULL);
+            fwrite(&keydev, sizeof(keydev), 1, fdout);
+            fwrite(&_padding, sizeof(_padding), 1, fdout);
+            fwrite(&ev, sizeof(ev), 1, fdout);
+            memset(&ev, 0, sizeof(ev)); // SYN
+            gettimeofday(&ev.time, NULL);
+            fwrite(&keydev, sizeof(keydev), 1, fdout);
+            fwrite(&_padding, sizeof(_padding), 1, fdout);
+            fwrite(&ev, sizeof(ev), 1, fdout);
+            dprintf("added fake return exiting...\n");
+            break;
+        }
+
+        for (i=0; i < inpdev->id_pathc; i++)
+        {
+            if (FD_ISSET(fds[i], &readfds))
+            {
+                dprintf("Got event from %s\n", inpdev->id_pathv[i]);
+                memset(&ev, 0, sizeof(ev));
+                size_t rb = read(fds[i], (void*) &ev, sizeof(ev));
+                dprintf("%d event: type %d code %d value %d\n",
+                        (unsigned int)rb, ev.type, ev.code, ev.value);
+                if (ev.type == EV_KEY && ev.code == KEY_ENTER && ev.value == 1)
+                    keydev = i;
+                fwrite(&i, sizeof(i), 1, fdout);
+                fwrite(&_padding, sizeof(_padding), 1, fdout);
+                fwrite(&ev, sizeof(ev), 1, fdout);
+                count++;
+            }
+        }
+    }
+
+    for (i=0; i < inpdev->id_pathc; i++)
+    {
+        close(fds[i]);
+    }
+
+    fclose(fdout);
+    free(fds);
+    dprintf("Recorded %d events\n", count);
+}
+
 int main(int argc, char** argv)
 {
     int i;
     char *logfile = NULL;
 
-    revent_args_t *rargs;
     revent_args_init(&rargs, argc, argv);
 
-    inpdev_t *inpdev;
     inpdev_init(&inpdev, rargs->device_number);
 
     switch(rargs->mode) {
@@ -600,4 +634,3 @@ int main(int argc, char** argv)
     revent_args_close(rargs);
     return 0;
 }
-

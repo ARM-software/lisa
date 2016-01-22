@@ -536,6 +536,14 @@ class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
             command = 'cd {} && {}'.format(in_directory, command)
         return self.execute(command, background=background, as_root=as_root, timeout=timeout)
 
+    def get_device_model(self):
+        if self.file_exists("/proc/device-tree/model"):
+            raw_model = self.execute("cat /proc/device-tree/model")
+            return '_'.join(raw_model.split()[:2])
+        # Right now we don't know any other way to get device model
+        # info in linux on arm platforms
+        return None
+
     # internal methods
 
     def _check_ready(self):

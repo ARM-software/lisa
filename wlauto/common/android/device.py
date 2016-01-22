@@ -645,6 +645,12 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
             if se_status == 'Enforcing':
                 self.execute('setenforce 0', as_root=True)
 
+    def get_device_model(self):
+        try:
+            return self.getprop(prop='ro.product.device')
+        except KeyError:
+            return None
+
     # Internal methods: do not use outside of the class.
 
     def _update_build_properties(self, filepath, props):

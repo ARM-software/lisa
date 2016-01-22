@@ -302,7 +302,7 @@ class ReventWorkload(Workload):
         if _call_super:
             super(ReventWorkload, self).__init__(device, **kwargs)
         devpath = self.device.path
-        self.on_device_revent_binary = devpath.join(self.device.working_directory, 'revent')
+        self.on_device_revent_binary = devpath.join(self.device.binaries_directory, 'revent')
         self.on_device_setup_revent = devpath.join(self.device.working_directory, '{}.setup.revent'.format(self.device.name))
         self.on_device_run_revent = devpath.join(self.device.working_directory, '{}.run.revent'.format(self.device.name))
         self.setup_timeout = kwargs.get('setup_timeout', self.default_setup_timeout)
