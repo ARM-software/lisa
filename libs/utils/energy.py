@@ -96,6 +96,7 @@ class HWMon(EnergyMeter):
             return
 
         # Initialize HWMON instrument
+        logging.info('%14s - Scanning for HWMON channels, may take some time...', 'EnergyMeter')
         self._hwmon = devlib.HwmonInstrument(self._target)
 
         # Configure channels for energy measurements
