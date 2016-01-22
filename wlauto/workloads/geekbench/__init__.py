@@ -95,7 +95,7 @@ class Geekbench(AndroidUiAutoBenchmark):
         self.run_timeout = 5 * 60 * self.times
 
     def initialize(self, context):
-        if self.device.is_rooted:
+        if self.version == '3' and not self.device.is_rooted:
             raise WorkloadError('Geekbench workload only works on rooted devices.')
 
     def init_resources(self, context):
