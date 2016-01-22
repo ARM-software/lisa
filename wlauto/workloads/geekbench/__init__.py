@@ -94,6 +94,10 @@ class Geekbench(AndroidUiAutoBenchmark):
         self.uiauto_params['times'] = self.times
         self.run_timeout = 5 * 60 * self.times
 
+    def initialize(self, context):
+        if self.device.is_rooted:
+            raise WorkloadError('Geekbench workload only works on rooted devices.')
+
     def init_resources(self, context):
         self.apk_file = context.resolver.get(wlauto.common.android.resources.ApkFile(self), version=self.version)
         self.uiauto_file = context.resolver.get(wlauto.common.android.resources.JarFile(self))
