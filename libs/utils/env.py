@@ -258,6 +258,10 @@ class TestEnv(ShareState):
         else:
             self.__connection_settings['password'] = PASSWORD_DEFAULT
 
+        # Configure port
+        if 'port' in self.conf:
+            self.__connection_settings['port'] = self.conf['port']
+
         # Configure the host IP/MAC address
         if 'host' in self.conf:
             try:
