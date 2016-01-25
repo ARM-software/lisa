@@ -509,13 +509,15 @@ class TestBase(unittest.TestCase):
             cls.env.ftrace.start()
 
         # ENERGY: start sampling
-        cls.env.emeter.reset()
+        if cls.env.emeter:
+            cls.env.emeter.reset()
 
         # WORKLOAD: Run the configured workload
         wload.run(out_dir=cls.env.out_dir, cgroup=cls.cgroup)
 
         # ENERGY: collect measurements
-        cls.env.emeter.report(cls.env.out_dir)
+        if cls.env.emeter:
+            cls.env.emeter.report(cls.env.out_dir)
 
         # FTRACE: stop and collect measurements
         if cls.env.ftrace and cls.target_conf_flag(tc, 'ftrace'):
