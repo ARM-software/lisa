@@ -13,19 +13,15 @@
 # limitations under the License.
 #
 
-"""This module contains the class for plotting and
-customizing Line Plots with a pandas dataframe input
+"""
+This class sublclasses :mod:`trappy.plotter.StaticPlot.StaticPlot` to
+implement a line plot.
 """
 
-import matplotlib.pyplot as plt
 from trappy.plotter import AttrConf
-from trappy.plotter.Constraint import ConstraintManager
-from trappy.plotter.PlotLayout import PlotLayout
-from trappy.plotter.AbstractDataPlotter import AbstractDataPlotter
-from trappy.plotter.ColorMap import ColorMap
+from trappy.plotter.StaticPlot import StaticPlot
 
-
-class LinePlot(AbstractDataPlotter):
+class LinePlot(StaticPlot):
     """
     This class uses :mod:`trappy.plotter.Constraint.Constraint` to
     represent different permutations of input parameters. These
@@ -112,79 +108,18 @@ class LinePlot(AbstractDataPlotter):
     def __init__(self, traces, templates=None, **kwargs):
         # Default keys, each can be overridden in kwargs
 
-        self._fig = None
-        self._layout = None
-        super(LinePlot, self).__init__(traces=traces,
-                                       templates=templates)
+        super(LinePlot, self).__init__(
+            traces=traces,
+            templates=templates,
+            **kwargs)
 
-        self.set_defaults()
-
-        for key in kwargs:
-            if key in AttrConf.ARGS_TO_FORWARD:
-                self._attr["args_to_forward"][key] = kwargs[key]
-            else:
-                self._attr[key] = kwargs[key]
-
-        if "signals" in self._attr:
-            self._describe_signals()
-
-        self._check_data()
-
-        if "column" not in self._attr:
-            raise RuntimeError("Value Column not specified")
-
-        zip_constraints = not self._attr["permute"]
-        self.c_mgr = ConstraintManager(traces, self._attr["column"],
-                                       self.templates, self._attr["pivot"],
-                                       self._attr["filters"], zip_constraints)
         self._check_add_scatter()
-
-    def savefig(self, *args, **kwargs):
-        """Save the plot as a PNG fill. This calls into
-        :mod:`matplotlib.figure.savefig`
-        """
-
-        if self._fig == None:
-            self.view()
-        self._fig.savefig(*args, **kwargs)
-
-    def view(self, test=False):
-        """Displays the graph"""
-
-        if test:
-            self._attr["style"] = True
-            AttrConf.MPL_STYLE["interactive"] = False
-
-        if self._attr["concat"]:
-            if self._attr["style"]:
-                with plt.rc_context(AttrConf.MPL_STYLE):
-                    self._plot_concat()
-            else:
-                self._plot_concat()
-        else:
-            if self._attr["style"]:
-                with plt.rc_context(AttrConf.MPL_STYLE):
-                    self._plot(self._attr["permute"])
-            else:
-                self._plot(self._attr["permute"])
 
     def set_defaults(self):
         """Sets the default attrs"""
-        self._attr["width"] = AttrConf.WIDTH
-        self._attr["length"] = AttrConf.LENGTH
-        self._attr["per_line"] = AttrConf.PER_LINE
-        self._attr["concat"] = AttrConf.CONCAT
-        self._attr["fill"] = AttrConf.FILL
-        self._attr["filters"] = {}
-        self._attr["style"] = True
-        self._attr["permute"] = False
-        self._attr["pivot"] = AttrConf.PIVOT
-        self._attr["xlim"] = AttrConf.XLIM
-        self._attr["ylim"] = AttrConf.XLIM
-        self._attr["title"] = AttrConf.TITLE
-        self._attr["args_to_forward"] = {}
+        super(LinePlot, self).set_defaults()
         self._attr["scatter"] = AttrConf.PLOT_SCATTER
-        self._attr["map_label"] = {}
+        self._attr["fill"] = AttrConf.FILL
 
     def _check_add_scatter(self):
         """Check if a scatter plot is needed
@@ -197,165 +132,35 @@ class LinePlot(AbstractDataPlotter):
                 self._attr["args_to_forward"]["markersize"] = \
                     self._attr["point_size"]
 
-    def _plot(self, permute):
-        """Internal Method called to draw the plot"""
-        pivot_vals, len_pivots = self.c_mgr.generate_pivots(permute)
+    def fill_line(self, axis, line_2d, cmap_index):
+        """Fill the area under a line"""
+        drawstyle = line_2d.get_drawstyle()
+        if drawstyle.startswith("steps"):
+            # This has been fixed in upstream matplotlib
+            raise UserWarning("matplotlib does not support fill for step plots")
 
-        # Create a 2D Layout
-        self._layout = PlotLayout(
-            self._attr["per_line"],
-            len_pivots,
-            width=self._attr["width"],
-            length=self._attr["length"],
-            title=self._attr['title'])
+        xdat, ydat = line_2d.get_data(orig=False)
+        axis.fill_between(
+            xdat,
+            axis.get_ylim()[0],
+            ydat,
+            facecolor=self._cmap.cmap(cmap_index),
+            alpha=AttrConf.ALPHA)
 
-        self._fig = self._layout.get_fig()
-        legend_str = []
-        plot_index = 0
-
-        if permute:
-            legend = [None] * self.c_mgr._max_len
-            cmap = ColorMap(self.c_mgr._max_len)
-        else:
-            legend = [None] * len(self.c_mgr)
-            cmap = ColorMap(len(self.c_mgr))
-
-        for p_val in pivot_vals:
-            l_index = 0
-            for constraint in self.c_mgr:
-                if permute:
-                    trace_idx, pivot = p_val
-                    if constraint.trace_index != trace_idx:
-                        continue
-                    legend_str.append(constraint._column)
-                    l_index = self.c_mgr.get_column_index(constraint)
-                    title = constraint.get_data_name() + ":"
-                else:
-                    pivot = p_val
-                    legend_str.append(str(constraint))
-                    title = ""
-
-                result = constraint.result
-                if pivot in result:
-                    axis = self._layout.get_axis(plot_index)
-                    line_2d_list = axis.plot(
-                        result[pivot].index,
-                        result[pivot].values,
-                        color=cmap.cmap(l_index),
-                        **self._attr["args_to_forward"])
-
-                    if self._attr["fill"]:
-                        drawstyle = line_2d_list[0].get_drawstyle()
-                        # This has been fixed in upstream matplotlib
-                        if drawstyle.startswith("steps"):
-                            raise UserWarning("matplotlib does not support fill for step plots")
-
-                        xdat, ydat = line_2d_list[0].get_data(orig=False)
-                        axis.fill_between(xdat,
-                            axis.get_ylim()[0],
-                            ydat,
-                            facecolor=cmap.cmap(l_index),
-                            alpha=AttrConf.ALPHA)
-
-                    legend[l_index] = line_2d_list[0]
-                    if self._attr["xlim"] != None:
-                        axis.set_xlim(self._attr["xlim"])
-                    if self._attr["ylim"] != None:
-                        axis.set_ylim(self._attr["ylim"])
-
-                else:
-                    axis = self._layout.get_axis(plot_index)
-                    axis.plot([], [], **self._attr["args_to_forward"])
-
-                l_index += 1
-
-            if pivot == AttrConf.PIVOT_VAL:
-                if type(self._attr["column"]) is list:
-                    title += ", ".join(self._attr["column"])
-                else:
-                    title += self._attr["column"]
-            else:
-                title += "{0}: {1}".format(self._attr["pivot"],
-                                           self._attr["map_label"].get(pivot, pivot))
-
-            axis.set_title(title)
-            plot_index += 1
-
-        for l_idx, legend_line in enumerate(legend):
-            if not legend_line:
-                del legend[l_idx]
-                del legend_str[l_idx]
-        self._fig.legend(legend, legend_str)
-        self._layout.finish(len_pivots)
-
-    def _plot_concat(self):
-        """Plot all lines on a single figure"""
-
-        pivot_vals, len_pivots = self.c_mgr.generate_pivots()
-        cmap = ColorMap(len_pivots)
-
-        self._layout = PlotLayout(self._attr["per_line"], len(self.c_mgr),
-                                  width=self._attr["width"],
-                                  length=self._attr["length"],
-                                  title=self._attr['title'])
-
-        self._fig = self._layout.get_fig()
-        legend = [None] * len_pivots
-        legend_str = [""] * len_pivots
-        plot_index = 0
-
-        for constraint in self.c_mgr:
+    def plot_axis(self, axis, series_list, permute, concat, args_to_forward):
+        """Internal Method called to plot data (series_list) on a given axis"""
+        for i, (constraint, pivot) in enumerate(series_list):
             result = constraint.result
-            title = str(constraint)
-            result = constraint.result
-            pivot_index = 0
-            for pivot in pivot_vals:
+            line_2d_list = axis.plot(
+                result[pivot].index,
+                result[pivot].values,
+                color=self._cmap.cmap(i),
+                **args_to_forward
+            )
 
-                if pivot in result:
-                    axis = self._layout.get_axis(plot_index)
-                    line_2d_list = axis.plot(
-                        result[pivot].index,
-                        result[pivot].values,
-                        color=cmap.cmap(pivot_index),
-                        **self._attr["args_to_forward"])
+            if self._attr["fill"]:
+                self.fill_line(axis, line_2d_list[0], i)
 
-                    if self._attr["xlim"] != None:
-                        axis.set_xlim(self._attr["xlim"])
-                    if self._attr["ylim"] != None:
-                        axis.set_ylim(self._attr["ylim"])
-                    legend[pivot_index] = line_2d_list[0]
+            axis.set_title(self.make_title(constraint, pivot, permute, concat))
 
-                    if self._attr["fill"]:
-                        drawstyle = line_2d_list[0].get_drawstyle()
-                        if drawstyle.startswith("steps"):
-                            # This has been fixed in upstream matplotlib
-                            raise UserWarning("matplotlib does not support fill for step plots")
-
-                        xdat, ydat = line_2d_list[0].get_data(orig=False)
-                        axis.fill_between(xdat,
-                            axis.get_ylim()[0],
-                            ydat,
-                            facecolor=cmap.cmap(pivot_index),
-                            alpha=AttrConf.ALPHA)
-
-                    if pivot == AttrConf.PIVOT_VAL:
-                        legend_str[pivot_index] = self._attr["column"]
-                    else:
-                        legend_str[pivot_index] = "{0}: {1}".format(self._attr["pivot"],
-                                                                    self._attr["map_label"].get(pivot, pivot))
-                else:
-                    axis = self._layout.get_axis(plot_index)
-                    axis.plot(
-                        [],
-                        [],
-                        color=cmap.cmap(pivot_index),
-                        **self._attr["args_to_forward"])
-                pivot_index += 1
-            plot_index += 1
-
-        self._fig.legend(legend, legend_str)
-        plot_index = 0
-        for constraint in self.c_mgr:
-            self._layout.get_axis(plot_index).set_title(str(constraint))
-            plot_index += 1
-        self._layout.finish(len(self.c_mgr))
+            self.add_to_legend(i, line_2d_list[0], constraint, pivot, concat)
