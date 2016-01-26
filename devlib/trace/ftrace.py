@@ -124,7 +124,7 @@ class FtraceCollector(TraceCollector):
         # The size of trace.dat will depend on how long trace-cmd was running.
         # Therefore timout for the pull command must also be adjusted
         # accordingly.
-        pull_timeout = self.stop_time - self.start_time
+        pull_timeout = 5 * (self.stop_time - self.start_time)
         self.target.pull(self.target_output_file, outfile, timeout=pull_timeout)
         if not os.path.isfile(outfile):
             self.logger.warning('Binary trace not pulled from device.')
