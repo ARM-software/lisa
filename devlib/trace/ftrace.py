@@ -45,6 +45,7 @@ class FtraceCollector(TraceCollector):
 
     def __init__(self, target,
                  events=None,
+                 functions=None,
                  buffer_size=None,
                  buffer_size_step=1000,
                  tracing_path='/sys/kernel/debug/tracing',
@@ -55,6 +56,7 @@ class FtraceCollector(TraceCollector):
                  ):
         super(FtraceCollector, self).__init__(target)
         self.events = events if events is not None else DEFAULT_EVENTS
+        self.functions = functions
         self.buffer_size = buffer_size
         self.buffer_size_step = buffer_size_step
         self.tracing_path = tracing_path
@@ -67,10 +69,13 @@ class FtraceCollector(TraceCollector):
         self.start_time = None
         self.stop_time = None
         self.event_string = _build_trace_events(self.events)
+        self.function_string = _build_trace_functions(self.functions)
         self._reset_needed = True
 
         # Setup tracing paths
+        self.available_functions_file = self.target.path.join(self.tracing_path, 'available_filter_functions')
         self.buffer_size_file         = self.target.path.join(self.tracing_path, 'buffer_size_kb')
+        self.function_profile_file    = self.target.path.join(self.tracing_path, 'function_profile_enabled')
         self.marker_file              = self.target.path.join(self.tracing_path, 'trace_marker')
 
         self.host_binary = which('trace-cmd')
@@ -89,6 +94,18 @@ class FtraceCollector(TraceCollector):
             if not self.target.is_installed('trace-cmd'):
                 raise TargetError('No trace-cmd found on device and no_install=True is specified.')
             self.target_binary = 'trace-cmd'
+
+        # Check for function tracing support
+        if self.functions:
+            if not self.target.file_exists(self.function_profile_file):
+                raise TargetError('Function profiling not supported. '\
+                        'A kernel build with CONFIG_FUNCTION_PROFILER enable is required')
+            # Validate required functions to be traced
+            available_functions = self.target.execute(
+                    'cat {}'.format(self.available_functions_file)).splitlines()
+            for function in self.functions:
+                if function not in available_functions:
+                    raise TargetError('Function [{}] not available for filtering'.format(function))
 
     def reset(self):
         if self.buffer_size:
@@ -205,3 +222,6 @@ def _build_trace_events(events):
     event_string = ' '.join(['-e {}'.format(e) for e in events])
     return event_string
 
+def _build_trace_functions(functions):
+    function_string = " ".join(functions)
+    return function_string
