@@ -47,8 +47,7 @@ class FtraceCollector(TraceCollector):
                  events=None,
                  buffer_size=None,
                  buffer_size_step=1000,
-                 buffer_size_file='/sys/kernel/debug/tracing/buffer_size_kb',
-                 marker_file='/sys/kernel/debug/tracing/trace_marker',
+                 tracing_path='/sys/kernel/debug/tracing',
                  automark=True,
                  autoreport=True,
                  autoview=False,
@@ -58,8 +57,7 @@ class FtraceCollector(TraceCollector):
         self.events = events if events is not None else DEFAULT_EVENTS
         self.buffer_size = buffer_size
         self.buffer_size_step = buffer_size_step
-        self.buffer_size_file = buffer_size_file
-        self.marker_file = marker_file
+        self.tracing_path = tracing_path
         self.automark = automark
         self.autoreport = autoreport
         self.autoview = autoview
@@ -70,6 +68,10 @@ class FtraceCollector(TraceCollector):
         self.stop_time = None
         self.event_string = _build_trace_events(self.events)
         self._reset_needed = True
+
+        # Setup tracing paths
+        self.buffer_size_file         = self.target.path.join(self.tracing_path, 'buffer_size_kb')
+        self.marker_file              = self.target.path.join(self.tracing_path, 'trace_marker')
 
         self.host_binary = which('trace-cmd')
         self.kernelshark = which('kernelshark')
