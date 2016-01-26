@@ -412,7 +412,7 @@ as PNG images into the output folder of the experiment.
 
 # License
 
-This project is licensed under Apache-2.0
+This project is licensed under Apache-2.0. It includes some third-party code under other open source licenses.  For more information, see lisa/tools/LICENSE.*
 
 # Contributions / Pull Requests
 
