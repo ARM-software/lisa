@@ -85,7 +85,8 @@ class RunInfo(object):
         self.duration = None
         self.project = config.project
         self.project_stage = config.project_stage
-        self.run_name = config.run_name
+        self.run_name = config.run_name or "{}_{}".format(os.path.split(settings.output_directory)[1],
+                                                          datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S"))
         self.notes = None
         self.device_properties = {}
 
