@@ -75,8 +75,10 @@ class FtraceCollector(TraceCollector):
         # Setup tracing paths
         self.available_functions_file = self.target.path.join(self.tracing_path, 'available_filter_functions')
         self.buffer_size_file         = self.target.path.join(self.tracing_path, 'buffer_size_kb')
+        self.current_tracer_file      = self.target.path.join(self.tracing_path, 'current_tracer')
         self.function_profile_file    = self.target.path.join(self.tracing_path, 'function_profile_enabled')
         self.marker_file              = self.target.path.join(self.tracing_path, 'trace_marker')
+        self.ftrace_filter_file       = self.target.path.join(self.tracing_path, 'set_ftrace_filter')
 
         self.host_binary = which('trace-cmd')
         self.kernelshark = which('kernelshark')
@@ -123,8 +125,17 @@ class FtraceCollector(TraceCollector):
         if 'cpufreq' in self.target.modules:
             self.logger.debug('Trace CPUFreq frequencies')
             self.target.cpufreq.trace_frequencies()
+        # Enable kernel function profiling
+        if self.functions:
+            self.target.execute('echo nop > {}'.format(self.current_tracer_file))
+            self.target.execute('echo 0 > {}'.format(self.function_profile_file))
+            self.target.execute('echo {} > {}'.format(self.function_string, self.ftrace_filter_file))
+            self.target.execute('echo 1 > {}'.format(self.function_profile_file))
 
     def stop(self):
+        # Disable kernel function profiling
+        if self.functions:
+            self.target.execute('echo 1 > {}'.format(self.function_profile_file))
         if 'cpufreq' in self.target.modules:
             self.logger.debug('Trace CPUFreq frequencies')
             self.target.cpufreq.trace_frequencies()
