@@ -72,7 +72,7 @@ REBOOT_DELAY = 3
 
 class RunInfo(object):
     """
-    Information about the current run, such as it's unique ID, run
+    Information about the current run, such as its unique ID, run
     time, etc.
 
     """

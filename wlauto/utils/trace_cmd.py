@@ -173,13 +173,13 @@ def regex_body_parser(regex, flags=0):
     return regex_parser_func
 
 
-# Maps event onto the corresponding parser for it's body text. A parser may be
+# Maps event onto the corresponding parser for its body text. A parser may be
 # a callable with signature
 #
 #   parser(event, bodytext)
 #
 # a re.RegexObject, or a string (in which case it will be compiled into a
-# regex). In case of a string/regex, it's named groups will be used to populate
+# regex). In case of a string/regex, its named groups will be used to populate
 # the event's attributes.
 EVENT_PARSER_MAP = {
     'sched_switch': re.compile(

@@ -303,7 +303,7 @@ class Artifact(object):
                         network filer archiver may choose to archive them).
 
         .. note: The kind parameter is intended to represent the logical function of a particular
-                 artifact, not it's intended means of processing -- this is left entirely up to the
+                 artifact, not its intended means of processing -- this is left entirely up to the
                  result processors.
 
     """
@@ -406,7 +406,7 @@ class ExtensionMeta(type):
     def _propagate_attributes(mcs, bases, attrs):
         """
         For attributes specified by to_propagate, their values will be a union of
-        that specified for cls and it's bases (cls values overriding those of bases
+        that specified for cls and its bases (cls values overriding those of bases
         in case of conflicts).
 
         """
@@ -665,7 +665,7 @@ class Module(Extension):
     In other words, a Module is roughly equivalent to a kernel module and its primary purpose is to
     implement WA "drivers" for various peripherals that may or may not be present in a particular setup.
 
-    .. note:: A mudule is itself an Extension and can therefore have it's own modules.
+    .. note:: A mudule is itself an Extension and can therefore have its own modules.
 
     """
 

@@ -174,7 +174,7 @@ class Device(Extension):
                   description="""
                   This is a list indicating the cluster affinity of the CPU cores,
                   each element correponding to the cluster ID of the core coresponding
-                  to it's index. E.g. ``[0, 0, 1]`` indicates that cpu0 and cpu1 are on
+                  to its index. E.g. ``[0, 0, 1]`` indicates that cpu0 and cpu1 are on
                   cluster 0, while cpu2 is on cluster 1. If this is not specified, this
                   will be inferred from ``core_names`` if possible (assuming all cores with
                   the same name are on the same cluster).

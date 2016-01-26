@@ -173,6 +173,9 @@ class Agenda(object):
             message = '{} does not contain a valid agenda structure; top level must be a dict.'
             raise ConfigError(message.format(self.filepath))
         for k, v in raw.iteritems():
+            if v is None:
+                raise ConfigError('Empty "{}" entry in {}'.format(k, self.filepath))
+
             if k == 'config':
                 if not isinstance(v, dict):
                     raise ConfigError('Invalid agenda: "config" entry must be a dict')

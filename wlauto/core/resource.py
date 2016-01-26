@@ -82,7 +82,7 @@ class ResourceGetter(Extension):
     Base class for implementing resolvers. Defines resolver interface. Resolvers are
     responsible for discovering resources (such as particular kinds of files) they know
     about based on the parameters that are passed to them. Each resolver also has a dict of
-    attributes that describe it's operation, and may be used to determine which get invoked.
+    attributes that describe its operation, and may be used to determine which get invoked.
     There is no pre-defined set of attributes and resolvers may define their own.
 
     Class attributes:

@@ -425,7 +425,7 @@ class RunConfiguration(object):
       is validated (to make sure there are no missing settings, etc).
     - Extensions are loaded through the run config object, which instantiates
       them with appropriate parameters based on the "raw" config collected earlier. When an
-      Extension is instantiated in such a way, it's config is "officially" added to run configuration
+      Extension is instantiated in such a way, its config is "officially" added to run configuration
       tracked by the run config object. Raw config is discarded at the end of the run, so
       that any config that wasn't loaded in this way is not recoded (as it was not actually used).
     - Extension parameters a validated individually (for type, value ranges, etc) as they are
