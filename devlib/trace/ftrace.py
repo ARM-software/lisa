@@ -59,6 +59,7 @@ class FtraceCollector(TraceCollector):
                  autoreport=True,
                  autoview=False,
                  no_install=False,
+                 strict=False,
                  ):
         super(FtraceCollector, self).__init__(target)
         self.events = events if events is not None else DEFAULT_EVENTS
@@ -75,7 +76,7 @@ class FtraceCollector(TraceCollector):
         self.start_time = None
         self.stop_time = None
         self.event_string = _build_trace_events(self.events)
-        self.function_string = _build_trace_functions(self.functions)
+        self.function_string = None
         self._reset_needed = True
 
         # Setup tracing paths
@@ -111,9 +112,16 @@ class FtraceCollector(TraceCollector):
             # Validate required functions to be traced
             available_functions = self.target.execute(
                     'cat {}'.format(self.available_functions_file)).splitlines()
+            selected_functions = []
             for function in self.functions:
                 if function not in available_functions:
-                    raise TargetError('Function [{}] not available for filtering'.format(function))
+                    message = 'Function [{}] not available for profiling'.format(function)
+                    if strict:
+                        raise TargetError(message)
+                    self.target.logger.warning(message)
+                else:
+                    selected_functions.append(function)
+            self.function_string = _build_trace_functions(selected_functions)
 
     def reset(self):
         if self.buffer_size:
