@@ -15,7 +15,9 @@
 
 from __future__ import division
 import os
+import json
 import time
+import re
 import subprocess
 
 from devlib.trace import TraceCollector
@@ -27,6 +29,7 @@ from devlib.utils.misc import check_output, which
 TRACE_MARKER_START = 'TRACE_MARKER_START'
 TRACE_MARKER_STOP = 'TRACE_MARKER_STOP'
 OUTPUT_TRACE_FILE = 'trace.dat'
+OUTPUT_PROFILE_FILE = 'trace_stat.dat'
 DEFAULT_EVENTS = [
     'cpu_frequency',
     'cpu_idle',
@@ -40,15 +43,18 @@ DEFAULT_EVENTS = [
 ]
 TIMEOUT = 180
 
+# Regexps for parsing of function profiling data
+CPU_RE = re.compile(r'  Function \(CPU([0-9]+)\)')
+STATS_RE = re.compile(r'([^ ]*) +([0-9]+) +([0-9.]+) us +([0-9.]+) us +([0-9.]+) us')
 
 class FtraceCollector(TraceCollector):
 
     def __init__(self, target,
                  events=None,
+                 functions=None,
                  buffer_size=None,
                  buffer_size_step=1000,
-                 buffer_size_file='/sys/kernel/debug/tracing/buffer_size_kb',
-                 marker_file='/sys/kernel/debug/tracing/trace_marker',
+                 tracing_path='/sys/kernel/debug/tracing',
                  automark=True,
                  autoreport=True,
                  autoview=False,
@@ -56,10 +62,10 @@ class FtraceCollector(TraceCollector):
                  ):
         super(FtraceCollector, self).__init__(target)
         self.events = events if events is not None else DEFAULT_EVENTS
+        self.functions = functions
         self.buffer_size = buffer_size
         self.buffer_size_step = buffer_size_step
-        self.buffer_size_file = buffer_size_file
-        self.marker_file = marker_file
+        self.tracing_path = tracing_path
         self.automark = automark
         self.autoreport = autoreport
         self.autoview = autoview
@@ -69,7 +75,16 @@ class FtraceCollector(TraceCollector):
         self.start_time = None
         self.stop_time = None
         self.event_string = _build_trace_events(self.events)
+        self.function_string = _build_trace_functions(self.functions)
         self._reset_needed = True
+
+        # Setup tracing paths
+        self.available_functions_file = self.target.path.join(self.tracing_path, 'available_filter_functions')
+        self.buffer_size_file         = self.target.path.join(self.tracing_path, 'buffer_size_kb')
+        self.current_tracer_file      = self.target.path.join(self.tracing_path, 'current_tracer')
+        self.function_profile_file    = self.target.path.join(self.tracing_path, 'function_profile_enabled')
+        self.marker_file              = self.target.path.join(self.tracing_path, 'trace_marker')
+        self.ftrace_filter_file       = self.target.path.join(self.tracing_path, 'set_ftrace_filter')
 
         self.host_binary = which('trace-cmd')
         self.kernelshark = which('kernelshark')
@@ -88,6 +103,18 @@ class FtraceCollector(TraceCollector):
                 raise TargetError('No trace-cmd found on device and no_install=True is specified.')
             self.target_binary = 'trace-cmd'
 
+        # Check for function tracing support
+        if self.functions:
+            if not self.target.file_exists(self.function_profile_file):
+                raise TargetError('Function profiling not supported. '\
+                        'A kernel build with CONFIG_FUNCTION_PROFILER enable is required')
+            # Validate required functions to be traced
+            available_functions = self.target.execute(
+                    'cat {}'.format(self.available_functions_file)).splitlines()
+            for function in self.functions:
+                if function not in available_functions:
+                    raise TargetError('Function [{}] not available for filtering'.format(function))
+
     def reset(self):
         if self.buffer_size:
             self._set_buffer_size()
@@ -104,8 +131,17 @@ class FtraceCollector(TraceCollector):
         if 'cpufreq' in self.target.modules:
             self.logger.debug('Trace CPUFreq frequencies')
             self.target.cpufreq.trace_frequencies()
+        # Enable kernel function profiling
+        if self.functions:
+            self.target.execute('echo nop > {}'.format(self.current_tracer_file))
+            self.target.execute('echo 0 > {}'.format(self.function_profile_file))
+            self.target.execute('echo {} > {}'.format(self.function_string, self.ftrace_filter_file))
+            self.target.execute('echo 1 > {}'.format(self.function_profile_file))
 
     def stop(self):
+        # Disable kernel function profiling
+        if self.functions:
+            self.target.execute('echo 1 > {}'.format(self.function_profile_file))
         if 'cpufreq' in self.target.modules:
             self.logger.debug('Trace CPUFreq frequencies')
             self.target.cpufreq.trace_frequencies()
@@ -134,6 +170,44 @@ class FtraceCollector(TraceCollector):
                 self.report(outfile, textfile)
             if self.autoview:
                 self.view(outfile)
+
+    def get_stats(self, outfile):
+        if not self.functions:
+            return
+
+        if os.path.isdir(outfile):
+            outfile = os.path.join(outfile, OUTPUT_PROFILE_FILE)
+        output = self.target._execute_util('ftrace_get_function_stats',
+                                            as_root=True)
+
+        function_stats = {}
+        for line in output.splitlines():
+            # Match a new CPU dataset
+            match = CPU_RE.search(line)
+            if match:
+                cpu_id = int(match.group(1))
+                function_stats[cpu_id] = {}
+                self.logger.debug("Processing stats for CPU%d...", cpu_id)
+                continue
+            # Match a new function dataset
+            match = STATS_RE.search(line)
+            if match:
+                fname = match.group(1)
+                function_stats[cpu_id][fname] = {
+                        'hits' : int(match.group(2)),
+                        'time' : float(match.group(3)),
+                        'avg'  : float(match.group(4)),
+                        's_2'  : float(match.group(5)),
+                    }
+                self.logger.debug(" %s: %s",
+                             fname, function_stats[cpu_id][fname])
+
+        self.logger.debug("FTrace stats output [%s]...", outfile)
+        with open(outfile, 'w') as fh:
+           json.dump(function_stats, fh, indent=4)
+        self.logger.info("FTrace function stats save in [%s]", outfile)
+
+        return function_stats
 
     def report(self, binfile, destfile):
         # To get the output of trace.dat, trace-cmd must be installed
@@ -203,3 +277,6 @@ def _build_trace_events(events):
     event_string = ' '.join(['-e {}'.format(e) for e in events])
     return event_string
 
+def _build_trace_functions(functions):
+    function_string = " ".join(functions)
+    return function_string

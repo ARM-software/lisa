@@ -44,6 +44,18 @@ cpufreq_trace_all_frequencies() {
 }
 
 ################################################################################
+# FTrace Utility Functions
+################################################################################
+
+ftrace_get_function_stats() {
+    for CPU in $(ls /sys/kernel/debug/tracing/trace_stat | sed 's/function//'); do
+        REPLACE_STRING="s/  Function/\n  Function (CPU$CPU)/"
+        cat /sys/kernel/debug/tracing/trace_stat/function$CPU \
+            | sed "$REPLACE_STRING"
+    done
+}
+
+################################################################################
 # Main Function Dispatcher
 ################################################################################
 
@@ -62,6 +74,9 @@ cpufreq_get_all_governors)
     ;;
 cpufreq_trace_all_frequencies)
     cpufreq_trace_all_frequencies $*
+    ;;
+ftrace_get_function_stats)
+    ftrace_get_function_stats
     ;;
 *)
     echo "Command [$CMD] not supported"
