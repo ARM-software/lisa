@@ -840,6 +840,12 @@ class LinuxDevice(BaseLinuxDevice):
             entries.append(LsmodEntry(name, size, use_count, used_by))
         return entries
 
+    def insmod(self, path):
+        """Install a kernel module located on the host on the target device."""
+        target_path = self.path.join(self.working_directory, os.path.basename(path))
+        self.push_file(path, target_path)
+        self.execute('insmod {}'.format(target_path), as_root=True)
+
     def ping(self):
         try:
             # May be triggered inside initialize()
