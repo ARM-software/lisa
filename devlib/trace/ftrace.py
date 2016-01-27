@@ -125,9 +125,9 @@ class FtraceCollector(TraceCollector):
         self.start_time = time.time()
         if self._reset_needed:
             self.reset()
+        self.target.execute('{} start {}'.format(self.target_binary, self.event_string), as_root=True)
         if self.automark:
             self.mark_start()
-        self.target.execute('{} start {}'.format(self.target_binary, self.event_string), as_root=True)
         if 'cpufreq' in self.target.modules:
             self.logger.debug('Trace CPUFreq frequencies')
             self.target.cpufreq.trace_frequencies()
