@@ -319,7 +319,7 @@ class RTA(Workload):
                 if task['delay'] > 0:
                     task['delay'] = int(task['delay'] * 1e6)
                     task_conf['phases']['p000000'] = {}
-                    task_conf['phases']['p000000']['sleep'] = task['delay']
+                    task_conf['phases']['p000000']['delay'] = task['delay']
                     self.logger.info(' | start delay: %.6f [s]',
                             task['delay'] / 1e6)
 
