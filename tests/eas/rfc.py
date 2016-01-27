@@ -18,6 +18,7 @@
 from bart.common.Analyzer import Analyzer
 import collections
 import datetime
+import gzip
 import json
 import os
 import re
@@ -492,6 +493,15 @@ class TestBase(unittest.TestCase):
             .format(cls.env.res_dir, wload.wtype, tc_idx, wl_idx)
         os.system('mkdir -p ' + cls.env.test_dir)
         cls.env.platform_dump(cls.env.test_dir)
+
+        # Keep track of kernel configuration and version
+        config = cls.env.target.config
+        with gzip.open(os.path.join(cls.env.test_dir, 'kernel.config'), 'wb') as fh:
+            fh.write(config.text)
+        output = cls.env.target.execute('{} uname -a'\
+                .format(cls.env.target.busybox))
+        with open(os.path.join(cls.env.test_dir, 'kernel.version'), 'w') as fh:
+            fh.write(output)
 
         return wload
 
