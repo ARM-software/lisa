@@ -39,7 +39,7 @@ class TestSchedAssert(utils_tests.SetupDirectory):
 
     def test_get_runtime(self):
 
-        r = trappy.Run()
+        r = trappy.FTrace()
         # The ls process is process we are
         # testing against with pre calculated
         # values

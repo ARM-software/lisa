@@ -30,7 +30,7 @@ class TestThermal(unittest.TestCase):
         # Which then copies the required traces for analysis to
         # the host.
         trace_file = "update_a_trace_path_here"
-        run = trappy.Run(trace_file, "test_run")
+        ftrace = trappy.FTrace(trace_file, "test_run")
 
         # Define the parameters that you intend to use in the grammar
         config = {}
@@ -48,7 +48,7 @@ class TestThermal(unittest.TestCase):
         cls.BIG = '000000f0'
         cls.LITTLE = '0000000f'
         cls.tz = 0
-        cls.analyzer = Analyzer(run, config)
+        cls.analyzer = Analyzer(ftrace, config)
 
     def test_temperature_quartile(self):
         """Assert Temperature quartile"""

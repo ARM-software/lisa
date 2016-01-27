@@ -31,18 +31,18 @@ def listify(to_select):
 
     return to_select
 
-def init_run(trace):
-    """Initialize the Run Object
+def init_ftrace(trace):
+    """Initialize the FTrace Object
 
     :param trace: Path for the trace file
         or a trace object
-    :type trace: str, :mod:`trappy.run.Run`
+    :type trace: str, :mod:`trappy.ftrace.FTrace`
     """
 
     if isinstance(trace, basestring):
-        return trappy.Run(trace)
+        return trappy.FTrace(trace)
 
-    elif isinstance(trace, trappy.Run):
+    elif isinstance(trace, trappy.BareTrace):
         return trace
 
     raise ValueError("Invalid trace Object")

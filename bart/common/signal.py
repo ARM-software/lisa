@@ -56,8 +56,8 @@ from bart.common.Utils import area_under_curve, interval_sum
 class SignalCompare(object):
 
     """
-    :param data: TRAPpy Run Object
-    :type data: :mod:`trappy.run.Run`
+    :param data: TRAPpy FTrace Object
+    :type data: :mod:`trappy.ftrace.FTrace`
 
     :param sig_a: The first signal
     :type sig_a: str

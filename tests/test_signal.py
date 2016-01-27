@@ -35,11 +35,11 @@ class TestSignalCompare(TestBART):
         A = [0, 0, 0, 3, 3, 0, 0, 0]
         B = [0, 0, 2, 2, 2, 2, 1, 1]
 
-        run = trappy.Run(".", events=["event"])
+        trace = trappy.BareTrace()
         df = pd.DataFrame({"A": A, "B": B})
-        run.event.data_frame = df
+        trace.add_parsed_event("event", df)
 
-        s = SignalCompare(run, "event:A", "event:B")
+        s = SignalCompare(trace, "event:A", "event:B")
         expected = (1.5, 2.0 / 7)
         self.assertEqual(
             s.conditional_compare(
@@ -53,11 +53,11 @@ class TestSignalCompare(TestBART):
         A = [0, 0, 0, 3, 3, 0, 0, 0]
         B = [0, 0, 2, 2, 2, 2, 1, 1]
 
-        run = trappy.Run(".", events=["event"])
+        trace = trappy.BareTrace()
         df = pd.DataFrame({"A": A, "B": B})
-        run.event.data_frame = df
+        trace.add_parsed_event("event", df)
 
-        s = SignalCompare(run, "event:A", "event:B")
+        s = SignalCompare(trace, "event:A", "event:B")
         expected = (1.5, 2.0 / 7)
         self.assertEqual(
             s.get_overshoot(method="rect"),
@@ -67,8 +67,8 @@ class TestSignalCompare(TestBART):
         B = [0, 0, 2, 2, 2, 2, 1, 1]
 
         df = pd.DataFrame({"A": A, "B": B})
-        run.event.data_frame = df
-        s = SignalCompare(run, "event:A", "event:B")
+        trace.event.data_frame = df
+        s = SignalCompare(trace, "event:A", "event:B")
 
         expected = (float("nan"), 0.0)
         result = s.get_overshoot(method="rect")
@@ -81,11 +81,11 @@ class TestSignalCompare(TestBART):
         A = [0, 0, 0, 1, 1, 1, 1, 1]
         B = [2, 2, 2, 2, 2, 2, 2, 2]
 
-        run = trappy.Run(".", events=["event"])
+        trace = trappy.BareTrace()
         df = pd.DataFrame({"A": A, "B": B})
-        run.event.data_frame = df
+        trace.add_parsed_event("event", df)
 
-        s = SignalCompare(run, "event:A", "event:B")
+        s = SignalCompare(trace, "event:A", "event:B")
         expected = (4.0 / 14.0, 1.0)
         self.assertEqual(
             s.get_undershoot(method="rect"),
@@ -95,8 +95,8 @@ class TestSignalCompare(TestBART):
         B = [2, 2, 2, 2, 2, 2, 1, 1]
 
         df = pd.DataFrame({"A": A, "B": B})
-        run.event.data_frame = df
-        s = SignalCompare(run, "event:A", "event:B")
+        trace.event.data_frame = df
+        s = SignalCompare(trace, "event:A", "event:B")
 
         expected = (float("nan"), 0.0)
         result = s.get_undershoot(method="rect")

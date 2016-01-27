@@ -82,13 +82,13 @@ POSITIVE_TOLERANCE = 0.80
 class SchedMatrix(object):
 
     """
-    :param reference_trace: The trace file path/run object
+    :param reference_trace: The trace file path/ftrace object
         to be used as a reference
-    :type reference_trace: str, :mod:`trappy.run.Run`
+    :type reference_trace: str, :mod:`trappy.ftrace.FTrace`
 
-    :param trace: The trace file path/run object
+    :param trace: The trace file path/ftrace object
         to be verified
-    :type trace: str, :mod:`trappy.run.Run`
+    :type trace: str, :mod:`trappy.ftrace.FTrace`
 
     :param topology: A topology that describes the arrangement of
         CPU's on a system. This is useful for multi-cluster systems
@@ -152,8 +152,8 @@ class SchedMatrix(object):
             execnames,
             aggfunc=sched_funcs.csum):
 
-        run = Utils.init_run(trace)
-        reference_run = Utils.init_run(reference_trace)
+        run = Utils.init_ftrace(trace)
+        reference_run = Utils.init_ftrace(reference_trace)
 
         self._execnames = Utils.listify(execnames)
         self._reference_pids = self._populate_pids(reference_run)
