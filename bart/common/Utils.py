@@ -42,7 +42,7 @@ def init_ftrace(trace):
     if isinstance(trace, basestring):
         return trappy.FTrace(trace)
 
-    elif isinstance(trace, trappy.FTrace):
+    elif isinstance(trace, trappy.BareTrace):
         return trace
 
     raise ValueError("Invalid trace Object")
