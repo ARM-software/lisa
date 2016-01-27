@@ -616,13 +616,13 @@ class TestEnv(ShareState):
             logging.info('%14s - Deply kernel via FTFP...', 'KernelSetup')
 
             # Deply kernel in FTFP folder (madatory)
-            if 'kernel' not in tc:
+            if 'kernel' not in tc or not tc['kernel']:
                 raise ValueError('Missing "kernel" paramtere in conf: %s',
                         'KernelSetup', tc)
             self.tftp_deploy(tc['kernel'])
 
             # Deploy DTB in TFTP folder (if provided)
-            if 'dtb' not in tc:
+            if 'dtb' not in tc or not tc['dtb']:
                 logging.debug('%14s - DTB not provided, using exising one',
                         'KernelSetup')
                 logging.debug('%14s - Current conf:\n%s', 'KernelSetup', tc)
