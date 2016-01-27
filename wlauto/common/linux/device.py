@@ -37,6 +37,7 @@ FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (\S+) type (\S+) \((\S+)\)')
 
 FstabEntry = namedtuple('FstabEntry', ['device', 'mount_point', 'fs_type', 'options', 'dump_freq', 'pass_num'])
 PsEntry = namedtuple('PsEntry', 'user pid ppid vsize rss wchan pc state name')
+LsmodEntry = namedtuple('LsmodEntry', ['name', 'size', 'use_count', 'used_by'])
 
 
 class BaseLinuxDevice(Device):  # pylint: disable=abstract-method
@@ -820,6 +821,24 @@ class LinuxDevice(BaseLinuxDevice):
     uninstall_executable = uninstall  # compatibility
 
     # misc
+
+    def lsmod(self):
+        """List loaded kernel modules."""
+        lines = self.execute('lsmod').splitlines()
+        entries = []
+        for line in lines[1:]:  # first line is the header
+            if not line.strip():
+                continue
+            parts = line.split()
+            name = parts[0]
+            size = int(parts[1])
+            use_count = int(parts[2])
+            if len(parts) > 3:
+                used_by = ''.join(parts[3:]).split(',')
+            else:
+                used_by = []
+            entries.append(LsmodEntry(name, size, use_count, used_by))
+        return entries
 
     def ping(self):
         try:
