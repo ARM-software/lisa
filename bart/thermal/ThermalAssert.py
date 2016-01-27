@@ -25,17 +25,17 @@ import numpy as np
 # pylint: disable=too-many-arguments
 class ThermalAssert(object):
 
-    """A class that accepts a TRAPpy Run object and
+    """A class that accepts a TRAPpy FTrace object and
     provides assertions for thermal behaviours
 
-    :param run: A path to the trace file or a TRAPpy Run object
-    :type run: str, :mod:`trappy.run.Run`
+    :param ftrace: A path to the trace file or a TRAPpy FTrace object
+    :type ftrace: str, :mod:`trappy.ftrace.FTrace`
     """
 
-    def __init__(self, run, config=None):
+    def __init__(self, ftrace, config=None):
 
-        self._run = Utils.init_run(run)
-        self._analyzer = Analyzer(self._run, config)
+        self._ftrace = Utils.init_ftrace(ftrace)
+        self._analyzer = Analyzer(self._ftrace, config)
 
     def getThermalResidency(self, temp_range, window, percent=False):
         """Return the total time spent in a given temperature range
@@ -78,7 +78,7 @@ class ThermalAssert(object):
 
             if percent:
                 result[pivot] = (
-                    result[pivot] * 100.0) / self._run.get_duration()
+                    result[pivot] * 100.0) / self._ftrace.get_duration()
 
         return result
 

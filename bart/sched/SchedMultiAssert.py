@@ -27,9 +27,9 @@ class SchedMultiAssert(object):
     """This is vector assertion class built on top of
     :mod:`bart.sched.SchedAssert.SchedAssert`
 
-    :param run: A single trappy.Run object
-        or a path that can be passed to trappy.Run
-    :type run: :mod:`trappy.run.Run`
+    :param ftrace: A single trappy.FTrace object
+        or a path that can be passed to trappy.FTrace
+    :type ftrace: :mod:`trappy.ftrace.FTrace`
 
     :param topology: A topology that describes the arrangement of
         CPU's on a system. This is useful for multi-cluster systems
@@ -64,17 +64,17 @@ class SchedMultiAssert(object):
         - Using execname prefix match
           ::
 
-            SchedMultiAssert(run, topology, execnames="task_")
+            SchedMultiAssert(ftrace, topology, execnames="task_")
 
         - Individual Task names
           ::
 
-            SchedMultiAssert(run, topology, execnames=["task_1", "task_2", "task_3"])
+            SchedMultiAssert(ftrace, topology, execnames=["task_1", "task_2", "task_3"])
 
         - Using Process IDs
           ::
 
-            SchedMultiAssert(run, topology, pids=[11, 22, 33])
+            SchedMultiAssert(ftrace, topology, pids=[11, 22, 33])
 
 
     All the functionality provided in :mod:`bart.sched.SchedAssert.SchedAssert` is available
@@ -83,7 +83,7 @@ class SchedMultiAssert(object):
     For example consider the use of :func:`getDutyCycle`
     ::
 
-        >>> s = SchedMultiAssert(run, topology, execnames="task_")
+        >>> s = SchedMultiAssert(ftrace, topology, execnames="task_")
         >>> s.getDutyCycle(window=(start, end))
         {
             "11": {
@@ -104,7 +104,7 @@ class SchedMultiAssert(object):
     ::
 
         >>> import operator as op
-        >>> s = SchedMultiAssert(run, topology, execnames="task_")
+        >>> s = SchedMultiAssert(ftrace, topology, execnames="task_")
         >>> s.assertDutyCycle(15, op.ge, window=(start, end))
         {
             "11": {
@@ -127,7 +127,7 @@ class SchedMultiAssert(object):
     ::
 
         >>> import operator as op
-        >>> s = SchedMultiAssert(run, topology, execnames="task_")
+        >>> s = SchedMultiAssert(ftrace, topology, execnames="task_")
         >>> s.assertDutyCycle(15, op.ge, window=(start, end), rank=2)
         True
 
@@ -135,9 +135,9 @@ class SchedMultiAssert(object):
     functionality
     """
 
-    def __init__(self, run, topology, execnames=None, pids=None):
+    def __init__(self, ftrace, topology, execnames=None, pids=None):
 
-        self._run = Utils.init_run(run)
+        self._ftrace = Utils.init_ftrace(ftrace)
         self._topology = topology
 
         if execnames and pids:
@@ -159,7 +159,7 @@ class SchedMultiAssert(object):
         asserts = {}
 
         for pid in self._pids:
-            asserts[pid] = SchedAssert(self._run, self._topology, pid=pid)
+            asserts[pid] = SchedAssert(self._ftrace, self._topology, pid=pid)
 
         return asserts
 
@@ -167,12 +167,12 @@ class SchedMultiAssert(object):
         """Map the input execnames to PIDs"""
 
         if len(self._execnames) == 1:
-            return sched_funcs.get_pids_for_process(self._run, self._execnames[0])
+            return sched_funcs.get_pids_for_process(self._ftrace, self._execnames[0])
 
         pids = []
 
         for proc in self._execnames:
-            pids += sched_funcs.get_pids_for_process(self._run, proc)
+            pids += sched_funcs.get_pids_for_process(self._ftrace, proc)
 
         return list(set(pids))
 
@@ -248,7 +248,7 @@ class SchedMultiAssert(object):
 
         if not xlim:
             if not window:
-                xlim = [0, self._run.get_duration()]
+                xlim = [0, self._ftrace.get_duration()]
             else:
                 xlim = list(window)
 

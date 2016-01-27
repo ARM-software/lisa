@@ -414,12 +414,12 @@ def binary_correlate(series_x, series_y):
 
     return (agree - disagree) / float(len(series_x))
 
-def get_pids_for_process(run, execname, cls=None):
+def get_pids_for_process(ftrace, execname, cls=None):
     """Get the PIDs for a given process
 
-    :param run: A run object with a sched_switch
+    :param ftrace: A ftrace object with a sched_switch
         event
-    :type run: :mod:`trappy.run.Run`
+    :type ftrace: :mod:`trappy.ftrace.FTrace`
 
     :param execname: The name of the process
     :type execname: str
@@ -433,22 +433,22 @@ def get_pids_for_process(run, execname, cls=None):
 
     if not cls:
         try:
-            df = run.sched_switch.data_frame
+            df = ftrace.sched_switch.data_frame
         except AttributeError:
-            raise ValueError("SchedSwitch event not found in run")
+            raise ValueError("SchedSwitch event not found in ftrace")
     else:
-        event = getattr(run, cls.name)
+        event = getattr(ftrace, cls.name)
         df = event.data_frame
 
     mask = df["next_comm"].apply(lambda x : True if x.startswith(execname) else False)
     return list(np.unique(df[mask]["next_pid"].values))
 
-def get_task_name(run, pid, cls=None):
+def get_task_name(ftrace, pid, cls=None):
     """Returns the execname for pid
 
-    :param run: A run object with a sched_switch
+    :param ftrace: A ftrace object with a sched_switch
         event
-    :type run: :mod:`trappy.run.Run`
+    :type ftrace: :mod:`trappy.ftrace.FTrace`
 
     :param pid: The PID of the process
     :type pid: int
@@ -462,11 +462,11 @@ def get_task_name(run, pid, cls=None):
 
     if not cls:
         try:
-            df = run.sched_switch.data_frame
+            df = ftrace.sched_switch.data_frame
         except AttributeError:
-           raise ValueError("SchedSwitch event not found in run")
+           raise ValueError("SchedSwitch event not found in ftrace")
     else:
-        event = getattr(run, cls.name)
+        event = getattr(ftrace, cls.name)
         df = event.data_frame
 
     df = df[df["next_pid"] == pid]
@@ -475,12 +475,12 @@ def get_task_name(run, pid, cls=None):
     else:
         return df["next_comm"].values[0]
 
-def sched_triggers(run, pid, sched_switch_class):
+def sched_triggers(ftrace, pid, sched_switch_class):
     """Returns the list of sched_switch triggers
 
-    :param run: A run object with a sched_switch
+    :param ftrace: A ftrace object with a sched_switch
         event
-    :type run: :mod:`trappy.run.Run`
+    :type ftrace: :mod:`trappy.ftrace.FTrace`
 
     :param pid: The PID of the associated process
     :type pid: int
@@ -495,19 +495,19 @@ def sched_triggers(run, pid, sched_switch_class):
             triggers[1] = switch_out_trigger
     """
 
-    if not hasattr(run, "sched_switch"):
-        raise ValueError("SchedSwitch event not found in run")
+    if not hasattr(ftrace, "sched_switch"):
+        raise ValueError("SchedSwitch event not found in ftrace")
 
     triggers = []
-    triggers.append(sched_switch_in_trigger(run, pid, sched_switch_class))
-    triggers.append(sched_switch_out_trigger(run, pid, sched_switch_class))
+    triggers.append(sched_switch_in_trigger(ftrace, pid, sched_switch_class))
+    triggers.append(sched_switch_out_trigger(ftrace, pid, sched_switch_class))
     return triggers
 
-def sched_switch_in_trigger(run, pid, sched_switch_class):
+def sched_switch_in_trigger(ftrace, pid, sched_switch_class):
     """
-    :param run: A run object with a sched_switch
+    :param ftrace: A ftrace object with a sched_switch
         event
-    :type run: :mod:`trappy.run.Run`
+    :type ftrace: :mod:`trappy.ftrace.FTrace`
 
     :param pid: The PID of the associated process
     :type pid: int
@@ -522,17 +522,17 @@ def sched_switch_in_trigger(run, pid, sched_switch_class):
     task_in = {}
     task_in[NEXT_PID_FIELD] = pid
 
-    return Trigger(run,
+    return Trigger(ftrace,
                    sched_switch_class,              # trappy Event Class
                    task_in,                         # Filter Dictionary
                    SCHED_SWITCH_IN,                 # Trigger Value
                    CPU_FIELD)                       # Primary Pivot
 
-def sched_switch_out_trigger(run, pid, sched_switch_class):
+def sched_switch_out_trigger(ftrace, pid, sched_switch_class):
     """
-    :param run: A run object with a sched_switch
+    :param ftrace: A ftrace object with a sched_switch
         event
-    :type run: :mod:`trappy.run.Run`
+    :type ftrace: :mod:`trappy.ftrace.FTrace`
 
     :param pid: The PID of the associated process
     :type pid: int
@@ -547,7 +547,7 @@ def sched_switch_out_trigger(run, pid, sched_switch_class):
     task_out = {}
     task_out[PREV_PID_FIELD] = pid
 
-    return Trigger(run,
+    return Trigger(ftrace,
                    sched_switch_class,              # trappy Event Class
                    task_out,                        # Filter Dictionary
                    SCHED_SWITCH_OUT,                # Trigger Value

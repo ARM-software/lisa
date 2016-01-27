@@ -35,9 +35,9 @@ class SchedAssert(object):
     predefined scheduler scenarios. This does not compare parameters
     across runs
 
-    :param run: A single trappy.Run object
-        or a path that can be passed to trappy.Run
-    :type run: :mod:`trappy.run.Run`
+    :param ftrace: A single trappy.FTrace object
+        or a path that can be passed to trappy.FTrace
+    :type ftrace: :mod:`trappy.ftrace.FTrace`
 
     :param topology: A topology that describes the arrangement of
         CPU's on a system. This is useful for multi-cluster systems
@@ -65,19 +65,19 @@ class SchedAssert(object):
         there are more than one processes with the same execname
     """
 
-    def __init__(self, run, topology, execname=None, pid=None):
+    def __init__(self, ftrace, topology, execname=None, pid=None):
 
-        run = Utils.init_run(run)
+        ftrace = Utils.init_ftrace(ftrace)
 
         if not execname and not pid:
             raise ValueError("Need to specify at least one of pid or execname")
 
         self.execname = execname
-        self._run = run
+        self._ftrace = ftrace
         self._pid = self._validate_pid(pid)
         self._aggs = {}
         self._topology = topology
-        self._triggers = sched_funcs.sched_triggers(self._run, self._pid,
+        self._triggers = sched_funcs.sched_triggers(self._ftrace, self._pid,
                                               trappy.sched.SchedSwitch)
         self.name = "{}-{}".format(self.execname, self._pid)
 
@@ -85,7 +85,7 @@ class SchedAssert(object):
         """Validate the passed pid argument"""
 
         if not pid:
-            pids = sched_funcs.get_pids_for_process(self._run,
+            pids = sched_funcs.get_pids_for_process(self._ftrace,
                                               self.execname)
 
             if len(pids) != 1:
@@ -98,7 +98,7 @@ class SchedAssert(object):
 
         elif self.execname:
 
-            pids = sched_funcs.get_pids_for_process(self._run,
+            pids = sched_funcs.get_pids_for_process(self._ftrace,
                                               self.execname)
             if pid not in pids:
                 raise RuntimeError(
@@ -106,7 +106,7 @@ class SchedAssert(object):
                         pid,
                         self.execname))
         else:
-            self.execname = sched_funcs.get_task_name(self._run, pid)
+            self.execname = sched_funcs.get_task_name(self._ftrace, pid)
 
         return pid
 
@@ -388,7 +388,7 @@ class SchedAssert(object):
                 begin, end = window
                 total_time = end - begin
             else:
-                total_time = self._run.get_duration()
+                total_time = self._ftrace.get_duration()
 
             run_time = run_time * 100
             run_time = run_time / total_time
@@ -638,7 +638,7 @@ class SchedAssert(object):
 
         if not xlim:
             if not window:
-                xlim = [0, self._run.get_duration()]
+                xlim = [0, self._ftrace.get_duration()]
             else:
                 xlim = list(window)
 

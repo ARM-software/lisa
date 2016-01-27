@@ -30,8 +30,8 @@ import pandas as pd
 class Analyzer(object):
 
     """
-    :param data: TRAPpy Run Object
-    :type data: :mod:`trappy.run.Run`
+    :param data: TRAPpy FTrace Object
+    :type data: :mod:`trappy.ftrace.FTrace`
 
     :param config: A dictionary of variables, classes
         and functions that can be used in the statements
