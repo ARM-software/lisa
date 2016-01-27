@@ -158,6 +158,7 @@ class ReplayCommand(RecordCommand):
         self.device.execute(command)
         self.logger.info("Finished replay")
 
+
 # Used to satisfy the API
 class LightContext(object):
     def __init__(self, config):
