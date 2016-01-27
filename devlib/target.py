@@ -448,11 +448,16 @@ class Target(object):
             size = int(parts[1])
             use_count = int(parts[2])
             if len(parts) > 3:
-                used_by =  ''.join(parts).split(',')
+                used_by = ''.join(parts[3:]).split(',')
             else:
                 used_by = []
             entries.append(LsmodEntry(name, size, use_count, used_by))
         return entries
+
+    def insmod(self, path):
+        target_path = self.get_workpath(os.path.basename(path))
+        self.push(path, target_path)
+        self.execute('insmod {}'.format(target_path), as_root=True)
 
     def _update_modules(self, stage):
         for mod in self.modules:
