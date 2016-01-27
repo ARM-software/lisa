@@ -437,6 +437,23 @@ class Target(object):
     def has(self, modname):
         return hasattr(self, identifier(modname))
 
+    def lsmod(self):
+        lines = self.execute('lsmod').splitlines()
+        entries = []
+        for line in lines[1:]:  # first line is the header
+            if not line.strip():
+                continue
+            parts = line.split()
+            name = parts[0]
+            size = int(parts[1])
+            use_count = int(parts[2])
+            if len(parts) > 3:
+                used_by =  ''.join(parts).split(',')
+            else:
+                used_by = []
+            entries.append(LsmodEntry(name, size, use_count, used_by))
+        return entries
+
     def _update_modules(self, stage):
         for mod in self.modules:
             if isinstance(mod, dict):
@@ -840,6 +857,7 @@ class AndroidTarget(Target):
 
 FstabEntry = namedtuple('FstabEntry', ['device', 'mount_point', 'fs_type', 'options', 'dump_freq', 'pass_num'])
 PsEntry = namedtuple('PsEntry', 'user pid ppid vsize rss wchan pc state name')
+LsmodEntry = namedtuple('LsmodEntry', ['name', 'size', 'use_count', 'used_by'])
 
 
 class Cpuinfo(object):
