@@ -626,7 +626,7 @@ class TestEnv(ShareState):
                 'HostResolver', host, ipaddr)
         return (host, ipaddr)
 
-    def reboot(self, reboot_time=60):
+    def reboot(self, reboot_time=120):
         # Send remote target a reboot command
         if self._feature('no-reboot'):
             logging.warning('%14s - Reboot disabled by conf features', 'Reboot')
@@ -634,9 +634,22 @@ class TestEnv(ShareState):
             self.target.execute('sleep 2 && reboot -f &', as_root=True)
 
             # Wait for the target to complete the reboot
-            logging.info('%14s - Waiting %s [s]for target to reboot...',
-                    'Reboot', reboot_time)
-            time.sleep(reboot_time)
+            logging.info('%14s - Waiting up to %s[s] for target [%s] to reboot...',
+                    'Reboot', reboot_time, self.ip)
+
+            ping_cmd = "ping -c 1 {} >/dev/null".format(self.ip)
+            elapsed = 0
+            start = time.time()
+            while elapsed <= reboot_time:
+                time.sleep(5)
+                logging.debug('%14s - Trying to connect to [%s] target...',
+                        'Reboot', self.ip)
+                if os.system(ping_cmd) == 0:
+                    break
+                elapsed = time.time() - start
+            if elapsed > reboot_time:
+                logging.warning('%14s - target [%s] not reposing to PINGs, trying to continue...',
+                        'Reboot', self.ip)
 
         # Force re-initialization of all the devlib modules
         force = True
