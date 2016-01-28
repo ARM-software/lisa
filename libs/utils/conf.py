@@ -52,6 +52,12 @@ class JsonConf(object):
                 content = content[:match.start()] + content[match.end():]
                 match = JSON_COMMENTS_RE.search(content)
 
+            # Allow trailing commas in dicts an lists in JSON
+            # Note that this simple implementation will mangle things like:
+            # {"config": ", }"}
+            content = re.sub(r',[ \t\r\n]+}', '}', content)
+            content = re.sub(r',[ \t\r\n]+\]', ']', content)
+
             # Return json file
             self.json = json.loads(content, parse_int=int)
             logging.debug('Loaded JSON configuration:\n%s', self.json)
@@ -63,7 +69,7 @@ class JsonConf(object):
 
 # Regular expression for comments
 JSON_COMMENTS_RE = re.compile(
-    '(^)?[^\S\n]*/(?:\*(.*?)\*/[^\S\n]*|/[^\n]*)($)?',
+    r'(^)?[^\S\n]*/(?:\*(.*?)\*/[^\S\n]*|/[^\n]*)($)?',
     re.DOTALL | re.MULTILINE
 )
 
