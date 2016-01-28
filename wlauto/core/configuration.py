@@ -243,6 +243,13 @@ class RebootPolicy(object):
         else:
             return cmp(self.policy, other)
 
+    def to_pod(self):
+        return self.policy
+
+    @staticmethod
+    def from_pod(pod):
+        return RebootPolicy(pod)
+
 
 class RunConfigurationItem(object):
     """

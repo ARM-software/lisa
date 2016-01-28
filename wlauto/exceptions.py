@@ -141,3 +141,20 @@ class WorkerThreadError(WAError):
         message = 'Exception of type {} occured on thread {}:\n'.format(orig_name, thread)
         message += '{}\n{}: {}'.format(get_traceback(self.exc_info), orig_name, orig)
         super(WorkerThreadError, self).__init__(message)
+
+
+class SerializerSyntaxError(Exception):
+    """
+    Error loading a serialized structure from/to a file handle.
+    """
+
+    def __init__(self, message, line=None, column=None):
+        super(SerializerSyntaxError, self).__init__(message)
+        self.line = line
+        self.column = column
+
+    def __str__(self):
+        linestring = ' on line {}'.format(self.line) if self.line else ''
+        colstring = ' in column {}'.format(self.column) if self.column else ''
+        message = 'Syntax Error{}: {}'
+        return message.format(''.join([linestring, colstring]), self.message)

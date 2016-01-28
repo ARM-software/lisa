@@ -22,7 +22,6 @@ text files in various formats.
 """
 import os
 import csv
-import json
 
 from wlauto import ResultProcessor, Parameter
 from wlauto.exceptions import ConfigError
@@ -122,32 +121,6 @@ class CsvReportProcessor(ResultProcessor):
                            [str(metric.classifiers.get(c, '')) for c in extra_columns] +
                            [str(metric.value), metric.units or ''])
                     writer.writerow(row)
-
-
-class JsonReportProcessor(ResultProcessor):
-    """
-    Creates a ``results.json`` in the output directory containing results for
-    all iterations in JSON format.
-
-    """
-
-    name = 'json'
-
-    def process_run_result(self, result, context):
-        outfile = os.path.join(context.run_output_directory, 'results.json')
-        with open(outfile, 'wb') as wfh:
-            output = []
-            for result in result.iteration_results:
-                output.append({
-                    'id': result.id,
-                    'workload': result.workload.name,
-                    'iteration': result.iteration,
-                    'metrics': [dict([(k, v) for k, v in m.__dict__.iteritems()
-                                      if not k.startswith('_')])
-                                for m in result.metrics],
-                })
-            json.dump(output, wfh, indent=4)
-        context.add_artifact('run_result_json', 'results.json', 'export')
 
 
 class SummaryCsvProcessor(ResultProcessor):
