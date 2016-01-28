@@ -134,14 +134,15 @@ class SchedAssert(object):
         a particular group of a topological level. For example:
         ::
 
-            clusters=[]
-            big = [1,2]
-            little = [0,3,4,5]
+            from trappy.stats.Topology import Topology
 
-            topology = Topology(clusters=clusters)
+            big = [1, 2]
+            little = [0, 3, 4, 5]
 
-            level="cluster"
-            node = [1,2]
+            topology = Topology(clusters=[little, big])
+
+            s = SchedAssert(trace, topology, pid=123)
+            s.getResidency("cluster", big)
 
         This will return the residency of the task on the big cluster. If
         percent is specified it will be normalized to the total runtime
