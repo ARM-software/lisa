@@ -157,19 +157,7 @@ class Base(object):
         self.cpu_array.append(cpu)
         self.data_array.append(data)
 
-    def create_dataframe(self):
-        """Create the final :mod:`pandas.DataFrame`"""
-        if not self.time_array:
-            return
-
-        trace_arr_lengths = self.__get_trace_array_lengths()
-
-        if trace_arr_lengths.items():
-            for (idx, val) in enumerate(self.data_array):
-                expl_val = trace_parser_explode_array(val, trace_arr_lengths)
-                self.data_array[idx] = expl_val
-
-        parsed_data = []
+    def generate_parsed_data(self):
         for (comm, pid, cpu, data_str) in zip(self.comm_array, self.pid_array,
                                               self.cpu_array, self.data_array):
             data_dict = {"__comm": comm, "__pid": pid, "__cpu": cpu}
@@ -188,10 +176,22 @@ class Base(object):
                     pass
                 data_dict[key] = value
                 prev_key = key
-            parsed_data.append(data_dict)
+            yield data_dict
+
+    def create_dataframe(self):
+        """Create the final :mod:`pandas.DataFrame`"""
+        if not self.time_array:
+            return
+
+        trace_arr_lengths = self.__get_trace_array_lengths()
+
+        if trace_arr_lengths.items():
+            for (idx, val) in enumerate(self.data_array):
+                expl_val = trace_parser_explode_array(val, trace_arr_lengths)
+                self.data_array[idx] = expl_val
 
         time_idx = pd.Index(self.time_array, name="Time")
-        self.data_frame = pd.DataFrame(parsed_data, index=time_idx)
+        self.data_frame = pd.DataFrame(self.generate_parsed_data(), index=time_idx)
 
         self.time_array = []
         self.comm_array = []
