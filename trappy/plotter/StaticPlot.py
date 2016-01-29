@@ -106,7 +106,7 @@ class StaticPlot(AbstractDataPlotter):
     """
     __metaclass__ = ABCMeta
 
-    def __init__(self, traces, templates=None, **kwargs):
+    def __init__(self, traces, templates, **kwargs):
         self._fig = None
         self._layout = None
         super(StaticPlot, self).__init__(traces=traces,
