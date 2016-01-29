@@ -329,6 +329,17 @@ class TestEnv(ShareState):
                 self.__modules + self.test_conf['modules']
             ))
 
+        # Initialize modules to exclude on the target
+        if 'exclude_modules' in self.conf:
+            for module in self.conf['exclude_modules']:
+                if module in self.__modules:
+                    self.__modules.remove(module)
+        # Remove tests specific modules
+        if self.test_conf and 'exclude_modules' in self.test_conf:
+            for module in self.test_conf['exclude_modules']:
+                if module in self.__modules:
+                    self.__modules.remove(module)
+
         logging.info(r'%14s - Devlib modules to load: %s',
                 'Target', self.__modules)
 
