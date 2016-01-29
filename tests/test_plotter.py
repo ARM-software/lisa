@@ -246,3 +246,20 @@ class TestPlotter(BaseTestThermal):
         self.assertTrue([4, 5, 1] in data["task1-15411"])
         self.assertEquals(procs, expected_procs)
         self.assertEquals(window, [1, 5])
+
+class TestBarPlot(unittest.TestCase):
+    def setUp(self):
+        self.dfr = pd.DataFrame({"foo": [1, 2, 3],
+                                 "bar": [2, 3, 1],
+                                 "baz": [3, 2, 1]})
+
+    def test_barplot_dfr(self):
+        """BarPlot plots dataframes without exploding"""
+        trappy.BarPlot(self.dfr, column=["foo", "bar"]).view(test=True)
+
+    def test_barplot_trace(self):
+        """BarPlot plots traces without exploding"""
+        trace = trappy.BareTrace()
+        trace.add_parsed_event("event", self.dfr)
+
+        trappy.BarPlot(trace, signals=["event:foo", "event:bar"]).view(test=True)
