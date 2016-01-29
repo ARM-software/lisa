@@ -139,18 +139,6 @@ class TestEnv(ShareState):
                 self.conf['tools'] + self.test_conf['tools']
             ))
 
-        # Initialize modules to use on the target
-        if 'modules' in self.conf:
-            self.__modules = self.conf['modules']
-        # Merge tests specific modules
-        if self.test_conf and 'modules' in self.test_conf and \
-           self.test_conf['modules']:
-            if 'modules' not in self.conf:
-                self.conf['modules'] = []
-            self.__modules = list(set(
-                self.conf['modules'] + self.test_conf['modules']
-            ))
-
         # Initialize ftrace events
         if self.test_conf and 'ftrace' in self.test_conf:
             self.conf['ftrace'] = self.test_conf['ftrace']
@@ -296,19 +284,57 @@ class TestEnv(ShareState):
         except KeyError:
             raise ValueError('Config error: missing [platform] parameter')
 
+
+        ########################################################################
+        # Board configuration
+        ########################################################################
+
         # Setup board default if not specified by configuration
         if 'board' not in self.conf:
             self.conf['board'] = 'UNKNOWN'
 
-        # Initialize a specific board (if known)
+        # Initialize TC2 board
         if self.conf['board'].upper() == 'TC2':
             platform = devlib.platform.arm.TC2()
+            self.__modules = ['bl', 'hwmon', 'cpufreq']
+
+        # Initialize JUNO board
         elif self.conf['board'].upper() == 'JUNO':
             platform = devlib.platform.arm.Juno()
+            self.__modules = ['bl', 'hwmon', 'cpufreq']
+
+        # Initialize OAK board
         elif self.conf['board'].upper() == 'OAK':
             platform = Platform(model='MT8173')
+            self.__modules = ['bl', 'cpufreq']
+
+        # Initialize default UNKNOWN board
         else:
             platform = None
+            self.__modules = []
+
+        ########################################################################
+        # Modules configuration
+        ########################################################################
+
+        # Rinfine modules list based on target.conf options
+        if 'modules' in self.conf:
+            self.__modules = list(set(
+                self.__modules + self.conf['modules']
+            ))
+        # Merge tests specific modules
+        if self.test_conf and 'modules' in self.test_conf and \
+           self.test_conf['modules']:
+            self.__modules = list(set(
+                self.__modules + self.test_conf['modules']
+            ))
+
+        logging.info(r'%14s - Devlib modules to load: %s',
+                'Target', self.__modules)
+
+        ########################################################################
+        # Devlib target setup (based on target.config::platform)
+        ########################################################################
 
         # If the target is Android, we need just (eventually) the device
         if platform_type.lower() == 'android':
