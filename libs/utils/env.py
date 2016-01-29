@@ -64,6 +64,7 @@ class TestEnv(ShareState):
             return
 
         self.conf = None
+        self.test_conf = None
         self.target = None
         self.ftrace = None
         self.workdir = WORKING_DIR_DEFAULT
@@ -108,6 +109,21 @@ class TestEnv(ShareState):
 
         logging.debug('%14s - Target configuration %s', 'Target', self.conf)
 
+        # Setup test configuration
+        if isinstance(test_conf, dict):
+            logging.info('%14s - Loading custom (inline) test configuration',
+                    'Target')
+            self.test_conf = test_conf
+        elif isinstance(test_conf, str):
+            logging.info('%14s - Loading custom (file) test configuration',
+                    'Target')
+            self.test_conf = TestEnv.loadTargetConfig(test_conf)
+        else:
+            raise ValueError('test_conf must be either a dictionary or a filepath')
+
+        logging.debug('%14s - Test configuration %s', 'Target', self.conf)
+
+        # Setup target working directory
         if 'workdir' in self.conf:
             self.workdir = self.conf['workdir']
 
@@ -115,27 +131,29 @@ class TestEnv(ShareState):
         if 'tools' in self.conf:
             self.__tools = self.conf['tools']
         # Merge tests specific tools
-        if test_conf and 'tools' in test_conf and test_conf['tools']:
+        if self.test_conf and 'tools' in self.test_conf and \
+           self.test_conf['tools']:
             if 'tools' not in self.conf:
                 self.conf['tools'] = []
             self.__tools = list(set(
-                self.conf['tools'] + test_conf['tools']
+                self.conf['tools'] + self.test_conf['tools']
             ))
 
         # Initialize modules to use on the target
         if 'modules' in self.conf:
             self.__modules = self.conf['modules']
         # Merge tests specific modules
-        if test_conf and 'modules' in test_conf and test_conf['modules']:
+        if self.test_conf and 'modules' in self.test_conf and \
+           self.test_conf['modules']:
             if 'modules' not in self.conf:
                 self.conf['modules'] = []
             self.__modules = list(set(
-                self.conf['modules'] + test_conf['modules']
+                self.conf['modules'] + self.test_conf['modules']
             ))
 
         # Initialize ftrace events
-        if test_conf and 'ftrace' in test_conf:
-            self.conf['ftrace'] = test_conf['ftrace']
+        if self.test_conf and 'ftrace' in self.test_conf:
+            self.conf['ftrace'] = self.test_conf['ftrace']
             self.__tools.append('trace-cmd')
 
         # Add tools dependencies
