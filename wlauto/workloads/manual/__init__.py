@@ -59,7 +59,7 @@ class ManualWorkload(Workload):
         Parameter('view', default='SurfaceView',
                   description="""Specifies the View of the workload. This enables instruments that require a
                                  View to be specified, such as the ``fps`` instrument."""),
-        Parameter('enable_logcat', kind=boolean, default=True,
+        Parameter('enable_logcat', kind=boolean,
                   description='If ``True``, ``manual`` workload will collect logcat as part of the results.'),
     ]
 
@@ -103,3 +103,7 @@ class ManualWorkload(Workload):
         if not self.user_triggered and not self.duration:
             raise ConfigError('Either user_triggered must be ``True`` or duration must be > 0.')
 
+        if self.enable_logcat is None:
+            self.enable_logcat = self.device.platform == "android"
+        elif self.enable_logcat and self.device.platform != "android":
+            raise ConfigError("The `enable_logcat` parameter can only be used on Android devices")
