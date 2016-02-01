@@ -136,9 +136,9 @@ class Sysbench(Workload):
         if not self.on_device_binary and not self.on_host_binary:
             raise WorkloadError('sysbench binary is not installed on the device, and it is not found on the host.')
         if self.force_install:
-            self.device.install(self.on_host_binary)
+            self.on_device_binary = self.device.install(self.on_host_binary)
         else:
-            self.device.install_if_needed(self.on_host_binary)
+            self.on_device_binary = self.device.install_if_needed(self.on_host_binary)
 
     def _build_command(self, **parameters):
         param_strings = ['--{}={}'.format(k.replace('_', '-'), v)
