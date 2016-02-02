@@ -47,7 +47,7 @@ from dateutil import tz
 # ABI --> architectures list
 ABI_MAP = {
     'armeabi': ['armeabi', 'armv7', 'armv7l', 'armv7el', 'armv7lh'],
-    'arm64': ['arm64', 'armv8', 'arm64-v8a'],
+    'arm64': ['arm64', 'armv8', 'arm64-v8a', 'aarch64'],
 }
 
 
