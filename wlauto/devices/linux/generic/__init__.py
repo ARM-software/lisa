@@ -29,7 +29,6 @@ class GenericDevice(LinuxDevice):
 
     """
 
-    abi = 'armeabi'
     has_gpu = True
 
     parameters = [
