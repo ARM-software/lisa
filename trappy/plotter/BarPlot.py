@@ -21,7 +21,50 @@ import numpy as np
 from trappy.plotter.StaticPlot import StaticPlot
 
 class BarPlot(StaticPlot):
-    """A matplotlib static plotter which produces line plots"""
+    """BarPlot can plot data as vertical bars
+
+    Values are plotted against their position in the list of data.
+
+    :param traces: The input data
+    :type traces: A single instance or a list of :mod:`trappy.trace.FTrace` or :mod:`pandas.DataFrame`
+
+    :param column: specifies the name of the column to be plotted.
+    :type column: str or list(str)
+
+    :param templates: TRAPpy events
+
+        .. note::
+
+                This is not required if a :mod:`pandas.DataFrame` is
+                used
+
+    :type templates: :mod:`trappy.base.Base`
+
+    :param signals: A string of the type event_name:column
+        to indicate the value that needs to be plotted
+
+        .. note::
+
+            - Only one of `signals` or both `templates` and
+              `columns` should be specified
+            - Signals format won't work for :mod:`pandas.DataFrame`
+              input
+
+    :type signals: str or list(string)
+
+    :param title: A title describing the generated plots
+    :type title: str
+
+    :param stacked: The series are grouped by default.  If you want a
+        stacked plot, set stacked to True.
+    :type stacked: bool
+
+    :param spacing: A proportion of the size of each group which
+        should be used as the spacing between the groups. e.g. 0.2
+        (default) means that 1/5 of the groups total width is used as
+        a spacing between groups.
+    :type spacing: float
+    """
 
     def __init__(self, traces, templates=None, **kwargs):
         # Default keys, each can be overridden in kwargs
