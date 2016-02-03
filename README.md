@@ -71,7 +71,7 @@ Debian system.
 
 	$ sudo apt-get install build-essential autoconf automake libtool pkg-config
 
-##### Install additiona tools required for some tests and functionalities
+##### Install additional tools required for some tests and functionalities
 
 	$ sudo apt-get install nmap trace-cmd
 
@@ -171,6 +171,7 @@ just run these few steps:
 The toolkit provides these resources:
 
 A collection of "assets" required to run examples and tests:
+
 	.
 	|-- assets
 	|   `-- mp3-short.json
