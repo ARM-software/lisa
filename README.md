@@ -71,7 +71,7 @@ Debian system.
 
 	$ sudo apt-get install build-essential autoconf automake libtool pkg-config
 
-##### Install additiona tools required for some tests and functionalities
+##### Install additional tools required for some tests and functionalities
 
 	$ sudo apt-get install nmap trace-cmd
 
