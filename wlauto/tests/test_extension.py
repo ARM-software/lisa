@@ -320,6 +320,13 @@ class ParametersTest(TestCase):
         myext = _instantiate(MyOtherExtension, mandatory=1, optional='invalid')
         myext.validate()
 
+    @raises(ValueError)
+    def test_duplicate_param_override(self):
+        class DuplicateParamExtension(MyBaseExtension):  # pylint: disable=W0612
+            parameters = [
+                Parameter('food', override=True, default='cheese'),
+                Parameter('food', override=True, default='cheese'),
+            ]
 
 class ModuleTest(TestCase):
 
@@ -340,4 +347,3 @@ class ModuleTest(TestCase):
 def _instantiate(cls, *args, **kwargs):
     # Needed to get around Extension's __init__ checks
     return cls(*args, **kwargs)
-
