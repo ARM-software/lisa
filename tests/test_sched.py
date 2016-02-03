@@ -25,7 +25,8 @@ sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "trappy"))
 class BaseTestSched(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         super(BaseTestSched, self).__init__(
-             [("trace_sched.txt", "trace.txt")],
+             [("trace_sched.txt", "trace.txt"),
+              ("trace_sched.txt", "trace.raw.txt")],
              *args,
              **kwargs)
 
@@ -98,6 +99,33 @@ class TestSchedCpuFrequency(BaseTestSched):
         self.assertEquals(dfr["cpu"].iloc[0], 0)
         self.assertEquals(dfr["frequency"].iloc[0], 600000)
         self.assertFalse("cpu_id" in dfr.columns)
+
+class TestSchedWakeup(BaseTestSched):
+
+    def test_get_dataframe(self):
+        """Test that SchedWakeup creates a proper data_frame"""
+        dfr = trappy.FTrace().sched_wakeup.data_frame
+
+        self.assertTrue(len(dfr) == 2)
+        self.assertEquals(dfr["comm"].iloc[0], "rcu_preempt")
+        self.assertEquals(dfr["pid"].iloc[0], 7)
+        self.assertEquals(dfr["prio"].iloc[0], 120)
+        self.assertEquals(dfr["success"].iloc[0], 1)
+        self.assertEquals(dfr["target_cpu"].iloc[0], 1)
+
+class TestSchedWakeupNew(BaseTestSched):
+
+    def test_get_dataframe(self):
+        """Test that SchedWakeupNew creates a proper data_frame"""
+        dfr = trappy.FTrace().sched_wakeup_new.data_frame
+
+        self.assertTrue(len(dfr) == 2)
+        self.assertEquals(dfr["comm"].iloc[0], "shutils")
+        self.assertEquals(dfr["pid"].iloc[0], 19428)
+        self.assertEquals(dfr["prio"].iloc[0], 120)
+        self.assertEquals(dfr["success"].iloc[0], 1)
+        self.assertEquals(dfr["target_cpu"].iloc[0], 2)
+
 
 class TestGetFilters(BaseTestSched):
 
