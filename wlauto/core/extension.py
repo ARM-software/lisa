@@ -82,7 +82,12 @@ class AttributeCollection(object):
         return p
 
     def __iadd__(self, other):
+        other = [self._to_attrcls(p) for p in other]
+        names = []
         for p in other:
+            if p.name in names:
+                raise ValueError("Duplicate '{}' {}".format(p.name, p.__class__.__name__.split('.')[-1]))
+            names.append(p.name)
             self.add(p)
         return self
 
@@ -687,4 +692,3 @@ class Module(Extension):
 
     def initialize(self, context):
         pass
-

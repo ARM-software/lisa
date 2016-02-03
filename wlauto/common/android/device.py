@@ -78,8 +78,6 @@ class AndroidDevice(BaseLinuxDevice):  # pylint: disable=W0223
                   If set a swipe of the specified direction will be performed.
                   This should unlock the screen.
                   """),
-        Parameter('binaries_directory', default="/data/local/tmp", override=True,
-                  description='Location of executable binaries on this device (must be in PATH).'),
     ]
 
     default_timeout = 30
