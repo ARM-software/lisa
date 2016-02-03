@@ -171,6 +171,7 @@ just run these few steps:
 The toolkit provides these resources:
 
 A collection of "assets" required to run examples and tests:
+
 	.
 	|-- assets
 	|   `-- mp3-short.json
