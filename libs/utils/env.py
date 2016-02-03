@@ -164,15 +164,27 @@ class TestEnv(ShareState):
         self.calibration()
 
         # Initialize local results folder
-        res_dir = os.path.join(basepath, OUT_PREFIX)
-        self.res_dir = datetime.datetime.now()\
-                .strftime(res_dir + '/%Y%m%d_%H%M%S')
-        os.makedirs(self.res_dir)
+        if self.test_conf and 'id' in self.test_conf:
+            res_dir = self.test_conf['id']
+            if not os.path.isabs(res_dir):
+                res_dir = os.path.join(basepath, 'results', res_dir)
+        else:
+            res_dir = os.path.join(basepath, OUT_PREFIX)
+            res_dir = datetime.datetime.now()\
+                            .strftime(res_dir + '/%Y%m%d_%H%M%S')
+        self.res_dir = res_dir
+        if not os.path.exists(self.res_dir):
+            os.makedirs(self.res_dir)
 
         res_lnk = os.path.join(basepath, LATEST_LINK)
         if os.path.islink(res_lnk):
             os.remove(res_lnk)
         os.symlink(self.res_dir, res_lnk)
+
+        logging.info('%14s - Set results folder to:', 'TestEnv')
+        logging.info('%14s -    %s', 'TestEnv', res_dir)
+        logging.info('%14s - Experiment results available also in:', 'TestEnv')
+        logging.info('%14s -    %s', 'TestEnv', res_lnk)
 
         self._initialized = True
 
