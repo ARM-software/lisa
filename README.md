@@ -134,9 +134,10 @@ An easy way to test your installation is to give a run to the EAS RFC tests.
 These are a set of experiments which allows to compare EAS performance and
 energy consumption with respect to standard kernel.
 
-*NOTE:* The following [tutorial](Quickstart tutorial) is still recommended it
-you want to get a better grasp on how the framework is organized and how to use
-it at your best.
+*NOTE:* The following
+[tutorial](https://github.com/ARM-software/lisa#quickstart-tutorial) is still
+recommended it you want to get a better grasp on how the framework is organized
+and how to use it at your best.
 
 Let's assume your target is running an EAS enabled kernel, to run such tests
 just run these few steps:
