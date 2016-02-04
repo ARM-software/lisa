@@ -324,7 +324,14 @@ class ParametersTest(TestCase):
     def test_duplicate_param_override(self):
         class DuplicateParamExtension(MyBaseExtension):  # pylint: disable=W0612
             parameters = [
-                Parameter('food', override=True, default='cheese'),
+                Parameter('base', override=True, default='buttery'),
+                Parameter('base', override=True, default='biscuit'),
+            ]
+
+    @raises(ValueError)
+    def test_overriding_new_param(self):
+        class DuplicateParamExtension(MyBaseExtension):  # pylint: disable=W0612
+            parameters = [
                 Parameter('food', override=True, default='cheese'),
             ]
 
