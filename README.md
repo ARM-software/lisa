@@ -73,7 +73,7 @@ Debian system.
 
 ##### Install additional tools required for some tests and functionalities
 
-	$ sudo apt-get install nmap trace-cmd
+	$ sudo apt-get install nmap trace-cmd sshpass kernelshark
 
 ##### Install required python packages
 
