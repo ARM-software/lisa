@@ -17,17 +17,20 @@ from __future__ import division
 import os
 import sys
 import csv
+import re
 import logging
 from ctypes import c_int32
 from collections import defaultdict
 import argparse
 
-from wlauto.utils.trace_cmd import TraceCmdTrace
+from wlauto.utils.trace_cmd import TraceCmdTrace, TRACE_MARKER_START, TRACE_MARKER_STOP
 
 
 logger = logging.getLogger('power')
 
 UNKNOWN_FREQUENCY = -1
+
+INIT_CPU_FREQ_REGEX = re.compile(r'CPU (?P<cpu>\d+) FREQUENCY: (?P<freq>\d+) kHZ')
 
 
 class CorePowerTransitionEvent(object):
@@ -64,6 +67,18 @@ class CorePowerDroppedEvents(object):
         return 'DROPPED EVENTS on CPU{}'.format(self.cpu_id)
 
     __repr__ = __str__
+
+
+class TraceMarkerEvent(object):
+
+    kind = 'marker'
+    __slots__ = ['name']
+
+    def __init__(self, name):
+        self.name = name
+
+    def __str__(self):
+        return 'MARKER: {}'.format(self.name)
 
 
 class CpuPowerState(object):
@@ -136,9 +151,12 @@ class PowerStateProcessor(object):
         self.power_state.timestamp = value
 
     def __init__(self, core_clusters, num_idle_states,
-                 first_cluster_state=sys.maxint, first_system_state=sys.maxint):
+                 first_cluster_state=sys.maxint, first_system_state=sys.maxint,
+                 wait_for_start_marker=False):
         self.power_state = SystemPowerState(len(core_clusters))
         self.requested_states = defaultdict(lambda: -1)  # cpu_id -> requeseted state
+        self.wait_for_start_marker = wait_for_start_marker
+        self._saw_start_marker = False
 
         idle_state_domains = build_idle_domains(core_clusters,
                                                 num_states=num_idle_states,
@@ -155,7 +173,9 @@ class PowerStateProcessor(object):
 
     def process(self, event_stream):
         for event in event_stream:
-            yield self.update_power_state(event)
+            next_state = self.update_power_state(event)
+            if self._saw_start_marker or not self.wait_for_start_marker:
+                yield next_state
 
     def update_power_state(self, event):
         """
@@ -167,6 +187,11 @@ class PowerStateProcessor(object):
             self._process_transition(event)
         elif event.kind == 'dropped_events':
             self._process_dropped_events(event)
+        elif event.kind == 'marker':
+            if event.name == 'START':
+                self._saw_start_marker = True
+            elif event.name == 'STOP':
+                self._saw_start_marker = False
         else:
             raise ValueError('Unexpected event type: {}'.format(event.kind))
         return self.power_state.copy()
@@ -269,6 +294,17 @@ def stream_cpu_power_transitions(events):
             yield CorePowerTransitionEvent(event.timestamp, event.cpu_id, frequency=event.state)
         elif event.name == 'DROPPED EVENTS DETECTED':
             yield CorePowerDroppedEvents(event.cpu_id)
+        elif event.name == 'print':
+            if TRACE_MARKER_START in event.text:
+                yield TraceMarkerEvent('START')
+            elif TRACE_MARKER_STOP in event.text:
+                yield TraceMarkerEvent('STOP')
+            else:
+                match = INIT_CPU_FREQ_REGEX.search(event.text)
+                if match:
+                    yield CorePowerTransitionEvent(event.timestamp,
+                                                   int(match.group('cpu')),
+                                                   frequency=int(match.group('freq')))
 
 
 def gather_core_states(system_state_stream, freq_dependent_idle_states=None):  # NOQA
@@ -541,13 +577,14 @@ def build_idle_domains(core_clusters,   # NOQA
 def report_power_stats(trace_file, idle_state_names, core_names, core_clusters,
                        num_idle_states, first_cluster_state=sys.maxint,
                        first_system_state=sys.maxint, use_ratios=False,
-                       timeline_csv_file=None, filter_trace=True):
+                       timeline_csv_file=None, filter_trace=False):
     # pylint: disable=too-many-locals
     trace = TraceCmdTrace(filter_markers=filter_trace)
     ps_processor = PowerStateProcessor(core_clusters,
                                        num_idle_states=num_idle_states,
                                        first_cluster_state=first_cluster_state,
-                                       first_system_state=first_system_state)
+                                       first_system_state=first_system_state,
+                                       wait_for_start_marker=not filter_trace)
     reporters = [
         ParallelStats(core_clusters, use_ratios),
         PowerStateStats(core_names, idle_state_names, use_ratios)
@@ -556,7 +593,7 @@ def report_power_stats(trace_file, idle_state_names, core_names, core_clusters,
         reporters.append(PowerStateTimeline(timeline_csv_file,
                                             core_names, idle_state_names))
 
-    event_stream = trace.parse(trace_file, names=['cpu_idle', 'cpu_frequency'])
+    event_stream = trace.parse(trace_file, names=['cpu_idle', 'cpu_frequency', 'print'])
     transition_stream = stream_cpu_power_transitions(event_stream)
     power_state_stream = ps_processor.process(transition_stream)
     core_state_stream = gather_core_states(power_state_stream)
