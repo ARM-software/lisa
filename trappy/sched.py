@@ -91,6 +91,14 @@ class SchedCpuCapacity(Base):
 
 FTrace.register_parser(SchedCpuCapacity, "sched")
 
+SchedWakeup = register_dynamic_ftrace("SchedWakeup", "sched_wakeup:", "sched",
+                                       parse_raw=True)
+"""Register SchedWakeup Event"""
+
+SchedWakeupNew = register_dynamic_ftrace("SchedWakeupNew", "sched_wakeup_new:",
+                                         "sched", parse_raw=True)
+"""Register SchedWakeupNew Event"""
+
 SchedSwitch = register_dynamic_ftrace("SchedSwitch", "sched_switch", "sched",
                                       parse_raw=True)
 """Register SchedSwitch Event"""
