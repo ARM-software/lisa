@@ -41,9 +41,10 @@ class AttributeCollection(object):
     def values(self):
         return self._attrs.values()
 
-    def __init__(self, attrcls):
+    def __init__(self, attrcls, owner):
         self._attrcls = attrcls
         self._attrs = OrderedDict()
+        self.owner = owner
 
     def add(self, p):
         p = self._to_attrcls(p)
@@ -53,6 +54,8 @@ class AttributeCollection(object):
                 for a, v in p.__dict__.iteritems():
                     if v is not None:
                         setattr(newp, a, v)
+                if not hasattr(newp, "_overridden"):
+                    newp._overridden = self.owner
                 self._attrs[p.name] = newp
             else:
                 # Duplicate attribute condition is check elsewhere.
@@ -107,7 +110,7 @@ class AttributeCollection(object):
 class AliasCollection(AttributeCollection):
 
     def __init__(self):
-        super(AliasCollection, self).__init__(Alias)
+        super(AliasCollection, self).__init__(Alias, None)
 
     def _to_attrcls(self, p):
         if isinstance(p, tuple) or isinstance(p, list):
@@ -122,8 +125,9 @@ class AliasCollection(AttributeCollection):
 
 class ListCollection(list):
 
-    def __init__(self, attrcls):  # pylint: disable=unused-argument
+    def __init__(self, attrcls, owner):  # pylint: disable=unused-argument
         super(ListCollection, self).__init__()
+        self.owner = owner
 
 
 class Param(object):
@@ -401,14 +405,14 @@ class ExtensionMeta(type):
     global_virtuals = ['initialize', 'finalize']
 
     def __new__(mcs, clsname, bases, attrs):
-        mcs._propagate_attributes(bases, attrs)
+        mcs._propagate_attributes(bases, attrs, clsname)
         cls = type.__new__(mcs, clsname, bases, attrs)
         mcs._setup_aliases(cls)
         mcs._implement_virtual(cls, bases)
         return cls
 
     @classmethod
-    def _propagate_attributes(mcs, bases, attrs):
+    def _propagate_attributes(mcs, bases, attrs, clsname):
         """
         For attributes specified by to_propagate, their values will be a union of
         that specified for cls and its bases (cls values overriding those of bases
@@ -417,15 +421,22 @@ class ExtensionMeta(type):
         """
         for prop_attr, attr_cls, attr_collector_cls in mcs.to_propagate:
             should_propagate = False
-            propagated = attr_collector_cls(attr_cls)
+            propagated = attr_collector_cls(attr_cls, clsname)
             for base in bases:
                 if hasattr(base, prop_attr):
                     propagated += getattr(base, prop_attr) or []
                     should_propagate = True
             if prop_attr in attrs:
-                propagated += attrs[prop_attr] or []
+                pattrs = attrs[prop_attr] or []
+                propagated += pattrs
                 should_propagate = True
             if should_propagate:
+                for p in propagated:
+                    override = bool(getattr(p, "override", None))
+                    overridden = bool(getattr(p, "_overridden", None))
+                    if override != overridden:
+                        msg = "Overriding non existing parameter '{}' inside '{}'"
+                        raise ValueError(msg.format(p.name, clsname))
                 attrs[prop_attr] = propagated
 
     @classmethod
