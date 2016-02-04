@@ -237,6 +237,8 @@ class CpufreqModule(Module):
         :raises: DeviceError if for some reason the frequency could not be read.
 
         """
+        if isinstance(cpu, int):
+            cpu = 'cpu{}'.format(cpu)
         sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_cur_freq'.format(cpu)
         return self.device.get_sysfile_value(sysfile)
 
@@ -393,7 +395,7 @@ class CpufreqModule(Module):
 
     def get_cluster_cur_frequency(self, cluster):
         cpu = self.get_cluster_active_cpu(cluster)
-        return self.get_cpu_cur_frequency(cpu)
+        return self.get_cpu_frequency(cpu)
 
     def set_cluster_cur_frequency(self, cluster, freq):
         cpu = self.get_cluster_active_cpu(cluster)
@@ -434,7 +436,7 @@ class CpufreqModule(Module):
             self.set_cluster_min_frequency(cluster, freq)
 
     def get_core_cur_frequency(self, core):
-        return self.get_cpu_cur_frequency(self.get_core_online_cpu(core))
+        return self.get_cpu_frequency(self.get_core_online_cpu(core))
 
     def set_core_cur_frequency(self, core, freq):
         for cluster in self.get_core_clusters(core):

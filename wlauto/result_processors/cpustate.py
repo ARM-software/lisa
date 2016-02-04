@@ -18,9 +18,11 @@ import csv
 from collections import OrderedDict
 
 from wlauto import ResultProcessor, Parameter
+from wlauto.core import signal
 from wlauto.exceptions import ConfigError
 from wlauto.instrumentation import instrument_is_installed
 from wlauto.utils.power import report_power_stats
+from wlauto.utils.misc import unique
 
 
 class CpuStatesProcessor(ResultProcessor):
@@ -115,8 +117,10 @@ class CpuStatesProcessor(ResultProcessor):
     def initialize(self, context):
         # pylint: disable=attribute-defined-outside-init
         device = context.device
-        if not device.has('cpuidle'):
-            raise ConfigError('Device does not appear to have cpuidle capability; is the right module installed?')
+        for modname in ['cpuidle', 'cpufreq']:
+            if not device.has(modname):
+                message = 'Device does not appear to have {} capability; is the right module installed?'
+                raise ConfigError(message.format(modname))
         if not device.core_names:
             message = '{} requires"core_names" and "core_clusters" to be specified for the device.'
             raise ConfigError(message.format(self.name))
@@ -126,6 +130,30 @@ class CpuStatesProcessor(ResultProcessor):
         self.idle_state_names = [idle_states[i] for i in sorted(idle_states.keys())]
         self.num_idle_states = len(self.idle_state_names)
         self.iteration_reports = OrderedDict()
+        # priority -19: just higher than the slow_start of instrumentation
+        signal.connect(self.set_initial_state, signal.BEFORE_WORKLOAD_EXECUTION, priority=-19)
+
+    def set_initial_state(self, context):
+        # TODO: this does not play well with hotplug but leaving as-is, as this will be changed with
+        # the devilib port anyway.
+        # Write initial frequencies into the trace.
+        # NOTE: this assumes per-cluster DVFS, that is valid for devices that
+        # currently exist. This will need to be updated for per-CPU DFS.
+        self.logger.debug('Writing initial frequencies into trace...')
+        device = context.device
+        cluster_freqs = {}
+        for c in unique(device.core_clusters):
+            cluster_freqs[c] = device.get_cluster_cur_frequency(c)
+        for i, c in enumerate(device.core_clusters):
+            entry = 'CPU {} FREQUENCY: {} kHZ'.format(i, cluster_freqs[c])
+            device.set_sysfile_value('/sys/kernel/debug/tracing/trace_marker',
+                                     entry, verify=False)
+
+        # Nudge each cpu to force idle state transitions in the trace
+        self.logger.debug('Nudging all cores awake...')
+        for i in xrange(len(device.core_names)):
+            command = device.busybox + ' taskset 0x{:x} {}'
+            device.execute(command.format(1 << i, 'ls'))
 
     def process_iteration_result(self, result, context):
         trace = context.get_artifact('txttrace')
