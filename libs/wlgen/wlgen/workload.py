@@ -86,26 +86,26 @@ class Workload(object):
         # Map of task/s parameters
         self.params = {}
 
-        logging.info('Setup new workload %s', self.name)
+        logging.info('%14s - Setup new workload %s', 'WlGen', self.name)
 
     def __callback(self, step, **kwords):
         if step not in self.steps.keys():
             raise ValueError('Callbacks for [%s] step not supported', step)
         if self.steps[step] is None:
             return
-        logging.debug('Callback [%s]...', step)
+        logging.debug('%14s - Callback [%s]...', 'WlGen', step)
         self.steps[step](kwords)
 
     def setCallback(self, step, func):
-        logging.debug('Setup step [%s] callback to [%s] function',
-                step, func.__name__)
+        logging.debug('%14s - Setup step [%s] callback to [%s] function',
+                'WlGen', step, func.__name__)
         self.steps[step] = func
 
     def getCpusMask(self, cpus=None):
         mask = 0x0
         for cpu in (cpus or self.target.list_online_cpus()):
             mask |= (1 << cpu)
-        # logging.debug('0x{0:X}'.format(mask))
+        # logging.debug('%14s - 0x{0:X}'.format(mask), 'WlGen')
         return mask
 
     def conf(self,
@@ -135,16 +135,16 @@ class Workload(object):
 
         # Configure a profile workload
         if kind == 'profile':
-            logging.debug('Configuring a profile-based workload...')
+            logging.debug('%14s - Configuring a profile-based workload...', 'WlGen')
             self.params['profile'] = params
 
         # Configure a custom workload
         elif kind == 'custom':
-            logging.debug('Configuring custom workload...')
+            logging.debug('%14s - Configuring custom workload...', 'WlGen')
             self.params['custom'] = params
 
         else:
-            logging.error('%s is not a supported RTApp workload kind', kind)
+            logging.error('%14s - %s is not a supported RTApp workload kind', 'WlGen', kind)
             raise ValueError('RTApp workload kind not supported')
 
     def run(self,
@@ -157,7 +157,7 @@ class Workload(object):
         self.cgroup = cgroup
 
         if self.command is None:
-            logging.error('Error: empty executor command')
+            logging.error('%14s - Error: empty executor command', 'WlGen')
 
         # Prepend eventually required taskset command
         if self.cpus:
@@ -182,13 +182,13 @@ class Workload(object):
 
         # Start task in background if required
         if background:
-            logging.debug('Executor [background]: %s', self.command)
+            logging.debug('%14s - WlGen [background]: %s', 'WlGen', self.command)
             results = self.target.execute(self.command,
                     background=True, as_root=as_root)
             self.output['executor'] = results
             return results
 
-        logging.info('Executor [start]: %s', self.command)
+        logging.info('%14s - WlGen [start]: %s', 'WlGen', self.command)
 
         # Run command and wait for it to complete
         results = self.target.execute(self.command,
@@ -203,14 +203,16 @@ class Workload(object):
             ftrace_dat = out_dir + '/' + self.test_label + '.dat'
             dirname = os.path.dirname(ftrace_dat)
             if not os.path.exists(dirname):
-                logging.debug('Create ftrace results folder [%s]', dirname)
+                logging.debug('%14s - Create ftrace results folder [%s]',
+                              'WlGen', dirname)
                 os.makedirs(dirname)
-            logging.info('Pulling trace file into [%s]...', ftrace_dat)
+            logging.info('%14s - Pulling trace file into [%s]...',
+                         'WlGen', ftrace_dat)
             ftrace.get_trace(ftrace_dat)
 
         self.__callback('postrun', destdir=out_dir)
 
-        logging.info('Executor [end]: %s', self.command)
+        logging.debug('%14s -    [end]: %s', 'WlGen', self.command)
 
         return ftrace_dat
 
@@ -245,23 +247,23 @@ class Workload(object):
             return self.tasks
         if task_names is None:
             task_names = self.tasks.keys()
-        logging.debug('Lookup dataset for tasks...')
+        logging.debug('%14s - Lookup dataset for tasks...', 'WlGen')
         for task_name in task_names:
             results = dataframe[dataframe[name_key] == task_name]\
                     [[name_key,pid_key]]
             if len(results)==0:
-                logging.error('  task %16s NOT found', task_name)
+                logging.error('  task %16s NOT found', 'WlGen', task_name)
                 continue
             (name, pid) = results.head(1).values[0]
             if name != task_name:
-                logging.error('  task %16s NOT found', task_name)
+                logging.error('  task %16s NOT found', 'WlGen', task_name)
                 continue
             if task_name not in self.tasks:
                 self.tasks[task_name] = {}
             pids = list(results[pid_key].unique())
             self.tasks[task_name]['pid'] = pids
-            logging.info('  task %16s found, pid: %s',
-                    task_name, self.tasks[task_name]['pid'])
+            logging.info('%14s -   task %16s found, pid: %s',
+                    'WlGen', task_name, self.tasks[task_name]['pid'])
         return self.tasks
 
     def listAll(self, kill=False):
@@ -269,13 +271,15 @@ class Workload(object):
         tasks = self.target.run('ps | grep {0:s}'.format(self.executor))
         for task in tasks:
             task = task.split()
-            logging.info('%5s: %s (%s)', task[1], task[8], task[0])
+            logging.info('%14s - %5s: %s (%s)',
+                         'WlGen', task[1], task[8], task[0])
             if kill:
                 self.target.run('kill -9 {0:s}'.format(task[1]))
 
     def killAll(self):
         if self.executor is None:
             return
-        logging.info('Killing all [%s] instances:', self.executor)
+        logging.info('%14s - Killing all [%s] instances:',
+                     'WlGen', self.executor)
         self.listAll(True)
 
