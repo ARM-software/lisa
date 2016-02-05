@@ -31,7 +31,7 @@ import logging
 
 class Trace(object):
 
-    def __init__(self, platform, datadir, events, tasks=None):
+    def __init__(self, platform, datadir, events, tasks=None, window=(0,None)):
 
         # The platform used to run the experiments
         self.platform = None
@@ -44,6 +44,9 @@ class Trace(object):
 
         # TRAPpy run object
         self.run = None
+
+        # The time window used to limit trace parsing to
+        self.window = window
 
         # Dynamically registered TRAPpy events
         self.trappy_cls = {}
@@ -67,7 +70,7 @@ class Trace(object):
         self.platform = platform
 
         self.__registerTraceEvents(events)
-        self.__parseTrace(datadir, tasks)
+        self.__parseTrace(datadir, tasks, window)
         self.__computeTimeSpan()
 
     def __registerTraceEvents(self, events):
@@ -80,10 +83,10 @@ class Trace(object):
             raise ValueError('Events must be a string or a list of strings')
 
 
-    def __parseTrace(self, datadir, tasks):
+    def __parseTrace(self, datadir, tasks, window):
         logging.debug('Loading [sched] events from trace in [%s]...', datadir)
         logging.debug("Parsing events: %s", self.events)
-        self.run = trappy.Run(datadir, scope="custom", events=self.events)
+        self.run = trappy.Run(datadir, scope="custom", events=self.events, window=window)
 
         # Check for events available on the parsed trace
         self.__checkAvailableEvents()

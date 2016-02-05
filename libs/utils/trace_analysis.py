@@ -286,6 +286,20 @@ class TraceAnalysis(object):
                 data = df2[df2.comm == task_name][['boosted_util']]
                 if len(data):
                     data.plot(ax=axes, style=['y-'], drawstyle='steps-post');
+
+                # Add Capacities data if avilable
+                if 'nrg_model' in self.trace.platform:
+                    nrg_model = self.trace.platform['nrg_model']
+                    max_lcap = nrg_model['little']['cpu']['cap_max']
+                    max_bcap = nrg_model['big']['cpu']['cap_max']
+                    tip_lcap = 0.8 * max_lcap
+                    tip_bcap = 0.8 * max_bcap
+                    logging.info('%d %d %d %d', tip_lcap, max_lcap, tip_bcap, max_bcap)
+                    axes.axhline(tip_lcap, color='g', linestyle='--', linewidth=1);
+                    axes.axhline(max_lcap, color='g', linestyle='-', linewidth=2);
+                    axes.axhline(tip_bcap, color='r', linestyle='--', linewidth=1);
+                    axes.axhline(max_bcap, color='r', linestyle='-', linewidth=2);
+
             axes.set_ylim(0, 1100);
             axes.set_xlim(self.x_min, self.x_max);
             axes.grid(True);
