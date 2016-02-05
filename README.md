@@ -157,7 +157,7 @@ just run these few steps:
 3. Run the EAS RFC test using the standard nosetest command:
 
 	```sh
-	$ nosetests -v tests/eas/rfc.py:EAS
+	$ nosetests -v tests/eas/rfc.py
 	```
 
 4. Wait for the test to complete and than you can report the results with:
@@ -278,7 +278,23 @@ Specifically it demonstrates how to:
    the TRAPpy library
 7. visualize some simple performance metrics for the tasks
 
-## 4. Regression test example 1
+## 4. Get confident with the tests execution engine
+
+Tests are usually performed on a set of data collected while executing properly
+defined experiments. An experiment is usually defined by a specific **target
+configuration** which is used to run a certain **workload mix**.
+Thus, to run experiments we usually need the support of a proper module which
+configure a target and execute a workload on it in order to collect the data
+required for a test.
+
+The __Executor__ module is a simple yet effective support to collect all the
+data required for a test. This notebook:
+[utils/executor_example.ipynb](http://localhost:8888/notebooks/utils/executor_example.ipynb)
+is a simple example of how to use the Executor collect experimental data for a
+predefined set of target configurations and by running a specified set of
+workloads.
+
+## 5. Regression test example 1
 
 One of the main aims of LISA is to become a repository for regression
 tests on scheduler and power management behavior. A common pattern for
@@ -313,7 +329,7 @@ This notebook is a good example of using LISA to build a new set of
 experiments which can then be transformed into a standalone regression
 test.
 
-## 5. Regression test example 2
+## 6. Regression test example 2
 
 Once a new set of tests have been defined and verified, perhaps by using
 a notebook to develop them, they can be transformed into a standalone
