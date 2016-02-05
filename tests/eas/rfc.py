@@ -58,7 +58,6 @@ class TestBase(unittest.TestCase):
         # Initialize globals
         cls.kernel = None
         cls.dtb = None
-        cls.governor = None
         cls.cgroup = None
 
         cls.print_section('Main', 'Experiments configuration')
@@ -222,18 +221,15 @@ class TestBase(unittest.TestCase):
     @classmethod
     def setup_cpufreq(cls, tc):
         if 'cpufreq' not in tc:
-            logging.debug('%14s - Configuration not provided', 'CPUFreq')
-            return
-        if cls.governor == tc['cpufreq']['governor']:
-            return
-        logging.info(r'%14s - Configuring all CPUs to use [%s] governor',
-                'CPUFreq', tc['cpufreq']['governor'])
-        try:
-            cpufreq = tc['cpufreq']
-        except KeyError:
-            logging.warning(r'%14s - Using currently configured governor',
+            logging.warning(r'%14s - governor not specified, '\
+                    'using currently configured governor',
                     'CPUFreq')
             return
+
+        cpufreq = tc['cpufreq']
+        logging.info(r'%14s - Configuring all CPUs to use [%s] governor',
+                'CPUFreq', cpufreq['governor'])
+
         if cpufreq['governor'] == 'ondemand':
             try:
                 sampling_rate = cpufreq['params']['sampling_rate']
@@ -255,8 +251,6 @@ class TestBase(unittest.TestCase):
                     '   echo {} > $CPU/cpufreq/scaling_governor;  '\
                     'done'\
                     .format(cpufreq['governor']))
-        # Keep track of currently configured governor
-        cls.governor = cpufreq['governor']
 
     @classmethod
     def setup_cgroups(cls, tc):
@@ -302,13 +296,6 @@ class TestBase(unittest.TestCase):
         name = group.name
         # Configure each required attribute
         group.set(**tc['cgroups']['conf'][kind][name])
-
-
-    @classmethod
-    def target_reboot(cls):
-        # TODO: actually reboot the target and wait for it to be back online
-        cls.governor = None
-
 
     @classmethod
     def target_configure(cls, tc):
