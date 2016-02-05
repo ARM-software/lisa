@@ -87,6 +87,15 @@ Debian system.
 
 	$ sudo pip install --upgrade trappy bart-py devlib
 
+*NOTE:* TRAPpy and BART depend on *ipython* and *ipython-notebook*. Some IPython
+Notebooks examples are written in JSON nbformat version 4 which might not be
+supported by the IPython version installed by *apt-get* (current version is
+1.2.1-2 which does not support such format). In this case, it is needed to
+remove IPython and install it using *pip* instead:
+
+	$ sudo apt-get remove ipython ipython-notebook
+	$ sudo pip install ipython ipython-notebook
+
 ## Clone the repository
 
 The code of the LISA toolkit with all the supported tests and Notebooks can be
