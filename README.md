@@ -308,6 +308,7 @@ and sched-DVFS, see:
 
 In this notebook the toolkit API is more extensively used to define an
 experiment to:
+
 1. select and configure three different CPUFreq governors
 2. run a couple of RTApp based test workloads in each configuration
 3. collect and plot scheduler and CPUFreq events
@@ -316,7 +317,7 @@ experiment to:
 
 The notebook compares three different CPUFreq governors: "performance",
 "sched" and "ondemand". New configurations are easy to add. For each
-configuration the notebook generate plots and tabular reports regarding
+configuration the notebook generates plots and tabular reports regarding
 working frequencies and energy consumption.
 
 This notebook is a good example of using LISA to build a new set of
