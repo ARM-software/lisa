@@ -70,6 +70,13 @@ class Topology(object):
                 cpu_level.append([node])
             self.add_to_level("cpu", cpu_level)
 
+    def __repr__(self):
+        repr_str = ""
+        for level_name in self._levels:
+            repr_str += level_name + " " + \
+                        self.get_level(level_name).__repr__() + \
+                        "\n"
+        return repr_str
 
     def add_to_level(self, level_name, level_vals):
         """Add a group to a level
