@@ -73,7 +73,7 @@ Debian system.
 
 ##### Install additional tools required for some tests and functionalities
 
-	$ sudo apt-get install nmap trace-cmd
+	$ sudo apt-get install nmap trace-cmd sshpass kernelshark
 
 ##### Install required python packages
 
@@ -86,6 +86,15 @@ Debian system.
 ##### Install (upgrade) required Python libraries
 
 	$ sudo pip install --upgrade trappy bart-py devlib
+
+*NOTE:* TRAPpy and BART depend on *ipython* and *ipython-notebook*. Some IPython
+Notebooks examples are written in JSON nbformat version 4 which might not be
+supported by the IPython version installed by *apt-get* (current version is
+1.2.1-2 which does not support such format). In this case, it is needed to
+remove IPython and install it using *pip* instead:
+
+	$ sudo apt-get remove ipython ipython-notebook
+	$ sudo pip install ipython ipython-notebook
 
 ## Clone the repository
 
@@ -134,9 +143,10 @@ An easy way to test your installation is to give a run to the EAS RFC tests.
 These are a set of experiments which allows to compare EAS performance and
 energy consumption with respect to standard kernel.
 
-*NOTE:* The following [tutorial](Quickstart tutorial) is still recommended it
-you want to get a better grasp on how the framework is organized and how to use
-it at your best.
+*NOTE:* The following
+[tutorial](https://github.com/ARM-software/lisa#quickstart-tutorial) is still
+recommended it you want to get a better grasp on how the framework is organized
+and how to use it at your best.
 
 Let's assume your target is running an EAS enabled kernel, to run such tests
 just run these few steps:
