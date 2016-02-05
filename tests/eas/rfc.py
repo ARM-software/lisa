@@ -514,6 +514,7 @@ class TestBase(unittest.TestCase):
         if cls.env.ftrace and cls.target_conf_flag(tc, 'ftrace'):
             cls.env.ftrace.stop()
             cls.env.ftrace.get_trace(cls.env.out_dir + '/trace.dat')
+            cls.env.ftrace.get_stats(cls.env.out_dir + '/trace_stat.json')
 
     @classmethod
     def wload_run_init(cls, run_idx):

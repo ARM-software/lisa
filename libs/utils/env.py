@@ -434,6 +434,10 @@ class TestEnv(ShareState):
         if 'events' in ftrace:
             events = ftrace['events']
 
+        functions = None
+        if 'functions' in ftrace:
+            functions = ftrace['functions']
+
         buffsize = FTRACE_BUFSIZE_DEFAULT
         if 'buffsize' in ftrace:
             buffsize = ftrace['buffsize']
@@ -441,6 +445,7 @@ class TestEnv(ShareState):
         self.ftrace = devlib.FtraceCollector(
             self.target,
             events      = events,
+            functions   = functions,
             buffer_size = buffsize,
             autoreport  = False,
             autoview    = False
@@ -448,6 +453,7 @@ class TestEnv(ShareState):
 
         logging.info('%14s - Enabled events:', 'FTrace')
         logging.info('%14s -   %s', 'FTrace', events)
+        logging.info('%14s -   %s', 'FTrace', functions)
 
         return self.ftrace
 
