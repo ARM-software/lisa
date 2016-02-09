@@ -73,7 +73,7 @@ class Filters(object):
         if min_utilization is None:
             min_utilization = self.little_cap
 
-        df = self.trace.df('tload')
+        df = self.trace.df('sched_load_avg_task')
         big_tasks_events = df[df.util_avg > min_utilization]
         big_tasks = big_tasks_events.pid.unique()
 
@@ -94,7 +94,7 @@ class Filters(object):
         self.big_frequent_tasks_pids = list(big_topmost.index)
 
         # Keep track of big tasks tload events
-        self.big_tasks['tload'] = big_tasks_events
+        self.big_tasks['sched_load_avg_task'] = big_tasks_events
         return self.big_frequent_tasks_pids
 
     def _taskIsBig(self, utilization):
@@ -114,7 +114,7 @@ class Filters(object):
             return
 
         # Get the list of events for all big frequent tasks
-        df = self.trace.df('tload')
+        df = self.trace.df('sched_load_avg_task')
         big_frequent_tasks_events = df[df.pid.isin(self.big_frequent_tasks_pids)]
 
         # Add a column to represent big status
@@ -164,7 +164,7 @@ class Filters(object):
         Tasks which wakeups more frequent than a specified threshold
         """
 
-        df = self.trace.df('swkp')
+        df = self.trace.df('sched_wakeup')
 
         wkp_tasks_stats = df.groupby('pid').describe(include=['object'])
         wkp_tasks_pids = wkp_tasks_stats.unstack()['comm']\
@@ -196,7 +196,7 @@ class Filters(object):
         if per_cluster:
 
             # Get per cluster wakeup events
-            df = self.trace.df('swkpn')
+            df = self.trace.df('sched_wakeup_new')
             big_frequent = (
                     (df.target_cpu.isin(self.big_cpus))
                     )
@@ -220,14 +220,14 @@ class Filters(object):
 
             ax = axes[0]
             ax.set_title('Tasks WakeUps Events');
-            df = self.trace.df('swkp')
+            df = self.trace.df('sched_wakeup')
             df.pid.astype(int).plot(style=['b.'], ax=ax);
             ax.set_xlim(self.x_min, self.x_max);
             ax.xaxis.set_visible(False);
 
             ax = axes[1]
             ax.set_title('Tasks Forks Events');
-            df = self.trace.df('swkpn')
+            df = self.trace.df('sched_wakeup_new')
             df.pid.astype(int).plot(style=['r.'], ax=ax);
             ax.set_xlim(self.x_min, self.x_max);
             ax.xaxis.set_visible(False);
@@ -246,7 +246,7 @@ class Filters(object):
         fig, axes = plt.subplots(2, 1, figsize=(14, 5));
         plt.subplots_adjust(wspace=0.2, hspace=0.3);
 
-        df_wkp  = self.big_tasks['tload']
+        df_wkp  = self.big_tasks['sched_load_avg_task']
         # Add column of expected cluster, depending on utilization value and
         # capacity of the selected cluster
         bu_bc = ( \
@@ -260,7 +260,7 @@ class Filters(object):
         df_wkp.loc[:,'ccap_mutil'] = np.select(
             [(bu_bc | su_lc)], [True], False)
 
-        df_freq = self.trace.df('pfreq')
+        df_freq = self.trace.df('cpu_frequency')
         rd_freq = df_freq[df_freq['cpu'].isin(cpus)]
 
         ax = axes[0]
@@ -279,7 +279,7 @@ class Filters(object):
         ax.set_xlim(self.x_min, self.x_max);
 
     def rtTasks(self, max_prio = 100):
-        df = self.trace.df('sswitch')
+        df = self.trace.df('sched_switch')
         df = df[df.next_prio <= max_prio]
         df = df[['next_pid', 'next_comm']]
         df = df.drop_duplicates()

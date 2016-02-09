@@ -69,7 +69,7 @@ class TraceAnalysis(object):
             logging.warn('Events [cpu_frequency] not found, '\
                     'plot DISABLED!')
             return
-        df = self.trace.df('pfreq')
+        df = self.trace.df('cpu_frequency')
 
         pd.options.mode.chained_assignment = None
 
@@ -156,7 +156,7 @@ class TraceAnalysis(object):
         return (avg_lfreq/1e3, avg_bfreq/1e3)
 
     def __addCapacityColum(self):
-        df = self.trace.df('ccap')
+        df = self.trace.df('cpu_capacity')
         # Rename CPU and Capacity columns
         df.rename(columns={'cpu_id':'cpu'}, inplace=True)
         # Add column with LITTLE and big CPUs max capacities
@@ -196,12 +196,12 @@ class TraceAnalysis(object):
 
             # Add CPU utilization
             axes.set_title('{0:s}CPU [{1:d}]'.format(label1, cpu));
-            df1 = df['cload'][df['cload'].cpu == cpu]
+            df1 = df['sched_load_avg_cpu'][df['sched_load_avg_cpu'].cpu == cpu]
             if (len(df1)):
                 df1[['util_avg']].plot(ax=axes, drawstyle='steps-post', alpha=0.4);
 
             # if self.trace.hasEvents('sched_boost_cpu'):
-            #     df2 = df['cboost'][df['cboost'].cpu == cpu]
+            #     df2 = df['sched_boost_cpu'][df['sched_boost_cpu'].cpu == cpu]
             #     if (len(df2)):
             #         df2[['usage', 'boosted_usage']].plot(
             #                 ax=axes,
@@ -210,7 +210,7 @@ class TraceAnalysis(object):
 
             # Add Capacities data if avilable
             if self.trace.hasEvents('cpu_capacity'):
-                df2 = df['ccap'][df['ccap'].cpu == cpu]
+                df2 = df['cpu_capacity'][df['cpu_capacity'].cpu == cpu]
                 if (len(df2)):
                     # data = df2[['capacity', 'tip_capacity', 'max_capacity']]
                     # data.plot(ax=axes, style=['m', 'y', 'r'],
@@ -256,7 +256,7 @@ class TraceAnalysis(object):
             logging.warn('Events [sched_load_avg_task] not found, '\
                     'plot DISABLED!')
             return
-        df = self.trace.trace_data['tload']
+        df = self.trace.trace_data['sched_load_avg_task']
         self.trace.getTasks(df, tasks)
         tasks_to_plot = sorted(self.tasks)
         if tasks:
@@ -282,7 +282,7 @@ class TraceAnalysis(object):
             data.plot(ax=axes, drawstyle='steps-post');
             # Plot boost utilization if available
             if self.trace.hasEvents('sched_boost_task'):
-                df2 = self.trace.trace_data['tboost']
+                df2 = self.trace.trace_data['sched_boost_task']
                 data = df2[df2.comm == task_name][['boosted_util']]
                 if len(data):
                     data.plot(ax=axes, style=['y-'], drawstyle='steps-post');
@@ -342,7 +342,7 @@ class TraceAnalysis(object):
         if not self.trace.hasEvents('sched_energy_diff'):
             logging.warn('Events [sched_energy_diff] not found, plot DISABLED!')
             return
-        df = self.trace.df('ediff')
+        df = self.trace.df('sched_energy_diff')
 
         # Filter on 'tasks'
         if tasks is not None:
@@ -467,7 +467,7 @@ class TraceAnalysis(object):
         if not self.trace.hasEvents('sched_energy_diff'):
             logging.warn('Events [sched_energy_diff] not found, plot DISABLED!')
             return
-        df = self.trace.df('ediff')
+        df = self.trace.df('sched_energy_diff')
 
         # Filter on 'tasks'
         if tasks is not None:
@@ -633,7 +633,7 @@ class TraceAnalysis(object):
         # Plot: Margin
         axes = plt.subplot(gs[0,0]);
         axes.set_title('Margin');
-        data = self.trace.df('stune')[['margin']]
+        data = self.trace.df('sched_tune_config')[['margin']]
         data.plot(ax=axes, drawstyle='steps-post', style=['b']);
         axes.set_ylim(0, 110);
         axes.set_xlim(self.x_min, self.x_max);
@@ -642,7 +642,7 @@ class TraceAnalysis(object):
         # Plot: Boost mode
         axes = plt.subplot(gs[1,0]);
         axes.set_title('Boost mode');
-        data = self.trace.df('stune')[['boostmode']]
+        data = self.trace.df('sched_tune_config')[['boostmode']]
         data.plot(ax=axes, drawstyle='steps-post');
         axes.set_ylim(0, 4);
         axes.set_xlim(self.x_min, self.x_max);
