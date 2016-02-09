@@ -179,7 +179,6 @@ class TraceAnalysis(object):
         if label != '':
             label1 = '{} '.format(label)
             label2 = '_{}s'.format(label.lower())
-        df = self.trace.trace_data
 
         # Plot required CPUs
         fig, pltaxes = plt.subplots(len(cpus), 1, figsize=(16, 3*(len(cpus))));
@@ -196,27 +195,30 @@ class TraceAnalysis(object):
 
             # Add CPU utilization
             axes.set_title('{0:s}CPU [{1:d}]'.format(label1, cpu));
-            df1 = df['sched_load_avg_cpu'][df['sched_load_avg_cpu'].cpu == cpu]
-            if (len(df1)):
-                df1[['util_avg']].plot(ax=axes, drawstyle='steps-post', alpha=0.4);
+            df = self.trace.df('sched_load_avg_cpu')
+            df = df[df.cpu == cpu]
+            if len(df):
+                df[['util_avg']].plot(ax=axes, drawstyle='steps-post', alpha=0.4);
 
             # if self.trace.hasEvents('sched_boost_cpu'):
-            #     df2 = df['sched_boost_cpu'][df['sched_boost_cpu'].cpu == cpu]
-            #     if (len(df2)):
-            #         df2[['usage', 'boosted_usage']].plot(
-            #                 ax=axes,
-            #                 style=['m-', 'r-'],
-            #                 drawstyle='steps-post');
+            #     df = self.trace.df('sched_boost_cpu')
+            #     df = df[df.cpu == cpu]
+            #     if len(df):
+            #         df[['usage', 'boosted_usage']].plot(
+            #             ax=axes,
+            #             style=['m-', 'r-'],
+            #             drawstyle='steps-post');
 
             # Add Capacities data if avilable
             if self.trace.hasEvents('cpu_capacity'):
-                df2 = df['cpu_capacity'][df['cpu_capacity'].cpu == cpu]
-                if (len(df2)):
-                    # data = df2[['capacity', 'tip_capacity', 'max_capacity']]
+                df = self.trace.df('cpu_capacity')
+                df = df[df.cpu == cpu]
+                if len(df):
+                    # data = df[['capacity', 'tip_capacity', 'max_capacity']]
                     # data.plot(ax=axes, style=['m', 'y', 'r'],
-                    data = df2[['capacity', 'tip_capacity' ]]
+                    data = df[['capacity', 'tip_capacity' ]]
                     data.plot(ax=axes, style=['m', '--y' ],
-                        drawstyle='steps-post')
+                              drawstyle='steps-post')
 
             axes.set_ylim(0, 1100);
             axes.set_xlim(self.x_min, self.x_max);
@@ -256,7 +258,7 @@ class TraceAnalysis(object):
             logging.warn('Events [sched_load_avg_task] not found, '\
                     'plot DISABLED!')
             return
-        df = self.trace.trace_data['sched_load_avg_task']
+        df = self.trace.df('sched_load_avg_task')
         self.trace.getTasks(df, tasks)
         tasks_to_plot = sorted(self.tasks)
         if tasks:
@@ -282,7 +284,7 @@ class TraceAnalysis(object):
             data.plot(ax=axes, drawstyle='steps-post');
             # Plot boost utilization if available
             if self.trace.hasEvents('sched_boost_task'):
-                df2 = self.trace.trace_data['sched_boost_task']
+                df2 = self.trace.df('sched_boost_task')
                 data = df2[df2.comm == task_name][['boosted_util']]
                 if len(data):
                     data.plot(ax=axes, style=['y-'], drawstyle='steps-post');

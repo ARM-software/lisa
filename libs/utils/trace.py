@@ -36,9 +36,6 @@ class Trace(object):
         # The platform used to run the experiments
         self.platform = None
 
-        # Dataframe of all events data
-        self.trace_data = {}
-
         # Folder containing all perf data
         self.datadir = None
 
@@ -95,63 +92,13 @@ class Trace(object):
 
         # Setup internal data reference to interesting events/dataframes
 
-        if self.hasEvents('sched_switch'):
-            self.trace_data['sched_switch'] = \
-                self.run.sched_switch.data_frame
-
-        if self.hasEvents('sched_wakeup'):
-            self.trace_data['sched_wakeup'] = \
-                self.run.sched_wakeup.data_frame
-
-        if self.hasEvents('sched_wakeup_new'):
-            self.trace_data['sched_wakeup_new'] = \
-                self.run.sched_wakeup_new.data_frame
-
-        if self.hasEvents('cpu_frequency'):
-            self.trace_data['cpu_frequency'] = \
-                self.run.cpu_frequency.data_frame
-
-        if self.hasEvents('sched_load_avg_cpu'):
-            self.trace_data['sched_load_avg_cpu'] = \
-                self.run.sched_load_avg_cpu.data_frame
-            self._sanitize_SchedLoadAvgCpu()
-
-        if self.hasEvents('sched_load_avg_task'):
-            self.trace_data['sched_load_avg_task'] = \
-                self.run.sched_load_avg_task.data_frame
-            self._sanitize_SchedLoadAvgTask()
-
-        if self.hasEvents('cpu_capacity'):
-            self.trace_data['cpu_capacity'] = \
-                self.run.cpu_capacity.data_frame
-            self._sanitize_SchedCpuCapacity()
-
-        if self.hasEvents('sched_boost_cpu'):
-            self.trace_data['sched_boost_cpu'] = \
-                self.run.sched_boost_cpu.data_frame
-            self._sanitize_SchedBoostCpu()
-
-        if self.hasEvents('sched_boost_task'):
-            self.trace_data['sched_boost_task'] = \
-                self.run.sched_boost_task.data_frame
-            self._sanitize_SchedBoostTask()
-
-        if self.hasEvents('sched_contrib_scale_f'):
-            self.trace_data['sched_contrib_scale_f'] = \
-                self.run.sched_contrib_scale_f.data_frame
-
-        if self.hasEvents('sched_energy_diff'):
-            self.trace_data['sched_energy_diff'] = \
-                    self.run.sched_energy_diff.data_frame
-            self._sanitize_SchedEnergyDiff()
-
-        if self.hasEvents('sched_tune_config'):
-            self.trace_data['sched_tune_config'] = \
-                    self.run.sched_tune_config.data_frame
-
-        if self.hasEvents('sched_tune_tasks_update'):
-            self.trace_data['sched_tune_tasks_update'] = \
-                    self.run.sched_tune_tasks_update.data_frame
+        self._sanitize_SchedLoadAvgCpu()
+        self._sanitize_SchedLoadAvgTask()
+        self._sanitize_SchedCpuCapacity()
+        self._sanitize_SchedBoostCpu()
+        self._sanitize_SchedBoostTask()
+        self._sanitize_SchedEnergyDiff()
+        self._sanitize_SchedOverutilized()
 
         self.__loadTasksNames(tasks)
 
@@ -169,11 +116,11 @@ class Trace(object):
     def __loadTasksNames(self, tasks):
         # Try to load tasks names using one of the supported events
         if 'sched_switch' in self.available_events:
-            self.getTasks(self.trace_data['sched_switch'], tasks,
+            self.getTasks(self.df('sched_switch'), tasks,
                 name_key='next_comm', pid_key='next_pid')
             return
         if 'sched_load_avg_task' in self.available_events:
-            self.getTasks(self.trace_data['sched_load_avg_task'], tasks)
+            self.getTasks(self.df('sched_load_avg_task'), tasks)
             return
         logging.warning('Failed to load tasks names from trace events')
 
@@ -187,8 +134,8 @@ class Trace(object):
         ts = sys.maxint
         te = 0
 
-        for key in self.trace_data.keys():
-            df = self.trace_data[key]
+        for events in self.available_events:
+            df = self.df(events)
             if len(df) == 0:
                 continue
             if (df.index[0]) < ts:
@@ -255,18 +202,19 @@ class Trace(object):
         """
         if self.datadir is None:
             raise ValueError("trace data not (yet) loaded")
-        if event not in self.trace_data:
-            raise ValueError('Event [{}] not supported. '\
-                    'Supported events are: {}'\
-                    .format(event, self.trace_data.keys()))
-        return self.trace_data[event]
+        if self.run and hasattr(self.run, event):
+            return getattr(self.run, event).data_frame
+        raise ValueError('Event [{}] not supported. '\
+                         'Supported events are: {}'\
+                         .format(event, self.available_events))
 
     def _sanitize_SchedCpuCapacity(self):
-        df = self.df('cpu_capacity')
-
         # Add more columns if the energy model is available
-        if 'nrg_model' not in self.platform:
+        if not self.hasEvents('cpu_capacity') \
+           or 'nrg_model' not in self.platform:
             return
+
+        df = self.df('cpu_capacity')
 
         # Add column with LITTLE and big CPUs max capacities
         nrg_model = self.platform['nrg_model']
@@ -283,6 +231,8 @@ class Trace(object):
                 [tip_lcap], tip_bcap)
 
     def _sanitize_SchedLoadAvgCpu(self):
+        if not self.hasEvents('sched_load_avg_cpu'):
+            return
         df = self.df('sched_load_avg_cpu')
         if 'utilization' in df:
             # Convert signals name from v5.0 to v5.1 format
@@ -290,6 +240,8 @@ class Trace(object):
             df.rename(columns={'load':'load_avg'}, inplace=True)
 
     def _sanitize_SchedLoadAvgTask(self):
+        if not self.hasEvents('sched_load_avg_task'):
+            return
         df = self.df('sched_load_avg_task')
         if 'utilization' in df:
             # Convert signals name from v5.0 to v5.1 format
@@ -303,6 +255,8 @@ class Trace(object):
                 ['LITTLE'], 'big')
 
     def _sanitize_SchedBoostCpu(self):
+        if not self.hasEvents('sched_boost_cpu'):
+            return
         df = self.df('sched_boost_cpu')
         if 'usage' in df:
             # Convert signals name from to v5.1 format
@@ -311,6 +265,8 @@ class Trace(object):
 
 
     def _sanitize_SchedBoostTask(self):
+        if not self.hasEvents('sched_boost_task'):
+            return
         df = self.df('sched_boost_task')
         if 'utilization' in df:
             # Convert signals name from to v5.1 format
@@ -318,7 +274,8 @@ class Trace(object):
         df['boosted_util'] = df['util'] + df['margin']
 
     def _sanitize_SchedEnergyDiff(self):
-        if 'nrg_model' not in self.platform:
+        if not self.hasEvents('sched_energy_diff') \
+           or 'nrg_model' not in self.platform:
             return
         nrg_model = self.platform['nrg_model']
         em_lcluster = nrg_model['little']['cluster']
