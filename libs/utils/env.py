@@ -644,11 +644,14 @@ class TestEnv(ShareState):
                 'HostResolver', host, ipaddr)
         return (host, ipaddr)
 
-    def reboot(self, reboot_time=120):
+    def reboot(self, reboot_time=120, ping_time=15):
         # Send remote target a reboot command
         if self._feature('no-reboot'):
             logging.warning('%14s - Reboot disabled by conf features', 'Reboot')
         else:
+            if 'ping_time' in self.conf:
+                ping_time = int(self.conf['ping_time'])
+
             self.target.execute('sleep 2 && reboot -f &', as_root=True)
 
             # Wait for the target to complete the reboot
@@ -659,7 +662,7 @@ class TestEnv(ShareState):
             elapsed = 0
             start = time.time()
             while elapsed <= reboot_time:
-                time.sleep(5)
+                time.sleep(ping_time)
                 logging.debug('%14s - Trying to connect to [%s] target...',
                         'Reboot', self.ip)
                 if os.system(ping_cmd) == 0:
