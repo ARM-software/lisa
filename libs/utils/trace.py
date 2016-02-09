@@ -39,8 +39,8 @@ class Trace(object):
         # Folder containing all perf data
         self.datadir = None
 
-        # TRAPpy run object
-        self.run = None
+        # TRAPpy FTrace object
+        self.ftrace = None
 
         # The time window used to limit trace parsing to
         self.window = window
@@ -83,7 +83,7 @@ class Trace(object):
     def __parseTrace(self, datadir, tasks, window):
         logging.debug('Loading [sched] events from trace in [%s]...', datadir)
         logging.debug("Parsing events: %s", self.events)
-        self.run = trappy.Run(datadir, scope="custom", events=self.events, window=window)
+        self.ftrace = trappy.FTrace(datadir, scope="custom", events=self.events, window=window)
 
         # Check for events available on the parsed trace
         self.__checkAvailableEvents()
@@ -104,8 +104,8 @@ class Trace(object):
 
 
     def __checkAvailableEvents(self):
-        for val in trappy.Run.get_filters(self.run):
-            obj = getattr(self.run, val)
+        for val in trappy.FTrace.get_filters(self.ftrace):
+            obj = getattr(self.ftrace, val)
             if len(obj.data_frame):
                 self.available_events.append(val)
         logging.debug('Events found on trace:')
@@ -202,8 +202,8 @@ class Trace(object):
         """
         if self.datadir is None:
             raise ValueError("trace data not (yet) loaded")
-        if self.run and hasattr(self.run, event):
-            return getattr(self.run, event).data_frame
+        if self.ftrace and hasattr(self.ftrace, event):
+            return getattr(self.ftrace, event).data_frame
         raise ValueError('Event [{}] not supported. '\
                          'Supported events are: {}'\
                          .format(event, self.available_events))
