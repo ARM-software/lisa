@@ -60,7 +60,10 @@ class Dhrystone(Workload):
                   description=('The delay, in seconds, between kicking off of dhrystone '
                                'threads (if ``threads`` > 1).')),
         Parameter('taskset_mask', kind=int, default=0,
-                  description='The processes spawned by sysbench will be pinned to cores as specified by this parameter'),
+                  description='''
+                  The processes spawned by the workload will be pinned to cores 
+                  as specified by this parameter
+                  '''),
     ]
 
     def setup(self, context):
