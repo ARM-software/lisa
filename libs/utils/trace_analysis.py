@@ -128,6 +128,7 @@ class TraceAnalysis(object):
         axes.grid(True);
         axes.set_xticklabels([])
         axes.set_xlabel('')
+        self.plotOverutilized(axes)
 
         axes = pltaxes[1]
         axes.set_title('LITTLE Cluster');
@@ -143,6 +144,7 @@ class TraceAnalysis(object):
         axes.set_xlim(self.x_min, self.x_max);
         axes.set_ylabel('MHz')
         axes.grid(True);
+        self.plotOverutilized(axes)
 
         # Save generated plots into datadir
         figname = '{}/cluster_freqs.png'.format(self.plotsdir)
@@ -253,6 +255,32 @@ class TraceAnalysis(object):
         lcpus = set(cpus) & set(self.platform['clusters']['little'])
         self.__plotCPU(lcpus, "LITTLE")
 
+    def plotOverutilized(self, axes=None):
+        if not self.trace.hasEvents('sched_overutilized'):
+            logging.warn('Events [sched_overutilized] not found, '\
+                    'plot DISABLED!')
+            return
+
+        # Build sequence of overutilization "bands"
+        df = self.trace.df('sched_overutilized')
+        bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
+
+        # If not axis provided: generate a standalone plot
+        if not axes:
+            gs = gridspec.GridSpec(1, 1)
+            plt.figure(figsize=(16, 1))
+            axes = plt.subplot(gs[0,0])
+            axes.set_title('System Status {white: EAS mode, red: Non EAS mode}');
+            axes.set_xlim(self.x_min, self.x_max);
+            axes.grid(True);
+
+        # Otherwise: draw overutilized bands on top of the specified plot
+        for (t1,td,overutilized) in bands:
+            if not overutilized:
+                continue
+            t2 = t1+td
+            axes.axvspan(t1, t2, facecolor='r', alpha=0.1)
+
     def plotTasks(self, tasks=None):
         if not self.trace.hasEvents('sched_load_avg_task'):
             logging.warn('Events [sched_load_avg_task] not found, '\
@@ -307,6 +335,7 @@ class TraceAnalysis(object):
             axes.grid(True);
             axes.set_xticklabels([])
             axes.set_xlabel('')
+            self.plotOverutilized(axes)
 
             # Plot CPUs residency
             axes = plt.subplot(gs[1,0]);
@@ -323,6 +352,7 @@ class TraceAnalysis(object):
             axes.grid(True);
             axes.set_xticklabels([])
             axes.set_xlabel('')
+            self.plotOverutilized(axes)
 
             # Plot PELT signals
             axes = plt.subplot(gs[2,0]);
@@ -331,6 +361,7 @@ class TraceAnalysis(object):
             data.plot(ax=axes, drawstyle='steps-post');
             axes.set_xlim(self.x_min, self.x_max);
             axes.grid(True);
+            self.plotOverutilized(axes)
 
             # Save generated plots into datadir
             figname = '{}/task_util_{}.png'.format(self.plotsdir, task_name)
@@ -401,6 +432,7 @@ class TraceAnalysis(object):
         axes.grid(True);
         axes.set_xticklabels([])
         axes.set_xlabel('')
+        self.plotOverutilized(axes)
 
         # Plot2: energy and capacity variations
         axes = plt.subplot(gs[1,:]);
@@ -416,6 +448,7 @@ class TraceAnalysis(object):
         axes.grid(True);
         axes.set_xticklabels([])
         axes.set_xlabel('')
+        self.plotOverutilized(axes)
 
         # Plot3: energy payoff
         axes = plt.subplot(gs[2,:]);
@@ -430,12 +463,15 @@ class TraceAnalysis(object):
         axes.grid(True);
         axes.set_xticklabels([])
         axes.set_xlabel('')
+        self.plotOverutilized(axes)
 
         # Plot4: energy deltas (kernel and host computed values)
         axes = plt.subplot(gs[3,:]);
         axes.set_title('Energy Deltas Values');
         df[['nrg_delta', 'nrg_diff_pct']].plot(ax=axes, style=['ro', 'b+']);
         axes.set_xlim(self.x_min, self.x_max);
+        axes.grid(True);
+        self.plotOverutilized(axes)
 
         # Save generated plots into datadir
         figname = '{}/ediff_time.png'.format(self.plotsdir)
