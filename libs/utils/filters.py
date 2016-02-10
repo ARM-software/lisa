@@ -38,7 +38,9 @@ class Filters(object):
         self.big_tasks = {}
 
         self.big_frequent_tasks_pids = None
+        self.big_frequent_tasks_tasks = None
         self.wkp_frequent_tasks_pids = None
+        self.wkp_frequent_tasks_tasks = None
 
         self.big_cap = self.trace.platform['nrg_model']['big']['cpu']['cap_max']
         self.little_cap = self.trace.platform['nrg_model']['little']['cpu']['cap_max']
@@ -91,11 +93,13 @@ class Filters(object):
         print 'Top {} "big" tasks:'.format(max_tasks)
         print big_topmost
 
+        self.big_frequent_tasks_tasks = dict(zip(big_topmost.top.values, big_topmost.index))
         self.big_frequent_tasks_pids = list(big_topmost.index)
 
         # Keep track of big tasks tload events
         self.big_tasks['sched_load_avg_task'] = big_tasks_events
-        return self.big_frequent_tasks_pids
+
+        return self.big_frequent_tasks_tasks
 
     def _taskIsBig(self, utilization):
         if utilization > self.little_cap:
@@ -106,7 +110,7 @@ class Filters(object):
 
         # Get the list of big and frequent tasks
         if self.big_frequent_tasks_pids is None:
-            pids = self.topBigTasks(max_tasks, min_samples, min_utilization)
+            self.topBigTasks(max_tasks, min_samples, min_utilization)
 
         big_frequent_tasks_count = len(self.big_frequent_tasks_pids)
         if big_frequent_tasks_count == 0:
@@ -175,14 +179,16 @@ class Filters(object):
         print 'Top {} "big" tasks:'.format(max_tasks)
         print wkp_topmost
 
+        self.wkp_frequent_tasks_tasks = dict(zip(wkp_topmost.top.values, wkp_topmost.index))
         self.wkp_frequent_tasks_pids = list(wkp_topmost.index)
-        return self.wkp_frequent_tasks_pids
+
+        return self.wkp_frequent_tasks_tasks
 
     def plotWakeupTasks(self, max_tasks=10, min_wakeups=0, per_cluster=False):
 
         # Get the list of big and frequent tasks
         if self.wkp_frequent_tasks_pids is None:
-            pids = self.topWakeupTasks(max_tasks, min_wakeups)
+            self.topWakeupTasks(max_tasks, min_wakeups)
 
         wkp_frequent_tasks_count = len(self.wkp_frequent_tasks_pids)
         if wkp_frequent_tasks_count == 0:
