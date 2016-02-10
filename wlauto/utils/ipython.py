@@ -16,7 +16,7 @@
 
 import os
 import subprocess
-from distutils.version import StrictVersion
+from distutils.version import LooseVersion
 
 # pylint: disable=wrong-import-position,ungrouped-imports
 import_error_str = ''
@@ -36,7 +36,7 @@ NBFORMAT_VERSION = 3
 
 
 if IPython:
-    if StrictVersion('5.0.0') > StrictVersion(IPython.__version__) >= StrictVersion('4.0.0'):
+    if LooseVersion('5.0.0') > LooseVersion(IPython.__version__) >= LooseVersion('4.0.0'):
         import nbformat
         from jupyter_client.manager import KernelManager
 
@@ -51,7 +51,7 @@ if IPython:
         IPYTHON_NBCONVERT_HTML = ['jupyter', 'nbconvert', '--to html']
         IPYTHON_NBCONVERT_PDF = ['jupyter', 'nbconvert', '--to pdf']
 
-    elif StrictVersion('4.0.0') > StrictVersion(IPython.__version__) >= StrictVersion('3.0.0'):
+    elif LooseVersion('4.0.0') > LooseVersion(IPython.__version__) >= LooseVersion('3.0.0'):
         from IPython.kernel import KernelManager
         import IPython.nbformat
 
@@ -65,7 +65,7 @@ if IPython:
 
         IPYTHON_NBCONVERT_HTML = ['ipython', 'nbconvert', '--to=html']
         IPYTHON_NBCONVERT_PDF = ['ipython', 'nbconvert', '--to=pdf']
-    elif StrictVersion('3.0.0') > StrictVersion(IPython.__version__) >= StrictVersion('2.0.0'):
+    elif LooseVersion('3.0.0') > LooseVersion(IPython.__version__) >= LooseVersion('2.0.0'):
         from IPython.kernel import KernelManager
         import IPython.nbformat.v3
 
