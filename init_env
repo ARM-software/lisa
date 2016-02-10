@@ -6,23 +6,18 @@ export PYTHONPATH=''
 export PYTHONPATH=`pwd`/libs/utils:$PYTHONPATH
 export PYTHONPATH=`pwd`/libs/wlgen:$PYTHONPATH
 
-if [ "x$DEVMODE" == "x1" ]; then
+if [[ "x$DEVMODE" == "x1" ]]; then
 	export PYTHONPATH=`pwd`/libs/devlib:$PYTHONPATH
 	export PYTHONPATH=`pwd`/libs/trappy:$PYTHONPATH
 	export PYTHONPATH=`pwd`/libs/bart:$PYTHONPATH
 
 	echo
-	echo 'Developer mode ENABLED, using libraries provided by submodules'
-	echo 'PYTHONPATH: '
-	echo $PYTHONPATH
+	echo 'Developer mode ENABLED, using libraries provided by:'
+	echo "  ${PYTHONPATH//:/\\n  }"
 	echo
 
-	if [ ! -f libs/devlib/README.rst ]; then
-		echo 'Initializing submodules...'
-		git submodule init
-	fi
-	echo 'Update submodules if required'
-	git submodule update
+	echo 'Checking for sumbmodules updates required...'
+	git submodule update --init
 	echo 'DONE'
 fi
 
