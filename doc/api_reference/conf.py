@@ -74,7 +74,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'TRAPpy'
-copyright = u'2015, ARM Ltd.'
+copyright = u'2016, ARM Ltd.'
 author = u'Javi Merino, Kapileshwar Singh(KP)'
 
 # The version info for the project you're documenting, acts as replacement for
