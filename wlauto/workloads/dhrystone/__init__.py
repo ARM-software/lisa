@@ -71,7 +71,7 @@ class Dhrystone(Workload):
         self.device_exe = self.device.install(host_exe)
         execution_mode = '-l {}'.format(self.mloops) if self.mloops else '-r {}'.format(self.duration)
         if self.taskset_mask:
-            taskset_string = 'busybox taskset 0x{:x} '.format(self.taskset_mask)
+            taskset_string = '{} taskset 0x{:x} '.format(self.device.busybox, self.taskset_mask)
         else:
             taskset_string = ''
         self.command = '{}{} {} -t {} -d {}'.format(taskset_string,
