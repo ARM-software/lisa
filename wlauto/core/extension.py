@@ -55,7 +55,7 @@ class AttributeCollection(object):
                     if v is not None:
                         setattr(newp, a, v)
                 if not hasattr(newp, "_overridden"):
-                    newp._overridden = self.owner
+                    newp._overridden = self.owner  # pylint: disable=protected-access
                 self._attrs[p.name] = newp
             else:
                 # Duplicate attribute condition is check elsewhere.
