@@ -159,4 +159,4 @@ class lmbench(Workload):
             parts.append('-W {}'.format(self.warmup))
         if self.repetitions is not None:
             parts.append('-N {}'.format(self.repetitions))
-        return ' '.join(parts)
+        return ' '.join(parts) + ' '
