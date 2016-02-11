@@ -24,10 +24,10 @@ class GoogleMap(GameWorkload):
     Navigation app.
 
     Stock map provided by Google Inc.
-    Based on revent, we can use this workload to 
-    do multiple tasks such as navigation usecases, 
+    Based on revent, we can use this workload to
+    do multiple tasks such as navigation usecases,
     swipe & pinch etc.
-   
+
     Provided revent is for Odriod XU3 for navigation use
     case. For running on other devices, we need to build
     revent.
