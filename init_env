@@ -19,5 +19,9 @@ if [[ "x$DEVMODE" == "x1" ]]; then
 	echo 'Checking for sumbmodules updates required...'
 	git submodule update --init
 	echo 'DONE'
+
+	echo
+	echo 'Current submoule status:'
+	git submodule status
 fi
 
