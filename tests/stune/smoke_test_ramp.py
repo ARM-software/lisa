@@ -61,7 +61,7 @@ class STune(LisaTest):
             # high load and it overutilizes the CPU
             rtapp_period = first_task_params[first_task_name]["params"]["period_ms"]
             task_start = boost_task_rtapp.index[0]
-            after_first_period = task_start + rtapp_period
+            after_first_period = task_start + (rtapp_period / 1000.)
             boost_task_rtapp = boost_task_rtapp.ix[after_first_period:]
 
             sched_load_scale = 1024
