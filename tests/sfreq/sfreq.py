@@ -21,6 +21,9 @@ import unittest
 from conf import JsonConf
 from executor import Executor
 
+import trappy
+from bart.common.Analyzer import Analyzer
+
 # Configure logging (we want verbose logging to monitor test progress)
 import logging
 reload(logging)
@@ -28,20 +31,21 @@ logging.basicConfig(
     format='%(asctime)-9s %(levelname)-8s: %(message)s',
     level=logging.INFO, datefmt='%I:%M:%S')
 
-class RFC(unittest.TestCase):
-    """Tests for the Energy-Aware Scheduler"""
+class SFreq(unittest.TestCase):
+    """Tests for SchedFreq framework"""
 
     @classmethod
     def setUpClass(cls):
+
         # Get the base path for this test
         cls.basepath = os.path.dirname(os.path.realpath(__file__))
         cls.basepath = cls.basepath.replace('/libs/utils', '')
         # Test configuration file
         cls.tests_conf_file = os.path.join(
-                cls.basepath, "rfc.config")
+                cls.basepath, "sfreq.config")
 
         logging.info("%14s - Using configuration: %s",
-                     "EAS_RFC", cls.tests_conf_file)
+                     "SFreq", cls.tests_conf_file)
 
         # Load test specific configuration
         json_conf = JsonConf(cls.tests_conf_file)
@@ -57,18 +61,14 @@ class RFC(unittest.TestCase):
         assert cls.conf['wloads'], \
             "Configuration file with empty set of workloads ('wloads' attribute)"
 
-        logging.info("%14s - Target setup...", "RFC")
+        logging.info("%14s - Target setup...", "SFreq")
         cls.executor = Executor(tests_conf = cls.tests_conf_file)
 
-        logging.info("%14s - Experiments execution...", "RFC")
+        logging.info("%14s - Experiments execution...", "SFreq")
         cls.executor.run()
 
-    def test_energy_regression(self):
+    def test_regression(self):
         """Check that there is not regression on energy"""
-        # TODO
-
-    def test_performance_regression(self):
-        """Check that there is not regression on performance"""
         # TODO
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
