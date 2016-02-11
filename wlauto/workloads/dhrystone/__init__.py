@@ -61,7 +61,7 @@ class Dhrystone(Workload):
                                'threads (if ``threads`` > 1).')),
         Parameter('taskset_mask', kind=int, default=0,
                   description='''
-                  The processes spawned by the workload will be pinned to cores 
+                  The processes spawned by the workload will be pinned to cores
                   as specified by this parameter
                   '''),
     ]
