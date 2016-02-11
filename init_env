@@ -13,7 +13,7 @@ if [[ "x$DEVMODE" == "x1" ]]; then
 
 	echo
 	echo 'Developer mode ENABLED, using libraries provided by:'
-	echo "  ${PYTHONPATH//:/\\n  }"
+	echo -e "  ${PYTHONPATH//:/\\n  }"
 	echo
 
 	echo 'Checking for sumbmodules updates required...'
