@@ -4,7 +4,7 @@
 	branch = devlib-next
 [submodule "libs/trappy"]
 	path = libs/trappy
-	url = https://github.com/ARM-Software/trappt.git
+	url = https://github.com/ARM-Software/trappy.git
 [submodule "libs/bart"]
 	path = libs/bart
 	url = https://github.com/ARM-Software/bart.git
