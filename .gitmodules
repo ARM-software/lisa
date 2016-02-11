@@ -2,11 +2,11 @@
 	path = libs/devlib
 	url = https://github.com/derkling/devlib.git
 	branch = devlib-next
-[submodule "trappy-next"]
+[submodule "trappy-lisa"]
 	path = libs/trappy
-	url = https://github.com/derkling/trappy.git
-	branch = trappy-next
-[submodule "bart-next"]
+	url = https://github.com/ARM-software/trappy.git
+	branch = lisa
+[submodule "bart-lisa"]
 	path = libs/bart
-	url = https://github.com/derkling/bart.git
-	branch = bart-next
+	url = https://github.com/ARM-software/bart.git
+	branch = lisa
