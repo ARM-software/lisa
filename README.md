@@ -391,6 +391,7 @@ corresponding configuration file. For example, the configuration file for the
 tests/eas/rfc.py tests is provided by the __tests/eas/rfc.conf__.
 
 This configuration file describes:
+
 1. which devlib modules are required by this experiment
 2. which binary tools need to be deployed in the target to run the
    experiments
