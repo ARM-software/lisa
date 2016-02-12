@@ -24,7 +24,7 @@ import trappy
 from bart.common.Analyzer import Analyzer
 
 TESTS_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
-TESTS_CONF = os.path.join(TESTS_DIRECTORY, "stune.config")
+TESTS_CONF = os.path.join(TESTS_DIRECTORY, "smoke_test_ramp.config")
 
 class STune(LisaTest):
     """Tests for SchedTune framework"""
