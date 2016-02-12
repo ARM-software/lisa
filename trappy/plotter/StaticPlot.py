@@ -211,6 +211,11 @@ class StaticPlot(AbstractDataPlotter):
             )
         else:
             legend_labels[series_index] = str(constraint)
+            # Remove trace name if there is only one trace to plot
+            if not isinstance(self.traces, list):
+                legend_labels[series_index] = legend_labels[series_index].replace(
+                                                constraint.get_data_name()+":", ""
+                                              )
 
     def _resolve(self, permute, concat):
         """Determine what data to plot on which axis"""
