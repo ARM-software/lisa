@@ -21,7 +21,7 @@ import os
 from test import LisaTest
 
 TESTS_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
-TESTS_CONF = os.path.join(TESTS_DIRECTORY, "sfreq.config")
+TESTS_CONF = os.path.join(TESTS_DIRECTORY, "smoke_test.config")
 
 class SFreq(LisaTest):
     """Tests for SchedFreq framework"""
