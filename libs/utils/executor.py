@@ -300,8 +300,20 @@ class Executor():
             return None
         cpus = wlspec['conf']['cpus']
 
+        if type(cpus) == list:
+            return cpus
         if type(cpus) == int:
-            return list(cpus)
+            return [cpus]
+
+        # SMP target (or not bL module loaded)
+        if not hasattr(self.target, 'bl'):
+            if 'first' in cpus:
+                return [ self.target.list_online_cpus()[0] ]
+            if 'last' in cpus:
+                return [ self.target.list_online_cpus()[-1] ]
+            return self.target.list_online_cpus()
+
+        # big.LITTLE target
         if cpus.startswith('littles'):
             if 'first' in cpus:
                 return [ self.target.bl.littles_online[0] ]
