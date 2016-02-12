@@ -15,61 +15,22 @@
 # limitations under the License.
 #
 
+import logging
 import os
-import unittest
 
-from conf import JsonConf
-from executor import Executor
+from test import LisaTest
 
 import trappy
 from bart.common.Analyzer import Analyzer
 
-# Configure logging (we want verbose logging to monitor test progress)
-import logging
-reload(logging)
-logging.basicConfig(
-    format='%(asctime)-9s %(levelname)-8s: %(message)s',
-    level=logging.INFO, datefmt='%I:%M:%S')
+TESTS_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
+TESTS_CONF = os.path.join(TESTS_DIRECTORY, "stune.config")
 
-class STune(unittest.TestCase):
+class STune(LisaTest):
     """Tests for SchedTune framework"""
 
-    @classmethod
-    def setUpClass(cls):
-
-        # Get the base path for this test
-        cls.basepath = os.path.dirname(os.path.realpath(__file__))
-        cls.basepath = cls.basepath.replace('/libs/utils', '')
-        # Test configuration file
-        cls.tests_conf_file = os.path.join(
-                cls.basepath, "stune.config")
-
-        logging.info("%14s - Using configuration: %s",
-                     "STune", cls.tests_conf_file)
-
-        # Load test specific configuration
-        json_conf = JsonConf(cls.tests_conf_file)
-        cls.conf = json_conf.load()
-
-        # Check for mandatory configurations
-        assert 'confs' in cls.conf, \
-            "Configuration file missing target configurations ('confs' attribute)"
-        assert cls.conf['confs'], \
-            "Configuration file with empty set of target configurations ('confs' attribute)"
-        assert 'wloads' in cls.conf, \
-            "Configuration file missing workload configurations ('wloads' attribute)"
-        assert cls.conf['wloads'], \
-            "Configuration file with empty set of workloads ('wloads' attribute)"
-
-        logging.info("%14s - Target setup...", "STune")
-        cls.executor = Executor(tests_conf = cls.tests_conf_file)
-
-        # Alias executor objects to simplify following tests
-        cls.te = cls.executor.te
-        cls.target = cls.executor.target
-
-        logging.info("%14s - Experiments execution...", "STune")
-        cls.executor.run()
+    def __init__(self, *args, **kwargs):
+        super(STune, self).__init__(TESTS_CONF, *args, **kwargs)
 
     def test_boosted_utilization_signal(self):
         """The boosted utilization signal is appropriately boosted
