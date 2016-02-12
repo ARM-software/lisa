@@ -745,7 +745,7 @@ class TestEnv(ShareState):
         else:
             dst = os.path.join(dst, os.path.basename(src))
 
-        cmd = 'cp {} {}'.format(src, dst)
+        cmd = 'cp {} {} && sync'.format(src, dst)
         logging.info('%14s - Deploy %s into %s',
                 'TFTP', src, dst)
         result = os.system(cmd)
