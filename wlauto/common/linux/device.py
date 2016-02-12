@@ -720,7 +720,7 @@ class LinuxDevice(BaseLinuxDevice):
         except CalledProcessError as e:
             raise DeviceError(e)
 
-    def kick_off(self, command):
+    def kick_off(self, command, as_root=False):
         """
         Like execute but closes adb session and returns immediately, leaving the command running on the
         device (this is different from execute(background=True) which keeps adb connection open and returns
@@ -729,7 +729,7 @@ class LinuxDevice(BaseLinuxDevice):
         """
         self._check_ready()
         command = 'sh -c "{}" 1>/dev/null 2>/dev/null &'.format(escape_double_quotes(command))
-        return self.shell.execute(command)
+        return self.shell.execute(command, as_root=as_root)
 
     def get_pids_of(self, process_name):
         """Returns a list of PIDs of all processes with the specified name."""
