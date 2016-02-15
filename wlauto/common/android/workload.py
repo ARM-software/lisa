@@ -22,7 +22,7 @@ from wlauto.core.workload import Workload
 from wlauto.core.resource import NO_ONE
 from wlauto.common.resources import ExtensionAsset, Executable
 from wlauto.exceptions import WorkloadError, ResourceError, ConfigError
-from wlauto.utils.android import ApkInfo
+from wlauto.utils.android import ApkInfo, ANDROID_NORMAL_PERMISSIONS
 from wlauto.utils.types import boolean
 import wlauto.common.android.resources
 
@@ -267,7 +267,10 @@ class ApkWorkload(Workload):
                 break
 
         for permission in permissions:
-            self.device.execute("pm grant {} {}".format(self.package, permission))
+            # "Normal" Permisions are automatically granted and cannot be changed
+            permission_name = permission.rsplit('.', 1)[1]
+            if permission_name not in ANDROID_NORMAL_PERMISSIONS:
+                self.device.execute("pm grant {} {}".format(self.package, permission))
 
     def do_post_install(self, context):
         """ May be overwritten by dervied classes."""
