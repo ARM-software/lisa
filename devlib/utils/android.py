@@ -39,6 +39,7 @@ AM_START_ERROR = re.compile(r"Error: Activity class {[\w|.|/]*} does not exist")
 # See:
 # http://developer.android.com/guide/topics/manifest/uses-sdk-element.html#ApiLevels
 ANDROID_VERSION_MAP = {
+    23: 'MARSHMALLOW',
     22: 'LOLLYPOP_MR1',
     21: 'LOLLYPOP',
     20: 'KITKAT_WATCH',
