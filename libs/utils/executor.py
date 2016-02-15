@@ -71,6 +71,7 @@ class Executor():
         """
 
         # Initialize globals
+        self._default_cgroup = None
         self._cgroup = None
 
         # Setup test configuration
@@ -152,6 +153,7 @@ class Executor():
 ################################################################################
 
     def _cgroups_init(self, tc):
+        self._default_cgroup = None
         if 'cgroups' not in tc:
             return True
         if 'cgroups' not in self.target.modules:
@@ -238,7 +240,7 @@ class Executor():
             return True
         # Setup default CGroup to run tasks into
         if 'default' in tc['cgroups']:
-            self._cgroup = tc['cgroups']['default']
+            self._default_cgroup = tc['cgroups']['default']
         # Configure each required controller
         if 'conf' not in tc['cgroups']:
             return True
@@ -442,6 +444,14 @@ class Executor():
 
         # CPUS: setup execution on CPUs if required by configuration
         cpus = self._wload_cpus(wl_idx, wlspec)
+
+        # CGroup: setup CGroups if requried by configuration
+        self._cgroup = self._default_cgroup
+        if 'cgroup' in wlspec:
+            if 'cgroups' not in self.target.modules:
+                raise RuntimeError('Target not supporting CGroups or CGroups '
+                                   'not configured for the current test configuration')
+            self._cgroup = wlspec['cgroup']
 
         if wlspec['type'] == 'rt-app':
             return self._wload_rtapp(wl_idx, wlspec, cpus)
