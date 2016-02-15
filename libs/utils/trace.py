@@ -51,6 +51,10 @@ class Trace(object):
         # Maximum timespan for all collected events
         self.time_range = 0
 
+        # Time the system was overutilzied
+        self.overutilized_time = 0
+        self.overutilized_prc = 0
+
         # The dictionary of tasks descriptors available in the dataset
         self.tasks = {}
 
@@ -146,6 +150,15 @@ class Trace(object):
 
         logging.info('Collected events spans a %.3f [s] time interval',
                 self.time_range)
+
+        # Build a stat on trace overutilization
+        if self.hasEvents('sched_overutilized'):
+            df = self.df('sched_overutilized')
+            self.overutilized_time = df[df.overutilized == 1].len.sum()
+            self.overutilized_prc = 100. * self.overutilized_time / self.time_range
+
+            logging.info('Overutilized time: %.6f [s] (%.3f%% of trace time)',
+                    self.overutilized_time, self.overutilized_prc)
 
     def getTasks(self, dataframe=None,
             task_names=None, name_key='comm', pid_key='pid'):
@@ -305,3 +318,11 @@ class Trace(object):
             [ccol > 2e9, ccol > 0, ccol > -2e9],
             ['Optimal Accept', 'SchedTune Accept', 'SchedTune Reject'], 'Suboptimal Reject')
 
+    def _sanitize_SchedOverutilized(self):
+        if not self.hasEvents('sched_overutilized'):
+            return
+        # Add a column with overutilized status duration
+        df = self.df('sched_overutilized')
+        df['start'] = df.index
+        df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
+        df.drop('start', axis=1, inplace=True)
