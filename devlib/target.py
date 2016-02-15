@@ -20,7 +20,7 @@ from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_s
 
 
 FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (\S+) type (\S+) \((\S+)\)')
-ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn)=([0-9]+|true|false)',
+ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|Display Power: state)=([0-9]+|true|false|ON|OFF)',
                                         re.IGNORECASE)
 ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'mUnrestrictedScreen=\(\d+,\d+\)'
                                              r'\s+(?P<width>\d+)x(?P<height>\d+)')
