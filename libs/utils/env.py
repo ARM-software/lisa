@@ -615,6 +615,12 @@ class TestEnv(ShareState):
                 logging.debug('%14s - %s', 'HostResolver', cmd)
                 os.popen(cmd)
 
+        return self.parse_arp_cache(host)
+
+    def parse_arp_cache(self, host):
+        output = os.popen(r'arp -n')
+        ipaddr = None
+        macaddr = None
         if ':' in host:
             # Assuming this is a MAC address
             # TODO add a suitable check on MAC address format
@@ -622,6 +628,13 @@ class TestEnv(ShareState):
             ARP_RE = re.compile(
                 r'([^ ]*).*({}|{})'.format(host.lower(), host.upper())
             )
+            macaddr = host
+            for line in output:
+                match = ARP_RE.search(line)
+                if not match:
+                    continue
+                ipaddr = match.group(1)
+                break
         else:
             # Assuming this is an IP address
             # TODO add a suitable check on IP address format
@@ -629,20 +642,19 @@ class TestEnv(ShareState):
             ARP_RE = re.compile(
                 r'{}.*ether *([0-9a-fA-F:]*)'.format(host)
             )
+            ipaddr = host
+            for line in output:
+                match = ARP_RE.search(line)
+                if not match:
+                    continue
+                macaddr = match.group(1)
+                break
 
-        output = os.popen(r'arp -n')
-        ipaddr = '0.0.0.0'
-        for line in output:
-            match = ARP_RE.search(line)
-            if not match:
-                continue
-            ipaddr = match.group(1)
-            break
-        if ipaddr == '0.0.0.0':
-            raise ValueError('Unable to lookup for target IP address')
+        if not ipaddr or not macaddr:
+            raise ValueError('Unable to lookup for target IP/MAC address')
         logging.info('%14s - Target (%s) at IP address: %s',
-                'HostResolver', host, ipaddr)
-        return (host, ipaddr)
+                'HostResolver', macaddr, ipaddr)
+        return (macaddr, ipaddr)
 
     def reboot(self, reboot_time=120, ping_time=15):
         # Send remote target a reboot command
