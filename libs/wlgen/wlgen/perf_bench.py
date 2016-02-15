@@ -29,6 +29,8 @@ class PerfMessaging(Workload):
                  target,
                  name):
 
+        self.logger = logging.getLogger('perf_bench')
+
         # TODO: Assume perf is pre-installed on target
         #target.setup('perf')
 
@@ -67,7 +69,7 @@ class PerfMessaging(Workload):
                         self.params['custom']['group'],
                         self.params['custom']['loop'])
 
-        logging.debug('Command line: {}'.format(self.command))
+        self.logger.debug('%14s - Command line: %s', 'PerfBench', self.command)
 
         # Set and return the test label
         self.test_label = '{0:s}_{1:02d}'.format(self.name, self.exc_id)
@@ -84,7 +86,8 @@ class PerfMessaging(Workload):
             return
 
         logfile = '{}/output.log'.format(destdir)
-        logging.debug('Saving output on [%s]...', logfile)
+        self.logger.debug('%14s - Saving output on [%s]...',
+                          'PerfBench', logfile)
         with open(logfile, 'w') as ofile:
             for line in self.getOutput().split('\n'):
                 ofile.write(line+'\n')
@@ -97,11 +100,12 @@ class PerfMessaging(Workload):
                 "performance" : perf
         }
 
-        logging.info('Completion time: %.6f, Performance %.6f',
-                ctime, perf)
+        self.logger.info('%14s - Completion time: %.6f, Performance %.6f',
+                         'PerfBench', ctime, perf)
 
         perfile = '{}/performance.json'.format(destdir)
-        logging.debug('Saving performance into [%s]...', perfile)
+        self.logger.debug('%14s - Saving performance into [%s]...',
+                          'PerfBench', perfile)
         with open(perfile, 'w') as ofile:
             json.dump(results, ofile, sort_keys=True, indent=4)
 
@@ -138,7 +142,8 @@ class PerfPipe(Workload):
                 .format(self.target.executables_directory,
                         self.params['custom']['loop'])
 
-        logging.debug('Command line: {}'.format(self.command))
+        self.logger.debug('%14s - Command line: %s',
+                          'PerfBench', self.command)
 
         # Set and return the test label
         self.test_label = '{0:s}_{1:02d}'.format(self.name, self.exc_id)
@@ -165,7 +170,8 @@ class PerfPipe(Workload):
             return
 
         logfile = '{}/output.log'.format(destdir)
-        logging.debug('Saving output on [%s]...', logfile)
+        self.logger.debug('%14s - Saving output on [%s]...',
+                          'PerfBench', logfile)
         with open(logfile, 'w') as ofile:
             for line in self.getOutput().split('\n'):
                 ofile.write(line+'\n')
@@ -183,12 +189,13 @@ class PerfPipe(Workload):
                 "ops/sec" : ops
         }
 
-        logging.info('Completion time: %.6f, Performance %.6f',
-                ctime, perf)
+        self.logger.info('%14s - Completion time: %.6f, Performance %.6f',
+                         'PerfBench', ctime, perf)
 
         # Reporting performance metric
         perfile = '{}/performance.json'.format(destdir)
-        logging.debug('Saving performance into [%s]...', perfile)
+        self.logger.debug('%14s - Saving performance into [%s]...',
+                          'PerfBench', perfile)
         with open(perfile, 'w') as ofile:
             json.dump(results, ofile, sort_keys=True, indent=4)
 

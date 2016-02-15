@@ -15,18 +15,22 @@
 # limitations under the License.
 #
 
-"""Initialization for utils module"""
+import logging
+import os
 
-from env import TestEnv
-from executor import Executor
+from test import LisaTest
 
-from energy import EnergyMeter
-from conf import JsonConf
+TESTS_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
+TESTS_CONF = os.path.join(TESTS_DIRECTORY, "smoke_test.config")
 
-from trace import Trace
-from trace_analysis import TraceAnalysis
-from perf_analysis import PerfAnalysis
+class SFreq(LisaTest):
+    """Tests for SchedFreq framework"""
 
-from filters import Filters
+    def __init__(self, *args, **kwargs):
+        super(SFreq, self).__init__(TESTS_CONF, *args, **kwargs)
 
-from report import Report
+    def test_regression(self):
+        """Check that there is not regression on energy"""
+        # TODO
+
+# vim :set tabstop=4 shiftwidth=4 expandtab
