@@ -60,6 +60,44 @@ ANDROID_VERSION_MAP = {
     1: 'BASE',
 }
 
+# See:
+# http://developer.android.com/guide/topics/security/normal-permissions.html
+ANDROID_NORMAL_PERMISSIONS = [
+    'ACCESS_LOCATION_EXTRA_COMMANDS',
+    'ACCESS_NETWORK_STATE',
+    'ACCESS_NOTIFICATION_POLICY',
+    'ACCESS_WIFI_STATE',
+    'BLUETOOTH',
+    'BLUETOOTH_ADMIN',
+    'BROADCAST_STICKY',
+    'CHANGE_NETWORK_STATE',
+    'CHANGE_WIFI_MULTICAST_STATE',
+    'CHANGE_WIFI_STATE',
+    'DISABLE_KEYGUARD',
+    'EXPAND_STATUS_BAR',
+    'GET_PACKAGE_SIZE',
+    'INTERNET',
+    'KILL_BACKGROUND_PROCESSES',
+    'MODIFY_AUDIO_SETTINGS',
+    'NFC',
+    'READ_SYNC_SETTINGS',
+    'READ_SYNC_STATS',
+    'RECEIVE_BOOT_COMPLETED',
+    'REORDER_TASKS',
+    'REQUEST_INSTALL_PACKAGES',
+    'SET_TIME_ZONE',
+    'SET_WALLPAPER',
+    'SET_WALLPAPER_HINTS',
+    'TRANSMIT_IR',
+    'USE_FINGERPRINT',
+    'VIBRATE',
+    'WAKE_LOCK',
+    'WRITE_SYNC_SETTINGS',
+    'SET_ALARM',
+    'INSTALL_SHORTCUT',
+    'UNINSTALL_SHORTCUT',
+]
+
 # TODO: these are set to their actual values near the bottom of the file. There
 # is some HACKery  involved to ensure that ANDROID_HOME does not need to be set
 # or adb added to path for root when installing as root, and the whole
