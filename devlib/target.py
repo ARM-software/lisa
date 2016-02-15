@@ -772,17 +772,17 @@ class AndroidTarget(Target):
             self.conn.push(source, dest, timeout=timeout)
         else:
             device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute('mkdir -p {}'.format(self.path.dirname(device_tempfile)))
+            self.execute("mkdir -p '{}'".format(self.path.dirname(device_tempfile)))
             self.conn.push(source, device_tempfile, timeout=timeout)
-            self.execute('cp {} {}'.format(device_tempfile, dest), as_root=True)
+            self.execute("cp '{}' '{}'".format(device_tempfile, dest), as_root=True)
 
     def pull(self, source, dest, as_root=False, timeout=None):  # pylint: disable=arguments-differ
         if not as_root:
             self.conn.pull(source, dest, timeout=timeout)
         else:
             device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute('mkdir -p {}'.format(self.path.dirname(device_tempfile)))
-            self.execute('cp {} {}'.format(source, device_tempfile), as_root=True)
+            self.execute("mkdir -p '{}'".format(self.path.dirname(device_tempfile)))
+            self.execute("cp '{}' '{}'".format(source, device_tempfile), as_root=True)
             self.conn.pull(device_tempfile, dest, timeout=timeout)
 
     # Android-specific
@@ -829,7 +829,7 @@ class AndroidTarget(Target):
     def install_apk(self, filepath, timeout=None):  # pylint: disable=W0221
         ext = os.path.splitext(filepath)[1].lower()
         if ext == '.apk':
-            return adb_command(self.adb_name, "install {}".format(filepath), timeout=timeout)
+            return adb_command(self.adb_name, "install '{}'".format(filepath), timeout=timeout)
         else:
             raise TargetError('Can\'t install {}: unsupported format.'.format(filepath))
 
@@ -842,7 +842,7 @@ class AndroidTarget(Target):
         if on_device_file != on_device_executable:
             self.execute('cp {} {}'.format(on_device_file, on_device_executable), as_root=self.is_rooted)
             self.remove(on_device_file, as_root=self.is_rooted)
-        self.execute('chmod 0777 {}'.format(on_device_executable), as_root=self.is_rooted)
+        self.execute("chmod 0777 '{}'".format(on_device_executable), as_root=self.is_rooted)
         self._installed_binaries[executable_name] = on_device_executable
         return on_device_executable
 

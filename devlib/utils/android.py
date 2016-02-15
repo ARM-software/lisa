@@ -167,7 +167,7 @@ class AdbConnection(object):
     def push(self, source, dest, timeout=None):
         if timeout is None:
             timeout = self.timeout
-        command = 'push {} {}'.format(source, dest)
+        command = "push '{}' '{}'".format(source, dest)
         return adb_command(self.device, command, timeout=timeout)
 
     def pull(self, source, dest, timeout=None):
@@ -179,10 +179,10 @@ class AdbConnection(object):
             command = 'shell ls {}'.format(source)
             output = adb_command(self.device, command, timeout=timeout)
             for line in output.splitlines():
-                command = 'pull {} {}'.format(line, dest)
+                command = "pull '{}' '{}'".format(line, dest)
                 adb_command(self.device, command, timeout=timeout)
             return
-        command = 'pull {} {}'.format(source, dest)
+        command = "pull '{}' '{}'".format(source, dest)
         return adb_command(self.device, command, timeout=timeout)
 
     def execute(self, command, timeout=None, check_exit_code=False, as_root=False):
