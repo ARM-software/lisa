@@ -256,6 +256,10 @@ class Executor():
         # Configure each required groups for that controller
         errors = False
         for name in tc['cgroups']['conf'][controller.kind]:
+            if name[0] != '/':
+                raise ValueError('Wrong CGroup name [{}]. '
+                                 'CGroups names must start by "/".'\
+                                 .format(name))
             group = controller.cgroup(name)
             if not group:
                 logging.warning(r'%14s - Configuration error: '\
