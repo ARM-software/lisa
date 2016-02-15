@@ -179,9 +179,14 @@ class StaticPlot(AbstractDataPlotter):
         """Generates a title string for an axis"""
         if concat:
             return str(constraint)
-        title = ""
+        # If there's only one trace, show its name. Otherwise we do not need the
+        # name because it's already in the legend.
+        if self.c_mgr._max_len == 1:
+            title = constraint.get_data_name() + ":"
+        else:
+            title = ""
         if permute:
-            title += constraint.get_data_name() + ":" + constraint.column
+            title += constraint.column
         else:
             if pivot == AttrConf.PIVOT_VAL:
                 if isinstance(self._attr["column"], list):
