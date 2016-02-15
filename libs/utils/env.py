@@ -615,6 +615,12 @@ class TestEnv(ShareState):
                 logging.debug('%14s - %s', 'HostResolver', cmd)
                 os.popen(cmd)
 
+        return self.parse_arp_cache(host)
+
+    def parse_arp_cache(self, host):
+        output = os.popen(r'arp -n')
+        ipaddr = None
+        macaddr = None
         if ':' in host:
             # Assuming this is a MAC address
             # TODO add a suitable check on MAC address format
@@ -622,6 +628,13 @@ class TestEnv(ShareState):
             ARP_RE = re.compile(
                 r'([^ ]*).*({}|{})'.format(host.lower(), host.upper())
             )
+            macaddr = host
+            for line in output:
+                match = ARP_RE.search(line)
+                if not match:
+                    continue
+                ipaddr = match.group(1)
+                break
         else:
             # Assuming this is an IP address
             # TODO add a suitable check on IP address format
@@ -629,26 +642,35 @@ class TestEnv(ShareState):
             ARP_RE = re.compile(
                 r'{}.*ether *([0-9a-fA-F:]*)'.format(host)
             )
+            ipaddr = host
+            for line in output:
+                match = ARP_RE.search(line)
+                if not match:
+                    continue
+                macaddr = match.group(1)
+                break
 
-        output = os.popen(r'arp -n')
-        ipaddr = '0.0.0.0'
-        for line in output:
-            match = ARP_RE.search(line)
-            if not match:
-                continue
-            ipaddr = match.group(1)
-            break
-        if ipaddr == '0.0.0.0':
-            raise ValueError('Unable to lookup for target IP address')
+        if not ipaddr or not macaddr:
+            raise ValueError('Unable to lookup for target IP/MAC address')
         logging.info('%14s - Target (%s) at IP address: %s',
-                'HostResolver', host, ipaddr)
-        return (host, ipaddr)
+                'HostResolver', macaddr, ipaddr)
+        return (macaddr, ipaddr)
 
-    def reboot(self, reboot_time=120):
+    def reboot(self, reboot_time=120, ping_time=15):
         # Send remote target a reboot command
         if self._feature('no-reboot'):
             logging.warning('%14s - Reboot disabled by conf features', 'Reboot')
         else:
+            if 'reboot_time' in self.conf:
+                reboot_time = int(self.conf['reboot_time'])
+
+            if 'ping_time' in self.conf:
+                ping_time = int(self.conf['ping_time'])
+
+            # Before rebooting make sure to have IP and MAC addresses
+            # of the target
+            (self.mac, self.ip) = self.parse_arp_cache(self.ip)
+
             self.target.execute('sleep 2 && reboot -f &', as_root=True)
 
             # Wait for the target to complete the reboot
@@ -659,14 +681,19 @@ class TestEnv(ShareState):
             elapsed = 0
             start = time.time()
             while elapsed <= reboot_time:
-                time.sleep(5)
+                time.sleep(ping_time)
                 logging.debug('%14s - Trying to connect to [%s] target...',
                         'Reboot', self.ip)
                 if os.system(ping_cmd) == 0:
                     break
                 elapsed = time.time() - start
             if elapsed > reboot_time:
-                logging.warning('%14s - target [%s] not reposing to PINGs, trying to continue...',
+                if self.mac:
+                    logging.warning('%14s - target [%s] not responding to \
+                            PINGs, trying to resolve MAC address...', 'Reboot', self.ip)
+                    (self.mac, self.ip) = self.resolv_host(self.mac)
+                else:
+                    logging.warning('%14s - target [%s] not responding to PINGs, trying to continue...',
                         'Reboot', self.ip)
 
         # Force re-initialization of all the devlib modules
