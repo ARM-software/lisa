@@ -88,7 +88,7 @@ class Constraint(object):
         self._trappy_trace = trappy_trace
         self._filters = filters
         self._pivot = pivot
-        self._column = column
+        self.column = column
         self._template = template
         self._dup_resolved = False
         self._data = self.populate_data_frame()
@@ -113,7 +113,7 @@ class Constraint(object):
         result = {}
 
         try:
-            values = data[self._column]
+            values = data[self.column]
         except KeyError:
             return result
 
@@ -190,10 +190,10 @@ class Constraint(object):
         name = self.get_data_name()
 
         if not self._uses_trappy_trace():
-            return name + ":" + self._column
+            return name + ":" + self.column
 
         return name + ":" + \
-            self._template.name + ":" + self._column
+            self._template.name + ":" + self.column
 
 
     def get_data_name(self):
@@ -322,7 +322,7 @@ class ConstraintManager(object):
                 self._constraints.append(constraint)
 
     def get_column_index(self, constraint):
-        return self._ip_vec[1].index(constraint._column)
+        return self._ip_vec[1].index(constraint.column)
 
     def _populate_zip_constraints(self):
         """Populate the expanded constraints
