@@ -644,6 +644,21 @@ class AndroidTarget(Target):
         return self.conn.device
 
     @property
+    def android_id(self):
+        """
+        Get the device's ANDROID_ID. Which is
+
+            "A 64-bit number (as a hex string) that is randomly generated when the user
+            first sets up the device and should remain constant for the lifetime of the
+            user's device."
+
+        .. note:: This will get reset on userdata erasure.
+
+        """
+        output = self.execute('content query --uri content://settings/secure --projection value --where "name=\'android_id\'"').strip()
+        return output.split('value=')[-1]
+
+    @property
     @memoized
     def screen_resolution(self):
         output = self.execute('dumpsys window')
