@@ -437,6 +437,14 @@ class Target(object):
 
     which = get_installed
 
+    def install_if_needed(self, host_path, search_system_binaries=True):
+
+        binary_path = self.get_installed(os.path.split(host_path)[1],
+                                         search_system_binaries=search_system_binaries)
+        if not binary_path:
+            binary_path = self.install(host_path)
+        return binary_path
+
     def is_installed(self, name):
         return bool(self.get_installed(name))
 
