@@ -421,16 +421,19 @@ class Target(object):
     def uninstall(self, name):
         raise NotImplementedError()
 
-    def get_installed(self, name):
-        for path in self.getenv('PATH').split(self.path.pathsep):
-            try:
-                if  name in self.list_directory(path):
-                    return self.path.join(path, name)
-            except TargetError:
-                pass  # directory does not exist or no executable premssions
+    def get_installed(self, name, search_system_binaries=True):
+        # Check user installed binaries first
         if self.file_exists(self.executables_directory):
             if name in self.list_directory(self.executables_directory):
                 return self.path.join(self.executables_directory, name)
+        # Fall back to binaries in PATH
+        if search_system_binaries:
+            for path in self.getenv('PATH').split(self.path.pathsep):
+                try:
+                    if name in self.list_directory(path):
+                        return self.path.join(path, name)
+                except TargetError:
+                    pass  # directory does not exist or no executable premssions
 
     which = get_installed
 
