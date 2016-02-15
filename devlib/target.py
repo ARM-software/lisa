@@ -880,7 +880,7 @@ class AndroidTarget(Target):
             self.working_directory = '/data/local/tmp/devlib-target'
         self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
         if self.executables_directory is None:
-            self.executables_directory = self.path.join(self.working_directory, 'bin')
+            self.executables_directory = '/data/local/tmp/bin'
 
     def _ensure_executables_directory_is_writable(self):
         matched = []
