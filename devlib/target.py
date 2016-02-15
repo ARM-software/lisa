@@ -348,6 +348,12 @@ class Target(object):
         command = 'if [ -e \'{}\' ]; then echo 1; else echo 0; fi'
         return boolean(self.execute(command.format(filepath)).strip())
 
+    def directory_exists(self, filepath):
+        output = self.execute('if [ -d \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
+        # output from ssh my contain part of the expression in the buffer,
+        # split out everything except the last word.
+        return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
+
     def list_file_systems(self):
         output = self.execute('mount')
         fstab = []
