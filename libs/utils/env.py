@@ -661,8 +661,15 @@ class TestEnv(ShareState):
         if self._feature('no-reboot'):
             logging.warning('%14s - Reboot disabled by conf features', 'Reboot')
         else:
+            if 'reboot_time' in self.conf:
+                reboot_time = int(self.conf['reboot_time'])
+
             if 'ping_time' in self.conf:
                 ping_time = int(self.conf['ping_time'])
+
+            # Before rebooting make sure to have IP and MAC addresses
+            # of the target
+            (self.mac, self.ip) = self.parse_arp_cache(self.ip)
 
             self.target.execute('sleep 2 && reboot -f &', as_root=True)
 
@@ -681,7 +688,12 @@ class TestEnv(ShareState):
                     break
                 elapsed = time.time() - start
             if elapsed > reboot_time:
-                logging.warning('%14s - target [%s] not reposing to PINGs, trying to continue...',
+                if self.mac:
+                    logging.warning('%14s - target [%s] not responding to \
+                            PINGs, trying to resolve MAC address...', 'Reboot', self.ip)
+                    (self.mac, self.ip) = self.resolv_host(self.mac)
+                else:
+                    logging.warning('%14s - target [%s] not responding to PINGs, trying to continue...',
                         'Reboot', self.ip)
 
         # Force re-initialization of all the devlib modules
