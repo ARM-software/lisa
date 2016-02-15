@@ -268,7 +268,10 @@ class StaticPlot(AbstractDataPlotter):
         #Add the legend to the figure if more than one signal is plotted
         if legend_len > 1:
             self._fig.legend(self._attr["_legend_handles"],
-                             self._attr["_legend_labels"])
+                             self._attr["_legend_labels"],
+                             loc='lower center',
+                             ncol=3,
+                             borderaxespad=0.)
 
         self._layout.finish(num_of_axes)
 
