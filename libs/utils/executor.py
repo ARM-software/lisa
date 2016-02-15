@@ -154,6 +154,9 @@ class Executor():
     def _cgroups_init(self, tc):
         if 'cgroups' not in tc:
             return True
+        if 'cgroups' not in self.target.modules:
+            raise RuntimeError('CGroups module not available. Please ensure '
+                               '"cgroups" is listed in your target/test modules')
         logging.info(r'%14s - Initialize CGroups support...', 'CGroups')
         errors = False
         for kind in tc['cgroups']['conf']:
