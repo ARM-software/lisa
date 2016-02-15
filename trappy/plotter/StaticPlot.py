@@ -181,16 +181,16 @@ class StaticPlot(AbstractDataPlotter):
             return str(constraint)
         title = ""
         if permute:
-            title += constraint.get_data_name() + ":"
-
-        if pivot == AttrConf.PIVOT_VAL:
-            if isinstance(self._attr["column"], list):
-                title += ", ".join(self._attr["column"])
-            else:
-                title += self._attr["column"]
+            title += constraint.get_data_name() + ":" + constraint.column
         else:
-            title += "{0}: {1}".format(self._attr["pivot"],
-                                       self._attr["map_label"].get(pivot, pivot))
+            if pivot == AttrConf.PIVOT_VAL:
+                if isinstance(self._attr["column"], list):
+                    title += ", ".join(self._attr["column"])
+                else:
+                    title += self._attr["column"]
+            else:
+                title += "{0}: {1}".format(self._attr["pivot"],
+                                           self._attr["map_label"].get(pivot, pivot))
         return title
 
     def add_to_legend(self, series_index, handle, constraint, pivot, concat):
