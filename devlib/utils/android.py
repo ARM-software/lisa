@@ -175,7 +175,7 @@ class AdbConnection(object):
             timeout = self.timeout
         # Pull all files matching a wildcard expression
         if os.path.isdir(dest) and \
-            ('*' in source or '?' in source):
+           ('*' in source or '?' in source):
             command = 'shell ls {}'.format(source)
             output = adb_command(self.device, command, timeout=timeout)
             for line in output.splitlines():
@@ -241,7 +241,7 @@ def adb_get_device(timeout=None):
             return output[1].split('\t')[0]
         elif output_length > 3:
             message = '{} Android devices found; either explicitly specify ' +\
-                    'the device you want, or make sure only one is connected.'
+                      'the device you want, or make sure only one is connected.'
             raise HostError(message.format(output_length - 2))
         else:
             if timeout < time.time() - start:

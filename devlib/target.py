@@ -669,7 +669,6 @@ class AndroidTarget(Target):
         else:
             return (0, 0)
 
-
     def reset(self, fastboot=False):  # pylint: disable=arguments-differ
         try:
             self.execute('reboot {}'.format(fastboot and 'fastboot' or ''),
@@ -856,7 +855,7 @@ class AndroidTarget(Target):
         self.remove(on_device_executable, as_root=self.is_rooted)
 
     def dump_logcat(self, filepath, filter=None, append=False, timeout=30):  # pylint: disable=redefined-builtin
-        op = '>>' if append == True else '>'
+        op = '>>' if append else '>'
         filtstr = ' -s {}'.format(filter) if filter else ''
         command = 'logcat -d{} {} {}'.format(filtstr, op, filepath)
         adb_command(self.adb_name, command, timeout=timeout)
@@ -1071,4 +1070,3 @@ def _get_part_name(section):
     if name is None:
         name = '{}/{}/{}'.format(implementer, part, variant)
     return name
-

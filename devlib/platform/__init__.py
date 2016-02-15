@@ -68,7 +68,7 @@ class Platform(object):
 
     def _identify_big_core(self):
         for core in self.core_names:
-            if core.upper() in  BIG_CPUS:
+            if core.upper() in BIG_CPUS:
                 return core
         big_idx = self.core_clusters.index(max(self.core_clusters))
         return self.core_names[big_idx]
@@ -88,4 +88,3 @@ class Platform(object):
                 if core != self.big_core:
                     self.little_core = core
                     break
-
