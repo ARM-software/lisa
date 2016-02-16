@@ -669,6 +669,29 @@ class AndroidTarget(Target):
         else:
             return (0, 0)
 
+    def __init__(self,
+                 connection_settings=None,
+                 platform=None,
+                 working_directory=None,
+                 executables_directory=None,
+                 connect=True,
+                 modules=None,
+                 load_default_modules=True,
+                 shell_prompt=DEFAULT_SHELL_PROMPT,
+                 package_data_directory="/data/data",
+                 external_storage_directory="/sdcard",
+                 ):
+        super(AndroidTarget, self).__init__(connection_settings=connection_settings,
+                                            platform=platform,
+                                            working_directory=working_directory,
+                                            executables_directory=executables_directory,
+                                            connect=connect,
+                                            modules=modules,
+                                            load_default_modules=load_default_modules,
+                                            shell_prompt=shell_prompt)
+        self.executables_directory = executables_directory
+        self.package_data_directory = package_data_directory
+
     def reset(self, fastboot=False):  # pylint: disable=arguments-differ
         try:
             self.execute('reboot {}'.format(fastboot and 'fastboot' or ''),
