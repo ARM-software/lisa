@@ -223,11 +223,6 @@ class ILinePlotGen(object):
     def finish(self):
         """Called when the Plotting is finished"""
 
-        figs = []
-
-        for fig_idx in self._fig_map.keys():
-            figs.append(self._fig_map[fig_idx])
-
         display(HTML(self.html()))
 
     def html(self):
