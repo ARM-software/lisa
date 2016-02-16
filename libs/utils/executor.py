@@ -71,6 +71,7 @@ class Executor():
         """
 
         # Initialize globals
+        self._default_cgroup = None
         self._cgroup = None
 
         # Setup test configuration
@@ -152,8 +153,12 @@ class Executor():
 ################################################################################
 
     def _cgroups_init(self, tc):
+        self._default_cgroup = None
         if 'cgroups' not in tc:
             return True
+        if 'cgroups' not in self.target.modules:
+            raise RuntimeError('CGroups module not available. Please ensure '
+                               '"cgroups" is listed in your target/test modules')
         logging.info(r'%14s - Initialize CGroups support...', 'CGroups')
         errors = False
         for kind in tc['cgroups']['conf']:
@@ -235,7 +240,7 @@ class Executor():
             return True
         # Setup default CGroup to run tasks into
         if 'default' in tc['cgroups']:
-            self._cgroup = tc['cgroups']['default']
+            self._default_cgroup = tc['cgroups']['default']
         # Configure each required controller
         if 'conf' not in tc['cgroups']:
             return True
@@ -256,6 +261,10 @@ class Executor():
         # Configure each required groups for that controller
         errors = False
         for name in tc['cgroups']['conf'][controller.kind]:
+            if name[0] != '/':
+                raise ValueError('Wrong CGroup name [{}]. '
+                                 'CGroups names must start by "/".'\
+                                 .format(name))
             group = controller.cgroup(name)
             if not group:
                 logging.warning(r'%14s - Configuration error: '\
@@ -300,8 +309,20 @@ class Executor():
             return None
         cpus = wlspec['conf']['cpus']
 
+        if type(cpus) == list:
+            return cpus
         if type(cpus) == int:
-            return list(cpus)
+            return [cpus]
+
+        # SMP target (or not bL module loaded)
+        if not hasattr(self.target, 'bl'):
+            if 'first' in cpus:
+                return [ self.target.list_online_cpus()[0] ]
+            if 'last' in cpus:
+                return [ self.target.list_online_cpus()[-1] ]
+            return self.target.list_online_cpus()
+
+        # big.LITTLE target
         if cpus.startswith('littles'):
             if 'first' in cpus:
                 return [ self.target.bl.littles_online[0] ]
@@ -423,6 +444,14 @@ class Executor():
 
         # CPUS: setup execution on CPUs if required by configuration
         cpus = self._wload_cpus(wl_idx, wlspec)
+
+        # CGroup: setup CGroups if requried by configuration
+        self._cgroup = self._default_cgroup
+        if 'cgroup' in wlspec:
+            if 'cgroups' not in self.target.modules:
+                raise RuntimeError('Target not supporting CGroups or CGroups '
+                                   'not configured for the current test configuration')
+            self._cgroup = wlspec['cgroup']
 
         if wlspec['type'] == 'rt-app':
             return self._wload_rtapp(wl_idx, wlspec, cpus)
