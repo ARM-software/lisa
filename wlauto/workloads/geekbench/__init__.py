@@ -121,12 +121,13 @@ class Geekbench(AndroidUiAutoBenchmark):
         score_calculator.update_results(context)
 
     def update_result_3(self, context):
-        outfile_glob = self.device.path.join(self.device.package_data_directory, self.package, 'files', '*gb3')
+        outfile_glob = self.device.path.join(context.device_manager.package_data_directory, self.package, 'files', '*gb3')
         on_device_output_files = [f.strip() for f in
-                                  self.device.execute('ls {}'.format(outfile_glob), as_root=True).split('\n')]
+                                  self.device.execute('ls {}'.format(outfile_glob), as_root=True).split('\n')
+                                  if f.strip()]
         for i, on_device_output_file in enumerate(on_device_output_files):
             host_temp_file = tempfile.mktemp()
-            self.device.pull_file(on_device_output_file, host_temp_file)
+            self.device.pull(on_device_output_file, host_temp_file)
             host_output_file = os.path.join(context.output_directory, os.path.basename(on_device_output_file))
             with open(host_temp_file) as fh:
                 data = json.load(fh)

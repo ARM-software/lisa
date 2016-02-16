@@ -101,7 +101,7 @@ class Vellamo(AndroidUiAutoBenchmark):
         for test in self.benchmarks:  # Get all scores from HTML files
             filename = None
             if test == "Browser":
-                result_folder = self.device.path.join(self.device.package_data_directory, self.package, 'files')
+                result_folder = self.device.path.join(context.device_manager.package_data_directory, self.package, 'files')
                 for result_file in self.device.listdir(result_folder, as_root=True):
                     if result_file.startswith("Browser"):
                         filename = result_file
@@ -110,7 +110,7 @@ class Vellamo(AndroidUiAutoBenchmark):
 
             device_file = self.device.path.join(self.device.package_data_directory, self.package, 'files', filename)
             host_file = os.path.join(context.output_directory, filename)
-            self.device.pull_file(device_file, host_file, as_root=True)
+            self.device.pull(device_file, host_file, as_root=True)
             with open(host_file) as fh:
                 parser = VellamoResultParser()
                 parser.feed(fh.read())
@@ -212,4 +212,3 @@ class VellamoResultParser(HTMLParser):
                     self.benchmarks[-1].add_metric(data)
                 else:
                     self.failed = True
-

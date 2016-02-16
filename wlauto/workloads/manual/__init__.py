@@ -86,7 +86,7 @@ class ManualWorkload(Workload):
     def update_result(self, context):
         if self.enable_logcat:
             logcat_dir = os.path.join(context.output_directory, 'logcat')
-            self.device.dump_logcat(logcat_dir)
+            context.device_manager.dump_logcat(logcat_dir)
 
     def teardown(self, context):
         pass
@@ -102,8 +102,3 @@ class ManualWorkload(Workload):
             raise ConfigError(message)
         if not self.user_triggered and not self.duration:
             raise ConfigError('Either user_triggered must be ``True`` or duration must be > 0.')
-
-        if self.enable_logcat is None:
-            self.enable_logcat = self.device.platform == "android"
-        elif self.enable_logcat and self.device.platform != "android":
-            raise ConfigError("The `enable_logcat` parameter can only be used on Android devices")

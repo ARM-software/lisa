@@ -188,7 +188,7 @@ class ApkWorkload(Workload):
         self.device.clear_logcat()
 
     def initialize_package(self, context):
-        installed_version = self.device.get_installed_package_version(self.package)
+        installed_version = self.device.get_package_version(self.package)
         if self.check_apk:
             self.initialize_with_host_apk(context, installed_version)
         else:
@@ -238,7 +238,7 @@ class ApkWorkload(Workload):
 
         # As of android API level 23, apps can request permissions at runtime,
         # this will grant all of them so requests do not pop up when running the app
-        if self.device.get_sdk_version() >= 23:
+        if self.device.os_version['sdk'] >= 23:
             self._grant_requested_permissions()
 
     def install_apk(self, context):
@@ -281,7 +281,7 @@ class ApkWorkload(Workload):
 
     def update_result(self, context):
         self.logcat_log = os.path.join(context.output_directory, 'logcat.log')
-        self.device.dump_logcat(self.logcat_log)
+        context.device_manager.dump_logcat(self.logcat_log)
         context.add_iteration_artifact(name='logcat',
                                        path='logcat.log',
                                        kind='log',
@@ -488,7 +488,7 @@ class GameWorkload(ApkWorkload, ReventWorkload):
             # exist.
             self.device.push(asset_tarball, ondevice_cache, timeout=timeout)
 
-        device_asset_directory = self.device.path.join(self.device.external_storage_directory, 'Android', kind)
+        device_asset_directory = self.device.path.join(self.context.device_manager.external_storage_directory, 'Android', kind)
         deploy_command = 'cd {} && {} tar -xzf {}'.format(device_asset_directory,
                                                           self.device.busybox,
                                                           ondevice_cache)

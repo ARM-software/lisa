@@ -88,7 +88,7 @@ class Dex2oatBenchmark(Workload):
 
         """
         logcat_log = os.path.join(context.output_directory, 'logcat.log')
-        self.device.dump_logcat(logcat_log)
+        context.device_manager.dump_logcat(logcat_log)
 
         regex_time = re.compile("^I\/dex2oat \( *[0-9]+\): dex2oat took (?P<time>[0-9]+\.?[0-9]*)(?P<unit>m?s)")
         regex_comp_time = re.compile("^I\/dex2oat \( *[0-9]+\): +(?P<time>[0-9]*\.?[0-9]*)(?P<unit>m?s) Compile Dex File")
