@@ -167,9 +167,7 @@ class ILinePlot(AbstractDataPlotter):
         """Internal Method called to draw the plot"""
         pivot_vals, len_pivots = self.c_mgr.generate_pivots(permute)
 
-        self._layout = ILinePlotGen(self._attr["per_line"],
-                                    len_pivots,
-                                    **self._attr)
+        self._layout = ILinePlotGen(len_pivots, **self._attr)
         plot_index = 0
         for p_val in pivot_vals:
             data_frame = pd.Series()
@@ -206,8 +204,7 @@ class ILinePlot(AbstractDataPlotter):
         pivot_vals, _ = self.c_mgr.generate_pivots()
         plot_index = 0
 
-        self._layout = ILinePlotGen(self._attr["per_line"], len(self.c_mgr),
-                                    **self._attr)
+        self._layout = ILinePlotGen(len(self.c_mgr), **self._attr)
 
         for constraint in self.c_mgr:
             result = constraint.result

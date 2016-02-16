@@ -35,9 +35,6 @@ from IPython.display import display, HTML
 
 class ILinePlotGen(object):
     """
-    :param cols: The number of columns to draw
-    :type cols: int
-
     :param num_plots: The total number of plots
     :type num_plots: int
 
@@ -122,9 +119,8 @@ class ILinePlotGen(object):
 
         for _ in range(self._rows):
             self._begin_row()
-
             legend_figs = []
-            for _ in range(self._cols):
+            for _ in range(self._attr["per_line"]):
                 fig_name = self._generate_fig_name()
                 legend_figs.append(fig_name)
                 self._add_graph_cell(fig_name)
@@ -139,9 +135,8 @@ class ILinePlotGen(object):
 
         self._end_table()
 
-    def __init__(self, cols, num_plots, **kwargs):
+    def __init__(self, num_plots, **kwargs):
 
-        self._cols = cols
         self._attr = kwargs
         self._html = []
         self.num_plots = num_plots
@@ -152,11 +147,11 @@ class ILinePlotGen(object):
         if self.num_plots == 0:
             raise RuntimeError("No plots for the given constraints")
 
-        if self.num_plots < self._cols:
-            self._cols = self.num_plots
-        self._rows = (self.num_plots / self._cols)
+        if self.num_plots < self._attr["per_line"]:
+            self._attr["per_line"] = self.num_plots
+        self._rows = (self.num_plots / self._attr["per_line"])
 
-        if self.num_plots % self._cols != 0:
+        if self.num_plots % self._attr["per_line"] != 0:
             self._rows += 1
 
         self._attr["height"] = AttrConf.HTML_HEIGHT
