@@ -14,7 +14,8 @@
 #
 
 from wlauto.core.bootstrap import settings  # NOQA
-from wlauto.core.device import Device, RuntimeParameter, CoreParameter  # NOQA
+from wlauto.core.device import Device  # NOQA
+from wlauto.core.device_manager import DeviceManager, RuntimeParameter, CoreParameter  # NOQA
 from wlauto.core.command import Command  # NOQA
 from wlauto.core.workload import Workload  # NOQA
 from wlauto.core.extension import Module, Parameter, Artifact, Alias  # NOQA

@@ -142,8 +142,9 @@ class ExecutionContext(object):
     def result(self):
         return getattr(self.current_job, 'result', self.run_result)
 
-    def __init__(self, device, config):
-        self.device = device
+    def __init__(self, device_manager, config):
+        self.device_manager = device_manager
+        self.device = self.device_manager.target
         self.config = config
         self.reboot_policy = config.reboot_policy
         self.output_directory = None
@@ -258,6 +259,7 @@ class Executor(object):
         self.warning_logged = False
         self.config = None
         self.ext_loader = None
+        self.device_manager = None
         self.device = None
         self.context = None
 
@@ -301,10 +303,11 @@ class Executor(object):
         self.logger.debug('Initialising device configuration.')
         if not self.config.device:
             raise ConfigError('Make sure a device is specified in the config.')
-        self.device = self.ext_loader.get_device(self.config.device, **self.config.device_config)
-        self.device.validate()
+        self.device_manager = self.ext_loader.get_device_manager(self.config.device, **self.config.device_config)
+        self.device_manager.validate()
+        self.device = self.device_manager.target
 
-        self.context = ExecutionContext(self.device, self.config)
+        self.context = ExecutionContext(self.device_manager, self.config)
 
         self.logger.debug('Loading resource discoverers.')
         self.context.initialize()
@@ -384,7 +387,7 @@ class Executor(object):
             runnercls = RandomRunner
         else:
             raise ConfigError('Unexpected execution order: {}'.format(self.config.execution_order))
-        return runnercls(self.device, self.context, result_manager)
+        return runnercls(self.device_manager, self.context, result_manager)
 
     def _error_signalled_callback(self):
         self.error_logged = True
@@ -464,8 +467,9 @@ class Runner(object):
             return True
         return self.current_job.spec.id != self.next_job.spec.id
 
-    def __init__(self, device, context, result_manager):
-        self.device = device
+    def __init__(self, device_manager, context, result_manager):
+        self.device_manager = device_manager
+        self.device = device_manager.target
         self.context = context
         self.result_manager = result_manager
         self.logger = logging.getLogger('Runner')
@@ -533,14 +537,13 @@ class Runner(object):
         self.context.run_info.start_time = datetime.utcnow()
         self._connect_to_device()
         self.logger.info('Initializing device')
-        self.device.initialize(self.context)
+        self.device_manager.initialize(self.context)
 
         self.logger.info('Initializing workloads')
         for workload_spec in self.context.config.workload_specs:
             workload_spec.workload.initialize(self.context)
 
-        props = self.device.get_properties(self.context)
-        self.context.run_info.device_properties = props
+        self.context.run_info.device_properties = self.device_manager.info
         self.result_manager.initialize(self.context)
         self._send(signal.RUN_INIT)
 
@@ -550,7 +553,7 @@ class Runner(object):
     def _connect_to_device(self):
         if self.context.reboot_policy.perform_initial_boot:
             try:
-                self.device.connect()
+                self.device_manager.connect()
             except DeviceError:  # device may be offline
                 if self.device.can('reset_power'):
                     with self._signal_wrap('INITIAL_BOOT'):
@@ -564,7 +567,7 @@ class Runner(object):
                     self._reboot_device()
         else:
             self.logger.info('Connecting to device')
-            self.device.connect()
+            self.device_manager.connect()
 
     def _init_job(self):
         self.current_job.result.status = IterationResult.RUNNING
@@ -597,7 +600,7 @@ class Runner(object):
 
         instrumentation.disable_all()
         instrumentation.enable(spec.instrumentation)
-        self.device.start()
+        self.device_manager.start()
 
         if self.spec_changed:
             self._send(signal.WORKLOAD_SPEC_START)
@@ -606,7 +609,7 @@ class Runner(object):
         try:
             setup_ok = False
             with self._handle_errors('Setting up device parameters'):
-                self.device.set_runtime_parameters(spec.runtime_parameters)
+                self.device_manager.set_runtime_parameters(spec.runtime_parameters)
                 setup_ok = True
 
             if setup_ok:
@@ -625,7 +628,7 @@ class Runner(object):
             if self.spec_will_change or not spec.enabled:
                 self._send(signal.WORKLOAD_SPEC_END)
         finally:
-            self.device.stop()
+            self.device_manager.stop()
 
     def _finalize_job(self):
         self.context.run_result.iteration_results.append(self.current_job.result)
@@ -737,7 +740,7 @@ class Runner(object):
         except (KeyboardInterrupt, DeviceNotRespondingError):
             raise
         except (WAError, TimeoutError), we:
-            self.device.ping()
+            self.device.check_responsive()
             if self.current_job:
                 self.current_job.result.status = on_error_status
                 self.current_job.result.add_event(str(we))
