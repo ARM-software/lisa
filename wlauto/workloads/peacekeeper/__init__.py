@@ -71,7 +71,7 @@ class Peacekeeper(AndroidUiAutoBenchmark):
 
         # Pull the result page url, which contains the results, from the
         # peacekeeper.txt file and process it
-        self.device.pull_file(self.output_file, context.output_directory)
+        self.device.pull(self.output_file, context.output_directory)
         result_file = os.path.join(context.output_directory, 'peacekeeper.txt')
         with open(result_file) as fh:
             for line in fh:

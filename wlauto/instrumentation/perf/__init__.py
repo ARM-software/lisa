@@ -106,7 +106,7 @@ class PerfInstrument(Instrument):
             self.device.kick_off(command)
 
     def stop(self, context):
-        as_root = self.device.platform == 'android'
+        as_root = self.device.os == 'android'
         self.device.killall('sleep', as_root=as_root)
 
     def update_result(self, context):
@@ -114,7 +114,7 @@ class PerfInstrument(Instrument):
             device_file = self._get_device_outfile(label)
             host_relpath = os.path.join('perf', os.path.basename(device_file))
             host_file = _f(os.path.join(context.output_directory, host_relpath))
-            self.device.pull_file(device_file, host_file)
+            self.device.pull(device_file, host_file)
             context.add_iteration_artifact(label, kind='raw', path=host_relpath)
             with open(host_file) as fh:
                 in_results_section = False
@@ -165,7 +165,7 @@ class PerfInstrument(Instrument):
     def _clean_device(self):
         for label in self.labels:
             filepath = self._get_device_outfile(label)
-            self.device.delete_file(filepath)
+            self.device.remove(filepath)
 
     def _get_device_outfile(self, label):
         return self.device.path.join(self.device.working_directory, '{}.out'.format(label))

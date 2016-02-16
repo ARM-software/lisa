@@ -93,9 +93,9 @@ class Cyclictest(Workload):
 
         if self.clear_file_cache:
             self.device.execute('sync')
-            self.device.set_sysfile_value('/proc/sys/vm/drop_caches', 3)
+            self.device.write_value('/proc/sys/vm/drop_caches', 3)
 
-        if self.device.platform == 'android':
+        if self.device.os == 'android':
             if self.screen_off and self.device.is_screen_on:
                 self.device.execute('input keyevent 26')
 
@@ -103,7 +103,7 @@ class Cyclictest(Workload):
         self.device.execute(self.cyclictest_command, self.duration * 2, as_root=True)
 
     def update_result(self, context):
-        self.device.pull_file(self.cyclictest_result, context.output_directory)
+        self.device.pull(self.cyclictest_result, context.output_directory)
 
         # Parsing the output
         # Standard Cyclictest Output:
@@ -132,7 +132,7 @@ class Cyclictest(Workload):
                         context.result.add_metric(full_key, value, 'microseconds')
 
     def teardown(self, context):
-        if self.device.platform == 'android':
+        if self.device.os == 'android':
             if self.screen_off:
                 self.device.ensure_screen_is_on()
         self.device.execute('rm -f {}'.format(self.cyclictest_result))

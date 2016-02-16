@@ -182,13 +182,13 @@ class StreamlineInstrument(Instrument):
         caiman_path = subprocess.check_output('which caiman', shell=True).strip()  # pylint: disable=E1103
         self.session_file = os.path.join(context.host_working_directory, 'streamline_session.xml')
         with open(self.session_file, 'w') as wfh:
-            if self.device.platform == "android":
+            if self.device.os == "android":
                 wfh.write(SESSION_TEXT_TEMPLATE.format('127.0.0.1', self.port, caiman_path))
             else:
                 wfh.write(SESSION_TEXT_TEMPLATE.format(self.device.host, self.port, caiman_path))
 
         if self.configuration_file:
-            self.device.push_file(self.configuration_file, self.on_device_config)
+            self.device.push(self.configuration_file, self.on_device_config)
         self._initialize_daemon()
 
     def setup(self, context):
@@ -220,7 +220,7 @@ class StreamlineInstrument(Instrument):
 
     def teardown(self, context):
         self._kill_daemon()
-        self.device.delete_file(self.on_device_config)
+        self.device.remove(self.on_device_config)
 
     def _check_has_valid_display(self):  # pylint: disable=R0201
         reason = None
@@ -243,7 +243,7 @@ class StreamlineInstrument(Instrument):
                     raise
                 self.logger.debug('Driver was already installed.')
         self._start_daemon()
-        if self.device.platform == "android":
+        if self.device.os == "android":
             port_spec = 'tcp:{}'.format(self.port)
             self.device.forward_port(port_spec, port_spec)
 

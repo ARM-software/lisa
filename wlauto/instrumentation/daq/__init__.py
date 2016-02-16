@@ -197,12 +197,12 @@ class Daq(Instrument):
                 raise InstrumentError('GPIO sysfs not enabled on the device.')
             try:
                 export_path = self.device.path.join(GPIO_ROOT, 'export')
-                self.device.set_sysfile_value(export_path, self.gpio_sync, verify=False)
+                self.device.write_value(export_path, self.gpio_sync, verify=False)
                 pin_root = self.device.path.join(GPIO_ROOT, 'gpio{}'.format(self.gpio_sync))
                 direction_path = self.device.path.join(pin_root, 'direction')
-                self.device.set_sysfile_value(direction_path, 'out')
+                self.device.write_value(direction_path, 'out')
                 self.gpio_path = self.device.path.join(pin_root, 'value')
-                self.device.set_sysfile_value(self.gpio_path, 0, verify=False)
+                self.device.write_value(self.gpio_path, 0, verify=False)
                 signal.connect(self.insert_start_marker, signal.BEFORE_WORKLOAD_EXECUTION, priority=11)
                 signal.connect(self.insert_stop_marker, signal.AFTER_WORKLOAD_EXECUTION, priority=11)
             except DeviceError as e:
@@ -276,7 +276,7 @@ class Daq(Instrument):
     def finalize(self, context):
         if self.gpio_path:
             unexport_path = self.device.path.join(GPIO_ROOT, 'unexport')
-            self.device.set_sysfile_value(unexport_path, self.gpio_sync, verify=False)
+            self.device.write_value(unexport_path, self.gpio_sync, verify=False)
 
     def validate(self):  # pylint: disable=too-many-branches
         if not daq:

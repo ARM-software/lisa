@@ -81,7 +81,7 @@ class JunoEnergy(Instrument):
         self.device.killall('readenergy', signal='TERM', as_root=True)
 
     def update_result(self, context):
-        self.device.pull_file(self.device_output_file, self.host_output_file)
+        self.device.pull(self.device_output_file, self.host_output_file)
         context.add_artifact('junoenergy', self.host_output_file, 'data')
 
         with open(self.host_output_file) as fh:
@@ -99,7 +99,7 @@ class JunoEnergy(Instrument):
                 context.add_metric(header, value, UNIT_MAP[header.split('_')[-1]])
 
     def teardown(self, conetext):
-        self.device.delete_file(self.device_output_file)
+        self.device.remove(self.device_output_file)
 
     def validate(self):
         if self.strict:

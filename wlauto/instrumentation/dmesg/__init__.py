@@ -39,7 +39,7 @@ class DmesgInstrument(Instrument):
     def setup(self, context):
         if self.loglevel:
             self.old_loglevel = self.device.get_sysfile_value(self.loglevel_file)
-            self.device.set_sysfile_value(self.loglevel_file, self.loglevel, verify=False)
+            self.device.write_value(self.loglevel_file, self.loglevel, verify=False)
         self.before_file = _f(os.path.join(context.output_directory, 'dmesg', 'before'))
         self.after_file = _f(os.path.join(context.output_directory, 'dmesg', 'after'))
 
@@ -57,6 +57,6 @@ class DmesgInstrument(Instrument):
 
     def teardown(self, context):  # pylint: disable=unused-argument
         if self.loglevel:
-            self.device.set_sysfile_value(self.loglevel_file, self.old_loglevel, verify=False)
+            self.device.write_value(self.loglevel_file, self.old_loglevel, verify=False)
 
 

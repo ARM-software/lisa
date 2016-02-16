@@ -65,7 +65,7 @@ class ScreenOnInstrument(Instrument):
 
     def initialize(self, context):
         self.monitor = None
-        if self.device.platform != 'android':
+        if self.device.os != 'android':
             raise InstrumentError('screenon instrument currently only supports Android devices.')
 
     def slow_setup(self, context):   # slow to run before most other setups

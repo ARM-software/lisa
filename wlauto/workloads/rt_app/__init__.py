@@ -164,7 +164,7 @@ class RtApp(Workload):
         self.host_json_config = self._load_json_config(context)
         self.config_file_on_device = self.device.path.join(self.device_working_directory,
                                                            os.path.basename(self.host_json_config))
-        self.device.push_file(self.host_json_config, self.config_file_on_device, timeout=60)
+        self.device.push(self.host_json_config, self.config_file_on_device, timeout=60)
         self.command = '{} {}'.format(self.device_binary, self.config_file_on_device)
 
         time_buffer = 30
@@ -216,7 +216,7 @@ class RtApp(Workload):
 
     def _deploy_rt_app_binary_if_necessary(self):
         # called from initialize() so gets invoked once per run
-        RtApp.device_binary = self.device.get_binary_path("rt-app")
+        RtApp.device_binary = self.device.get_installed("rt-app")
         if self.force_install or not RtApp.device_binary:
             if not self.host_binary:
                 message = '''rt-app is not installed on the device and could not be
@@ -274,7 +274,7 @@ class RtApp(Workload):
         self.device.execute(tar_command, timeout=300)
         device_path = self.device.path.join(self.device_working_directory, TARBALL_FILENAME)
         host_path = os.path.join(context.output_directory, TARBALL_FILENAME)
-        self.device.pull_file(device_path, host_path, timeout=120)
+        self.device.pull(device_path, host_path, timeout=120)
         with tarfile.open(host_path, 'r:gz') as tf:
             tf.extractall(context.output_directory)
         os.remove(host_path)

@@ -122,7 +122,7 @@ class lmbench(Workload):
         context.add_artifact('lmbench', 'lmbench.output', 'data')
 
     def teardown(self, context):
-        self.device.uninstall_executable(self.test)
+        self.device.uninstall(self.test)
 
     #
     # Test setup routines

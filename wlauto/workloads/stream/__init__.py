@@ -69,7 +69,7 @@ class Stream(Workload):
         self.output = self.device.execute(self.command, timeout=self.timeout)
 
     def update_result(self, context):
-        self.device.pull_file(self.results, context.output_directory)
+        self.device.pull(self.results, context.output_directory)
         outfile = os.path.join(context.output_directory, stream_results_txt)
 
         with open(outfile, 'r') as stream_file:
@@ -89,5 +89,5 @@ class Stream(Workload):
                         context.result.add_metric(label, float(match.group(1)), match.group(2))
 
     def finalize(self, context):
-        self.device.uninstall_executable(self.stream_default)
-        self.device.uninstall_executable(self.stream_optional)
+        self.device.uninstall(self.stream_default)
+        self.device.uninstall(self.stream_optional)

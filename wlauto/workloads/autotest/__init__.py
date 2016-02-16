@@ -59,7 +59,7 @@ class ChromeAutotest(Workload):
     ]
 
     def setup(self, context):
-        if self.device.platform != 'chromeos':
+        if self.device.os != 'chromeos':
             raise WorkloadError('{} only supports ChromeOS devices'.format(self.name))
         self.test_that = which('test_that')
         if not self.test_that:

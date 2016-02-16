@@ -166,7 +166,7 @@ class TraceCmdInstrument(Instrument):
             host_file = context.resolver.get(Executable(self, self.device.abi, 'trace-cmd'))
             self.trace_cmd = self.device.install(host_file)
         else:
-            self.trace_cmd = self.device.get_binary_path("trace-cmd")
+            self.trace_cmd = self.device.get_installed("trace-cmd")
             if not self.trace_cmd:
                 raise ConfigError('No trace-cmd found on device and no_install=True is specified.')
 
@@ -233,7 +233,7 @@ class TraceCmdInstrument(Instrument):
         # Therefore timout for the pull command must also be adjusted
         # accordingly.
         self._pull_timeout = (self.stop_time - self.start_time)  # pylint: disable=attribute-defined-outside-init
-        self.device.pull_file(self.output_file, context.output_directory, timeout=self._pull_timeout)
+        self.device.pull(self.output_file, context.output_directory, timeout=self._pull_timeout)
         context.add_iteration_artifact('bintrace', OUTPUT_TRACE_FILE, kind='data',
                                        description='trace-cmd generated ftrace dump.')
 
@@ -263,7 +263,7 @@ class TraceCmdInstrument(Instrument):
                 self.logger.warning('Could not generate trace.txt.')
 
     def teardown(self, context):
-        self.device.delete_file(os.path.join(self.device.working_directory, OUTPUT_TRACE_FILE))
+        self.device.remove(os.path.join(self.device.working_directory, OUTPUT_TRACE_FILE))
 
     def on_run_end(self, context):
         pass
@@ -282,11 +282,11 @@ class TraceCmdInstrument(Instrument):
 
     def insert_start_mark(self, context):
         # trace marker appears in ftrace as an ftrace/print event with TRACE_MARKER_START in info field
-        self.device.set_sysfile_value("/sys/kernel/debug/tracing/trace_marker", "TRACE_MARKER_START", verify=False)
+        self.device.write_value("/sys/kernel/debug/tracing/trace_marker", "TRACE_MARKER_START", verify=False)
 
     def insert_end_mark(self, context):
         # trace marker appears in ftrace as an ftrace/print event with TRACE_MARKER_STOP in info field
-        self.device.set_sysfile_value("/sys/kernel/debug/tracing/trace_marker", "TRACE_MARKER_STOP", verify=False)
+        self.device.write_value("/sys/kernel/debug/tracing/trace_marker", "TRACE_MARKER_STOP", verify=False)
 
     def _set_buffer_size(self):
         target_buffer_size = self.buffer_size
@@ -294,7 +294,7 @@ class TraceCmdInstrument(Instrument):
         buffer_size = 0
         floor = 1000 if target_buffer_size > 1000 else target_buffer_size
         while attempt_buffer_size >= floor:
-            self.device.set_sysfile_value(self.buffer_size_file, attempt_buffer_size, verify=False)
+            self.device.write_value(self.buffer_size_file, attempt_buffer_size, verify=False)
             buffer_size = self.device.get_sysfile_value(self.buffer_size_file, kind=int)
             if buffer_size == attempt_buffer_size:
                 break
@@ -304,7 +304,7 @@ class TraceCmdInstrument(Instrument):
             return
         while attempt_buffer_size < target_buffer_size:
             attempt_buffer_size += self.buffer_size_step
-            self.device.set_sysfile_value(self.buffer_size_file, attempt_buffer_size, verify=False)
+            self.device.write_value(self.buffer_size_file, attempt_buffer_size, verify=False)
             buffer_size = self.device.get_sysfile_value(self.buffer_size_file, kind=int)
             if attempt_buffer_size != buffer_size:
                 self.logger.warning('Failed to set trace buffer size to {}, value set was {}'.format(target_buffer_size, buffer_size))
@@ -316,7 +316,7 @@ class TraceCmdInstrument(Instrument):
             txt_trace_file = os.path.join(self.device.working_directory, OUTPUT_TEXT_FILE)
             command = 'trace-cmd report {} > {}'.format(trace_file, txt_trace_file)
             self.device.execute(command)
-            self.device.pull_file(txt_trace_file, context.output_directory, timeout=self._pull_timeout)
+            self.device.pull(txt_trace_file, context.output_directory, timeout=self._pull_timeout)
         except DeviceError:
             raise InstrumentError('Could not generate TXT report on target.')
 

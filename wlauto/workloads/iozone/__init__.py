@@ -177,12 +177,12 @@ class Iozone(Workload):
         self.device.execute(self.command, timeout=self.timeout)
 
     def update_result(self, context):
-        self.device.pull_file(self.results, context.output_directory)
+        self.device.pull(self.results, context.output_directory)
         self.outfile = os.path.join(context.output_directory,
                                     iozone_results_txt)
 
         if '-b' in self.other_params:
-            self.device.pull_file(self.device_output_file,
+            self.device.pull(self.device_output_file,
                                   context.output_directory)
 
         # if running in thread mode
@@ -313,4 +313,4 @@ class Iozone(Workload):
         return results
 
     def finalize(self, context):
-        self.device.uninstall_executable(self.device_binary)
+        self.device.uninstall(self.device_binary)

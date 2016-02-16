@@ -108,7 +108,7 @@ class VideoWorkload(Workload):
         on_device_video_file = os.path.join(self.device.working_directory, os.path.basename(self.host_video_file))
         if self.force_dependency_push or not self.device.file_exists(on_device_video_file):
             self.logger.debug('Copying {} to device.'.format(self.host_video_file))
-            self.device.push_file(self.host_video_file, on_device_video_file, timeout=120)
+            self.device.push(self.host_video_file, on_device_video_file, timeout=120)
         self.device.execute('am start -n  com.android.browser/.BrowserActivity about:blank')
         time.sleep(5)
         self.device.execute('am force-stop com.android.browser')

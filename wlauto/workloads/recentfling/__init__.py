@@ -57,8 +57,8 @@ class Recentfling(Workload):
     def setup(self, context):
         self.defs_host = context.resolver.get(File(self, "defs.sh"))
         self.recentfling_host = context.resolver.get(File(self, "recentfling.sh"))
-        self.device.push_file(self.recentfling_host, self.device.working_directory)
-        self.device.push_file(self.defs_host, self.device.working_directory)
+        self.device.push(self.recentfling_host, self.device.working_directory)
+        self.device.push(self.defs_host, self.device.working_directory)
         self._kill_recentfling()
         self.device.ensure_screen_is_on()
 
@@ -89,9 +89,9 @@ class Recentfling(Workload):
                                               classifiers={"loop": count or "Average"})
 
     def teardown(self, context):
-        self.device.delete_file(self.device.path.join(self.device.working_directory,
+        self.device.remove(self.device.path.join(self.device.working_directory,
                                                       "recentfling.sh"))
-        self.device.delete_file(self.device.path.join(self.device.working_directory,
+        self.device.remove(self.device.path.join(self.device.working_directory,
                                                       "defs.sh"))
 
     def _kill_recentfling(self):

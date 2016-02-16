@@ -253,7 +253,7 @@ class Spec2000(Workload):
         if self.force_push_assets or not self.device.file_exists(datadir):
             self.device.execute('mkdir -p {}'.format(datadir))
             for datafile in bench.datafiles:
-                self.device.push_file(datafile, self.device.path.join(datadir, os.path.basename(datafile)))
+                self.device.push(datafile, self.device.path.join(datadir, os.path.basename(datafile)))
 
         if self.mode == 'speed':
             cpus = [self._get_fastest_cpu().lower()]

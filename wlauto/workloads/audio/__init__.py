@@ -57,7 +57,7 @@ class Audio(Workload):
         self.on_device_file = os.path.join(self.device.working_directory,
                                            os.path.basename(self.audio_file))
 
-        self.device.push_file(self.audio_file, self.on_device_file, timeout=120)
+        self.device.push(self.audio_file, self.on_device_file, timeout=120)
 
         # Open the browser with default page
         self.device.execute('am start -n  com.android.browser/.BrowserActivity about:blank')
@@ -75,7 +75,7 @@ class Audio(Workload):
 
         if self.clear_file_cache:
             self.device.execute('sync')
-            self.device.set_sysfile_value('/proc/sys/vm/drop_caches', 3)
+            self.device.write_value('/proc/sys/vm/drop_caches', 3)
 
         # Start the background music
         self.device.execute('am start -W -S -n com.android.music/.MediaPlaybackActivity -d {}'.format(self.on_device_file))
@@ -95,7 +95,7 @@ class Audio(Workload):
 
     def teardown(self, context):
         if self.perform_cleanup:
-            self.device.delete_file(self.on_device_file)
+            self.device.remove(self.on_device_file)
 
     def _download_audio_file(self):
         self.logger.debug('Downloading audio file from {}'.format(DEFAULT_AUDIO_FILE_URL))

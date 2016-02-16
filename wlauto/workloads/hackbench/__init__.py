@@ -71,7 +71,7 @@ class Hackbench(Workload):
         self.device.execute(self.command, timeout=self.run_timeout)
 
     def update_result(self, context):
-        self.device.pull_file(self.hackbench_result, context.output_directory)
+        self.device.pull(self.hackbench_result, context.output_directory)
 
         with open(os.path.join(context.output_directory, hackbench_results_txt)) as hackbench_file:
             for line in hackbench_file:
@@ -81,7 +81,7 @@ class Hackbench(Workload):
                         context.result.add_metric(label, float(match.group(1)), units)
 
     def teardown(self, context):
-        self.device.uninstall_executable(self.binary_name)
+        self.device.uninstall(self.binary_name)
         self.device.execute('rm -f {}'.format(self.hackbench_result))
 
     def validate(self):

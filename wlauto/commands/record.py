@@ -122,7 +122,7 @@ class RecordCommand(Command):
         self.device.killall("revent")
 
         self.logger.info("Pulling files from device")
-        self.device.pull_file(revent_file, args.output or os.getcwdu())
+        self.device.pull(revent_file, args.output or os.getcwdu())
 
 
 class ReplayCommand(RecordCommand):
@@ -144,7 +144,7 @@ class ReplayCommand(RecordCommand):
     # pylint: disable=W0201
     def run(self, args):
         self.logger.info("Pushing file to device")
-        self.device.push_file(args.revent, self.device.working_directory)
+        self.device.push(args.revent, self.device.working_directory)
         revent_file = self.device.path.join(self.device.working_directory, os.path.split(args.revent)[1])
 
         if args.clear:

@@ -132,7 +132,7 @@ class ApplaunchWorkload(Workload):
         if self.io_stress:
             host_scheduler_file = os.path.join(context.output_directory, 'scheduler')
             device_scheduler_file = '/sys/block/mmcblk0/queue/scheduler'
-            self.device.pull_file(device_scheduler_file, host_scheduler_file)
+            self.device.pull(device_scheduler_file, host_scheduler_file)
             with open(host_scheduler_file) as fh:
                 scheduler = fh.read()
                 scheduler_used = scheduler[scheduler.index("[") + 1:scheduler.index("]")]
@@ -144,7 +144,7 @@ class ApplaunchWorkload(Workload):
         if self.set_launcher_affinity:
             self._reset_launcher_affinity()
         if self.cleanup:
-            self.device.delete_file(self.device_script_file)
+            self.device.remove(self.device_script_file)
 
     def _set_launcher_affinity(self):
         try:
@@ -169,7 +169,7 @@ class ApplaunchWorkload(Workload):
     def _extract_results_from_file(self, context, filename, metric_suffix):
         host_result_file = os.path.join(context.output_directory, filename)
         device_result_file = self.device.path.join(self.device.working_directory, filename)
-        self.device.pull_file(device_result_file, host_result_file)
+        self.device.pull(device_result_file, host_result_file)
 
         with open(host_result_file) as fh:
             if filename == 'time.result':

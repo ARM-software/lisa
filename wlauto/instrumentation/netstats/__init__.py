@@ -159,7 +159,7 @@ class NetstatsInstrument(Instrument):
     ]
 
     def initialize(self, context):
-        if self.device.platform != 'android':
+        if self.device.os != 'android':
             raise DeviceError('nestats instrument only supports on Android devices.')
         apk = context.resolver.get(ApkFile(self))
         self.collector = NetstatsCollector(self.device, apk)  # pylint: disable=attribute-defined-outside-init

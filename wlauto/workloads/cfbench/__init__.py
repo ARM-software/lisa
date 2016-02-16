@@ -57,7 +57,7 @@ class Cfbench(AndroidUiAutoBenchmark):
                                            self.package,
                                            'shared_prefs', 'eu.chainfire.cfbench_preferences.xml ')
         self.device.execute('cp {} {}'.format(device_results_file, self.device.working_directory), as_root=True)
-        self.device.pull_file(os.path.join(self.device.working_directory, 'eu.chainfire.cfbench_preferences.xml'), context.output_directory)
+        self.device.pull(os.path.join(self.device.working_directory, 'eu.chainfire.cfbench_preferences.xml'), context.output_directory)
         result_file = os.path.join(context.output_directory, 'eu.chainfire.cfbench_preferences.xml')
         tree = ET.parse(result_file)
         root = tree.getroot()

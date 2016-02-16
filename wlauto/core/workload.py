@@ -47,8 +47,9 @@ class Workload(Extension):
         super(Workload, self).__init__(**kwargs)
         if self.supported_devices and device.name not in self.supported_devices:
             raise WorkloadError('Workload {} does not support device {}'.format(self.name, device.name))
-        if self.supported_platforms and device.platform not in self.supported_platforms:
-            raise WorkloadError('Workload {} does not support platform {}'.format(self.name, device.platform))
+
+        if self.supported_platforms and device.os not in self.supported_platforms:
+            raise WorkloadError('Workload {} does not support platform {}'.format(self.name, device.os))
         self.device = device
 
     def init_resources(self, context):
@@ -101,4 +102,3 @@ class Workload(Extension):
 
     def __str__(self):
         return '<Workload {}>'.format(self.name)
-

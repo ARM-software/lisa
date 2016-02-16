@@ -33,9 +33,11 @@ import tarfile
 from itertools import izip, izip_longest
 from subprocess import CalledProcessError
 
+from devlib.exception import TargetError
+
 from wlauto import Instrument, Parameter
 from wlauto.core import signal
-from wlauto.exceptions import DeviceError, ConfigError
+from wlauto.exceptions import ConfigError
 from wlauto.utils.misc import diff_tokens, write_table, check_output, as_relative
 from wlauto.utils.misc import ensure_file_directory_exists as _f
 from wlauto.utils.misc import ensure_directory_exists as _d
@@ -134,7 +136,7 @@ class SysfsExtractor(Instrument):
                                     as_root=True, check_exit_code=False)
         else:  # not rooted
             for dev_dir, before_dir, _, _ in self.device_and_host_paths:
-                self.device.pull_file(dev_dir, before_dir)
+                self.device.pull(dev_dir, before_dir)
 
     def slow_stop(self, context):
         if self.use_tmpfs:
@@ -146,7 +148,7 @@ class SysfsExtractor(Instrument):
                                     as_root=True, check_exit_code=False)
         else:  # not using tmpfs
             for dev_dir, _, after_dir, _ in self.device_and_host_paths:
-                self.device.pull_file(dev_dir, after_dir)
+                self.device.pull(dev_dir, after_dir)
 
     def update_result(self, context):
         if self.use_tmpfs:
@@ -157,10 +159,10 @@ class SysfsExtractor(Instrument):
                                                                self.tmpfs_mount_point),
                                 as_root=True)
             self.device.execute('chmod 0777 {}'.format(on_device_tarball), as_root=True)
-            self.device.pull_file(on_device_tarball, on_host_tarball)
+            self.device.pull(on_device_tarball, on_host_tarball)
             with tarfile.open(on_host_tarball, 'r:gz') as tf:
                 tf.extractall(context.output_directory)
-            self.device.delete_file(on_device_tarball)
+            self.device.remove(on_device_tarball)
             os.remove(on_host_tarball)
 
         for paths in self.device_and_host_paths:
@@ -181,7 +183,7 @@ class SysfsExtractor(Instrument):
         if self.use_tmpfs:
             try:
                 self.device.execute('umount {}'.format(self.tmpfs_mount_point), as_root=True)
-            except (DeviceError, CalledProcessError):
+            except (TargetError, CalledProcessError):
                 # assume a directory but not mount point
                 pass
             self.device.execute('rm -rf {}'.format(self.tmpfs_mount_point),
@@ -386,4 +388,3 @@ def _diff_sysfs_dirs(before, after, result):  # pylint: disable=R0914
                     else:
                         dchunks = [diff_tokens(b, a) for b, a in zip(bchunks, achunks)]
                     dfh.write(''.join(dchunks))
-

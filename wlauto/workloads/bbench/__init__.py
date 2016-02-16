@@ -93,12 +93,12 @@ class BBench(Workload):
 
         if self.with_audio:
             if self.force_dependency_push or not self.device.file_exists(self.audio_on_device):
-                self.device.push_file(self.audio_file, self.audio_on_device, timeout=120)
+                self.device.push(self.audio_file, self.audio_on_device, timeout=120)
 
         # Push the bbench site pages and http server to target device
         if self.force_dependency_push or not self.device.file_exists(self.bbench_on_device):
             self.logger.debug('Copying bbench sites to device.')
-            self.device.push_file(self.dependencies_directory, self.bbench_on_device, timeout=300)
+            self.device.push(self.dependencies_directory, self.bbench_on_device, timeout=300)
 
         # Push the bbench server
         host_binary = context.resolver.get(Executable(self, self.device.abi, 'bbench_server'))
@@ -120,7 +120,7 @@ class BBench(Workload):
         self.device.execute('pm clear {}'.format(self.browser_package))
         if self.clear_file_cache:
             self.device.execute('sync')
-            self.device.set_sysfile_value('/proc/sys/vm/drop_caches', 3)
+            self.device.write_value('/proc/sys/vm/drop_caches', 3)
 
         #On android 6+ the web browser requires permissions to access the sd card
         if self.device.get_sdk_version() >= 23:
@@ -148,12 +148,12 @@ class BBench(Workload):
 
         # Get index_no_input.html
         indexfile = os.path.join(self.device.working_directory, 'bbench/index_noinput.html')
-        self.device.pull_file(indexfile, context.output_directory)
+        self.device.pull(indexfile, context.output_directory)
 
         # Get the logs
         output_file = os.path.join(self.device.working_directory, 'browser_bbench_logcat.txt')
         self.device.execute('logcat -v time -d > {}'.format(output_file))
-        self.device.pull_file(output_file, context.output_directory)
+        self.device.pull(output_file, context.output_directory)
 
         metrics = _parse_metrics(os.path.join(context.output_directory, 'browser_bbench_logcat.txt'),
                                  os.path.join(context.output_directory, 'index_noinput.html'),

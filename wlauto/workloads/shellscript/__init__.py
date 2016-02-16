@@ -51,7 +51,7 @@ class ShellScript(Workload):
     def setup(self, context):
         self.on_device_script_file = self.device.path.join(self.device.working_directory,
                                                            os.path.basename(self.script_file))
-        self.device.push_file(self.script_file, self.on_device_script_file)
+        self.device.push(self.script_file, self.on_device_script_file)
         self.command = 'sh {} {}'.format(self.on_device_script_file, self.argstring)
 
     def run(self, context):
@@ -62,4 +62,4 @@ class ShellScript(Workload):
             wfh.write(self.output)
 
     def teardown(self, context):
-        self.device.delete_file(self.on_device_script_file)
+        self.device.remove(self.on_device_script_file)

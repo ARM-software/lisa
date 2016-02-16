@@ -189,12 +189,12 @@ class Telemetry(Workload):
         if self.target_config:
             device_opts = self.target_config
         else:
-            if self.device.platform == 'chromeos':
+            if self.device.os == 'chromeos':
                 if '--remote' not in self.run_benchmark_params:
                     device_opts += '--remote={} '.format(self.device.host)
                 if '--browser' not in self.run_benchmark_params:
                     device_opts += '--browser=cros-chrome '
-            elif self.device.platform == 'android':
+            elif self.device.os == 'android':
                 if '--device' not in self.run_benchmark_params and self.device.adb_name:
                     device_opts += '--device={} '.format(self.device.adb_name)
                 if '--browser' not in self.run_benchmark_params:

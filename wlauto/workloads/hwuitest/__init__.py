@@ -105,4 +105,4 @@ class HWUITest(Workload):
                                                        "frames": self.frames})
 
     def teardown(self, context):
-        self.device.uninstall_executable(BINARY)
+        self.device.uninstall(BINARY)

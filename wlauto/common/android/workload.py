@@ -89,7 +89,7 @@ class UiAutomatorWorkload(Workload):
         for k, v in self.uiauto_params.iteritems():
             params += ' -e {} {}'.format(k, v)
         self.command = 'uiautomator runtest {}{} -c {}'.format(self.device_uiauto_file, params, method_string)
-        self.device.push_file(self.uiauto_file, self.device_uiauto_file)
+        self.device.push(self.uiauto_file, self.device_uiauto_file)
         self.device.killall('uiautomator')
 
     def run(self, context):
@@ -104,7 +104,7 @@ class UiAutomatorWorkload(Workload):
         pass
 
     def teardown(self, context):
-        self.device.delete_file(self.device_uiauto_file)
+        self.device.remove(self.device_uiauto_file)
 
     def validate(self):
         if not self.uiauto_file:
@@ -333,8 +333,8 @@ class ReventWorkload(Workload):
         pass
 
     def teardown(self, context):
-        self.device.delete_file(self.on_device_setup_revent)
-        self.device.delete_file(self.on_device_run_revent)
+        self.device.remove(self.on_device_setup_revent)
+        self.device.remove(self.on_device_run_revent)
 
     def _check_revent_files(self, context):
         # check the revent binary
@@ -353,8 +353,8 @@ class ReventWorkload(Workload):
             raise WorkloadError(message)
 
         self.on_device_revent_binary = self.device.install_executable(revent_binary)
-        self.device.push_file(self.revent_run_file, self.on_device_run_revent)
-        self.device.push_file(self.revent_setup_file, self.on_device_setup_revent)
+        self.device.push(self.revent_run_file, self.on_device_run_revent)
+        self.device.push(self.revent_setup_file, self.on_device_setup_revent)
 
 
 class AndroidUiAutoBenchmark(UiAutomatorWorkload, AndroidBenchmark):
@@ -486,7 +486,7 @@ class GameWorkload(ApkWorkload, ReventWorkload):
                 raise WorkloadError(message.format(resource_file, self.name))
             # adb push will create intermediate directories if they don't
             # exist.
-            self.device.push_file(asset_tarball, ondevice_cache, timeout=timeout)
+            self.device.push(asset_tarball, ondevice_cache, timeout=timeout)
 
         device_asset_directory = self.device.path.join(self.device.external_storage_directory, 'Android', kind)
         deploy_command = 'cd {} && {} tar -xzf {}'.format(device_asset_directory,

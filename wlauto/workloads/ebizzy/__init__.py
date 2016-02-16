@@ -67,7 +67,7 @@ class Ebizzy(Workload):
         self.device.execute(self.command, timeout=self.run_timeout)
 
     def update_result(self, context):
-        self.device.pull_file(self.ebizzy_results, context.output_directory)
+        self.device.pull(self.ebizzy_results, context.output_directory)
 
         with open(os.path.join(context.output_directory, results_txt)) as ebizzy_file:
             for line in ebizzy_file:
@@ -83,7 +83,7 @@ class Ebizzy(Workload):
                                               results_match.group('unit'))
 
     def teardown(self, context):
-        self.device.uninstall_executable(self.device_binary)
+        self.device.uninstall(self.device_binary)
 
     def validate(self):
         pass

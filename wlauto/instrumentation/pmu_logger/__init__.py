@@ -91,21 +91,21 @@ class CciPmuLogger(Instrument):
         if self.install_module:
             self.device_driver_file = self.device.path.join(self.device.working_directory, DRIVER)
             host_driver_file = os.path.join(settings.dependencies_directory, DRIVER)
-            self.device.push_file(host_driver_file, self.device_driver_file)
+            self.device.push(host_driver_file, self.device_driver_file)
 
     def setup(self, context):
         if self.install_module:
             self.device.execute('insmod {}'.format(self.device_driver_file), check_exit_code=False)
-        self.device.set_sysfile_value(CPL_PERIOD_FILE, self.period)
+        self.device.write_value(CPL_PERIOD_FILE, self.period)
         for i, event in enumerate(self.events):
             counter = CPL_BASE + 'counter{}'.format(i)
-            self.device.set_sysfile_value(counter, event, verify=False)
+            self.device.write_value(counter, event, verify=False)
 
     def start(self, context):
-        self.device.set_sysfile_value(CPL_CONTROL_FILE, 1, verify=False)
+        self.device.write_value(CPL_CONTROL_FILE, 1, verify=False)
 
     def stop(self, context):
-        self.device.set_sysfile_value(CPL_CONTROL_FILE, 1, verify=False)
+        self.device.write_value(CPL_CONTROL_FILE, 1, verify=False)
 
     # Doing result processing inside teardown because need to make sure that
     # trace-cmd has processed its results and generated the trace.txt

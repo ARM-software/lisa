@@ -112,7 +112,7 @@ class Sysbench(Workload):
 
     def update_result(self, context):
         host_results_file = os.path.join(context.output_directory, 'sysbench_result.txt')
-        self.device.pull_file(self.results_file, host_results_file)
+        self.device.pull(self.results_file, host_results_file)
         context.add_iteration_artifact('sysbench_output', kind='raw', path=host_results_file)
 
         with open(host_results_file) as fh:
@@ -129,10 +129,10 @@ class Sysbench(Workload):
             extract_threads_fairness_metric('execution time', fh.next(), context.result)
 
     def teardown(self, context):
-        self.device.delete_file(self.results_file)
+        self.device.remove(self.results_file)
 
     def _check_executable(self):
-        self.on_device_binary = self.device.get_binary_path("sysbench")
+        self.on_device_binary = self.device.get_installed("sysbench")
         if not self.on_device_binary and not self.on_host_binary:
             raise WorkloadError('sysbench binary is not installed on the device, and it is not found on the host.')
         if self.force_install:

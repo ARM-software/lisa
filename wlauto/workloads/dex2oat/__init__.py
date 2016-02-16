@@ -71,7 +71,7 @@ class Dex2oatBenchmark(Workload):
         self.command = self.command_template.format(on_device_apk, self.on_device_oat, self.instruction_set)
 
         if not self.device.file_exists(on_device_apk):
-            self.device.push_file(self.apk_file, on_device_apk)
+            self.device.push(self.apk_file, on_device_apk)
 
     def run(self, context):
         self.device.execute(self.command, self.run_timeout)
@@ -118,5 +118,4 @@ class Dex2oatBenchmark(Workload):
             context.result.add_metric('dex2oat_comp_time', time, "ms", lower_is_better=True)
 
     def teardown(self, context):
-        self.device.delete_file(self.on_device_oat)
-
+        self.device.remove(self.on_device_oat)

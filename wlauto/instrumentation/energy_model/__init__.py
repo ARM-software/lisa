@@ -634,7 +634,7 @@ class EnergyModelInstrument(Instrument):
         self.enable_all_idle_states()
         self.reset_cgroups()
         self.cpuset.move_all_tasks_to(self.measuring_cluster)
-        server_process = 'adbd' if self.device.platform == 'android' else 'sshd'
+        server_process = 'adbd' if self.device.os == 'android' else 'sshd'
         server_pids = self.device.get_pids_of(server_process)
         children_ps = [e for e in self.device.ps()
                        if e.ppid in server_pids and e.name != 'sshd']
@@ -769,7 +769,7 @@ class EnergyModelInstrument(Instrument):
             for tzpath in tzone_paths.strip().split():
                 mode_file = '{}/mode'.format(tzpath)
                 if self.device.file_exists(mode_file):
-                    self.device.set_sysfile_value(mode_file, 'disabled')
+                    self.device.write_value(mode_file, 'disabled')
 
     def get_device_idle_states(self, cluster):
         if cluster == 'big':

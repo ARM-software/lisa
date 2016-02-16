@@ -120,7 +120,7 @@ class Dhrystone(Workload):
         context.result.add_metric('total score', total_score)
 
     def teardown(self, context):
-        self.device.uninstall_executable('dhrystone')
+        self.device.uninstall('dhrystone')
 
     def validate(self):
         if self.mloops and self.duration:  # pylint: disable=E0203
