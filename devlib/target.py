@@ -20,7 +20,7 @@ from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_s
 
 
 FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (\S+) type (\S+) \((\S+)\)')
-ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn)=([0-9]+|true|false)',
+ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|Display Power: state)=([0-9]+|true|false|ON|OFF)',
                                         re.IGNORECASE)
 ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'mUnrestrictedScreen=\(\d+,\d+\)'
                                              r'\s+(?P<width>\d+)x(?P<height>\d+)')
@@ -348,6 +348,12 @@ class Target(object):
         command = 'if [ -e \'{}\' ]; then echo 1; else echo 0; fi'
         return boolean(self.execute(command.format(filepath)).strip())
 
+    def directory_exists(self, filepath):
+        output = self.execute('if [ -d \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
+        # output from ssh my contain part of the expression in the buffer,
+        # split out everything except the last word.
+        return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
+
     def list_file_systems(self):
         output = self.execute('mount')
         fstab = []
@@ -415,18 +421,29 @@ class Target(object):
     def uninstall(self, name):
         raise NotImplementedError()
 
-    def get_installed(self, name):
-        for path in self.getenv('PATH').split(self.path.pathsep):
-            try:
-                if  name in self.list_directory(path):
-                    return self.path.join(path, name)
-            except TargetError:
-                pass  # directory does not exist or no executable premssions
+    def get_installed(self, name, search_system_binaries=True):
+        # Check user installed binaries first
         if self.file_exists(self.executables_directory):
             if name in self.list_directory(self.executables_directory):
                 return self.path.join(self.executables_directory, name)
+        # Fall back to binaries in PATH
+        if search_system_binaries:
+            for path in self.getenv('PATH').split(self.path.pathsep):
+                try:
+                    if name in self.list_directory(path):
+                        return self.path.join(path, name)
+                except TargetError:
+                    pass  # directory does not exist or no executable premssions
 
     which = get_installed
+
+    def install_if_needed(self, host_path, search_system_binaries=True):
+
+        binary_path = self.get_installed(os.path.split(host_path)[1],
+                                         search_system_binaries=search_system_binaries)
+        if not binary_path:
+            binary_path = self.install(host_path)
+        return binary_path
 
     def is_installed(self, name):
         return bool(self.get_installed(name))
@@ -627,6 +644,21 @@ class AndroidTarget(Target):
         return self.conn.device
 
     @property
+    def android_id(self):
+        """
+        Get the device's ANDROID_ID. Which is
+
+            "A 64-bit number (as a hex string) that is randomly generated when the user
+            first sets up the device and should remain constant for the lifetime of the
+            user's device."
+
+        .. note:: This will get reset on userdata erasure.
+
+        """
+        output = self.execute('content query --uri content://settings/secure --projection value --where "name=\'android_id\'"').strip()
+        return output.split('value=')[-1]
+
+    @property
     @memoized
     def screen_resolution(self):
         output = self.execute('dumpsys window')
@@ -636,7 +668,6 @@ class AndroidTarget(Target):
                     int(match.group('height')))
         else:
             return (0, 0)
-
 
     def reset(self, fastboot=False):  # pylint: disable=arguments-differ
         try:
@@ -741,28 +772,35 @@ class AndroidTarget(Target):
             self.conn.push(source, dest, timeout=timeout)
         else:
             device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute('mkdir -p {}'.format(self.path.dirname(device_tempfile)))
+            self.execute("mkdir -p '{}'".format(self.path.dirname(device_tempfile)))
             self.conn.push(source, device_tempfile, timeout=timeout)
-            self.execute('cp {} {}'.format(device_tempfile, dest), as_root=True)
+            self.execute("cp '{}' '{}'".format(device_tempfile, dest), as_root=True)
 
     def pull(self, source, dest, as_root=False, timeout=None):  # pylint: disable=arguments-differ
         if not as_root:
             self.conn.pull(source, dest, timeout=timeout)
         else:
             device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute('mkdir -p {}'.format(self.path.dirname(device_tempfile)))
-            self.execute('cp {} {}'.format(source, device_tempfile), as_root=True)
+            self.execute("mkdir -p '{}'".format(self.path.dirname(device_tempfile)))
+            self.execute("cp '{}' '{}'".format(source, device_tempfile), as_root=True)
             self.conn.pull(device_tempfile, dest, timeout=timeout)
 
     # Android-specific
 
-    def swipe_to_unlock(self):
+    def swipe_to_unlock(self, direction="horizontal"):
         width, height = self.screen_resolution
-        swipe_heigh = height * 2 // 3
-        start = 100
-        stop = width - start
         command = 'input swipe {} {} {} {}'
-        self.execute(command.format(start, swipe_heigh, stop, swipe_heigh))
+        if direction == "horizontal":
+            swipe_heigh = height * 2 // 3
+            start = 100
+            stop = width - start
+            self.execute(command.format(start, swipe_heigh, stop, swipe_heigh))
+        if direction == "vertical":
+            swipe_middle = height / 2
+            swipe_heigh = height * 2 // 3
+            self.execute(command.format(swipe_middle, swipe_heigh, swipe_middle, 0))
+        else:
+            raise DeviceError("Invalid swipe direction: {}".format(self.swipe_to_unlock))
 
     def getprop(self, prop=None):
         props = AndroidProperties(self.execute('getprop'))
@@ -791,7 +829,7 @@ class AndroidTarget(Target):
     def install_apk(self, filepath, timeout=None):  # pylint: disable=W0221
         ext = os.path.splitext(filepath)[1].lower()
         if ext == '.apk':
-            return adb_command(self.adb_name, "install {}".format(filepath), timeout=timeout)
+            return adb_command(self.adb_name, "install '{}'".format(filepath), timeout=timeout)
         else:
             raise TargetError('Can\'t install {}: unsupported format.'.format(filepath))
 
@@ -804,7 +842,7 @@ class AndroidTarget(Target):
         if on_device_file != on_device_executable:
             self.execute('cp {} {}'.format(on_device_file, on_device_executable), as_root=self.is_rooted)
             self.remove(on_device_file, as_root=self.is_rooted)
-        self.execute('chmod 0777 {}'.format(on_device_executable), as_root=self.is_rooted)
+        self.execute("chmod 0777 '{}'".format(on_device_executable), as_root=self.is_rooted)
         self._installed_binaries[executable_name] = on_device_executable
         return on_device_executable
 
@@ -817,7 +855,7 @@ class AndroidTarget(Target):
         self.remove(on_device_executable, as_root=self.is_rooted)
 
     def dump_logcat(self, filepath, filter=None, append=False, timeout=30):  # pylint: disable=redefined-builtin
-        op = '>>' if append == True else '>'
+        op = '>>' if append else '>'
         filtstr = ' -s {}'.format(filter) if filter else ''
         command = 'logcat -d{} {} {}'.format(filtstr, op, filepath)
         adb_command(self.adb_name, command, timeout=timeout)
@@ -842,7 +880,7 @@ class AndroidTarget(Target):
             self.working_directory = '/data/local/tmp/devlib-target'
         self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
         if self.executables_directory is None:
-            self.executables_directory = self.path.join(self.working_directory, 'bin')
+            self.executables_directory = '/data/local/tmp/bin'
 
     def _ensure_executables_directory_is_writable(self):
         matched = []
@@ -1032,4 +1070,3 @@ def _get_part_name(section):
     if name is None:
         name = '{}/{}/{}'.format(implementer, part, variant)
     return name
-

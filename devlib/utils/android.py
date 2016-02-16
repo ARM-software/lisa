@@ -39,6 +39,7 @@ AM_START_ERROR = re.compile(r"Error: Activity class {[\w|.|/]*} does not exist")
 # See:
 # http://developer.android.com/guide/topics/manifest/uses-sdk-element.html#ApiLevels
 ANDROID_VERSION_MAP = {
+    23: 'MARSHMALLOW',
     22: 'LOLLYPOP_MR1',
     21: 'LOLLYPOP',
     20: 'KITKAT_WATCH',
@@ -167,7 +168,7 @@ class AdbConnection(object):
     def push(self, source, dest, timeout=None):
         if timeout is None:
             timeout = self.timeout
-        command = 'push {} {}'.format(source, dest)
+        command = "push '{}' '{}'".format(source, dest)
         return adb_command(self.device, command, timeout=timeout)
 
     def pull(self, source, dest, timeout=None):
@@ -175,14 +176,14 @@ class AdbConnection(object):
             timeout = self.timeout
         # Pull all files matching a wildcard expression
         if os.path.isdir(dest) and \
-            ('*' in source or '?' in source):
+           ('*' in source or '?' in source):
             command = 'shell ls {}'.format(source)
             output = adb_command(self.device, command, timeout=timeout)
             for line in output.splitlines():
-                command = 'pull {} {}'.format(line, dest)
+                command = "pull '{}' '{}'".format(line, dest)
                 adb_command(self.device, command, timeout=timeout)
             return
-        command = 'pull {} {}'.format(source, dest)
+        command = "pull '{}' '{}'".format(source, dest)
         return adb_command(self.device, command, timeout=timeout)
 
     def execute(self, command, timeout=None, check_exit_code=False, as_root=False):
@@ -241,7 +242,7 @@ def adb_get_device(timeout=None):
             return output[1].split('\t')[0]
         elif output_length > 3:
             message = '{} Android devices found; either explicitly specify ' +\
-                    'the device you want, or make sure only one is connected.'
+                      'the device you want, or make sure only one is connected.'
             raise HostError(message.format(output_length - 2))
         else:
             if timeout < time.time() - start:
