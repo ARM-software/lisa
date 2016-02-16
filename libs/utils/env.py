@@ -230,7 +230,7 @@ class TestEnv(ShareState):
 
         # Build topology for a big.LITTLE systems
         if self.target.big_core and \
-           self.target.abi == 'arm64' or self.target.abi == 'armeabi':
+           (self.target.abi == 'arm64' or self.target.abi == 'armeabi'):
             # Populate cluster for a big.LITTLE platform
             if self.target.big_core:
                 # Load cluster of LITTLE cores
