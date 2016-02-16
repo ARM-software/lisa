@@ -14,7 +14,6 @@
 #
 
 from wlauto.core.bootstrap import settings  # NOQA
-from wlauto.core.device import Device  # NOQA
 from wlauto.core.device_manager import DeviceManager, RuntimeParameter, CoreParameter  # NOQA
 from wlauto.core.command import Command  # NOQA
 from wlauto.core.workload import Workload  # NOQA
@@ -26,8 +25,6 @@ from wlauto.core.resource import ResourceGetter, Resource, GetterPriority, NO_ON
 from wlauto.core.exttype import get_extension_type  # NOQA Note: MUST be imported after other core imports.
 
 from wlauto.common.resources import File, ExtensionAsset, Executable
-from wlauto.common.linux.device import LinuxDevice  # NOQA
-from wlauto.common.android.device import AndroidDevice, BigLittleDevice   # NOQA
 from wlauto.common.android.resources import ApkFile, JarFile
 from wlauto.common.android.workload import (UiAutomatorWorkload, ApkWorkload, AndroidBenchmark,  # NOQA
                                     AndroidUiAutoBenchmark, GameWorkload)  # NOQA

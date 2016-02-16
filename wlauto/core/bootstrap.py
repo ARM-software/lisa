@@ -55,7 +55,6 @@ sys.path.insert(0, os.path.join(_this_dir, '..', 'external'))
 _EXTENSION_TYPE_TABLE = [
     # name,               class,                                    default package,            default path
     ('command',           'wlauto.core.command.Command',            'wlauto.commands',          'commands'),
-#    ('device',            'wlauto.core.device.Device',              'wlauto.devices',           'devices'),
     ('device_manager',    'wlauto.core.device.DeviceManager',       'wlauto.managers',          'devices'),
     ('instrument',        'wlauto.core.instrumentation.Instrument', 'wlauto.instrumentation',   'instruments'),
     ('module',            'wlauto.core.extension.Module',           'wlauto.modules',           'modules'),
