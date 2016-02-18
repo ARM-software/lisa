@@ -17,12 +17,13 @@
 import sys
 import argparse
 import logging
+import os
 import subprocess
 import warnings
 
 from wlauto.core.bootstrap import settings
 from wlauto.core.extension_loader import ExtensionLoader
-from wlauto.exceptions import WAError
+from wlauto.exceptions import WAError, ConfigError
 from wlauto.utils.misc import get_traceback
 from wlauto.utils.log import init_logging
 from wlauto.utils.cli import init_argument_parser
@@ -56,6 +57,8 @@ def main():
         settings.verbosity = args.verbose
         settings.debug = args.debug
         if args.config:
+            if not os.path.exists(args.config):
+                raise ConfigError("Config file {} not found".format(args.config))
             settings.update(args.config)
         init_logging(settings.verbosity)
 
