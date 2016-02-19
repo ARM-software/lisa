@@ -84,7 +84,7 @@ class ILinePlotGen(object):
         """Add HTML table cell for the legend"""
 
         legend_div_name = fig_name + "_legend"
-        cell = '<td style="border-style: hidden;"><div style="text-align:right" id="{}"></div></td>'.format(legend_div_name)
+        cell = '<td style="border-style: hidden;"><div style="text-align:center" id="{}"></div></td>'.format(legend_div_name)
 
         self._html.append(cell)
 
@@ -194,6 +194,7 @@ class ILinePlotGen(object):
         fig_params["fill_graph"] = self._attr["fill"]
         fig_params["per_line"] = self._attr["per_line"]
         fig_params["height"] = self._attr["height"]
+        fig_params["legend_ncol"] = self._attr["legend_ncol"]
 
         self._check_add_scatter(fig_params)
 

@@ -163,4 +163,4 @@ class LinePlot(StaticPlot):
 
             axis.set_title(self.make_title(constraint, pivot, permute, concat))
 
-            self.add_to_legend(i, line_2d_list[0], constraint, pivot, concat)
+            self.add_to_legend(i, line_2d_list[0], constraint, pivot, concat, permute)

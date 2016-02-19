@@ -103,6 +103,9 @@ class StaticPlot(AbstractDataPlotter):
 
     :type signals: str
 
+    :param legend_ncol: A positive integer that represents the
+        number of columns in the legend
+    :type legend_ncol: int
     """
     __metaclass__ = ABCMeta
 
@@ -160,6 +163,7 @@ class StaticPlot(AbstractDataPlotter):
         self._attr["map_label"] = {}
         self._attr["_legend_handles"] = []
         self._attr["_legend_labels"] = []
+        self._attr["legend_ncol"] = AttrConf.LEGEND_NCOL
 
     def view(self, test=False):
         """Displays the graph"""
@@ -198,7 +202,7 @@ class StaticPlot(AbstractDataPlotter):
                                            self._attr["map_label"].get(pivot, pivot))
         return title
 
-    def add_to_legend(self, series_index, handle, constraint, pivot, concat):
+    def add_to_legend(self, series_index, handle, constraint, pivot, concat, permute):
         """
         Add series handles and names to the legend
         A handle is returned from a plot on an axis
@@ -214,13 +218,10 @@ class StaticPlot(AbstractDataPlotter):
                 self._attr["pivot"],
                 self._attr["map_label"].get(pivot, pivot)
             )
+        elif permute:
+            legend_labels[series_index] = constraint.get_data_name() + ":" + constraint._template.name
         else:
             legend_labels[series_index] = str(constraint)
-            # Remove trace name if there is only one trace to plot
-            if not isinstance(self.traces, list):
-                legend_labels[series_index] = legend_labels[series_index].replace(
-                                                constraint.get_data_name()+":", ""
-                                              )
 
     def _resolve(self, permute, concat):
         """Determine what data to plot on which axis"""
@@ -270,13 +271,11 @@ class StaticPlot(AbstractDataPlotter):
                 self._attr["args_to_forward"]
             )
 
-        #Add the legend to the figure if more than one signal is plotted
-        if legend_len > 1:
-            self._fig.legend(self._attr["_legend_handles"],
-                             self._attr["_legend_labels"],
-                             loc='lower center',
-                             ncol=3,
-                             borderaxespad=0.)
+        self._fig.legend(self._attr["_legend_handles"],
+                         self._attr["_legend_labels"],
+                         loc='lower center',
+                         ncol=self._attr["legend_ncol"],
+                         borderaxespad=0.)
 
         self._layout.finish(num_of_axes)
 

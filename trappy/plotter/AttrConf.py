@@ -41,6 +41,8 @@ TITLE = None
 """Default figure title (no title)"""
 TITLE_SIZE = 24
 """Default size for the figure title"""
+LEGEND_NCOL = 3
+"""Default number of columns in the legend"""
 
 MPL_STYLE = {
     'axes.axisbelow': True,
