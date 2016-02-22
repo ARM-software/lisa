@@ -65,6 +65,7 @@ class TestEnv(ShareState):
 
         self.conf = None
         self.test_conf = None
+        self.res_dir = None
         self.target = None
         self.ftrace = None
         self.workdir = WORKING_DIR_DEFAULT
@@ -104,9 +105,6 @@ class TestEnv(ShareState):
             logging.info('%14s - Loading default (file) target configuration',
                     'Target')
             self.conf = TestEnv.loadTargetConfig()
-        else:
-            raise ValueError('target_conf must be either a dictionary or a filepath')
-
         logging.debug('%14s - Target configuration %s', 'Target', self.conf)
 
         # Setup test configuration
@@ -172,15 +170,17 @@ class TestEnv(ShareState):
         self.calibration()
 
         # Initialize local results folder
-        if self.test_conf and 'id' in self.test_conf:
-            res_dir = self.test_conf['id']
-            if not os.path.isabs(res_dir):
-                res_dir = os.path.join(basepath, 'results', res_dir)
+        # test configuration override target one
+        if self.test_conf and 'results_dir' in self.test_conf:
+            self.res_dir = self.test_conf['results_dir']
+        if not self.res_dir and 'results_dir' in self.conf:
+            self.res_dir = self.conf['results_dir']
+        if self.res_dir and not os.path.isabs(self.res_dir):
+                self.res_dir = os.path.join(basepath, 'results', self.res_dir)
         else:
-            res_dir = os.path.join(basepath, OUT_PREFIX)
-            res_dir = datetime.datetime.now()\
-                            .strftime(res_dir + '/%Y%m%d_%H%M%S')
-        self.res_dir = res_dir
+            self.res_dir = os.path.join(basepath, OUT_PREFIX)
+            self.res_dir = datetime.datetime.now()\
+                            .strftime(self.res_dir + '/%Y%m%d_%H%M%S')
         if not os.path.exists(self.res_dir):
             os.makedirs(self.res_dir)
 
@@ -190,7 +190,7 @@ class TestEnv(ShareState):
         os.symlink(self.res_dir, res_lnk)
 
         logging.info('%14s - Set results folder to:', 'TestEnv')
-        logging.info('%14s -    %s', 'TestEnv', res_dir)
+        logging.info('%14s -    %s', 'TestEnv', self.res_dir)
         logging.info('%14s - Experiment results available also in:', 'TestEnv')
         logging.info('%14s -    %s', 'TestEnv', res_lnk)
 
