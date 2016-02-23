@@ -53,14 +53,13 @@ sys.path.insert(0, os.path.join(_this_dir, '..', 'external'))
 
 #pylint: disable=C0326
 _EXTENSION_TYPE_TABLE = [
-    # name,               class,                                    default package,            default path
-    ('command',           'wlauto.core.command.Command',            'wlauto.commands',          'commands'),
-    ('device_manager',    'wlauto.core.device.DeviceManager',       'wlauto.managers',          'devices'),
-    ('instrument',        'wlauto.core.instrumentation.Instrument', 'wlauto.instrumentation',   'instruments'),
-    ('module',            'wlauto.core.extension.Module',           'wlauto.modules',           'modules'),
-    ('resource_getter',   'wlauto.core.resource.ResourceGetter',    'wlauto.resource_getters',  'resource_getters'),
-    ('result_processor',  'wlauto.core.result.ResultProcessor',     'wlauto.result_processors', 'result_processors'),
-    ('workload',          'wlauto.core.workload.Workload',          'wlauto.workloads',         'workloads'),
+    # name,               class,                                      default package,            default path
+    ('command',           'wlauto.core.command.Command',              'wlauto.commands',          'commands'),
+    ('device_manager',    'wlauto.core.device_manager.DeviceManager', 'wlauto.managers',          'managers'),
+    ('instrument',        'wlauto.core.instrumentation.Instrument',   'wlauto.instrumentation',   'instruments'),
+    ('resource_getter',   'wlauto.core.resource.ResourceGetter',      'wlauto.resource_getters',  'resource_getters'),
+    ('result_processor',  'wlauto.core.result.ResultProcessor',       'wlauto.result_processors', 'result_processors'),
+    ('workload',          'wlauto.core.workload.Workload',            'wlauto.workloads',         'workloads'),
 ]
 _Extension = namedtuple('_Extension', 'name, cls, default_package, default_path')
 _extensions = [_Extension._make(ext) for ext in _EXTENSION_TYPE_TABLE]  # pylint: disable=W0212
