@@ -28,12 +28,12 @@ class LocalConnection(object):
 
     name = 'local'
 
-    def __init__(self, timeout=10, keep_password=True, unrooted=False):
+    def __init__(self, timeout=10, keep_password=True, unrooted=False, password=None):
         self.logger = logging.getLogger('local_connection')
         self.timeout = timeout
         self.keep_password = keep_password
         self.unrooted = unrooted
-        self.password = None
+        self.password = password
 
     def push(self, source, dest, timeout=None, as_root=False):  # pylint: disable=unused-argument
         self.logger.debug('cp {} {}'.format(source, dest))
@@ -77,4 +77,3 @@ class LocalConnection(object):
         if self.keep_password:
             self.password = password
         return password
-
