@@ -123,8 +123,8 @@ class Constraint(object):
                 if key in data.columns:
                     criterion = criterion & data[key].map(
                         lambda x: x in self._filters[key])
-                    values = values[criterion]
-            result[AttrConf.PIVOT_VAL] = values
+
+            result[AttrConf.PIVOT_VAL] = values[criterion]
             return result
 
         pivot_vals = self.pivot_vals(data)
@@ -136,9 +136,10 @@ class Constraint(object):
                 if key != self._pivot and key in data.columns:
                     criterion = criterion & data[key].map(
                         lambda x: x in self._filters[key])
-                    values = values[criterion]
 
-            val_series = values[data[self._pivot] == pivot_val]
+            criterion &= data[self._pivot] == pivot_val
+
+            val_series = values[criterion]
             if len(val_series) != 0:
                result[pivot_val] = val_series
 
