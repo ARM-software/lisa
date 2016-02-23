@@ -58,6 +58,23 @@ class TestEnv(ShareState):
     _initialized = False
 
     def __init__(self, target_conf=None, test_conf=None):
+        """
+        Initialize the LISA test environment.
+
+        The test environment is defined by:
+        - a target configuration (target_conf) defining which HW platform we
+        want to use to run the experiments
+        - a test configuration (test_conf) defining which SW setups we need on
+        that HW target
+        - a folder to collect the experiments results, which can be specified
+        using the test_conf::results_dir option
+
+        :param target_conf: the HW target we want to use
+        :type target_conf: dict
+
+        :param test_conf: the SW setup of the HW target in use
+        :type test_conf: dict
+        """
         super(TestEnv, self).__init__()
 
         if self._initialized:
