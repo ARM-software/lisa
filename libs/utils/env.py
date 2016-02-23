@@ -57,7 +57,7 @@ class TestEnv(ShareState):
 
     _initialized = False
 
-    def __init__(self, target_conf=None, test_conf=None):
+    def __init__(self, target_conf=None, test_conf=None, wipe=True):
         """
         Initialize the LISA test environment.
 
@@ -67,13 +67,18 @@ class TestEnv(ShareState):
         - a test configuration (test_conf) defining which SW setups we need on
         that HW target
         - a folder to collect the experiments results, which can be specified
-        using the test_conf::results_dir option
+        using the test_conf::results_dir option and is by default wiped from
+        all the previous contents (if wipe=True)
 
         :param target_conf: the HW target we want to use
         :type target_conf: dict
 
         :param test_conf: the SW setup of the HW target in use
         :type test_conf: dict
+
+        :param wipe: set true to cleanup all previous content from the output
+        folder
+        :type wipe: bool
         """
         super(TestEnv, self).__init__()
 
@@ -198,6 +203,10 @@ class TestEnv(ShareState):
             self.res_dir = os.path.join(basepath, OUT_PREFIX)
             self.res_dir = datetime.datetime.now()\
                             .strftime(self.res_dir + '/%Y%m%d_%H%M%S')
+        if wipe and os.path.exists(self.res_dir):
+            logging.warning('%14s - Wipe previous contents of the results folder:', 'TestEnv')
+            logging.warning('%14s -    %s', 'TestEnv', self.res_dir)
+            shutil.rmtree(self.res_dir, ignore_errors=True)
         if not os.path.exists(self.res_dir):
             os.makedirs(self.res_dir)
 
