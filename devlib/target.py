@@ -19,7 +19,7 @@ from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list, escape_doub
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string
 
 
-FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (\S+) type (\S+) \((\S+)\)')
+FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (.+) type (\S+) \((\S+)\)')
 ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|Display Power: state)=([0-9]+|true|false|ON|OFF)',
                                         re.IGNORECASE)
 ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'mUnrestrictedScreen=\(\d+,\d+\)'
