@@ -726,17 +726,17 @@ class TestEnv(ShareState):
                     'KernelSetup')
 
         elif 'tftp' in self.conf:
-            logging.info('%14s - Deply kernel via FTFP...', 'KernelSetup')
+            logging.info('%14s - Deploy kernel via TFTP...', 'KernelSetup')
 
-            # Deply kernel in FTFP folder (madatory)
+            # Deploy kernel in TFTP folder (mandatory)
             if 'kernel' not in tc or not tc['kernel']:
-                raise ValueError('Missing "kernel" paramtere in conf: %s',
+                raise ValueError('Missing "kernel" parameter in conf: %s',
                         'KernelSetup', tc)
             self.tftp_deploy(tc['kernel'])
 
             # Deploy DTB in TFTP folder (if provided)
             if 'dtb' not in tc or not tc['dtb']:
-                logging.debug('%14s - DTB not provided, using exising one',
+                logging.debug('%14s - DTB not provided, using existing one',
                         'KernelSetup')
                 logging.debug('%14s - Current conf:\n%s', 'KernelSetup', tc)
                 logging.warn('%14s - Using pre-installed DTB', 'KernelSetup')
