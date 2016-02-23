@@ -240,7 +240,7 @@ class FtraceCollector(TraceCollector):
         self.logger.debug("FTrace stats output [%s]...", outfile)
         with open(outfile, 'w') as fh:
            json.dump(function_stats, fh, indent=4)
-        self.logger.info("FTrace function stats save in [%s]", outfile)
+        self.logger.debug("FTrace function stats save in [%s]", outfile)
 
         return function_stats
 
