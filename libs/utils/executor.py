@@ -183,6 +183,8 @@ class Executor():
             return
         feats = tc['sched_features'].split(",")
         for feat in feats:
+            logging.info('%14s - Set scheduler feature: %s',
+                         'SchedFeatures', feat)
             self.target.execute('echo {} > /sys/kernel/debug/sched_features'.format(feat))
 
     def _setup_rootfs(self, tc):
@@ -530,8 +532,18 @@ class Executor():
         # FTRACE: stop and collect measurements
         if self.te.ftrace and self._target_conf_flag(tc, 'ftrace'):
             self.te.ftrace.stop()
-            self.te.ftrace.get_trace(self.te.out_dir + '/trace.dat')
-            self.te.ftrace.get_stats(self.te.out_dir + '/trace_stat.json')
+
+            trace_file = self.te.out_dir + '/trace.dat'
+            self.te.ftrace.get_trace(trace_file)
+            logging.info(r'%14s - Collected FTrace binary trace:', 'Executor')
+            logging.info(r'%14s -    %s', 'Executor',
+                         trace_file.replace(self.te.res_dir, '<res_dir>'))
+
+            stats_file = self.te.out_dir + '/trace_stat.json'
+            self.te.ftrace.get_stats(stats_file)
+            logging.info(r'%14s - Collected FTrace function profiling:', 'Executor')
+            logging.info(r'%14s -    %s', 'Executor',
+                         stats_file.replace(self.te.res_dir, '<res_dir>'))
 
 ################################################################################
 # Utility Functions
