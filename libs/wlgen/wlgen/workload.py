@@ -188,7 +188,8 @@ class Workload(object):
             self.output['executor'] = results
             return results
 
-        logging.info('%14s - WlGen [start]: %s', 'WlGen', self.command)
+        logging.info('%14s - Workload execution START:', 'WlGen')
+        logging.info('%14s -    %s', 'WlGen', self.command)
 
         # Run command and wait for it to complete
         results = self.target.execute(self.command,
@@ -212,7 +213,7 @@ class Workload(object):
 
         self.__callback('postrun', destdir=out_dir)
 
-        logging.debug('%14s -    [end]: %s', 'WlGen', self.command)
+        logging.debug('%14s - Workload execution COMPLETED', 'WlGen')
 
         return ftrace_dat
 
