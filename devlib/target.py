@@ -539,6 +539,16 @@ class LinuxTarget(Target):
             raise
         return os_version
 
+    @property
+    @memoized
+    # There is currently no better way to do this cross platform.
+    # ARM does not have dmidecode
+    def model(self):
+        if self.file_exists("/proc/device-tree/model"):
+            raw_model = self.execute("cat /proc/device-tree/model")
+            return '_'.join(raw_model.split()[:2])
+        return None
+
     def connect(self, timeout=None):
         super(LinuxTarget, self).connect(timeout=timeout)
 
@@ -644,6 +654,7 @@ class AndroidTarget(Target):
         return self.conn.device
 
     @property
+    @memoized
     def android_id(self):
         """
         Get the device's ANDROID_ID. Which is
@@ -657,6 +668,14 @@ class AndroidTarget(Target):
         """
         output = self.execute('content query --uri content://settings/secure --projection value --where "name=\'android_id\'"').strip()
         return output.split('value=')[-1]
+
+    @property
+    @memoized
+    def model(self):
+        try:
+            return self.getprop(prop='ro.product.device')
+        except KeyError:
+            return None
 
     @property
     @memoized
