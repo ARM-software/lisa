@@ -98,7 +98,7 @@ class Controller(object):
         output = self.target.execute('{} find {} -type d'\
                 .format(self.target.busybox, self.mount_point))
         cgroups = []
-        for cg in output.split('\n'):
+        for cg in output.splitlines():
             cg = cg.replace(self.mount_point + '/', '/')
             cg = cg.replace(self.mount_point, '/')
             cg = cg.strip()
@@ -257,7 +257,7 @@ class CgroupsModule(Module):
     def list_subsystems(self):
         subsystems = []
         for line in self.target.execute('{} cat /proc/cgroups'\
-                .format(self.target.busybox)).split('\n')[1:]:
+                .format(self.target.busybox)).splitlines()[1:]:
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
