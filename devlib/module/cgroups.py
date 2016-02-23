@@ -166,14 +166,10 @@ class CGroup(object):
                 self.controller.kind)
         logging.debug('  %s',
                 self.directory)
-        output = self.target.execute('{} grep \'\' {}/{}.*'.format(
-                    self.target.busybox,
-                    self.directory,
-                    self.controller.kind))
-        for res in output.split('\n'):
-            if res.find(self.controller.kind) < 0:
-                continue
-            res = res.split('.')[1]
+        output = self.target._execute_util(
+                    'cgroups_get_attributes {} {}'.format(
+                    self.directory, self.controller.kind))
+        for res in output.splitlines():
             attr = res.split(':')[0]
             value = res.split(':')[1]
             conf[attr] = value

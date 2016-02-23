@@ -55,6 +55,20 @@ ftrace_get_function_stats() {
     done
 }
 
+
+################################################################################
+# CGroups Utility Functions
+################################################################################
+
+cgroups_get_attributes() {
+	[[ $# -eq 2 ]] || exit -1
+	CGROUP="$1"
+	CONTROLLER="$2"
+	$GREP '' $CGROUP/* | \
+		$GREP "$CONTROLLER\." | \
+		$SED -e "s|$CONTROLLER\.||" -e "s|$CGROUP/||"
+}
+
 ################################################################################
 # Main Function Dispatcher
 ################################################################################
@@ -75,6 +89,9 @@ cpufreq_get_all_governors)
 cpufreq_trace_all_frequencies)
     cpufreq_trace_all_frequencies $*
     ;;
+cgroups_get_attributes)
+	cgroups_get_attributes $*
+	;;
 ftrace_get_function_stats)
     ftrace_get_function_stats
     ;;
