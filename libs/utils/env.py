@@ -251,7 +251,8 @@ class TestEnv(ShareState):
                     [i for i,v in enumerate(self.target.core_clusters)
                                 if v == c])
         self.topology = Topology(clusters=CLUSTERS)
-        logging.info('Target topology: %s', CLUSTERS)
+        logging.info(r'%14s - Topology:', 'Target')
+        logging.info(r'%14s -    %s', 'Target', CLUSTERS)
 
         # Initialize the platform descriptor
         self._init_platform()
@@ -369,8 +370,11 @@ class TestEnv(ShareState):
             logging.info(r'%14s - Connecting Android target [%s]',
                     'Target', self.__connection_settings or 'DEFAULT')
         else:
-            logging.info(r'%14s - Connecting %s target with: %s',
-                    'Target', platform_type, self.__connection_settings)
+            logging.info(r'%14s - Connecting %s target:', 'Target',
+                         platform_type)
+            for key in self.__connection_settings:
+                logging.info(r'%14s - %10s : %s', 'Target',
+                             key, self.__connection_settings[key])
 
         if platform_type.lower() == 'linux':
             logging.debug('%14s - Setup LINUX target...', 'Target')
@@ -416,8 +420,8 @@ class TestEnv(ShareState):
                 raise RuntimeError('Failed to initialized [{}] module, '
                         'update your kernel or test configurations'.format(module))
 
-        logging.info('%14s - Initializing target workdir [%s]',
-                    'Target', self.target.working_directory)
+        logging.info('%14s - Initializing target workdir:', 'Target')
+        logging.info('%14s -    %s', 'Target', self.target.working_directory)
         tools_to_install = []
         if self.__tools:
             for tool in self.__tools:
@@ -465,9 +469,12 @@ class TestEnv(ShareState):
             autoview    = False
         )
 
-        logging.info('%14s - Enabled events:', 'FTrace')
-        logging.info('%14s -   %s', 'FTrace', events)
-        logging.info('%14s -   %s', 'FTrace', functions)
+        logging.info('%14s - Enabled tracepoints:', 'FTrace')
+        for event in events:
+            logging.info('%14s -   %s', 'FTrace', event)
+        logging.info('%14s - Kernel functions profiled:', 'FTrace')
+        for function in functions:
+            logging.info('%14s -   %s', 'FTrace', function)
 
         return self.ftrace
 
@@ -523,8 +530,8 @@ class TestEnv(ShareState):
                 'Platform', em_path)
         if not os.path.exists(em_path):
             return None
-        logging.info('%14s - Loading default EM [%s]...',
-                'Platform', em_path)
+        logging.info('%14s - Loading default EM:', 'Platform')
+        logging.info('%14s -    %s', 'Platform', em_path)
         board = JsonConf(em_path)
         board.load()
         if 'nrg_model' not in board.json:
@@ -581,16 +588,19 @@ class TestEnv(ShareState):
             return
 
         if not force and 'rtapp-calib' in self.conf:
-            logging.info('Loading RTApp calibration from configuration file...')
+            logging.warning(
+                r'%14s - Using configuration provided RTApp calibration',
+                'Target')
             self._calib = {
                     int(key): int(value)
                     for key, value in self.conf['rtapp-calib'].items()
                 }
         else:
-            logging.info('Calibrating RTApp...')
+            logging.info(r'%14s - Calibrating RTApp...', 'Target')
             self._calib = RTA.calibrate(self.target)
 
-        logging.info('Using RT-App calibration values: %s',
+        logging.info(r'%14s - Using RT-App calibration values:', 'Target')
+        logging.info(r'%14s -    %s', 'Target',
                 "{" + ", ".join('"%r": %r' % (key, self._calib[key])
                                 for key in sorted(self._calib)) + "}")
         return self._calib
