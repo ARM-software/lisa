@@ -67,7 +67,7 @@ class TestPlotter(BaseTestThermal):
                           trace2],
                          [trappy.cpu_power.CpuOutPower],
                          column=["power"],
-                         filters={"cdev_state": [1]})
+                         filters={"cdev_state": [0]})
         l.view(test=True)
 
     def test_plot_pivot(self):
