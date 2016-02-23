@@ -355,10 +355,10 @@ class ConstraintManager(object):
 
         try:
             sorted_plist = sorted(p_list, key=int)
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             try:
                 sorted_plist = sorted(p_list, key=lambda x: int(x, 16))
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 sorted_plist = sorted(p_list)
 
         if permute:
