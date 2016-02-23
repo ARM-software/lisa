@@ -19,7 +19,7 @@ from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list, escape_doub
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string
 
 
-FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (\S+) type (\S+) \((\S+)\)')
+FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (.+) type (\S+) \((\S+)\)')
 ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|Display Power: state)=([0-9]+|true|false|ON|OFF)',
                                         re.IGNORECASE)
 ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'mUnrestrictedScreen=\(\d+,\d+\)'
@@ -668,6 +668,29 @@ class AndroidTarget(Target):
                     int(match.group('height')))
         else:
             return (0, 0)
+
+    def __init__(self,
+                 connection_settings=None,
+                 platform=None,
+                 working_directory=None,
+                 executables_directory=None,
+                 connect=True,
+                 modules=None,
+                 load_default_modules=True,
+                 shell_prompt=DEFAULT_SHELL_PROMPT,
+                 package_data_directory="/data/data",
+                 external_storage_directory="/sdcard",
+                 ):
+        super(AndroidTarget, self).__init__(connection_settings=connection_settings,
+                                            platform=platform,
+                                            working_directory=working_directory,
+                                            executables_directory=executables_directory,
+                                            connect=connect,
+                                            modules=modules,
+                                            load_default_modules=load_default_modules,
+                                            shell_prompt=shell_prompt)
+        self.executables_directory = executables_directory
+        self.package_data_directory = package_data_directory
 
     def reset(self, fastboot=False):  # pylint: disable=arguments-differ
         try:
