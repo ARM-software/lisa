@@ -201,6 +201,10 @@ class Parser(object):
     """A parser class for solving simple
     data accesses and super-indexing data
 
+    :param data: Trace Object
+    :type data: instance of :mod:`trappy.ftrace.BareTrace` or a child
+        class (like :mod:`trappy.ftrace.FTrace`)
+
     :param pvars: A dictionary of variables that need to be
         accessed from within the grammar
     :type pvars: dict
