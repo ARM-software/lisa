@@ -98,7 +98,7 @@ class Controller(object):
         output = self.target.execute('{} find {} -type d'\
                 .format(self.target.busybox, self.mount_point))
         cgroups = []
-        for cg in output.split('\n'):
+        for cg in output.splitlines():
             cg = cg.replace(self.mount_point + '/', '/')
             cg = cg.replace(self.mount_point, '/')
             cg = cg.strip()
@@ -166,14 +166,10 @@ class CGroup(object):
                 self.controller.kind)
         logging.debug('  %s',
                 self.directory)
-        output = self.target.execute('{} grep \'\' {}/{}.*'.format(
-                    self.target.busybox,
-                    self.directory,
-                    self.controller.kind))
-        for res in output.split('\n'):
-            if res.find(self.controller.kind) < 0:
-                continue
-            res = res.split('.')[1]
+        output = self.target._execute_util(
+                    'cgroups_get_attributes {} {}'.format(
+                    self.directory, self.controller.kind))
+        for res in output.splitlines():
             attr = res.split(':')[0]
             value = res.split(':')[1]
             conf[attr] = value
@@ -261,7 +257,7 @@ class CgroupsModule(Module):
     def list_subsystems(self):
         subsystems = []
         for line in self.target.execute('{} cat /proc/cgroups'\
-                .format(self.target.busybox)).split('\n')[1:]:
+                .format(self.target.busybox)).splitlines()[1:]:
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
