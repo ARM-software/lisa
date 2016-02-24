@@ -495,12 +495,14 @@ class TestEnv(ShareState):
             autoview    = False
         )
 
-        logging.info('%14s - Enabled tracepoints:', 'FTrace')
-        for event in events:
-            logging.info('%14s -   %s', 'FTrace', event)
-        logging.info('%14s - Kernel functions profiled:', 'FTrace')
-        for function in functions:
-            logging.info('%14s -   %s', 'FTrace', function)
+        if events:
+            logging.info('%14s - Enabled tracepoints:', 'FTrace')
+            for event in events:
+                logging.info('%14s -   %s', 'FTrace', event)
+        if functions:
+            logging.info('%14s - Kernel functions profiled:', 'FTrace')
+            for function in functions:
+                logging.info('%14s -   %s', 'FTrace', function)
 
         return self.ftrace
 
