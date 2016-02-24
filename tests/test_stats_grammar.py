@@ -141,6 +141,18 @@ trappy.thermal.Thermal:temp"
         self.assertEquals(parser.solve(eqn), 2)
         eqn = "-2 * 2 + 2 * 10 / 10"
         self.assertEquals(parser.solve(eqn), -2)
+        eqn = "3.5 // 2"
+        self.assertEquals(parser.solve(eqn), 1)
+        eqn = "5 % 2"
+        self.assertEquals(parser.solve(eqn), 1)
+
+    def test_exp_ops(self):
+        """Test exponentiation: Numeric"""
+        parser = Parser(trappy.BareTrace())
+        eqn = "3**3 * 2**4"
+        self.assertEquals(parser.solve(eqn), 432)
+        eqn = "3**(4/2)"
+        self.assertEquals(parser.solve(eqn), 9)
 
     @unittest.skipIf(V(pandas.__version__) < V('0.16.1'),
                      "check_names is not supported in pandas < 0.16.1")
