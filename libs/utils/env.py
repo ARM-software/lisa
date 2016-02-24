@@ -435,17 +435,6 @@ class TestEnv(ShareState):
         # Ensure rootfs is RW mounted
         self.target.execute('mount -o remount,rw /', as_root=True)
 
-        # Verify that all the required modules have been initialized
-        for module in self.__modules:
-            logging.debug('%14s - Check for module [%s]...', 'Target', module)
-            if not hasattr(self.target, module):
-                logging.warning('%14s - Unable to initialize [%s] module',
-                        'Target', module)
-                logging.error('%14s - Fix your target kernel configuration or '
-                        'disable module from configuration', 'Target')
-                raise RuntimeError('Failed to initialized [{}] module, '
-                        'update your kernel or test configurations'.format(module))
-
         logging.info('%14s - Initializing target workdir:', 'Target')
         logging.info('%14s -    %s', 'Target', self.target.working_directory)
         tools_to_install = []
@@ -457,6 +446,17 @@ class TestEnv(ShareState):
                             .format(basepath, self.target.abi, tool)
                 tools_to_install.append(binary)
         self.target.setup(tools_to_install)
+
+        # Verify that all the required modules have been initialized
+        for module in self.__modules:
+            logging.debug('%14s - Check for module [%s]...', 'Target', module)
+            if not hasattr(self.target, module):
+                logging.warning('%14s - Unable to initialize [%s] module',
+                        'Target', module)
+                logging.error('%14s - Fix your target kernel configuration or '
+                        'disable module from configuration', 'Target')
+                raise RuntimeError('Failed to initialized [{}] module, '
+                        'update your kernel or test configurations'.format(module))
 
     def ftrace_conf(self, conf):
         self._init_ftrace(True, conf)
