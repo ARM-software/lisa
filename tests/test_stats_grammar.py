@@ -32,7 +32,7 @@ class TestStatsGrammar(BaseTestThermal):
     def test_sum_operator(self):
         """Test Addition And Subtraction: Numeric"""
 
-        parser = Parser(trappy.FTrace())
+        parser = Parser(trappy.BareTrace())
         # Simple equation
         eqn = "10 + 2 - 3"
         self.assertEquals(parser.solve(eqn), 9)
@@ -136,7 +136,7 @@ trappy.thermal.Thermal:temp"
     def test_mul_ops(self):
         """Test Mult and Division: Numeric"""
 
-        parser = Parser(trappy.FTrace())
+        parser = Parser(trappy.BareTrace())
         eqn = "(10 * 2 / 10)"
         self.assertEquals(parser.solve(eqn), 2)
         eqn = "-2 * 2 + 2 * 10 / 10"
