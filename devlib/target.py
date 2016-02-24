@@ -82,7 +82,7 @@ class Target(object):
     @property
     @memoized
     def kernel_version(self):
-        return KernelVersion(self.execute('uname -r -v').strip())
+        return KernelVersion(self.execute('{} uname -r -v'.format(self.busybox)).strip())
 
     @property
     def os_version(self):  # pylint: disable=no-self-use
@@ -515,7 +515,7 @@ class LinuxTarget(Target):
     @property
     @memoized
     def abi(self):
-        value = self.execute('uname -m').strip()
+        value = self.execute('{} uname -m'.format(self.busybox)).strip()
         for abi, architectures in ABI_MAP.iteritems():
             if value in architectures:
                 result = abi
