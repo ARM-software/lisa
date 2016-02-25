@@ -493,9 +493,19 @@ class RTA(Workload):
         self.test_label = '{0:s}_{1:02d}'.format(self.name, self.exc_id)
         return self.test_label
 
-    @staticmethod
-    def ramp(start_pct=0, end_pct=100, delta_pct=10, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched=None, cpus=None):
+class _TaskBase(object):
+
+    def __init__(self):
+        self._task = {}
+
+    def get(self):
+        return self._task
+
+
+class Ramp(_TaskBase):
+
+    def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
+                 period_ms=100, delay_s=0, loops=1, sched=None, cpus=None):
         """
         Configure a ramp load.
 
@@ -521,15 +531,14 @@ class RTA(Workload):
             sched     (dict): the scheduler configuration for this task
             cpus      (list): the list of CPUs on which task can run
         """
-        task = {}
+        super(Ramp, self).__init__()
 
-        task['cpus'] = cpus
+        self._task['cpus'] = cpus
         if not sched:
             sched = {'policy' : 'DEFAULT'}
-        task['sched'] = sched
-        task['delay'] = delay_s
-        task['loops'] = loops
-        task['phases'] = {}
+        self._task['sched'] = sched
+        self._task['delay'] = delay_s
+        self._task['loops'] = loops
 
         if start_pct not in range(0,101) or end_pct not in range(0,101):
             raise ValueError('start_pct and end_pct must be in [0..100] range')
@@ -552,13 +561,12 @@ class RTA(Workload):
                 phase = (time_s, period_ms, load)
             phases.append(phase)
 
-        task['phases'] = phases
+        self._task['phases'] = phases
 
-        return task;
+class Step(Ramp):
 
-    @staticmethod
-    def step(start_pct=0, end_pct=100, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched=None, cpus=None):
+    def __init__(self, start_pct=0, end_pct=100, time_s=1, period_ms=100,
+                 delay_s=0, loops=1, sched=None, cpus=None):
         """
         Configure a step load.
 
@@ -583,12 +591,13 @@ class RTA(Workload):
             cpus      (list): the list of CPUs on which task can run
         """
         delta_pct = abs(end_pct - start_pct)
-        return RTA.ramp(start_pct, end_pct, delta_pct, time_s,
-                period_ms, delay_s, loops, sched, cpus)
+        super(Step, self).__init__(start_pct, end_pct, delta_pct, time_s,
+                                   period_ms, delay_s, loops, sched, cpus)
 
-    @staticmethod
-    def pulse(start_pct=100, end_pct=0, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched=None, cpus=None):
+class Pulse(_TaskBase):
+
+    def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
+                 delay_s=0, loops=1, sched=None, cpus=None):
         """
         Configure a pulse load.
 
@@ -622,19 +631,20 @@ class RTA(Workload):
             sched     (dict):  the scheduler configuration for this task
             cpus      (list):  the list of CPUs on which task can run
         """
+        super(Pulse, self).__init__()
 
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
 
-        task = {}
+        self._task = {}
 
-        task['cpus'] = cpus
+        self._task['cpus'] = cpus
         if not sched:
             sched = {'policy' : 'DEFAULT'}
-        task['sched'] = sched
-        task['delay'] = delay_s
-        task['loops'] = loops
-        task['phases'] = {}
+        self._task['sched'] = sched
+        self._task['delay'] = delay_s
+        self._task['loops'] = loops
+        self._task['phases'] = {}
 
         if end_pct not in range(0,101) or start_pct not in range(0,101):
             raise ValueError('end_pct and start_pct must be in [0..100] range')
@@ -648,13 +658,13 @@ class RTA(Workload):
             phase = (time_s, period_ms, load)
             phases.append(phase)
 
-        task['phases'] = phases
+        self._task['phases'] = phases
 
-        return task;
 
-    @staticmethod
-    def periodic(duty_cycle_pct=50, duration_s=1, period_ms=100,
-            delay_s=0, sched=None, cpus=None):
+class Periodic(Pulse):
+
+    def __init__(self, duty_cycle_pct=50, duration_s=1, period_ms=100,
+                 delay_s=0, sched=None, cpus=None):
         """
         Configure a periodic load.
 
@@ -676,7 +686,6 @@ class RTA(Workload):
             sched       (dict):  the scheduler configuration for this task
 
         """
-
-        return RTA.pulse(duty_cycle_pct, 0, duration_s,
-                period_ms, delay_s, 1, sched, cpus)
+        super(Periodic, self).__init__(duty_cycle_pct, 0, duration_s,
+                                       period_ms, delay_s, 1, sched, cpus)
 
