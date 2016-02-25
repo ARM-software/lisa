@@ -21,8 +21,25 @@ import logging
 import os
 import re
 
+from collections import namedtuple
 from wlgen import Workload
 from devlib.utils.misc import ranges_to_list
+
+_Phase = namedtuple('Phase', 'duration_s, period_ms, duty_cycle_pct')
+class Phase(_Phase):
+    """
+    Descriptor for an RT-App load phase
+
+    :param duration_s: the phase duration in [s]
+    :type duration_s: int
+
+    :param period_ms: the phase period in [ms]
+    :type period_ms: int
+
+    :param duty_cycle_pct: the generated load in [%]
+    :type duty_cycle_pct: int
+    """
+    pass
 
 class RTA(Workload):
 
@@ -353,14 +370,13 @@ class RTA(Workload):
             # Getting task phase descriptor
             pid=1
             for phase in task['phases']:
-                (duration, period, duty_cycle) = phase
 
                 # Convert time parameters to integer [us] units
-                duration = int(duration * 1e6)
-                period = int(period * 1e3)
+                duration = int(phase.duration_s * 1e6)
+                period = int(phase.period_ms * 1e3)
 
                 # A duty-cycle of 0[%] translates on a 'sleep' phase
-                if duty_cycle == 0:
+                if phase.duty_cycle_pct == 0:
 
                     self.logger.info('%14s -  + phase_%06d: sleep %.6f [s]',
                                      'RTApp', pid, duration/1e6)
@@ -371,7 +387,7 @@ class RTA(Workload):
                     }
 
                 # A duty-cycle of 100[%] translates on a 'run-only' phase
-                elif duty_cycle == 100:
+                elif phase.duty_cycle_pct == 100:
 
                     self.logger.info('%14s -  + phase_%06d: batch %.6f [s]',
                                      'RTApp', pid, duration/1e6)
@@ -389,7 +405,7 @@ class RTA(Workload):
                     if duration >= 0:
                         cloops = int(duration / period)
 
-                    sleep_time = period * (100 - duty_cycle) / 100
+                    sleep_time = period * (100 - phase.duty_cycle_pct) / 100
                     running_time = period - sleep_time
 
                     self.logger.info(
@@ -397,7 +413,7 @@ class RTA(Workload):
                             'RTApp', pid, duration/1e6, cloops)
                     self.logger.info(
                             '%14s - |  period   %6d [us], duty_cycle %3d %%',
-                            'RTApp', period, duty_cycle)
+                            'RTApp', period, phase.duty_cycle_pct)
                     self.logger.info(
                             '%14s - |  run_time %6d [us], sleep_time %6d [us]',
                             'RTApp', running_time, sleep_time)
@@ -556,9 +572,9 @@ class Ramp(_TaskBase):
         steps = range(start_pct, end_pct+delta_adj, delta_pct)
         for load in steps:
             if load == 0:
-                phase = (time_s, 0, 0)
+                phase = Phase(time_s, 0, 0)
             else:
-                phase = (time_s, period_ms, load)
+                phase = Phase(time_s, period_ms, load)
             phases.append(phase)
 
         self._task['phases'] = phases
@@ -655,7 +671,7 @@ class Pulse(_TaskBase):
         for load in [start_pct, end_pct]:
             if load == 0:
                 continue
-            phase = (time_s, period_ms, load)
+            phase = Phase(time_s, period_ms, load)
             phases.append(phase)
 
         self._task['phases'] = phases
