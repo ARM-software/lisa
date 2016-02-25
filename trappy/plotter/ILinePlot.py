@@ -167,6 +167,7 @@ class ILinePlot(AbstractDataPlotter):
         self._attr["point_size"] = AttrConf.POINT_SIZE
         self._attr["map_label"] = {}
         self._attr["legend_ncol"] = AttrConf.LEGEND_NCOL
+        self._attr["title"] = AttrConf.TITLE
 
     def _plot(self, permute):
         """Internal Method called to draw the plot"""
@@ -177,26 +178,25 @@ class ILinePlot(AbstractDataPlotter):
         for p_val in pivot_vals:
             data_frame = pd.Series()
             for constraint in self.c_mgr:
-
                 if permute:
                     trace_idx, pivot = p_val
                     if constraint.trace_index != trace_idx:
                         continue
-                    title = constraint.get_data_name() + ":"
-                    legend = constraint._column
+                    legend = constraint.column
                 else:
                     pivot = p_val
-                    title = ""
                     legend = str(constraint)
 
                 result = constraint.result
                 if pivot in result:
                     data_frame[legend] = result[pivot]
 
-            if pivot == AttrConf.PIVOT_VAL:
-                title += ",".join(self._attr["column"])
+            if permute:
+                title = self._attr["column"][plot_index]
+            elif pivot != AttrConf.PIVOT_VAL:
+                title = "{0}: {1}".format(self._attr["pivot"], self._attr["map_label"].get(pivot, pivot))
             else:
-                title += "{0}: {1}".format(self._attr["pivot"], self._attr["map_label"].get(pivot, pivot))
+                title = ""
 
             self._layout.add_plot(plot_index, data_frame, title)
             plot_index += 1

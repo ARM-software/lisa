@@ -183,24 +183,13 @@ class StaticPlot(AbstractDataPlotter):
         """Generates a title string for an axis"""
         if concat:
             return str(constraint)
-        # If there's only one trace, show its name. Otherwise we do not need the
-        # name because it's already in the legend.
-        if self.c_mgr._max_len == 1:
-            title = constraint.get_data_name() + ":"
-        else:
-            title = ""
+
         if permute:
-            title += constraint.column
+            return constraint.column
+        elif pivot != AttrConf.PIVOT_VAL:
+            return "{0}: {1}".format(self._attr["pivot"], self._attr["map_label"].get(pivot, pivot))
         else:
-            if pivot == AttrConf.PIVOT_VAL:
-                if isinstance(self._attr["column"], list):
-                    title += ", ".join(self._attr["column"])
-                else:
-                    title += self._attr["column"]
-            else:
-                title += "{0}: {1}".format(self._attr["pivot"],
-                                           self._attr["map_label"].get(pivot, pivot))
-        return title
+            return ""
 
     def add_to_legend(self, series_index, handle, constraint, pivot, concat, permute):
         """
