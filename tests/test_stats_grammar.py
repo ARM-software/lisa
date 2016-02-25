@@ -32,7 +32,7 @@ class TestStatsGrammar(BaseTestThermal):
     def test_sum_operator(self):
         """Test Addition And Subtraction: Numeric"""
 
-        parser = Parser(trappy.FTrace())
+        parser = Parser(trappy.BareTrace())
         # Simple equation
         eqn = "10 + 2 - 3"
         self.assertEquals(parser.solve(eqn), 9)
@@ -136,11 +136,23 @@ trappy.thermal.Thermal:temp"
     def test_mul_ops(self):
         """Test Mult and Division: Numeric"""
 
-        parser = Parser(trappy.FTrace())
+        parser = Parser(trappy.BareTrace())
         eqn = "(10 * 2 / 10)"
         self.assertEquals(parser.solve(eqn), 2)
         eqn = "-2 * 2 + 2 * 10 / 10"
         self.assertEquals(parser.solve(eqn), -2)
+        eqn = "3.5 // 2"
+        self.assertEquals(parser.solve(eqn), 1)
+        eqn = "5 % 2"
+        self.assertEquals(parser.solve(eqn), 1)
+
+    def test_exp_ops(self):
+        """Test exponentiation: Numeric"""
+        parser = Parser(trappy.BareTrace())
+        eqn = "3**3 * 2**4"
+        self.assertEquals(parser.solve(eqn), 432)
+        eqn = "3**(4/2)"
+        self.assertEquals(parser.solve(eqn), 9)
 
     @unittest.skipIf(V(pandas.__version__) < V('0.16.1'),
                      "check_names is not supported in pandas < 0.16.1")

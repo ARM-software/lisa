@@ -58,10 +58,12 @@ REAL = Combine(Optional(oneOf("+ -")) + Word(nums) + "." +
 IDENTIFIER = Word(alphas + '_', alphanums + '_')
 # Python Like Function Name
 FUNC_NAME = delimitedList(IDENTIFIER, delim=".", combine=True)
+# Exponentiation operators
+EXPONENTIATION_OPS = "**"
 # Unary Operators
 UNARY_OPS = oneOf("+ -")
 # Multiplication/Division Operators
-MULT_OPS = oneOf("* /")
+MULT_OPS = oneOf("* / // %")
 # Addition/Subtraction Operators
 SUM_OPS = oneOf("+ -")
 # Relational Operators
@@ -75,6 +77,9 @@ OPERATOR_MAP = {
     "-": lambda a, b: a - b,
     "*": lambda a, b: a * b,
     "/": lambda a, b: a / b,
+    "//": lambda a, b: a // b,
+    "%": lambda a, b: a % b,
+    "**": lambda a, b: a ** b,
     ">": lambda a, b: a > b,
     "<": lambda a, b: a < b,
     ">=": lambda a, b: a >= b,
@@ -175,6 +180,8 @@ def get_parse_expression(parse_func, parse_var_id):
     # pylint: disable=expression-not-assigned
     arith_expr << operatorPrecedence(func_call | var_id,
                                      [
+                                         (EXPONENTIATION_OPS, 2, opAssoc.LEFT,
+                                          eval_binary_op),
                                          (UNARY_OPS, 1,
                                           opAssoc.RIGHT, eval_unary_op),
                                          (MULT_OPS, 2, opAssoc.LEFT,
@@ -224,9 +231,11 @@ class Parser(object):
         +----------------+----------------------+---------------+
         | Operation      |      operator        | Associativity |
         +================+======================+===============+
+        | Exponentiation | \*\*                 |    Left       |
+        +----------------+----------------------+---------------+
         |Unary           | \-                   |    Right      |
         +----------------+----------------------+---------------+
-        | Multiply/Divide| \*, /                |    Left       |
+        | Multiply/Divide| \*, /, //, %         |    Left       |
         +----------------+----------------------+---------------+
         | Add/Subtract   | +, \-,               |    Left       |
         +----------------+----------------------+---------------+
