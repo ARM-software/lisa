@@ -214,3 +214,25 @@ trappy.thermal.Thermal:temp"
 
         p = Parser(trace)
         self.assertTrue(len(p.solve("pmu_counters:cpu")), 3)
+
+    def test_windowed_parse(self):
+        """Test that the parser can operate on a window of the trace"""
+        trace = trappy.FTrace()
+
+        prs = Parser(trace, window=(2, 3))
+        dfr_res = prs.solve("thermal:temp")
+
+        self.assertGreater(dfr_res.index[0], 2)
+        self.assertLess(dfr_res.index[-1], 3)
+
+        prs = Parser(trace, window=(4, None))
+        dfr_res = prs.solve("thermal:temp")
+
+        self.assertGreater(dfr_res.index[0], 4)
+        self.assertEquals(dfr_res.index[-1], trace.thermal.data_frame.index[-1])
+
+        prs = Parser(trace, window=(0, 1))
+        dfr_res = prs.solve("thermal:temp")
+
+        self.assertEquals(dfr_res.index[0], trace.thermal.data_frame.index[0])
+        self.assertLess(dfr_res.index[-1], 1)

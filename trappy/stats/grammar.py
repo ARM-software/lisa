@@ -208,6 +208,10 @@ class Parser(object):
     """A parser class for solving simple
     data accesses and super-indexing data
 
+    :param data: Trace Object
+    :type data: instance of :mod:`trappy.ftrace.BareTrace` or a child
+        class (like :mod:`trappy.ftrace.FTrace`)
+
     :param pvars: A dictionary of variables that need to be
         accessed from within the grammar
     :type pvars: dict
@@ -225,6 +229,15 @@ class Parser(object):
     :param fill: Whether to fill the NaNs in the data.
         The default value is True.
     :type fill: bool
+
+    :param window: A window of time in which to apply the data
+        accesses.  By default the data accesses happen accross the
+        whole trace.  With the window parameter you can limit it to a
+        window of time inside the trace.  The first element of the
+        tuple is the starting time and the second the ending time (set
+        to None for end of trace).
+
+    :type window: tuple
 
     - **Operators**
 
@@ -304,7 +317,7 @@ class Parser(object):
 
     """
 
-    def __init__(self, data, pvars=None, **kwargs):
+    def __init__(self, data, pvars=None, window=(0, None), **kwargs):
         if pvars is None:
             pvars = {}
 
@@ -321,6 +334,7 @@ class Parser(object):
         self._limit = kwargs.get("limit", StatConf.REINDEX_LIMIT_DEFAULT)
         self._method = kwargs.get("method", StatConf.REINDEX_METHOD_DEFAULT)
         self._fill = kwargs.get("fill", StatConf.NAN_FILL_DEFAULT)
+        self._window = window
 
     def solve(self, expr):
         """Parses and solves the input expression
@@ -383,7 +397,7 @@ class Parser(object):
     def _pivot(self, cls, column):
         """Pivot Data for concatenation"""
 
-        data_frame = getattr(self.data, cls.name).data_frame
+        data_frame = self._get_data_frame(cls)
         data_frame = handle_duplicate_index(data_frame)
         new_index = self._agg_df.index.union(data_frame.index)
 
@@ -455,7 +469,7 @@ class Parser(object):
         else:
             cls = str_to_attr(cls)
 
-        data_frame = getattr(self.data, cls.name).data_frame
+        data_frame = self._get_data_frame(cls)
 
         info["class"] = cls
         info["length"] = len(data_frame)
@@ -491,6 +505,19 @@ class Parser(object):
         else:
             func = str_to_attr(params[0])
         return func(*params[1])
+
+    def _get_data_frame(self, cls):
+        """Get the data frame from the BareTrace object, applying the window
+        if set"""
+
+        data_frame = getattr(self.data, cls.name).data_frame
+
+        if self._window[1] is None:
+            data_frame = data_frame.loc[self._window[0]:]
+        else:
+            data_frame = data_frame.loc[self._window[0]:self._window[1]]
+
+        return data_frame
 
     def ref(self, mask):
         """Reference super indexed data with a boolean mask
