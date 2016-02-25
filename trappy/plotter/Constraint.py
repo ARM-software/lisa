@@ -118,16 +118,9 @@ class Constraint(object):
             return result
 
         if self._pivot == AttrConf.PIVOT:
-            criterion = values.map(lambda x: True)
-            for key in self._filters.keys():
-                if key in data.columns:
-                    criterion = criterion & data[key].map(
-                        lambda x: x in self._filters[key])
-                    values = values[criterion]
-            result[AttrConf.PIVOT_VAL] = values
-            return result
-
-        pivot_vals = self.pivot_vals(data)
+            pivot_vals = [AttrConf.PIVOT_VAL]
+        else:
+            pivot_vals = self.pivot_vals(data)
 
         for pivot_val in pivot_vals:
             criterion = values.map(lambda x: True)
@@ -136,9 +129,11 @@ class Constraint(object):
                 if key != self._pivot and key in data.columns:
                     criterion = criterion & data[key].map(
                         lambda x: x in self._filters[key])
-                    values = values[criterion]
 
-            val_series = values[data[self._pivot] == pivot_val]
+            if pivot_val != AttrConf.PIVOT_VAL:
+                criterion &= data[self._pivot] == pivot_val
+
+            val_series = values[criterion]
             if len(val_series) != 0:
                result[pivot_val] = val_series
 
@@ -360,10 +355,10 @@ class ConstraintManager(object):
 
         try:
             sorted_plist = sorted(p_list, key=int)
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             try:
                 sorted_plist = sorted(p_list, key=lambda x: int(x, 16))
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 sorted_plist = sorted(p_list)
 
         if permute:
