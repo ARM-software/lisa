@@ -301,19 +301,24 @@ class ReventWorkload(Workload):
     default_setup_timeout = 5 * 60  # in seconds
     default_run_timeout = 10 * 60  # in seconds
 
+    @property
+    def on_device_setup_revent(self):
+        return self.device.get_workpath('{}.setup.revent'.format(self.device.model))
+
+    @property
+    def on_device_run_revent(self):
+        return self.device.get_workpath('{}.run.revent'.format(self.device.model))
+
     def __init__(self, device, _call_super=True, **kwargs):
         if _call_super:
             super(ReventWorkload, self).__init__(device, **kwargs)
-        devpath = self.device.path
-        self.on_device_revent_binary = devpath.join(self.device.binaries_directory, 'revent')
-        self.on_device_setup_revent = devpath.join(self.device.working_directory, '{}.setup.revent'.format(self.device.name))
-        self.on_device_run_revent = devpath.join(self.device.working_directory, '{}.run.revent'.format(self.device.name))
+        self.on_device_revent_binary = None
         self.setup_timeout = kwargs.get('setup_timeout', self.default_setup_timeout)
         self.run_timeout = kwargs.get('run_timeout', self.default_run_timeout)
         self.revent_setup_file = None
         self.revent_run_file = None
 
-    def init_resources(self, context):
+    def initialize(self, context):
         self.revent_setup_file = context.resolver.get(wlauto.common.android.resources.ReventFile(self, 'setup'))
         self.revent_run_file = context.resolver.get(wlauto.common.android.resources.ReventFile(self, 'run'))
 
@@ -433,8 +438,11 @@ class GameWorkload(ApkWorkload, ReventWorkload):
         self.module_dir = os.path.dirname(sys.modules[self.__module__].__file__)
         self.revent_dir = os.path.join(self.module_dir, 'revent_files')
 
-    def init_resources(self, context):
+    def apk_init_resources(self, context):
         ApkWorkload.init_resources(self, context)
+
+    def init_resources(self, context):
+        self.apk_init_resources(context)
         ReventWorkload.init_resources(self, context)
 
     def setup(self, context):
@@ -461,11 +469,14 @@ class GameWorkload(ApkWorkload, ReventWorkload):
     def run(self, context):
         ReventWorkload.run(self, context)
 
-    def teardown(self, context):
+    def apk_teardown(self, context):
         if not self.saved_state_file:
             ApkWorkload.teardown(self, context)
         else:
             self.device.execute('am force-stop {}'.format(self.package))
+
+    def teardown(self, context):
+        self.apk_teardown(context)
         ReventWorkload.teardown(self, context)
 
     def _deploy_assets(self, context, timeout=300):
@@ -478,7 +489,7 @@ class GameWorkload(ApkWorkload, ReventWorkload):
         kind = 'data'
         if ':' in resource_file:
             kind, resource_file = resource_file.split(':', 1)
-        ondevice_cache = self.device.path.join(self.device.resource_cache, self.name, resource_file)
+        ondevice_cache = self.device.path.join(self.device.working_directory, '.cache', self.name, resource_file)
         if not self.device.file_exists(ondevice_cache):
             asset_tarball = context.resolver.get(PluginAsset(self, resource_file))
             if not asset_tarball:
@@ -488,7 +499,7 @@ class GameWorkload(ApkWorkload, ReventWorkload):
             # exist.
             self.device.push(asset_tarball, ondevice_cache, timeout=timeout)
 
-        device_asset_directory = self.device.path.join(self.context.device_manager.external_storage_directory, 'Android', kind)
+        device_asset_directory = self.device.path.join(context.device_manager.external_storage_directory, 'Android', kind)
         deploy_command = 'cd {} && {} tar -xzf {}'.format(device_asset_directory,
                                                           self.device.busybox,
                                                           ondevice_cache)

@@ -16,11 +16,15 @@
 import os
 import sys
 
+
+from wlauto import Command, settings
+from wlauto.core import pluginloader
 from wlauto.common.resources import Executable
 from wlauto.core.resource import NO_ONE
 from wlauto.core.resolver import ResourceResolver
 from wlauto.core.configuration import RunConfiguration
 from wlauto.core.agenda import Agenda
+from wlauto.common.android.workload import ApkWorkload
 
 
 class RecordCommand(Command):
@@ -50,78 +54,126 @@ class RecordCommand(Command):
     def initialize(self, context):
         self.context = context
         self.parser.add_argument('-d', '--device', help='The name of the device')
-        self.parser.add_argument('-s', '--suffix', help='The suffix of the revent file, e.g. ``setup``')
         self.parser.add_argument('-o', '--output', help='Directory to save the recording in')
-        self.parser.add_argument('-p', '--package', help='Package to launch before recording')
+
+        # Need validation
+        self.parser.add_argument('-s', '--suffix', help='The suffix of the revent file, e.g. ``setup``')
         self.parser.add_argument('-C', '--clear', help='Clear app cache before launching it',
                                  action="store_true")
 
+        group = self.parser.add_mutually_exclusive_group(required=False)
+        group.add_argument('-p', '--package', help='Package to launch before recording')
+        group.add_argument('-w', '--workload', help='Name of a revent workload (mostly games)')
+
     # Validate command options
     def validate_args(self, args):
-        if args.clear and not args.package:
-            print "Package must be specified if you want to clear cache\n"
+        if args.clear and not (args.package or args.workload):
+            self.logger.error("Package/Workload must be specified if you want to clear cache")
             self.parser.print_help()
             sys.exit()
+        if args.workload and args.suffix:
+            self.logger.error("cannot specify manual suffixes for workloads")
+            self.parser.print_help()
+            sys.exit()
+        if args.suffix:
+            args.suffix += "."
 
     # pylint: disable=W0201
     def execute(self, args):
         self.validate_args(args)
         self.logger.info("Connecting to device...")
 
-        ext_loader = PluginLoader(packages=settings.plugin_packages,
-                                     paths=settings.plugin_paths)
-
         # Setup config
-        self.config = RunConfiguration(ext_loader)
-        for filepath in settings.get_config_paths():
+        self.config = RunConfiguration(pluginloader)
+        for filepath in settings.config_paths:
             self.config.load_config(filepath)
         self.config.set_agenda(Agenda())
         self.config.finalize()
 
-        context = LightContext(self.config)
-
         # Setup device
-        self.device = ext_loader.get_device(settings.device, **settings.device_config)
-        self.device.validate()
-        self.device.connect()
-        self.device.initialize(context)
-
-        host_binary = context.resolver.get(Executable(NO_ONE, self.device.abi, 'revent'))
-        self.target_binary = self.device.install_if_needed(host_binary)
-
-        self.run(args)
-
-    def run(self, args):
+        self.device_manager = pluginloader.get_manager(self.config.device)
+        self.device_manager.validate()
+        self.device_manager.connect()
+        context = LightContext(self.config, self.device_manager)
+        self.device_manager.initialize(context)
+        self.device = self.device_manager.target
         if args.device:
             self.device_name = args.device
         else:
-            self.device_name = self.device.get_device_model()
+            self.device_name = self.device.model
 
-        if args.suffix:
-            args.suffix += "."
+        # Install Revent
+        host_binary = context.resolver.get(Executable(NO_ONE, self.device.abi, 'revent'))
+        self.target_binary = self.device.install_if_needed(host_binary)
 
-        revent_file = self.device.path.join(self.device.working_directory,
-                                            '{}.{}revent'.format(self.device_name, args.suffix or ""))
+        if args.workload:
+            self.workload_record(args, context)
+        elif args.package:
+            self.package_record(args, context)
+        else:
+            self.manual_record(args, context)
 
+    def manual_record(self, args, context):
+        revent_file = self.device.get_workpath('{}.{}revent'.format(self.device_name, args.suffix or ""))
+        self._record(revent_file, "", args.output)
+
+    def package_record(self, args, context):
+        revent_file = self.device.get_workpath('{}.{}revent'.format(self.device_name, args.suffix or ""))
         if args.clear:
             self.device.execute("pm clear {}".format(args.package))
 
-        if args.package:
-            self.logger.info("Starting {}".format(args.package))
-            self.device.execute('monkey -p {} -c android.intent.category.LAUNCHER 1'.format(args.package))
+        self.logger.info("Starting {}".format(args.package))
+        self.device.execute('monkey -p {} -c android.intent.category.LAUNCHER 1'.format(args.package))
 
-        self.logger.info("Press Enter when you are ready to record...")
+        self._record(revent_file, "", args.output)
+
+    def workload_record(self, args, context):
+        setup_file = self.device.get_workpath('{}.setup.revent'.format(self.device_name))
+        run_file = self.device.get_workpath('{}.run.revent'.format(self.device_name))
+
+        self.logger.info("Deploying {}".format(args.workload))
+        workload = pluginloader.get_workload(args.workload, self.device)
+        workload.apk_init_resources(context)
+        workload.initialize_package(context)
+        workload.do_post_install(context)
+        workload.start_activity()
+
+        if args.clear:
+            workload.reset(context)
+
+        self._record(setup_file, " SETUP",
+                     args.output or os.path.join(workload.dependencies_directory, 'revent_files'))
+        self._record(run_file, " RUN",
+                     args.output or os.path.join(workload.dependencies_directory, 'revent_files'))
+
+        self.logger.info("Tearing down {}".format(args.workload))
+        workload.apk_teardown(context)
+
+    def _record(self, revent_file, name, output_path):
+        self.logger.info("Press Enter when you are ready to record{}...".format(name))
         raw_input("")
         command = "{} record -t 100000 -s {}".format(self.target_binary, revent_file)
         self.device.kick_off(command)
 
-        self.logger.info("Press Enter when you have finished recording...")
+        self.logger.info("Press Enter when you have finished recording {}...".format(name))
         raw_input("")
         self.device.killall("revent")
 
-        self.logger.info("Pulling files from device")
-        self.device.pull(revent_file, args.output or os.getcwdu())
+        output_path = output_path or os.getcwdu()
+        if not os.path.isdir(output_path):
+            os.mkdirs(output_path)
 
+        revent_file_name = self.device.path.basename(revent_file)
+        host_path = os.path.join(output_path, revent_file_name)
+        if os.path.exists(host_path):
+            self.logger.info("Revent file '{}' already exists, overwrite? [y/n]".format(revent_file_name))
+            if raw_input("") == "y":
+                os.remove(host_path)
+            else:
+                self.logger.warning("Did not pull and overwrite '{}'".format(revent_file_name))
+                return
+        self.logger.info("Pulling '{}' from device".format(self.device.path.basename(revent_file)))
+        self.device.pull(revent_file, output_path)
 
 class ReplayCommand(RecordCommand):
 
@@ -138,6 +190,7 @@ class ReplayCommand(RecordCommand):
         self.parser.add_argument('-p', '--package', help='Package to launch before recording')
         self.parser.add_argument('-C', '--clear', help='Clear app cache before launching it',
                                  action="store_true")
+
 
     # pylint: disable=W0201
     def run(self, args):
@@ -159,6 +212,7 @@ class ReplayCommand(RecordCommand):
 
 # Used to satisfy the API
 class LightContext(object):
-    def __init__(self, config):
+    def __init__(self, config, device_manager):
         self.resolver = ResourceResolver(config)
         self.resolver.load()
+        self.device_manager = device_manager
