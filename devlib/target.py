@@ -228,6 +228,13 @@ class Target(object):
                           '(in which case, a hard_reset module must be installed)'
                 raise TargetError(message)
             self.reset()
+            # Wait a fixed delay before starting polling to give the target time to
+            # shut down, otherwise, might create the connection while it's still shutting
+            # down resulting in subsequenct connection failing.
+            self.logger.debug('Waiting for target to power down...')
+            reset_delay = 20
+            time.sleep(reset_delay)
+            timeout = max(timeout - reset_delay, 10)
         if self.has('boot'):
             self.boot()  # pylint: disable=no-member
         if connect:

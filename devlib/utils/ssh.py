@@ -22,6 +22,7 @@ import re
 import threading
 import tempfile
 import shutil
+import time
 
 import pexpect
 from distutils.version import StrictVersion as V
@@ -44,19 +45,28 @@ logger = logging.getLogger('ssh')
 
 def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeout=10, telnet=False):
     _check_env()
-    if telnet:
-        if keyfile:
-            raise ValueError('keyfile may not be used with a telnet connection.')
-        conn = TelnetConnection()
-    else:  # ssh
-        conn = pxssh.pxssh()
-    try:
-        if keyfile:
-            conn.login(host, username, ssh_key=keyfile, port=port, login_timeout=timeout)
-        else:
-            conn.login(host, username, password, port=port, login_timeout=timeout)
-    except EOF:
-        raise TargetError('Could not connect to {}; is the host name correct?'.format(host))
+    start_time = time.time()
+    while True:
+        if telnet:
+            if keyfile:
+                raise ValueError('keyfile may not be used with a telnet connection.')
+            conn = TelnetConnection()
+        else:  # ssh
+            conn = pxssh.pxssh()
+
+        try:
+            if keyfile:
+                conn.login(host, username, ssh_key=keyfile, port=port, login_timeout=timeout)
+            else:
+                conn.login(host, username, password, port=port, login_timeout=timeout)
+            break
+        except EOF:
+            timeout -= time.time() - start_time
+            if timeout <= 0:
+                message = 'Could not connect to {}; is the host name correct?'
+                raise TargetError(message.format(host))
+            time.sleep(5)
+
     conn.setwinsize(500,200)
     conn.sendline('')
     conn.prompt()
@@ -151,27 +161,33 @@ class SshConnection(object):
         return self._scp(source, dest, timeout)
 
     def execute(self, command, timeout=None, check_exit_code=True, as_root=False, strip_colors=True):
-        with self.lock:
-            output = self._execute_and_wait_for_prompt(command, timeout, as_root, strip_colors)
-            if check_exit_code:
-                exit_code_text = self._execute_and_wait_for_prompt('echo $?', strip_colors=strip_colors, log=False)
-                try:
-                    exit_code = int(exit_code_text.split()[0])
-                    if exit_code:
-                        message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
-                        raise TargetError(message.format(exit_code, command, output))
-                except (ValueError, IndexError):
-                    logger.warning('Could not get exit code for "{}",\ngot: "{}"'.format(command, exit_code_text))
-            return output
+        try:
+            with self.lock:
+                output = self._execute_and_wait_for_prompt(command, timeout, as_root, strip_colors)
+                if check_exit_code:
+                    exit_code_text = self._execute_and_wait_for_prompt('echo $?', strip_colors=strip_colors, log=False)
+                    try:
+                        exit_code = int(exit_code_text.split()[0])
+                        if exit_code:
+                            message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
+                            raise TargetError(message.format(exit_code, command, output))
+                    except (ValueError, IndexError):
+                        logger.warning('Could not get exit code for "{}",\ngot: "{}"'.format(command, exit_code_text))
+                return output
+        except EOF:
+            raise TargetError('Connection lost.')
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
-        port_string = '-p {}'.format(self.port) if self.port else ''
-        keyfile_string = '-i {}'.format(self.keyfile) if self.keyfile else ''
-        command = '{} {} {} {}@{} {}'.format(ssh, keyfile_string, port_string, self.username, self.host, command)
-        logger.debug(command)
-        if self.password:
-            command = _give_password(self.password, command)
-        return subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)
+        try:
+            port_string = '-p {}'.format(self.port) if self.port else ''
+            keyfile_string = '-i {}'.format(self.keyfile) if self.keyfile else ''
+            command = '{} {} {} {}@{} {}'.format(ssh, keyfile_string, port_string, self.username, self.host, command)
+            logger.debug(command)
+            if self.password:
+                command = _give_password(self.password, command)
+            return subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)
+        except EOF:
+            raise TargetError('Connection lost.')
 
     def close(self):
         logger.debug('Logging out {}@{}'.format(self.username, self.host))
