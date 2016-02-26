@@ -18,6 +18,7 @@ from trappy.stats.Topology import Topology
 from trappy.stats.Trigger import Trigger
 from trappy.stats.Aggregator import MultiTriggerAggregator
 
+import collections
 import trappy
 from trappy.base import Base
 import pandas as pd
@@ -187,6 +188,44 @@ class TestTrigger(BaseTestStats):
 
         expected = pd.Series([1], index=pd.Index([0.6], name="Time"))
         assert_series_equal(expected, trigger.generate("blank"))
+
+    def test_filter_prev_values(self):
+        """Trigger works with a filter that depends on previous values of the same pivot"""
+
+        # We generate an example in which we want a trigger whenever the
+        # identifier is no longer 1 for blank
+
+        class my_filter(object):
+            def __init__(self, val_out):
+                self.prev_val = 0
+                self.val_out = val_out
+
+            def __call__(self, val):
+                ret = self.prev_val == self.val_out
+                self.prev_val = val
+
+                return ret
+
+        trace = trappy.BareTrace()
+        data = collections.OrderedDict([
+            (0.1, ["blank", 1]),
+            (0.2, ["fire",  1]),
+            (0.3, ["blank", 0]), # value is no longer 1, trigger
+            (0.4, ["blank", 1]),
+            (0.5, ["fire",  0]), # This should NOT trigger
+            (0.6, ["blank", 0]), # value is no longer 1 for blank, trigger
+        ])
+        data_frame = pd.DataFrame.from_dict(data, orient="index", )
+        data_frame.columns = ["result", "identifier"]
+        trace.add_parsed_event("aim_and_fire", data_frame)
+
+        trigger = Trigger(trace, trace.aim_and_fire,
+                          filters={"identifier": my_filter(1)}, value=-1,
+                          pivot="result")
+
+        expected = pd.Series([-1, -1], index=pd.Index([0.3, 0.6], name="Time"))
+        assert_series_equal(expected, trigger.generate("blank"))
+
 
 
 class TestAggregator(BaseTestStats):

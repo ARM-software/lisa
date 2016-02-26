@@ -87,8 +87,10 @@ class Trigger(object):
 
         trappy_event = getattr(self.trace, self.template.name)
         data_frame = trappy_event.data_frame
+        data_frame = data_frame[data_frame[self._pivot] == pivot_val]
 
-        mask = (data_frame[self._pivot] == pivot_val)
+        mask = [True for _ in range(len(data_frame))]
+
         for key, value in self._filters.iteritems():
             if hasattr(value, "__call__"):
                 mask = mask & (data_frame[key].apply(value))
