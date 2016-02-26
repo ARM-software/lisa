@@ -147,6 +147,47 @@ class TestTrigger(BaseTestStats):
         expected = pd.Series([1], index=pd.Index([0.5], name="Time"))
         assert_series_equal(expected, trigger.generate(1))
 
+    def test_trigger_with_func(self):
+        """Trigger works with a function or lambda as filter"""
+
+        def my_filter(val):
+            return val.startswith("fi")
+
+        trigger = Trigger(self._trace, self._trace.aim_and_fire,
+                          filters={"result": my_filter}, value=1,
+                          pivot="identifier")
+
+        expected = pd.Series([1], index=pd.Index([0.5], name="Time"))
+        assert_series_equal(expected, trigger.generate(1))
+
+        my_filters = {"result": lambda x: x.startswith("bl")}
+        trigger = Trigger(self._trace, self._trace.aim_and_fire,
+                          filters=my_filters, value=1, pivot="identifier")
+
+        expected = pd.Series([1, 1], index=pd.Index([0.4, 0.6], name="Time"))
+        assert_series_equal(expected, trigger.generate(1))
+
+    def test_trigger_with_callable_class(self):
+        """Trigger works with a callable class as filter"""
+
+        class my_filter(object):
+            def __init__(self, val_out):
+                self.prev_val = 0
+                self.val_out = val_out
+
+            def __call__(self, val):
+                ret = self.prev_val == self.val_out
+                self.prev_val = val
+
+                return ret
+
+        trigger = Trigger(self._trace, self._trace.aim_and_fire,
+                          filters={"identifier": my_filter(1)}, value=1,
+                          pivot="result")
+
+        expected = pd.Series([1], index=pd.Index([0.6], name="Time"))
+        assert_series_equal(expected, trigger.generate("blank"))
+
 
 class TestAggregator(BaseTestStats):
 

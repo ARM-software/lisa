@@ -58,6 +58,9 @@ class Trigger(object):
         f["data_column_a"] = function_based_filter
         f["data_column_b"] = value
 
+    function_based_filter is anything that behaves like a function,
+    i.e. a callable.
+
     :param value: Value can be a string or a numeric
     :type value: str, int, float
 
@@ -87,7 +90,7 @@ class Trigger(object):
 
         mask = (data_frame[self._pivot] == pivot_val)
         for key, value in self._filters.iteritems():
-            if isinstance(value, types.FunctionType):
+            if hasattr(value, "__call__"):
                 mask = mask & (data_frame[key].apply(value))
             else:
                 mask = apply_filter_kv(key, value, data_frame, mask)
