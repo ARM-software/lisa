@@ -185,7 +185,7 @@ class StaticPlot(AbstractDataPlotter):
             return str(constraint)
 
         if permute:
-            return constraint.column
+            return constraint.get_data_name()
         elif pivot != AttrConf.PIVOT_VAL:
             return "{0}: {1}".format(self._attr["pivot"], self._attr["map_label"].get(pivot, pivot))
         else:
@@ -208,7 +208,7 @@ class StaticPlot(AbstractDataPlotter):
                 self._attr["map_label"].get(pivot, pivot)
             )
         elif permute:
-            legend_labels[series_index] = constraint.get_data_name() + ":" + constraint._template.name
+            legend_labels[series_index] = constraint._template.name + ":" + constraint.column
         else:
             legend_labels[series_index] = str(constraint)
 
