@@ -86,14 +86,10 @@ class Trigger(object):
         data_frame = trappy_event.data_frame
 
         mask = (data_frame[self._pivot] == pivot_val)
-        for key in self._filters:
-
-            operator = self._filters[key]
-
-            if isinstance(operator, types.FunctionType):
-                mask = mask & (data_frame[key].apply(operator))
+        for key, value in self._filters.iteritems():
+            if isinstance(value, types.FunctionType):
+                mask = mask & (data_frame[key].apply(value))
             else:
-                value = operator
                 mask = apply_filter_kv(key, value, data_frame, mask)
 
         data_frame = data_frame[mask]
