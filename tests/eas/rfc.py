@@ -26,8 +26,9 @@ TESTS_CONF = os.path.join(TESTS_DIRECTORY, "rfc.config")
 class RFC(LisaTest):
     """Tests for the Energy-Aware Scheduler"""
 
-    def __init__(self, *args, **kwargs):
-        super(RFC, self).__init__(TESTS_CONF, *args, **kwargs)
+    @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        super(RFC, cls)._init(TESTS_CONF, args, kwargs)
 
     def test_energy_regression(self):
         """Check that there is not regression on energy"""

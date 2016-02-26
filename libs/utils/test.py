@@ -25,7 +25,8 @@ from executor import Executor
 class LisaTest(unittest.TestCase):
     """A base class for LISA defined tests"""
 
-    def __init__(self, conf_file, *args, **kwargs):
+    @classmethod
+    def _init(self, conf_file, *args, **kwargs):
         """
         Base class to run LISA test experiments
         """
@@ -35,7 +36,6 @@ class LisaTest(unittest.TestCase):
         if 'loglevel' in kwargs:
             self.logger.setLevel(kwargs['loglevel'])
             kwargs.pop('loglevel')
-
 
         self.conf_file = conf_file
         self.logger.info("%14s - Using configuration:",
@@ -50,10 +50,9 @@ class LisaTest(unittest.TestCase):
         self.logger.debug("%14s - Checking tests configuration...", "LisaTest")
         self._checkConf()
 
-        super(LisaTest, self).__init__(*args, **kwargs)
-
         self._runExperiments()
 
+    @classmethod
     def _runExperiments(self):
         """
         Default experiments execution engine
@@ -75,6 +74,7 @@ class LisaTest(unittest.TestCase):
         # Execute post-experiments code defined by the test
         self._experimentsFinalize()
 
+    @classmethod
     def _checkConf(self):
         """
         Check for mandatory configuration options
@@ -88,11 +88,13 @@ class LisaTest(unittest.TestCase):
         assert self.conf['wloads'], \
             "Configuration file with empty set of workloads ('wloads' attribute)"
 
+    @classmethod
     def _experimentsInit(self):
         """
         Code executed before running the experiments
         """
 
+    @classmethod
     def _experimentsFinalize(self):
         """
         Code executed after running the experiments

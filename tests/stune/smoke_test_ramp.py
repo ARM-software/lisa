@@ -29,8 +29,9 @@ TESTS_CONF = os.path.join(TESTS_DIRECTORY, "smoke_test_ramp.config")
 class STune(LisaTest):
     """Tests for SchedTune framework"""
 
-    def __init__(self, *args, **kwargs):
-        super(STune, self).__init__(TESTS_CONF, *args, **kwargs)
+    @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        super(STune, cls)._init(TESTS_CONF, *args, **kwargs)
 
     def test_boosted_utilization_signal(self):
         """The boosted utilization signal is appropriately boosted
