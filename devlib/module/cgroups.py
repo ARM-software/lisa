@@ -68,7 +68,7 @@ class Controller(object):
                             self.mount_point),
                             as_root=True)
 
-        self.logger.info('Controller %s mounted under: %s',
+        self.logger.debug('Controller %s mounted under: %s',
             self.kind, self.mount_point)
 
         # Mark this contoller as available
@@ -147,7 +147,7 @@ class CGroup(object):
         if not create:
             return
 
-        self.logger.info('Creating cgroup %s', self.directory)
+        self.logger.debug('Creating cgroup %s', self.directory)
         self.target.execute('[ -d {0} ] || mkdir -p {0}'\
                 .format(self.directory), as_root=True)
 
@@ -237,7 +237,7 @@ class CgroupsModule(Module):
         subsys = self.list_subsystems()
         for (n, h, c, e) in subsys:
             controllers.append(n)
-        self.logger.info('Available controllers: %s', controllers)
+        self.logger.debug('Available controllers: %s', controllers)
 
         # Initialize controllers
         self.controllers = {}
