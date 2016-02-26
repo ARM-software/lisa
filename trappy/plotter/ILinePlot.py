@@ -182,7 +182,7 @@ class ILinePlot(AbstractDataPlotter):
                     trace_idx, pivot = p_val
                     if constraint.trace_index != trace_idx:
                         continue
-                    legend = constraint.column
+                    legend = constraint._template.name + ":" + constraint.column
                 else:
                     pivot = p_val
                     legend = str(constraint)
@@ -192,7 +192,7 @@ class ILinePlot(AbstractDataPlotter):
                     data_frame[legend] = result[pivot]
 
             if permute:
-                title = self._attr["column"][plot_index]
+                title = self.traces[plot_index].name
             elif pivot != AttrConf.PIVOT_VAL:
                 title = "{0}: {1}".format(self._attr["pivot"], self._attr["map_label"].get(pivot, pivot))
             else:

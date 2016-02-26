@@ -197,7 +197,6 @@ class ILinePlotGen(object):
         fig_params["fill_graph"] = self._attr["fill"]
         fig_params["per_line"] = self._attr["per_line"]
         fig_params["height"] = self._attr["height"]
-        fig_params["legend_ncol"] = self._attr["legend_ncol"]
 
         self._check_add_scatter(fig_params)
 
