@@ -59,6 +59,7 @@ class FtraceCollector(TraceCollector):
                  autoreport=True,
                  autoview=False,
                  no_install=False,
+                 strict=False,
                  ):
         super(FtraceCollector, self).__init__(target)
         self.events = events if events is not None else DEFAULT_EVENTS
@@ -74,11 +75,12 @@ class FtraceCollector(TraceCollector):
         self.host_binary = None
         self.start_time = None
         self.stop_time = None
-        self.event_string = _build_trace_events(self.events)
-        self.function_string = _build_trace_functions(self.functions)
+        self.event_string = None
+        self.function_string = None
         self._reset_needed = True
 
         # Setup tracing paths
+        self.available_events_file    = self.target.path.join(self.tracing_path, 'available_events')
         self.available_functions_file = self.target.path.join(self.tracing_path, 'available_filter_functions')
         self.buffer_size_file         = self.target.path.join(self.tracing_path, 'buffer_size_kb')
         self.current_tracer_file      = self.target.path.join(self.tracing_path, 'current_tracer')
@@ -103,6 +105,32 @@ class FtraceCollector(TraceCollector):
                 raise TargetError('No trace-cmd found on device and no_install=True is specified.')
             self.target_binary = 'trace-cmd'
 
+        # Validate required events to be traced
+        available_events = self.target.execute(
+                'cat {}'.format(self.available_events_file)).splitlines()
+        selected_events = []
+        for event in self.events:
+            # Convert globs supported by FTrace into valid regexp globs
+            _event = event
+            if event[0] != '*':
+                _event = '*' + event
+            event_re = re.compile(_event.replace('*', '.*'))
+            # Select events matching the required ones
+            if len(filter(event_re.match, available_events)) == 0:
+                message = 'Event [{}] not available for tracing'.format(event)
+                if strict:
+                    raise TargetError(message)
+                self.target.logger.warning(message)
+            else:
+                selected_events.append(event)
+        # If function profiling is enabled we always need at least one event.
+        # Thus, if not other events have been specified, try to add at least
+        # a tracepoint which is always available and possibly triggered few
+        # times.
+        if self.functions and len(selected_events) == 0:
+            selected_events = ['sched_wakeup_new']
+        self.event_string = _build_trace_events(selected_events)
+
         # Check for function tracing support
         if self.functions:
             if not self.target.file_exists(self.function_profile_file):
@@ -111,9 +139,16 @@ class FtraceCollector(TraceCollector):
             # Validate required functions to be traced
             available_functions = self.target.execute(
                     'cat {}'.format(self.available_functions_file)).splitlines()
+            selected_functions = []
             for function in self.functions:
                 if function not in available_functions:
-                    raise TargetError('Function [{}] not available for filtering'.format(function))
+                    message = 'Function [{}] not available for profiling'.format(function)
+                    if strict:
+                        raise TargetError(message)
+                    self.target.logger.warning(message)
+                else:
+                    selected_functions.append(function)
+            self.function_string = _build_trace_functions(selected_functions)
 
     def reset(self):
         if self.buffer_size:
@@ -125,9 +160,9 @@ class FtraceCollector(TraceCollector):
         self.start_time = time.time()
         if self._reset_needed:
             self.reset()
+        self.target.execute('{} start {}'.format(self.target_binary, self.event_string), as_root=True)
         if self.automark:
             self.mark_start()
-        self.target.execute('{} start {}'.format(self.target_binary, self.event_string), as_root=True)
         if 'cpufreq' in self.target.modules:
             self.logger.debug('Trace CPUFreq frequencies')
             self.target.cpufreq.trace_frequencies()
@@ -205,7 +240,7 @@ class FtraceCollector(TraceCollector):
         self.logger.debug("FTrace stats output [%s]...", outfile)
         with open(outfile, 'w') as fh:
            json.dump(function_stats, fh, indent=4)
-        self.logger.info("FTrace function stats save in [%s]", outfile)
+        self.logger.debug("FTrace function stats save in [%s]", outfile)
 
         return function_stats
 
