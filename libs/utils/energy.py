@@ -112,8 +112,10 @@ class HWMon(EnergyMeter):
         self._hwmon.reset(**hwmon_conf)
 
         # Logging enabled channels
-        logging.info('%14s - Channels selected for energy sampling:\n%s',
-                'EnergyMeter', str(self._hwmon.active_channels))
+        logging.info('%14s - Channels selected for energy sampling:',
+                     'EnergyMeter')
+        for channel in self._hwmon.active_channels:
+            logging.info('%14s -    %s', 'EnergyMeter', channel.label)
 
     def sample(self):
         if self._hwmon is None:
