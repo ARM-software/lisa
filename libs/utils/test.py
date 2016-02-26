@@ -26,76 +26,76 @@ class LisaTest(unittest.TestCase):
     """A base class for LISA defined tests"""
 
     @classmethod
-    def _init(self, conf_file, *args, **kwargs):
+    def _init(cls, conf_file, *args, **kwargs):
         """
         Base class to run LISA test experiments
         """
 
-        self.logger = logging.getLogger('test')
-        self.logger.setLevel(logging.INFO)
+        cls.logger = logging.getLogger('test')
+        cls.logger.setLevel(logging.INFO)
         if 'loglevel' in kwargs:
-            self.logger.setLevel(kwargs['loglevel'])
+            cls.logger.setLevel(kwargs['loglevel'])
             kwargs.pop('loglevel')
 
-        self.conf_file = conf_file
-        self.logger.info("%14s - Using configuration:",
+        cls.conf_file = conf_file
+        cls.logger.info("%14s - Using configuration:",
                          "LisaTest")
-        self.logger.info("%14s -    %s",
-                         "LisaTest", self.conf_file)
+        cls.logger.info("%14s -    %s",
+                         "LisaTest", cls.conf_file)
 
-        self.logger.debug("%14s - Load test specific configuration...", "LisaTest")
-        json_conf = JsonConf(self.conf_file)
-        self.conf = json_conf.load()
+        cls.logger.debug("%14s - Load test specific configuration...", "LisaTest")
+        json_conf = JsonConf(cls.conf_file)
+        cls.conf = json_conf.load()
 
-        self.logger.debug("%14s - Checking tests configuration...", "LisaTest")
-        self._checkConf()
+        cls.logger.debug("%14s - Checking tests configuration...", "LisaTest")
+        cls._checkConf()
 
-        self._runExperiments()
+        cls._runExperiments()
 
     @classmethod
-    def _runExperiments(self):
+    def _runExperiments(cls):
         """
         Default experiments execution engine
         """
 
-        self.logger.info("%14s - Setup tests execution engine...", "LisaTest")
-        self.executor = Executor(tests_conf = self.conf_file)
+        cls.logger.info("%14s - Setup tests execution engine...", "LisaTest")
+        cls.executor = Executor(tests_conf = cls.conf_file);
 
         # Alias executor objects to make less verbose tests code
-        self.te = self.executor.te
-        self.target = self.executor.target
+        cls.te = cls.executor.te
+        cls.target = cls.executor.target
 
         # Execute pre-experiments code defined by the test
-        self._experimentsInit()
+        cls._experimentsInit()
 
-        self.logger.info("%14s - Experiments execution...", "LisaTest")
-        self.executor.run()
+        cls.logger.info("%14s - Experiments execution...", "LisaTest")
+        cls.executor.run()
 
         # Execute post-experiments code defined by the test
-        self._experimentsFinalize()
+        cls._experimentsFinalize()
 
     @classmethod
-    def _checkConf(self):
+    def _checkConf(cls):
         """
         Check for mandatory configuration options
         """
-        assert 'confs' in self.conf, \
+        assert 'confs' in cls.conf, \
             "Configuration file missing target configurations ('confs' attribute)"
-        assert self.conf['confs'], \
+        assert cls.conf['confs'], \
             "Configuration file with empty set of target configurations ('confs' attribute)"
-        assert 'wloads' in self.conf, \
+        assert 'wloads' in cls.conf, \
             "Configuration file missing workload configurations ('wloads' attribute)"
-        assert self.conf['wloads'], \
+        assert cls.conf['wloads'], \
             "Configuration file with empty set of workloads ('wloads' attribute)"
 
     @classmethod
-    def _experimentsInit(self):
+    def _experimentsInit(cls):
         """
         Code executed before running the experiments
         """
 
     @classmethod
-    def _experimentsFinalize(self):
+    def _experimentsFinalize(cls):
         """
         Code executed after running the experiments
         """
