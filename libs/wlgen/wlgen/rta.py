@@ -517,6 +517,10 @@ class _TaskBase(object):
     def get(self):
         return self._task
 
+    def __add__(self, next_phases):
+        self._task['phases'].extend(next_phases._task['phases'])
+        return self
+
 
 class Ramp(_TaskBase):
 
