@@ -20,24 +20,21 @@ if [ "x$IPADDR" == "x" ]; then
     exit 1
 fi
 
-PYDIR=$(pwd)
-BASEDIR=$(dirname $PYDIR)
+LISA_HOME=$(echo $(realpath $0) | sed 's|/ipynb/ipyserver_start||')
+PYDIR=$LISA_HOME/ipynb
+LOGFILE=$PYDIR/server.log
 
 export PYTHONPATH=''
-export PYTHONPATH=`pwd`/../libs/utils:$PYTHONPATH
-export PYTHONPATH=`pwd`/../libs/wlgen:$PYTHONPATH
+export PYTHONPATH=$LISA_HOME/libs/utils:$PYTHONPATH
+export PYTHONPATH=$LISA_HOME/libs/wlgen:$PYTHONPATH
 
 if [ "x$DEVMODE" == "x1" ]; then
-	export PYTHONPATH=`pwd`/../libs/devlib:$PYTHONPATH
-	export PYTHONPATH=`pwd`/../libs/trappy:$PYTHONPATH
-	export PYTHONPATH=`pwd`/../libs/bart:$PYTHONPATH
+	export PYTHONPATH=$LISA_HOME/libs/devlib:$PYTHONPATH
+	export PYTHONPATH=$LISA_HOME/libs/trappy:$PYTHONPATH
+	export PYTHONPATH=$LISA_HOME/libs/bart:$PYTHONPATH
 
 	echo
-	echo 'Developer mode ENABLED, using libraries provided by submodules'
-	echo 'PYTHONPATH: '
-	echo $PYTHONPATH
-	echo
-
+	echo 'Developer mode ENABLED, using local libraries'
 	if [ ! -f libs/devlib/README.rst ]; then
 		echo 'Initializing submodules...'
 		git submodule init
@@ -50,10 +47,12 @@ fi
 echo 'Starting IPython Notebook server...'
 echo "  IP Address :  http://$IPADDR:8888/"
 echo '  Folder     : ' $PYDIR
-echo '  PYTHONPATH : ' $PYTHONPATH
+echo '  Logfile    : ' $LOGFILE
+echo '  PYTHONPATH : '
+echo -e "\t${PYTHONPATH//:/\\n\\t}"
 
-nohup ipython notebook --ip=$IPADDR &
-echo
-echo
+cd $PYDIR
+nohup ipython notebook --ip=$IPADDR &>$LOGFILE &
+cd - >/dev/null
 echo
 
