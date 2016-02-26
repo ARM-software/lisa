@@ -233,7 +233,10 @@ class StaticPlot(AbstractDataPlotter):
         if permute:
             legend_len = self.c_mgr._max_len
             pivots = [y for _, y in pivot_vals]
-            cp_pairs = [(c, p) for c in self.c_mgr for p in sorted(set(pivots))]
+            c_dict = {c : str(c) for c in self.c_mgr}
+            c_list = sorted(c_dict.items(), key=lambda x: (x[1].split(":")[-1], x[1].split(":")[0]))
+            constraints = [c[0] for c in c_list]
+            cp_pairs = [(c, p) for c in constraints for p in sorted(set(pivots))]
         else:
             legend_len = len_pivots if concat else len(self.c_mgr)
             pivots = pivot_vals
