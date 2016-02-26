@@ -54,7 +54,7 @@ MPL_STYLE = {
                          '#188487',
                          '#E24A33'],
     'axes.edgecolor': '#bcbcbc',
-    'axes.facecolor': '#eeeeee',
+    'axes.facecolor': 'white',
     'axes.grid': True,
     'axes.labelcolor': '#555555',
     'axes.labelsize': 'large',

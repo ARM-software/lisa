@@ -229,7 +229,7 @@ class StaticPlot(AbstractDataPlotter):
 
         self._fig = self._layout.get_fig()
 
-        #Determine what constraint to plot and the corresponding pivot value
+        # Determine what constraint to plot and the corresponding pivot value
         if permute:
             legend_len = self.c_mgr._max_len
             pivots = [y for _, y in pivot_vals]
@@ -242,18 +242,18 @@ class StaticPlot(AbstractDataPlotter):
             pivots = pivot_vals
             cp_pairs = [(c, p) for c in self.c_mgr for p in pivots if p in c.result]
 
-        #Initialise legend data and colormap
+        # Initialise legend data and colormap
         self._attr["_legend_handles"] = [None] * legend_len
         self._attr["_legend_labels"] = [None] * legend_len
         self._cmap = ColorMap(legend_len)
 
-        #Group constraints/series with the axis they are to be plotted on
+        # Group constraints/series with the axis they are to be plotted on
         figure_data = ddict(list)
         for i, (constraint, pivot) in enumerate(cp_pairs):
             axis = self._layout.get_axis(constraint.trace_index if concat else i)
             figure_data[axis].append((constraint, pivot))
 
-        #Plot each axis
+        # Plot each axis
         for axis, series_list in figure_data.iteritems():
             self.plot_axis(
                 axis,
@@ -263,11 +263,13 @@ class StaticPlot(AbstractDataPlotter):
                 self._attr["args_to_forward"]
             )
 
-        self._fig.legend(self._attr["_legend_handles"],
+        # Show legend
+        legend = self._fig.legend(self._attr["_legend_handles"],
                          self._attr["_legend_labels"],
                          loc='lower center',
                          ncol=self._attr["legend_ncol"],
                          borderaxespad=0.)
+        legend.get_frame().set_facecolor('#F4F4F4')
 
         self._layout.finish(num_of_axes)
 
