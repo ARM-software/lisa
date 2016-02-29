@@ -659,8 +659,6 @@ class TestEnv(ShareState):
 
     def parse_arp_cache(self, host):
         output = os.popen(r'arp -n')
-        ipaddr = None
-        macaddr = None
         if ':' in host:
             # Assuming this is a MAC address
             # TODO add a suitable check on MAC address format
@@ -669,6 +667,7 @@ class TestEnv(ShareState):
                 r'([^ ]*).*({}|{})'.format(host.lower(), host.upper())
             )
             macaddr = host
+            ipaddr = None
             for line in output:
                 match = ARP_RE.search(line)
                 if not match:
@@ -682,6 +681,7 @@ class TestEnv(ShareState):
             ARP_RE = re.compile(
                 r'{}.*ether *([0-9a-fA-F:]*)'.format(host)
             )
+            macaddr = None
             ipaddr = host
             for line in output:
                 match = ARP_RE.search(line)
@@ -689,6 +689,11 @@ class TestEnv(ShareState):
                     continue
                 macaddr = match.group(1)
                 break
+            else:
+                # When target is accessed via WiFi, there is not MAC address
+                # reported by arp. In these cases we can know only the IP
+                # of the remote target.
+                macaddr = 'UNKNOWN'
 
         if not ipaddr or not macaddr:
             raise ValueError('Unable to lookup for target IP/MAC address')
