@@ -20,9 +20,12 @@ if [ "x$IPADDR" == "x" ]; then
     exit 1
 fi
 
-LISA_HOME=$(echo $(realpath $0) | sed 's|/ipynb/ipyserver_start||')
-PYDIR=$LISA_HOME/ipynb
-LOGFILE=$PYDIR/server.log
+# Get base installation path of LISA
+cd "$(dirname $0)/.." &>/dev/null
+LISA_HOME="$(pwd)"
+cd - $>/dev/null
+PYDIR="$LISA_HOME/ipynb"
+LOGFILE="$PYDIR/server.log"
 
 export PYTHONPATH=''
 export PYTHONPATH=$LISA_HOME/libs/utils:$PYTHONPATH
