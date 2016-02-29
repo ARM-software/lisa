@@ -135,7 +135,7 @@ class Constraint(object):
 
             val_series = values[criterion]
             if len(val_series) != 0:
-               result[pivot_val] = val_series
+                result[pivot_val] = val_series
 
         return result
 
