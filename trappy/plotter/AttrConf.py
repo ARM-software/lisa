@@ -41,6 +41,8 @@ TITLE = None
 """Default figure title (no title)"""
 TITLE_SIZE = 24
 """Default size for the figure title"""
+LEGEND_NCOL = 3
+"""Default number of columns in the legend"""
 
 MPL_STYLE = {
     'axes.axisbelow': True,
@@ -52,7 +54,7 @@ MPL_STYLE = {
                          '#188487',
                          '#E24A33'],
     'axes.edgecolor': '#bcbcbc',
-    'axes.facecolor': '#eeeeee',
+    'axes.facecolor': 'white',
     'axes.grid': True,
     'axes.labelcolor': '#555555',
     'axes.labelsize': 'large',

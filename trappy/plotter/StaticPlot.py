@@ -103,6 +103,9 @@ class StaticPlot(AbstractDataPlotter):
 
     :type signals: str
 
+    :param legend_ncol: A positive integer that represents the
+        number of columns in the legend
+    :type legend_ncol: int
     """
     __metaclass__ = ABCMeta
 
@@ -160,6 +163,7 @@ class StaticPlot(AbstractDataPlotter):
         self._attr["map_label"] = {}
         self._attr["_legend_handles"] = []
         self._attr["_legend_labels"] = []
+        self._attr["legend_ncol"] = AttrConf.LEGEND_NCOL
 
     def view(self, test=False):
         """Displays the graph"""
@@ -179,26 +183,15 @@ class StaticPlot(AbstractDataPlotter):
         """Generates a title string for an axis"""
         if concat:
             return str(constraint)
-        # If there's only one trace, show its name. Otherwise we do not need the
-        # name because it's already in the legend.
-        if self.c_mgr._max_len == 1:
-            title = constraint.get_data_name() + ":"
-        else:
-            title = ""
-        if permute:
-            title += constraint.column
-        else:
-            if pivot == AttrConf.PIVOT_VAL:
-                if isinstance(self._attr["column"], list):
-                    title += ", ".join(self._attr["column"])
-                else:
-                    title += self._attr["column"]
-            else:
-                title += "{0}: {1}".format(self._attr["pivot"],
-                                           self._attr["map_label"].get(pivot, pivot))
-        return title
 
-    def add_to_legend(self, series_index, handle, constraint, pivot, concat):
+        if permute:
+            return constraint.get_data_name()
+        elif pivot != AttrConf.PIVOT_VAL:
+            return "{0}: {1}".format(self._attr["pivot"], self._attr["map_label"].get(pivot, pivot))
+        else:
+            return ""
+
+    def add_to_legend(self, series_index, handle, constraint, pivot, concat, permute):
         """
         Add series handles and names to the legend
         A handle is returned from a plot on an axis
@@ -214,13 +207,10 @@ class StaticPlot(AbstractDataPlotter):
                 self._attr["pivot"],
                 self._attr["map_label"].get(pivot, pivot)
             )
+        elif permute:
+            legend_labels[series_index] = constraint._template.name + ":" + constraint.column
         else:
             legend_labels[series_index] = str(constraint)
-            # Remove trace name if there is only one trace to plot
-            if not isinstance(self.traces, list):
-                legend_labels[series_index] = legend_labels[series_index].replace(
-                                                constraint.get_data_name()+":", ""
-                                              )
 
     def _resolve(self, permute, concat):
         """Determine what data to plot on which axis"""
@@ -239,28 +229,31 @@ class StaticPlot(AbstractDataPlotter):
 
         self._fig = self._layout.get_fig()
 
-        #Determine what constraint to plot and the corresponding pivot value
+        # Determine what constraint to plot and the corresponding pivot value
         if permute:
             legend_len = self.c_mgr._max_len
             pivots = [y for _, y in pivot_vals]
-            cp_pairs = [(c, p) for c in self.c_mgr for p in sorted(set(pivots))]
+            c_dict = {c : str(c) for c in self.c_mgr}
+            c_list = sorted(c_dict.items(), key=lambda x: (x[1].split(":")[-1], x[1].split(":")[0]))
+            constraints = [c[0] for c in c_list]
+            cp_pairs = [(c, p) for c in constraints for p in sorted(set(pivots))]
         else:
             legend_len = len_pivots if concat else len(self.c_mgr)
             pivots = pivot_vals
             cp_pairs = [(c, p) for c in self.c_mgr for p in pivots if p in c.result]
 
-        #Initialise legend data and colormap
+        # Initialise legend data and colormap
         self._attr["_legend_handles"] = [None] * legend_len
         self._attr["_legend_labels"] = [None] * legend_len
         self._cmap = ColorMap(legend_len)
 
-        #Group constraints/series with the axis they are to be plotted on
+        # Group constraints/series with the axis they are to be plotted on
         figure_data = ddict(list)
         for i, (constraint, pivot) in enumerate(cp_pairs):
             axis = self._layout.get_axis(constraint.trace_index if concat else i)
             figure_data[axis].append((constraint, pivot))
 
-        #Plot each axis
+        # Plot each axis
         for axis, series_list in figure_data.iteritems():
             self.plot_axis(
                 axis,
@@ -270,13 +263,13 @@ class StaticPlot(AbstractDataPlotter):
                 self._attr["args_to_forward"]
             )
 
-        #Add the legend to the figure if more than one signal is plotted
-        if legend_len > 1:
-            self._fig.legend(self._attr["_legend_handles"],
-                             self._attr["_legend_labels"],
-                             loc='lower center',
-                             ncol=3,
-                             borderaxespad=0.)
+        # Show legend
+        legend = self._fig.legend(self._attr["_legend_handles"],
+                         self._attr["_legend_labels"],
+                         loc='lower center',
+                         ncol=self._attr["legend_ncol"],
+                         borderaxespad=0.)
+        legend.get_frame().set_facecolor('#F4F4F4')
 
         self._layout.finish(num_of_axes)
 
