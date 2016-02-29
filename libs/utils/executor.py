@@ -545,6 +545,8 @@ class Executor():
             logging.info(r'%14s -    %s', 'Executor',
                          stats_file.replace(self.te.res_dir, '<res_dir>'))
 
+        self._print_footer('Executor')
+
 ################################################################################
 # Utility Functions
 ################################################################################
@@ -564,6 +566,11 @@ class Executor():
         logging.info(FMT_TITLE)
         logging.info(r'%14s - %s', tag, message)
 
+    def _print_footer(self, tag, message=None):
+        if message:
+            logging.info(r'%14s - %s', tag, message)
+        logging.info(FMT_FOOTER)
+
 
 ################################################################################
 # Globals
@@ -582,5 +589,6 @@ TGT_RUN_DIR = 'run_dir'
 FMT_SECTION = r'{:#<80}'.format('')
 FMT_HEADER  = r'{:=<80}'.format('')
 FMT_TITLE   = r'{:~<80}'.format('')
+FMT_FOOTER  = r'{:-<80}'.format('')
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

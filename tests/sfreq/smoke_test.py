@@ -26,8 +26,9 @@ TESTS_CONF = os.path.join(TESTS_DIRECTORY, "smoke_test.config")
 class SFreq(LisaTest):
     """Tests for SchedFreq framework"""
 
-    def __init__(self, *args, **kwargs):
-        super(SFreq, self).__init__(TESTS_CONF, *args, **kwargs)
+    @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        super(SFreq, cls)._init(TESTS_CONF, *args, **kwargs)
 
     def test_regression(self):
         """Check that there is not regression on energy"""
