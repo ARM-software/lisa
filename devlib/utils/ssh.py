@@ -177,10 +177,12 @@ class SshConnection(object):
         except EOF:
             raise TargetError('Connection lost.')
 
-    def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
+    def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         try:
             port_string = '-p {}'.format(self.port) if self.port else ''
             keyfile_string = '-i {}'.format(self.keyfile) if self.keyfile else ''
+            if as_root:
+                command = "sudo -- sh -c '{}'".format(command)
             command = '{} {} {} {}@{} {}'.format(ssh, keyfile_string, port_string, self.username, self.host, command)
             logger.debug(command)
             if self.password:
