@@ -57,24 +57,22 @@ class STune(LisaTest):
 
             sbt_dfr = ftrace.sched_boost_task.data_frame
             boost_task_rtapp = sbt_dfr[sbt_dfr.comm == rta_task_name]
+            ftrace.add_parsed_event("boost_task_rtapp", boost_task_rtapp)
 
             # Avoid the first period as the task starts with a very
             # high load and it overutilizes the CPU
             rtapp_period = first_task_params[first_task_name]["params"]["period_ms"]
             task_start = boost_task_rtapp.index[0]
             after_first_period = task_start + (rtapp_period / 1000.)
-            boost_task_rtapp = boost_task_rtapp.ix[after_first_period:]
 
-            sched_load_scale = 1024
             boost = tc["cgroups"]["conf"]["schedtune"]["/stune"]["boost"] / 100.
-            util = boost_task_rtapp["util"]
-            expected_margin = (sched_load_scale - util) * boost
-            expected_margin = expected_margin.astype(int)
-            boost_task_rtapp["expected_margin"] = expected_margin
-            ftrace.add_parsed_event("boost_task_rtapp", boost_task_rtapp)
-
-            analyzer = Analyzer(ftrace, {})
-            statement = "boost_task_rtapp:margin == boost_task_rtapp:expected_margin"
+            analyzer_const = {
+                "SCHED_LOAD_SCALE": 1024,
+                "BOOST": boost,
+            }
+            analyzer = Analyzer(ftrace, analyzer_const,
+                                window=(after_first_period, None))
+            statement = "(((SCHED_LOAD_SCALE - boost_task_rtapp:util) * BOOST) // 100) == boost_task_rtapp:margin"
             error_msg = "task was not boosted to the expected margin: {}".\
                         format(boost)
             self.assertTrue(analyzer.assertStatement(statement), msg=error_msg)
