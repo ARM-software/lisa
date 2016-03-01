@@ -21,8 +21,25 @@ import logging
 import os
 import re
 
+from collections import namedtuple
 from wlgen import Workload
 from devlib.utils.misc import ranges_to_list
+
+_Phase = namedtuple('Phase', 'duration_s, period_ms, duty_cycle_pct')
+class Phase(_Phase):
+    """
+    Descriptor for an RT-App load phase
+
+    :param duration_s: the phase duration in [s]
+    :type duration_s: int
+
+    :param period_ms: the phase period in [ms]
+    :type period_ms: int
+
+    :param duty_cycle_pct: the generated load in [%]
+    :type duty_cycle_pct: int
+    """
+    pass
 
 class RTA(Workload):
 
@@ -353,14 +370,13 @@ class RTA(Workload):
             # Getting task phase descriptor
             pid=1
             for phase in task['phases']:
-                (duration, period, duty_cycle) = phase
 
                 # Convert time parameters to integer [us] units
-                duration = int(duration * 1e6)
-                period = int(period * 1e3)
+                duration = int(phase.duration_s * 1e6)
+                period = int(phase.period_ms * 1e3)
 
                 # A duty-cycle of 0[%] translates on a 'sleep' phase
-                if duty_cycle == 0:
+                if phase.duty_cycle_pct == 0:
 
                     self.logger.info('%14s -  + phase_%06d: sleep %.6f [s]',
                                      'RTApp', pid, duration/1e6)
@@ -371,7 +387,7 @@ class RTA(Workload):
                     }
 
                 # A duty-cycle of 100[%] translates on a 'run-only' phase
-                elif duty_cycle == 100:
+                elif phase.duty_cycle_pct == 100:
 
                     self.logger.info('%14s -  + phase_%06d: batch %.6f [s]',
                                      'RTApp', pid, duration/1e6)
@@ -389,7 +405,7 @@ class RTA(Workload):
                     if duration >= 0:
                         cloops = int(duration / period)
 
-                    sleep_time = period * (100 - duty_cycle) / 100
+                    sleep_time = period * (100 - phase.duty_cycle_pct) / 100
                     running_time = period - sleep_time
 
                     self.logger.info(
@@ -397,7 +413,7 @@ class RTA(Workload):
                             'RTApp', pid, duration/1e6, cloops)
                     self.logger.info(
                             '%14s - |  period   %6d [us], duty_cycle %3d %%',
-                            'RTApp', period, duty_cycle)
+                            'RTApp', period, phase.duty_cycle_pct)
                     self.logger.info(
                             '%14s - |  run_time %6d [us], sleep_time %6d [us]',
                             'RTApp', running_time, sleep_time)
@@ -423,193 +439,6 @@ class RTA(Workload):
                     sort_keys=True, indent=4, separators=(',', ': '))
 
         return self.json
-
-    @staticmethod
-    def ramp(start_pct=0, end_pct=100, delta_pct=10, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched=None, cpus=None):
-        """
-        Configure a ramp load.
-
-        This class defines a task which load is a ramp with a configured number
-        of steps according to the input parameters.
-
-        Args:
-            start_pct (int, [0-100]): the initial load [%], (default 0[%])
-            end_pct   (int, [0-100]): the final load [%], (default 100[%])
-            delta_pct (int, [0-100]): the load increase/decrease [%],
-                                      default: 10[%]
-                                      increase if start_prc < end_prc
-                                      decrease  if start_prc > end_prc
-            time_s    (float): the duration in [s] of each load step
-                               default: 1.0[s]
-            period_ms (float): the period used to define the load in [ms]
-                               default: 100.0[ms]
-            delay_s   (float): the delay in [s] before ramp start
-                               default: 0[s]
-            loops     (int):   number of time to repeat the ramp, with the
-                               specified delay in between
-                               default: 0
-            sched     (dict): the scheduler configuration for this task
-            cpus      (list): the list of CPUs on which task can run
-        """
-        task = {}
-
-        task['cpus'] = cpus
-        if not sched:
-            sched = {'policy' : 'DEFAULT'}
-        task['sched'] = sched
-        task['delay'] = delay_s
-        task['loops'] = loops
-        task['phases'] = {}
-
-        if start_pct not in range(0,101) or end_pct not in range(0,101):
-            raise ValueError('start_pct and end_pct must be in [0..100] range')
-
-        if start_pct >= end_pct:
-            if delta_pct > 0:
-                delta_pct = -delta_pct
-            delta_adj = -1
-        if start_pct <= end_pct:
-            if delta_pct < 0:
-                delta_pct = -delta_pct
-            delta_adj = +1
-
-        phases = []
-        steps = range(start_pct, end_pct+delta_adj, delta_pct)
-        for load in steps:
-            if load == 0:
-                phase = (time_s, 0, 0)
-            else:
-                phase = (time_s, period_ms, load)
-            phases.append(phase)
-
-        task['phases'] = phases
-
-        return task;
-
-    @staticmethod
-    def step(start_pct=0, end_pct=100, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched=None, cpus=None):
-        """
-        Configure a step load.
-
-        This class defines a task which load is a step with a configured
-        initial and final load.
-
-        Args:
-            start_pct (int, [0-100]): the initial load [%]
-                                      default 0[%])
-            end_pct   (int, [0-100]): the final load [%]
-                                      default 100[%]
-            time_s    (float): the duration in [s] of the start and end load
-                               default: 1.0[s]
-            period_ms (float): the period used to define the load in [ms]
-                               default 100.0[ms]
-            delay_s   (float): the delay in [s] before ramp start
-                               default 0[s]
-            loops     (int):   number of time to repeat the ramp, with the
-                               specified delay in between
-                               default: 0
-            sched     (dict): the scheduler configuration for this task
-            cpus      (list): the list of CPUs on which task can run
-        """
-        delta_pct = abs(end_pct - start_pct)
-        return RTA.ramp(start_pct, end_pct, delta_pct, time_s,
-                period_ms, delay_s, loops, sched, cpus)
-
-    @staticmethod
-    def pulse(start_pct=100, end_pct=0, time_s=1, period_ms=100,
-            delay_s=0, loops=1, sched=None, cpus=None):
-        """
-        Configure a pulse load.
-
-        This class defines a task which load is a pulse with a configured
-        initial and final load.
-
-        The main difference with the 'step' class is that a pulse workload is
-        by definition a 'step down', i.e. the workload switch from an finial
-        load to a final one which is always lower than the initial one.
-        Moreover, a pulse load does not generate a sleep phase in case of 0[%]
-        load, i.e. the task ends as soon as the non null initial load has
-        completed.
-
-        Args:
-            start_pct (int, [0-100]): the initial load [%]
-                                      default: 0[%]
-            end_pct   (int, [0-100]): the final load [%]
-                                      default: 100[%]
-                      NOTE: must be lower than start_pct value
-            time_s    (float): the duration in [s] of the start and end load
-                               default: 1.0[s]
-                               NOTE: if end_pct is 0, the task end after the
-                               start_pct period completed
-            period_ms (float): the period used to define the load in [ms]
-                               default: 100.0[ms]
-            delay_s   (float): the delay in [s] before ramp start
-                               default: 0[s]
-            loops     (int):   number of time to repeat the ramp, with the
-                               specified delay in between
-                               default: 0
-            sched     (dict):  the scheduler configuration for this task
-            cpus      (list):  the list of CPUs on which task can run
-        """
-
-        if end_pct >= start_pct:
-            raise ValueError('end_pct must be lower than start_pct')
-
-        task = {}
-
-        task['cpus'] = cpus
-        if not sched:
-            sched = {'policy' : 'DEFAULT'}
-        task['sched'] = sched
-        task['delay'] = delay_s
-        task['loops'] = loops
-        task['phases'] = {}
-
-        if end_pct not in range(0,101) or start_pct not in range(0,101):
-            raise ValueError('end_pct and start_pct must be in [0..100] range')
-        if end_pct >= start_pct:
-            raise ValueError('end_pct must be lower than start_pct')
-
-        phases = []
-        for load in [start_pct, end_pct]:
-            if load == 0:
-                continue
-            phase = (time_s, period_ms, load)
-            phases.append(phase)
-
-        task['phases'] = phases
-
-        return task;
-
-    @staticmethod
-    def periodic(duty_cycle_pct=50, duration_s=1, period_ms=100,
-            delay_s=0, sched=None, cpus=None):
-        """
-        Configure a periodic load.
-
-        This class defines a task which load is periodic with a configured
-        period and duty-cycle.
-
-        This class is a specialization of the 'pulse' class since a periodic
-        load is generated as a sequence of pulse loads.
-
-        Args:
-            cuty_cycle_pct  (int, [0-100]): the pulses load [%]
-                                            default: 50[%]
-            duration_s  (float): the duration in [s] of the entire workload
-                                 default: 1.0[s]
-            period_ms   (float): the period used to define the load in [ms]
-                                 default: 100.0[ms]
-            delay_s     (float): the delay in [s] before ramp start
-                                 default: 0[s]
-            sched       (dict):  the scheduler configuration for this task
-
-        """
-
-        return RTA.pulse(duty_cycle_pct, 0, duration_s,
-                period_ms, delay_s, 1, sched, cpus)
 
     def conf(self,
              kind,
@@ -679,4 +508,204 @@ class RTA(Workload):
         # Set and return the test label
         self.test_label = '{0:s}_{1:02d}'.format(self.name, self.exc_id)
         return self.test_label
+
+class _TaskBase(object):
+
+    def __init__(self):
+        self._task = {}
+
+    def get(self):
+        return self._task
+
+    def __add__(self, next_phases):
+        self._task['phases'].extend(next_phases._task['phases'])
+        return self
+
+
+class Ramp(_TaskBase):
+
+    def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
+                 period_ms=100, delay_s=0, loops=1, sched=None, cpus=None):
+        """
+        Configure a ramp load.
+
+        This class defines a task which load is a ramp with a configured number
+        of steps according to the input parameters.
+
+        Args:
+            start_pct (int, [0-100]): the initial load [%], (default 0[%])
+            end_pct   (int, [0-100]): the final load [%], (default 100[%])
+            delta_pct (int, [0-100]): the load increase/decrease [%],
+                                      default: 10[%]
+                                      increase if start_prc < end_prc
+                                      decrease  if start_prc > end_prc
+            time_s    (float): the duration in [s] of each load step
+                               default: 1.0[s]
+            period_ms (float): the period used to define the load in [ms]
+                               default: 100.0[ms]
+            delay_s   (float): the delay in [s] before ramp start
+                               default: 0[s]
+            loops     (int):   number of time to repeat the ramp, with the
+                               specified delay in between
+                               default: 0
+            sched     (dict): the scheduler configuration for this task
+            cpus      (list): the list of CPUs on which task can run
+        """
+        super(Ramp, self).__init__()
+
+        self._task['cpus'] = cpus
+        if not sched:
+            sched = {'policy' : 'DEFAULT'}
+        self._task['sched'] = sched
+        self._task['delay'] = delay_s
+        self._task['loops'] = loops
+
+        if start_pct not in range(0,101) or end_pct not in range(0,101):
+            raise ValueError('start_pct and end_pct must be in [0..100] range')
+
+        if start_pct >= end_pct:
+            if delta_pct > 0:
+                delta_pct = -delta_pct
+            delta_adj = -1
+        if start_pct <= end_pct:
+            if delta_pct < 0:
+                delta_pct = -delta_pct
+            delta_adj = +1
+
+        phases = []
+        steps = range(start_pct, end_pct+delta_adj, delta_pct)
+        for load in steps:
+            if load == 0:
+                phase = Phase(time_s, 0, 0)
+            else:
+                phase = Phase(time_s, period_ms, load)
+            phases.append(phase)
+
+        self._task['phases'] = phases
+
+class Step(Ramp):
+
+    def __init__(self, start_pct=0, end_pct=100, time_s=1, period_ms=100,
+                 delay_s=0, loops=1, sched=None, cpus=None):
+        """
+        Configure a step load.
+
+        This class defines a task which load is a step with a configured
+        initial and final load.
+
+        Args:
+            start_pct (int, [0-100]): the initial load [%]
+                                      default 0[%])
+            end_pct   (int, [0-100]): the final load [%]
+                                      default 100[%]
+            time_s    (float): the duration in [s] of the start and end load
+                               default: 1.0[s]
+            period_ms (float): the period used to define the load in [ms]
+                               default 100.0[ms]
+            delay_s   (float): the delay in [s] before ramp start
+                               default 0[s]
+            loops     (int):   number of time to repeat the ramp, with the
+                               specified delay in between
+                               default: 0
+            sched     (dict): the scheduler configuration for this task
+            cpus      (list): the list of CPUs on which task can run
+        """
+        delta_pct = abs(end_pct - start_pct)
+        super(Step, self).__init__(start_pct, end_pct, delta_pct, time_s,
+                                   period_ms, delay_s, loops, sched, cpus)
+
+class Pulse(_TaskBase):
+
+    def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
+                 delay_s=0, loops=1, sched=None, cpus=None):
+        """
+        Configure a pulse load.
+
+        This class defines a task which load is a pulse with a configured
+        initial and final load.
+
+        The main difference with the 'step' class is that a pulse workload is
+        by definition a 'step down', i.e. the workload switch from an finial
+        load to a final one which is always lower than the initial one.
+        Moreover, a pulse load does not generate a sleep phase in case of 0[%]
+        load, i.e. the task ends as soon as the non null initial load has
+        completed.
+
+        Args:
+            start_pct (int, [0-100]): the initial load [%]
+                                      default: 0[%]
+            end_pct   (int, [0-100]): the final load [%]
+                                      default: 100[%]
+                      NOTE: must be lower than start_pct value
+            time_s    (float): the duration in [s] of the start and end load
+                               default: 1.0[s]
+                               NOTE: if end_pct is 0, the task end after the
+                               start_pct period completed
+            period_ms (float): the period used to define the load in [ms]
+                               default: 100.0[ms]
+            delay_s   (float): the delay in [s] before ramp start
+                               default: 0[s]
+            loops     (int):   number of time to repeat the ramp, with the
+                               specified delay in between
+                               default: 0
+            sched     (dict):  the scheduler configuration for this task
+            cpus      (list):  the list of CPUs on which task can run
+        """
+        super(Pulse, self).__init__()
+
+        if end_pct >= start_pct:
+            raise ValueError('end_pct must be lower than start_pct')
+
+        self._task = {}
+
+        self._task['cpus'] = cpus
+        if not sched:
+            sched = {'policy' : 'DEFAULT'}
+        self._task['sched'] = sched
+        self._task['delay'] = delay_s
+        self._task['loops'] = loops
+        self._task['phases'] = {}
+
+        if end_pct not in range(0,101) or start_pct not in range(0,101):
+            raise ValueError('end_pct and start_pct must be in [0..100] range')
+        if end_pct >= start_pct:
+            raise ValueError('end_pct must be lower than start_pct')
+
+        phases = []
+        for load in [start_pct, end_pct]:
+            if load == 0:
+                continue
+            phase = Phase(time_s, period_ms, load)
+            phases.append(phase)
+
+        self._task['phases'] = phases
+
+
+class Periodic(Pulse):
+
+    def __init__(self, duty_cycle_pct=50, duration_s=1, period_ms=100,
+                 delay_s=0, sched=None, cpus=None):
+        """
+        Configure a periodic load.
+
+        This class defines a task which load is periodic with a configured
+        period and duty-cycle.
+
+        This class is a specialization of the 'pulse' class since a periodic
+        load is generated as a sequence of pulse loads.
+
+        Args:
+            cuty_cycle_pct  (int, [0-100]): the pulses load [%]
+                                            default: 50[%]
+            duration_s  (float): the duration in [s] of the entire workload
+                                 default: 1.0[s]
+            period_ms   (float): the period used to define the load in [ms]
+                                 default: 100.0[ms]
+            delay_s     (float): the delay in [s] before ramp start
+                                 default: 0[s]
+            sched       (dict):  the scheduler configuration for this task
+
+        """
+        super(Periodic, self).__init__(duty_cycle_pct, 0, duration_s,
+                                       period_ms, delay_s, 1, sched, cpus)
 

@@ -19,7 +19,7 @@
 
 import pkg_resources
 from wlgen.workload import Workload
-from wlgen.rta import RTA
+from wlgen.rta import RTA, Ramp, Step, Pulse, Periodic
 from wlgen.perf_bench import PerfMessaging, PerfPipe
 
 try:

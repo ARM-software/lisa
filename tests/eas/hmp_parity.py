@@ -16,7 +16,7 @@
 #
 
 from env import TestEnv
-from wlgen import RTA
+from wlgen import RTA, Periodic, Step
 import trappy
 import shutil
 import os
@@ -123,11 +123,11 @@ class ForkMigration(unittest.TestCase):
     def populate_params(cls):
         for idx in range(len(cls.env.target.bl.bigs)):
             task = cls.task_prefix + str(idx)
-            cls.params[task] = RTA.periodic(**BIG_WORKLOAD)
+            cls.params[task] = Periodic(**BIG_WORKLOAD).get()
 
         for idx in range(len(cls.env.target.bl.littles)):
             task = cls.task_prefix + str(idx)
-            cls.params[task] = RTA.periodic(**SMALL_WORKLOAD)
+            cls.params[task] = Periodic(**SMALL_WORKLOAD).get()
 
     @classmethod
     def run_workload(cls):
@@ -192,7 +192,7 @@ class SmallTaskPacking(unittest.TestCase):
     def populate_params(cls):
         for i in range(cls.num_tasks):
             task = cls.task_prefix + str(i)
-            cls.params[task] = RTA.periodic(**SMALL_WORKLOAD)
+            cls.params[task] = Periodic(**SMALL_WORKLOAD).get()
 
     @classmethod
     def run_workload(cls):
@@ -281,12 +281,12 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
 
         for idx in range(cls.num_tasks):
             task = "early_starters" + str(idx)
-            cls.params[task] = RTA.periodic(**BIG_WORKLOAD)
+            cls.params[task] = Periodic(**BIG_WORKLOAD).get()
             cls.early_starters.append(task)
 
             # Tasks that will be idle pulled
             task = "migrator" + str(idx)
-            cls.params[task] = RTA.periodic(**migrator_workload)
+            cls.params[task] = Periodic(**migrator_workload).get()
             cls.migrators.append(task)
 
     @classmethod
@@ -471,8 +471,8 @@ class WakeMigration(unittest.TestCase):
 
     @classmethod
     def populate_params(cls):
-        cls.params[cls.task_prefix] = RTA.step(**STEP_WORKLOAD)
-        cls.params[cls.task_prefix + "1"] = RTA.step(**STEP_WORKLOAD)
+        cls.params[cls.task_prefix] = Step(**STEP_WORKLOAD).get()
+        cls.params[cls.task_prefix + "1"] = Step(**STEP_WORKLOAD).get()
 
     @classmethod
     def run_workload(cls):
