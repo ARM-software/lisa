@@ -99,10 +99,6 @@ class ILinePlot(AbstractDataPlotter):
               input
 
     :type signals: str
-
-    :param legend_ncol: A positive integer that represents the
-        number of columns in the legend
-    :type legend_ncol: int
     """
 
     def __init__(self, traces, templates=None, **kwargs):
@@ -166,7 +162,6 @@ class ILinePlot(AbstractDataPlotter):
         self._attr["scatter"] = AttrConf.PLOT_SCATTER
         self._attr["point_size"] = AttrConf.POINT_SIZE
         self._attr["map_label"] = {}
-        self._attr["legend_ncol"] = AttrConf.LEGEND_NCOL
         self._attr["title"] = AttrConf.TITLE
 
     def _plot(self, permute):
