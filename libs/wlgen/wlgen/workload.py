@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import re
+from time import sleep
 
 class Workload(object):
 
@@ -152,7 +153,9 @@ class Workload(object):
             cgroup=None,
             background=False,
             out_dir='./',
-            as_root=False):
+            as_root=False,
+            start_pause_s=None,
+            end_pause_s=None):
         """
         This method starts the execution of the workload. If the user provides
         an ftrace object, the method will also collect a trace.
@@ -176,6 +179,16 @@ class Workload(object):
 
         :param as_root: run the workload as root on the target
         :type as_root: bool
+
+        :param start_pause_s: time to wait before executing the workload in
+                              seconds. If ftrace is provided, trace collection
+                              is started before waiting.
+        :type start_pause_s: float
+
+        :param end_pause_s: time to wait after executing the workload in
+                            seconds. If ftrace is provided, trace collection is
+                            stopped after this wait time.
+        :type end_pause_s: float
         """
 
         self.cgroup = cgroup
@@ -204,6 +217,12 @@ class Workload(object):
         if ftrace:
             ftrace.start()
 
+        # Wait `start_pause` seconds before running the workload
+        if start_pause_s:
+            logging.info('%14s - Waiting %f seconds before starting workload execution',
+                         'WlGen', start_pause_s)
+            sleep(start_pause_s)
+
         # Start task in background if required
         if background:
             logging.debug('%14s - WlGen [background]: %s', 'WlGen', self.command)
@@ -220,6 +239,12 @@ class Workload(object):
                 timeout=None, as_root=as_root)
         # print type(results)
         self.output['executor'] = results
+
+        # Wait `end_pause` seconds before stopping ftrace
+        if end_pause_s:
+            logging.info('%14s - Waiting %f seconds before stopping trace collection',
+                         'WlGen', end_pause_s)
+            sleep(end_pause_s)
 
         # Stop FTrace (if required)
         ftrace_dat = None
