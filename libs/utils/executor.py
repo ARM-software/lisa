@@ -400,7 +400,7 @@ class Executor():
             params = {}
             for idx in task_idxs:
                 task = conf['prefix'] + str(idx)
-                params[task] = wlgen.RTA.periodic(**conf['params'])
+                params[task] = wlgen.Periodic(**conf['params']).get()
             rtapp = wlgen.RTA(self.target,
                         wl_idx, calibration = self.te.calibration())
             rtapp.conf(kind='profile', params=params, loadref=loadref,
