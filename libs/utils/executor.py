@@ -215,27 +215,16 @@ class Executor():
         logging.info(r'%14s - Configuring all CPUs to use [%s] governor',
                 'CPUFreq', cpufreq['governor'])
 
-        if cpufreq['governor'] == 'ondemand':
-            try:
-                sampling_rate = cpufreq['params']['sampling_rate']
-            except KeyError:
-                sampling_rate = 20000
-            self.target.execute(
-                    'for CPU in /sys/devices/system/cpu/cpu[0-9]*; do   '\
-                    '   echo {} > $CPU/cpufreq/scaling_governor;  '\
-                    '   if [ -e $CPU/cpufreq/ondemand/sampling_rate ]; then'\
-                    '       echo {} > $CPU/cpufreq/ondemand/sampling_rate;'\
-                    '   else'\
-                    '       echo {} > $CPU/../cpufreq/ondemand/sampling_rate;'\
-                    '   fi;'\
-                    'done'\
-                    .format('ondemand', sampling_rate, sampling_rate))
-        else:
-            self.target.execute(
-                    'for CPU in /sys/devices/system/cpu/cpu[0-9]*; do   '\
-                    '   echo {} > $CPU/cpufreq/scaling_governor;  '\
-                    'done'\
-                    .format(cpufreq['governor']))
+        self.target.cpufreq.set_all_governors(cpufreq['governor'])
+
+        if 'params' in cpufreq:
+            logging.info(r'%14s - governor params: %s',
+                    'CPUFreq', str(cpufreq['params']))
+            for cpu in self.target.list_online_cpus():
+                self.target.cpufreq.set_governor_tunables(
+                        cpu,
+                        cpufreq['governor'],
+                        **cpufreq['params'])
 
     def _setup_cgroups(self, tc):
         if 'cgroups' not in tc:
@@ -400,7 +389,7 @@ class Executor():
             params = {}
             for idx in task_idxs:
                 task = conf['prefix'] + str(idx)
-                params[task] = wlgen.RTA.periodic(**conf['params'])
+                params[task] = wlgen.Periodic(**conf['params']).get()
             rtapp = wlgen.RTA(self.target,
                         wl_idx, calibration = self.te.calibration())
             rtapp.conf(kind='profile', params=params, loadref=loadref,

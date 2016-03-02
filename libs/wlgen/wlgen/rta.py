@@ -93,7 +93,7 @@ class RTA(Workload):
             rta = RTA(target, 'rta_calib')
             rta.conf(kind='profile',
                     params = {
-                        'task1': RTA.periodic(
+                        'task1': Periodic(
                             period_ms=100,
                             duty_cycle_pct=50,
                             duration_s=1,
@@ -101,7 +101,7 @@ class RTA(Workload):
                                 'policy': 'FIFO',
                                 'prio' : max_rtprio
                             }
-                        )
+                        ).get()
                     },
                     cpus=[cpu])
             rta.run(as_root=True)
