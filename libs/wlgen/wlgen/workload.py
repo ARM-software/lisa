@@ -153,6 +153,30 @@ class Workload(object):
             background=False,
             out_dir='./',
             as_root=False):
+        """
+        This method starts the execution of the workload. If the user provides
+        an ftrace object, the method will also collect a trace.
+
+        :param ftrace: FTrace object to collect a trace
+        :type ftrace: :mod:`trappy.trace.FTrace`
+
+        :param cgroup: specifies the cgroup name in which the workload has to
+                       run
+        :type cgroup: str
+
+        :param background: run the workload in background. In this case the
+                           method will not return a result. When used with
+                           ftrace it is up to the caller to stop trace
+                           collection
+        :type background: bool
+
+        :param out_dir: output directory where to store the collected trace (if
+                        any)
+        :type out_dir: str
+
+        :param as_root: run the workload as root on the target
+        :type as_root: bool
+        """
 
         self.cgroup = cgroup
 
