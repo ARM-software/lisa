@@ -145,7 +145,7 @@ def plotdir(run_dir, platform):
 
     # Load Trace Analysis modules
     trace = Trace(platform, run_dir, tasks)
-    ta = TraceAnalysis(trace, platform, tasks)
+    ta = TraceAnalysis(trace, tasks)
 
     # Define time ranges for all the temporal plots
     ta.setXTimeRange(args.tmin, args.tmax)

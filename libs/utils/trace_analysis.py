@@ -31,15 +31,17 @@ import logging
 
 class TraceAnalysis(object):
 
-    def __init__(self, trace, platform, tasks=None, plotsdir=None):
+    def __init__(self, trace, tasks=None, plotsdir=None):
         """
         Support for plotting a standard set of trace singals and events
         """
 
         self.trace = trace
         self.tasks = tasks
-        self.platform = platform
         self.plotsdir = plotsdir
+
+        # Keep track of the Trace::platform
+        self.platform = trace.platform
 
         # Plotsdir is byb default the trace dir
         if self.plotsdir is None:
