@@ -300,7 +300,7 @@ class TraceAnalysis(object):
 
         for task_name in tasks_to_plot:
             logging.debug('Plotting [%s]', task_name)
-            tid = self.trace.tasks[task_name]['pid'][0]
+            tid = self.trace.getTaskByName(task_name)[0]
 
             # Figure
             plt.figure(figsize=(16, 2*6+3));

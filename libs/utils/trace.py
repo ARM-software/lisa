@@ -122,9 +122,12 @@ class Trace(object):
         if 'sched_switch' in self.available_events:
             self.getTasks(self.df('sched_switch'), tasks,
                 name_key='next_comm', pid_key='next_pid')
+            self._scanTasks(self.df('sched_switch'),
+                            name_key='next_comm', pid_key='next_pid')
             return
         if 'sched_load_avg_task' in self.available_events:
             self.getTasks(self.df('sched_load_avg_task'), tasks)
+            self._scanTasks(self.df('sched_load_avg_task'))
             return
         logging.warning('Failed to load tasks names from trace events')
 
@@ -159,6 +162,27 @@ class Trace(object):
 
             logging.info('Overutilized time: %.6f [s] (%.3f%% of trace time)',
                     self.overutilized_time, self.overutilized_prc)
+
+    def _scanTasks(self, df, name_key='comm', pid_key='pid'):
+        df =  df[[name_key, pid_key]]
+        self._tasks_by_name = df.set_index(name_key)
+        self._tasks_by_pid  = df.set_index(pid_key)
+
+    def getTaskByName(self, name):
+        if name not in self._tasks_by_name.index:
+            return []
+        if len(self._tasks_by_name.ix[name].values) > 1:
+            return list({task[0] for task in
+                         self._tasks_by_name.ix[name].values})
+        return [self._tasks_by_name.ix[name].values[0]]
+
+    def getTaskByPid(self, pid):
+        if pid not in self._tasks_by_pid.index:
+            return []
+        if len(self._tasks_by_pid.ix[pid].values) > 1:
+            return list({task[0] for task in
+                         self._tasks_by_pid.ix[pid].values})
+        return [self._tasks_by_pid.ix[pid].values[0]]
 
     def getTasks(self, dataframe=None,
             task_names=None, name_key='comm', pid_key='pid'):
