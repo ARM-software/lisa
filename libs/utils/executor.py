@@ -369,15 +369,15 @@ class Executor():
             for task_name in conf['params']:
                 task = conf['params'][task_name]
                 task_name = conf['prefix'] + task_name
-                if task['kind'] not in wlgen.RTA.__dict__:
+                if task['kind'] not in wlgen.__dict__:
                     logging.error(r'%14s - RTA task of kind [%s] not supported',
                             'RTApp', task['kind'])
                     raise ValueError('Configuration error - '
                         'unsupported \'kind\' value for task [{}] '\
                         'in RT-App workload specification'\
                         .format(task))
-                task_ctor = getattr(wlgen.RTA, task['kind'])
-                params[task_name] = task_ctor(**task['params'])
+                task_ctor = getattr(wlgen, task['kind'])
+                params[task_name] = task_ctor(**task['params']).get()
             rtapp = wlgen.RTA(self.target,
                         wl_idx, calibration = self.te.calibration())
             rtapp.conf(kind='profile', params=params, loadref=loadref,
