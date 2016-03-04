@@ -26,3 +26,8 @@ lisa-ipython - Start/Stop the IPython Notebook server
 
 lisa-report  - Pretty format results of last test
 
+.:: Test commands
+--------------------------------------
+
+lisa-test    - Run tests and assert behaviours
+
