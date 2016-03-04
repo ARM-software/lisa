@@ -1,0 +1,281 @@
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2015, ARM Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# LISA Shell: the Linux Integrated System Analysis Shell
+
+# Setup colors
+source src/shell/lisa_colors
+
+# By default use internal libraries
+DEVMODE=${DEVMODE:-1}
+
+# Get base installation path of LISA
+LISA_HOME="$(pwd)"
+
+export PYTHONPATH=''
+export PYTHONPATH=$LISA_HOME/libs/utils:$PYTHONPATH
+export PYTHONPATH=$LISA_HOME/libs/wlgen:$PYTHONPATH
+
+if [ "x$DEVMODE" == "x1" ]; then
+	export PYTHONPATH=$LISA_HOME/libs/devlib:$PYTHONPATH
+	export PYTHONPATH=$LISA_HOME/libs/trappy:$PYTHONPATH
+	export PYTHONPATH=$LISA_HOME/libs/bart:$PYTHONPATH
+fi
+
+################################################################################
+# Generic LISA Shell commands
+################################################################################
+
+# LISA Shell On-Line HELP
+function lisa-help {
+clear
+echo -ne '\E[37;42m'
+echo "                                                                               "
+echo "                    .:: LISA Shell - HELP On-Line ::.                          "
+echo "                                                                               "
+echo -ne "$LISASHELL_RESET$LISASHELL_GREEN"
+cat LisaShell.txt
+echo -ne "$LISASHELL_DEFAULT"
+}
+
+function lisa-version {
+echo -ne "$LISASHELL_GREEN"
+cat <<EOF
+
+.:: LISA ($(git describe --all))
+
+Submodules version:
+$(git submodule status)
+
+
+EOF
+echo -ne "$LISASHELL_DEFAULT"
+}
+
+################################################################################
+# LISA Update utility functions
+################################################################################
+
+function _lisa-update-usage {
+    echo "Usage: lisa-update (CMD)"
+	echo "  CMD: what to update (default: submodules)"
+	echo "       submodules - update external dependencies provided by submodules"
+	echo
+    echo "Update submodules (if DEVMODE enabled)"
+}
+
+function _lisa-update-all {
+echo -ne "${LISASHELL_BLUE}"
+echo -e "*** Update LISA installation"
+if [ "x$DEVMODE" == "x1" ]; then
+	# Clenaup existing .git/config submodules
+	grep -v -e bart -e trappy -e devlib .git/config > .git/config.clean
+	cp .git/config.clean .git/config
+	# Force update existing modules
+	echo
+	echo 'Developer mode ENABLED, updating local libraries...'
+	git submodule update --init
+	echo 'DONE'
+fi
+echo -ne "$LISASHELL_DEFAULT"
+}
+
+function lisa-update {
+CMD=${1:-all}
+echo
+case "x${CMD^^}" in
+'xALL')
+	_lisa-update-all
+	;;
+"xHELP"|*)
+	_lisa-update-usage
+	;;
+esac
+echo
+echo
+}
+
+################################################################################
+# LISA Notebooks utility functions
+################################################################################
+
+function _lisa-ipython-usage {
+    echo "Usage: lisa-ipython CMD [NETIF]"
+	echo " CMD     - IPython Notebooks command (deafult: start)"
+	echo "  start  start the ipython server"
+	echo "   stop  stop the ipython server"
+    echo " NETIF   - the network interface to start the server on (default: lo)"
+}
+
+function _lisa-ipython-start {
+# Get IP address for the specified interface
+IPADDR=$(ifconfig $NETIF 2>/dev/null  | \
+	awk '/inet / {print $2}' | \
+	sed 's/addr://')
+if [ "x$IPADDR" == "x" ]; then
+    echo
+    echo "$NETIF is not a valid network interface"
+    echo
+    echo "Usage: $0 <NETIF>"
+    echo " NETIF - The network interface to start the server on"
+    echo
+    exit 1
+fi
+# Setup paths
+PYDIR="$LISA_HOME/ipynb"
+LOGFILE="$PYDIR/server.log"
+PIDFILE="$PYDIR/server.pid"
+# Check if an instance is already running
+if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
+	echo "Server already running, opening new window in browser"
+    xdg-open "http://$IPADDR:8888/"
+	return 1
+fi
+# Start the server bindeed to the specified interface
+echo 'Starting IPython Notebook server...'
+echo "  IP Address :  http://$IPADDR:8888/"
+echo '  Folder     : ' $PYDIR
+echo '  Logfile    : ' $LOGFILE
+echo '  PYTHONPATH : '
+echo -e "\t${PYTHONPATH//:/\\n\\t}"
+cd $PYDIR
+echo
+echo -n 'Notebook server task: '
+nohup ipython notebook --ip=$IPADDR &>$LOGFILE &
+echo $! >$PIDFILE
+cd - >/dev/null
+}
+
+function _lisa-ipython-stop {
+PYDIR="$LISA_HOME/ipynb"
+PIDFILE="$PYDIR/server.pid"
+if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
+	kill $(<$PIDFILE) 2>/dev/null
+fi
+rm -f $PIDFILE 2>/dev/null
+}
+
+function lisa-ipython {
+CMD=${1:-start}
+NETIF=${2:-lo}
+echo
+case "x${CMD^^}" in
+'xSTART')
+	echo "Starting IPython Notebooks..."
+	_lisa-ipython-start $NETIF
+	;;
+'xSTOP')
+	echo "Stopping IPython Notebooks..."
+	_lisa-ipython-stop
+	;;
+"xHELP"|*)
+	_lisa-ipython-usage
+	;;
+esac
+echo
+echo
+}
+
+################################################################################
+# LISA Tests utility functions
+################################################################################
+
+function _lisa-test-usage {
+cat <<EOF
+Usage: lisa-test CLASS [TEST]
+EOF
+}
+
+function _lisa-test {
+CLASS=${1}
+nosetest -v tests/$CLASS
+}
+
+function lisa-test {
+CMD=${1:-help}
+echo
+case "x${CMD^^}" in
+"xHELP")
+	_lisa-test-usage
+	;;
+*)
+	_lisa-test $*
+esac
+echo
+echo
+}
+
+function lisa-report {
+CMD=${1^^}
+[ "x$CMD" != "xHELP" ] && CMD=report
+echo
+case "x${CMD^^}" in
+'xREPORT')
+	./tools/report.py $*
+	;;
+"xHELP"|*)
+	./tools/report.py --help
+	;;
+esac
+echo
+echo
+}
+
+
+################################################################################
+# LISA Shell MAIN
+################################################################################
+
+# Setup Shell variables
+PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_DEFAULT}\]"
+
+# Dump out a nice LISA Shell logo
+clear
+echo -e '\E[37;44m'
+
+echo "                                                                               "
+echo "                        .:: LISA Shell ::.                                     "
+echo "                                                                               "
+echo -ne "$LISASHELL_RESET$LISASHELL_BLUE"
+cat <<EOF
+
+Welcome to the Linux Integrated System Analysis SHELL!
+
+LISA_HOME  : $LISA_HOME
+PYTHONPATH :
+EOF
+echo -e "\t${PYTHONPATH//:/\\n\\t}"
+
+if [ "x$DEVMODE" == "x1" ]; then
+cat <<EOF
+Submodules :
+EOF
+git submodule status
+fi
+
+cat <<EOF
+
+
+Type "lisa-help" for on-line help on available commands
+
+EOF
+
+# Setup default SHELL text color
+echo -e "$LISASHELL_DEFAULT"
+
+# vim: set tabstop=4:

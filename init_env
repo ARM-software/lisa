@@ -1,27 +1,37 @@
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2015, ARM Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
-# By default use internal libraries
-DEVMODE=${DEVMODE:-1}
-
-export PYTHONPATH=''
-export PYTHONPATH=`pwd`/libs/utils:$PYTHONPATH
-export PYTHONPATH=`pwd`/libs/wlgen:$PYTHONPATH
-
-if [[ "x$DEVMODE" == "x1" ]]; then
-	export PYTHONPATH=`pwd`/libs/devlib:$PYTHONPATH
-	export PYTHONPATH=`pwd`/libs/trappy:$PYTHONPATH
-	export PYTHONPATH=`pwd`/libs/bart:$PYTHONPATH
-
-	echo
-	echo 'Developer mode ENABLED, using libraries provided by:'
-	echo -e "  ${PYTHONPATH//:/\\n  }"
-	echo
-
-	echo 'Checking for sumbmodules updates required...'
-	git submodule update --init
-	echo 'DONE'
-
-	echo
-	echo 'Current submoule status:'
-	git submodule status
+# LISA Shell: Initialization
+grep "bash" /proc/$$/cmdline &>/dev/null
+if [ $? -eq 0 ]; then
+	source ./src/shell/lisa_shell
+else
+	echo "WARNING: Current shell is not a BASH"
+	# Check if a bash shell is available
+	which bash &>/dev/null
+	if [ $? -eq 0 ]; then
+		# Switch to a BASH shell
+		exec bash --init-file ./init_env
+	else
+		echo "ERROR: A BASH shell is not available in PATH"
+	fi
+	# It's up to the user to install a BASH
+	echo "The LISA shell requires a BASH shell."
+	echo "Please, source this configuration from a terminal running BASH."
 fi
 
