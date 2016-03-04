@@ -19,6 +19,7 @@ import devlib
 import json
 import logging
 import time
+import subprocess
 
 # Default energy measurements for each board
 DEFAULT_ENERGY_METER = {
@@ -44,6 +45,11 @@ DEFAULT_ENERGY_METER = {
     # Hikey: by default use AEP
     'hikey' : {
         'instrument' : 'aep',
+    },
+
+    # Salvator-X: by default uses iiocapture
+    'salvatorx' : {
+	'instrument' : 'iiocapture',
     }
 
 }
@@ -74,6 +80,8 @@ class EnergyMeter(object):
             EnergyMeter._meter = HWMon(target, emeter['conf'])
         elif emeter['instrument'] == 'aep':
             EnergyMeter._meter = Aep(target)
+        elif emeter['instrument'] == 'iiocapture':
+            EnergyMeter._meter = IIOCapture(target, conf['iiocapturebin'], conf['hostname'], conf['iiodevice'])
         return EnergyMeter._meter
 
     def sample(self):
@@ -270,5 +278,62 @@ class Aep(EnergyMeter):
             json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
 
         return (clusters_nrg, nrg_file)
+
+class IIOCapture(EnergyMeter):
+
+    def __init__(self, target, iiocapturebin, hostname, iiodevice):
+        super(IIOCapture, self).__init__(target)
+
+        self._iiocapturebin = iiocapturebin
+        self._hostname = hostname
+        self._iiodevice = iiodevice
+
+        self._p = None
+
+    def report(self, out_dir, out_file='energy.json'):
+        if self._p is None:
+            return
+        if self._p.returncode is not None:
+            out, err = self._p.communicate()
+            logging.error("%14s - Failed to run bin return %d : %s", "IIOCapture", self._p.returncode, out)
+            return
+
+        # kill process and get return
+        self._p.send_signal(2)
+        out, err = self._p.communicate()
+        logging.info("%14s - Killed IIOCapture...", "IIOCapture")
+        logging.info("%14s - Got energy %s", "IIOCapture", out)
+        self._p.wait()
+        self._p = None
+
+        # iio-capture return "energy=value", add a simple format check
+        if '=' not in out:
+            logging.error("%14s - Bad output format '%s'", "IIOCapture", out)
+            return
+
+        clusters_nrg = {}
+        clusters_nrg['big'] = 0
+        clusters_nrg['LITTLE'] = out.split('=')[1].strip()
+
+        # Dump data as JSON file
+        nrg_file = '{}/{}'.format(out_dir, out_file)
+        with open(nrg_file, 'w') as ofile:
+            json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
+
+        return (clusters_nrg, nrg_file)
+
+    def reset(self):
+        if self._p is not None:
+            if self._p.returncode is not None:
+                self._p.kill()
+
+        self._p = subprocess.Popen([self._iiocapturebin, "-n", self._hostname, "-o", "-e", self._iiodevice],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        logging.info("%14s - Started %s...", "IIOCapture", self._iiocapturebin)
+        if self._p.returncode is not None and self._p.returncode != 0:
+            logging.error("%14s - Failed to run bin", "IIOCapture")
+
+    def sample(self):
+        logging.debug('SAMPLE')
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
