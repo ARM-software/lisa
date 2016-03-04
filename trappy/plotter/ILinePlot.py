@@ -99,10 +99,6 @@ class ILinePlot(AbstractDataPlotter):
               input
 
     :type signals: str
-
-    :param legend_ncol: A positive integer that represents the
-        number of columns in the legend
-    :type legend_ncol: int
     """
 
     def __init__(self, traces, templates=None, **kwargs):
@@ -166,7 +162,6 @@ class ILinePlot(AbstractDataPlotter):
         self._attr["scatter"] = AttrConf.PLOT_SCATTER
         self._attr["point_size"] = AttrConf.POINT_SIZE
         self._attr["map_label"] = {}
-        self._attr["legend_ncol"] = AttrConf.LEGEND_NCOL
         self._attr["title"] = AttrConf.TITLE
 
     def _plot(self, permute):
@@ -198,6 +193,8 @@ class ILinePlot(AbstractDataPlotter):
             else:
                 title = ""
 
+            # Fix data frame indexes if necessary
+            data_frame = self._fix_indexes(data_frame)
             self._layout.add_plot(plot_index, data_frame, title)
             plot_index += 1
 
@@ -225,7 +222,35 @@ class ILinePlot(AbstractDataPlotter):
 
                     data_frame[key] = result[pivot]
 
+            # Fix data frame indexes if necessary
+            data_frame = self._fix_indexes(data_frame)
             self._layout.add_plot(plot_index, data_frame, title)
             plot_index += 1
 
         self._layout.finish()
+
+    def _fix_indexes(self, data_frame):
+        """
+        In case of multiple traces with different indexes (i.e. x-axis values),
+        create new ones with same indexes
+        """
+        # 1) Check if we are processing multiple traces
+        if len(data_frame) > 1:
+            # 2) Merge the data frames to obtain common indexes
+            df_columns = [key for key in data_frame.keys()]
+            merged_df = pd.concat(data_frame.get_values(), axis=1)
+            merged_df.columns = df_columns
+            # 3) Fill NaN values depending on drawstyle
+            if self._attr["drawstyle"] == "steps-post":
+                merged_df = merged_df.ffill()
+            elif self._attr["drawstyle"] == "steps-pre":
+                merged_df = merged_df.bfill()
+            elif self._attr["drawstyle"] == "steps-mid":
+                merged_df = merged_df.ffill()
+            else:
+                # default
+                merged_df = merged_df.interpolate()
+
+            return merged_df
+        else:
+            return data_frame
