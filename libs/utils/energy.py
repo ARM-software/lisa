@@ -22,6 +22,8 @@ import time
 import os
 
 from collections import namedtuple
+from subprocess import Popen, PIPE, STDOUT
+from time import sleep
 
 # Default energy measurements for each board
 DEFAULT_ENERGY_METER = {
@@ -66,8 +68,22 @@ DEFAULT_ENERGY_METER = {
             'resistor_values' : [0.033],
             'device_entry'    : '/dev/ttyACM0',
         }
-    }
+    },
 
+    # ACME: by default uses iiocapture
+    'acme' : {
+        'instrument' : 'iiocapture',
+        'conf' : {
+            # Assume it is available in PATH
+            'iiocapturebin' : 'iio-capture',
+            # By default, Use the first connected probe only, i.e. the one
+            # connected to probe n, with n being the lowest probe number with a
+            # device attached
+            'iiodevice' : ['iio:device0'],
+            # BBB default IP
+            'device_ip' : '192.168.7.2'
+        }
+    }
 }
 
 class EnergyMeter(object):
@@ -105,6 +121,8 @@ class EnergyMeter(object):
             EnergyMeter._meter = HWMon(target, emeter, res_dir)
         elif emeter['instrument'] == 'aep':
             EnergyMeter._meter = AEP(target, emeter['conf'], res_dir)
+        elif emeter['instrument'] == 'iiocapture':
+            EnergyMeter._meter = IIOCapture(target, emeter['conf'], res_dir)
 
         logging.debug('%14s - Results dir: %s', 'EnergyMeter', res_dir)
         return EnergyMeter._meter
@@ -324,5 +342,134 @@ class AEP(EnergyMeter):
             json.dump(channels_nrg, ofile, sort_keys=True, indent=4)
 
         return (channels_nrg, nrg_file)
+
+
+class IIOCapture(EnergyMeter):
+    "iio-capture Energy Meter for BayLibre ACME board"
+
+    def __init__(self, target, conf, res_dir):
+        super(IIOCapture, self).__init__(target)
+
+        self._iiocapturebin = conf['iiocapturebin']
+        self._hostname = conf['device_ip']
+        # Channels represent the connected probes
+        # iio:device<n>
+        self._channels = conf['iiodevice']
+        self._iio = [None] * len(self._channels)
+
+    def sample(self):
+        raise NotImplementedError('Not available for IIOCapture')
+
+    def reset(self):
+        """
+        Reset energy meter and start sampling from channels specified in the
+        target configuration.
+        """
+        for i, iiodevice in enumerate(self._channels):
+            # Terminate instance of iio-capture for this (channel, iiodevice)
+            if self._iio[i]:
+                self._iio[i].poll()
+                if self._iio[i].returncode is None:
+                    self._iio[i].terminate()
+                    self._iio[i].wait()
+                    self._iio[i] = None
+
+            csv_file = '{}/{}'.format(
+                self._res_dir,
+                'samples_{}.csv'.format(iiodevice)
+            )
+            self._iio[i] = Popen([self._iiocapturebin, "-n",
+                                  self._hostname, "-o",
+                                  "-c", "-f",
+                                  csv_file, iiodevice],
+                                 stdout=PIPE, stderr=STDOUT)
+
+            if self._iio[i] is None:
+                logging.error("%14s - Failed to run %s for %s", "IIOCapture",
+                              self._iiocapturebin, iiodevice)
+                logging.error("%14s - Make sure there are no iio-capture "
+                              "processes connected to %s and device %s",
+                              "IIOCapture", self._hostname, iiodevice)
+                continue
+
+            # Wait few milliseconds to check if there is any output.
+            # If this is the case, there must have been an error, so the user
+            # must be informed
+            sleep(0.02)
+            self._iio[i].poll()
+            if self._iio[i].returncode:
+                logging.error("%14s - Failed to run %s for %s", "IIOCapture",
+                              self._iiocapturebin, iiodevice)
+                logging.error("%14s - Make sure there are no iio-capture "
+                              "processes connected to %s and device %s",
+                              "IIOCapture", self._hostname, iiodevice)
+                out, _ = self._iio[i].communicate()
+                logging.error("%14s - Output: '%s'", "IIOCapture", out)
+                self._iio[i] = None
+            else:
+                logging.debug("%14s - Started %s on %s...", "IIOCapture",
+                              self._iiocapturebin, iiodevice)
+
+    def report(self, out_dir, out_file='energy.json'):
+        """
+        Stop iio-capture and collect sampled data.
+
+        :param out_dir: Output directory where to store results
+        :type out_dir: str
+
+        :param out_file: File name where to save energy data
+        :type out_file: str
+        """
+        channels_nrg = {}
+        nrg_files = {}
+        for i, iiodevice in enumerate(self._channels):
+            if self._iio[i] is None:
+                continue
+
+            self._iio[i].poll()
+            if self._iio[i].returncode:
+                # returncode not None means that iio-capture has terminated
+                # already, so there must have been an error
+                logging.error("%14s - %s terminated for %s", "IIOCapture",
+                              self._iiocapturebin, iiodevice)
+                out, _ = self._iio[i].communicate()
+                logging.error("%14s - '%s'", "IIOCapture", out)
+                self._iio[i] = None
+                continue
+
+            # kill process and get return
+            self._iio[i].terminate()
+            out, _ = self._iio[i].communicate()
+            logging.debug("%14s - Completed IIOCapture for %s...",
+                          "IIOCapture", iiodevice)
+            logging.info("%14s - Got energy %s", "IIOCapture", out)
+            self._iio[i].wait()
+            self._iio[i] = None
+
+            # iio-capture return "energy=value", add a simple format check
+            if '=' not in out:
+                logging.error("%14s - Bad output format from %s:",
+                              "IIOCapture",
+                              iiodevice)
+                logging.error("%14s - '%s'", "IIOCapture", out)
+                continue
+
+            nrg = {}
+            for kv_pair in out.split():
+                key, val = kv_pair.partition('=')[::2]
+                nrg[key] = val
+            channels_nrg['{}_nrg'.format(iiodevice)] = nrg
+
+            # Dump data as JSON file
+            nrg_file = '{}/{}_{}'.format(out_dir, iiodevice, out_file)
+            with open(nrg_file, 'w') as ofile:
+                json.dump(nrg, ofile, sort_keys=True, indent=4)
+            nrg_files['{}_nrg_file'.format(iiodevice)] = nrg_file
+
+            # Copy CSV samples file to out_dir
+            os.system('cp {}/samples_{}.csv {}'
+                      .format(self._res_dir, iiodevice, out_dir))
+
+        return (channels_nrg, nrg_files)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
