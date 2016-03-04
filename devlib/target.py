@@ -715,7 +715,6 @@ class AndroidTarget(Target):
                                             modules=modules,
                                             load_default_modules=load_default_modules,
                                             shell_prompt=shell_prompt)
-        self.executables_directory = executables_directory
         self.package_data_directory = package_data_directory
 
     def reset(self, fastboot=False):  # pylint: disable=arguments-differ
