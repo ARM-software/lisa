@@ -129,11 +129,11 @@ class TestBase(utils_tests.SetupDirectory):
         self.assertEquals(set(dfr.columns), expected_columns)
 
         for idx in range(len(events)):
-            timestap = str( dfr.index[idx]+float(events.keys()[0]))
+            timestamp = str( dfr.index[idx]+float(events.keys()[0]))
             self.assertTrue(timestamp in events)
-            self.assertEquals(dfr["__comm"].iloc[idx], events[timestap]['task'])
-            self.assertEquals(dfr["__pid"].iloc[idx],  events[timestap]['pid'])
-            self.assertEquals(dfr["__cpu"].iloc[idx],  events[timestap]['cpu'])
+            self.assertEquals(dfr["__comm"].iloc[idx], events[timestamp]['task'])
+            self.assertEquals(dfr["__pid"].iloc[idx],  events[timestamp]['pid'])
+            self.assertEquals(dfr["__cpu"].iloc[idx],  events[timestamp]['cpu'])
 
         trappy.unregister_dynamic_ftrace(ftrace_parser)
 
