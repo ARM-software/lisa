@@ -77,7 +77,7 @@ Debian system.
 
 ##### Install required python packages
 
-	$ sudo apt-get install python-matplotlib python-numpy libfreetype6-dev libpng12-dev
+	$ sudo apt-get install python-matplotlib python-numpy libfreetype6-dev libpng12-dev python-nose
 
 ##### Install the Python package manager
 
