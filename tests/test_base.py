@@ -123,17 +123,16 @@ class TestBase(utils_tests.SetupDirectory):
             fout.write(in_data)
 
         ftrace_parser = trappy.register_dynamic_ftrace("Event0", "event0", scope="sched")
-        trace = trappy.FTrace()
+        trace = trappy.FTrace(normalize_time=False)
         dfr = trace.event0.data_frame
 
         self.assertEquals(set(dfr.columns), expected_columns)
 
-        for idx in range(len(events)):
-            timestamp = str( dfr.index[idx]+float(events.keys()[0]))
-            self.assertTrue(timestamp in events)
-            self.assertEquals(dfr["__comm"].iloc[idx], events[timestamp]['task'])
-            self.assertEquals(dfr["__pid"].iloc[idx],  events[timestamp]['pid'])
-            self.assertEquals(dfr["__cpu"].iloc[idx],  events[timestamp]['cpu'])
+        for timestamp, event in events.iteritems():
+            timestamp = float(timestamp)
+            self.assertEquals(dfr["__comm"].loc[timestamp], event['task'])
+            self.assertEquals(dfr["__pid"].loc[timestamp],  event['pid'])
+            self.assertEquals(dfr["__cpu"].loc[timestamp],  event['cpu'])
 
         trappy.unregister_dynamic_ftrace(ftrace_parser)
 
