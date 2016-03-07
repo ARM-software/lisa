@@ -105,6 +105,7 @@ class TestBase(utils_tests.SetupDirectory):
                 1003.456789 : { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 003 },
                 1004.456789 : { 'task': 'kworker/1:1H',      'pid': 4123, 'cpu': 004 },
                 1005.456789 : { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 005 },
+                1006.456789 : { 'task': 'IntentService[',    'pid': 6123, 'cpu': 005 },
         }
 
         in_data = """"""
