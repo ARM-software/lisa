@@ -100,16 +100,16 @@ class TestBase(utils_tests.SetupDirectory):
         """TestBase: Task name, PID, CPU and timestamp are properly paresed """
 
         events = {
-                '1001.456789' : { 'task': 'rcu_preempt',       'pid': 1123, 'cpu': 001 },
-                '1002.456789' : { 'task': 'rs:main',           'pid': 2123, 'cpu': 002 },
-                '1003.456789' : { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 003 },
-                '1004.456789' : { 'task': 'kworker/1:1H',      'pid': 4123, 'cpu': 004 },
-                '1005.456789' : { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 005 },
+                1001.456789 : { 'task': 'rcu_preempt',       'pid': 1123, 'cpu': 001 },
+                1002.456789 : { 'task': 'rs:main',           'pid': 2123, 'cpu': 002 },
+                1003.456789 : { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 003 },
+                1004.456789 : { 'task': 'kworker/1:1H',      'pid': 4123, 'cpu': 004 },
+                1005.456789 : { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 005 },
         }
 
         in_data = """"""
         for timestamp in sorted(events):
-            in_data+="{0:>16s}-{1:d} [{2:04d}] {3:s}: event0:   tag=value\n".\
+            in_data+="{0:>16s}-{1:d} [{2:04d}] {3}: event0:   tag=value\n".\
                     format(
                         events[timestamp]['task'],
                         events[timestamp]['pid'],
@@ -129,7 +129,6 @@ class TestBase(utils_tests.SetupDirectory):
         self.assertEquals(set(dfr.columns), expected_columns)
 
         for timestamp, event in events.iteritems():
-            timestamp = float(timestamp)
             self.assertEquals(dfr["__comm"].loc[timestamp], event['task'])
             self.assertEquals(dfr["__pid"].loc[timestamp],  event['pid'])
             self.assertEquals(dfr["__cpu"].loc[timestamp],  event['cpu'])
