@@ -190,7 +190,10 @@ var ILinePlot = ( function() {
         var width = $("#" + t_info.name)
             .closest(".output_subarea").width() / t_info.per_line
 
-        graph.resize(width, t_info.height);
+	/*
+	 * Remove 2 pixels from width to avoid unnecessary horizontal scrollbar
+	 */
+        graph.resize(width - 2, t_info.height);
 
         $(window).on("resize." + t_info.name, function() {
 
