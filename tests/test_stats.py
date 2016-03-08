@@ -223,7 +223,7 @@ class TestTrigger(BaseTestStats):
                           filters={"identifier": my_filter(1)}, value=-1,
                           pivot="result")
 
-        expected = pd.Series([-1, -1], index=pd.Index([0.3, 0.6], name="Time"))
+        expected = pd.Series([-1, -1], index=[0.3, 0.6])
         assert_series_equal(expected, trigger.generate("blank"))
 
 
