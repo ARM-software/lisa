@@ -32,7 +32,7 @@ class TestWASysfsExtractor(utils_tests.SetupDirectory):
 
     def setUp(self):
         super(TestWASysfsExtractor, self).setUp()
-        subprocess.call(["tar", "xf", self.wa_sysfs_fname])
+        subprocess.check_call(["tar", "xf", self.wa_sysfs_fname])
 
     def test_get_parameters(self):
         """Test that we can get the parameters of a sysfs extractor output"""
