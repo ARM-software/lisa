@@ -254,6 +254,12 @@ class TestILinePlotter(unittest.TestCase):
 
         trappy.ILinePlot([dfr1, dfr2], column=["a", "a"]).view(test=True)
 
+    def test_duplicate_merging(self):
+        dfr1 = pd.DataFrame([1, 2, 3, 4], index=[0., 0., 1., 2.], columns=["a"])
+        dfr2 = pd.DataFrame([2, 3, 4, 5], index=[1., 1., 1., 2.], columns=["a"])
+
+        trappy.ILinePlot([dfr1, dfr2], column=["a", "a"]).view(test=True)
+
 class TestBarPlot(unittest.TestCase):
     def setUp(self):
         self.dfr = pd.DataFrame({"foo": [1, 2, 3],

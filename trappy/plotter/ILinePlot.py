@@ -26,6 +26,7 @@ from trappy.plotter.ILinePlotGen import ILinePlotGen
 from trappy.plotter.AbstractDataPlotter import AbstractDataPlotter
 from trappy.plotter.ColorMap import ColorMap
 from trappy.plotter import IPythonConf
+from trappy.utils import handle_duplicate_index
 import pandas as pd
 
 if not IPythonConf.check_ipython():
@@ -238,7 +239,9 @@ class ILinePlot(AbstractDataPlotter):
         # 1) Check if we are processing multiple traces
         if len(data_frame) > 1:
             # 2) Merge the data frames to obtain common indexes
-            df_columns = [key for key in data_frame.keys()]
+            df_columns = list(data_frame.keys())
+            dedup_data = [handle_duplicate_index(s) for s in data_frame.values]
+            data_frame = pd.Series(dedup_data, index=df_columns)
             merged_df = pd.concat(data_frame.get_values(), axis=1)
             merged_df.columns = df_columns
             # 3) Fill NaN values depending on drawstyle
