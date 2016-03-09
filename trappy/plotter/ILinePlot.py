@@ -141,12 +141,13 @@ class ILinePlot(AbstractDataPlotter):
         # when importing the module. This facilitates
         # the importing of the module from outside
         # an IPython notebook
-        IPythonConf.iplot_install("ILinePlot")
+        if not test:
+            IPythonConf.iplot_install("ILinePlot")
 
         if self._attr["concat"]:
             self._plot_concat()
         else:
-            self._plot(self._attr["permute"])
+            self._plot(self._attr["permute"], test)
 
     def set_defaults(self):
         """Sets the default attrs"""
@@ -164,7 +165,7 @@ class ILinePlot(AbstractDataPlotter):
         self._attr["map_label"] = {}
         self._attr["title"] = AttrConf.TITLE
 
-    def _plot(self, permute):
+    def _plot(self, permute, test):
         """Internal Method called to draw the plot"""
         pivot_vals, len_pivots = self.c_mgr.generate_pivots(permute)
 
@@ -195,7 +196,7 @@ class ILinePlot(AbstractDataPlotter):
 
             # Fix data frame indexes if necessary
             data_frame = self._fix_indexes(data_frame)
-            self._layout.add_plot(plot_index, data_frame, title)
+            self._layout.add_plot(plot_index, data_frame, title, test=test)
             plot_index += 1
 
         self._layout.finish()

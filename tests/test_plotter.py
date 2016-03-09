@@ -247,6 +247,13 @@ class TestPlotter(BaseTestThermal):
         self.assertEquals(procs, expected_procs)
         self.assertEquals(window, [1, 5])
 
+class TestILinePlotter(unittest.TestCase):
+    def test_simple_dfr(self):
+        dfr1 = pd.DataFrame([1, 2, 3, 4], columns=["a"])
+        dfr2 = pd.DataFrame([2, 3, 4, 5], columns=["a"])
+
+        trappy.ILinePlot([dfr1, dfr2], column=["a", "a"]).view(test=True)
+
 class TestBarPlot(unittest.TestCase):
     def setUp(self):
         self.dfr = pd.DataFrame({"foo": [1, 2, 3],

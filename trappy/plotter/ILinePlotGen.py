@@ -173,7 +173,7 @@ class ILinePlotGen(object):
 
         fig_params["pointSize"] = self._attr["point_size"]
 
-    def add_plot(self, plot_num, data_frame, title=""):
+    def add_plot(self, plot_num, data_frame, title="", test=False):
         """Add a plot for the corresponding index
 
         :param plot_num: The linear index of the plot
@@ -213,10 +213,11 @@ class ILinePlotGen(object):
         if "xlim" in self._attr:
             fig_params["dateWindow"] = self._attr["xlim"]
 
-        json_file = os.path.join(IPythonConf.get_data_path(), fig_name + ".json")
-        fh = open(json_file, "w")
-        json.dump(fig_params, fh)
-        fh.close()
+        if not test:
+            json_file = os.path.join(IPythonConf.get_data_path(), fig_name + ".json")
+            fh = open(json_file, "w")
+            json.dump(fig_params, fh)
+            fh.close()
 
     def finish(self):
         """Called when the Plotting is finished"""
