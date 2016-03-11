@@ -100,16 +100,17 @@ class TestBase(utils_tests.SetupDirectory):
         """TestBase: Task name, PID, CPU and timestamp are properly paresed """
 
         events = {
-                '1001.456789' : { 'task': 'rcu_preempt',       'pid': 1123, 'cpu': 001 },
-                '1002.456789' : { 'task': 'rs:main',           'pid': 2123, 'cpu': 002 },
-                '1003.456789' : { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 003 },
-                '1004.456789' : { 'task': 'kworker/1:1H',      'pid': 4123, 'cpu': 004 },
-                '1005.456789' : { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 005 },
+                1001.456789 : { 'task': 'rcu_preempt',       'pid': 1123, 'cpu': 001 },
+                1002.456789 : { 'task': 'rs:main',           'pid': 2123, 'cpu': 002 },
+                1003.456789 : { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 003 },
+                1004.456789 : { 'task': 'kworker/1:1H',      'pid': 4123, 'cpu': 004 },
+                1005.456789 : { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 005 },
+                1006.456789 : { 'task': 'IntentService[',    'pid': 6123, 'cpu': 005 },
         }
 
         in_data = """"""
         for timestamp in sorted(events):
-            in_data+="{0:>16s}-{1:d} [{2:04d}] {3:s}: event0:   tag=value\n".\
+            in_data+="{0:>16s}-{1:d} [{2:04d}] {3}: event0:   tag=value\n".\
                     format(
                         events[timestamp]['task'],
                         events[timestamp]['pid'],
@@ -123,17 +124,15 @@ class TestBase(utils_tests.SetupDirectory):
             fout.write(in_data)
 
         ftrace_parser = trappy.register_dynamic_ftrace("Event0", "event0", scope="sched")
-        trace = trappy.FTrace()
+        trace = trappy.FTrace(normalize_time=False)
         dfr = trace.event0.data_frame
 
         self.assertEquals(set(dfr.columns), expected_columns)
 
-        for idx in range(len(events)):
-            timestap = str( dfr.index[idx]+float(events.keys()[0]))
-            self.assertTrue(timestamp in events)
-            self.assertEquals(dfr["__comm"].iloc[idx], events[timestap]['task'])
-            self.assertEquals(dfr["__pid"].iloc[idx],  events[timestap]['pid'])
-            self.assertEquals(dfr["__cpu"].iloc[idx],  events[timestap]['cpu'])
+        for timestamp, event in events.iteritems():
+            self.assertEquals(dfr["__comm"].loc[timestamp], event['task'])
+            self.assertEquals(dfr["__pid"].loc[timestamp],  event['pid'])
+            self.assertEquals(dfr["__cpu"].loc[timestamp],  event['cpu'])
 
         trappy.unregister_dynamic_ftrace(ftrace_parser)
 

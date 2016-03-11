@@ -311,7 +311,7 @@ class FTrace(BareTrace):
                     return True
             return False
 
-        special_fields_regexp = re.compile(r"^\s+([^\[]+)-(\d+)\s+\[(\d+)\]\s+([0-9]+\.[0-9]+):")
+        special_fields_regexp = re.compile(r"^\s+(.{,16})-(\d+)\s+\[(\d+)\]\s+([0-9]+\.[0-9]+):")
         start_match = re.compile(r"[A-Za-z0-9_]+=")
 
         for line in ifilter(contains_unique_word, fin):
