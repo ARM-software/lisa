@@ -46,13 +46,6 @@ LEGEND_NCOL = 3
 
 MPL_STYLE = {
     'axes.axisbelow': True,
-    'axes.color_cycle': ['#348ABD',
-                         '#7A68A6',
-                         '#A60628',
-                         '#467821',
-                         '#CF4457',
-                         '#188487',
-                         '#E24A33'],
     'axes.edgecolor': '#bcbcbc',
     'axes.facecolor': 'white',
     'axes.grid': True,
@@ -98,6 +91,17 @@ MPL_STYLE = {
     'ytick.minor.pad': 6.0,
     'ytick.minor.size': 0.0
 }
+
+from distutils.version import StrictVersion
+import matplotlib
+
+colors = ['#348ABD', '#7A68A6', '#A60628', '#467821', '#CF4457', '#188487',
+          '#E24A33']
+if StrictVersion(matplotlib.__version__) < StrictVersion("1.5.1"):
+    MPL_STYLE['axes.color_cycle'] = colors
+else:
+    MPL_STYLE['axes.prop_cycle'] = matplotlib.cycler("color", colors)
+
 ARGS_TO_FORWARD = [
     "marker",
     "markersize",
