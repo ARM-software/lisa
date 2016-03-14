@@ -83,12 +83,10 @@ function _lisa-update-all {
 echo -ne "${LISASHELL_BLUE}"
 echo -e "*** Update LISA installation"
 if [ "x$DEVMODE" == "x1" ]; then
-	# Clenaup existing .git/config submodules
-	grep -v -e bart -e trappy -e devlib .git/config > .git/config.clean
-	cp .git/config.clean .git/config
 	# Force update existing modules
 	echo
 	echo 'Developer mode ENABLED, updating local libraries...'
+	git submodule sync
 	git submodule update --init
 	echo 'DONE'
 fi
