@@ -89,6 +89,17 @@ class ILinePlot(AbstractDataPlotter):
 
     :type drawstyle: str
 
+    :param sync_zoom: Synchronize the zoom of a group of plots.
+        Zooming in one plot of a group (see below) will zoom in every
+        plot of that group.  Defaults to False.
+    :type sync_zoom: boolean
+
+    :param group: Name given to the plots created by this ILinePlot
+        instance.  This name is only used for synchronized zoom.  If
+        you zoom on any plot in a group all plots will zoom at the
+        same time.
+    :type group: string
+
     :param signals: A string of the type event_name:column
         to indicate the value that needs to be plotted
 
