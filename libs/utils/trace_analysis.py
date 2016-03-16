@@ -265,6 +265,17 @@ class TraceAnalysis(object):
 
         # Build sequence of overutilization "bands"
         df = self.trace.df('sched_overutilized')
+
+        # Remove duplicated index events, keep only last event which is the
+        # only one with a non null length
+        df = df[df.len != 0]
+        # This filtering can also be achieved by removing events happening at
+        # the same time, but perhaps this filtering is more complex
+        # df = df.reset_index()\
+        #         .drop_duplicates(subset='Time', keep='last')\
+        #         .set_index('Time')
+
+        # Compute intervals in which the system is reported to be overutilized
         bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
 
         # If not axis provided: generate a standalone plot
