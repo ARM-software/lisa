@@ -18,25 +18,42 @@
 #
 
 # Control groups mount point
-CGMOUNT=${CGMOUNT:-/sys/fs/cgroup}
+CGMOUNT=${CGMOUNT:-/sys/fs/cgroup/devlib_*}
 # The control group we want to run into
 CGP=${1}
 # The command to run
 CMD=${2}
 
-# Check if the required CGroup exists
-find $CGMOUNT -type d | grep $CGP &>/dev/null
-if [ $? -ne 0 ]; then
-  echo "ERROR: could not find any $CGP cgroup under $CGMOUNT"
-  exit 1
-fi
+# Execution under root CGgroup
+if [ "x/" == "x$CGP" ]; then
 
-find $CGMOUNT -type d | grep $CGP | \
-while read CGPATH; do
+  find $CGMOUNT -type d -maxdepth 0 | \
+  while read CGPATH; do
     # Move this shell into that control group
     echo $$ > $CGPATH/cgroup.procs
-    echo "Moving task into $CGPATH"
-done
+    echo "Moving task into root CGroup ($CGPATH)"
+  done
+
+# Execution under specified CGroup
+else
+
+  # Check if the required CGroup exists
+  find $CGMOUNT -type d -mindepth 1 | \
+  grep $CGP &>/dev/null
+  if [ $? -ne 0 ]; then
+    echo "ERROR: could not find any $CGP cgroup under $CGMOUNT"
+    exit 1
+  fi
+
+  find $CGMOUNT -type d -mindepth 1 | \
+  grep $CGP | \
+  while read CGPATH; do
+      # Move this shell into that control group
+      echo $$ > $CGPATH/cgroup.procs
+      echo "Moving task into $CGPATH"
+  done
+
+fi
 
 # Execute the command
 $CMD
