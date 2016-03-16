@@ -294,7 +294,103 @@ class TraceAnalysis(object):
             t2 = t1+td
             axes.axvspan(t1, t2, facecolor='r', alpha=0.1)
 
-    def plotTasks(self, tasks=None):
+    def _plotTaskSignals(self, df, axes, task_name, tid, signals, is_last=False):
+        axes.set_title('Task [{0:d}:{1:s}] Signals'.format(tid, task_name));
+
+        # Plot load and util
+        signals_to_plot = list({'load_avg', 'util_avg'}.intersection(signals))
+        if len(signals_to_plot):
+            data = df[df.comm == task_name][signals_to_plot]
+            data.plot(ax=axes, drawstyle='steps-post');
+
+        # Plot boost utilization if available
+        if 'boosted_util' in signals and \
+            self.trace.hasEvents('sched_boost_task'):
+            df2 = self.trace.df('sched_boost_task')
+            data = df2[df2.comm == task_name][['boosted_util']]
+            if len(data):
+                data.plot(ax=axes, style=['y-'], drawstyle='steps-post');
+
+        # Add Capacities data if avilable
+        if 'nrg_model' in self.trace.platform:
+            nrg_model = self.trace.platform['nrg_model']
+            max_lcap = nrg_model['little']['cpu']['cap_max']
+            max_bcap = nrg_model['big']['cpu']['cap_max']
+            tip_lcap = 0.8 * max_lcap
+            tip_bcap = 0.8 * max_bcap
+            logging.info('%d %d %d %d', tip_lcap, max_lcap, tip_bcap, max_bcap)
+            axes.axhline(tip_lcap, color='g', linestyle='--', linewidth=1);
+            axes.axhline(max_lcap, color='g', linestyle='-', linewidth=2);
+            axes.axhline(tip_bcap, color='r', linestyle='--', linewidth=1);
+            axes.axhline(max_bcap, color='r', linestyle='-', linewidth=2);
+
+        axes.set_ylim(0, 1100);
+        axes.set_xlim(self.x_min, self.x_max);
+        axes.grid(True);
+        if not is_last:
+            axes.set_xticklabels([])
+            axes.set_xlabel('')
+        if 'sched_overutilized' in signals:
+            self.plotOverutilized(axes)
+
+    def _plotTaskResidencies(self, df, axes, task_name, signals, is_last=False):
+        axes.set_title('CPUs residency (green: LITTLE, red: big)');
+        axes.set_xlim(0, self.trace.time_range);
+        data = df[df.comm == task_name][['cluster', 'cpu']]
+        for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
+            cdata = data[data.cluster == clabel]
+            if (len(cdata) > 0):
+                cdata.plot(ax=axes, style=[ccolor+'+'], legend=False);
+        axes.set_ylim(-1, self.platform['cpus_count']+1)
+        axes.set_xlim(self.x_min, self.x_max);
+        axes.set_ylabel('CPUs')
+        axes.grid(True);
+        if not is_last:
+            axes.set_xticklabels([])
+            axes.set_xlabel('')
+        if 'sched_overutilized' in signals:
+            self.plotOverutilized(axes)
+
+    def _plotTaskPelt(self, df, axes, task_name, signals):
+        axes.set_title('PELT Signals');
+        data = df[df.comm == task_name][['load_sum', 'util_sum', 'period_contrib']]
+        data.plot(ax=axes, drawstyle='steps-post');
+        axes.set_xlim(self.x_min, self.x_max);
+        axes.grid(True);
+        if 'sched_overutilized' in signals:
+            self.plotOverutilized(axes)
+
+    def plotTasks(self, tasks=None, signals=None):
+        """
+        Generate a common set of useful plots for each of the specified tasks
+
+        This method allows to filter which signals should be plot, if data are
+        available in the input trace. The list of signals supported are:
+        Tasks signals plot:
+                load_avg, util_avg, boosted_util, sched_overutilized
+        Tasks residencies on CPUs:
+                residencies, sched_overutilized
+        Tasks PELT signals:
+                load_sum, util_sum, period_contrib, sched_overutilized
+
+        Note:
+            sched_overutilized: enable the plotting of overutilization bands on
+                                top of each subplot
+            residencies: enable the generation of the CPUs residencies plot
+
+        Args:
+            tasks   (list): the list of tasks to plot
+                            default: all tasks defined at TraceAnalysis
+                            creation time are plotted
+            signals (list): list of signals (and thus plots) to generate
+                            default: all the plots and signals available in the
+                            current trace
+        """
+        if not signals:
+            signals = ['load_avg', 'util_avg', 'boosted_util',
+                       'sched_overutilized',
+                       'load_sum', 'util_sum', 'period_contrib',
+                       'residencies']
         if not self.trace.hasEvents('sched_load_avg_task'):
             logging.warn('Events [sched_load_avg_task] not found, '\
                     'plot DISABLED!')
@@ -305,13 +401,26 @@ class TraceAnalysis(object):
         if tasks:
             tasks_to_plot = tasks
 
+        # Compute number of plots to produce
+        plots_count = 0
+        plots_signals = [
+                {'load_avg', 'util_avg', 'boosted_util'},
+                {'residencies'},
+                {'load_sum', 'util_sum', 'period_contrib'}
+        ]
+        for signals_to_plot in plots_signals:
+            signals_to_plot = signals_to_plot.intersection(signals)
+            if len(signals_to_plot):
+                plots_count = plots_count + 1
+
         # Grid
-        gs = gridspec.GridSpec(3, 1, height_ratios=[2,1,1]);
+        gs = gridspec.GridSpec(plots_count, 1, height_ratios=[2,1,1]);
         gs.update(wspace=0.1, hspace=0.1);
 
         for task_name in tasks_to_plot:
             logging.debug('Plotting [%s]', task_name)
             tid = self.trace.getTaskByName(task_name)[0]
+            plot_id = 0
 
             # Figure
             plt.figure(figsize=(16, 2*6+3));
@@ -319,62 +428,35 @@ class TraceAnalysis(object):
                          y=.94, fontsize=16, horizontalalignment='center');
 
             # Plot load and utilization
-            axes = plt.subplot(gs[0,0]);
-            axes.set_title('Task [{0:d}:{1:s}] Signals'.format(tid, task_name));
-            data = df[df.comm == task_name][['load_avg', 'util_avg']]
-            data.plot(ax=axes, drawstyle='steps-post');
-            # Plot boost utilization if available
-            if self.trace.hasEvents('sched_boost_task'):
-                df2 = self.trace.df('sched_boost_task')
-                data = df2[df2.comm == task_name][['boosted_util']]
-                if len(data):
-                    data.plot(ax=axes, style=['y-'], drawstyle='steps-post');
-
-                # Add Capacities data if avilable
-                if 'nrg_model' in self.trace.platform:
-                    nrg_model = self.trace.platform['nrg_model']
-                    max_lcap = nrg_model['little']['cpu']['cap_max']
-                    max_bcap = nrg_model['big']['cpu']['cap_max']
-                    tip_lcap = 0.8 * max_lcap
-                    tip_bcap = 0.8 * max_bcap
-                    logging.info('%d %d %d %d', tip_lcap, max_lcap, tip_bcap, max_bcap)
-                    axes.axhline(tip_lcap, color='g', linestyle='--', linewidth=1);
-                    axes.axhline(max_lcap, color='g', linestyle='-', linewidth=2);
-                    axes.axhline(tip_bcap, color='r', linestyle='--', linewidth=1);
-                    axes.axhline(max_bcap, color='r', linestyle='-', linewidth=2);
-
-            axes.set_ylim(0, 1100);
-            axes.set_xlim(self.x_min, self.x_max);
-            axes.grid(True);
-            axes.set_xticklabels([])
-            axes.set_xlabel('')
-            self.plotOverutilized(axes)
+            signals_to_plot = {'load_avg', 'util_avg',
+                               'boosted_util', 'sched_overutilized'}
+            signals_to_plot = list(signals_to_plot.intersection(signals))
+            if len(signals_to_plot) > 1:
+                axes = plt.subplot(gs[plot_id,0]);
+                plot_id = plot_id + 1
+                is_last = (plot_id == plots_count)
+                self._plotTaskSignals(df, axes, task_name, tid,
+                                      signals_to_plot, is_last)
 
             # Plot CPUs residency
-            axes = plt.subplot(gs[1,0]);
-            axes.set_title('CPUs residency (green: LITTLE, red: big)');
-            axes.set_xlim(0, self.trace.time_range);
-            data = df[df.comm == task_name][['cluster', 'cpu']]
-            for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
-                cdata = data[data.cluster == clabel]
-                if (len(cdata) > 0):
-                    cdata.plot(ax=axes, style=[ccolor+'+'], legend=False);
-            axes.set_ylim(-1, self.platform['cpus_count']+1)
-            axes.set_xlim(self.x_min, self.x_max);
-            axes.set_ylabel('CPUs')
-            axes.grid(True);
-            axes.set_xticklabels([])
-            axes.set_xlabel('')
-            self.plotOverutilized(axes)
+            signals_to_plot = {'residencies', 'sched_overutilized'}
+            signals_to_plot = list(signals_to_plot.intersection(signals))
+            if len(signals_to_plot) > 1:
+                axes = plt.subplot(gs[plot_id,0]);
+                plot_id = plot_id + 1
+                is_last = (plot_id == plots_count)
+                self._plotTaskResidencies(df, axes, task_name,
+                                          signals_to_plot, is_last)
 
             # Plot PELT signals
-            axes = plt.subplot(gs[2,0]);
-            axes.set_title('PELT Signals');
-            data = df[df.comm == task_name][['load_sum', 'util_sum', 'period_contrib']]
-            data.plot(ax=axes, drawstyle='steps-post');
-            axes.set_xlim(self.x_min, self.x_max);
-            axes.grid(True);
-            self.plotOverutilized(axes)
+            signals_to_plot = {
+                'load_sum', 'util_sum',
+                'period_contrib', 'sched_overutilized'}
+            signals_to_plot = list(signals_to_plot.intersection(signals))
+            if len(signals_to_plot) > 1:
+                axes = plt.subplot(gs[plot_id,0]);
+                self._plotTaskPelt(df, axes, task_name, signals_to_plot)
+                plot_id = plot_id + 1
 
             # Save generated plots into datadir
             figname = '{}/task_util_{}.png'.format(self.plotsdir, task_name)
