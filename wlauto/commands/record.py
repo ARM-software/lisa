@@ -16,7 +16,6 @@
 import os
 import sys
 
-from wlauto import PluginLoader, Command, settings
 from wlauto.common.resources import Executable
 from wlauto.core.resource import NO_ONE
 from wlauto.core.resolver import ResourceResolver

@@ -21,7 +21,7 @@ import os
 import subprocess
 import warnings
 
-from wlauto.core.config.core import settings
+from wlauto.core.configuration import settings
 from wlauto.core import pluginloader
 from wlauto.exceptions import WAError
 from wlauto.utils.misc import get_traceback

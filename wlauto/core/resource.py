@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-from wlauto.core.config.core import settings
+from wlauto.core.configuration import settings
 from wlauto.core.plugin import Plugin
 
 

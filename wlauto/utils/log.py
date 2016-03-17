@@ -21,7 +21,7 @@ import threading
 
 import colorama
 
-from wlauto.core.config.core import settings
+from wlauto.core.configuration import settings
 import wlauto.core.signal as signal
 
 

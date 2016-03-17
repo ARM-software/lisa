@@ -15,7 +15,7 @@
 
 
 # Separate module to avoid circular dependencies
-from wlauto.core.config.core import settings
+from wlauto.core.configuration import settings
 from wlauto.core.plugin import Plugin
 from wlauto.utils.misc import load_class
 from wlauto.core import pluginloader

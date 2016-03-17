@@ -19,7 +19,7 @@ import subprocess
 from cStringIO import StringIO
 
 from wlauto import Command
-from wlauto.core.config.core import settings
+from wlauto.core.configuration import settings
 from wlauto.core import pluginloader
 from wlauto.utils.doc import (get_summary, get_description, get_type_name, format_column, format_body,
                               format_paragraph, indent, strip_inlined_text)

@@ -27,9 +27,9 @@ from copy import copy
 
 from wlauto.exceptions import NotFoundError, LoaderError, ValidationError, ConfigError
 from wlauto.utils.misc import isiterable, ensure_directory_exists as _d, walk_modules, load_class, merge_dicts, get_article
-from wlauto.core.config.core import settings
+from wlauto.core.configuration import settings
 from wlauto.utils.types import identifier, integer, boolean
-from wlauto.core.config.core import ConfigurationPoint, ConfigurationPointCollection
+from wlauto.core.configuration import ConfigurationPoint, ConfigurationPointCollection
 
 MODNAME_TRANS = string.maketrans(':/\\.', '____')
 

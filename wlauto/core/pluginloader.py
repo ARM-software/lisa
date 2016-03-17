@@ -36,7 +36,7 @@ class __LoaderWrapper(object):
         # These imports cannot be done at top level, because of
         # sys.modules manipulation below
         from wlauto.core.plugin import PluginLoader
-        from wlauto.core.config.core import settings
+        from wlauto.core.configuration import settings
         self._loader = PluginLoader(settings.plugin_packages,
                                     settings.plugin_paths,
                                     settings.plugin_ignore_paths)

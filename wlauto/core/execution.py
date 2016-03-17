@@ -49,9 +49,8 @@ from itertools import izip_longest
 
 import wlauto.core.signal as signal
 from wlauto.core import instrumentation
-from wlauto.core.config.core import settings
+from wlauto.core.configuration import settings
 from wlauto.core.plugin import Artifact
-from wlauto.core.configuration import RunConfiguration
 from wlauto.core import pluginloader
 from wlauto.core.resolver import ResourceResolver
 from wlauto.core.result import ResultManager, IterationResult, RunResult
