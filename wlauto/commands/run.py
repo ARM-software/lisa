@@ -26,6 +26,7 @@ from wlauto.utils.log import add_log_file
 from wlauto.core.configuration import RunConfiguration
 from wlauto.core import pluginloader
 
+
 class RunCommand(Command):
 
     name = 'run'
@@ -96,7 +97,7 @@ class RunCommand(Command):
         basename = 'config_'
         for file_number, path in enumerate(settings.config_paths, 1):
             file_ext = os.path.splitext(path)[1]
-            shutil.copy(path, os.path.join(meta_directory,
+            shutil.copy(path, os.path.join(config.meta_directory,
                                            basename + str(file_number) + file_ext))
 
         executor = Executor(config)

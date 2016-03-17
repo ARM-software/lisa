@@ -124,7 +124,7 @@ class DVFS(ResultProcessor):
         self.infile = os.path.join(context.output_directory, 'trace.txt')
         if os.path.isfile(self.infile):
             self.logger.debug('Running result_processor "dvfs"')
-            self.outfile = os.path.join(settings.output_directory, 'dvfs.csv')
+            self.outfile = os.path.join(context.output_directory, 'dvfs.csv')
             self.flush_parse_initialize()
             self.calculate()
             self.percentage()

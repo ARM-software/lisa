@@ -296,7 +296,7 @@ def create_workload(name, kind='basic', where='local', check_name=True, **kwargs
 
     class_name = get_class_name(name)
     if where == 'local':
-        workload_dir = _d(os.path.join(settings.environment_root, 'workloads', name))
+        workload_dir = _d(os.path.join(settings.user_directory, 'workloads', name))
     else:
         workload_dir = _d(os.path.join(where, name))
 

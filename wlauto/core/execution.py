@@ -358,14 +358,14 @@ class Executor(object):
             if status in counter:
                 parts.append('{} {}'.format(counter[status], status))
         self.logger.info(status_summary + ', '.join(parts))
-        self.logger.info('Results can be found in {}'.format(settings.output_directory))
+        self.logger.info('Results can be found in {}'.format(self.config.output_directory))
 
         if self.error_logged:
             self.logger.warn('There were errors during execution.')
-            self.logger.warn('Please see {}'.format(settings.log_file))
+            self.logger.warn('Please see {}'.format(self.config.log_file))
         elif self.warning_logged:
             self.logger.warn('There were warnings during execution.')
-            self.logger.warn('Please see {}'.format(settings.log_file))
+            self.logger.warn('Please see {}'.format(self.config.log_file))
 
     def _get_runner(self, result_manager):
         if not self.config.execution_order or self.config.execution_order == 'by_iteration':
