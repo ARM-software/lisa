@@ -69,7 +69,7 @@ transition and interactions and will not attempt to describe very single thing t
    device interface, based on the RunConfiguration. The executor also initialise a
    ``wlauto.core.execution.ExecutionContext`` which is used to track the current state of the run
    execution and also serves as a means of communication between the core framework and the
-   extensions.
+   plugins.
 #. Finally, the Executor instantiates a ``wlauto.core.execution.Runner``, initializes its job
    queue with workload specs from the RunConfiguraiton, and kicks it off.
 #. The Runner performs the run time initialization of the device and goes through the workload specs
@@ -100,7 +100,7 @@ The full list of method names and the signals they map to may be viewed
 :ref:`here <instrumentation_method_map>`.
 
 Signal dispatching mechanism may also be used directly, for example to dynamically register 
-callbacks at runtime or allow extensions other than ``Instruments`` to access stages of the run
+callbacks at runtime or allow plugins other than ``Instruments`` to access stages of the run
 they are normally not aware of.
 
 The sending of signals is the responsibility of the Runner. Signals gets sent during transitions

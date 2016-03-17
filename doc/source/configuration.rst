@@ -4,7 +4,7 @@
 Configuration
 =============
 
-In addition to specifying run execution parameters through an agenda, the 
+In addition to specifying run execution parameters through an agenda, the
 behavior of WA can be modified through configuration file(s). The default
 configuration file is ``~/.workload_automation/config.py``  (the location can be
 changed by setting ``WA_USER_DIRECTORY`` environment variable, see :ref:`envvars`
@@ -28,10 +28,10 @@ and used to modify the behavior of Workload automation.
 Available Settings
 ==================
 
-.. note:: Extensions such as workloads, instrumentation or result processors
+.. note:: Plugins such as workloads, instrumentation or result processors
           may also pick up certain settings from this file, so the list below is
           not exhaustive. Please refer to the documentation for the specific
-          extensions to see what settings they accept.
+          plugins to see what settings they accept.
 
 .. confval:: device
 
@@ -49,15 +49,15 @@ Available Settings
    This defines when during execution of a run the Device will be rebooted. The
    possible values are:
 
-   ``"never"``  
-      The device will never be rebooted. 
-   ``"initial"`` 
+   ``"never"``
+      The device will never be rebooted.
+   ``"initial"``
       The device will be rebooted when the execution first starts, just before
       executing the first workload spec.
-   ``"each_spec"`` 
+   ``"each_spec"``
       The device will be rebooted before running a new workload spec.
       Note: this acts the same as each_iteration when execution order is set to by_iteration
-   ``"each_iteration"`` 
+   ``"each_iteration"``
       The device will be rebooted before each new iteration.
 
    .. seealso::
@@ -69,7 +69,7 @@ Available Settings
    Defines the order in which the agenda spec will be executed. At the moment,
    the following execution orders are supported:
 
-   ``"by_iteration"`` 
+   ``"by_iteration"``
      The first iteration of each workload spec is executed one after the other,
      so all workloads are executed before proceeding on to the second iteration.
      E.g. A1 B1 C1 A2 C2 A3. This is the default if no order is explicitly specified.
@@ -80,9 +80,9 @@ Available Settings
 
                      X.A1, Y.A1, X.B1, Y.B1, X.A2, Y.A2, X.B2, Y.B2
 
-   ``"by_section"`` 
+   ``"by_section"``
      Same  as ``"by_iteration"``, however this will group specs from the same
-     section together, so given sections X and Y, global specs A and B, and two iterations, 
+     section together, so given sections X and Y, global specs A and B, and two iterations,
      this will run ::
 
              X.A1, X.B1, Y.A1, Y.B1, X.A2, X.B2, Y.A2, Y.B2
@@ -107,19 +107,19 @@ Available Settings
    ``"OK"``
    This iteration has completed and no errors have been detected
 
-   ``"PARTIAL"`` 
+   ``"PARTIAL"``
    One or more instruments have failed (the iteration may still be running).
 
-   ``"FAILED"`` 
+   ``"FAILED"``
    The workload itself has failed.
 
-   ``"ABORTED"`` 
+   ``"ABORTED"``
    The user interupted the workload
 
 .. confval:: max_retries
 
    The maximum number of times failed jobs will be retried before giving up. If
-   not set, this will default to ``3``. 
+   not set, this will default to ``3``.
 
    .. note:: this number does not include the original attempt
 
@@ -169,7 +169,7 @@ Available Settings
 
 
 There are also a couple of settings are used to provide additional metadata
-for a run. These may get picked up by instruments or result processors to 
+for a run. These may get picked up by instruments or result processors to
 attach  context to results.
 
 .. confval:: project
@@ -212,9 +212,9 @@ various assets when it starts.
    .. note:: This location **must** be writable by the user who runs WA.
 
 
-.. confval:: WA_EXTENSION_PATHS
+.. confval:: WA_PLUGIN_PATHS
 
-   By default, WA will look for extensions in its own package and in
-   subdirectories under ``WA_USER_DIRECTORY``. This environment variable can 
+   By default, WA will look for plugins in its own package and in
+   subdirectories under ``WA_USER_DIRECTORY``. This environment variable can
    be used specify a colon-separated list of additional locations WA should
-   use to look for extensions. 
+   use to look for plugins.

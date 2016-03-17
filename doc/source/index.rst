@@ -42,16 +42,16 @@ installation and configuration guides.
    configuration
 
 
-Extensions
+Plugins
 ~~~~~~~~~~
 
-This section lists extensions that currently come with WA2. Each package below
-represents a particular type of extension (e.g. a workload); each sub-package of
-that package is a particular instance of that extension (e.g. the Andebench
-workload). Clicking on a link will show what the individual extension does, 
+This section lists plugins that currently come with WA2. Each package below
+represents a particular type of plugin (e.g. a workload); each sub-package of
+that package is a particular instance of that plugin (e.g. the Andebench
+workload). Clicking on a link will show what the individual plugin does,
 what configuration parameters it takes, etc.
 
-For how to implement you own extensions, please refer to the guides in the 
+For how to implement you own plugins, please refer to the guides in the
 :ref:`in-depth` section.
 
 .. raw:: html
@@ -66,7 +66,7 @@ For how to implement you own extensions, please refer to the guides in the
 .. toctree::
    :maxdepth: 2
 
-   extensions/workloads
+   plugins/workloads
 
 .. raw:: html
 
@@ -75,7 +75,7 @@ For how to implement you own extensions, please refer to the guides in the
 .. toctree::
    :maxdepth: 2
 
-   extensions/instruments
+   plugins/instruments
 
 
 .. raw:: html
@@ -85,7 +85,7 @@ For how to implement you own extensions, please refer to the guides in the
 .. toctree::
    :maxdepth: 2
 
-   extensions/result_processors
+   plugins/result_processors
 
 .. raw:: html
 
@@ -94,7 +94,7 @@ For how to implement you own extensions, please refer to the guides in the
 .. toctree::
    :maxdepth: 2
 
-   extensions/devices
+   plugins/devices
 
 .. raw:: html
 
@@ -105,14 +105,14 @@ For how to implement you own extensions, please refer to the guides in the
 In-depth
 ~~~~~~~~
 
-This section contains more advanced topics, such how to write your own extensions
+This section contains more advanced topics, such how to write your own plugins
 and detailed descriptions of how WA functions under the hood.
 
 .. toctree::
    :maxdepth: 2
 
    conventions
-   writing_extensions
+   writing_plugins
    execution_model
    resources
    additional_topics

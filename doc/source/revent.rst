@@ -28,7 +28,7 @@ Recording
 To record, transfer the revent binary to the device, then invoke ``revent
 record``, giving it the time (in seconds) you want to record for, and the
 file you want to record to (WA expects these files to have .revent
-extension)::
+plugin)::
 
         host$  adb push revent /data/local/revent
         host$  adb shell

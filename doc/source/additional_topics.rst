@@ -4,14 +4,14 @@ Additional Topics
 Modules
 =======
 
-Modules are essentially plug-ins for Extensions. They provide a way of defining 
-common and reusable functionality. An Extension can load zero or more modules
+Modules are essentially plug-ins for Plugins. They provide a way of defining
+common and reusable functionality. An Plugin can load zero or more modules
 during its creation. Loaded modules will then add their capabilities (see
-Capabilities_) to those of the Extension. When calling code tries to access an
-attribute of an Extension the Extension doesn't have, it will try to find the
+Capabilities_) to those of the Plugin. When calling code tries to access an
+attribute of an Plugin the Plugin doesn't have, it will try to find the
 attribute among its loaded modules and will return that instead.
 
-.. note:: Modules are themselves extensions, and can therefore load their own
+.. note:: Modules are themselves plugins, and can therefore load their own
           modules. *Do not* abuse this.
 
 For example, calling code may wish to reboot an unresponsive device by calling
@@ -22,7 +22,7 @@ is in a rack and is powered through such a switch). The module has
 ``reset_power`` capability (see Capabilities_ below) and so implements
 ``hard_reset``. This will get invoked when ``device.hard_rest()`` is called.
 
-.. note:: Modules can only extend Extensions with new attributes; they cannot
+.. note:: Modules can only extend Plugins with new attributes; they cannot
           override existing functionality. In the example above, if the
           ``Device`` has implemented ``hard_reset()`` itself, then *that* will
           get invoked irrespective of which modules it has loaded.
@@ -34,16 +34,16 @@ effectively overriding the module that was loaded previously.
 Specifying Modules
 ------------------
 
-Modules get loaded when an Extension is instantiated by the extension loader.
+Modules get loaded when an Plugin is instantiated by the plugin loader.
 There are two ways to specify which modules should be loaded for a device.
 
 
 Capabilities
 ============
 
-Capabilities define the functionality that is implemented by an Extension,
-either within the Extension itself or through loadable modules. A capability is
-just a label, but there is an implied contract. When an Extension claims to have
+Capabilities define the functionality that is implemented by an Plugin,
+either within the Plugin itself or through loadable modules. A capability is
+just a label, but there is an implied contract. When an Plugin claims to have
 a particular capability, it promises to expose a particular set of
 functionality through a predefined interface.
 

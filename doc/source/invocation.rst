@@ -84,18 +84,18 @@ configuration files used during execution.
 list
 ----
 
-This lists all extensions of a particular type. For example ::
+This lists all plugins of a particular type. For example ::
 
         wa list workloads
 
 will list all workloads currently included in WA. The list will consist of
-extension names and short descriptions of the functionality they offer.
+plugin names and short descriptions of the functionality they offer.
 
 
 show
 ----
 
-This will show detailed information about an extension, including more in-depth
+This will show detailed information about an plugin, including more in-depth
 description and any parameters/configuration that are available.  For example
 executing ::
 

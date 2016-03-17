@@ -430,7 +430,7 @@ elsewhere.
 Disabling result processors and instrumentation
 -----------------------------------------------
 
-As seen above, extensions specified with ``instrumentation`` and
+As seen above, plugins specified with ``instrumentation`` and
 ``result_processor`` clauses get added to those already specified previously.
 Just because an instrument specified in ``config.py`` is not listed in the
 ``config`` section of the agenda, does not mean it will be disabled. If you do

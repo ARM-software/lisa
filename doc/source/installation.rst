@@ -133,9 +133,9 @@ Optional Python Packages
           to explicitly install them if/when you need them.
 
 In addition to the mandatory packages listed in the previous sections, some WA
-functionality (e.g. certain extensions) may have additional dependencies. Since
+functionality (e.g. certain plugins) may have additional dependencies. Since
 they are not necessary to be able to use most of WA, they are not made mandatory
-to simplify initial WA installation. If you try to use an extension that has
+to simplify initial WA installation. If you try to use an plugin that has
 additional, unmet dependencies, WA will tell you before starting the run, and
 you can install it then. They are listed here for those that would rather
 install them upfront (e.g. if you're planning to use WA to an environment that
@@ -148,7 +148,7 @@ may not always have Internet access).
   * jinja2
 
 
-.. note:: Some packages have C extensions and will require Python development
+.. note:: Some packages have C plugins and will require Python development
           headers to install. You can get those by installing ``python-dev``
           package in apt on Ubuntu (or the equivalent for your distribution).
 
@@ -184,7 +184,7 @@ version $version".
 (Optional) Post Installation
 ============================
 
-Some WA extensions have additional dependencies that need to be
+Some WA plugins have additional dependencies that need to be
 statisfied before they can be used. Not all of these can be provided with WA and
 so will need to be supplied by the user. They should be placed into
 ``~/.workload_uatomation/dependencies/<extenion name>`` so that WA can find
@@ -292,12 +292,12 @@ Maintaining Centralized Assets Repository
 -----------------------------------------
 
 If there are multiple users within an organization that may need to deploy
-assets for WA extensions, that organization may wish to maintain a centralized
+assets for WA plugins, that organization may wish to maintain a centralized
 repository of assets that individual WA installs will be able to automatically
 retrieve asset files from as they are needed. This repository can be any
 directory on a network filer that mirrors the structure of
 ``~/.workload_automation/dependencies``, i.e. has a subdirectories named after
-the extensions which assets they contain. Individual WA installs can then set
+the plugins which assets they contain. Individual WA installs can then set
 ``remote_assets_path`` setting in their config to point to the local mount of
 that location.
 

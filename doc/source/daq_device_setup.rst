@@ -105,7 +105,7 @@ installation may be different).
   - Install NI-DAQmx driver, as described in the previous section.
   - Install Python 2.7.
   - Download and install ``pip``, ``numpy`` and ``twisted`` Python packages.
-    These packages have C extensions, an so you will need a native compiler set
+    These packages have C plugins, an so you will need a native compiler set
     up if you want to install them from PyPI. As an easier alternative, you can
     find pre-built Windows installers for these packages here_ (the versions are
     likely to be older than what's on PyPI though).

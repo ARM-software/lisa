@@ -1,10 +1,10 @@
-.. _writing_extensions:
+.. _writing_plugins:
 
 ==================
-Writing Extensions
+Writing Plugins
 ==================
 
-Workload Automation offers several extension points (or plugin types).The most
+Workload Automation offers several plugin points (or plugin types).The most
 interesting of these are
 
 :workloads: These are the tasks that get executed and measured on the device. These
@@ -21,26 +21,26 @@ interesting of these are
                     iteration or at the end of the run, after all of the results have been
                     collected.
 
-You create an extension by subclassing the appropriate base class, defining
+You create an plugin by subclassing the appropriate base class, defining
 appropriate methods and attributes, and putting the .py file with the class into
 an appropriate subdirectory under ``~/.workload_automation`` (there is one for
-each extension type).
+each plugin type).
 
 
-Extension Basics
+Plugin Basics
 ================
 
-This sub-section covers things common to implementing extensions of all types.
+This sub-section covers things common to implementing plugins of all types.
 It is recommended you familiarize  yourself with the information here before
-proceeding onto guidance for specific extension types.
+proceeding onto guidance for specific plugin types.
 
-To create an extension, you basically subclass an appropriate base class and them
+To create an plugin, you basically subclass an appropriate base class and them
 implement the appropriate methods
 
 The Context
 -----------
 
-The majority of methods in extensions accept a context argument. This is an
+The majority of methods in plugins accept a context argument. This is an
 instance of :class:`wlauto.core.execution.ExecutionContext`. If contains
 of information about current state of execution of WA and keeps track of things
 like which workload is currently running and the current iteration.
@@ -79,7 +79,7 @@ In addition to these, context also defines a few useful paths (see below).
 Paths
 -----
 
-You should avoid using hard-coded absolute paths in your extensions whenever
+You should avoid using hard-coded absolute paths in your plugins whenever
 possible, as they make your code too dependent on a particular environment and
 may mean having to make adjustments when moving to new (host and/or device)
 platforms. To help avoid hard-coded absolute paths, WA automation defines
@@ -90,7 +90,7 @@ On the host
 ~~~~~~~~~~~
 
 Host paths are available through the context object, which is passed to most
-extension methods.
+plugin methods.
 
 context.run_output_directory
         This is the top-level output directory for all WA results (by default,
@@ -103,14 +103,14 @@ context.output_directory
         this will point to the same location as ``root_output_directory``.
 
 context.host_working_directory
-        This an addition location that may be used by extensions to store
+        This an addition location that may be used by plugins to store
         non-iteration specific intermediate files (e.g. configuration).
 
 Additionally, the global ``wlauto.settings`` object exposes on other location:
 
 settings.dependency_directory
-        this is the root directory for all extension dependencies (e.g. media
-        files, assets etc) that are not included within the extension itself.
+        this is the root directory for all plugin dependencies (e.g. media
+        files, assets etc) that are not included within the plugin itself.
 
 As per Python best practice, it is recommended that methods and values in
 ``os.path`` standard library module are used for host path manipulation.
@@ -147,7 +147,7 @@ Deploying executables to a device
 ---------------------------------
 
 Some devices may have certain restrictions on where executable binaries may be
-placed and how they should be invoked. To ensure your extension works with as
+placed and how they should be invoked. To ensure your plugin works with as
 wide a range of devices as possible, you should use WA APIs for deploying and
 invoking executables on a device, as outlined below.
 
@@ -160,7 +160,7 @@ As with other resources (see :ref:`resources`) , host-side paths to the exectuab
 In order for the binary to be obtained in this way, it must be stored in one of
 the locations scanned by the resource resolver in a directry structure
 ``<root>/bin/<abi>/<binary>`` (where ``root`` is the base resource location to
-be searched, e.g. ``~/.workload_automation/depencencies/<extension name>``, and
+be searched, e.g. ``~/.workload_automation/depencencies/<plugin name>``, and
  ``<abi>`` is the ABI for which the exectuable has been compiled, as returned by
   ``self.device.abi``).
 
@@ -193,14 +193,14 @@ device. The executable should be invoked *only* via that path; do **not** assume
 Parameters
 ----------
 
-All extensions can be parameterized. Parameters are specified using
+All plugins can be parameterized. Parameters are specified using
 ``parameters`` class attribute. This should be a list of
 :class:`wlauto.core.Parameter` instances. The following attributes can be
 specified on parameter creation:
 
 name
         This is the only mandatory argument. The name will be used to create a
-        corresponding attribute in the extension instance, so it must be a valid
+        corresponding attribute in the plugin instance, so it must be a valid
         Python identifier.
 
 kind
@@ -247,8 +247,8 @@ constraint
         a ``bool`` indicating whether the constraint has been satisfied).
 
 override
-        A parameter name must be unique not only within an extension but also
-        with that extension's class hierarchy. If you try to declare a parameter
+        A parameter name must be unique not only within an plugin but also
+        with that plugin's class hierarchy. If you try to declare a parameter
         with the same name as already exists, you will get an error. If you do
         want to override a parameter from further up in the inheritance
         hierarchy, you can indicate that by setting ``override`` attribute to
@@ -262,19 +262,19 @@ override
 Validation and cross-parameter constraints
 ------------------------------------------
 
-An extension will get validated at some point after constructions. When exactly
-this occurs depends on the extension type, but it *will* be validated before it
+An plugin will get validated at some point after constructions. When exactly
+this occurs depends on the plugin type, but it *will* be validated before it
 is used.
 
-You can implement ``validate`` method in your extension (that takes no arguments
+You can implement ``validate`` method in your plugin (that takes no arguments
 beyond the ``self``) to perform any additions *internal* validation in your
-extension. By "internal", I mean that you cannot make assumptions about the
+plugin. By "internal", I mean that you cannot make assumptions about the
 surrounding environment (e.g. that the device has been initialized).
 
 The contract for ``validate`` method is that it should raise an exception
-(either ``wlauto.exceptions.ConfigError`` or extension-specific exception type -- see
+(either ``wlauto.exceptions.ConfigError`` or plugin-specific exception type -- see
 further on this page) if some validation condition has not, and cannot, been met.
-If the method returns without raising an exception, then the extension is in a
+If the method returns without raising an exception, then the plugin is in a
 valid internal state.
 
 Note that ``validate`` can be used not only to verify, but also to impose a
@@ -287,12 +287,12 @@ on creation and should instead be set inside ``validate``.
 Logging
 -------
 
-Every extension class has it's own logger that you can access through
-``self.logger`` inside the extension's methods. Generally, a :class:`Device` will log
+Every plugin class has it's own logger that you can access through
+``self.logger`` inside the plugin's methods. Generally, a :class:`Device` will log
 everything it is doing, so you shouldn't need to add much additional logging in
 your expansion's. But you might what to log additional information,  e.g.
-what settings your extension is using, what it is doing on the host, etc.
-Operations on the host will not normally be logged, so your extension should
+what settings your plugin is using, what it is doing on the host, etc.
+Operations on the host will not normally be logged, so your plugin should
 definitely log what it is doing on the host. One situation in particular where
 you should add logging is before doing something that might take a significant amount
 of time, such as downloading a file.
@@ -301,10 +301,10 @@ of time, such as downloading a file.
 Documenting
 -----------
 
-All extensions and their parameter should be documented. For extensions
+All plugins and their parameter should be documented. For plugins
 themselves, this is done through ``description`` class attribute. The convention
-for an extension description is that the first paragraph should be a short
-summary description of what the extension does and why one would want to use it
+for an plugin description is that the first paragraph should be a short
+summary description of what the plugin does and why one would want to use it
 (among other things, this will get extracted and used by ``wa list`` command).
 Subsequent paragraphs (separated by blank lines) can then provide  a more
 detailed description, including any limitations and setup instructions.
@@ -316,15 +316,15 @@ documentation utilities will automatically pull those). If the ``default`` is se
 in ``validate`` or additional cross-parameter constraints exist, this *should*
 be documented in the parameter description.
 
-Both extensions and their parameters should be documented using reStructureText
+Both plugins and their parameters should be documented using reStructureText
 markup (standard markup for Python documentation). See:
 
 http://docutils.sourceforge.net/rst.html
 
-Aside from that, it is up to you how you document your extension. You should try
-to provide enough information so that someone unfamiliar with your extension is
+Aside from that, it is up to you how you document your plugin. You should try
+to provide enough information so that someone unfamiliar with your plugin is
 able to use it, e.g. you should document all settings and parameters your
-extension expects (including what the valid value are).
+plugin expects (including what the valid value are).
 
 
 Error Notification
@@ -332,7 +332,7 @@ Error Notification
 
 When you detect an error condition, you should raise an appropriate exception to
 notify the user. The exception would typically be :class:`ConfigError` or
-(depending the type of the extension)
+(depending the type of the plugin)
 :class:`WorkloadError`/:class:`DeviceError`/:class:`InstrumentError`/:class:`ResultProcessorError`.
 All these errors are defined in :mod:`wlauto.exception` module.
 
@@ -341,12 +341,12 @@ specified by the user (either through the agenda or config files). These errors
 are meant to be resolvable by simple adjustments to the configuration (and the
 error message should suggest what adjustments need to be made. For all other
 errors, such as missing dependencies, mis-configured environment, problems
-performing operations, etc., the extension type-specific exceptions should be
+performing operations, etc., the plugin type-specific exceptions should be
 used.
 
-If the extension itself is capable of recovering from the error and carrying
+If the plugin itself is capable of recovering from the error and carrying
 on, it may make more sense to log an ERROR or WARNING level message using the
-extension's logger and to continue operation.
+plugin's logger and to continue operation.
 
 
 Utils
@@ -355,7 +355,7 @@ Utils
 Workload Automation defines a number of utilities collected under
 :mod:`wlauto.utils` subpackage. These utilities were created to help with the
 implementation of the framework itself, but may be also be useful when
-implementing extensions.
+implementing plugins.
 
 
 Adding a Workload
@@ -371,7 +371,7 @@ New workloads can be added by subclassing :class:`wlauto.core.workload.Workload`
 
 The Workload class defines the following interface::
 
-    class Workload(Extension):
+    class Workload(Plugin):
 
         name = None
 
@@ -513,7 +513,7 @@ file of a particular size on the device.
                 self.device_infile = devpath.join(self.device.working_directory, 'infile')
                 self.device_outfile = devpath.join(self.device.working_directory, 'outfile')
                 # Push the file to the device
-                self.device.push_file(host_infile, self.device_infile)
+                self.device.push(host_infile, self.device_infile)
 
         def run(self, context):
                 self.device.execute('cd {} && (time gzip {}) &>> {}'.format(self.device.working_directory,
@@ -523,7 +523,7 @@ file of a particular size on the device.
         def update_result(self, context):
                 # Pull the results file to the host
                 host_outfile = os.path.join(context.output_directory, 'outfile')
-                self.device.pull_file(self.device_outfile, host_outfile)
+                self.device.pull(self.device_outfile, host_outfile)
                 # Extract metrics form the file's contents and update the result
                 # with them.
                 content = iter(open(host_outfile).read().strip().split())
@@ -533,8 +533,8 @@ file of a particular size on the device.
 
         def teardown(self, context):
                 # Clean up on-device file.
-                self.device.delete_file(self.device_infile)
-                self.device.delete_file(self.device_outfile)
+                self.device.remove(self.device_infile)
+                self.device.remove(self.device_outfile)
 
 
 
@@ -560,7 +560,7 @@ The interface should be implemented as follows
 
     :name: This identifies the workload (e.g. it used to specify it in the
            agenda_.
-    :package: This is the name of the '.apk' package without its file extension.
+    :package: This is the name of the '.apk' package without its file plugin.
     :activity: The name of the main activity that runs the package.
 
 Example:
@@ -615,7 +615,7 @@ execution (e.g. collect power readings). An instrument can hook into almost any
 stage of workload execution. A typical instrument would implement a subset of
 the following interface::
 
-    class Instrument(Extension):
+    class Instrument(Plugin):
 
         name = None
         description = None
@@ -736,7 +736,7 @@ You can add your own result processors by creating a Python file in
 ``~/.workload_automation/result_processors`` with a class that derives from
 :class:`wlauto.core.result.ResultProcessor`, which has the following interface::
 
-    class ResultProcessor(Extension):
+    class ResultProcessor(Plugin):
 
         name = None
         description = None
@@ -806,7 +806,7 @@ table::
 Adding a Resource Getter
 ========================
 
-A resource getter is a new extension type added in version 2.1.3. A resource
+A resource getter is a new plugin type added in version 2.1.3. A resource
 getter implement a method of acquiring resources of a particular type (such as
 APK files or additional workload assets). Resource getters are invoked in
 priority order until one returns the desired resource.
@@ -818,7 +818,7 @@ invoked first.
 
 Instances of a resource getter should implement the following interface::
 
-    class ResourceGetter(Extension):
+    class ResourceGetter(Plugin):
 
         name = None
         resource_type = None
@@ -827,7 +827,7 @@ Instances of a resource getter should implement the following interface::
         def get(self, resource, **kwargs):
             raise NotImplementedError()
 
-The getter should define a name (as with all extensions), a resource
+The getter should define a name (as with all plugins), a resource
 type, which should be a string, e.g. ``'jar'``, and a priority (see `Getter
 Prioritization`_ below). In addition, ``get`` method should be implemented. The
 first argument is an instance of :class:`wlauto.core.resource.Resource`
@@ -953,10 +953,10 @@ Please refer to the API documentation for :class:`wlauto.common.AndroidDevice`
 for the full list of its methods and their functionality.
 
 
-Other Extension Types
+Other Plugin Types
 =====================
 
-In addition to extension types covered above, there are few other, more
+In addition to plugin types covered above, there are few other, more
 specialized ones. They will not be covered in as much detail. Most of them
 expose relatively simple interfaces with only a couple of methods and it is
 expected that if the need arises to extend them, the API-level documentation
@@ -965,19 +965,19 @@ provide enough guidance.
 
 :commands: This allows extending WA with additional sub-commands (to supplement
            exiting ones outlined in the :ref:`invocation` section).
-:modules: Modules are "extensions for extensions". They can be loaded by other
-          extensions to expand their functionality (for example, a flashing
+:modules: Modules are "plugins for plugins". They can be loaded by other
+          plugins to expand their functionality (for example, a flashing
           module maybe loaded by a device in order to support flashing).
 
 
-Packaging Your Extensions
+Packaging Your Plugins
 =========================
 
-If your have written a bunch of extensions, and you want to make it easy to
+If your have written a bunch of plugins, and you want to make it easy to
 deploy them to new systems and/or to update them on existing systems, you can
 wrap them in a Python package. You can use ``wa create package`` command to
 generate appropriate boiler plate. This will create a ``setup.py`` and a
-directory for your package that you can place your extensions into.
+directory for your package that you can place your plugins into.
 
 For example, if you have a workload inside ``my_workload.py`` and a result
 processor in ``my_result_processor.py``, and you want to package them as
@@ -987,17 +987,17 @@ processor in ``my_result_processor.py``, and you want to package them as
 
 This will create a ``my_wa_exts`` directory which contains a
 ``my_wa_exts/setup.py`` and a subdirectory ``my_wa_exts/my_wa_exts`` which is
-the package directory for your extensions (you can rename the top-level
+the package directory for your plugins (you can rename the top-level
 ``my_wa_exts`` directory to anything you like -- it's just a "container" for the
 setup.py and the package directory). Once you have that, you can then copy your
-extensions into the package directory, creating
+plugins into the package directory, creating
 ``my_wa_exts/my_wa_exts/my_workload.py`` and
 ``my_wa_exts/my_wa_exts/my_result_processor.py``. If you have a lot of
-extensions, you might want to organize them into subpackages, but only the
+plugins, you might want to organize them into subpackages, but only the
 top-level package directory is created by default, and it is OK to have
 everything in there.
 
-.. note:: When discovering extensions thorugh this mechanism, WA traveries the
+.. note:: When discovering plugins thorugh this mechanism, WA traveries the
           Python module/submodule tree, not the directory strucuter, therefore,
           if you are going to create subdirectories under the top level dictory
           created for you, it is important that your make sure they are valid
@@ -1023,9 +1023,9 @@ management tools, e.g. ::
 
 As part of the installation process, the setup.py in the package, will write the
 package's name into ``~/.workoad_automoation/packages``. This will tell WA that
-the package contains extension and it will load them next time it runs.
+the package contains plugin and it will load them next time it runs.
 
 .. note:: There are no unistall hooks in ``setuputils``,  so if you ever
-          uninstall your WA extensions package, you will have to manually remove
+          uninstall your WA plugins package, you will have to manually remove
           it from ``~/.workload_automation/packages`` otherwise WA will complain
           abou a missing package next time you try to run it.

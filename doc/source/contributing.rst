@@ -17,8 +17,8 @@ consistent with the rest of WA code. Briefly, it is
   "stats" for "statistics", "config" for "configuration", etc are OK). Do
   *not* use Hungarian notation (so prefer ``birth_date`` over ``dtBirth``).
 
-New extensions should also follow implementation guidelines specified in
-:ref:`writing_extensions` section of the documentation.
+New plugins should also follow implementation guidelines specified in
+:ref:`writing_plugins` section of the documentation.
 
 We ask that the following checks are performed on the modified code prior to
 submitting a pull request:
@@ -46,7 +46,7 @@ submitting a pull request:
             tests should be added to cover the new functionality.
 
 - If modifications have been made to documentation (this includes description
-  attributes for Parameters and Extensions), documentation should be built to
+  attributes for Parameters and Plugins), documentation should be built to
   make sure no errors or warning during build process, and a visual inspection
   of new/updated sections in resulting HTML should be performed to ensure
   everything renders as expected.

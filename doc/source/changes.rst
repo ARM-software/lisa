@@ -93,7 +93,7 @@ Framework
 - ``wlauto.core.result``:
    - Added "classifiers" field to Metric objects. This is a dict mapping
      classifier names (arbitrary strings) to corresponding values for that
-     specific metrics. This is to allow extensions to add extension-specific
+     specific metrics. This is to allow plugins to add plugin-specific
      annotations to metric that could be handled in a generic way (e.g. by
      result processors). They can also be set in agendas.
 - Failed jobs will now be automatically retired
@@ -261,7 +261,7 @@ Framework
      - Added ``swipe_to_unlock`` method.
 - Fixed initialization of ``~/.workload_automation.``.
 - Fixed replaying events using revent on 64 bit platforms.
-- Improved error repoting when loading extensions.
+- Improved error repoting when loading plugins.
 - ``result`` objects now track their output directories.
 - ``context.result`` will not result in ``context.run_result`` when not
   executing a job.
@@ -279,7 +279,7 @@ Framework
      - Now handles backspaces in serial output
      - Added ``port`` argument for telnet connections.
      - Now allows telnet connections without a password.
-- Fixed config processing for extensions with non-identifier names.
+- Fixed config processing for plugins with non-identifier names.
 - Fixed ``get_meansd`` for numbers < 1
 - ``wlatuo.utils.ipython``:
      - Now supports old versions of IPython
@@ -306,7 +306,7 @@ Framework
 - Updated csv result processor with the option to use classifiers to
   add columns to ``results.csv``.
 - ``wlauto.utils.formatter``: Fix terminal size discovery.
-- The extension loader will now follow symlinks.
+- The plugin loader will now follow symlinks.
 - Added arm64-v8a to ABI map
 - WA now reports syntax errors in a more informative way.
 - Resource resolver: now prints the path of the found resource to the log.
@@ -322,7 +322,7 @@ Framework
 - ``boolean`` now interprets ``'off'`` as ``False``
 - ``wlauto.utils.uefi``: Added support for debug builds.
 - ``wlauto.utils.serial_port``: Now supports fdexpect versions > 4.0.0
-- Semanatics for ``initialize``/``finalize`` for *all* Extensions are changed
+- Semanatics for ``initialize``/``finalize`` for *all* Plugins are changed
   so that now they will always run at most once per run. They will not be
   executed twice even if invoked via instances of different subclasses (if
   those subclasses defined their own verions, then their versions will be
@@ -345,9 +345,9 @@ Documentation
 - ``device_setup``: fixed ``generic_linux`` ``device_config`` example.
 - ``contributing``: Clarified style guidelines
 - ``daq_device_setup``: Added an illustration for DAQ wiring.
-- ``writing_extensions``: Documented the Workload initialize and finalize
+- ``writing_plugins``: Documented the Workload initialize and finalize
   methods.
-- Added descriptions to extension that didn't have one.
+- Added descriptions to plugin that didn't have one.
 
 Other
 ~~~~~
@@ -365,16 +365,16 @@ Other
 - ``status`` result processor is now enabled by default.
 - Commands:
      - ``show``:
-         - Now shows what platform extensions support.
+         - Now shows what platform plugins support.
          - Will no longer try to use a pager if ``PAGER=''`` in the environment.
      - ``list``:
          - Added ``"-p"`` option to filter results by supported platforms.
-         - Added ``"--packaged-only"`` option to only list extensions packaged
+         - Added ``"--packaged-only"`` option to only list plugins packaged
            with WA.
      - ``run``: Added ``"--disable"`` option to diable instruments.
      - ``create``:
          - Added ``agenda`` sub-command to generate agendas for a set of
-           extensions.
+           plugins.
          - ``create workload`` now gives more informative errors if Android SDK
            installed but no platform has been downloaded.
 
@@ -387,7 +387,7 @@ Framework
      - Renamed ``active_cpus`` to ``online_cpus``
      - Renamed ``get_cluster_cpu`` to ``get_cluster_active_cpu``
      - Renamed ``get_core_cpu`` to ``get_core_online_cpu``
-- All extension's ``initialize`` function now takes one (and only one)
+- All plugin's ``initialize`` function now takes one (and only one)
   parameter, ``context``.
 - ``wlauto.core.device``: Removed ``init`` function. Replaced with
   ``initialize``

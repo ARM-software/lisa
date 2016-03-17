@@ -58,7 +58,7 @@ Core Class Names
 When core classes are referenced throughout the documentation, usually their
 fully-qualified names are given e.g. :class:`wlauto.core.workload.Workload`.
 This is done so that Sphinx_ can resolve them and provide a link. While
-implementing extensions, however, you should *not* be importing anything
+implementing plugins, however, you should *not* be importing anything
 directly form under :mod:`wlauto.core`. Instead, classes you are meant to
 instantiate or subclass have been aliased in the root :mod:`wlauto` package,
 and should be imported from there, e.g. ::

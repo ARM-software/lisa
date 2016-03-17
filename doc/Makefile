@@ -10,8 +10,8 @@ BUILDDIR      = build
 SPHINXAPI     = sphinx-apidoc
 SPHINXAPIOPTS =
 
-WAEXT         = ./build_extension_docs.py
-WAEXTOPTS     = source/extensions ../wlauto  ../wlauto/external ../wlauto/tests
+WAEXT         = ./build_plugin_docs.py
+WAEXTOPTS     = source/plugins ../wlauto  ../wlauto/external ../wlauto/tests
 
 
 # Internal variables.
@@ -50,7 +50,7 @@ help:
 clean:
 	rm -rf $(BUILDDIR)/*
 	rm -rf source/api/*
-	rm -rf source/extensions/*
+	rm -rf source/plugins/*
 	rm -rf source/instrumentation_method_map.rst
 
 coverage:
@@ -63,8 +63,8 @@ api: ../wlauto
 	$(SPHINXAPI) $(ALLSPHINXAPIOPTS)
 
 waext: ../wlauto
-	rm -rf source/extensions
-	mkdir -p source/extensions
+	rm -rf source/plugins
+	mkdir -p source/plugins
 	$(WAEXT) $(WAEXTOPTS) 
 
 
