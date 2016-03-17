@@ -52,7 +52,7 @@ def discover_sensors(device, sensor_kinds):
                   will be returned.
 
     """
-    hwmon_devices = device.listdir(HWMON_ROOT)
+    hwmon_devices = device.list_directory(HWMON_ROOT)
     path = device.path
     sensors = []
     for hwmon_device in hwmon_devices:

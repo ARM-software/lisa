@@ -374,4 +374,3 @@ class DVFS(ResultProcessor):
                 for i in range(self.device.number_of_cores * self.multiply_factor):
                     temprow.append("{0:.3f}".format(temp["cpu{}".format(i)][offline_value]))
                 writer.writerow(temprow)
-

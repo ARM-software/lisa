@@ -54,7 +54,6 @@ class StreamlineResourceGetter(ResourceGetter):
     priority = GetterPriority.environment + 1  # run before standard enviroment resolvers.
 
     dependencies_directory = os.path.join(settings.dependencies_directory, 'streamline')
-    #old_dependencies_directory = os.path.join(settings.environment_root, 'streamline')  # backwards compatibility
 
     def get(self, resource, **kwargs):
         if resource.owner.name != 'streamline':

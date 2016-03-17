@@ -87,7 +87,7 @@ class ReventGetter(ResourceGetter):
         self.resolver.register(self, 'revent', GetterPriority.package)
 
     def get(self, resource, **kwargs):
-        filename = '.'.join([resource.owner.device.name, resource.stage, 'revent']).lower()
+        filename = '.'.join([resource.owner.device.model, resource.stage, 'revent']).lower()
         location = _d(os.path.join(self.get_base_location(resource), 'revent_files'))
         for candidate in os.listdir(location):
             if candidate.lower() == filename.lower():
@@ -137,8 +137,8 @@ class ExecutableGetter(ResourceGetter):
     priority = GetterPriority.environment
 
     def get(self, resource, **kwargs):
-        if settings.binaries_repository:
-            path = os.path.join(settings.binaries_repository, resource.platform, resource.filename)
+        if settings.assets_repository:
+            path = os.path.join(settings.assets_repository, resource.platform, resource.filename)
             if os.path.isfile(path):
                 return path
 
@@ -162,7 +162,7 @@ class EnvironmentExecutableGetter(ExecutableGetter):
         paths = [
             os.path.join(resource.owner.dependencies_directory, 'bin',
                          resource.platform, resource.filename),
-            os.path.join(settings.environment_root, 'bin',
+            os.path.join(settings.user_directory, 'bin',
                          resource.platform, resource.filename),
         ]
         for path in paths:
@@ -422,7 +422,7 @@ class RemoteFilerGetter(ResourceGetter):
             result = None
             for entry in os.listdir(remote_path):
                 remote_path = os.path.join(self.remote_path, entry)
-                local_path = os.path.join(settings.environment_root, '__filer', settings.dependencies_directory, entry)
+                local_path = os.path.join(settings.user_directory, '__filer', settings.dependencies_directory, entry)
                 result = self.try_get_resource(resource, version, remote_path, local_path)
                 if result:
                     break
@@ -454,7 +454,7 @@ class RemoteFilerGetter(ResourceGetter):
             if os.path.exists(filepath):
                 return filepath
         elif resource.name == 'revent':
-            filename = '.'.join([resource.owner.device.name, resource.stage, 'revent']).lower()
+            filename = '.'.join([resource.owner.device.model, resource.stage, 'revent']).lower()
             alternate_location = os.path.join(location, 'revent_files')
             # There tends to be some confusion as to where revent files should
             # be placed. This looks both in the plugin's directory, and in

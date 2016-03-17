@@ -102,7 +102,7 @@ class Vellamo(AndroidUiAutoBenchmark):
             filename = None
             if test == "Browser":
                 result_folder = self.device.path.join(context.device_manager.package_data_directory, self.package, 'files')
-                for result_file in self.device.listdir(result_folder, as_root=True):
+                for result_file in self.device.list_directory(result_folder, as_root=True):
                     if result_file.startswith("Browser"):
                         filename = result_file
             else:

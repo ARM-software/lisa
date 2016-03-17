@@ -123,7 +123,7 @@ class BBench(Workload):
             self.device.write_value('/proc/sys/vm/drop_caches', 3)
 
         #On android 6+ the web browser requires permissions to access the sd card
-        if self.device.os_version["sdk"]() >= 23:
+        if self.device.os_version["sdk"] >= 23:
             self.device.execute("pm grant com.android.browser android.permission.READ_EXTERNAL_STORAGE")
             self.device.execute("pm grant com.android.browser android.permission.WRITE_EXTERNAL_STORAGE")
 
