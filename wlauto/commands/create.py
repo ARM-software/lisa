@@ -27,7 +27,7 @@ from collections import OrderedDict
 
 import yaml
 
-from wlauto import ExtensionLoader, Command, settings
+from wlauto import PluginLoader, Command, settings
 from wlauto.exceptions import CommandError, ConfigError
 from wlauto.utils.cli import init_argument_parser
 from wlauto.utils.misc import (capitalize, check_output,
@@ -139,8 +139,8 @@ class CreateWorkloadSubcommand(CreateSubcommand):
 class CreatePackageSubcommand(CreateSubcommand):
 
     name = 'package'
-    description = '''Create a new empty Python package for WA extensions. On installation,
-                     this package will "advertise" itself to WA so that Extensions with in it will
+    description = '''Create a new empty Python package for WA plugins. On installation,
+                     this package will "advertise" itself to WA so that Plugins with in it will
                      be loaded by WA when it runs.'''
 
     def initialize(self):
@@ -156,9 +156,9 @@ class CreatePackageSubcommand(CreateSubcommand):
     def execute(self, args):  # pylint: disable=R0201
         package_dir = args.path or os.path.abspath('.')
         template_path = os.path.join(TEMPLATES_DIR, 'setup.template')
-        self.create_extensions_package(package_dir, args.name, template_path, args.force)
+        self.create_plugins_package(package_dir, args.name, template_path, args.force)
 
-    def create_extensions_package(self, location, name, setup_template_path, overwrite=False):
+    def create_plugins_package(self, location, name, setup_template_path, overwrite=False):
         package_path = os.path.join(location, name)
         if os.path.exists(package_path):
             if overwrite:
@@ -178,13 +178,13 @@ class CreateAgendaSubcommand(CreateSubcommand):
 
     name = 'agenda'
     description = """
-    Create an agenda whith the specified extensions enabled. And parameters set to their
+    Create an agenda whith the specified plugins enabled. And parameters set to their
     default values.
     """
 
     def initialize(self):
-        self.parser.add_argument('extensions', nargs='+',
-                                 help='Extensions to be added')
+        self.parser.add_argument('plugins', nargs='+',
+                                 help='Plugins to be added')
         self.parser.add_argument('-i', '--iterations', type=int, default=1,
                                  help='Sets the number of iterations for all workloads')
         self.parser.add_argument('-r', '--include-runtime-params', action='store_true',
@@ -192,23 +192,23 @@ class CreateAgendaSubcommand(CreateSubcommand):
                                  Adds runtime parameters to the global section of the generated
                                  agenda. Note: these do not have default values, so only name
                                  will be added. Also, runtime parameters are devices-specific, so
-                                 a device must be specified (either in the list of extensions,
+                                 a device must be specified (either in the list of plugins,
                                  or in the existing config).
                                  """)
         self.parser.add_argument('-o', '--output', metavar='FILE',
                                  help='Output file. If not specfied, STDOUT will be used instead.')
 
     def execute(self, args):  # pylint: disable=no-self-use,too-many-branches,too-many-statements
-        loader = ExtensionLoader(packages=settings.extension_packages,
-                                 paths=settings.extension_paths)
+        loader = PluginLoader(packages=settings.plugin_packages,
+                                 paths=settings.plugin_paths)
         agenda = OrderedDict()
         agenda['config'] = OrderedDict(instrumentation=[], result_processors=[])
         agenda['global'] = OrderedDict(iterations=args.iterations)
         agenda['workloads'] = []
         device = None
         device_config = None
-        for name in args.extensions:
-            extcls = loader.get_extension_class(name)
+        for name in args.plugins:
+            extcls = loader.get_plugin_class(name)
             config = loader.get_default_config(name)
             del config['modules']
 
@@ -236,10 +236,10 @@ class CreateAgendaSubcommand(CreateSubcommand):
         if args.include_runtime_params:
             if not device:
                 if settings.device:
-                    device = loader.get_extension_class(settings.device)
+                    device = loader.get_plugin_class(settings.device)
                     device_config = loader.get_default_config(settings.device)
                 else:
-                    raise ConfigError('-r option requires for a device to be in the list of extensions')
+                    raise ConfigError('-r option requires for a device to be in the list of plugins')
             rps = OrderedDict()
             for rp in device.runtime_parameters:
                 if hasattr(rp, 'get_runtime_parameters'):
@@ -290,7 +290,7 @@ class CreateCommand(Command):
 
 def create_workload(name, kind='basic', where='local', check_name=True, **kwargs):
     if check_name:
-        extloader = ExtensionLoader(packages=settings.extension_packages, paths=settings.extension_paths)
+        extloader = PluginLoader(packages=settings.plugin_packages, paths=settings.plugin_paths)
         if name in [wl.name for wl in extloader.list_workloads()]:
             raise CommandError('Workload with name "{}" already exists.'.format(name))
 

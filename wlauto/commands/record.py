@@ -16,7 +16,7 @@
 import os
 import sys
 
-from wlauto import ExtensionLoader, Command, settings
+from wlauto import PluginLoader, Command, settings
 from wlauto.common.resources import Executable
 from wlauto.core.resource import NO_ONE
 from wlauto.core.resolver import ResourceResolver
@@ -69,8 +69,8 @@ class RecordCommand(Command):
         self.validate_args(args)
         self.logger.info("Connecting to device...")
 
-        ext_loader = ExtensionLoader(packages=settings.extension_packages,
-                                     paths=settings.extension_paths)
+        ext_loader = PluginLoader(packages=settings.plugin_packages,
+                                     paths=settings.plugin_paths)
 
         # Setup config
         self.config = RunConfiguration(ext_loader)
@@ -84,7 +84,6 @@ class RecordCommand(Command):
         # Setup device
         self.device = ext_loader.get_device(settings.device, **settings.device_config)
         self.device.validate()
-        self.device.dynamic_modules = []
         self.device.connect()
         self.device.initialize(context)
 

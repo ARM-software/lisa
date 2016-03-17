@@ -43,12 +43,12 @@ class File(FileResource):
         return '<{}\'s {} {}>'.format(self.owner, self.name, self.path or self.url)
 
 
-class ExtensionAsset(File):
+class PluginAsset(File):
 
-    name = 'extension_asset'
+    name = 'plugin_asset'
 
     def __init__(self, owner, path):
-        super(ExtensionAsset, self).__init__(owner, os.path.join(owner.name, path))
+        super(PluginAsset, self).__init__(owner, os.path.join(owner.name, path))
 
 
 class Executable(FileResource):

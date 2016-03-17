@@ -52,28 +52,28 @@ workloads:
 """
 
 
-class MockExtensionLoader(object):
+class MockPluginLoader(object):
 
     def __init__(self):
         self.aliases = {}
         self.global_param_aliases = {}
-        self.extensions = {
+        self.plugins = {
             'defaults_workload': DefaultsWorkload(),
             'list_params': ListParamstrument(),
         }
 
-    def get_extension_class(self, name, kind=None):  # pylint: disable=unused-argument
-        return self.extensions.get(name, NamedMock(name))
+    def get_plugin_class(self, name, kind=None):  # pylint: disable=unused-argument
+        return self.plugins.get(name, NamedMock(name))
 
     def resolve_alias(self, name):
         return name, {}
 
     def get_default_config(self, name):  # pylint: disable=unused-argument
-        ec = self.get_extension_class(name)
+        ec = self.get_plugin_class(name)
         return {p.name: p.default for p in ec.parameters}
 
-    def has_extension(self, name):
-        return name in self.aliases or name in self.extensions
+    def has_plugin(self, name):
+        return name in self.aliases or name in self.plugins
 
 
 class MockAgenda(object):
@@ -147,7 +147,7 @@ class ConfigLoaderTest(TestCase):
 class ConfigTest(TestCase):
 
     def setUp(self):
-        self.config = RunConfiguration(MockExtensionLoader())
+        self.config = RunConfiguration(MockPluginLoader())
         self.config.load_config({'device': 'MockDevice'})
 
     def test_case(self):

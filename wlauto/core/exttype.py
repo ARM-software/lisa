@@ -15,21 +15,18 @@
 
 
 # Separate module to avoid circular dependencies
-from wlauto.core.bootstrap import settings
-from wlauto.core.extension import Extension
+from wlauto.core.config.core import settings
+from wlauto.core.plugin import Plugin
 from wlauto.utils.misc import load_class
+from wlauto.core import pluginloader
 
 
-_extension_bases = {ext.name: load_class(ext.cls) for ext in settings.extensions}
-
-
-def get_extension_type(ext):
-    """Given an instance of ``wlauto.core.Extension``, return a string representing
-    the type of the extension (e.g. ``'workload'`` for a Workload subclass instance)."""
-    if not isinstance(ext, Extension):
-        raise ValueError('{} is not an instance of Extension'.format(ext))
-    for name, cls in _extension_bases.iteritems():
+def get_plugin_type(ext):
+    """Given an instance of ``wlauto.core.Plugin``, return a string representing
+    the type of the plugin (e.g. ``'workload'`` for a Workload subclass instance)."""
+    if not isinstance(ext, Plugin):
+        raise ValueError('{} is not an instance of Plugin'.format(ext))
+    for name, cls in pluginloaderkind_map.iteritems():
         if isinstance(ext, cls):
             return name
-    raise ValueError('Unknown extension type: {}'.format(ext.__class__.__name__))
-
+    raise ValueError('Unknown plugin type: {}'.format(ext.__class__.__name__))

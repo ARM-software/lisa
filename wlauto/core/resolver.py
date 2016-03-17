@@ -24,10 +24,10 @@ from collections import defaultdict
 
 # Note: this is the modified louie library in wlauto/external.
 #       prioritylist does not exist in vanilla louie.
-from louie.prioritylist import PriorityList  # pylint: disable=E0611,F0401
+from wlauto.utils.types import prioritylist  # pylint: disable=E0611,F0401
 
 from wlauto.exceptions import ResourceError
-
+from wlauto.core import pluginloader
 
 class ResourceResolver(object):
     """
@@ -38,7 +38,7 @@ class ResourceResolver(object):
 
     def __init__(self, config):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.getters = defaultdict(PriorityList)
+        self.getters = defaultdict(prioritylist)
         self.config = config
 
     def load(self):
@@ -47,8 +47,9 @@ class ResourceResolver(object):
         be either a python package/module or a path.
 
         """
+
         for rescls in self.config.ext_loader.list_resource_getters():
-            getter = self.config.get_extension(rescls.name, self)
+            getter = self.config.get_plugin(name=rescls.name, kind="resource_getter", resolver=self)
             getter.register()
 
     def get(self, resource, strict=True, *args, **kwargs):
@@ -95,7 +96,7 @@ class ResourceResolver(object):
         means should register with lower (negative) priorities.
 
         """
-        self.logger.debug('Registering {}'.format(getter.name))
+        self.logger.debug('Registering {} for {} resources'.format(getter.name, kind))
         self.getters[kind].add(getter, priority)
 
     def unregister(self, getter, kind):

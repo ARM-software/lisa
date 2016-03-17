@@ -16,7 +16,7 @@
 
 """
 This module contains utilities for generating user documentation for Workload
-Automation Extensions.
+Automation Plugins.
 
 """
 import re
@@ -32,7 +32,7 @@ def get_paragraphs(text):
     return [LINE_START.sub(' ', p) for p in PARAGRAPH_SEP.split(text)]
 
 
-class ExtensionDocumenter(object):
+class PluginDocumenter(object):
 
     @property
     def name(self):
@@ -40,16 +40,16 @@ class ExtensionDocumenter(object):
 
     @property
     def summary(self):
-        """Returns the summary description for this Extension, which, by
+        """Returns the summary description for this Plugin, which, by
         convention, is the first paragraph of the description."""
         return get_paragraphs(self.description)[0]
 
     @property
     def description(self):
         """
-        The description for an extension is specified in the ``description``
-        attribute, or (legacy) as a docstring for the extension's class. If
-        neither method is used in the Extension, an empty string is returned.
+        The description for an plugin is specified in the ``description``
+        attribute, or (legacy) as a docstring for the plugin's class. If
+        neither method is used in the Plugin, an empty string is returned.
 
         Description is assumed to be formed as reStructuredText. Leading and
         trailing whitespace will be stripped away.
@@ -64,13 +64,13 @@ class ExtensionDocumenter(object):
 
     @property
     def parameters(self):
-        return [ExtensionParameterDocumenter(p) for p in self.ext.parameters]
+        return [PluginParameterDocumenter(p) for p in self.ext.parameters]
 
     def __init__(self, ext):
         self.ext = ext
 
 
-class ExtensionParameterDocumenter(object):
+class PluginParameterDocumenter(object):
 
     @property
     def name(self):

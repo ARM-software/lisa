@@ -12,7 +12,7 @@ dist/
 .ropeproject/
 wa_output/
 doc/source/api/
-doc/source/extensions/
+doc/source/plugins/
 MANIFEST
 wlauto/external/uiautomator/bin/
 wlauto/external/uiautomator/*.properties

@@ -15,12 +15,12 @@
 
 import textwrap
 
-from wlauto.core.extension import Extension
+from wlauto.core.plugin import Plugin
 from wlauto.core.entry_point import init_argument_parser
 from wlauto.utils.doc import format_body
 
 
-class Command(Extension):
+class Command(Plugin):
     """
     Defines a Workload Automation command. This will be executed from the command line as
     ``wa <command> [args ...]``. This defines the name to be used when invoking wa, the
@@ -28,7 +28,7 @@ class Command(Extension):
     to parse the reset of the command line arguments.
 
     """
-
+    kind = "command"
     help = None
     usage = None
     description = None

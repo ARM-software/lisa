@@ -23,7 +23,8 @@ from wlauto import Command, settings
 from wlauto.core.agenda import Agenda
 from wlauto.core.execution import Executor
 from wlauto.utils.log import add_log_file
-
+from wlauto.core.configuration import RunConfiguration
+from wlauto.core import pluginloader
 
 class RunCommand(Command):
 
@@ -45,7 +46,7 @@ class RunCommand(Command):
                                  option (see below) is used, in which case the contents of the
                                  directory will be overwritten. If this option is not specified,
                                  then {} will be used instead.
-                                 """.format(settings.output_directory))
+                                 """.format(settings.default_output_directory))
         self.parser.add_argument('-f', '--force', action='store_true',
                                  help="""
                                  Overwrite output directory if it exists. By default, the script
@@ -69,17 +70,21 @@ class RunCommand(Command):
                                  """)
 
     def execute(self, args):  # NOQA
-        self.set_up_output_directory(args)
-        add_log_file(settings.log_file)
+        output_directory = self.set_up_output_directory(args)
+        add_log_file(os.path.join(output_directory, "run.log"))
+        config = RunConfiguration(pluginloader)
 
         if os.path.isfile(args.agenda):
             agenda = Agenda(args.agenda)
             settings.agenda = args.agenda
-            shutil.copy(args.agenda, settings.meta_directory)
+            shutil.copy(args.agenda, config.meta_directory)
         else:
             self.logger.debug('{} is not a file; assuming workload name.'.format(args.agenda))
             agenda = Agenda()
             agenda.add_workload_entry(args.agenda)
+
+        for filepath in settings.config_paths:
+            config.load_config(filepath)
 
         if args.instruments_to_disable:
             if 'instrumentation' not in agenda.config:
@@ -89,27 +94,29 @@ class RunCommand(Command):
                 agenda.config['instrumentation'].append('~{}'.format(itd))
 
         basename = 'config_'
-        for file_number, path in enumerate(settings.get_config_paths(), 1):
+        for file_number, path in enumerate(settings.config_paths, 1):
             file_ext = os.path.splitext(path)[1]
-            shutil.copy(path, os.path.join(settings.meta_directory,
+            shutil.copy(path, os.path.join(meta_directory,
                                            basename + str(file_number) + file_ext))
 
-        executor = Executor()
+        executor = Executor(config)
         executor.execute(agenda, selectors={'ids': args.only_run_ids})
 
     def set_up_output_directory(self, args):
         if args.output_directory:
-            settings.output_directory = args.output_directory
-        self.logger.debug('Using output directory: {}'.format(settings.output_directory))
-        if os.path.exists(settings.output_directory):
+            output_directory = args.output_directory
+        else:
+            output_directory = settings.default_output_directory
+        self.logger.debug('Using output directory: {}'.format(output_directory))
+        if os.path.exists(output_directory):
             if args.force:
                 self.logger.info('Removing existing output directory.')
-                shutil.rmtree(settings.output_directory)
+                shutil.rmtree(os.path.abspath(output_directory))
             else:
-                self.logger.error('Output directory {} exists.'.format(settings.output_directory))
+                self.logger.error('Output directory {} exists.'.format(output_directory))
                 self.logger.error('Please specify another location, or use -f option to overwrite.\n')
                 sys.exit(1)
 
         self.logger.info('Creating output directory.')
-        os.makedirs(settings.output_directory)
-        os.makedirs(settings.meta_directory)
+        os.makedirs(output_directory)
+        return output_directory

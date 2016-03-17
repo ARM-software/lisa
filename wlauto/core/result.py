@@ -41,7 +41,7 @@ from copy import copy
 from contextlib import contextmanager
 from datetime import datetime
 
-from wlauto.core.extension import Extension
+from wlauto.core.plugin import Plugin
 from wlauto.exceptions import WAError
 from wlauto.utils.types import numeric
 from wlauto.utils.misc import enum_metaclass, merge_dicts
@@ -131,7 +131,7 @@ class ResultManager(object):
             self._bad.append(processor)
 
 
-class ResultProcessor(Extension):
+class ResultProcessor(Plugin):
     """
     Base class for result processors. Defines an interface that should be implemented
     by the subclasses. A result processor can be used to do any kind of post-processing
@@ -139,7 +139,7 @@ class ResultProcessor(Extension):
     performing calculations, generating plots, etc.
 
     """
-
+    kind = "result_processor"
     def initialize(self, context):
         pass
 
@@ -327,4 +327,3 @@ class Metric(object):
         return '<{}>'.format(result)
 
     __repr__ = __str__
-

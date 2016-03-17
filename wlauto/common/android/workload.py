@@ -17,10 +17,10 @@ import os
 import sys
 import time
 
-from wlauto.core.extension import Parameter
+from wlauto.core.plugin import Parameter
 from wlauto.core.workload import Workload
 from wlauto.core.resource import NO_ONE
-from wlauto.common.resources import ExtensionAsset, Executable
+from wlauto.common.resources import PluginAsset, Executable
 from wlauto.exceptions import WorkloadError, ResourceError, ConfigError
 from wlauto.utils.android import ApkInfo, ANDROID_NORMAL_PERMISSIONS
 from wlauto.utils.types import boolean
@@ -480,7 +480,7 @@ class GameWorkload(ApkWorkload, ReventWorkload):
             kind, resource_file = resource_file.split(':', 1)
         ondevice_cache = self.device.path.join(self.device.resource_cache, self.name, resource_file)
         if not self.device.file_exists(ondevice_cache):
-            asset_tarball = context.resolver.get(ExtensionAsset(self, resource_file))
+            asset_tarball = context.resolver.get(PluginAsset(self, resource_file))
             if not asset_tarball:
                 message = 'Could not find resource {} for workload {}.'
                 raise WorkloadError(message.format(resource_file, self.name))

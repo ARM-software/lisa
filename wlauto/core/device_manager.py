@@ -1,7 +1,7 @@
 import string
 from collections import OrderedDict
 
-from wlauto.core.extension import Extension, Parameter
+from wlauto.core.plugin import Plugin, Parameter
 from wlauto.exceptions import ConfigError
 from wlauto.utils.types import list_of_integers, list_of, caseless_string
 
@@ -135,8 +135,9 @@ class TargetInfo(object):
         return pod
 
 
-class DeviceManager(Extension):
+class DeviceManager(Plugin):
 
+    kind = "manager"
     name = None
     target_type = None
     platform_type = Platform

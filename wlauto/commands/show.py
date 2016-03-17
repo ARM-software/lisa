@@ -18,7 +18,9 @@ import sys
 import subprocess
 from cStringIO import StringIO
 
-from wlauto import Command, ExtensionLoader, settings
+from wlauto import Command
+from wlauto.core.config.core import settings
+from wlauto.core import pluginloader
 from wlauto.utils.doc import (get_summary, get_description, get_type_name, format_column, format_body,
                               format_paragraph, indent, strip_inlined_text)
 from wlauto.utils.misc import get_pager
@@ -30,21 +32,20 @@ class ShowCommand(Command):
     name = 'show'
 
     description = """
-    Display documentation for the specified extension (workload, instrument, etc.).
+    Display documentation for the specified plugin (workload, instrument, etc.).
     """
 
     def initialize(self, context):
         self.parser.add_argument('name', metavar='EXTENSION',
-                                 help='''The name of the extension for which information will
+                                 help='''The name of the plugin for which information will
                                          be shown.''')
 
     def execute(self, args):
         # pylint: disable=unpacking-non-sequence
-        ext_loader = ExtensionLoader(packages=settings.extension_packages, paths=settings.extension_paths)
-        extension = ext_loader.get_extension_class(args.name)
+        plugin = pluginloader.get_plugin_class(args.name)
         out = StringIO()
         term_width, term_height = get_terminal_size()
-        format_extension(extension, out, term_width)
+        format_plugin(plugin, out, term_width)
         text = out.getvalue()
         pager = get_pager()
         if len(text.split('\n')) > term_height and pager:
@@ -58,44 +59,44 @@ class ShowCommand(Command):
             sys.stdout.write(text)
 
 
-def format_extension(extension, out, width):
-    format_extension_name(extension, out)
+def format_plugin(plugin, out, width):
+    format_plugin_name(plugin, out)
     out.write('\n')
-    format_extension_summary(extension, out, width)
+    format_plugin_summary(plugin, out, width)
     out.write('\n')
-    if hasattr(extension, 'supported_platforms'):
-        format_supported_platforms(extension, out, width)
+    if hasattr(plugin, 'supported_platforms'):
+        format_supported_platforms(plugin, out, width)
         out.write('\n')
-    if extension.parameters:
-        format_extension_parameters(extension, out, width)
+    if plugin.parameters:
+        format_plugin_parameters(plugin, out, width)
         out.write('\n')
-    format_extension_description(extension, out, width)
+    format_plugin_description(plugin, out, width)
 
 
-def format_extension_name(extension, out):
-    out.write('\n{}\n'.format(extension.name))
+def format_plugin_name(plugin, out):
+    out.write('\n{}\n'.format(plugin.name))
 
 
-def format_extension_summary(extension, out, width):
-    out.write('{}\n'.format(format_body(strip_inlined_text(get_summary(extension)), width)))
+def format_plugin_summary(plugin, out, width):
+    out.write('{}\n'.format(format_body(strip_inlined_text(get_summary(plugin)), width)))
 
 
-def format_supported_platforms(extension, out, width):
-    text = 'supported on: {}'.format(', '.join(extension.supported_platforms))
+def format_supported_platforms(plugin, out, width):
+    text = 'supported on: {}'.format(', '.join(plugin.supported_platforms))
     out.write('{}\n'.format(format_body(text, width)))
 
 
-def format_extension_description(extension, out, width):
+def format_plugin_description(plugin, out, width):
     # skip the initial paragraph of multi-paragraph description, as already
     # listed above.
-    description = get_description(extension).split('\n\n', 1)[-1]
+    description = get_description(plugin).split('\n\n', 1)[-1]
     out.write('{}\n'.format(format_body(strip_inlined_text(description), width)))
 
 
-def format_extension_parameters(extension, out, width, shift=4):
+def format_plugin_parameters(plugin, out, width, shift=4):
     out.write('parameters:\n\n')
     param_texts = []
-    for param in extension.parameters:
+    for param in plugin.parameters:
         description = format_paragraph(strip_inlined_text(param.description or ''), width - shift)
         param_text = '{}'.format(param.name)
         if param.mandatory:
@@ -111,4 +112,3 @@ def format_extension_parameters(extension, out, width, shift=4):
         param_texts.append(indent(param_text, shift))
 
     out.write(format_column('\n'.join(param_texts), width))
-

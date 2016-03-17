@@ -35,7 +35,7 @@ It's also possible to use the serializer directly::
 This can also be used to ``dump()`` POD structures. By default,
 ``dump()`` will produce JSON, but ``fmt`` parameter may be used to
 specify an alternative format (``yaml`` or ``python``). ``load()`` will
-use the file extension to guess the format, but ``fmt`` may also be used
+use the file plugin to guess the format, but ``fmt`` may also be used
 to specify it explicitly.
 
 """

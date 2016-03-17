@@ -23,7 +23,7 @@ from wlauto import settings
 from wlauto.common.android.workload import GameWorkload
 from wlauto.exceptions import WorkloadError, DeviceError
 from wlauto.utils.misc import check_output
-from wlauto.common.resources import ExtensionAsset
+from wlauto.common.resources import PluginAsset
 
 
 class GunBros(GameWorkload):

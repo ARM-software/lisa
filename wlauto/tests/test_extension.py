@@ -19,17 +19,17 @@ from unittest import TestCase
 
 from nose.tools import assert_equal, raises, assert_true
 
-from wlauto.core.extension import Extension, Parameter, Param, ExtensionMeta, Module
+from wlauto.core.plugin import Plugin, Parameter, Param, PluginMeta, Module
 from wlauto.utils.types import list_of_ints
 from wlauto.exceptions import ConfigError
 
 
-class MyMeta(ExtensionMeta):
+class MyMeta(PluginMeta):
 
     virtual_methods = ['validate', 'virtual1', 'virtual2']
 
 
-class MyBaseExtension(Extension):
+class MyBasePlugin(Plugin):
 
     __metaclass__ = MyMeta
 
@@ -40,7 +40,7 @@ class MyBaseExtension(Extension):
     ]
 
     def __init__(self, **kwargs):
-        super(MyBaseExtension, self).__init__(**kwargs)
+        super(MyBasePlugin, self).__init__(**kwargs)
         self.v1 = 0
         self.v2 = 0
         self.v3 = ''
@@ -53,7 +53,7 @@ class MyBaseExtension(Extension):
         self.v2 += 1
 
 
-class MyAcidExtension(MyBaseExtension):
+class MyAcidPlugin(MyBasePlugin):
 
     name = 'acid'
 
@@ -64,7 +64,7 @@ class MyAcidExtension(MyBaseExtension):
     ]
 
     def __init__(self, **kwargs):
-        super(MyAcidExtension, self).__init__(**kwargs)
+        super(MyAcidPlugin, self).__init__(**kwargs)
         self.vv1 = 0
         self.vv2 = 0
 
@@ -76,7 +76,7 @@ class MyAcidExtension(MyBaseExtension):
         self.vv2 += 1
 
 
-class MyOtherExtension(MyBaseExtension):
+class MyOtherPlugin(MyBasePlugin):
 
     name = 'other'
 
@@ -85,7 +85,7 @@ class MyOtherExtension(MyBaseExtension):
         Param('optional', allowed_values=['test', 'check']),
     ]
 
-class MyOtherOtherExtension(MyOtherExtension):
+class MyOtherOtherPlugin(MyOtherPlugin):
 
     name = 'otherother'
 
@@ -94,7 +94,7 @@ class MyOtherOtherExtension(MyOtherExtension):
     ]
 
 
-class MyOverridingExtension(MyAcidExtension):
+class MyOverridingPlugin(MyAcidPlugin):
 
     name = 'overriding'
 
@@ -103,12 +103,12 @@ class MyOverridingExtension(MyAcidExtension):
     ]
 
 
-class MyThirdTeerExtension(MyOverridingExtension):
+class MyThirdTeerPlugin(MyOverridingPlugin):
 
     name = 'thirdteer'
 
 
-class MultiValueParamExt(Extension):
+class MultiValueParamExt(Plugin):
 
     name = 'multivalue'
 
@@ -140,7 +140,7 @@ class MyEvenCoolerModule(Module):
         self.owner.self_fizzle_factor += 2
 
 
-class MyModularExtension(Extension):
+class MyModularPlugin(Plugin):
 
     name = 'modular'
 
@@ -149,7 +149,7 @@ class MyModularExtension(Extension):
     ]
 
 
-class MyOtherModularExtension(Extension):
+class MyOtherModularPlugin(Plugin):
 
     name = 'other_modular'
 
@@ -161,7 +161,7 @@ class MyOtherModularExtension(Extension):
     ]
 
     def __init__(self, **kwargs):
-        super(MyOtherModularExtension, self).__init__(**kwargs)
+        super(MyOtherModularPlugin, self).__init__(**kwargs)
         self.self_fizzle_factor = 0
 
 
@@ -178,35 +178,35 @@ class FakeLoader(object):
                 return _instantiate(module, owner)
 
 
-class ExtensionMetaTest(TestCase):
+class PluginMetaTest(TestCase):
 
     def test_propagation(self):
-        acid_params = [p.name for p in MyAcidExtension.parameters]
+        acid_params = [p.name for p in MyAcidPlugin.parameters]
         assert_equal(acid_params, ['modules', 'base', 'hydrochloric', 'citric', 'carbonic'])
 
     @raises(ValueError)
     def test_duplicate_param_spec(self):
-        class BadExtension(MyBaseExtension):  # pylint: disable=W0612
+        class BadPlugin(MyBasePlugin):  # pylint: disable=W0612
             parameters = [
                 Parameter('base'),
             ]
 
     def test_param_override(self):
-        class OverridingExtension(MyBaseExtension):  # pylint: disable=W0612
+        class OverridingPlugin(MyBasePlugin):  # pylint: disable=W0612
             parameters = [
                 Parameter('base', override=True, default='cheese'),
             ]
-        assert_equal(OverridingExtension.parameters['base'].default, 'cheese')
+        assert_equal(OverridingPlugin.parameters['base'].default, 'cheese')
 
     @raises(ValueError)
     def test_invalid_param_spec(self):
-        class BadExtension(MyBaseExtension):  # pylint: disable=W0612
+        class BadPlugin(MyBasePlugin):  # pylint: disable=W0612
             parameters = [
                 7,
             ]
 
     def test_virtual_methods(self):
-        acid = _instantiate(MyAcidExtension)
+        acid = _instantiate(MyAcidPlugin)
         acid.virtual1()
         assert_equal(acid.v1, 1)
         assert_equal(acid.vv1, 1)
@@ -221,7 +221,7 @@ class ExtensionMetaTest(TestCase):
         assert_equal(acid.vv2, 2)
 
     def test_initialization(self):
-        class MyExt(Extension):
+        class MyExt(Plugin):
             name = 'myext'
             values = {'a': 0}
             def __init__(self, *args, **kwargs):
@@ -242,7 +242,7 @@ class ExtensionMetaTest(TestCase):
         assert_equal(ext.instance_init, 1)
 
     def test_initialization_happens_once(self):
-        class MyExt(Extension):
+        class MyExt(Plugin):
             name = 'myext'
             values = {'a': 0}
             def __init__(self, *args, **kwargs):
@@ -281,19 +281,19 @@ class ExtensionMetaTest(TestCase):
 class ParametersTest(TestCase):
 
     def test_setting(self):
-        myext = _instantiate(MyAcidExtension, hydrochloric=[5, 6], citric=5, carbonic=42)
+        myext = _instantiate(MyAcidPlugin, hydrochloric=[5, 6], citric=5, carbonic=42)
         assert_equal(myext.hydrochloric, [5, 6])
         assert_equal(myext.citric, '5')
         assert_equal(myext.carbonic, 42)
 
     def test_validation_ok(self):
-        myext = _instantiate(MyOtherExtension, mandatory='check', optional='check')
+        myext = _instantiate(MyOtherPlugin, mandatory='check', optional='check')
         myext.validate()
 
     def test_default_override(self):
-        myext = _instantiate(MyOverridingExtension)
+        myext = _instantiate(MyOverridingPlugin)
         assert_equal(myext.hydrochloric, [3, 4])
-        myotherext = _instantiate(MyThirdTeerExtension)
+        myotherext = _instantiate(MyThirdTeerPlugin)
         assert_equal(myotherext.hydrochloric, [3, 4])
 
     def test_multivalue_param(self):
@@ -308,49 +308,42 @@ class ParametersTest(TestCase):
 
     @raises(ConfigError)
     def test_validation_no_mandatory(self):
-        myext = _instantiate(MyOtherExtension, optional='check')
+        myext = _instantiate(MyOtherPlugin, optional='check')
         myext.validate()
 
     @raises(ConfigError)
     def test_validation_no_mandatory_in_derived(self):
-        _instantiate(MyOtherOtherExtension)
+        _instantiate(MyOtherOtherPlugin)
 
     @raises(ConfigError)
     def test_validation_bad_value(self):
-        myext = _instantiate(MyOtherExtension, mandatory=1, optional='invalid')
+        myext = _instantiate(MyOtherPlugin, mandatory=1, optional='invalid')
         myext.validate()
 
     @raises(ValueError)
     def test_duplicate_param_override(self):
-        class DuplicateParamExtension(MyBaseExtension):  # pylint: disable=W0612
-            parameters = [
-                Parameter('base', override=True, default='buttery'),
-                Parameter('base', override=True, default='biscuit'),
-            ]
-
-    @raises(ValueError)
-    def test_overriding_new_param(self):
-        class DuplicateParamExtension(MyBaseExtension):  # pylint: disable=W0612
+        class DuplicateParamPlugin(MyBasePlugin):  # pylint: disable=W0612
             parameters = [
                 Parameter('food', override=True, default='cheese'),
             ]
 
+
 class ModuleTest(TestCase):
 
     def test_fizzle(self):
-        myext = _instantiate(MyModularExtension)
+        myext = _instantiate(MyModularPlugin)
         myext.load_modules(FakeLoader())
         assert_true(myext.can('fizzle'))
         myext.fizzle()
         assert_equal(myext.fizzle_factor, 1)
 
     def test_self_fizzle(self):
-        myext = _instantiate(MyOtherModularExtension)
+        myext = _instantiate(MyOtherModularPlugin)
         myext.load_modules(FakeLoader())
         myext.fizzle()
         assert_equal(myext.self_fizzle_factor, 2)
 
 
 def _instantiate(cls, *args, **kwargs):
-    # Needed to get around Extension's __init__ checks
+    # Needed to get around Plugin's __init__ checks
     return cls(*args, **kwargs)

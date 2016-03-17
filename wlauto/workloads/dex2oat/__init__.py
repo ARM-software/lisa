@@ -18,7 +18,7 @@ import re
 import os
 import sys
 
-from wlauto import Workload, Parameter, ExtensionLoader
+from wlauto import Workload, Parameter, PluginLoader
 from wlauto.exceptions import WorkloadError
 from wlauto.utils.android import ApkInfo
 import wlauto.common.android.resources
@@ -52,7 +52,7 @@ class Dex2oatBenchmark(Workload):
 
     def init_resources(self, context):
         # TODO: find a better APK to use for this.
-        peacekeeper = ExtensionLoader().get_workload('peacekeeper', self.device)
+        peacekeeper = PluginLoader().get_workload('peacekeeper', self.device)
         self.apk_file = context.resolver.get(wlauto.common.android.resources.ApkFile(peacekeeper), version='chrome')
         self.package = ApkInfo(self.apk_file).package
 

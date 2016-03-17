@@ -103,7 +103,7 @@ import inspect
 from collections import OrderedDict
 
 import wlauto.core.signal as signal
-from wlauto.core.extension import Extension
+from wlauto.core.plugin import Plugin
 from wlauto.exceptions import WAError, DeviceNotRespondingError, TimeoutError
 from wlauto.utils.misc import get_traceback, isiterable
 from wlauto.utils.types import identifier
@@ -374,10 +374,11 @@ def get_disabled():
     return [i for i in installed if not i.is_enabled]
 
 
-class Instrument(Extension):
+class Instrument(Plugin):
     """
     Base class for instrumentation implementations.
     """
+    kind = "instrument"
 
     def __init__(self, device, **kwargs):
         super(Instrument, self).__init__(**kwargs)
@@ -396,4 +397,3 @@ class Instrument(Extension):
 
     def __repr__(self):
         return 'Instrument({})'.format(self.name)
-

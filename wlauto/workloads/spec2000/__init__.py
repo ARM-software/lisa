@@ -23,7 +23,7 @@ from collections import defaultdict
 
 from wlauto import Workload, Parameter, Alias
 from wlauto.exceptions import ConfigError, WorkloadError
-from wlauto.common.resources import ExtensionAsset
+from wlauto.common.resources import PluginAsset
 from wlauto.utils.misc import get_cpu_mask
 from wlauto.utils.types import boolean, list_or_string
 
@@ -88,7 +88,7 @@ class Spec2000(Workload):
     - "scripts" contains one or more one-liner shell scripts that invoke the benchmark binary with
       appropriate command line parameters. The name of the script must be in the format
       <benchmark name>[.<variant name>].sh, i.e. name of benchmark, optionally followed by variant
-      name, followed by ".sh" extension. If there is more than one script, then all of them must
+      name, followed by ".sh" plugin. If there is more than one script, then all of them must
       have  a variant; if there is only one script the it should not cotain a variant.
 
     A typical bundle may look like this::
@@ -213,7 +213,7 @@ class Spec2000(Workload):
         self.loaded_benchmarks = {}
         self.categories = set()
         if self.force_extract_assets or len(os.listdir(self.dependencies_directory)) < 2:
-            bundle = context.resolver.get(ExtensionAsset(self, self.asset_file))
+            bundle = context.resolver.get(PluginAsset(self, self.asset_file))
             with tarfile.open(bundle, 'r:gz') as tf:
                 tf.extractall(self.dependencies_directory)
         for entry in os.listdir(self.dependencies_directory):

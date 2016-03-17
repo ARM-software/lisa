@@ -14,26 +14,26 @@
 #
 
 
-from wlauto import ExtensionLoader, Command, settings
+from wlauto import PluginLoader, Command, settings
 from wlauto.utils.formatter import DescriptionListFormatter
 from wlauto.utils.doc import get_summary
-
+from wlauto.core import pluginloader
 
 class ListCommand(Command):
 
     name = 'list'
-    description = 'List available WA extensions with a short description of each.'
+    description = 'List available WA plugins with a short description of each.'
 
     def initialize(self, context):
-        extension_types = ['{}s'.format(ext.name) for ext in settings.extensions]
+        plugin_types = ['{}s'.format(name) for name in pluginloader.kinds]
         self.parser.add_argument('kind', metavar='KIND',
-                                 help=('Specify the kind of extension to list. Must be '
-                                       'one of: {}'.format(', '.join(extension_types))),
-                                 choices=extension_types)
+                                 help=('Specify the kind of plugin to list. Must be '
+                                       'one of: {}'.format(', '.join(plugin_types))),
+                                 choices=plugin_types)
         self.parser.add_argument('-n', '--name', help='Filter results by the name specified')
         self.parser.add_argument('-o', '--packaged-only', action='store_true',
                                  help='''
-                                 Only list extensions packaged with WA itself. Do not list extensions
+                                 Only list plugins packaged with WA itself. Do not list plugins
                                  installed locally or from other packages.
                                  ''')
         self.parser.add_argument('-p', '--platform', help='Only list results that are supported by '
@@ -44,12 +44,7 @@ class ListCommand(Command):
         if args.name:
             filters['name'] = args.name
 
-        if args.packaged_only:
-            ext_loader = ExtensionLoader()
-        else:
-            ext_loader = ExtensionLoader(packages=settings.extension_packages,
-                                         paths=settings.extension_paths)
-        results = ext_loader.list_extensions(args.kind[:-1])
+        results = pluginloader.list_plugins(args.kind[:-1])
         if filters or args.platform:
             filtered_results = []
             for result in results:
@@ -72,8 +67,8 @@ class ListCommand(Command):
             print output.format_data()
 
 
-def check_platform(extension, platform):
-    supported_platforms = getattr(extension, 'supported_platforms', [])
+def check_platform(plugin, platform):
+    supported_platforms = getattr(plugin, 'supported_platforms', [])
     if supported_platforms:
         return platform in supported_platforms
     return True

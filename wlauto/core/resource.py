@@ -13,8 +13,8 @@
 # limitations under the License.
 #
 
-from wlauto.core.bootstrap import settings
-from wlauto.core.extension import Extension
+from wlauto.core.config.core import settings
+from wlauto.core.plugin import Plugin
 
 
 class GetterPriority(object):
@@ -77,7 +77,7 @@ class Resource(object):
         return '<{}\'s {}>'.format(self.owner, self.name)
 
 
-class ResourceGetter(Extension):
+class ResourceGetter(Plugin):
     """
     Base class for implementing resolvers. Defines resolver interface. Resolvers are
     responsible for discovering resources (such as particular kinds of files) they know
@@ -97,11 +97,12 @@ class ResourceGetter(Extension):
 
     """
 
+    kind = "resource_getter"
     name = None
     resource_type = None
     priority = GetterPriority.environment
 
-    def __init__(self, resolver, **kwargs):
+    def __init__(self, resolver=None, **kwargs):
         super(ResourceGetter, self).__init__(**kwargs)
         self.resolver = resolver
 

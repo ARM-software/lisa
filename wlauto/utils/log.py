@@ -21,7 +21,7 @@ import threading
 
 import colorama
 
-from wlauto.core.bootstrap import settings
+from wlauto.core.config.core import settings
 import wlauto.core.signal as signal
 
 
@@ -46,13 +46,13 @@ def init_logging(verbosity):
     console_handler = logging.StreamHandler()
     if verbosity == 1:
         console_handler.setLevel(logging.DEBUG)
-        if 'colour_enabled' in settings.logging and not settings.logging['colour_enabled']:
+        if 'colour' in settings.logging and not settings.logging['colour']:
             console_handler.setFormatter(LineFormatter(settings.logging['verbose_format']))
         else:
             console_handler.setFormatter(ColorFormatter(settings.logging['verbose_format']))
     else:
         console_handler.setLevel(logging.INFO)
-        if 'colour_enabled' in settings.logging and not settings.logging['colour_enabled']:
+        if 'colour' in settings.logging and not settings.logging['colour']:
             console_handler.setFormatter(LineFormatter(settings.logging['regular_format']))
         else:
             console_handler.setFormatter(ColorFormatter(settings.logging['regular_format']))

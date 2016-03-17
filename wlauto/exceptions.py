@@ -28,7 +28,7 @@ class NotFoundError(WAError):
 
 
 class ValidationError(WAError):
-    """Raised on failure to validate an extension."""
+    """Raised on failure to validate an plugin."""
     pass
 
 
@@ -58,8 +58,8 @@ class ModuleError(WAError):
     """
     Problem with a module.
 
-    .. note:: Modules for specific extension types should raise execeptions
-              appropriate to that extension. E.g. a ``Device`` module should raise
+    .. note:: Modules for specific plugin types should raise execeptions
+              appropriate to that plugin. E.g. a ``Device`` module should raise
               ``DeviceError``. This is intended for situation where a module is
               unsure (and/or doesn't care) what its owner is.
 
@@ -95,7 +95,7 @@ class ToolError(WAError):
 
 
 class LoaderError(WAError):
-    """Raised when there is an error loading an extension or
+    """Raised when there is an error loading an plugin or
     an external resource. Apart form the usual message, the __init__
     takes an exc_info parameter which should be the result of
     sys.exc_info() for the original exception (if any) that

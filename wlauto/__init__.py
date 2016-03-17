@@ -13,18 +13,18 @@
 # limitations under the License.
 #
 
-from wlauto.core.bootstrap import settings  # NOQA
+from wlauto.core.config.core import settings  # NOQA
 from wlauto.core.device_manager import DeviceManager, RuntimeParameter, CoreParameter  # NOQA
 from wlauto.core.command import Command  # NOQA
 from wlauto.core.workload import Workload  # NOQA
-from wlauto.core.extension import Module, Parameter, Artifact, Alias  # NOQA
-from wlauto.core.extension_loader import ExtensionLoader  # NOQA
+from wlauto.core.plugin import Parameter, Artifact, Alias  # NOQA
+import wlauto.core.pluginloader as PluginLoader  # NOQA
 from wlauto.core.instrumentation import Instrument  # NOQA
 from wlauto.core.result import ResultProcessor, IterationResult  # NOQA
 from wlauto.core.resource import ResourceGetter, Resource, GetterPriority, NO_ONE  # NOQA
-from wlauto.core.exttype import get_extension_type  # NOQA Note: MUST be imported after other core imports.
+from wlauto.core.exttype import get_plugin_type  # NOQA Note: MUST be imported after other core imports.
 
-from wlauto.common.resources import File, ExtensionAsset, Executable
+from wlauto.common.resources import File, PluginAsset, Executable
 from wlauto.common.android.resources import ApkFile, JarFile
 from wlauto.common.android.workload import (UiAutomatorWorkload, ApkWorkload, AndroidBenchmark,  # NOQA
                                     AndroidUiAutoBenchmark, GameWorkload)  # NOQA

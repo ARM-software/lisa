@@ -49,10 +49,10 @@ from itertools import izip_longest
 
 import wlauto.core.signal as signal
 from wlauto.core import instrumentation
-from wlauto.core.bootstrap import settings
-from wlauto.core.extension import Artifact
+from wlauto.core.config.core import settings
+from wlauto.core.plugin import Artifact
 from wlauto.core.configuration import RunConfiguration
-from wlauto.core.extension_loader import ExtensionLoader
+from wlauto.core import pluginloader
 from wlauto.core.resolver import ResourceResolver
 from wlauto.core.result import ResultManager, IterationResult, RunResult
 from wlauto.exceptions import (WAError, ConfigError, TimeoutError, InstrumentError,
@@ -85,7 +85,7 @@ class RunInfo(object):
         self.duration = None
         self.project = config.project
         self.project_stage = config.project_stage
-        self.run_name = config.run_name or "{}_{}".format(os.path.split(settings.output_directory)[1],
+        self.run_name = config.run_name or "{}_{}".format(os.path.split(config.output_directory)[1],
                                                           datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S"))
         self.notes = None
         self.device_properties = {}
@@ -153,21 +153,21 @@ class ExecutionContext(object):
         self.last_error = None
         self.run_info = None
         self.run_result = None
-        self.run_output_directory = settings.output_directory
-        self.host_working_directory = settings.meta_directory
+        self.run_output_directory = self.config.output_directory
+        self.host_working_directory = self.config.meta_directory
         self.iteration_artifacts = None
         self.run_artifacts = copy(self.default_run_artifacts)
         self.job_iteration_counts = defaultdict(int)
         self.aborted = False
         self.runner = None
-        if settings.agenda:
-            self.run_artifacts.append(Artifact('agenda',
-                                               os.path.join(self.host_working_directory,
-                                                            os.path.basename(settings.agenda)),
-                                               'meta',
-                                               mandatory=True,
-                                               description='Agenda for this run.'))
-        for i, filepath in enumerate(settings.loaded_files, 1):
+        if config.agenda:
+             self.run_artifacts.append(Artifact('agenda',
+                                                os.path.join(self.host_working_directory,
+                                                             os.path.basename(config.agenda.filepath)),
+                                                'meta',
+                                                mandatory=True,
+                                                description='Agenda for this run.'))
+        for i, filepath in enumerate(settings.config_paths, 1):
             name = 'config_{}'.format(i)
             path = os.path.join(self.host_working_directory,
                                 name + os.path.splitext(filepath)[1])
@@ -253,12 +253,12 @@ class Executor(object):
     """
     # pylint: disable=R0915
 
-    def __init__(self):
+    def __init__(self, config):
         self.logger = logging.getLogger('Executor')
         self.error_logged = False
         self.warning_logged = False
-        self.config = None
-        self.ext_loader = None
+        self.config = config
+        pluginloader = None
         self.device_manager = None
         self.device = None
         self.context = None
@@ -287,23 +287,18 @@ class Executor(object):
         signal.connect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
         self.logger.info('Initializing')
-        self.ext_loader = ExtensionLoader(packages=settings.extension_packages,
-                                          paths=settings.extension_paths)
 
         self.logger.debug('Loading run configuration.')
-        self.config = RunConfiguration(self.ext_loader)
-        for filepath in settings.get_config_paths():
-            self.config.load_config(filepath)
         self.config.set_agenda(agenda, selectors)
         self.config.finalize()
-        config_outfile = os.path.join(settings.meta_directory, 'run_config.json')
+        config_outfile = os.path.join(self.config.meta_directory, 'run_config.json')
         with open(config_outfile, 'w') as wfh:
             self.config.serialize(wfh)
 
         self.logger.debug('Initialising device configuration.')
         if not self.config.device:
             raise ConfigError('Make sure a device is specified in the config.')
-        self.device_manager = self.ext_loader.get_device_manager(self.config.device, **self.config.device_config)
+        self.device_manager = pluginloader.get_manager(self.config.device, **self.config.device_config)
         self.device_manager.validate()
         self.device = self.device_manager.target
 
@@ -316,20 +311,20 @@ class Executor(object):
 
         self.logger.debug('Installing instrumentation')
         for name, params in self.config.instrumentation.iteritems():
-            instrument = self.ext_loader.get_instrument(name, self.device, **params)
+            instrument = pluginloader.get_instrument(name, self.device, **params)
             instrumentation.install(instrument)
         instrumentation.validate()
 
         self.logger.debug('Installing result processors')
         result_manager = ResultManager()
         for name, params in self.config.result_processors.iteritems():
-            processor = self.ext_loader.get_result_processor(name, **params)
+            processor = pluginloader.get_result_processor(name, **params)
             result_manager.install(processor)
         result_manager.validate()
 
         self.logger.debug('Loading workload specs')
         for workload_spec in self.config.workload_specs:
-            workload_spec.load(self.device, self.ext_loader)
+            workload_spec.load(self.device, pluginloader)
             workload_spec.workload.init_resources(self.context)
             workload_spec.workload.validate()
 

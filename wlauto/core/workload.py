@@ -22,18 +22,18 @@ execution of a workload produces one :class:`wlauto.core.result.WorkloadResult` 
 :class:`wlauto.core.result.Artifact`\s by the workload and active instrumentation.
 
 """
-from wlauto.core.extension import Extension
+from wlauto.core.plugin import Plugin
 from wlauto.exceptions import WorkloadError
 
 
-class Workload(Extension):
+class Workload(Plugin):
     """
     This is the base class for the workloads executed by the framework.
     Each of the methods throwing NotImplementedError *must* be implemented
     by the derived classes.
 
     """
-
+    kind = "workload"
     supported_devices = []
     supported_platforms = []
     summary_metrics = []

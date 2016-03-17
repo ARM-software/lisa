@@ -21,14 +21,15 @@ import os
 import subprocess
 import warnings
 
-from wlauto.core.bootstrap import settings
-from wlauto.core.extension_loader import ExtensionLoader
-from wlauto.exceptions import WAError, ConfigError
+from wlauto.core.config.core import settings
+from wlauto.core import pluginloader
+from wlauto.exceptions import WAError
 from wlauto.utils.misc import get_traceback
 from wlauto.utils.log import init_logging
 from wlauto.utils.cli import init_argument_parser
 from wlauto.utils.doc import format_body
 
+from devlib import DevlibError
 
 warnings.filterwarnings(action='ignore', category=UserWarning, module='zope')
 
@@ -37,9 +38,10 @@ logger = logging.getLogger('command_line')
 
 
 def load_commands(subparsers):
-    ext_loader = ExtensionLoader(paths=settings.extension_paths)
-    for command in ext_loader.list_commands():
-        settings.commands[command.name] = ext_loader.get_command(command.name, subparsers=subparsers)
+    commands = {}
+    for command in pluginloader.list_commands():
+        commands[command.name] = pluginloader.get_command(command.name, subparsers=subparsers)
+    return commands
 
 
 def main():
@@ -52,23 +54,24 @@ def main():
                                          formatter_class=argparse.RawDescriptionHelpFormatter,
                                          )
         init_argument_parser(parser)
-        load_commands(parser.add_subparsers(dest='command'))  # each command will add its own subparser
+        commands = load_commands(parser.add_subparsers(dest='command'))  # each command will add its own subparser
         args = parser.parse_args()
-        settings.verbosity = args.verbose
-        settings.debug = args.debug
+        settings.set("verbosity", args.verbose)
+        settings.load_user_config()
+        #settings.debug = args.debug
         if args.config:
             if not os.path.exists(args.config):
                 raise ConfigError("Config file {} not found".format(args.config))
-            settings.update(args.config)
+            settings.load_config_file(args.config)
         init_logging(settings.verbosity)
 
-        command = settings.commands[args.command]
+        command = commands[args.command]
         sys.exit(command.execute(args))
 
     except KeyboardInterrupt:
         logging.info('Got CTRL-C. Aborting.')
         sys.exit(3)
-    except WAError as e:
+    except (WAError, DevlibError) as e:
         logging.critical(e)
         sys.exit(1)
     except subprocess.CalledProcessError as e:

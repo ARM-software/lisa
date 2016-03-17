@@ -30,7 +30,7 @@ BULLET_CHARS = '-*'
 
 def get_summary(aclass):
     """
-    Returns the summary description for an extension class. The summary is the
+    Returns the summary description for an plugin class. The summary is the
     first paragraph (separated by blank line) of the description taken either from
     the ``descripton`` attribute of the class, or if that is not present, from the
     class' docstring.
@@ -41,7 +41,7 @@ def get_summary(aclass):
 
 def get_description(aclass):
     """
-    Return the description of the specified extension class. The description is taken
+    Return the description of the specified plugin class. The description is taken
     either from ``description`` attribute of the class or its docstring.
 
     """
@@ -291,7 +291,7 @@ def underline(text, symbol='='):
     return '{}\n{}\n\n'.format(text, symbol * len(text))
 
 
-def get_rst_from_extension(ext):
+def get_rst_from_plugin(ext):
     text = underline(ext.name, '-')
     if hasattr(ext, 'description'):
         desc = strip_inlined_text(ext.description or '')

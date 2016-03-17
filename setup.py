@@ -78,6 +78,7 @@ params = dict(
         'pyYAML',  # YAML-formatted agenda parsing
         'requests',  # Fetch assets over HTTP
         'devlib',  # Interacting with devices
+        'louie'  # Handles signal callbacks
     ],
     extras_require={
         'other': ['jinja2', 'pandas>=0.13.1'],

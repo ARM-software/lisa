@@ -42,38 +42,39 @@ class PackageFileGetter(ResourceGetter):
 
     name = 'package_file'
     description = """
-    Looks for exactly one file with the specified extension in the owner's directory. If a version
+    Looks for exactly one file with the specified plugin in the owner's directory. If a version
     is specified on invocation of get, it will filter the discovered file based on that version.
     Versions are treated as case-insensitive.
     """
 
-    extension = None
+    plugin = None
 
     def register(self):
-        self.resolver.register(self, self.extension, GetterPriority.package)
+        self.resolver.register(self, self.plugin, GetterPriority.package)
 
     def get(self, resource, **kwargs):
         resource_dir = os.path.dirname(sys.modules[resource.owner.__module__].__file__)
         version = kwargs.get('version')
-        return get_from_location_by_extension(resource, resource_dir, self.extension, version)
+        return get_from_location_by_plugin(resource, resource_dir, self.plugin, version)
 
 
 class EnvironmentFileGetter(ResourceGetter):
 
     name = 'environment_file'
-    description = """Looks for exactly one file with the specified extension in the owner's directory. If a version
+    description = """Looks for exactly one file with the specified plugin in the owner's directory. If a version
     is specified on invocation of get, it will filter the discovered file based on that version.
     Versions are treated as case-insensitive."""
 
-    extension = None
+    plugin = None
 
     def register(self):
-        self.resolver.register(self, self.extension, GetterPriority.environment)
+        self.resolver.register(self, self.plugin, GetterPriority.environment)
 
     def get(self, resource, **kwargs):
         resource_dir = resource.owner.dependencies_directory
+
         version = kwargs.get('version')
-        return get_from_location_by_extension(resource, resource_dir, self.extension, version)
+        return get_from_location_by_plugin(resource, resource_dir, self.plugin, version)
 
 
 class ReventGetter(ResourceGetter):
@@ -95,12 +96,12 @@ class ReventGetter(ResourceGetter):
 
 class PackageApkGetter(PackageFileGetter):
     name = 'package_apk'
-    extension = 'apk'
+    plugin = 'apk'
 
 
 class PackageJarGetter(PackageFileGetter):
     name = 'package_jar'
-    extension = 'jar'
+    plugin = 'jar'
 
 
 class PackageReventGetter(ReventGetter):
@@ -113,12 +114,12 @@ class PackageReventGetter(ReventGetter):
 
 class EnvironmentApkGetter(EnvironmentFileGetter):
     name = 'environment_apk'
-    extension = 'apk'
+    plugin = 'apk'
 
 
 class EnvironmentJarGetter(EnvironmentFileGetter):
     name = 'environment_jar'
-    extension = 'jar'
+    plugin = 'jar'
 
 
 class EnvironmentReventGetter(ReventGetter):
@@ -254,10 +255,10 @@ class EnvironmentDependencyGetter(ResourceGetter):
             return path
 
 
-class ExtensionAssetGetter(DependencyFileGetter):
+class PluginAssetGetter(DependencyFileGetter):
 
-    name = 'extension_asset'
-    resource_type = 'extension_asset'
+    name = 'plugin_asset'
+    resource_type = 'plugin_asset'
 
 
 class HttpGetter(ResourceGetter):
@@ -266,7 +267,7 @@ class HttpGetter(ResourceGetter):
     description = """
     Downloads resources from a server based on an index fetched from the specified URL.
 
-    Given a URL, this will try to fetch ``<URL>/index.json``. The index file maps extension
+    Given a URL, this will try to fetch ``<URL>/index.json``. The index file maps plugin
     names to a list of corresponing asset descriptons. Each asset description continas a path
     (relative to the base URL) of the resource and a SHA256 hash, so that this Getter can
     verify whether the resource on the remote has changed.
@@ -291,7 +292,7 @@ class HttpGetter(ResourceGetter):
 
     This Getter will look through the list of assets for "foo" (in this case, two) check
     the paths until it finds one matching the resource (in this case, "foo-app.apk").
-    Finally, it will try to dowload that file relative to the base URL and extension name
+    Finally, it will try to dowload that file relative to the base URL and plugin name
     (in this case, "http://example.com/assets/foo/foo-app.apk"). The downloaded version
     will be cached locally, so that in the future, the getter will check the SHA256 hash
     of the local file against the one advertised inside index.json, and provided that hasn't
@@ -374,7 +375,7 @@ class HttpGetter(ResourceGetter):
         if resource.name in ['apk', 'jar']:
             paths = [a['path'] for a in assets]
             version = getattr(resource, 'version', None)
-            found = get_from_list_by_extension(resource, paths, resource.name, version)
+            found = get_from_list_by_plugin(resource, paths, resource.name, version)
             if found:
                 for a in assets:
                     if a['path'] == found:
@@ -415,7 +416,7 @@ class RemoteFilerGetter(ResourceGetter):
         version = kwargs.get('version')
         if resource.owner:
             remote_path = os.path.join(self.remote_path, resource.owner.name)
-            local_path = os.path.join(settings.environment_root, '__filer', resource.owner.dependencies_directory)
+            local_path = os.path.join(settings.user_directory, '__filer', resource.owner.dependencies_directory)
             return self.try_get_resource(resource, version, remote_path, local_path)
         else:
             result = None
@@ -447,7 +448,7 @@ class RemoteFilerGetter(ResourceGetter):
 
     def get_from(self, resource, version, location):  # pylint: disable=no-self-use
         if resource.name in ['apk', 'jar']:
-            return get_from_location_by_extension(resource, location, resource.name, version)
+            return get_from_location_by_plugin(resource, location, resource.name, version)
         elif resource.name == 'file':
             filepath = os.path.join(location, resource.path)
             if os.path.exists(filepath):
@@ -456,7 +457,7 @@ class RemoteFilerGetter(ResourceGetter):
             filename = '.'.join([resource.owner.device.name, resource.stage, 'revent']).lower()
             alternate_location = os.path.join(location, 'revent_files')
             # There tends to be some confusion as to where revent files should
-            # be placed. This looks both in the extension's directory, and in
+            # be placed. This looks both in the plugin's directory, and in
             # 'revent_files' subdirectory under it, if it exists.
             if os.path.isdir(alternate_location):
                 for candidate in os.listdir(alternate_location):
@@ -472,22 +473,22 @@ class RemoteFilerGetter(ResourceGetter):
 
 # Utility functions
 
-def get_from_location_by_extension(resource, location, extension, version=None):
+def get_from_location_by_plugin(resource, location, plugin, version=None):
     try:
         found_files = [os.path.join(location, f) for f in os.listdir(location)]
     except OSError:
         return None
     try:
-        return get_from_list_by_extension(resource, found_files, extension, version)
+        return get_from_list_by_plugin(resource, found_files, plugin, version)
     except ResourceError:
-        raise ResourceError('More than one .{} found in {} for {}.'.format(extension,
+        raise ResourceError('More than one .{} found in {} for {}.'.format(plugin,
                                                                            location,
                                                                            resource.owner.name))
 
 
-def get_from_list_by_extension(resource, filelist, extension, version=None):
+def get_from_list_by_plugin(resource, filelist, plugin, version=None):
     filelist = [ff for ff in filelist
-                if os.path.splitext(ff)[1].lower().endswith(extension)]
+                if os.path.splitext(ff)[1].lower().endswith(plugin)]
     if version:
         filelist = [ff for ff in filelist if version.lower() in os.path.basename(ff).lower()]
     if len(filelist) == 1:
@@ -495,7 +496,7 @@ def get_from_list_by_extension(resource, filelist, extension, version=None):
     elif not filelist:
         return None
     else:
-        raise ResourceError('More than one .{} found in {} for {}.'.format(extension,
+        raise ResourceError('More than one .{} found in {} for {}.'.format(plugin,
                                                                            filelist,
                                                                            resource.owner.name))
 

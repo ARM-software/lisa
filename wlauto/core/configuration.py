@@ -22,6 +22,8 @@ from collections import OrderedDict
 from wlauto.exceptions import ConfigError
 from wlauto.utils.misc import merge_dicts, merge_lists, load_struct_from_file
 from wlauto.utils.types import regex_type, identifier
+from wlauto.core.config.core import settings
+from wlauto.core import pluginloader
 
 
 class SharedConfiguration(object):
@@ -313,6 +315,11 @@ class RunConfigurationItem(object):
 
         return value
 
+    def __str__(self):
+        return "RCI(name: {}, category: {}, method: {})".format(self.name, self.category, self.method)
+
+    __repr__ = __str__
+
 
 def _combine_ids(*args):
     return '_'.join(args)
@@ -334,8 +341,8 @@ class RunConfiguration(object):
     the implementation gets rather complicated. This is going to be a quick overview of
     the underlying mechanics.
 
-    .. note:: You don't need to know this to use WA, or to write extensions for it. From
-              the point of view of extension writers, configuration from various sources
+    .. note:: You don't need to know this to use WA, or to write plugins for it. From
+              the point of view of plugin writers, configuration from various sources
               "magically" appears as attributes of their classes. This explanation peels
               back the curtain and is intended for those who, for one reason or another,
               need to understand how the magic works.
@@ -353,7 +360,7 @@ class RunConfiguration(object):
     config(uration) item
 
         A single configuration entry or "setting", e.g. the device interface to use. These
-        can be for the run as a whole, or for a specific extension.
+        can be for the run as a whole, or for a specific plugin.
 
     (workload) spec
 
@@ -366,7 +373,7 @@ class RunConfiguration(object):
     There are three types of WA configuration:
 
         1. "Meta" configuration that determines how the rest of the configuration is
-           processed (e.g. where extensions get loaded from). Since this does not pertain
+           processed (e.g. where plugins get loaded from). Since this does not pertain
            to *run* configuration, it will not be covered further.
         2. Global run configuration, e.g. which workloads, result processors and instruments
            will be enabled for a run.
@@ -379,16 +386,16 @@ class RunConfiguration(object):
     Run configuration may appear in a config file (usually ``~/.workload_automation/config.py``),
     or in the ``config`` section of an agenda. Configuration is specified as a nested structure
     of dictionaries (associative arrays, or maps) and lists in the syntax following the format
-    implied by the file extension (currently, YAML and Python are supported). If the same
+    implied by the file plugin (currently, YAML and Python are supported). If the same
     configuration item appears in more than one source, they are merged with conflicting entries
     taking the value from the last source that specified them.
 
     In addition to a fixed set of global configuration items, configuration for any WA
-    Extension (instrument, result processor, etc) may also be specified, namespaced under
-    the extension's name (i.e. the extensions name is a key in the global config with value
-    being a dict of parameters and their values). Some Extension parameters also specify a
+    Plugin (instrument, result processor, etc) may also be specified, namespaced under
+    the plugin's name (i.e. the plugins name is a key in the global config with value
+    being a dict of parameters and their values). Some Plugin parameters also specify a
     "global alias" that may appear at the top-level of the config rather than under the
-    Extension's name. It is *not* an error to specify configuration for an Extension that has
+    Plugin's name. It is *not* an error to specify configuration for an Plugin that has
     not been enabled for a particular run; such configuration will be ignored.
 
 
@@ -408,11 +415,11 @@ class RunConfiguration(object):
 
     **Global parameter aliases**
 
-    As mentioned above, an Extension's parameter may define a global alias, which will be
+    As mentioned above, an Plugin's parameter may define a global alias, which will be
     specified and picked up from the top-level config, rather than config for that specific
-    extension. It is an error to specify the value for a parameter both through a global
-    alias and through extension config dict in the same configuration file. It is, however,
-    possible to use a global alias in one file, and specify extension configuration for the
+    plugin. It is an error to specify the value for a parameter both through a global
+    alias and through plugin config dict in the same configuration file. It is, however,
+    possible to use a global alias in one file, and specify plugin configuration for the
     same parameter in another file, in which case, the usual merging rules would apply.
 
     **Loading and validation of configuration**
@@ -425,50 +432,50 @@ class RunConfiguration(object):
       This is done by the loading mechanism (e.g. YAML parser), rather than WA itself. WA
       propagates any errors encountered as ``ConfigError``\ s.
     - Once a config file is loaded into a Python structure, it scanned to
-      extract settings. Static configuration is validated and added to the config. Extension
+      extract settings. Static configuration is validated and added to the config. Plugin
       configuration is collected into a collection of "raw" config, and merged as appropriate, but
       is not processed further at this stage.
     - Once all configuration sources have been processed, the configuration as a whole
       is validated (to make sure there are no missing settings, etc).
-    - Extensions are loaded through the run config object, which instantiates
+    - Plugins are loaded through the run config object, which instantiates
       them with appropriate parameters based on the "raw" config collected earlier. When an
-      Extension is instantiated in such a way, its config is "officially" added to run configuration
+      Plugin is instantiated in such a way, its config is "officially" added to run configuration
       tracked by the run config object. Raw config is discarded at the end of the run, so
       that any config that wasn't loaded in this way is not recoded (as it was not actually used).
-    - Extension parameters a validated individually (for type, value ranges, etc) as they are
-      loaded in the Extension's __init__.
-    - An extension's ``validate()`` method is invoked before it is used (exactly when this
-      happens depends on the extension's type) to perform any final validation *that does not
+    - Plugin parameters a validated individually (for type, value ranges, etc) as they are
+      loaded in the Plugin's __init__.
+    - An plugin's ``validate()`` method is invoked before it is used (exactly when this
+      happens depends on the plugin's type) to perform any final validation *that does not
       rely on the target being present* (i.e. this would happen before WA connects to the target).
-      This can be used perform inter-parameter validation for an extension (e.g. when valid range for
+      This can be used perform inter-parameter validation for an plugin (e.g. when valid range for
       one parameter depends on another), and more general WA state assumptions (e.g. a result
       processor can check that an instrument it depends on has been installed).
-    - Finally, it is the responsibility of individual extensions to validate any assumptions
+    - Finally, it is the responsibility of individual plugins to validate any assumptions
       they make about the target device (usually as part of their ``setup()``).
 
-    **Handling of Extension aliases.**
+    **Handling of Plugin aliases.**
 
-    WA extensions can have zero or more aliases (not to be confused with global aliases for extension
-    *parameters*). An extension allows associating an alternative name for the extension with a set
-    of parameter values. In other words aliases associate common configurations for an extension with
+    WA plugins can have zero or more aliases (not to be confused with global aliases for plugin
+    *parameters*). An plugin allows associating an alternative name for the plugin with a set
+    of parameter values. In other words aliases associate common configurations for an plugin with
     a name, providing a shorthand for it. For example, "t-rex_offscreen" is an alias for "glbenchmark"
     workload that specifies that "use_case" should be "t-rex" and "variant" should be "offscreen".
 
     **special loading rules**
 
-    Note that as a consequence of being able to specify configuration for *any* Extension namespaced
-    under the Extension's name in the top-level config, two distinct mechanisms exist form configuring
+    Note that as a consequence of being able to specify configuration for *any* Plugin namespaced
+    under the Plugin's name in the top-level config, two distinct mechanisms exist form configuring
     devices and workloads. This is valid, however due to their nature, they are handled in a special way.
     This may be counter intuitive, so configuration of devices and workloads creating entries for their
     names in the config is discouraged in favour of using the "normal" mechanisms of configuring them
     (``device_config`` for devices and workload specs in the agenda for workloads).
 
-    In both cases (devices and workloads), "normal" config will always override named extension config
+    In both cases (devices and workloads), "normal" config will always override named plugin config
     *irrespective of which file it was specified in*. So a ``adb_name`` name specified in ``device_config``
     inside ``~/.workload_automation/config.py`` will override ``adb_name`` specified for ``juno`` in the
     agenda (even when device is set to "juno").
 
-    Again, this ignores normal loading rules, so the use of named extension configuration for devices
+    Again, this ignores normal loading rules, so the use of named plugin configuration for devices
     and workloads is discouraged. There maybe some situations where this behaviour is useful however
     (e.g. maintaining configuration for different devices in one config file).
 
@@ -480,6 +487,8 @@ class RunConfiguration(object):
     # This is generic top-level configuration.
     general_config = [
         RunConfigurationItem('run_name', 'scalar', 'replace'),
+        RunConfigurationItem('output_directory', 'scalar', 'replace'),
+        RunConfigurationItem('meta_directory', 'scalar', 'replace'),
         RunConfigurationItem('project', 'scalar', 'replace'),
         RunConfigurationItem('project_stage', 'dict', 'replace'),
         RunConfigurationItem('execution_order', 'scalar', 'replace'),
@@ -507,7 +516,7 @@ class RunConfiguration(object):
 
     # List of names that may be present in configuration (and it is valid for
     # them to be there) but are not handled buy RunConfiguration.
-    ignore_names = ['logging', 'remote_assets_mount_point']
+    ignore_names = WA_CONFIGURATION.keys()
 
     def get_reboot_policy(self):
         if not self._reboot_policy:
@@ -523,13 +532,25 @@ class RunConfiguration(object):
     reboot_policy = property(get_reboot_policy, set_reboot_policy)
 
     @property
+    def meta_directory(self):
+        path = os.path.join(self.output_directory, "__meta")
+        if not os.path.exists(path):
+            os.makedirs(os.path.abspath(path))
+        return path
+
+    @property
+    def log_file(self):
+        path = os.path.join(self.output_directory, "run.log")
+        return os.path.abspath(path)
+
+    @property
     def all_instrumentation(self):
         result = set()
         for spec in self.workload_specs:
             result = result.union(set(spec.instrumentation))
         return result
 
-    def __init__(self, ext_loader):
+    def __init__(self, ext_loader=pluginloader):
         self.ext_loader = ext_loader
         self.device = None
         self.device_config = None
@@ -537,40 +558,42 @@ class RunConfiguration(object):
         self.project = None
         self.project_stage = None
         self.run_name = None
+        self.output_directory = settings.default_output_directory
         self.instrumentation = {}
         self.result_processors = {}
         self.workload_specs = []
         self.flashing_config = {}
-        self.other_config = {}  # keeps track of used config for extensions other than of the four main kinds.
+        self.other_config = {}  # keeps track of used config for plugins other than of the four main kinds.
         self.retry_on_status = status_list(['FAILED', 'PARTIAL'])
         self.max_retries = 3
         self._used_config_items = []
         self._global_instrumentation = []
         self._reboot_policy = None
-        self._agenda = None
+        self.agenda = None
         self._finalized = False
         self._general_config_map = {i.name: i for i in self.general_config}
         self._workload_config_map = {i.name: i for i in self.workload_config}
-        # Config files may contains static configuration for extensions that
+        # Config files may contains static configuration for plugins that
         # would not be part of this of this run (e.g. DB connection settings
         # for a result processor that has not been enabled). Such settings
         # should not be part of configuration for this run (as they will not
         # be affecting it), but we still need to keep track it in case a later
-        # config (e.g. from the agenda) enables the extension.
-        # For this reason, all extension config is first loaded into the
-        # following dict and when an extension is identified as need for the
+        # config (e.g. from the agenda) enables the plugin.
+        # For this reason, all plugin config is first loaded into the
+        # following dict and when an plugin is identified as need for the
         # run, its config is picked up from this "raw" dict and it becomes part
         # of the run configuration.
         self._raw_config = {'instrumentation': [], 'result_processors': []}
 
-    def get_extension(self, ext_name, *args):
+    def get_plugin(self, name=None, kind=None, *args, **kwargs):
         self._check_finalized()
-        self._load_default_config_if_necessary(ext_name)
-        ext_config = self._raw_config[ext_name]
-        ext_cls = self.ext_loader.get_extension_class(ext_name)
+        self._load_default_config_if_necessary(name)
+        ext_config = self._raw_config[name]
+        ext_cls = self.ext_loader.get_plugin_class(name)
         if ext_cls.kind not in ['workload', 'device', 'instrument', 'result_processor']:
-            self.other_config[ext_name] = ext_config
-        return self.ext_loader.get_extension(ext_name, *args, **ext_config)
+            self.other_config[name] = ext_config
+        ext_config.update(kwargs)
+        return self.ext_loader.get_plugin(name=name, *args, **ext_config)
 
     def to_dict(self):
         d = copy(self.__dict__)
@@ -584,8 +607,8 @@ class RunConfiguration(object):
     def load_config(self, source):
         """Load configuration from the specified source. The source must be
         either a path to a valid config file or a dict-like object. Currently,
-        config files can be either python modules (.py extension) or YAML documents
-        (.yaml extension)."""
+        config files can be either python modules (.py plugin) or YAML documents
+        (.yaml plugin)."""
         if self._finalized:
             raise ValueError('Attempting to load a config file after run configuration has been finalized.')
         try:
@@ -597,15 +620,15 @@ class RunConfiguration(object):
 
     def set_agenda(self, agenda, selectors=None):
         """Set the agenda for this run; Unlike with config files, there can only be one agenda."""
-        if self._agenda:
+        if self.agenda:
             # note: this also guards against loading an agenda after finalized() has been called,
             #       as that would have required an agenda to be set.
             message = 'Attempting to set a second agenda {};\n\talready have agenda {} set'
-            raise ValueError(message.format(agenda.filepath, self._agenda.filepath))
+            raise ValueError(message.format(agenda.filepath, self.agenda.filepath))
         try:
             self._merge_config(agenda.config or {})
             self._load_specs_from_agenda(agenda, selectors)
-            self._agenda = agenda
+            self.agenda = agenda
         except ConfigError as e:
             message = 'Error in {}:\n\t{}'
             raise ConfigError(message.format(agenda.filepath, e.message))
@@ -616,7 +639,7 @@ class RunConfiguration(object):
         for the run And making sure that all the mandatory config has been specified."""
         if self._finalized:
             return
-        if not self._agenda:
+        if not self.agenda:
             raise ValueError('Attempting to finalize run configuration before an agenda is loaded.')
         self._finalize_config_list('instrumentation')
         self._finalize_config_list('result_processors')
@@ -653,8 +676,8 @@ class RunConfiguration(object):
                 self._resolve_global_alias(k, v)
             elif k in self._general_config_map:
                 self._set_run_config_item(k, v)
-            elif self.ext_loader.has_extension(k):
-                self._set_extension_config(k, v)
+            elif self.ext_loader.has_plugin(k):
+                self._set_plugin_config(k, v)
             elif k == 'device_config':
                 self._set_raw_dict(k, v)
             elif k in ['instrumentation', 'result_processors']:
@@ -683,7 +706,7 @@ class RunConfiguration(object):
         combined_value = item.combine(getattr(self, name, None), value)
         setattr(self, name, combined_value)
 
-    def _set_extension_config(self, name, value):
+    def _set_plugin_config(self, name, value):
         default_config = self.ext_loader.get_default_config(name)
         self._set_raw_dict(name, value, default_config)
 

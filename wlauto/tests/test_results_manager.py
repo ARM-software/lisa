@@ -126,5 +126,5 @@ class ResultManagerTest(TestCase):
 
 
 def _instantiate(cls):
-    # Needed to get around Extension's __init__ checks
+    # Needed to get around Plugin's __init__ checks
     return cls()

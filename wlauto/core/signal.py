@@ -19,7 +19,15 @@ This module wraps louie signalling mechanism. It relies on modified version of l
 that has prioritization added to handler invocation.
 
 """
-from louie import dispatcher  # pylint: disable=F0401
+import logging
+from contextlib import contextmanager
+
+from louie import dispatcher
+
+from wlauto.utils.types import prioritylist
+
+
+logger = logging.getLogger('dispatcher')
 
 
 class Signal(object):
@@ -30,7 +38,7 @@ class Signal(object):
 
     """
 
-    def __init__(self, name, invert_priority=False):
+    def __init__(self, name, description='no description', invert_priority=False):
         """
         Instantiates a Signal.
 
@@ -44,6 +52,7 @@ class Signal(object):
                                     priorities will be called right after the event has occured.
         """
         self.name = name
+        self.description = description
         self.invert_priority = invert_priority
 
     def __str__(self):
@@ -116,6 +125,32 @@ ERROR_LOGGED = Signal('error_logged')
 WARNING_LOGGED = Signal('warning_logged')
 
 
+class CallbackPriority(object):
+
+    EXTREMELY_HIGH = 30
+    VERY_HIGH = 20
+    HIGH = 10
+    NORMAL = 0
+    LOW = -10
+    VERY_LOW = -20
+    EXTREMELY_LOW = -30
+
+    def __init__(self):
+        raise ValueError('Cannot instantiate')
+
+
+class _prioritylist_wrapper(prioritylist):
+    """
+    This adds a NOP append() method so that when louie invokes it to add the
+    handler to receivers, nothing will happen; the handler is actually added inside
+    the connect() below according to priority, before louie's connect() gets invoked.
+
+    """
+
+    def append(self, *args, **kwargs):
+        pass
+
+
 def connect(handler, signal, sender=dispatcher.Any, priority=0):
     """
     Connects a callback to a signal, so that the callback will be automatically invoked
@@ -124,10 +159,10 @@ def connect(handler, signal, sender=dispatcher.Any, priority=0):
     Parameters:
 
         :handler: This can be any callable that that takes the right arguments for
-                  the signal. For most siginals this means a single argument that
-                  will be an ``ExecutionContext`` instance. But please see documentaion
+                  the signal. For most signals this means a single argument that
+                  will be an ``ExecutionContext`` instance. But please see documentation
                   for individual signals in the :ref:`signals reference <instrumentation_method_map>`.
-        :signal: The signal to which the hanlder will be subscribed. Please see
+        :signal: The signal to which the handler will be subscribed. Please see
                  :ref:`signals reference <instrumentation_method_map>` for the list of standard WA
                  signals.
 
@@ -137,7 +172,7 @@ def connect(handler, signal, sender=dispatcher.Any, priority=0):
 
         :sender: The handler will be invoked only for the signals emitted by this sender. By
                  default, this is set to :class:`louie.dispatcher.Any`, so the handler will
-                 be invoked for signals from any sentder.
+                 be invoked for signals from any sender.
         :priority: An integer (positive or negative) the specifies the priority of the handler.
                    Handlers with higher priority will be called before handlers with lower
                    priority. The  call order of handlers with the same priority is not specified.
@@ -148,10 +183,19 @@ def connect(handler, signal, sender=dispatcher.Any, priority=0):
                              for details.
 
     """
-    if signal.invert_priority:
-        dispatcher.connect(handler, signal, sender, priority=-priority)  # pylint: disable=E1123
+    if getattr(signal, 'invert_priority', False):
+        priority = -priority
+    senderkey = id(sender)
+    if senderkey in dispatcher.connections:
+        signals = dispatcher.connections[senderkey]
     else:
-        dispatcher.connect(handler, signal, sender, priority=priority)  # pylint: disable=E1123
+        dispatcher.connections[senderkey] = signals = {}
+    if signal in signals:
+        receivers = signals[signal]
+    else:
+        receivers = signals[signal] = _prioritylist_wrapper()
+    receivers.add(handler, priority)
+    dispatcher.connect(handler, signal, sender)
 
 
 def disconnect(handler, signal, sender=dispatcher.Any):
@@ -171,7 +215,7 @@ def disconnect(handler, signal, sender=dispatcher.Any):
     dispatcher.disconnect(handler, signal, sender)
 
 
-def send(signal, sender, *args, **kwargs):
+def send(signal, sender=dispatcher.Anonymous, *args, **kwargs):
     """
     Sends a signal, causing connected handlers to be invoked.
 
@@ -185,5 +229,44 @@ def send(signal, sender, *args, **kwargs):
         The rest of the parameters will be passed on as aruments to the handler.
 
     """
-    dispatcher.send(signal, sender, *args, **kwargs)
+    return dispatcher.send(signal, sender, *args, **kwargs)
 
+
+# This will normally be set to log_error() by init_logging(); see wa.framework/log.py.
+# Done this way to prevent a circular import dependency.
+log_error_func = logger.error
+
+
+def safe_send(signal, sender=dispatcher.Anonymous,
+              propagate=[KeyboardInterrupt], *args, **kwargs):
+    """
+    Same as ``send``, except this will catch and log all exceptions raised
+    by handlers, except those specified in ``propagate`` argument (defaults
+    to just ``[KeyboardInterrupt]``).
+    """
+    try:
+        send(singnal, sender, *args, **kwargs)
+    except Exception as e:
+        if any(isinstance(e, p) for p in propagate):
+            raise e
+        log_error_func(e)
+
+
+@contextmanager
+def wrap(signal_name, sender=dispatcher.Anonymous, safe=False, *args, **kwargs):
+    """Wraps the suite in before/after signals, ensuring
+    that after signal is always sent."""
+    signal_name = signal_name.upper().replace('-', '_')
+    send_func = safe_send if safe else send
+    try:
+        before_signal = globals()['BEFORE_' + signal_name]
+        success_signal = globals()['SUCCESSFUL_' + signal_name]
+        after_signal = globals()['AFTER_' + signal_name]
+    except KeyError:
+        raise ValueError('Invalid wrapped signal name: {}'.format(signal_name))
+    try:
+        send_func(before_signal, sender, *args, **kwargs)
+        yield
+        send_func(success_signal, sender, *args, **kwargs)
+    finally:
+        send_func(after_signal, sender, *args, **kwargs)
