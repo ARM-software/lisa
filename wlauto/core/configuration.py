@@ -678,21 +678,6 @@ class SharedConfiguration(object):
         self.instrumentation = []
 
 
-class ConfigurationJSONEncoder(json.JSONEncoder):
-
-    def default(self, obj):  # pylint: disable=E0202
-        if isinstance(obj, WorkloadRunSpec):
-            return obj.to_dict()
-        elif isinstance(obj, RunConfiguration):
-            return obj.to_dict()
-        elif isinstance(obj, RebootPolicy):
-            return obj.policy
-        elif isinstance(obj, regex_type):
-            return obj.pattern
-        else:
-            return json.JSONEncoder.default(self, obj)
-
-
 class WorkloadRunSpec(object):
     """
     Specifies execution of a workload, including things like the number of
@@ -793,11 +778,27 @@ class WorkloadRunSpec(object):
         This must be done before attempting to execute the spec."""
         self._workload = ext_loader.get_workload(self.workload_name, device, **self.workload_parameters)
 
-    def to_dict(self):
+    def to_pod(self):
         d = copy(self.__dict__)
         del d['_workload']
         del d['_section']
         return d
+
+    @staticmethod
+    def from_pod(pod):
+        instance = WorkloadRunSpec(id=pod['id'],  # pylint: disable=W0622
+                                   number_of_iterations=pod['number_of_iterations'],
+                                   workload_name=pod['workload_name'],
+                                   boot_parameters=pod['boot_parameters'],
+                                   label=pod['label'],
+                                   section_id=pod['section_id'],
+                                   workload_parameters=pod['workload_parameters'],
+                                   runtime_parameters=pod['runtime_parameters'],
+                                   instrumentation=pod['instrumentation'],
+                                   flash=pod['flash'],
+                                   classifiers=pod['classifiers'],
+                                   )
+        return instance
 
     def copy(self):
         other = WorkloadRunSpec()
@@ -1298,9 +1299,6 @@ class RunConfiguration(object):
             spec.validate()
         self._finalized = True
 
-    def serialize(self, wfh):
-        json.dump(self, wfh, cls=ConfigurationJSONEncoder, indent=4)
-
     def _merge_config(self, config):
         """
         Merge the settings specified by the ``config`` dict-like object into current
@@ -1435,6 +1433,49 @@ class RunConfiguration(object):
         if not self._finalized:
             raise ValueError('Attempting to access configuration before it has been finalized.')
 
+    @staticmethod
+    def from_pod(pod, ext_loader=pluginloader):
+        instance = RunConfiguration
+        self.device = pod['device']
+        self.execution_order = pod['execution_order']
+        self.project = pod['project']
+        self.project_stage = pod['project_stage']
+        self.run_name = pod['run_name']
+        self.max_retries = pod['max_retries']
+        self._reboot_policy.policy = RebootPolicy.from_pod(pod['_reboot_policy'])
+        self.output_directory = pod['output_directory']
+        self.device_config = pod['device_config']
+        self.instrumentation = pod['instrumentation']
+        self.result_processors = pod['result_processors']
+        self.workload_specs = [WorkloadRunSpec.from_pod(pod) for pod in pod['workload_specs']]
+        self.flashing_config = pod['flashing_config']
+        self.other_config = pod['other_config']
+        self.retry_on_status = pod['retry_on_status']
+        self._used_config_items = pod['_used_config_items']
+        self._global_instrumentation = pod['_global_instrumentation']
+
+    def to_pod(self):
+        if not self._finalized:
+            raise Exception("Cannot use `to_pod` until the config is finalis")
+        pod = {}
+        pod['device'] = self.device
+        pod['execution_order'] = self.execution_order
+        pod['project'] = self.project
+        pod['project_stage'] = self.project_stage
+        pod['run_name'] = self.run_name
+        pod['max_retries'] = self.max_retries
+        pod['_reboot_policy'] = self._reboot_policy.to_pod()
+        pod['output_directory'] = os.path.abspath(self.output_directory)
+        pod['device_config'] = self.device_config
+        pod['instrumentation'] = self.instrumentation
+        pod['result_processors'] = self.result_processors
+        pod['workload_specs'] = [w.to_pod() for w in self.workload_specs]
+        pod['flashing_config'] = self.flashing_config
+        pod['other_config'] = self.other_config
+        pod['retry_on_status'] = self.retry_on_status
+        pod['_used_config_items'] = self._used_config_items
+        pod['_global_instrumentation'] = self._global_instrumentation
+        return pod
 
 def _load_raw_struct(source):
     """Load a raw dict config structure from the specified source."""

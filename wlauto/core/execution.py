@@ -57,7 +57,7 @@ from wlauto.core.result import ResultManager, IterationResult, RunResult
 from wlauto.exceptions import (WAError, ConfigError, TimeoutError, InstrumentError,
                                DeviceError, DeviceNotRespondingError)
 from wlauto.utils.misc import ensure_directory_exists as _d, get_traceback, merge_dicts, format_duration
-
+from wlauto.utils.serializer import json
 
 # The maximum number of reboot attempts for an iteration.
 MAX_REBOOT_ATTEMPTS = 3
@@ -292,7 +292,7 @@ class Executor(object):
         self.config.finalize()
         config_outfile = os.path.join(self.config.meta_directory, 'run_config.json')
         with open(config_outfile, 'w') as wfh:
-            self.config.serialize(wfh)
+            json.dump(self.config, wfh)
 
         self.logger.debug('Initialising device configuration.')
         if not self.config.device:
