@@ -159,13 +159,13 @@ class ExecutionContext(object):
         self.job_iteration_counts = defaultdict(int)
         self.aborted = False
         self.runner = None
-        if config.agenda:
-             self.run_artifacts.append(Artifact('agenda',
-                                                os.path.join(self.host_working_directory,
-                                                             os.path.basename(config.agenda.filepath)),
-                                                'meta',
-                                                mandatory=True,
-                                                description='Agenda for this run.'))
+        if config.agenda.filepath:
+            self.run_artifacts.append(Artifact('agenda',
+                                               os.path.join(self.host_working_directory,
+                                                            os.path.basename(config.agenda.filepath)),
+                                               'meta',
+                                               mandatory=True,
+                                               description='Agenda for this run.'))
         for i, filepath in enumerate(settings.config_paths, 1):
             name = 'config_{}'.format(i)
             path = os.path.join(self.host_working_directory,
