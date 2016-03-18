@@ -33,55 +33,7 @@ from bisect import insort
 from collections import defaultdict
 
 from wlauto.utils.misc import isiterable, to_identifier
-
-
-def identifier(text):
-    """Converts text to a valid Python identifier by replacing all
-    whitespace and punctuation."""
-    return to_identifier(text)
-
-
-def boolean(value):
-    """
-    Returns bool represented by the value. This is different from
-    calling the builtin bool() in that it will interpret string representations.
-    e.g. boolean('0') and boolean('false') will both yield False.
-
-    """
-    false_strings = ['', '0', 'n', 'no', 'off']
-    if isinstance(value, basestring):
-        value = value.lower()
-        if value in false_strings or 'false'.startswith(value):
-            return False
-    return bool(value)
-
-
-def integer(value):
-    """Handles conversions for string respresentations of binary, octal and hex."""
-    if isinstance(value, basestring):
-        return int(value, 0)
-    else:
-        return int(value)
-
-
-def numeric(value):
-    """
-    Returns the value as number (int if possible, or float otherwise), or
-    raises ``ValueError`` if the specified ``value`` does not have a straight
-    forward numeric conversion.
-
-    """
-    if isinstance(value, int):
-        return value
-    try:
-        fvalue = float(value)
-    except ValueError:
-        raise ValueError('Not numeric: {}'.format(value))
-    if not math.isnan(fvalue) and not math.isinf(fvalue):
-        ivalue = int(fvalue)
-        if ivalue == fvalue:  # yeah, yeah, I know. Whatever. This is best-effort.
-            return ivalue
-    return fvalue
+from devlib.utils.types import identifier, boolean, integer, numeric, caseless_string
 
 
 def list_of_strs(value):
@@ -249,30 +201,6 @@ def counter(name=None):
     __counters[name] += 1
     value = __counters[name]
     return value
-
-
-class caseless_string(str):
-    """
-    Just like built-in Python string except case-insensitive on comparisons. However, the
-    case is preserved otherwise.
-
-    """
-
-    def __eq__(self, other):
-        if isinstance(other, basestring):
-            other = other.lower()
-        return self.lower() == other
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __cmp__(self, other):
-        if isinstance(basestring, other):
-            other = other.lower()
-        return cmp(self.lower(), other)
-
-    def format(self, *args, **kwargs):
-        return caseless_string(super(caseless_string, self).format(*args, **kwargs))
 
 
 class arguments(list):
