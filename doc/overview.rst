@@ -32,7 +32,7 @@ instantiating each of the three target types.
    # For a Linux device, you will need to provide the normal SSH credentials.
    # Both password-based, and key-based authentication is supported (password
    # authentication requires sshpass to be installed on your host machine).'
-   t2 = LinuxTarget(connetion_settings={'host': '192.168.0.5',
+   t2 = LinuxTarget(connection_settings={'host': '192.168.0.5',
                                         'username': 'root',
                                         'password': 'sekrit',
                                         # or
@@ -57,7 +57,7 @@ Target Interface
 ----------------
 
 This is a quick overview of the basic interface to the device. See
-:class:`Targeet` API documentation for the full list of supported methods and
+:class:`Target` API documentation for the full list of supported methods and
 more detailed documentation.
 
 One-time Setup
