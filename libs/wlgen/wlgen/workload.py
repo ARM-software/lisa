@@ -226,7 +226,7 @@ class Workload(object):
         # Start task in background if required
         if background:
             logging.debug('%14s - WlGen [background]: %s', 'WlGen', self.command)
-            self.target.background(self.command, as_root=as_root)
+            self.target.kick_off(self.command, as_root=as_root)
             self.output['executor'] = ''
 
         # Start task in foreground
