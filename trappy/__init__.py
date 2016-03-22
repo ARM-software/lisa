@@ -19,6 +19,7 @@ import warnings
 from trappy.bare_trace import BareTrace
 from trappy.compare_runs import summary_plots, compare_runs
 from trappy.ftrace import FTrace
+from trappy.systrace import SysTrace
 try:
     from trappy.plotter.LinePlot import LinePlot
 except ImportError as exc:

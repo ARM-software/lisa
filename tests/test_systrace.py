@@ -1,0 +1,40 @@
+#    Copyright 2016 ARM Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+import utils_tests
+
+import trappy
+
+class TestSystrace(utils_tests.SetupDirectory):
+
+    def __init__(self, *args, **kwargs):
+        super(TestSystrace, self).__init__(
+             [("trace_systrace.html", "trace.html")],
+             *args,
+             **kwargs)
+
+    def test_systrace_html(self):
+        """Tests parsing of a systrace embedded textual trace """
+
+        events = ["sched_switch", "sched_wakeup", "trace_event_clock_sync"]
+        trace = trappy.SysTrace("trace.html", events=events)
+
+        self.assertTrue(hasattr(trace, "sched_wakeup"))
+        self.assertEquals(len(trace.sched_wakeup.data_frame), 4)
+        self.assertTrue("target_cpu" in trace.sched_wakeup.data_frame.columns)
+
+        self.assertTrue(hasattr(trace, "trace_event_clock_sync"))
+        self.assertEquals(len(trace.trace_event_clock_sync.data_frame), 1)
+        self.assertTrue("realtime_ts" in trace.trace_event_clock_sync.data_frame.columns)

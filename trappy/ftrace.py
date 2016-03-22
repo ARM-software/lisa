@@ -45,7 +45,7 @@ def _plot_freq_hists(allfreqs, what, axis, title):
 
 class GenericFTrace(BareTrace):
     """Generic class to parse output of FTrace.  This class is meant to be
-subclassed by FTrace (for parsing FTrace coming from trace-cmd)."""
+subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
     thermal_classes = {}
 
