@@ -17,7 +17,7 @@
 # pylint can't see any of the dynamically allocated classes of FTrace
 # pylint: disable=no-member
 
-from itertools import ifilter
+import itertools
 import os
 import re
 import pandas as pd
@@ -170,7 +170,11 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd)."""
         special_fields_regexp = re.compile(special_fields_regexp)
         start_match = re.compile(r"[A-Za-z0-9_]+=")
 
-        for line in ifilter(contains_unique_word, fin):
+        actual_trace = itertools.dropwhile(self.trace_hasnt_started(), fin)
+        actual_trace = itertools.takewhile(self.trace_hasnt_finished(),
+                                           actual_trace)
+
+        for line in itertools.ifilter(contains_unique_word, actual_trace):
             for unique_word, cls in cls_for_unique_word.iteritems():
                 if unique_word in line:
                     trace_class = cls
@@ -208,6 +212,37 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd)."""
             data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
 
             trace_class.append_data(timestamp, comm, pid, cpu, data_str)
+
+    def trace_hasnt_started(self):
+        """Return a function that accepts a line and returns true if this line
+is not part of the trace.
+
+        Subclasses of GenericFTrace may override this to skip the
+        beginning of a file that is not part of the trace.  The first
+        time the returned function returns False it will be considered
+        the beginning of the trace and this function will never be
+        called again (because once it returns False, the trace has
+        started).
+
+        """
+        return lambda x: False
+
+    def trace_hasnt_finished(self):
+        """Return a function that accepts a line and returns true if this line
+is part of the trace.
+
+        This function is called with each line of the file *after*
+        trace_hasnt_started() returns True so the first line it sees
+        is part of the trace.  The returned function should return
+        True as long as the line it receives is part of the trace.  As
+        soon as this function returns False, the rest of the file will
+        be dropped.  Subclasses of GenericFTrace may override this to
+        stop processing after the end of the trace is found to skip
+        parsing the end of the file if it contains anything other than
+        trace.
+
+        """
+        return lambda x: True
 
     def __parse_trace_file(self, trace_file, window, abs_window, raw=False):
         """parse the trace and create a pandas DataFrame"""
