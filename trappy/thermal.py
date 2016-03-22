@@ -21,7 +21,7 @@ import pandas as pd
 import re
 
 from trappy.base import Base
-from trappy.ftrace import FTrace
+from trappy.dynamic import register_ftrace_parser
 
 class Thermal(Base):
     """Process the thermal framework data in a FTrace dump"""
@@ -103,7 +103,7 @@ class Thermal(Base):
 
         plot_hist(temps, ax, title, "C", 30, "Temperature", xlim, "default")
 
-FTrace.register_parser(Thermal, "thermal")
+register_ftrace_parser(Thermal, "thermal")
 
 class ThermalGovernor(Base):
     """Process the power allocator data in a ftrace dump"""
@@ -295,4 +295,4 @@ class ThermalGovernor(Base):
             this_title = normalize_title(actor, title)
             dfr[cols].plot(title=this_title)
 
-FTrace.register_parser(ThermalGovernor, "thermal")
+register_ftrace_parser(ThermalGovernor, "thermal")

@@ -20,7 +20,7 @@ directory's trace.dat"""
 import pandas as pd
 
 from trappy.base import Base
-from trappy.ftrace import FTrace
+from trappy.dynamic import register_ftrace_parser
 
 
 class DevfreqInPower(Base):
@@ -46,7 +46,7 @@ FTrace dump"""
 
         return pd.DataFrame(self.data_frame["freq"] / 1000000)
 
-FTrace.register_parser(DevfreqInPower, "thermal")
+register_ftrace_parser(DevfreqInPower, "thermal")
 
 
 class DevfreqOutPower(Base):
@@ -72,4 +72,4 @@ ftrace dump"""
 
         return pd.DataFrame(self.data_frame["freq"] / 1000000)
 
-FTrace.register_parser(DevfreqOutPower, "thermal")
+register_ftrace_parser(DevfreqOutPower, "thermal")

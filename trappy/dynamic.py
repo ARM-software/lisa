@@ -120,7 +120,7 @@ def register_dynamic_ftrace(class_name, unique_word, scope="all",
     return dyn_class
 
 
-def register_ftrace_parser(cls):
+def register_ftrace_parser(cls, scope="all"):
     """Register a new FTrace parser class implementation
 
     Should be used when the class has complex helper methods and does
@@ -129,10 +129,16 @@ def register_ftrace_parser(cls):
     :param cls: The class to be registered for
         enabling the parsing of an event in trace
     :type cls: :mod:`trappy.base.Base`
+
+    :param scope: scope of this parser class.  The scope can be used
+        to restrict the parsing done on an individual file.  Currently
+        the only scopes available are "sched", "thermal" or "all"
+    :type scope: string
+
     """
 
     # Check the argspec of the class
-    FTrace.register_parser(cls)
+    FTrace.register_parser(cls, scope)
 
 def unregister_ftrace_parser(ftrace_parser):
     """Unregister an ftrace parser

@@ -205,7 +205,7 @@ class FTrace(BareTrace):
             fout.write(raw_out)
 
     @classmethod
-    def register_parser(cls, cobject, scope="all"):
+    def register_parser(cls, cobject, scope):
         """Register the class as an Event. This function
         can be used to register a class which is associated
         with an FTrace unique word.
