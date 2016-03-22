@@ -43,63 +43,9 @@ def _plot_freq_hists(allfreqs, what, axis, title):
         trappy.plot_utils.plot_hist(allfreqs[actor], ax, this_title, "KHz", 20,
                              "Frequency", xlim, "default")
 
-class FTrace(BareTrace):
-    """A wrapper class that initializes all the classes of a given run
-
-    - The FTrace class can receive the following optional parameters.
-
-    :param path: Path contains the path to the trace file.  If no path is given, it
-        uses the current directory by default.  If path is a file, and ends in
-        .dat, it's run through "trace-cmd report".  If it doesn't end in
-        ".dat", then it must be the output of a trace-cmd report run.  If path
-        is a directory that contains a trace.txt, that is assumed to be the
-        output of "trace-cmd report".  If path is a directory that doesn't
-        have a trace.txt but has a trace.dat, it runs trace-cmd report on the
-        trace.dat, saves it in trace.txt and then uses that.
-
-    :param name: is a string describing the trace.
-
-    :param normalize_time: is used to make all traces start from time 0 (the
-        default).  If normalize_time is False, the trace times are the same as
-        in the trace file.
-
-    :param scope: can be used to limit the parsing done on the trace.  The default
-        scope parses all the traces known to trappy.  If scope is thermal, only
-        the thermal classes are parsed.  If scope is sched, only the sched
-        classes are parsed.
-
-    :param events: A list of strings containing the name of the trace
-        events that you want to include in this FTrace object.  The
-        string must correspond to the event name (what you would pass
-        to "trace-cmd -e", i.e. 4th field in trace.txt)
-
-    :param window: a tuple indicating a time window.  The first
-        element in the tuple is the start timestamp and the second one
-        the end timestamp.  Timestamps are relative to the first trace
-        event that's parsed.  If you want to trace until the end of
-        the trace, set the second element to None.  If you want to use
-        timestamps extracted from the trace file use "abs_window".
-
-    :param abs_window: a tuple indicating an absolute time window.
-        This parameter is similar to the "window" one but its values
-        represent timestamps that are not normalized, (i.e. the ones
-        you find in the trace file)
-
-    :type path: str
-    :type name: str
-    :type normalize_time: bool
-    :type scope: str
-    :type events: list
-    :type window: tuple
-    :type abs_window: tuple
-
-    This is a simple example:
-    ::
-
-        import trappy
-        trappy.FTrace("trace_dir")
-
-    """
+class GenericFTrace(BareTrace):
+    """Generic class to parse output of FTrace.  This class is meant to be
+subclassed by FTrace (for parsing FTrace coming from trace-cmd)."""
 
     thermal_classes = {}
 
@@ -107,13 +53,14 @@ class FTrace(BareTrace):
 
     dynamic_classes = {}
 
-    def __init__(self, path=".", name="", normalize_time=True, scope="all",
+    def __init__(self, name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
-        super(FTrace, self).__init__(name)
+        super(GenericFTrace, self).__init__(name)
 
-        self.trace_path, self.trace_path_raw = self.__process_path(path)
+        if not hasattr(self, "needs_raw_parsing"):
+            self.needs_raw_parsing = False
+
         self.class_definitions.update(self.dynamic_classes.items())
-
         self.__add_events(listify(events))
 
         if scope == "thermal":
@@ -129,80 +76,14 @@ class FTrace(BareTrace):
             setattr(self, attr, trace_class)
             self.trace_classes.append(trace_class)
 
-        self.__parse_trace_file(window, abs_window)
-        self.__parse_trace_file(window, abs_window, raw=True)
+        self.__parse_trace_file(self.trace_path, window, abs_window)
+        if self.needs_raw_parsing and (self.trace_path_raw is not None):
+            self.__parse_trace_file(self.trace_path_raw, window, abs_window,
+                                    raw=True)
         self.finalize_objects()
 
         if normalize_time:
             self.normalize_time()
-
-    def __process_path(self, basepath):
-        """Process the path and return the path to the trace text file"""
-
-        if os.path.isfile(basepath):
-            trace_name = os.path.splitext(basepath)[0]
-        else:
-            trace_name = os.path.join(basepath, "trace")
-
-        trace_txt = trace_name + ".txt"
-        trace_raw = trace_name + ".raw.txt"
-        trace_dat = trace_name + ".dat"
-
-        if os.path.isfile(trace_dat):
-            # Both TXT and RAW traces must always be generated
-            if not os.path.isfile(trace_txt) or \
-               not os.path.isfile(trace_raw):
-                self.__run_trace_cmd_report(trace_dat)
-            # TXT (and RAW) traces must match the most recent binary trace
-            elif os.path.getmtime(trace_txt) < os.path.getmtime(trace_dat):
-                self.__run_trace_cmd_report(trace_dat)
-
-        if not os.path.isfile(trace_raw):
-            trace_raw = None
-
-        return trace_txt, trace_raw
-
-    def __run_trace_cmd_report(self, fname):
-        """Run "trace-cmd report fname > fname.txt"
-           and "trace-cmd report -R fname > fname.raw.txt"
-
-        The resulting traces are stored in files with extension ".txt"
-        and ".raw.txt" respectively.  If fname is "my_trace.dat", the
-        trace is stored in "my_trace.txt" and "my_trace.raw.txt".  The
-        contents of the destination files are overwritten if they
-        exist.
-
-        """
-        from subprocess import check_output
-
-        cmd = ["trace-cmd", "report"]
-
-        if not os.path.isfile(fname):
-            raise IOError("No such file or directory: {}".format(fname))
-
-        raw_trace_output = os.path.splitext(fname)[0] + ".raw.txt"
-        trace_output = os.path.splitext(fname)[0] + ".txt"
-        cmd.append(fname)
-
-        with open(os.devnull) as devnull:
-            try:
-                out = check_output(cmd, stderr=devnull)
-            except OSError as exc:
-                if exc.errno == 2 and not exc.filename:
-                    raise OSError(2, "trace-cmd not found in PATH, is it installed?")
-                else:
-                    raise
-
-            # Add the -R flag to the trace-cmd
-            # for raw parsing
-            cmd.insert(-1, "-R")
-            raw_out = check_output(cmd, stderr=devnull)
-
-        with open(trace_output, "w") as fout:
-            fout.write(out)
-
-        with open(raw_trace_output, "w") as fout:
-            fout.write(raw_out)
 
     @classmethod
     def register_parser(cls, cobject, scope):
@@ -275,33 +156,6 @@ class FTrace(BareTrace):
                 trace_class = DynamicTypeFactory(event_name, (Base,), kwords)
                 self.class_definitions[event_name] = trace_class
 
-    def __populate_metadata(self, trace_fh):
-        """Populates trace metadata"""
-
-        # Meta Data as expected to be found in the parsed trace header
-        metadata_keys = ["version", "cpus"]
-
-        for key in metadata_keys:
-            setattr(self, "_" + key, None)
-
-        while metadata_keys:
-            line = trace_fh.readline()
-
-            #The trace has been exhausted
-            if not line:
-                return
-
-            metadata_pattern = r"^\b(" + "|".join(metadata_keys) + \
-                               r")\b\s*=\s*([0-9]+)"
-            match = re.search(metadata_pattern, line)
-            if match:
-                setattr(self, "_" + match.group(1), match.group(2))
-                metadata_keys.remove(match.group(1))
-
-            if re.search(r"^\s+[^\[]+-\d+\s+\[\d+\]\s+\d+\.\d+:", line):
-                # Reached a valid trace line, abort metadata population
-                return
-
     def __populate_data(self, fin, cls_for_unique_word, window, abs_window):
         """Append to trace data from a txt trace"""
 
@@ -353,7 +207,7 @@ class FTrace(BareTrace):
 
             trace_class.append_data(timestamp, comm, pid, cpu, data_str)
 
-    def __parse_trace_file(self, window, abs_window, raw=False):
+    def __parse_trace_file(self, trace_file, window, abs_window, raw=False):
         """parse the trace and create a pandas DataFrame"""
 
         # Memoize the unique words to speed up parsing the trace file
@@ -361,7 +215,7 @@ class FTrace(BareTrace):
         for trace_name in self.class_definitions.iterkeys():
             trace_class = getattr(self, trace_name)
 
-            if trace_class.parse_raw != raw:
+            if self.needs_raw_parsing and (trace_class.parse_raw != raw):
                 continue
 
             unique_word = trace_class.unique_word
@@ -370,20 +224,7 @@ class FTrace(BareTrace):
         if len(cls_for_unique_word) == 0:
             return
 
-        if raw:
-            if self.trace_path_raw != None:
-                trace_file = self.trace_path_raw
-            else:
-                return
-        else:
-            trace_file = self.trace_path
-
         with open(trace_file) as fin:
-            self.__populate_metadata(fin)
-
-            # Rewind the file
-            fin.seek(0)
-
             self.__populate_data(fin, cls_for_unique_word, window, abs_window)
 
     # TODO: Move thermal specific functionality
@@ -538,3 +379,164 @@ class FTrace(BareTrace):
 
             dfr.plot(ax=this_ax)
             trappy.plot_utils.post_plot_setup(this_ax, title=this_title)
+
+class FTrace(GenericFTrace):
+    """A wrapper class that initializes all the classes of a given run
+
+    - The FTrace class can receive the following optional parameters.
+
+    :param path: Path contains the path to the trace file.  If no path is given, it
+        uses the current directory by default.  If path is a file, and ends in
+        .dat, it's run through "trace-cmd report".  If it doesn't end in
+        ".dat", then it must be the output of a trace-cmd report run.  If path
+        is a directory that contains a trace.txt, that is assumed to be the
+        output of "trace-cmd report".  If path is a directory that doesn't
+        have a trace.txt but has a trace.dat, it runs trace-cmd report on the
+        trace.dat, saves it in trace.txt and then uses that.
+
+    :param name: is a string describing the trace.
+
+    :param normalize_time: is used to make all traces start from time 0 (the
+        default).  If normalize_time is False, the trace times are the same as
+        in the trace file.
+
+    :param scope: can be used to limit the parsing done on the trace.  The default
+        scope parses all the traces known to trappy.  If scope is thermal, only
+        the thermal classes are parsed.  If scope is sched, only the sched
+        classes are parsed.
+
+    :param events: A list of strings containing the name of the trace
+        events that you want to include in this FTrace object.  The
+        string must correspond to the event name (what you would pass
+        to "trace-cmd -e", i.e. 4th field in trace.txt)
+
+    :param window: a tuple indicating a time window.  The first
+        element in the tuple is the start timestamp and the second one
+        the end timestamp.  Timestamps are relative to the first trace
+        event that's parsed.  If you want to trace until the end of
+        the trace, set the second element to None.  If you want to use
+        timestamps extracted from the trace file use "abs_window".
+
+    :param abs_window: a tuple indicating an absolute time window.
+        This parameter is similar to the "window" one but its values
+        represent timestamps that are not normalized, (i.e. the ones
+        you find in the trace file)
+
+    :type path: str
+    :type name: str
+    :type normalize_time: bool
+    :type scope: str
+    :type events: list
+    :type window: tuple
+    :type abs_window: tuple
+
+    This is a simple example:
+    ::
+
+        import trappy
+        trappy.FTrace("trace_dir")
+
+    """
+
+    def __init__(self, path=".", name=".", normalize_time=True, scope="all",
+                 events=[], window=(0, None), abs_window=(0, None)):
+        self.trace_path, self.trace_path_raw = self.__process_path(path)
+        self.needs_raw_parsing = True
+
+        self.__populate_metadata()
+
+        super(FTrace, self).__init__(name, normalize_time, scope, events,
+                                     window, abs_window)
+
+    def __process_path(self, basepath):
+        """Process the path and return the path to the trace text file"""
+
+        if os.path.isfile(basepath):
+            trace_name = os.path.splitext(basepath)[0]
+        else:
+            trace_name = os.path.join(basepath, "trace")
+
+        trace_txt = trace_name + ".txt"
+        trace_raw = trace_name + ".raw.txt"
+        trace_dat = trace_name + ".dat"
+
+        if os.path.isfile(trace_dat):
+            # Both TXT and RAW traces must always be generated
+            if not os.path.isfile(trace_txt) or \
+               not os.path.isfile(trace_raw):
+                self.__run_trace_cmd_report(trace_dat)
+            # TXT (and RAW) traces must match the most recent binary trace
+            elif os.path.getmtime(trace_txt) < os.path.getmtime(trace_dat):
+                self.__run_trace_cmd_report(trace_dat)
+
+        if not os.path.isfile(trace_raw):
+            trace_raw = None
+
+        return trace_txt, trace_raw
+
+    def __run_trace_cmd_report(self, fname):
+        """Run "trace-cmd report fname > fname.txt"
+           and "trace-cmd report -R fname > fname.raw.txt"
+
+        The resulting traces are stored in files with extension ".txt"
+        and ".raw.txt" respectively.  If fname is "my_trace.dat", the
+        trace is stored in "my_trace.txt" and "my_trace.raw.txt".  The
+        contents of the destination files are overwritten if they
+        exist.
+
+        """
+        from subprocess import check_output
+
+        cmd = ["trace-cmd", "report"]
+
+        if not os.path.isfile(fname):
+            raise IOError("No such file or directory: {}".format(fname))
+
+        raw_trace_output = os.path.splitext(fname)[0] + ".raw.txt"
+        trace_output = os.path.splitext(fname)[0] + ".txt"
+        cmd.append(fname)
+
+        with open(os.devnull) as devnull:
+            try:
+                out = check_output(cmd, stderr=devnull)
+            except OSError as exc:
+                if exc.errno == 2 and not exc.filename:
+                    raise OSError(2, "trace-cmd not found in PATH, is it installed?")
+                else:
+                    raise
+
+            # Add the -R flag to the trace-cmd
+            # for raw parsing
+            cmd.insert(-1, "-R")
+            raw_out = check_output(cmd, stderr=devnull)
+
+        with open(trace_output, "w") as fout:
+            fout.write(out)
+
+        with open(raw_trace_output, "w") as fout:
+            fout.write(raw_out)
+
+    def __populate_metadata(self):
+        """Populates trace metadata"""
+
+        # Meta Data as expected to be found in the parsed trace header
+        metadata_keys = ["version", "cpus"]
+
+        for key in metadata_keys:
+            setattr(self, "_" + key, None)
+
+        with open(self.trace_path) as fin:
+            for line in fin:
+                if not metadata_keys:
+                    return
+
+                metadata_pattern = r"^\b(" + "|".join(metadata_keys) + \
+                                   r")\b\s*=\s*([0-9]+)"
+                match = re.search(metadata_pattern, line)
+                if match:
+                    setattr(self, "_" + match.group(1), match.group(2))
+                    metadata_keys.remove(match.group(1))
+
+                if re.search(r"^\s+[^\[]+-\d+\s+\[\d+\]\s+\d+\.\d+:", line):
+                    # Reached a valid trace line, abort metadata population
+                    return
