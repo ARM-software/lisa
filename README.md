@@ -1,3 +1,6 @@
+TRAPpy [![Build Status](https://travis-ci.org/ARM-Software/trappy.svg?branch=master)](https://travis-ci.org/ARM-Software/trappy)
+======
+
 trappy is a visualization tool to help analyze data generated on a
 device. It depends on ipython notebook and pandas. First install these
 dependencies if you don't have them already:
