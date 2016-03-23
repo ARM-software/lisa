@@ -26,8 +26,8 @@ import logging
 import re
 from collections import defaultdict
 
-from devlib.exception import TargetError, HostError
-from devlib.utils.misc import check_output, which
+from devlib.exception import TargetError, HostError, DevlibError
+from devlib.utils.misc import check_output, which, memoized
 from devlib.utils.misc import escape_single_quotes, escape_double_quotes
 
 
@@ -156,6 +156,17 @@ class AdbConnection(object):
     @property
     def name(self):
         return self.device
+
+    @property
+    @memoized
+    def newline_separator(self):
+        output = adb_command(self.device, "shell '(ls); echo \"\n$?\"'")
+        if output.endswith('\r\n'):
+            return '\r\n'
+        elif output.endswith('\n'):
+            return '\n'
+        else:
+            raise DevlibError("Unknown line ending")
 
     def __init__(self, device=None, timeout=10):
         self.timeout = timeout
@@ -308,9 +319,9 @@ def adb_shell(device, command, timeout=None, check_exit_code=False, as_root=Fals
         raw_output, error = check_output(actual_command, timeout, shell=True)
         if raw_output:
             try:
-                output, exit_code, _ = raw_output.rsplit('\r\n', 2)
+                output, exit_code, _ = raw_output.rsplit(self.newline_separator, 2)
             except ValueError:
-                exit_code, _ = raw_output.rsplit('\r\n', 1)
+                exit_code, _ = raw_output.rsplit(self.newline_separator, 1)
                 output = ''
         else:  # raw_output is empty
             exit_code = '969696'  # just because
