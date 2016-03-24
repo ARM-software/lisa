@@ -49,7 +49,7 @@ echo "                                                                          
 echo "                    .:: LISA Shell - HELP On-Line ::.                          "
 echo "                                                                               "
 echo -ne "$LISASHELL_RESET$LISASHELL_GREEN"
-cat LisaShell.txt
+cat $LISA_HOME/LisaShell.txt
 echo -ne "$LISASHELL_DEFAULT"
 }
 
