@@ -31,6 +31,10 @@ class TestSystrace(utils_tests.SetupDirectory):
         events = ["sched_switch", "sched_wakeup", "trace_event_clock_sync"]
         trace = trappy.SysTrace("trace.html", events=events)
 
+        self.assertTrue(hasattr(trace, "sched_switch"))
+        self.assertEquals(len(trace.sched_switch.data_frame), 4)
+        self.assertTrue("prev_comm" in trace.sched_switch.data_frame.columns)
+
         self.assertTrue(hasattr(trace, "sched_wakeup"))
         self.assertEquals(len(trace.sched_wakeup.data_frame), 4)
         self.assertTrue("target_cpu" in trace.sched_wakeup.data_frame.columns)

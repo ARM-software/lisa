@@ -98,10 +98,23 @@ SchedWakeupNew = register_dynamic_ftrace("SchedWakeupNew", "sched_wakeup_new:",
                                          "sched", parse_raw=True)
 """Register SchedWakeupNew Event"""
 
-SchedSwitch = register_dynamic_ftrace("SchedSwitch", "sched_switch", "sched",
-                                      parse_raw=True)
-"""Register SchedSwitch Event"""
 # pylint: enable=invalid-name
+
+class SchedSwitch(Base):
+    """Parse sched_switch"""
+
+    unique_word = "sched_switch:"
+
+    def __init__(self):
+        super(SchedSwitch, self).__init__(parse_raw=True)
+
+    def create_dataframe(self):
+        self.data_array = [line.replace(" ==> ", " ", 1)
+                           for line in self.data_array]
+
+        super(SchedSwitch, self).create_dataframe()
+
+register_ftrace_parser(SchedSwitch, "sched")
 
 class SchedCpuFrequency(Base):
     """Corresponds to Linux kernel trace event power/cpu_frequency"""
