@@ -34,7 +34,7 @@ class Trace(object):
     def __init__(self, platform, datadir, events, tasks=None, window=(0,None)):
 
         # The platform used to run the experiments
-        self.platform = None
+        self.platform = platform
 
         # Folder containing all perf data
         self.datadir = None
@@ -69,9 +69,6 @@ class Trace(object):
              self.datadir = os.path.dirname(datadir)
         else:
             self.datadir = datadir
-
-        # Platform descriptor
-        self.platform = platform
 
         self.__registerTraceEvents(events)
         self.__parseTrace(datadir, tasks, window)
