@@ -31,7 +31,7 @@ import logging
 
 class TraceAnalysis(object):
 
-    def __init__(self, trace, tasks=None, plotsdir=None):
+    def __init__(self, trace, tasks=None, plotsdir=None, prefix=''):
         """
         Support for plotting a standard set of trace singals and events
         """
@@ -39,6 +39,7 @@ class TraceAnalysis(object):
         self.trace = trace
         self.tasks = tasks
         self.plotsdir = plotsdir
+        self.prefix = prefix
 
         # Keep track of the Trace::platform
         self.platform = trace.platform
@@ -149,7 +150,7 @@ class TraceAnalysis(object):
         self.plotOverutilized(axes)
 
         # Save generated plots into datadir
-        figname = '{}/cluster_freqs.png'.format(self.plotsdir)
+        figname = '{}/{}cluster_freqs.png'.format(self.plotsdir, self.prefix)
         pl.savefig(figname, bbox_inches='tight')
 
         logging.info('LITTLE cluster average frequency: %.3f GHz',
@@ -236,7 +237,7 @@ class TraceAnalysis(object):
             idx+=1
 
         # Save generated plots into datadir
-        figname = '{}/cpus{}.png'.format(self.plotsdir, label2)
+        figname = '{}/{}cpus{}.png'.format(self.plotsdir, self.prefix, label2)
         pl.savefig(figname, bbox_inches='tight')
 
     def plotCPU(self, cpus=None):
@@ -459,7 +460,7 @@ class TraceAnalysis(object):
                 plot_id = plot_id + 1
 
             # Save generated plots into datadir
-            figname = '{}/task_util_{}.png'.format(self.plotsdir, task_name)
+            figname = '{}/{}task_util_{}.png'.format(self.plotsdir, self.prefix, task_name)
             pl.savefig(figname, bbox_inches='tight')
 
     def plotEDiffTime(self, tasks=None,
@@ -569,7 +570,7 @@ class TraceAnalysis(object):
         self.plotOverutilized(axes)
 
         # Save generated plots into datadir
-        figname = '{}/ediff_time.png'.format(self.plotsdir)
+        figname = '{}/{}ediff_time.png'.format(self.plotsdir, self.prefix)
         pl.savefig(figname, bbox_inches='tight')
 
 
@@ -588,7 +589,7 @@ class TraceAnalysis(object):
         df[['nrg_delta']].hist(ax=axes, bins=60)
 
         # Save generated plots into datadir
-        figname = '{}/ediff_stats.png'.format(self.plotsdir)
+        figname = '{}/{}ediff_stats.png'.format(self.plotsdir, self.prefix)
         pl.savefig(figname, bbox_inches='tight')
 
 
@@ -743,7 +744,7 @@ class TraceAnalysis(object):
         plt.title('Performance-Energy Space')
 
         # Save generated plots into datadir
-        figname = '{}/ediff_space.png'.format(self.plotsdir)
+        figname = '{}/{}ediff_space.png'.format(self.plotsdir, self.prefix)
         pl.savefig(figname, bbox_inches='tight')
 
 
@@ -782,5 +783,5 @@ class TraceAnalysis(object):
         axes.xaxis.set_visible(True);
 
         # Save generated plots into datadir
-        figname = '{}/schedtune_conf.png'.format(self.plotsdir)
+        figname = '{}/{}schedtune_conf.png'.format(self.plotsdir, self.prefix)
         pl.savefig(figname, bbox_inches='tight')
