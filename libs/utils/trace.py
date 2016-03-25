@@ -65,7 +65,10 @@ class Trace(object):
         self.available_events = []
 
         # Folder containing trace
-        self.datadir = datadir
+        if not os.path.isdir(datadir):
+             self.datadir = os.path.dirname(datadir)
+        else:
+            self.datadir = datadir
 
         # Platform descriptor
         self.platform = platform
@@ -84,10 +87,10 @@ class Trace(object):
             raise ValueError('Events must be a string or a list of strings')
 
 
-    def __parseTrace(self, datadir, tasks, window):
-        logging.debug('Loading [sched] events from trace in [%s]...', datadir)
+    def __parseTrace(self, path, tasks, window):
+        logging.debug('Loading [sched] events from trace in [%s]...', path)
         logging.debug("Parsing events: %s", self.events)
-        self.ftrace = trappy.FTrace(datadir, scope="custom", events=self.events, window=window)
+        self.ftrace = trappy.FTrace(path, scope="custom", events=self.events, window=window)
 
         # Check for events available on the parsed trace
         self.__checkAvailableEvents()
