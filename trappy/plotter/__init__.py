@@ -69,7 +69,7 @@ def plot_trace(trace,
     if not IPythonConf.check_ipython():
         raise RuntimeError("plot_trace needs ipython environment")
 
-    if not isinstance(trace, trappy.FTrace):
+    if not isinstance(trace, trappy.BareTrace):
         trace = trappy.FTrace(trace)
 
     data, procs, domain = Utils.get_trace_event_data(trace, execnames, pids)
