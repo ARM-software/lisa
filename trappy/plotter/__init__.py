@@ -70,7 +70,10 @@ def plot_trace(trace,
         raise RuntimeError("plot_trace needs ipython environment")
 
     if not isinstance(trace, trappy.BareTrace):
-        trace = trappy.FTrace(trace)
+        if trace.endswith("html"):
+            trace = trappy.SysTrace(trace)
+        else:
+            trace = trappy.FTrace(trace)
 
     data, procs, domain = Utils.get_trace_event_data(trace, execnames, pids)
     trace_graph = EventPlot.EventPlot(data, procs, domain,
