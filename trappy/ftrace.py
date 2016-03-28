@@ -165,8 +165,9 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                     return True
             return False
 
-        special_fields_regexp = r"^\s*(.{,20})-(\d+)(?:\s+\(.*\))?\s+" + \
-                                r"\[(\d+)\](?:\s+....)?\s+([0-9]+\.[0-9]+):"
+        special_fields_regexp = r"^\s*(?P<comm>.*)-(?P<pid>\d+)(?:\s+\(.*\))"\
+                                r"?\s+\[(?P<cpu>\d+)\](?:\s+....)?\s+"\
+                                r"(?P<timestamp>[0-9]+\.[0-9]+):"
         special_fields_regexp = re.compile(special_fields_regexp)
         start_match = re.compile(r"[A-Za-z0-9_]+=")
 
@@ -185,10 +186,10 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             line = line[:-1]
 
             special_fields_match = special_fields_regexp.match(line)
-            comm = special_fields_match.group(1)
-            pid = int(special_fields_match.group(2))
-            cpu = int(special_fields_match.group(3))
-            timestamp = float(special_fields_match.group(4))
+            comm = special_fields_match.group('comm')
+            pid = int(special_fields_match.group('pid'))
+            cpu = int(special_fields_match.group('cpu'))
+            timestamp = float(special_fields_match.group('timestamp'))
 
             if not self.basetime:
                 self.basetime = timestamp
