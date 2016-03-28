@@ -198,7 +198,8 @@ class AdbConnection(object):
         return adb_command(self.device, command, timeout=timeout)
 
     def execute(self, command, timeout=None, check_exit_code=False, as_root=False):
-        return adb_shell(self.device, command, timeout, check_exit_code, as_root)
+        return adb_shell(self.device, command, timeout, check_exit_code,
+                         as_root, self.newline_separator)
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         return adb_background_shell(self.device, command, stdout, stderr, as_root)
@@ -305,7 +306,8 @@ def _ping(device):
         return False
 
 
-def adb_shell(device, command, timeout=None, check_exit_code=False, as_root=False):  # NOQA
+def adb_shell(device, command, timeout=None, check_exit_code=False,
+              as_root=False, newline_separator='\r\n'):  # NOQA
     _check_env()
     if as_root:
         command = 'echo \'{}\' | su'.format(escape_single_quotes(command))
@@ -319,9 +321,9 @@ def adb_shell(device, command, timeout=None, check_exit_code=False, as_root=Fals
         raw_output, error = check_output(actual_command, timeout, shell=True)
         if raw_output:
             try:
-                output, exit_code, _ = raw_output.rsplit(self.newline_separator, 2)
+                output, exit_code, _ = raw_output.rsplit(newline_separator, 2)
             except ValueError:
-                exit_code, _ = raw_output.rsplit(self.newline_separator, 1)
+                exit_code, _ = raw_output.rsplit(newline_separator, 1)
                 output = ''
         else:  # raw_output is empty
             exit_code = '969696'  # just because
