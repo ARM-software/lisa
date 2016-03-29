@@ -226,17 +226,20 @@ class Workload(object):
         # Start task in background if required
         if background:
             logging.debug('%14s - WlGen [background]: %s', 'WlGen', self.command)
-            self.target.background(self.command, as_root=as_root)
-            return
+            self.target.kick_off(self.command, as_root=as_root)
+            self.output['executor'] = ''
 
-        logging.info('%14s - Workload execution START:', 'WlGen')
-        logging.info('%14s -    %s', 'WlGen', self.command)
+        # Start task in foreground
+        else:
 
-        # Run command and wait for it to complete
-        results = self.target.execute(self.command,
-                timeout=None, as_root=as_root)
-        # print type(results)
-        self.output['executor'] = results
+            logging.info('%14s - Workload execution START:', 'WlGen')
+            logging.info('%14s -    %s', 'WlGen', self.command)
+
+            # Run command and wait for it to complete
+            results = self.target.execute(self.command,
+                    timeout=None, as_root=as_root)
+            # print type(results)
+            self.output['executor'] = results
 
         # Wait `end_pause` seconds before stopping ftrace
         if end_pause_s:
