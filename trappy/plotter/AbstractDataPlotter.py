@@ -67,7 +67,7 @@ class AbstractDataPlotter(object):
 
             if not data_frame and not sig_or_template:
                 raise ValueError(
-                    "Cannot understand data. Accepted DataFormats are pandas.DataFrame and trappy.FTrace (with templates)")
+                    "Cannot understand data. Accepted DataFormats are pandas.DataFrame or trappy.FTrace/BareTrace/SysTrace (with templates)")
             elif data_frame and not self._attr["column"]:
                 raise ValueError("Column not specified for DataFrame input")
         else:
@@ -90,7 +90,7 @@ class AbstractDataPlotter(object):
             raise ValueError(
                 "Event: " +
                 event +
-                " not found in any FTrace Object")
+                " not found in Trace Object")
 
     def _describe_signals(self):
         """Internal Function for populating templates and columns

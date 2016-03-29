@@ -67,7 +67,8 @@ class Constraint(object):
 
 
     :param trappy_trace: Input Data
-    :type trappy_trace: :mod:`pandas.DataFrame`, :mod:`trappy.trace.FTrace`
+    :type trappy_trace: :mod:`pandas.DataFrame` or a class derived from
+        :mod:`trappy.trace.BareTrace`
 
     :param column: The data column
     :type column: str
@@ -214,7 +215,8 @@ class ConstraintManager(object):
 
 
     :param traces: Input Trace data
-    :type traces: :mod:`trappy.trace.FTrace`, list(:mod:`trappy.trace.FTrace`)
+    :type traces: :mod:`trappy.trace.BareTrace`, list(:mod:`trappy.trace.BareTrace`)
+        (or a class derived from :mod:`trappy.trace.BareTrace`)
     :param columns: The column values from the corresponding
         :mod:`pandas.DataFrame`
     :type columns: str, list(str)

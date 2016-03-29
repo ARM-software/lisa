@@ -13,9 +13,10 @@
 # limitations under the License.
 #
 
-"""This module contains the class for plotting and
-customizing Line/Linear Plots with :mod:`trappy.trace.FTrace`
-This plot only works when run from an IPython notebook
+"""This module contains the class for plotting and customizing
+Line/Linear Plots with :mod:`trappy.trace.BareTrace` or derived
+classes.  This plot only works when run from an IPython notebook
+
 """
 
 import matplotlib.pyplot as plt
@@ -40,7 +41,9 @@ class ILinePlot(AbstractDataPlotter):
     :mod:`trappy.plotter.Constraint.ConstraintManager`.
 
     :param traces: The input data
-    :type traces: a list of :mod:`trappy.trace.FTrace` or :mod:`pandas.DataFrame` or a single instance of them
+    :type traces: a list of :mod:`trappy.trace.FTrace`,
+        :mod:`trappy.trace.SysTrace`, :mod:`trappy.trace.BareTrace`
+        or :mod:`pandas.DataFrame` or a single instance of them.
 
     :param column: specifies the name of the column to
            be plotted.
