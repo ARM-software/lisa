@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+#
+# Remove HTML content...
+#
+        overlay.textContent = tr.b.normalizeException(err).message;
+        overlay.title = 'Import error';
+        overlay.visible = true;
+      });
+  }
+  window.addEventListener('load', onLoad);
+  </script>
+<!-- BEGIN TRACE -->
+  <script class="trace-data" type="application/text">
+# tracer: nop
+#
+# entries-in-buffer/entries-written: 71906/71906   #P:6
+# enabled events: sched:sched_switch sched:sched_wakeup
+#
+#                                      _-----=> irqs-off
+#                                     / _----=> need-resched
+#                                    | / _---=> hardirq/softirq
+#                                    || / _--=> preempt-depth
+#                                    ||| /     delay
+#           TASK-PID    TGID   CPU#  ||||    TIMESTAMP  FUNCTION
+#              | |        |      |   ||||       |         |
+RenderThread-1143  (  611) [004] ...1 514769.085985: tracing_mark_write: E
+com.android.systemui-611   (  611) [001] d..5 514769.086090: sched_wakeup: comm=Binder_5 pid=679 prio=120 success=1 target_cpu=001 state=W
+com.android.systemui-611   (  611) [001] d..3 514769.086139: sched_switch: prev_comm=ndroid.systemui prev_pid=611 prev_prio=120 prev_state=S ==> next_comm=Binder_5 next_pid=679 next_prio=120
+atrace-15227 (15227) [000] ...1 514769.086243: tracing_mark_write: trace_event_clock_sync: realtime_ts=1448979311493
+atrace-15227 (15227) [000] d..3 514769.086283: sched_switch: prev_comm=atrace prev_pid=15227 prev_prio=120 prev_state=S ==> next_comm=Binder_4 next_pid=280 next_prio=120
+Binder_4-280   (  184) [000] d..5 514769.086330: sched_wakeup: comm=Binder_5 pid=1158 prio=120 success=1 target_cpu=002 state=W
+          <idle>-0     (-----) [002] d..3 514769.086339: sched_switch: prev_comm=swapper/2 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=Binder_5 next_pid=1158 next_prio=120
+Binder_4-280   (  184) [000] d..3 514769.086417: sched_wakeup: comm=Binder_5 pid=1158 prio=120 success=1 target_cpu=002 state=W|m
+          <idle>-0     (-----) [002] d..3 514769.086424: sched_switch: prev_comm=swapper/2 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=Binder_5 next_pid=1158 next_prio=120
+Binder_4-280   (  184) [000] d..4 514769.086473: sched_wakeup: comm=EventThread pid=238 prio=111 success=1 target_cpu=003 state=W
+  </script>
+<!-- END TRACE -->
+</body>
+</html>

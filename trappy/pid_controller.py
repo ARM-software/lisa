@@ -17,7 +17,7 @@
 current directory's trace.dat"""
 
 from trappy.base import Base
-from trappy.ftrace import FTrace
+from trappy.dynamic import register_ftrace_parser
 
 class PIDController(Base):
     """Process the power allocator PID controller data in a FTrace dump"""
@@ -57,4 +57,4 @@ class PIDController(Base):
         self.data_frame[["output", "p", "i", "d"]].plot(ax=ax)
         trappy.plot_utils.post_plot_setup(ax, title=title)
 
-FTrace.register_parser(PIDController, "thermal")
+register_ftrace_parser(PIDController, "thermal")

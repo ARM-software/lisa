@@ -19,7 +19,7 @@ directory's trace.dat"""
 import pandas as pd
 
 from trappy.base import Base
-from trappy.ftrace import FTrace
+from trappy.dynamic import register_ftrace_parser
 
 def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
     """Pivot a :mod:`pandas.DataFrame` row into columns
@@ -120,7 +120,7 @@ class CpuOutPower(Base):
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
-FTrace.register_parser(CpuOutPower, "thermal")
+register_ftrace_parser(CpuOutPower, "thermal")
 
 class CpuInPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump
@@ -195,4 +195,4 @@ class CpuInPower(Base):
 
         return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
-FTrace.register_parser(CpuInPower, "thermal")
+register_ftrace_parser(CpuInPower, "thermal")

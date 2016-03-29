@@ -21,7 +21,7 @@ pattern
 """
 from trappy.base import Base
 import re
-from trappy.ftrace import FTrace
+from trappy.ftrace import GenericFTrace
 
 
 def default_init(self):
@@ -67,7 +67,7 @@ def _get_name(name):
 
 def register_dynamic_ftrace(class_name, unique_word, scope="all",
                             parse_raw=False, pivot=None):
-    """Create a Dynamic FTrace parser and register it with the FTrace class
+    """Create a Dynamic FTrace parser and register it with any FTrace parsing classes
 
     :param class_name: The name of the class to be registered
         (Should be in CamelCase)
@@ -116,11 +116,11 @@ def register_dynamic_ftrace(class_name, unique_word, scope="all",
         kwords["pivot"] = pivot
 
     dyn_class = DynamicTypeFactory(class_name, (Base,), kwords)
-    FTrace.register_parser(dyn_class, scope)
+    GenericFTrace.register_parser(dyn_class, scope)
     return dyn_class
 
 
-def register_ftrace_parser(cls):
+def register_ftrace_parser(cls, scope="all"):
     """Register a new FTrace parser class implementation
 
     Should be used when the class has complex helper methods and does
@@ -129,10 +129,16 @@ def register_ftrace_parser(cls):
     :param cls: The class to be registered for
         enabling the parsing of an event in trace
     :type cls: :mod:`trappy.base.Base`
+
+    :param scope: scope of this parser class.  The scope can be used
+        to restrict the parsing done on an individual file.  Currently
+        the only scopes available are "sched", "thermal" or "all"
+    :type scope: string
+
     """
 
     # Check the argspec of the class
-    FTrace.register_parser(cls)
+    GenericFTrace.register_parser(cls, scope)
 
 def unregister_ftrace_parser(ftrace_parser):
     """Unregister an ftrace parser
@@ -144,4 +150,4 @@ def unregister_ftrace_parser(ftrace_parser):
     :type ftrace_parser: class derived from :mod:`trappy.base.Base`
 
     """
-    FTrace.unregister_parser(ftrace_parser)
+    GenericFTrace.unregister_parser(ftrace_parser)
