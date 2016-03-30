@@ -201,7 +201,7 @@ EOF
 
 function _lisa-test {
 CLASS=${1}
-nosetest -v tests/$CLASS
+nosetests -v tests/$CLASS
 }
 
 function lisa-test {
