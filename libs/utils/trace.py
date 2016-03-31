@@ -94,16 +94,15 @@ class Trace(object):
         logging.debug("Parsing events: %s", self.events)
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
             logging.info('Parsing SysTrace format...')
-            self.ftrace = trappy.SysTrace(path, scope="custom",
-                                          events=self.events,
-                                          window=window)
+            trace_class = trappy.SysTrace
             self.trace_format = 'SysTrace'
         elif trace_format.upper() == 'FTRACE':
             logging.info('Parsing FTrace format...')
-            self.ftrace = trappy.FTrace(path, scope="custom",
-                                        events=self.events,
-                                        window=window)
+            trace_class = trappy.FTrace
             self.trace_format = 'FTrace'
+
+        self.ftrace = trace_class(path, scope="custom", events=self.events,
+                                  window=window)
 
         # Check for events available on the parsed trace
         self.__checkAvailableEvents()
