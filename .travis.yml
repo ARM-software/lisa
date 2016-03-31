@@ -11,11 +11,14 @@ install:
   - pip install matplotlib
   - pip install pandas
   - pip install ipython[all]
-  - pip install --upgrade trappy
 script: nosetests
 virtualenv:
   system_site_packages: true
 notifications:
-  email: false
+  email:
+    recipients:
+      - javi.merino@arm.com
+    on_success: never
+    on_failure: always
 cache:
   - pip
