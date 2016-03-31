@@ -26,6 +26,23 @@ in-memory data structures to be used for plotting and data analysis.
 
     $ sudo pip install --upgrade trappy
 
+# Quickstart
+
+Now launch the ipython notebook server:
+
+    $ ipython notebook
+
+This should pop up a browser. If it doesn't, open a web browser and go
+to http://localhost:8888/tree/
+
+In the `doc/` folder there's a `00 - Quick start` which describes how to
+run TRAPpy. Other notebooks in that directory describe other functions
+of TRAPpy.
+
+# Documentation
+
+API reference can be found in https://pythonhosted.org/TRAPpy/
+
 # For developers
 
 ## Clone the repository
@@ -44,16 +61,3 @@ TRAPpy's home directory:
 	$ nosetests
 
 If the installation is correct all tests will succeed.
-
-# Quickstart
-
-Now launch the ipython notebook server:
-
-    $ ipython notebook
-
-This should pop up a browser. If it doesn't, open a web browser and go
-to http://localhost:8888/tree/
-
-In the `doc/` folder there's a `00 - Quick start` which describes how to
-run TRAPpy. Other notebooks in that directory describe other functions
-of TRAPpy.
