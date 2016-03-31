@@ -33,6 +33,7 @@ class Trace(object):
 
     def __init__(self, platform, datadir, events,
                  tasks=None, window=(0,None),
+                 normalize_time=True,
                  trace_format='FTrace'):
 
         # The platform used to run the experiments
@@ -76,7 +77,7 @@ class Trace(object):
             self.datadir = datadir
 
         self.__registerTraceEvents(events)
-        self.__parseTrace(datadir, tasks, window, trace_format)
+        self.__parseTrace(datadir, tasks, window, normalize_time, trace_format)
         self.__computeTimeSpan()
 
     def __registerTraceEvents(self, events):
@@ -89,7 +90,7 @@ class Trace(object):
             raise ValueError('Events must be a string or a list of strings')
 
 
-    def __parseTrace(self, path, tasks, window, trace_format):
+    def __parseTrace(self, path, tasks, window, normalize_time, trace_format):
         logging.debug('Loading [sched] events from trace in [%s]...', path)
         logging.debug("Parsing events: %s", self.events)
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
@@ -104,7 +105,7 @@ class Trace(object):
             raise ValueError("Unknown trace format {}".format(trace_format))
 
         self.ftrace = trace_class(path, scope="custom", events=self.events,
-                                  window=window)
+                                  window=window, normalize_time=normalize_time)
 
         # Check for events available on the parsed trace
         self.__checkAvailableEvents()
