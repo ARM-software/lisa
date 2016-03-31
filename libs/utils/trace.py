@@ -100,6 +100,8 @@ class Trace(object):
             logging.info('Parsing FTrace format...')
             trace_class = trappy.FTrace
             self.trace_format = 'FTrace'
+        else:
+            raise ValueError("Unknown trace format {}".format(trace_format))
 
         self.ftrace = trace_class(path, scope="custom", events=self.events,
                                   window=window)
