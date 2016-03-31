@@ -349,6 +349,16 @@ class TestEnv(ShareState):
             platform = Platform(model='MT8173')
             self.__modules = ['bl', 'cpufreq']
 
+        # Initialize N5X device
+        elif self.conf['board'].upper() == 'N5X':
+            platform = Platform(model='bullhead',
+                                core_names = ['A53', 'A53', 'A53', 'A53',
+                                              'A57', 'A57'],
+                                core_clusters = [ 0, 0, 0, 0, 1, 1],
+                                big_core = 'A57',
+                               )
+            self.__modules = ['bl', 'cpufreq']
+
         # Initialize default UNKNOWN board
         else:
             platform = None

@@ -31,7 +31,9 @@ import logging
 
 class Trace(object):
 
-    def __init__(self, platform, datadir, events, tasks=None, window=(0,None)):
+    def __init__(self, platform, datadir, events,
+                 tasks=None, window=(0,None),
+                 trace_format='FTrace'):
 
         # The platform used to run the experiments
         self.platform = platform
@@ -39,8 +41,11 @@ class Trace(object):
         # Folder containing all perf data
         self.datadir = None
 
-        # TRAPpy FTrace object
+        # TRAPpy Trace object
         self.ftrace = None
+
+        # Trace format
+        self.trace_format = trace_format
 
         # The time window used to limit trace parsing to
         self.window = window
@@ -71,7 +76,7 @@ class Trace(object):
             self.datadir = datadir
 
         self.__registerTraceEvents(events)
-        self.__parseTrace(datadir, tasks, window)
+        self.__parseTrace(datadir, tasks, window, trace_format)
         self.__computeTimeSpan()
 
     def __registerTraceEvents(self, events):
@@ -84,10 +89,21 @@ class Trace(object):
             raise ValueError('Events must be a string or a list of strings')
 
 
-    def __parseTrace(self, path, tasks, window):
+    def __parseTrace(self, path, tasks, window, trace_format):
         logging.debug('Loading [sched] events from trace in [%s]...', path)
         logging.debug("Parsing events: %s", self.events)
-        self.ftrace = trappy.FTrace(path, scope="custom", events=self.events, window=window)
+        if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
+            logging.info('Parsing SysTrace format...')
+            self.ftrace = trappy.SysTrace(path, scope="custom",
+                                          events=self.events,
+                                          window=window)
+            self.trace_format = 'SysTrace'
+        elif trace_format.upper() == 'FTRACE':
+            logging.info('Parsing FTrace format...')
+            self.ftrace = trappy.FTrace(path, scope="custom",
+                                        events=self.events,
+                                        window=window)
+            self.trace_format = 'FTrace'
 
         # Check for events available on the parsed trace
         self.__checkAvailableEvents()
@@ -107,8 +123,8 @@ class Trace(object):
         self.__loadTasksNames(tasks)
 
 
-    def __checkAvailableEvents(self):
-        for val in trappy.FTrace.get_filters(self.ftrace):
+    def __checkAvailableEvents(self, key=""):
+        for val in self.ftrace.get_filters(key):
             obj = getattr(self.ftrace, val)
             if len(obj.data_frame):
                 self.available_events.append(val)
