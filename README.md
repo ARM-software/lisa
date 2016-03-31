@@ -52,7 +52,7 @@ plotting in BART.
 
 # For developers
 
-Instead of installing TRAPpy and BART using `pip` you should the repositories:
+Instead of installing TRAPpy and BART using `pip` you should clone the repositories:
 
     $ git clone git@github.com:ARM-software/bart.git
     $ git clone git@github.com:ARM-software/trappy.git
