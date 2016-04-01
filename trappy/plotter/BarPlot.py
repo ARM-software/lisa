@@ -26,7 +26,9 @@ class BarPlot(StaticPlot):
     Values are plotted against their position in the list of data.
 
     :param traces: The input data
-    :type traces: A single instance or a list of :mod:`trappy.trace.FTrace` or :mod:`pandas.DataFrame`
+    :type traces: A single instance or a list of :mod:`trappy.trace.FTrace`,
+        :mod:`trappy.trace.SysTrace`, :mod:`trappy.trace.BareTrace` or
+        :mod:`pandas.DataFrame`.
 
     :param column: specifies the name of the column to be plotted.
     :type column: str or list(str)

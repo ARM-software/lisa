@@ -55,7 +55,8 @@ def plot_trace(trace,
     """Creates a kernelshark like plot of the trace file
 
     :param trace: The path to the trace or a trace object
-    :type trace: str, :mod:`trappy.trace.FTrace`
+    :type trace: str, :mod:`trappy.trace.FTrace`, :mod:`trappy.trace.SysTrace`
+        or :mod:`trappy.trace.BareTrace`.
 
     :param execnames: List of execnames to be filtered. If not
         specified all execnames will be plotted

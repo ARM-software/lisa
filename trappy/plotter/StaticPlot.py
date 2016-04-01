@@ -32,7 +32,9 @@ class StaticPlot(AbstractDataPlotter):
     :mod:`trappy.plotter.Constraint.ConstraintManager`.
 
     :param traces: The input data
-    :type traces: a list of :mod:`trappy.trace.FTrace` or :mod:`pandas.DataFrame` or a single instance of them
+    :type traces: a list of :mod:`trappy.trace.FTrace`,
+        :mod:`trappy.trace.SysTrace`, :mod:`trappy.trace.BareTrace`
+        or :mod:`pandas.DataFrame` or a single instance of them.
 
     :param column: specifies the name of the column to
            be plotted.
