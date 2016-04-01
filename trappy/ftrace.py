@@ -476,7 +476,7 @@ class FTrace(GenericFTrace):
 
     """
 
-    def __init__(self, path=".", name=".", normalize_time=True, scope="all",
+    def __init__(self, path=".", name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
         self.trace_path, self.trace_path_raw = self.__process_path(path)
         self.needs_raw_parsing = True
