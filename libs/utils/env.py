@@ -402,7 +402,7 @@ class TestEnv(ShareState):
         if platform_type.lower() == 'android':
             self.__connection_settings = None
             if 'device' in self.conf:
-                self.__connection_settings['device'] = self.conf['device']
+                self.__connection_settings = {'device' : self.conf['device']}
             logging.info(r'%14s - Connecting Android target [%s]',
                     'Target', self.__connection_settings or 'DEFAULT')
         else:
