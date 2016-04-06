@@ -1,4 +1,4 @@
-BART [![Build Status](https://travis-ci.org/ARM-software/bart.svg?branch=master)](https://travis-ci.org/ARM-software/bart)
+BART [![Build Status](https://travis-ci.org/ARM-software/bart.svg?branch=master)](https://travis-ci.org/ARM-software/bart) [![Version](https://img.shields.io/pypi/v/bart-py.svg)](https://pypi.python.org/pypi/bart-py)
 ====
 
 The Behavioural Analysis and Regression Toolkit is based on
