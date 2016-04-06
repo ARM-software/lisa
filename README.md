@@ -7,6 +7,12 @@ in-memory data structures to be used for plotting and data analysis.
 
 # Installation
 
+The following instructions are for Ubuntu 14.04 LTS but they should
+also work with Debian jessie.  Older versions of Ubuntu or Debian
+(e.g. Ubuntu 12.04 or Debian wheezy) will likely require to install
+more packages from pip as the ones present in Ubuntu 12.04 or Debian
+wheezy will probably be too old.
+
 ## Required dependencies
 
 ##### Install additional tools required for some tests and functionalities
