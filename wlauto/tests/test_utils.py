@@ -21,7 +21,7 @@ from nose.tools import raises, assert_equal, assert_not_equal  # pylint: disable
 
 from wlauto.utils.android import check_output
 from wlauto.utils.misc import merge_dicts, merge_lists, TimeoutError
-from wlauto.utils.types import list_or_integer, list_or_bool, caseless_string, arguments
+from wlauto.utils.types import list_or_integer, list_or_bool, caseless_string, arguments, enable_disable_list
 
 
 class TestCheckOutput(TestCase):
@@ -89,3 +89,18 @@ class TestTypes(TestCase):
                      ['--foo', '7', '--bar', 'fizz buzz'])
         assert_equal(arguments(['test', 42]), ['test', '42'])
 
+    def enable_disable_list_test():
+
+        a = enable_disable_list(['qaz', 'qwert', 'asd',  '~fgh', '~seb'])
+        b = enable_disable_list(['qaz', 'xyz',   '~asd', 'fgh',  '~seb'])
+
+        a_into_b = ['qaz', 'xyz', '~seb', 'qwert', 'asd', '~fgh']
+        assert_equal(a.merge_into(b), a_into_b)
+        assert_equal(b.merge_with(a), a_into_b)
+
+        b_into_a = ['qaz', 'qwert', '~seb', 'xyz', '~asd',  'fgh']
+        assert_equal(b.merge_into(a), b_into_a)
+        assert_equal(a.merge_with(b), b_into_a)
+
+        assert_equal(a.values(), ['qaz', 'qwert', 'asd'])
+        assert_equal(b.merge_with(a).values(), ['qaz', 'xyz', 'qwert', 'asd'])

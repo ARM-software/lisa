@@ -31,6 +31,7 @@ import math
 import shlex
 from bisect import insort
 from collections import defaultdict
+from copy import copy
 
 from wlauto.utils.misc import isiterable, to_identifier
 from devlib.utils.types import identifier, boolean, integer, numeric, caseless_string
@@ -338,3 +339,29 @@ class prioritylist(object):
 
     def __len__(self):
         return self.size
+
+
+class enable_disable_list(list):
+    def merge_with(self, other):
+        new_self = copy(self)
+        return enable_disable_list.merge(other, new_self)
+
+    def merge_into(self, other):
+        other = copy(other)
+        return enable_disable_list.merge(self, other)
+
+    @staticmethod
+    def merge(source, dest):
+        for item in source:
+            if item not in dest:
+                #Disable previously enabled item
+                if item.startswith('~') and item[1:] in dest:
+                    dest.remove(item[1:])
+                #Enable previously disabled item
+                if not item.startswith('~') and ('~' + item) in dest:
+                    dest.remove('~' + item)
+                dest.append(item)
+        return dest
+
+    def values(self):
+        return [item for item in self if not item.startswith('~')]
