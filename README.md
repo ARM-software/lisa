@@ -20,46 +20,6 @@ support regression testing of core kernel features is provided.  In
 addition, LISA uses the excellent IPython notebook framework and a set
 of notebooks are provided for live experiments on a target platform.
 
-This is an overall view of the toolkit:
-
-	+---------------------------------------+
-	| +-----------------------------------+ |
-	| |           LISA Toolkit            | |
-	| |  +-----------------------------+  | |
-	| |  |      IPython Notebooks      |  | |
-	| |  +-----------------------------+  | |
-	| |  +-------+ +-------+ +---------+  | |
-	| |  | wlgen | | tests | | reports |  | |
-	| |  +-------+ +-------+ +---------+  | |
-	| +-----------------------------------+ |
-	| +----------+ +-------+                |
-	| |          | | BART  |                |
-	| |          | +-------+                |
-	| |  devlib  | +----------------------+ |
-	| |          | |      TRAPpy          | |
-	| +--^-------+ +----------------------+ |
-	|   ||                                  |
-	|   ||                           HOST   |
-	+---------------------------------------+
-	    ||
-	    || SSH/ADB
-	    |+
-	+---V-----------------------------------+
-	|                              TARGET   |
-	|                                       |
-	|                         Linux/Android |
-	|                          or Localhost |
-	+---------------------------------------+
-
-LISA depends on the following external python libraries:
-
-- [devlib](http://github.com/ARM-software/devlib)
-  Documentation: [online](https://pythonhosted.org/devlib/index.html)
-- [TRAPpy](http://github.com/ARM-software/trappy)
-  Documentation: [online](http://arm-software.github.io/trappy/)
-- [BART](http://github.com/ARM-software/bart)
-  Documentation: [online](http://arm-software.github.io/bart/)
-
 # Installation
 
 This note assumes installation from scratch on a freshly installed
