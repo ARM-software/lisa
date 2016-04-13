@@ -114,14 +114,9 @@ class EventPlot(AbstractDataPlotter):
         graph["keys"] = sorted(keys, key=lambda x: avg[x], reverse=True)
         graph["showSummary"] = summary
         graph["stride"] = AttrConf.EVENT_PLOT_STRIDE
+        self._data = json.dumps(graph)
 
-        json_file = os.path.join(
-            IPythonConf.get_data_path(),
-            self._fig_name +
-            ".json")
 
-        with open(json_file, "w") as json_fh:
-            json.dump(graph, json_fh)
 
         # Initialize the HTML, CSS and JS Components
         self._add_css()
@@ -213,9 +208,13 @@ class EventPlot(AbstractDataPlotter):
                     }
                 }
             });
-            req(["require", "EventPlot"], function() {
-               EventPlot.generate('""" + self._fig_name + """', '""" + IPythonConf.add_web_base("") + """');
-            });
+            """
+
+        div_js += "var data = {};\n".format(self._data)
+        div_js += """
+        req(["require", "EventPlot"], function() {
+            EventPlot.generate('""" + self._fig_name + """', '""" + IPythonConf.add_web_base("") + """', data);
+        });
         </script>
         """
 
