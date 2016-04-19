@@ -132,8 +132,13 @@ The main folder served by the server is:
   http://127.0.0.1:8888/
   
 Once the server is started you can have a look at the provide tutorial notebooks
-are accessible starting from this link:
-  http://127.0.0.1:8888/notebooks/tutorial/00_LisaInANutshell.ipynb
+are accessible by following (in your browser) this link:
+
+  http://127.0.0.1:8888/notebooks/tutorial/00_LisaInANutshell.ipynp
+
+This intial tutorial can be seen (but not executed) also on GitHub:
+
+  https://github.com/ARM-software/lisa/blob/master/ipynb/tutorial/00_LisaInANutshell.ipynb
 
 # License
 
