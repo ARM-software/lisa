@@ -260,6 +260,24 @@ class TestILinePlotter(unittest.TestCase):
 
         trappy.ILinePlot([dfr1, dfr2], column=["a", "a"]).view(test=True)
 
+    def test_independent_series_merging(self):
+        """ILinePlot fixes indexes of independent series"""
+        index1 = [0., 1., 2., 3.]
+        s1 = pd.Series([1, 2, 3, 4], index=index1)
+        index2 = [0.5, 1.5, 2.5, 3.5]
+        s2 = pd.Series([2, 3, 4, 5], index=index2)
+
+        dfr = pd.DataFrame([0, 1, 2, 3], columns=["a"])
+        iplot = trappy.ILinePlot(dfr, column=["a"])
+        s = pd.Series()
+        s["s1"] = s1
+        s["s2"] = s2
+        merged = iplot._fix_indexes(s)
+
+        expected_index = index1 + index2
+        expected_index.sort()
+        self.assertEquals(expected_index, merged.index.tolist())
+
 class TestBarPlot(unittest.TestCase):
     def setUp(self):
         self.dfr = pd.DataFrame({"foo": [1, 2, 3],
