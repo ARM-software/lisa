@@ -27,24 +27,19 @@ Debian system.
 
 ## Required dependencies
 
-##### Install common build related tools
-
+	# Install common build related tools
 	$ sudo apt-get install build-essential autoconf automake libtool pkg-config
 
-##### Install additional tools required for some tests and functionalities
-
+	# Install additional tools required for some tests and functionalities
 	$ sudo apt-get install nmap trace-cmd sshpass kernelshark net-tools
 
-##### Install required python packages
-
+	# Install required python packages
 	$ sudo apt-get install python-matplotlib python-numpy libfreetype6-dev libpng12-dev python-nose
 
-##### Install the Python package manager
-
+	# Install the Python package manager
 	$ sudo apt-get install python-pip python-dev
 
-##### Install (upgrade) required Python libraries
-
+	# Install (upgrade) required Python libraries
 	$ sudo pip install --upgrade trappy bart-py devlib
 
 *NOTE:* TRAPpy and BART depend on *ipython* and *jupyter*. Some IPython
@@ -53,7 +48,9 @@ which might not be supported by the IPython version installed by *apt-get*.
 It is suggested to remove apt-get installed IPython and install it
 using *pip*, which will provides the most updated version:
 
+	# Remove (eventually) already installed versions
 	$ sudo apt-get remove ipython ipython-notebook
+	# Install most update version of the notebook
 	$ sudo pip install ipython jupyter
 
 ## Clone the repository
