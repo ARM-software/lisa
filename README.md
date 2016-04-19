@@ -91,11 +91,13 @@ are currently in-development:
 Tests targeting an evaluation of these frameworks requires also a set of
 tracepoint which are not available in mainline kernel. The series of patches
 required to add to a recent kernel the tracepoints required by some tests are
-available on this git repository:
+available on this git repository and branch:
 
-  git://www.linux-arm.org/linux-power.git lisa/debug
+	git://www.linux-arm.org/linux-pb.git lisa/debug
 
-The patches required are: lisa/debug_base..lisa/debug
+The patches required are the ones in this series:
+
+	git log --oneline lisa/debug_base..lisa/debug
 
 # Quickstart tutorial
 
