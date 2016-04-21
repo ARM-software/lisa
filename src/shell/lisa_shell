@@ -122,7 +122,7 @@ function _lisa-ipython-usage {
 
 function _lisa-ipython-start {
 # Get IP address for the specified interface
-IPADDR=$(ifconfig $NETIF 2>/dev/null  | \
+IPADDR=$(/sbin/ifconfig $NETIF 2>/dev/null  | \
 	awk '/inet / {print $2}' | \
 	sed 's/addr://')
 if [ "x$IPADDR" == "x" ]; then
