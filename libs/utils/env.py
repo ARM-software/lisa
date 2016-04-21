@@ -401,10 +401,19 @@ class TestEnv(ShareState):
         # If the target is Android, we need just (eventually) the device
         if platform_type.lower() == 'android':
             self.__connection_settings = None
+            device = 'DEFAULT'
             if 'device' in self.conf:
-                self.__connection_settings = {'device' : self.conf['device']}
+                device = self.conf['device']
+                self.__connection_settings = {'device' : device}
+            elif 'host' in self.conf:
+                host = self.conf['host']
+                port = '5555'
+                if 'port' in self.conf:
+                    port = str(self.conf['port'])
+                device = '{}:{}'.format(host, port)
+                self.__connection_settings = {'device' : device}
             logging.info(r'%14s - Connecting Android target [%s]',
-                    'Target', self.__connection_settings or 'DEFAULT')
+                         'Target', device)
         else:
             logging.info(r'%14s - Connecting %s target:', 'Target',
                          platform_type)
