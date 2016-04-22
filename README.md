@@ -30,8 +30,11 @@ Debian system.
 	# Install common build related tools
 	$ sudo apt-get install build-essential autoconf automake libtool pkg-config
 
-	# Install additional tools required for some tests and functionalities
-	$ sudo apt-get install nmap trace-cmd sshpass kernelshark net-tools
+	# Install additional tools required for some notebooks and tests
+	$ sudo apt-get install trace-cmd sshpass kernelshark
+
+	# Install optional tools required for some notebooks and tests
+	$ sudo apt-get install nmap net-tools tree
 
 	# Install required python packages
 	$ sudo apt-get install python-matplotlib python-numpy libfreetype6-dev libpng12-dev python-nose
