@@ -275,3 +275,22 @@ class CgroupsModule(Module):
             return None
         return self.controllers[kind]
 
+    def run_into(self, cgroup, cmdline):
+        """
+        Run the specified command into the specified CGroup
+        """
+        return self.target._execute_util(
+            'cgroups_run_into {} {}'.format(cgroup, cmdline),
+            as_root=True)
+
+
+    def cgroups_tasks_move(self, srcg, dstg, exclude=''):
+        """
+        Move all the tasks from the srcg CGroup to the dstg one.
+        A regexps of tasks names can be used to defined tasks which should not
+        be moved.
+        """
+        return self.target._execute_util(
+            'cgroups_tasks_move {} {} {}'.format(srcg, dstg, exclude),
+            as_root=True)
+
