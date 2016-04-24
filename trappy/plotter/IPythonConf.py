@@ -33,7 +33,6 @@ IPLOT_RESOURCES = {
         "js/EventPlot.js",
         "css/EventPlot_help.jpg"]}
 
-PROFILE_DIR_IPYTHON_V4 = os.path.expanduser("~/.local/share/jupyter")
 """The location of the IPython webserver in IPython version 4.0+"""
 IPYTHON_V4_BASE = "/nbextensions"
 """The webserver base directory for IPython version 4.0+"""
@@ -165,8 +164,9 @@ def get_ipython_dir(profile=None):
     # IPython 4.0+ changes the position of files in the profile
     # directory
     if V(IPython.__version__) >= V('4.0.0'):
+        from jupyter_core.paths import jupyter_data_dir
         return os.path.join(
-            PROFILE_DIR_IPYTHON_V4,
+            jupyter_data_dir(),
             IPYTHON_V4_BASE.strip("/"))
     else:
         if not profile:
