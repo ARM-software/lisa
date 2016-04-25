@@ -231,7 +231,7 @@ class EventPlot(AbstractDataPlotter):
         self._html.append("<style>")
 
         with open(css_file, 'r') as css_fh:
-            self._html += css_fh.readlines()
+            self._html += [l[:-1] for l in css_fh.readlines()]
 
         self._html.append("</style>")
 
