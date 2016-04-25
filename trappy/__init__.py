@@ -34,6 +34,7 @@ except ImportError:
     pass
 from trappy.dynamic import register_dynamic_ftrace, register_ftrace_parser, \
     unregister_ftrace_parser
+import trappy.nbexport
 
 # We define unregister_dynamic_ftrace() because it undoes what
 # register_dynamic_ftrace().  Internally it does exactly the same as
