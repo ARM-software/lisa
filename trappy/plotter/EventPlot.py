@@ -186,8 +186,14 @@ class EventPlot(AbstractDataPlotter):
 
     def _init_html(self):
         """Initialize HTML for the plot"""
-        div_js = """
+        div_js = ''
+        for url in [IPythonConf.D3_PLOTTER_URL, IPythonConf.D3_TIP_URL]:
+            div_js += '<!-- TRAPPY_PUBLISH_SOURCE_LIB = "{}" -->\n'.format(url)
+
+        div_js += """
         <script>
+            /* TRAPPY_PUBLISH_IMPORT = "plotter/js/EventPlot.js" */
+            /* TRAPPY_PUBLISH_REMOVE_START */
             var req = require.config( {
 
                 paths: {
@@ -208,18 +214,19 @@ class EventPlot(AbstractDataPlotter):
                     }
                 }
             });
+            /* TRAPPY_PUBLISH_REMOVE_STOP */
             """
 
         div_js += "var data = {};\n".format(self._data)
         div_js += """
-        req(["require", "EventPlot"], function() {
+        req(["require", "EventPlot"], function() { /* TRAPPY_PUBLISH_REMOVE_LINE */
             EventPlot.generate('""" + self._fig_name + """', '""" + IPythonConf.add_web_base("") + """', data);
-        });
+        }); /* TRAPPY_PUBLISH_REMOVE_LINE */
         </script>
         """
 
         self._html.append(
-            '<div id="{}" class="eventplot">{}</div>'.format(self._fig_name,
+            '<div id="{}" class="eventplot">\n{}</div>'.format(self._fig_name,
                                                              div_js))
 
     def _add_css(self):
