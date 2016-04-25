@@ -44,13 +44,17 @@ def copyright_is_valid(fname):
     if "ARM Limited" not in lines[0]:
         return False
 
+    apache_line = 6
+    if "Google Inc" in lines[1]:
+        apache_line += 1
+
     # The Copyright includes the current year
     current_year = date.today().year
     if str(current_year) not in lines[0]:
         return False
 
     # It's the apache license
-    if "http://www.apache.org/licenses/LICENSE-2.0" not in lines[6]:
+    if "http://www.apache.org/licenses/LICENSE-2.0" not in lines[apache_line]:
         return False
 
     return True
