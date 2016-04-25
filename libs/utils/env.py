@@ -451,9 +451,6 @@ class TestEnv(ShareState):
         logging.debug('%14s -      CPUs: %s', 'Target', self.target.cpuinfo)
         logging.debug('%14s -  Clusters: %s', 'Target', self.target.core_clusters)
 
-        # Ensure rootfs is RW mounted
-        self.target.execute('mount -o remount,rw /', as_root=True)
-
         logging.info('%14s - Initializing target workdir:', 'Target')
         logging.info('%14s -    %s', 'Target', self.target.working_directory)
         tools_to_install = []
