@@ -228,11 +228,12 @@ class EventPlot(AbstractDataPlotter):
 
         base_dir = os.path.dirname(os.path.realpath(__file__))
         css_file = os.path.join(base_dir, "css/EventPlot.css")
-        css_fh = open(css_file, 'r')
         self._html.append("<style>")
-        self._html += css_fh.readlines()
+
+        with open(css_file, 'r') as css_fh:
+            self._html += [l[:-1] for l in css_fh.readlines()]
+
         self._html.append("</style>")
-        css_fh.close()
 
     def html(self):
         """Return a Raw HTML string for the plot"""
