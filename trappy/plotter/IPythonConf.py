@@ -21,15 +21,21 @@ import os
 import shutil
 from distutils.version import StrictVersion as V
 
+D3_PLOTTER_URL = "https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"
+D3_TIP_URL = "http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"
+DYGRAPH_COMBINED_URL = "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined.js"
+DYGRAPH_SYNC_URL = "http://dygraphs.com/extras/synchronizer.js"
+UNDERSCORE_URL = "https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"
+
 IPLOT_RESOURCES = {
     "ILinePlot": [
-        "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined.js",
+        DYGRAPH_COMBINED_URL,
         "js/ILinePlot.js",
-        "http://dygraphs.com/extras/synchronizer.js",
-        "https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"],
+        DYGRAPH_SYNC_URL,
+        UNDERSCORE_URL],
     "EventPlot": [
-        "https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js",
-        "http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js",
+        D3_PLOTTER_URL,
+        D3_TIP_URL,
         "js/EventPlot.js",
         "css/EventPlot_help.jpg"]}
 
