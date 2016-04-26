@@ -189,14 +189,25 @@ class CGroup(object):
             if isiterable(attrs[idx]):
                 attrs[idx] = list_to_ranges(attrs[idx])
             # Build attribute path
-            path = '{}.{}'.format(self.controller.kind, idx)
-            path = self.target.path.join(self.directory, path)
+            if self.controller._noprefix:
+                attr_name = '{}'.format(idx)
+            else:
+                attr_name = '{}.{}'.format(self.controller.kind, idx)
+            path = self.target.path.join(self.directory, attr_name)
 
             self.logger.debug('Set attribute [%s] to: %s"',
                     path, attrs[idx])
 
             # Set the attribute value
-            self.target.write_value(path, attrs[idx])
+            try:
+                self.target.write_value(path, attrs[idx])
+            except TargetError:
+                # Check if the error is due to a non-existing attribute
+                attrs = self.get()
+                if idx not in attrs:
+                    raise ValueError('Controller [{}] does not provide attribute [{}]'\
+                                     .format(self.controller.kind, attr_name))
+                raise
 
     def get_tasks(self):
         task_ids = self.target.read_value(self.tasks_file).split()
