@@ -104,7 +104,8 @@ class Controller(object):
     def list_all(self):
         self.logger.debug('Listing groups for %s controller', self.kind)
         output = self.target.execute('{} find {} -type d'\
-                .format(self.target.busybox, self.mount_point))
+                .format(self.target.busybox, self.mount_point),
+                as_root=True)
         cgroups = []
         for cg in output.splitlines():
             cg = cg.replace(self.mount_point + '/', '/')
@@ -162,7 +163,7 @@ class CGroup(object):
     def exists(self):
         try:
             self.target.execute('[ -d {0} ]'\
-                .format(self.directory))
+                .format(self.directory), as_root=True)
             return True
         except TargetError:
             return False
@@ -176,7 +177,8 @@ class CGroup(object):
                 self.directory)
         output = self.target._execute_util(
                     'cgroups_get_attributes {} {}'.format(
-                    self.directory, self.controller.kind))
+                    self.directory, self.controller.kind),
+                    as_root=True)
         for res in output.splitlines():
             attr = res.split(':')[0]
             value = res.split(':')[1]
