@@ -62,12 +62,26 @@ ftrace_get_function_stats() {
 ################################################################################
 
 cgroups_get_attributes() {
-	[[ $# -eq 2 ]] || exit -1
+	test $# -eq 2 || exit -1
 	CGROUP="$1"
 	CONTROLLER="$2"
-	$GREP '' $CGROUP/* | \
-		$GREP "$CONTROLLER\." | \
-		$SED -e "s|$CONTROLLER\.||" -e "s|$CGROUP/||"
+	# Check if controller is mounted with "noprefix" option, which is quite
+	# common on Android for backward compatibility
+	ls $CGROUP/$CONTROLLER\.* 2>&1 >/dev/null
+	if [ $? -eq 0 ]; then
+		# no "noprefix" option, attributes format is:
+		#   mnt_point/controller.attribute_name
+		$GREP '' $CGROUP/* | \
+			$GREP "$CONTROLLER\." | \
+			$SED -e "s|$CONTROLLER\.||" -e "s|$CGROUP/||"
+	else
+		# "noprefix" option, attribute format is:
+		#   mnt_point/attribute_name
+		$GREP '' $(\
+			$FIND $CGROUP -type f -maxdepth 1 |
+			$GREP -v -e ".*tasks" -e ".*cgroup\..*") | \
+		$SED "s|$CGROUP/||"
+	fi
 }
 
 cgroups_run_into() {
