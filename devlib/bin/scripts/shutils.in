@@ -90,8 +90,9 @@ cgroups_run_into() {
 	CGMOUNT=${CGMOUNT:-/sys/fs/cgroup/devlib_*}
 	# The control group we want to run into
 	CGP=${1}
+	shift 1
 	# The command to run
-	CMD=${2}
+	CMD="${@}"
 
 	# Execution under root CGgroup
 	if [ "x/" == "x$CGP" ]; then
@@ -125,7 +126,8 @@ cgroups_run_into() {
 	fi
 
 	# Execute the command
-	$CMD
+	exec $CMD
+
 }
 
 cgroups_tasks_move() {
