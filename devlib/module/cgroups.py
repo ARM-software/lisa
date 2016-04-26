@@ -235,7 +235,11 @@ class CgroupsModule(Module):
 
     @staticmethod
     def probe(target):
-        return target.config.has('cgroups') and target.is_rooted
+        if not target.is_rooted:
+            return False
+        if target.file_exists('/proc/cgroups'):
+            return True
+        return target.config.has('cgroups')
 
     def __init__(self, target):
         super(CgroupsModule, self).__init__(target)
