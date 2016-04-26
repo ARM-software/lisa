@@ -34,6 +34,7 @@ class Controller(object):
         self.mount_name = 'devlib_'+kind
         self.kind = kind
         self.target = None
+        self._noprefix = False
 
         self.logger = logging.getLogger('cgroups.'+self.kind)
         self.mount_point = None
@@ -68,8 +69,15 @@ class Controller(object):
                             self.mount_point),
                             as_root=True)
 
-        self.logger.debug('Controller %s mounted under: %s',
-            self.kind, self.mount_point)
+        # Check if this controller uses "noprefix" option
+        output = target.execute('mount | grep "{} "'.format(self.mount_name))
+        if 'noprefix' in output:
+            self._noprefix = True
+            # self.logger.debug('Controller %s using "noprefix" option',
+            #                   self.kind)
+
+        self.logger.debug('Controller %s mounted under: %s (noprefix=%s)',
+            self.kind, self.mount_point, self._noprefix)
 
         # Mark this contoller as available
         self.target = target
