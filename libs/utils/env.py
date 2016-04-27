@@ -343,6 +343,9 @@ class TestEnv(ShareState):
         elif self.conf['board'].upper() == 'JUNO':
             platform = devlib.platform.arm.Juno()
             self.__modules = ['bl', 'hwmon', 'cpufreq']
+        elif self.conf['board'].upper() == 'JUNO2':
+            platform = devlib.platform.arm.Juno()
+            self.__modules = ['bl', 'hwmon', 'cpufreq']
 
         # Initialize OAK board
         elif self.conf['board'].upper() == 'OAK':
