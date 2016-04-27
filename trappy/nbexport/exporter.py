@@ -16,6 +16,7 @@
 """Preprocessor to remove Marked Lines from IPython Output Cells"""
 
 
+from nbconvert.exporters.html import HTMLExporter
 from nbconvert.preprocessors import Preprocessor
 import os
 import re
@@ -25,6 +26,14 @@ REMOVE_STOP = '/* TRAPPY_PUBLISH_REMOVE_STOP */'
 REMOVE_LINE = '/* TRAPPY_PUBLISH_REMOVE_LINE */'
 IMPORT_SCRIPT = r'/\* TRAPPY_PUBLISH_IMPORT = "([^"]+)" \*/'
 SOURCE_LIB = r'<!-- TRAPPY_PUBLISH_SOURCE_LIB = "([^"]+)" -->'
+
+
+class HTML(HTMLExporter):
+    """HTML Exporter class for TRAPpy notebooks"""
+
+    def __init__(self, **kwargs):
+        super(HTML, self).__init__(**kwargs)
+        self.register_preprocessor(TrappyPlotterPreprocessor, enabled=True)
 
 
 class TrappyPlotterPreprocessor(Preprocessor):

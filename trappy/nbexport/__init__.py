@@ -17,13 +17,9 @@
 * Custom Preprocessing
 """
 
-from nbconvert.exporters.html import HTMLExporter
-from trappy.nbexport.preprocessors import TrappyPlotterPreprocessor
-
-
-class HTML(HTMLExporter):
-    """HTML Exporter class for TRAPpy notebooks"""
-
-    def __init__(self, **kwargs):
-        super(HTML, self).__init__(**kwargs)
-        self.register_preprocessor(TrappyPlotterPreprocessor, enabled=True)
+try:
+    from trappy.nbexport.exporter import HTML
+except ImportError:
+    # Avoid testsuite errors when the testsuite is run in an environment without
+    # ipython
+    HTML = object
