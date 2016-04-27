@@ -50,13 +50,13 @@ class ILinePlotGen(object):
     def _add_graph_cell(self, fig_name):
         """Add a HTML table cell to hold the plot"""
 
-        div_js = ''
+        graph_js = ''
         lib_urls =  [IPythonConf.DYGRAPH_COMBINED_URL, IPythonConf.DYGRAPH_SYNC_URL,
                      IPythonConf.UNDERSCORE_URL]
         for url in lib_urls:
-            div_js += '<!-- TRAPPY_PUBLISH_SOURCE_LIB = "{}" -->\n'.format(url)
+            graph_js += '<!-- TRAPPY_PUBLISH_SOURCE_LIB = "{}" -->\n'.format(url)
 
-        div_js += """
+        graph_js += """
             <script>
             /* TRAPPY_PUBLISH_IMPORT = "plotter/js/ILinePlot.js" */
             /* TRAPPY_PUBLISH_REMOVE_START */
@@ -85,9 +85,10 @@ class ILinePlotGen(object):
             </script>
         """
 
-        cell = '<td style="border-style: hidden;"><div class="ilineplot" id="{}">{}</div></td>'.format(fig_name, div_js)
+        cell = '<td style="border-style: hidden;"><div class="ilineplot" id="{}"></div></td>'.format(fig_name)
 
         self._html.append(cell)
+        self._js.append(graph_js)
 
     def _add_legend_cell(self, fig_name):
         """Add HTML table cell for the legend"""
@@ -151,6 +152,7 @@ class ILinePlotGen(object):
 
         self._attr = kwargs
         self._html = []
+        self._js = []
         self.num_plots = num_plots
         self._fig_map = {}
         self._fig_index = 0
@@ -236,4 +238,4 @@ class ILinePlotGen(object):
     def html(self):
         """Return the raw HTML text"""
 
-        return "\n".join(self._html)
+        return "\n".join(self._html + self._js)
