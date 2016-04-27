@@ -49,25 +49,25 @@ def change_resource_paths(txt):
     # Replace the path for d3-tip
     txt = txt.replace(
         IPythonConf.add_web_base("plotter_scripts/EventPlot/d3.tip.v0.6.3"),
-        "http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3")
+        IPythonConf.D3_TIP_URL)
     txt = txt.replace(
         IPythonConf.add_web_base("plotter_scripts/EventPlot/d3.v3.min"),
-        "http://d3js.org/d3.v3.min")
+        IPythonConf.D3_PLOTTER_URL)
     txt = txt.replace(
         IPythonConf.add_web_base("plotter_scripts/EventPlot/EventPlot"),
         "https://rawgit.com/sinkap/7f89de3e558856b81f10/raw/46144f8f8c5da670c54f826f0c634762107afc66/EventPlot")
     txt = txt.replace(
         IPythonConf.add_web_base("plotter_scripts/ILinePlot/synchronizer"),
-        "http://dygraphs.com/extras/synchronizer")
+        IPythonConf.DYGRAPH_SYNC_URL)
     txt = txt.replace(
         IPythonConf.add_web_base("plotter_scripts/ILinePlot/dygraph-combined"),
-        "http://cdnjs.cloudflare.com/ajax/libs/dygraph/1.1.1/dygraph-combined")
+        IPythonConf.DYGRAPH_COMBINED_URL)
     txt = txt.replace(
         IPythonConf.add_web_base("plotter_scripts/ILinePlot/ILinePlot"),
         "https://rawgit.com/sinkap/648927dfd6985d4540a9/raw/69d6f1f9031ae3624c15707315ce04be1a9d1ac3/ILinePlot")
     txt = txt.replace(
         IPythonConf.add_web_base("plotter_scripts/ILinePlot/underscore-min"),
-        "https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min")
+        IPythonConf.UNDERSCORE_URL)
 
     logging.info("Updated Library Paths...")
     return txt
