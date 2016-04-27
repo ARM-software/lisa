@@ -182,14 +182,14 @@ class ILinePlotGen(object):
 
         fig_params["pointSize"] = self._attr["point_size"]
 
-    def add_plot(self, plot_num, data_frame, title="", test=False):
+    def add_plot(self, plot_num, data_dict, title="", test=False):
         """Add a plot for the corresponding index
 
         :param plot_num: The linear index of the plot
         :type plot_num: int
 
-        :param data_frame: The data for the plot
-        :type data_frame: :mod:`pandas.DataFrame`
+        :param data_dict: The data for the plot
+        :type data_dict: dict
 
         :param title: The title for the plot
         :type title: str
@@ -197,7 +197,7 @@ class ILinePlotGen(object):
 
         fig_name = self._fig_map[plot_num]
         fig_params = {}
-        fig_params["data"] = json.loads(data_frame.to_json())
+        fig_params["data"] = dict((k, v.T.to_dict()) for k, v in data_dict.iteritems())
         fig_params["name"] = fig_name
         fig_params["rangesel"] = False
         fig_params["logscale"] = False

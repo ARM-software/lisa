@@ -187,7 +187,7 @@ class ILinePlot(AbstractDataPlotter):
         self._layout = ILinePlotGen(len_pivots, **self._attr)
         plot_index = 0
         for p_val in pivot_vals:
-            data_frame = pd.Series()
+            data_dict = {}
             for constraint in self.c_mgr:
                 if permute:
                     trace_idx, pivot = p_val
@@ -200,7 +200,7 @@ class ILinePlot(AbstractDataPlotter):
 
                 result = constraint.result
                 if pivot in result:
-                    data_frame[legend] = result[pivot]
+                    data_dict[legend] = result[pivot]
 
             if permute:
                 title = self.traces[plot_index].name
@@ -210,8 +210,8 @@ class ILinePlot(AbstractDataPlotter):
                 title = ""
 
             # Fix data frame indexes if necessary
-            data_frame = self._fix_indexes(data_frame)
-            self._layout.add_plot(plot_index, data_frame, title, test=test)
+            data_dict = self._fix_indexes(data_dict)
+            self._layout.add_plot(plot_index, data_dict, title, test=test)
             plot_index += 1
 
         self._layout.finish()
@@ -227,7 +227,7 @@ class ILinePlot(AbstractDataPlotter):
         for constraint in self.c_mgr:
             result = constraint.result
             title = str(constraint)
-            data_frame = pd.Series()
+            data_dict = {}
 
             for pivot in pivot_vals:
                 if pivot in result:
@@ -236,27 +236,27 @@ class ILinePlot(AbstractDataPlotter):
                     else:
                         key = "{0}: {1}".format(self._attr["pivot"], self._attr["map_label"].get(pivot, pivot))
 
-                    data_frame[key] = result[pivot]
+                    data_dict[key] = result[pivot]
 
             # Fix data frame indexes if necessary
-            data_frame = self._fix_indexes(data_frame)
-            self._layout.add_plot(plot_index, data_frame, title)
+            data_dict = self._fix_indexes(data_dict)
+            self._layout.add_plot(plot_index, data_dict, title)
             plot_index += 1
 
         self._layout.finish()
 
-    def _fix_indexes(self, data_frame):
+    def _fix_indexes(self, data_dict):
         """
         In case of multiple traces with different indexes (i.e. x-axis values),
         create new ones with same indexes
         """
         # 1) Check if we are processing multiple traces
-        if len(data_frame) > 1:
+        if len(data_dict) > 1:
             # 2) Merge the data frames to obtain common indexes
-            df_columns = list(data_frame.keys())
-            dedup_data = [handle_duplicate_index(s) for s in data_frame.values]
-            data_frame = pd.Series(dedup_data, index=df_columns)
-            merged_df = pd.concat(data_frame.get_values(), axis=1)
+            df_columns = list(data_dict.keys())
+            dedup_data = [handle_duplicate_index(s) for s in data_dict.values()]
+            ret = pd.Series(dedup_data, index=df_columns)
+            merged_df = pd.concat(ret.get_values(), axis=1)
             merged_df.columns = df_columns
             # 3) Fill NaN values depending on drawstyle
             if self._attr["drawstyle"] == "steps-post":
@@ -271,4 +271,4 @@ class ILinePlot(AbstractDataPlotter):
 
             return merged_df
         else:
-            return data_frame
+            return data_dict
