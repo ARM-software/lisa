@@ -34,6 +34,7 @@ class Controller(object):
         self.mount_name = 'devlib_'+kind
         self.kind = kind
         self.target = None
+        self._noprefix = False
 
         self.logger = logging.getLogger('cgroups.'+self.kind)
         self.mount_point = None
@@ -68,8 +69,15 @@ class Controller(object):
                             self.mount_point),
                             as_root=True)
 
-        self.logger.debug('Controller %s mounted under: %s',
-            self.kind, self.mount_point)
+        # Check if this controller uses "noprefix" option
+        output = target.execute('mount | grep "{} "'.format(self.mount_name))
+        if 'noprefix' in output:
+            self._noprefix = True
+            # self.logger.debug('Controller %s using "noprefix" option',
+            #                   self.kind)
+
+        self.logger.debug('Controller %s mounted under: %s (noprefix=%s)',
+            self.kind, self.mount_point, self._noprefix)
 
         # Mark this contoller as available
         self.target = target
@@ -96,7 +104,8 @@ class Controller(object):
     def list_all(self):
         self.logger.debug('Listing groups for %s controller', self.kind)
         output = self.target.execute('{} find {} -type d'\
-                .format(self.target.busybox, self.mount_point))
+                .format(self.target.busybox, self.mount_point),
+                as_root=True)
         cgroups = []
         for cg in output.splitlines():
             cg = cg.replace(self.mount_point + '/', '/')
@@ -154,7 +163,7 @@ class CGroup(object):
     def exists(self):
         try:
             self.target.execute('[ -d {0} ]'\
-                .format(self.directory))
+                .format(self.directory), as_root=True)
             return True
         except TargetError:
             return False
@@ -168,7 +177,8 @@ class CGroup(object):
                 self.directory)
         output = self.target._execute_util(
                     'cgroups_get_attributes {} {}'.format(
-                    self.directory, self.controller.kind))
+                    self.directory, self.controller.kind),
+                    as_root=True)
         for res in output.splitlines():
             attr = res.split(':')[0]
             value = res.split(':')[1]
@@ -181,14 +191,25 @@ class CGroup(object):
             if isiterable(attrs[idx]):
                 attrs[idx] = list_to_ranges(attrs[idx])
             # Build attribute path
-            path = '{}.{}'.format(self.controller.kind, idx)
-            path = self.target.path.join(self.directory, path)
+            if self.controller._noprefix:
+                attr_name = '{}'.format(idx)
+            else:
+                attr_name = '{}.{}'.format(self.controller.kind, idx)
+            path = self.target.path.join(self.directory, attr_name)
 
             self.logger.debug('Set attribute [%s] to: %s"',
                     path, attrs[idx])
 
             # Set the attribute value
-            self.target.write_value(path, attrs[idx])
+            try:
+                self.target.write_value(path, attrs[idx])
+            except TargetError:
+                # Check if the error is due to a non-existing attribute
+                attrs = self.get()
+                if idx not in attrs:
+                    raise ValueError('Controller [{}] does not provide attribute [{}]'\
+                                     .format(self.controller.kind, attr_name))
+                raise
 
     def get_tasks(self):
         task_ids = self.target.read_value(self.tasks_file).split()
@@ -214,7 +235,11 @@ class CgroupsModule(Module):
 
     @staticmethod
     def probe(target):
-        return target.config.has('cgroups') and target.is_rooted
+        if not target.is_rooted:
+            return False
+        if target.file_exists('/proc/cgroups'):
+            return True
+        return target.config.has('cgroups')
 
     def __init__(self, target):
         super(CgroupsModule, self).__init__(target)
@@ -274,4 +299,23 @@ class CgroupsModule(Module):
             self.logger.warning('Controller %s not available', kind)
             return None
         return self.controllers[kind]
+
+    def run_into(self, cgroup, cmdline):
+        """
+        Run the specified command into the specified CGroup
+        """
+        return self.target._execute_util(
+            'cgroups_run_into {} {}'.format(cgroup, cmdline),
+            as_root=True)
+
+
+    def cgroups_tasks_move(self, srcg, dstg, exclude=''):
+        """
+        Move all the tasks from the srcg CGroup to the dstg one.
+        A regexps of tasks names can be used to defined tasks which should not
+        be moved.
+        """
+        return self.target._execute_util(
+            'cgroups_tasks_move {} {} {}'.format(srcg, dstg, exclude),
+            as_root=True)
 

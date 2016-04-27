@@ -4,6 +4,7 @@ CMD=$1
 shift
 
 BUSYBOX=${BUSYBOX:-__DEVLIB_BUSYBOX__}
+FIND=${FIND:-$BUSYBOX find}
 GREP=${GREP:-$BUSYBOX grep}
 SED=${SED:-$BUSYBOX sed}
 
@@ -61,12 +62,93 @@ ftrace_get_function_stats() {
 ################################################################################
 
 cgroups_get_attributes() {
-	[[ $# -eq 2 ]] || exit -1
+	test $# -eq 2 || exit -1
 	CGROUP="$1"
 	CONTROLLER="$2"
-	$GREP '' $CGROUP/* | \
-		$GREP "$CONTROLLER\." | \
-		$SED -e "s|$CONTROLLER\.||" -e "s|$CGROUP/||"
+	# Check if controller is mounted with "noprefix" option, which is quite
+	# common on Android for backward compatibility
+	ls $CGROUP/$CONTROLLER\.* 2>&1 >/dev/null
+	if [ $? -eq 0 ]; then
+		# no "noprefix" option, attributes format is:
+		#   mnt_point/controller.attribute_name
+		$GREP '' $CGROUP/* | \
+			$GREP "$CONTROLLER\." | \
+			$SED -e "s|$CONTROLLER\.||" -e "s|$CGROUP/||"
+	else
+		# "noprefix" option, attribute format is:
+		#   mnt_point/attribute_name
+		$GREP '' $(\
+			$FIND $CGROUP -type f -maxdepth 1 |
+			$GREP -v -e ".*tasks" -e ".*cgroup\..*") | \
+		$SED "s|$CGROUP/||"
+	fi
+}
+
+cgroups_run_into() {
+
+	# Control groups mount point
+	CGMOUNT=${CGMOUNT:-/sys/fs/cgroup/devlib_*}
+	# The control group we want to run into
+	CGP=${1}
+	shift 1
+	# The command to run
+	CMD="${@}"
+
+	# Execution under root CGgroup
+	if [ "x/" == "x$CGP" ]; then
+
+	  $FIND $CGMOUNT -type d -maxdepth 0 | \
+	  while read CGPATH; do
+		# Move this shell into that control group
+		echo $$ > $CGPATH/cgroup.procs
+		echo "Moving task into root CGroup ($CGPATH)"
+	  done
+
+	# Execution under specified CGroup
+	else
+
+	  # Check if the required CGroup exists
+	  $FIND $CGMOUNT -type d -mindepth 1 | \
+	  $GREP "$CGP" &>/dev/null
+	  if [ $? -ne 0 ]; then
+		echo "ERROR: could not find any $CGP cgroup under $CGMOUNT"
+		exit 1
+	  fi
+
+	  $FIND $CGMOUNT -type d -mindepth 1 | \
+	  $GREP "$CGP" | \
+	  while read CGPATH; do
+		  # Move this shell into that control group
+		  echo $$ > $CGPATH/cgroup.procs
+		  echo "Moving task into $CGPATH"
+	  done
+
+	fi
+
+	# Execute the command
+	exec $CMD
+
+}
+
+cgroups_tasks_move() {
+	SRC_GRP=${1}
+	DST_GRP=${2}
+	GREP_EXCLUSE=${3:-''}
+
+	cat $SRC_GRP/tasks | while read TID; do
+	  echo $TID > $DST_GRP/cgroup.procs
+	done
+
+	[ "$GREP_EXCLUSE" = "" ] && exit 0
+
+	PIDS=`ps | $GREP "$GREP_EXCLUSE" | awk '{print $2}'`
+	PIDS=`echo $PIDS`
+	echo "PIDs to save: [$PIDS]"
+	for TID in $PIDS; do
+	  CMDLINE=`cat /proc/$TID/cmdline`
+	  echo "$TID : $CMDLINE"
+	  echo $TID > $SRC_GRP/cgroup.procs
+	done
 }
 
 ################################################################################
@@ -91,6 +173,12 @@ cpufreq_trace_all_frequencies)
     ;;
 cgroups_get_attributes)
 	cgroups_get_attributes $*
+	;;
+cgroups_run_into)
+    cgroups_run_into $*
+    ;;
+cgroups_tasks_move)
+	cgroups_tasks_move $*
 	;;
 ftrace_get_function_stats)
     ftrace_get_function_stats
