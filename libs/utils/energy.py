@@ -40,6 +40,13 @@ DEFAULT_ENERGY_METER = {
             'kinds' : [ 'energy' ]
         }
     },
+    'juno2' : {
+        'instrument' : 'hwmon',
+        'conf' : {
+            'sites' : [ 'BOARDLITTLE', 'BOARDBIG' ],
+            'kinds' : [ 'energy' ]
+        }
+    },
 
     # Hikey: by default use AEP
     'hikey' : {
@@ -166,6 +173,10 @@ class HWMon(EnergyMeter):
             if self._target.little_core.upper() in ch.upper():
                 clusters_nrg['LITTLE'] = '{:.6f}'.format(nrg_total)
             elif self._target.big_core.upper() in ch.upper():
+                clusters_nrg['big'] = '{:.6f}'.format(nrg_total)
+            elif 'LITTLE' in ch.upper():
+                clusters_nrg['LITTLE'] = '{:.6f}'.format(nrg_total)
+            elif 'BIG' in ch.upper():
                 clusters_nrg['big'] = '{:.6f}'.format(nrg_total)
             else:
                 logging.warning('%14s - Unable to bind hwmon channel [%s]'\
