@@ -25,7 +25,7 @@ source src/shell/lisa_colors
 DEVMODE=${DEVMODE:-1}
 
 # Get base installation path of LISA
-LISA_HOME="$(pwd)"
+LISA_HOME=$(pwd)
 
 export PYTHONPATH=''
 export PYTHONPATH=$LISA_HOME/libs/utils:$PYTHONPATH

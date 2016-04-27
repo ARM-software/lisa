@@ -20,6 +20,9 @@
 grep "bash" /proc/$$/cmdline &>/dev/null
 if [ $? -eq 0 ]; then
 	source ./src/shell/lisa_shell
+	if [ ! $? -eq 0 ]; then
+	echo "ERROR: LISA must be initialized from the LISA home folder."
+	fi
 else
 	echo "WARNING: Current shell is not a BASH"
 	# Check if a bash shell is available
