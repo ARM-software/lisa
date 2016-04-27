@@ -50,8 +50,16 @@ class ILinePlotGen(object):
     def _add_graph_cell(self, fig_name):
         """Add a HTML table cell to hold the plot"""
 
-        div_js = """
+        div_js = ''
+        lib_urls =  [IPythonConf.DYGRAPH_COMBINED_URL, IPythonConf.DYGRAPH_SYNC_URL,
+                     IPythonConf.UNDERSCORE_URL]
+        for url in lib_urls:
+            div_js += '<!-- TRAPPY_PUBLISH_SOURCE_LIB = "{}" -->\n'.format(url)
+
+        div_js += """
             <script>
+            /* TRAPPY_PUBLISH_IMPORT = "plotter/js/ILinePlot.js" */
+            /* TRAPPY_PUBLISH_REMOVE_START */
             var ilp_req = require.config( {
 
                 paths: {
@@ -70,9 +78,10 @@ class ILinePlotGen(object):
                     }
                 }
             });
-                ilp_req(["require", "ILinePlot"], function() {
+                /* TRAPPY_PUBLISH_REMOVE_STOP */
+                ilp_req(["require", "ILinePlot"], function() { /* TRAPPY_PUBLISH_REMOVE_LINE */
                 ILinePlot.generate('""" + fig_name + """', '""" + IPythonConf.add_web_base("") + """');
-            });
+            }); /* TRAPPY_PUBLISH_REMOVE_LINE */
             </script>
         """
 
