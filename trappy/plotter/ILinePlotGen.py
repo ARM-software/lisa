@@ -80,7 +80,7 @@ class ILinePlotGen(object):
             });
                 /* TRAPPY_PUBLISH_REMOVE_STOP */
                 ilp_req(["require", "ILinePlot"], function() { /* TRAPPY_PUBLISH_REMOVE_LINE */
-                ILinePlot.generate('""" + fig_name + """', '""" + IPythonConf.add_web_base("") + """');
+                ILinePlot.generate(""" + fig_name + """_data);
             }); /* TRAPPY_PUBLISH_REMOVE_LINE */
             </script>
         """
@@ -153,6 +153,7 @@ class ILinePlotGen(object):
         self._attr = kwargs
         self._html = []
         self._js = []
+        self._js_plot_data = []
         self.num_plots = num_plots
         self._fig_map = {}
         self._fig_index = 0
@@ -224,11 +225,11 @@ class ILinePlotGen(object):
         if "xlim" in self._attr:
             fig_params["dateWindow"] = self._attr["xlim"]
 
-        if not test:
-            json_file = os.path.join(IPythonConf.get_data_path(), fig_name + ".json")
-            fh = open(json_file, "w")
-            json.dump(fig_params, fh)
-            fh.close()
+        fig_data = "var {}_data = {};".format(fig_name, json.dumps(fig_params))
+
+        self._js_plot_data.append("<script>")
+        self._js_plot_data.append(fig_data)
+        self._js_plot_data.append("</script>")
 
     def finish(self):
         """Called when the Plotting is finished"""
@@ -238,4 +239,4 @@ class ILinePlotGen(object):
     def html(self):
         """Return the raw HTML text"""
 
-        return "\n".join(self._html + self._js)
+        return "\n".join(self._html + self._js_plot_data + self._js)
