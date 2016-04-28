@@ -207,7 +207,7 @@ class Workload(object):
 
         # Prepend eventually required taskset command
         if self.cgroup and self.cgroup_cmd == '':
-            self.cgroup_cmd = '{0:s}/cgroup_run_into.sh {1:s}'\
+            self.cgroup_cmd = 'cgroups_run_into {1:s}'\
                 .format(self.target.executables_directory,
                         self.cgroup)
             self.command = '{0:s} \'{1:s}\''\
@@ -236,8 +236,12 @@ class Workload(object):
             logging.info('%14s -    %s', 'WlGen', self.command)
 
             # Run command and wait for it to complete
-            results = self.target.execute(self.command,
-                    timeout=None, as_root=as_root)
+            if cgroup:
+                results = self.target._execute_util(self.command,
+                                                  as_root=True)
+            else:
+                results = self.target.execute(self.command,
+                        timeout=None, as_root=as_root)
             # print type(results)
             self.output['executor'] = results
 
