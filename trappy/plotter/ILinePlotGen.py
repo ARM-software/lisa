@@ -50,13 +50,13 @@ class ILinePlotGen(object):
     def _add_graph_cell(self, fig_name):
         """Add a HTML table cell to hold the plot"""
 
-        div_js = ''
+        graph_js = ''
         lib_urls =  [IPythonConf.DYGRAPH_COMBINED_URL, IPythonConf.DYGRAPH_SYNC_URL,
                      IPythonConf.UNDERSCORE_URL]
         for url in lib_urls:
-            div_js += '<!-- TRAPPY_PUBLISH_SOURCE_LIB = "{}" -->\n'.format(url)
+            graph_js += '<!-- TRAPPY_PUBLISH_SOURCE_LIB = "{}" -->\n'.format(url)
 
-        div_js += """
+        graph_js += """
             <script>
             /* TRAPPY_PUBLISH_IMPORT = "plotter/js/ILinePlot.js" */
             /* TRAPPY_PUBLISH_REMOVE_START */
@@ -80,14 +80,15 @@ class ILinePlotGen(object):
             });
                 /* TRAPPY_PUBLISH_REMOVE_STOP */
                 ilp_req(["require", "ILinePlot"], function() { /* TRAPPY_PUBLISH_REMOVE_LINE */
-                ILinePlot.generate('""" + fig_name + """', '""" + IPythonConf.add_web_base("") + """');
+                ILinePlot.generate(""" + fig_name + """_data);
             }); /* TRAPPY_PUBLISH_REMOVE_LINE */
             </script>
         """
 
-        cell = '<td style="border-style: hidden;"><div class="ilineplot" id="{}">{}</div></td>'.format(fig_name, div_js)
+        cell = '<td style="border-style: hidden;"><div class="ilineplot" id="{}"></div></td>'.format(fig_name)
 
         self._html.append(cell)
+        self._js.append(graph_js)
 
     def _add_legend_cell(self, fig_name):
         """Add HTML table cell for the legend"""
@@ -151,6 +152,8 @@ class ILinePlotGen(object):
 
         self._attr = kwargs
         self._html = []
+        self._js = []
+        self._js_plot_data = []
         self.num_plots = num_plots
         self._fig_map = {}
         self._fig_index = 0
@@ -182,14 +185,14 @@ class ILinePlotGen(object):
 
         fig_params["pointSize"] = self._attr["point_size"]
 
-    def add_plot(self, plot_num, data_frame, title="", test=False):
+    def add_plot(self, plot_num, data_dict, title="", test=False):
         """Add a plot for the corresponding index
 
         :param plot_num: The linear index of the plot
         :type plot_num: int
 
-        :param data_frame: The data for the plot
-        :type data_frame: :mod:`pandas.DataFrame`
+        :param data_dict: The data for the plot
+        :type data_dict: dict
 
         :param title: The title for the plot
         :type title: str
@@ -197,7 +200,7 @@ class ILinePlotGen(object):
 
         fig_name = self._fig_map[plot_num]
         fig_params = {}
-        fig_params["data"] = json.loads(data_frame.to_json())
+        fig_params["data"] = dict((k, v.T.to_dict()) for k, v in data_dict.iteritems())
         fig_params["name"] = fig_name
         fig_params["rangesel"] = False
         fig_params["logscale"] = False
@@ -222,11 +225,11 @@ class ILinePlotGen(object):
         if "xlim" in self._attr:
             fig_params["dateWindow"] = self._attr["xlim"]
 
-        if not test:
-            json_file = os.path.join(IPythonConf.get_data_path(), fig_name + ".json")
-            fh = open(json_file, "w")
-            json.dump(fig_params, fh)
-            fh.close()
+        fig_data = "var {}_data = {};".format(fig_name, json.dumps(fig_params))
+
+        self._js_plot_data.append("<script>")
+        self._js_plot_data.append(fig_data)
+        self._js_plot_data.append("</script>")
 
     def finish(self):
         """Called when the Plotting is finished"""
@@ -236,4 +239,4 @@ class ILinePlotGen(object):
     def html(self):
         """Return the raw HTML text"""
 
-        return "\n".join(self._html)
+        return "\n".join(self._html + self._js_plot_data + self._js)

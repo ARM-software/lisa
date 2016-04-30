@@ -47,9 +47,6 @@ IPYTHON_V3_BASE = "/static"
 PLOTTER_SCRIPTS = "plotter_scripts"
 """The installation directory of plotter JS files in the
 IPython webserver"""
-PLOTTER_DATA = "plotter_data"
-"""The installation directory of plotter data files in the
-IPython webserver"""
 
 def install_http_resource(url, to_path):
     """Install a HTTP Resource (eg. javascript) to
@@ -204,18 +201,6 @@ def get_scripts_path(profile=None):
     """
 
     dir_name = os.path.join(get_ipython_dir(profile), PLOTTER_SCRIPTS)
-    if not os.path.isdir(dir_name):
-        os.makedirs(dir_name)
-    return dir_name
-
-def get_data_path(profile=None):
-    """Directory where Plotter Data is stored
-
-    :param profile: The name of the IPython profile
-    :type profile: str
-    """
-
-    dir_name = os.path.join(get_ipython_dir(profile), PLOTTER_DATA)
     if not os.path.isdir(dir_name):
         os.makedirs(dir_name)
     return dir_name

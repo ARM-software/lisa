@@ -149,14 +149,11 @@ var ILinePlot = ( function() {
         }
     };
 
-    var generate = function(div_name, base) {
-        var json_file = base + "plotter_data/" + div_name + ".json";
-            $.getJSON( json_file, function( data ) {
-                create_graph(data);
-                purge();
-                if (data.syncGroup != undefined)
-                    sync(data.syncGroup);
-            });
+    var generate = function(data) {
+        create_graph(data);
+        purge();
+        if (data.syncGroup != undefined)
+            sync(data.syncGroup);
     };
 
     var create_graph = function(t_info) {
