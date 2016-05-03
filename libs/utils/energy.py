@@ -45,6 +45,11 @@ DEFAULT_ENERGY_METER = {
     # Hikey: by default use AEP
     'hikey' : {
         'instrument' : 'aep',
+        'conf' : {
+            'labels'          : ['LITTLE'],
+            'resistor_values' : [0.033],
+            'device_entry'    : '/dev/ttyACM0',
+        }
     }
 
 }
@@ -65,8 +70,14 @@ class EnergyMeter(object):
         if not force and EnergyMeter._meter:
             return EnergyMeter._meter
 
+        # Initialize energy meter based on configuration
+        if 'emeter' in conf:
+            emeter = conf['emeter']
+            logging.debug('%14s - using user-defined configuration',
+                          'EnergyMeter')
+
         # Initialize energy probe to board default
-        if 'board' in conf and \
+        elif 'board' in conf and \
             conf['board'] in DEFAULT_ENERGY_METER:
                 emeter = DEFAULT_ENERGY_METER[conf['board']]
                 logging.debug('%14s - using default energy meter for [%s]',
@@ -77,7 +88,7 @@ class EnergyMeter(object):
         if emeter['instrument'] == 'hwmon':
             EnergyMeter._meter = HWMon(target, emeter['conf'], res_dir)
         elif emeter['instrument'] == 'aep':
-            EnergyMeter._meter = Aep(target, res_dir)
+            EnergyMeter._meter = AEP(target, emeter['conf'], res_dir)
 
         logging.debug('%14s - Results dir: %s', 'EnergyMeter', self._res_dir)
         return EnergyMeter._meter
@@ -192,20 +203,19 @@ class HWMon(EnergyMeter):
 
         return (clusters_nrg, nrg_file)
 
-class Aep(EnergyMeter):
 
-    def __init__(self, target, res_dir):
-        super(Aep, self).__init__(target, res_dir)
+class AEP(EnergyMeter):
 
-        # Energy readings
-        self.readings = {}
+    def __init__(self, target, aep_conf, res_dir):
+        super(AEP, self).__init__(target, res_dir)
 
         # Time (start and diff) for power measurment
         self.time = {}
 
-        # Initialize instrument
-        # Only one channel (first AEP channel: pc1 ... probe channel 1) is used
-        self._aep = devlib.EnergyProbeInstrument(self._target, labels=["pc1"], resistor_values=[0.033])
+        # Configure channels for energy measurements
+        logging.info('%14s - AEP configuration', 'EnergyMeter')
+        logging.info('%14s -     %s', 'EnergyMeter', aep_conf)
+        self._aep = devlib.EnergyProbeInstrument(self._target, **aep_conf)
 
         # Configure channels for energy measurements
         logging.debug('EnergyMeter - Enabling channels')
