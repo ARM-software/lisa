@@ -19,6 +19,7 @@ import devlib
 import json
 import logging
 import time
+import os
 
 # Default energy measurements for each board
 DEFAULT_ENERGY_METER = {
@@ -66,11 +67,14 @@ class EnergyMeter(object):
 
     _meter = None
 
-    def __init__(self, target):
+    def __init__(self, target, res_dir=None):
         self._target = target
+        self._res_dir = res_dir
+        if not self._res_dir:
+            self._res_dir = '/tmp'
 
     @staticmethod
-    def getInstance(target, conf, force=False):
+    def getInstance(target, conf, force=False, res_dir=None):
 
         if not force and EnergyMeter._meter:
             return EnergyMeter._meter
@@ -85,9 +89,11 @@ class EnergyMeter(object):
             return None
 
         if emeter['instrument'] == 'hwmon':
-            EnergyMeter._meter = HWMon(target, emeter)
+            EnergyMeter._meter = HWMon(target, emeter, res_dir)
         elif emeter['instrument'] == 'aep':
-            EnergyMeter._meter = Aep(target)
+            EnergyMeter._meter = Aep(target, res_dir)
+
+        logging.debug('%14s - Results dir: %s', 'EnergyMeter', res_dir)
         return EnergyMeter._meter
 
     def sample(self):
@@ -101,8 +107,8 @@ class EnergyMeter(object):
 
 class HWMon(EnergyMeter):
 
-    def __init__(self, target, hwmon_conf=None):
-        super(HWMon, self).__init__(target)
+    def __init__(self, target, hwmon_conf=None, res_dir=None):
+        super(HWMon, self).__init__(target, res_dir)
 
         # The HWMon energy meter
         self._hwmon = None
@@ -214,8 +220,8 @@ class HWMon(EnergyMeter):
 
 class Aep(EnergyMeter):
 
-    def __init__(self, target):
-        super(Aep, self).__init__(target)
+    def __init__(self, target, res_dir):
+        super(Aep, self).__init__(target, res_dir)
 
         # Energy readings
         self.readings = {}
