@@ -146,7 +146,7 @@ if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
 fi
 # Start the server bindeed to the specified interface
 echo 'Starting IPython Notebook server...'
-echo "  IP Address :  http://$IPADDR:8888/"
+echo "  IP Address :  http://$IPADDR:$PORT/"
 echo '  Folder     : ' $PYDIR
 echo '  Logfile    : ' $LOGFILE
 echo '  PYTHONPATH : '
@@ -154,7 +154,7 @@ echo -e "\t${PYTHONPATH//:/\\n\\t}"
 cd $PYDIR
 echo
 echo -n 'Notebook server task: '
-nohup ipython notebook --ip=$IPADDR &>$LOGFILE &
+nohup ipython notebook --ip=$IPADDR --port=$PORT &>$LOGFILE &
 echo $! >$PIDFILE
 cd - >/dev/null
 }
@@ -171,11 +171,12 @@ rm -f $PIDFILE 2>/dev/null
 function lisa-ipython {
 CMD=${1:-start}
 NETIF=${2:-lo}
+PORT=${3:-8888}
 echo
 case "x${CMD^^}" in
 'xSTART')
 	echo "Starting IPython Notebooks..."
-	_lisa-ipython-start $NETIF
+	_lisa-ipython-start $NETIF $PORT
 	;;
 'xSTOP')
 	echo "Stopping IPython Notebooks..."
