@@ -73,15 +73,15 @@ echo -ne "$LISASHELL_DEFAULT"
 
 function _lisa-update-usage {
     echo "Usage: lisa-update (CMD)"
-	echo "  CMD: what to update (default: submodules)"
+	echo "  CMD: what to update (default: all)"
+	echo "       all - update lisa and all the external dependencies"
 	echo "       submodules - update external dependencies provided by submodules"
 	echo
     echo "Update submodules (if DEVMODE enabled)"
 }
 
-function _lisa-update-all {
+function _lisa-update-submodules {
 echo -ne "${LISASHELL_BLUE}"
-echo -e "*** Update LISA installation"
 if [ "x$DEVMODE" == "x1" ]; then
 	# Force update existing modules
 	echo
@@ -93,10 +93,55 @@ fi
 echo -ne "$LISASHELL_DEFAULT"
 }
 
+function _lisa-update-all {
+echo -ne "${LISASHELL_BLUE}"
+echo -e "*** Update LISA installation"
+
+git update-index -q --refresh
+ret=$?
+if [ $ret -ne 0 ]; then
+    echo "LISA internal error: git update-index failed"
+    echo "Please report it: https://github.com/ARM-software/lisa/issues"
+    return $ret
+fi
+
+git diff-index --quiet HEAD
+ret=$?
+if [ $ret -ne 0 ]; then
+    echo "There are outstanding uncommitted changes."
+    echo "Please, commit your changes or stash them before you can update lisa"
+    return $ret
+fi
+
+curr_commit=$(git rev-parse HEAD)
+remote_name=$(git remote -v | grep ARM-software/lisa.git | grep -m 1 fetch | awk '{print $1}')
+git merge-base --is-ancestor $curr_commit $remote_name/master
+ret=$?
+if [ $ret -ne 0 ]; then
+    echo "You have committed changes that are not part of $remote_name/master"
+    echo "Please move to the master branch before running lisa-update"
+    return $ret
+fi
+
+git pull --ff-only $remote_name master
+ret=$?
+if [ $ret -ne 0 ]; then
+    # git pull should have printed some error.  Abort and propagate the error code.
+    return $ret
+fi
+
+_lisa-update-submodules
+
+echo -ne "$LISASHELL_DEFAULT"
+}
+
 function lisa-update {
 CMD=${1:-all}
 echo
 case "x${CMD^^}" in
+'xSUBMODULES')
+	_lisa-update-submodules
+	;;
 'xALL')
 	_lisa-update-all
 	;;
