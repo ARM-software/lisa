@@ -335,3 +335,29 @@ class TestAggregator(BaseTestStats):
                                       index=pd.Index([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
                           )
         assert_series_equal(result[0], expected_result)
+
+    def test_default_aggfunc_multiple_trigger(self):
+        """MultiTriggerAggregator with the default aggfunc"""
+
+        trigger_fire = Trigger(self._trace, self._trace.aim_and_fire,
+                          filters={"result": "fire"},
+                          pivot="identifier", value=1)
+
+        trigger_blank = Trigger(self._trace, self._trace.aim_and_fire,
+                          filters={"result": "blank"},
+                          pivot="identifier", value=2)
+
+        aggregator = MultiTriggerAggregator([trigger_fire, trigger_blank],
+                                            self.topology)
+
+        results = aggregator.aggregate(level="cpu")
+        expected_results = [
+            pd.Series([1., 2., 1., 0., 0., 0.],
+                      index=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
+            pd.Series([0., 0., 0., 2., 1., 2.],
+                      index=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
+            ]
+
+        self.assertEquals(len(results), len(expected_results))
+        for result, expected in zip(results, expected_results):
+            assert_series_equal(result, expected)
