@@ -19,6 +19,7 @@ classes.  This plot only works when run from an IPython notebook
 
 """
 
+from collections import OrderedDict
 import matplotlib.pyplot as plt
 from trappy.plotter import AttrConf
 from trappy.plotter import Utils
@@ -187,7 +188,7 @@ class ILinePlot(AbstractDataPlotter):
         self._layout = ILinePlotGen(len_pivots, **self._attr)
         plot_index = 0
         for p_val in pivot_vals:
-            data_dict = {}
+            data_dict = OrderedDict()
             for constraint in self.c_mgr:
                 if permute:
                     trace_idx, pivot = p_val
@@ -227,7 +228,7 @@ class ILinePlot(AbstractDataPlotter):
         for constraint in self.c_mgr:
             result = constraint.result
             title = str(constraint)
-            data_dict = {}
+            data_dict = OrderedDict()
 
             for pivot in pivot_vals:
                 if pivot in result:

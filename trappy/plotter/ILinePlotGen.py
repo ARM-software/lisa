@@ -22,6 +22,7 @@ are done by using the functionality in
 
 from trappy.plotter import AttrConf
 import uuid
+from collections import OrderedDict
 import json
 import os
 from trappy.plotter import IPythonConf
@@ -200,7 +201,7 @@ class ILinePlotGen(object):
 
         fig_name = self._fig_map[plot_num]
         fig_params = {}
-        fig_params["data"] = dict((k, v.T.to_dict()) for k, v in data_dict.iteritems())
+        fig_params["data"] = OrderedDict((k, v.T.to_dict()) for k, v in data_dict.iteritems())
         fig_params["name"] = fig_name
         fig_params["rangesel"] = False
         fig_params["logscale"] = False
