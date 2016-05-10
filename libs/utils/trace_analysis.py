@@ -128,6 +128,8 @@ class TraceAnalysis(object):
         if len(bfreq) > 0:
             bfreq['frequency'].plot(style=['r-'], ax=axes,
                     drawstyle='steps-post', alpha=0.4);
+        else:
+            logging.warn('NO big CPUs frequency events to plot')
         axes.set_xlim(self.x_min, self.x_max);
         axes.set_ylabel('MHz')
         axes.grid(True);
@@ -146,6 +148,8 @@ class TraceAnalysis(object):
         if len(lfreq) > 0:
             lfreq['frequency'].plot(style=['b-'], ax=axes,
                     drawstyle='steps-post', alpha=0.4);
+        else:
+            logging.warn('NO LITTLE CPUs frequency events to plot')
         axes.set_xlim(self.x_min, self.x_max);
         axes.set_ylabel('MHz')
         axes.grid(True);
