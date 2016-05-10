@@ -432,7 +432,7 @@ class TraceAnalysis(object):
             signals_to_plot = {'load_avg', 'util_avg',
                                'boosted_util', 'sched_overutilized'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
-            if len(signals_to_plot) > 1:
+            if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id,0]);
                 plot_id = plot_id + 1
                 is_last = (plot_id == plots_count)
@@ -442,7 +442,7 @@ class TraceAnalysis(object):
             # Plot CPUs residency
             signals_to_plot = {'residencies', 'sched_overutilized'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
-            if len(signals_to_plot) > 1:
+            if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id,0]);
                 plot_id = plot_id + 1
                 is_last = (plot_id == plots_count)
@@ -454,7 +454,7 @@ class TraceAnalysis(object):
                 'load_sum', 'util_sum',
                 'period_contrib', 'sched_overutilized'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
-            if len(signals_to_plot) > 1:
+            if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id,0]);
                 self._plotTaskPelt(df, axes, task_name, signals_to_plot)
                 plot_id = plot_id + 1
