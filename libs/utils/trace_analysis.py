@@ -53,7 +53,9 @@ class TraceAnalysis(object):
         self.x_max = self.trace.time_range
 
         # Reset x axis time range to full scale
-        self.setXTimeRange()
+        t_min = self.trace.window[0]
+        t_max = self.trace.window[1]
+        self.setXTimeRange(t_min, t_max)
 
     def setXTimeRange(self, t_min=None, t_max=None):
         if t_min is None:
