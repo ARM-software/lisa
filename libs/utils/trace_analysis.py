@@ -398,9 +398,13 @@ class TraceAnalysis(object):
             return
         df = self.trace.df('sched_load_avg_task')
         self.trace.getTasks(df, tasks)
-        tasks_to_plot = sorted(self.tasks)
         if tasks:
             tasks_to_plot = tasks
+        elif self.tasks:
+            tasks_to_plot = sorted(self.tasks)
+        else:
+            raise ValueError('No tasks to plot specified')
+
 
         # Compute number of plots to produce
         plots_count = 0
