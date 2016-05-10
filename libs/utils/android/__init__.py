@@ -15,20 +15,7 @@
 # limitations under the License.
 #
 
-"""Initialization for utils module"""
+"""Initialization for Android module"""
 
-from env import TestEnv
-from executor import Executor
+from screen import Screen
 
-from energy import EnergyMeter
-from conf import JsonConf
-
-from trace import Trace
-from trace_analysis import TraceAnalysis
-from perf_analysis import PerfAnalysis
-
-from filters import Filters
-
-from report import Report
-
-import android
