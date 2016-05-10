@@ -340,7 +340,7 @@ class TestEnv(ShareState):
             self.__modules = ['bl', 'hwmon', 'cpufreq']
 
         # Initialize JUNO board
-        elif self.conf['board'].upper() == 'JUNO':
+        elif self.conf['board'].upper() in ('JUNO', 'JUNO2'):
             platform = devlib.platform.arm.Juno()
             self.__modules = ['bl', 'hwmon', 'cpufreq']
 

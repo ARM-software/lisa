@@ -37,7 +37,21 @@ DEFAULT_ENERGY_METER = {
         'instrument' : 'hwmon',
         'conf' : {
             'sites' : [ 'a53', 'a57' ],
+            'kinds' : [ 'energy' ],
+        }
+    },
+    'juno2' : {
+        'instrument' : 'hwmon',
+        'conf' : {
+            'sites' : [ 'BOARDLITTLE', 'BOARDBIG' ],
             'kinds' : [ 'energy' ]
+        },
+        # if the channels do not contain a core name we can match to the
+        # little/big cores on the board, use a channel_map section to
+        # indicate which channel is which
+        'channel_map' : {
+            'little' : 'BOARDLITTLE',
+            'big' : 'BOARDBIG',
         }
     },
 
@@ -71,7 +85,7 @@ class EnergyMeter(object):
             return None
 
         if emeter['instrument'] == 'hwmon':
-            EnergyMeter._meter = HWMon(target, emeter['conf'])
+            EnergyMeter._meter = HWMon(target, emeter)
         elif emeter['instrument'] == 'aep':
             EnergyMeter._meter = Aep(target)
         return EnergyMeter._meter
@@ -108,14 +122,26 @@ class HWMon(EnergyMeter):
         self._hwmon = devlib.HwmonInstrument(self._target)
 
         # Configure channels for energy measurements
-        logging.debug('%14s - Enabling channels %s', 'EnergyMeter', hwmon_conf)
-        self._hwmon.reset(**hwmon_conf)
+        logging.debug('%14s - Enabling channels %s', 'EnergyMeter', hwmon_conf['conf'])
+        self._hwmon.reset(**hwmon_conf['conf'])
 
         # Logging enabled channels
         logging.info('%14s - Channels selected for energy sampling:',
                      'EnergyMeter')
         for channel in self._hwmon.active_channels:
             logging.info('%14s -    %s', 'EnergyMeter', channel.label)
+
+        # record the hwmon channel mapping
+        self.little_channel = self._target.little_core.upper()
+        self.big_channel = self._target.big_core.upper()
+        if hwmon_conf and 'channel_map' in hwmon_conf:
+            self.little_channel = hwmon_conf['channel_map']['little']
+            self.big_channel = hwmon_conf['channel_map']['big']
+        logging.info('%14s - Using channel %s as little channel',
+                     'EnergyMeter', self.little_channel)
+        logging.info('%14s - Using channel %s as big channel',
+                     'EnergyMeter', self.big_channel)
+
 
     def sample(self):
         if self._hwmon is None:
@@ -163,9 +189,9 @@ class HWMon(EnergyMeter):
             nrg_total = nrg[ch]['total']
             logging.info('%14s - Energy [%16s]: %.6f',
                     'EnergyReport', ch, nrg_total)
-            if self._target.little_core.upper() in ch.upper():
+            if ch.upper() == self.little_channel:
                 clusters_nrg['LITTLE'] = '{:.6f}'.format(nrg_total)
-            elif self._target.big_core.upper() in ch.upper():
+            elif ch.upper() == self.big_channel:
                 clusters_nrg['big'] = '{:.6f}'.format(nrg_total)
             else:
                 logging.warning('%14s - Unable to bind hwmon channel [%s]'\
