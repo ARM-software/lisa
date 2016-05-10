@@ -113,11 +113,12 @@ echo
 ################################################################################
 
 function _lisa-ipython-usage {
-    echo "Usage: lisa-ipython CMD [NETIF]"
+    echo "Usage: lisa-ipython CMD [NETIF [PORT]]"
 	echo " CMD     - IPython Notebooks command (deafult: start)"
 	echo "  start  start the ipython server"
 	echo "   stop  stop the ipython server"
     echo " NETIF   - the network interface to start the server on (default: lo)"
+    echo " PORT    - the tcp port for the server (default: 8888)"
 }
 
 function _lisa-ipython-start {
