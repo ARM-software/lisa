@@ -18,4 +18,4 @@
 """Initialization for Android module"""
 
 from screen import Screen
-
+from workload import Workload
