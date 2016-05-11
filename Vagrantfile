@@ -21,6 +21,10 @@ Vagrant.configure(2) do |config|
     ln -s /vagrant /home/vagrant/lisa
     chown vagrant.vagrant /home/vagrant/lisa
     echo cd /home/vagrant/lisa >> /home/vagrant/.bashrc
+    for LC in $(locale | cut -d= -f1);
+    do
+        echo unset $LC  >> /home/vagrant/.bashrc
+    done
     echo source init_env >> /home/vagrant/.bashrc
   SHELL
 end
