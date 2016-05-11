@@ -53,7 +53,9 @@ class TraceAnalysis(object):
         self.x_max = self.trace.time_range
 
         # Reset x axis time range to full scale
-        self.setXTimeRange()
+        t_min = self.trace.window[0]
+        t_max = self.trace.window[1]
+        self.setXTimeRange(t_min, t_max)
 
     def setXTimeRange(self, t_min=None, t_max=None):
         if t_min is None:
@@ -126,6 +128,8 @@ class TraceAnalysis(object):
         if len(bfreq) > 0:
             bfreq['frequency'].plot(style=['r-'], ax=axes,
                     drawstyle='steps-post', alpha=0.4);
+        else:
+            logging.warn('NO big CPUs frequency events to plot')
         axes.set_xlim(self.x_min, self.x_max);
         axes.set_ylabel('MHz')
         axes.grid(True);
@@ -144,6 +148,8 @@ class TraceAnalysis(object):
         if len(lfreq) > 0:
             lfreq['frequency'].plot(style=['b-'], ax=axes,
                     drawstyle='steps-post', alpha=0.4);
+        else:
+            logging.warn('NO LITTLE CPUs frequency events to plot')
         axes.set_xlim(self.x_min, self.x_max);
         axes.set_ylabel('MHz')
         axes.grid(True);
@@ -398,9 +404,13 @@ class TraceAnalysis(object):
             return
         df = self.trace.df('sched_load_avg_task')
         self.trace.getTasks(df, tasks)
-        tasks_to_plot = sorted(self.tasks)
         if tasks:
             tasks_to_plot = tasks
+        elif self.tasks:
+            tasks_to_plot = sorted(self.tasks)
+        else:
+            raise ValueError('No tasks to plot specified')
+
 
         # Compute number of plots to produce
         plots_count = 0
@@ -432,7 +442,7 @@ class TraceAnalysis(object):
             signals_to_plot = {'load_avg', 'util_avg',
                                'boosted_util', 'sched_overutilized'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
-            if len(signals_to_plot) > 1:
+            if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id,0]);
                 plot_id = plot_id + 1
                 is_last = (plot_id == plots_count)
@@ -442,7 +452,7 @@ class TraceAnalysis(object):
             # Plot CPUs residency
             signals_to_plot = {'residencies', 'sched_overutilized'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
-            if len(signals_to_plot) > 1:
+            if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id,0]);
                 plot_id = plot_id + 1
                 is_last = (plot_id == plots_count)
@@ -454,13 +464,14 @@ class TraceAnalysis(object):
                 'load_sum', 'util_sum',
                 'period_contrib', 'sched_overutilized'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
-            if len(signals_to_plot) > 1:
+            if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id,0]);
                 self._plotTaskPelt(df, axes, task_name, signals_to_plot)
                 plot_id = plot_id + 1
 
             # Save generated plots into datadir
-            figname = '{}/{}task_util_{}.png'.format(self.plotsdir, self.prefix, task_name)
+            figname = '{}/{}task_util_{}.png'.format(
+                self.plotsdir, self.prefix, task_name.replace('/', '_'))
             pl.savefig(figname, bbox_inches='tight')
 
     def plotEDiffTime(self, tasks=None,
