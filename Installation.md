@@ -23,11 +23,11 @@ machine based installation, which is described in a following section.
 	# Install (upgrade) required Python libraries
 	$ sudo pip install --upgrade trappy bart-py devlib
 
-*NOTE:* TRAPpy and BART depend on *ipython* and *jupyter*. Some IPython
+*NOTE:* TRAPpy and BART depend on `ipython` and `jupyter`. Some IPython
 Notebooks examples are written using the notebooks JSON nbformat version 4,
-which might not be supported by the IPython version installed by *apt-get*.
+which might not be supported by the IPython version installed by `apt-get`.
 It is suggested to remove apt-get installed IPython and install it
-using *pip*, which will provides the most updated version:
+using `pip`, which will provides the most updated version:
 
 	# Remove (eventually) already installed versions
 	$ sudo apt-get remove ipython ipython-notebook
