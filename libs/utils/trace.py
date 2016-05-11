@@ -124,6 +124,15 @@ class Trace(object):
 
         self.__loadTasksNames(tasks)
 
+        # Compute plot window
+        if not normalize_time:
+            start = self.window[0]
+            if self.window[1]:
+                duration = min(self.ftrace.get_duration(), self.window[1])
+            else:
+                duration = self.ftrace.get_duration()
+            self.window = (self.ftrace.basetime + start,
+                           self.ftrace.basetime + duration)
 
     def __checkAvailableEvents(self, key=""):
         for val in self.ftrace.get_filters(key):
