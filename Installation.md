@@ -1,6 +1,6 @@
 This note assumes installation from scratch on a freshly installed
 Ubuntu 16.04 system. If you have a different system (e.g. OSX or an
-older version of Ubuntu, you can probably be interesting into a virtual
+older version of Ubuntu) you can probably be interesting into a virtual
 machine based installation, which is described in a following section.
 
 ## Required dependencies
