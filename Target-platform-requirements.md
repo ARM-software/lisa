@@ -1,3 +1,9 @@
+## Contents
+
+1. [Linux Targets](https://github.com/ARM-software/lisa/wiki/Target-platform-requirements#linux-targets)
+2. [Android Targets](https://github.com/ARM-software/lisa/wiki/Target-platform-requirements#android-targets)
+3. [Kernel features](https://github.com/ARM-software/lisa/wiki/Target-platform-requirements#kernel-features)
+
 The target platform to be used for experiments with LISA must satisfy
 the following requirements:
 
