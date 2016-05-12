@@ -1,7 +1,7 @@
 ## Contents
 
 1. [Standard Installation](https://github.com/ARM-software/lisa/wiki/Installation#standard-installation)
-2. [Virtual Machine based installation](https://github.com/ARM-software/lisa/wiki/Installation)
+2. [Virtual Machine based installation](https://github.com/ARM-software/lisa/wiki/Installation#virtual-machine-based-installation)
 
 ## Standard Installation
 
