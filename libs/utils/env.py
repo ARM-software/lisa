@@ -184,10 +184,6 @@ class TestEnv(ShareState):
         # Initialize FTrace events collection
         self._init_ftrace(True)
 
-        # Initialize energy probe instrument
-        self.emeter = EnergyMeter.getInstance(
-                self.target, self.conf, force=True)
-
         # Initialize RT-App calibration values
         self.calibration()
 
@@ -214,6 +210,9 @@ class TestEnv(ShareState):
         if os.path.islink(res_lnk):
             os.remove(res_lnk)
         os.symlink(self.res_dir, res_lnk)
+
+        # Initialize energy probe instrument
+        self._init_energy(True)
 
         logging.info('%14s - Set results folder to:', 'TestEnv')
         logging.info('%14s -    %s', 'TestEnv', self.res_dir)
@@ -525,7 +524,8 @@ class TestEnv(ShareState):
     def _init_energy(self, force):
 
         # Initialize energy probe to board default
-        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force)
+        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force,
+                                              self.res_dir)
 
     def _init_platform_bl(self):
         self.platform = {
@@ -767,7 +767,7 @@ class TestEnv(ShareState):
         self._init_ftrace(force)
 
         # Initialize energy probe instrument
-        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force)
+        self._init_energy(force)
 
     def install_kernel(self, tc, reboot=False):
 
