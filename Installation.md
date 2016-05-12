@@ -1,14 +1,14 @@
+This note assumes installation from scratch on a freshly installed
+Ubuntu 16.04 system. If you have a different system (e.g. OSX or an
+older version of Ubuntu) you can probably be interested into the [Virtual
+Machine based installation](https://github.com/ARM-software/lisa/wiki/Installation#virtual-machine-based-installation).
+
 ## Contents
 
 1. [Standard Installation](https://github.com/ARM-software/lisa/wiki/Installation#standard-installation)
 2. [Virtual Machine based installation](https://github.com/ARM-software/lisa/wiki/Installation#virtual-machine-based-installation)
 
 ## Standard Installation
-
-This note assumes installation from scratch on a freshly installed
-Ubuntu 16.04 system. If you have a different system (e.g. OSX or an
-older version of Ubuntu) you can probably be interested into a virtual
-machine based installation, which is described in a following section.
 
 ### Required dependencies
 
