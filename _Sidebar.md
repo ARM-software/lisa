@@ -1,5 +1,5 @@
 * [Installation](https://github.com/ARM-software/lisa/wiki/Installation)
-* [Target platform requirements] (https://github.com/ARM-software/lisa/wiki/Target-platform-requirements)
     + [Standard Installation](https://github.com/ARM-software/lisa/wiki/Installation#standard-installation)
     + [Virtual Machine based installation](https://github.com/ARM-software/lisa/wiki/Installation#virtual-machine-based-installation)
+* [Target platform requirements] (https://github.com/ARM-software/lisa/wiki/Target-platform-requirements)
 * [Quickstart Tutorial](https://github.com/ARM-software/lisa/wiki/Quickstart-Tutorial)
