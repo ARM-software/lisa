@@ -69,7 +69,6 @@ class Jankbench(Workload):
     def __init__(self, test_env):
         super(Jankbench, self).__init__(test_env)
         logging.debug('%14s - Workload created', 'Jankbench')
-        pass
 
     def run(self, exp_dir, test_name, iterations, collect=''):
         # Setup test id
