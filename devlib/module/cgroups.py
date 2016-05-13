@@ -231,6 +231,7 @@ CgroupSubsystemEntry = namedtuple('CgroupSubsystemEntry', 'name hierarchy num_cg
 class CgroupsModule(Module):
 
     name = 'cgroups'
+    stage = 'setup'
     cgroup_root = '/sys/fs/cgroup'
 
     @staticmethod
