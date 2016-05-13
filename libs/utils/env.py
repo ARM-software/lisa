@@ -367,7 +367,7 @@ class TestEnv(ShareState):
         # Modules configuration
         ########################################################################
 
-        # Rinfine modules list based on target.conf options
+        # Refine modules list based on target.conf options
         if 'modules' in self.conf:
             self.__modules = list(set(
                 self.__modules + self.conf['modules']
