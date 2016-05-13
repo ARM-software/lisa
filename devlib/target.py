@@ -216,6 +216,9 @@ class Target(object):
         for host_exe in (executables or []):  # pylint: disable=superfluous-parens
             self.install(host_exe)
 
+        # Initialize modules which requires Buxybox (e.g. shutil dependent tasks)
+        self._update_modules('setup')
+
     def reboot(self, hard=False, connect=True, timeout=180):
         if hard:
             if not self.has('hard_reset'):
