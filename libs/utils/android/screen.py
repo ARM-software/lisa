@@ -17,7 +17,7 @@
 
 class Screen(object):
     """
-    Set of utility functions to control and Android Screen
+    Set of utility functions to control an Android Screen
     """
 
     @staticmethod

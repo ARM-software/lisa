@@ -47,7 +47,7 @@ class Workload(object):
         """
         if Workload._availables is None:
             Workload.availables(te.target)
-        # Build list of case insensiteve workload names
+        # Build list of case insensitive workload names
         if name not in Workload._availables:
             logging.warning('Workload [%s] not available on target', name)
             return None
