@@ -127,6 +127,7 @@ class SshConnection(object):
 
     default_password_prompt = '[sudo] password'
     max_cancel_attempts = 5
+    default_timeout=10
 
     @property
     def name(self):
@@ -138,7 +139,7 @@ class SshConnection(object):
                  password=None,
                  keyfile=None,
                  port=None,
-                 timeout=10,
+                 timeout=None,
                  telnet=False,
                  password_prompt=None,
                  ):
@@ -150,6 +151,7 @@ class SshConnection(object):
         self.lock = threading.Lock()
         self.password_prompt = password_prompt if password_prompt is not None else self.default_password_prompt
         logger.debug('Logging in {}@{}'.format(username, host))
+        timeout = timeout if timeout is not None else self.default_timeout
         self.conn = ssh_get_shell(host, username, password, self.keyfile, port, timeout, telnet)
 
     def push(self, source, dest, timeout=30):

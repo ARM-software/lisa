@@ -152,6 +152,7 @@ class AdbConnection(object):
     # maintains the count of parallel active connections to a device, so that
     # adb disconnect is not invoked untill all connections are closed
     active_connections = defaultdict(int)
+    default_timeout = 10
 
     @property
     def name(self):
@@ -168,8 +169,8 @@ class AdbConnection(object):
         else:
             raise DevlibError("Unknown line ending")
 
-    def __init__(self, device=None, timeout=10):
-        self.timeout = timeout
+    def __init__(self, device=None, timeout=None):
+        self.timeout = timeout if timeout is not None else self.default_timeout
         if device is None:
             device = adb_get_device(timeout=timeout)
         self.device = device
