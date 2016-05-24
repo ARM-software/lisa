@@ -9,13 +9,13 @@ the following requirements:
 
 ## Linux Targets
 
-- allow *ssh* access, preferably as root, using either a password or an SSH key
-- support *sudo*, even if it's accessed as root user
+- allow `ssh` access, preferably as root, using either a password or an SSH key
+- support `sudo`, even if it's accessed as root user
 
 ## Android Targets
 
-- allow *adb* access, eventually by specifying a DEVICE ID
-- the local shell should define the *ANDROID_HOME* environment variable pointing
+- allow `adb` access, eventually by specifying a *DEVICE ID*
+- the local shell should define the `ANDROID_HOME` environment variable pointing
   to an Android SDK installation
 
 ## Kernel features
