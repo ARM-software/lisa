@@ -10,3 +10,8 @@ and use `systrace` inside an IPython Notebook. Examples of usage of `systrace` c
 
 * [Android_YouTube](https://github.com/ARM-software/lisa/blob/master/ipynb/android/workloads/Android_Workloads.ipynb)
 * [Android_Workloads](https://github.com/ARM-software/lisa/blob/master/ipynb/android/Android_Workloads.ipynb)
+
+### atrace
+
+`atrace` is an Android binary called by `systrace` via `adb` to capture kernel events
+using `ftrace`. 
