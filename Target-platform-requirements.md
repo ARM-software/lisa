@@ -16,7 +16,13 @@ the following requirements:
 
 - allow `adb` access, eventually by specifying a *DEVICE ID*
 - the local shell should define the `ANDROID_HOME` environment variable pointing
-  to an Android SDK installation
+  to an Android SDK installation. If you are not using the virtual machine based
+  installation you will have to install the command line tools from
+  [here](https://developer.android.com/studio/index.html).
+
+Analysis on Android devices can be done using `systrace` instead of `ftrace`. If
+you plan to use `systrace` read
+[this guide](https://github.com/ARM-software/lisa/wiki/Android-Tools-for-Tracing).
 
 ## Kernel features
 
