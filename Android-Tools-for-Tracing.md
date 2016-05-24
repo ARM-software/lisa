@@ -1,0 +1,12 @@
+## Systrace
+
+When performing tests on Android devices, it is possible to exploit `systrace` (([Systrace](https://developer.android.com/studio/profile/systrace-commandline.html)).
+
+In order to use `systrace` it is recommended to set up `catapult` by simply cloning the repository:
+
+    $ git clone https://github.com/catapult-project/catapult
+
+and use `systrace` inside an IPython Notebook. Examples of usage of `systrace` can be found in:
+
+* [Android_YouTube](https://github.com/ARM-software/lisa/blob/master/ipynb/android/workloads/Android_Workloads.ipynb)
+* [Android_Workloads](https://github.com/ARM-software/lisa/blob/master/ipynb/android/Android_Workloads.ipynb)
