@@ -749,19 +749,16 @@ class AndroidTarget(Target):
         super(AndroidTarget, self).setup(executables)
         self.execute('mkdir -p {}'.format(self._file_transfer_cache))
 
-    def kick_off(self, command, as_root=False):
+    def kick_off(self, command, as_root=None):
         """
         Like execute but closes adb session and returns immediately, leaving the command running on the
         device (this is different from execute(background=True) which keeps adb connection open and returns
         a subprocess object).
-
-        .. note:: This relies on busybox's nohup applet and so won't work on unrooted devices.
-
         """
-        if not self.is_rooted:
-            raise TargetError('kick_off uses busybox\'s nohup applet and so can only be run a rooted device.')
+        if as_root is None:
+            as_root = self.is_rooted
         try:
-            command = 'cd {} && {} nohup {}'.format(self.working_directory, self.bin('busybox'), command)
+            command = 'cd {} && {} nohup {}'.format(self.working_directory, self.busybox, command)
             output = self.execute(command, timeout=1, as_root=as_root)
         except TimeoutError:
             pass
