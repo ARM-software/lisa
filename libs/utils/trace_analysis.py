@@ -343,6 +343,10 @@ class TraceAnalysis(object):
     def _plotTaskResidencies(self, df, axes, task_name, signals, is_last=False):
         axes.set_title('CPUs residency (green: LITTLE, red: big)');
         axes.set_xlim(0, self.trace.time_range);
+        #if not self.x_min and not self.x_max:
+        #    axes.set_xlim(0, self.trace.time_range);
+        #else:
+        #    axes.set_xlim(self.x_min, self.x_max);
         data = df[df.comm == task_name][['cluster', 'cpu']]
         for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
             cdata = data[data.cluster == clabel]
@@ -394,7 +398,7 @@ class TraceAnalysis(object):
                             current trace
         """
         if not signals:
-            signals = ['load_avg', 'util_avg', 'boosted_util',
+            signals = ['load_avg', 'util_avg', 'util_est', 'boosted_util',
                        'sched_overutilized',
                        'load_sum', 'util_sum', 'period_contrib',
                        'residencies']
@@ -430,7 +434,10 @@ class TraceAnalysis(object):
 
         for task_name in tasks_to_plot:
             logging.debug('Plotting [%s]', task_name)
-            tid = self.trace.getTaskByName(task_name)[0]
+            if isnum(task_name):
+                tid = task_name
+            else:
+                tid = self.trace.getTaskByName(task_name)[0]
             plot_id = 0
 
             # Figure
