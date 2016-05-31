@@ -191,25 +191,51 @@ class Trace(object):
                     self.overutilized_time, self.overutilized_prc)
 
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
-        df =  df[[name_key, pid_key]]
-        self._tasks_by_name = df.set_index(name_key)
-        self._tasks_by_pid  = df.set_index(pid_key)
+#        df =  df[[name_key, pid_key]]
+#        self._tasks_by_name = df.set_index(name_key)
+#        self._tasks_by_pid  = df.set_index(pid_key)
+        tasks_by_name = getattr(self, '_tasks_by_name', {})
+        tasks_by_pid = getattr(self, '_tasks_by_pid', {})
+        for time, name, _pid in df[[name_key, pid_key]].itertuples():
+            pid = int(_pid)
+            # by name first
+            if name in tasks_by_name:
+                # already in there, make sure the PID is in there too, or add another
+                if pid not in tasks_by_name[name]:
+                    tasks_by_name[name].append(pid)
+            else:
+                # not already in there, add this pid
+                tasks_by_name[name] = [pid,]
+            # now same by PID
+            if pid in tasks_by_pid:
+                if name not in tasks_by_pid[pid]:
+                    tasks_by_pid[pid].append(name)
+            else:
+                tasks_by_pid[pid] = [name,]
+        self._tasks_by_name = tasks_by_name
+        self._tasks_by_pid  = tasks_by_pid
 
     def getTaskByName(self, name):
-        if name not in self._tasks_by_name.index:
+#        if name not in self._tasks_by_name.index:
+#            return []
+#        if len(self._tasks_by_name.ix[name].values) > 1:
+#            return list({task[0] for task in
+#                         self._tasks_by_name.ix[name].values})
+#        return [self._tasks_by_name.ix[name].values[0]]
+        if name not in self._tasks_by_name:
             return []
-        if len(self._tasks_by_name.ix[name].values) > 1:
-            return list({task[0] for task in
-                         self._tasks_by_name.ix[name].values})
-        return [self._tasks_by_name.ix[name].values[0]]
+        return self._tasks_by_name[name][0]
 
     def getTaskByPid(self, pid):
-        if pid not in self._tasks_by_pid.index:
+#        if pid not in self._tasks_by_pid.index:
+#            return []
+#        if len(self._tasks_by_pid.ix[pid].values) > 1:
+#            return list({task[0] for task in
+#                         self._tasks_by_pid.ix[pid].values})
+#        return [self._tasks_by_pid.ix[pid].values[0]]
+        if pid not in self._tasks_by_pid:
             return []
-        if len(self._tasks_by_pid.ix[pid].values) > 1:
-            return list({task[0] for task in
-                         self._tasks_by_pid.ix[pid].values})
-        return [self._tasks_by_pid.ix[pid].values[0]]
+        return self._tasks_by_pid[pid][0]
 
     def getTasks(self, dataframe=None,
             task_names=None, name_key='comm', pid_key='pid'):
@@ -243,19 +269,24 @@ class Trace(object):
         logging.debug("Lookup dataset for tasks...")
         for tname in task_names:
             logging.debug("Lookup for task [%s]...", tname)
-            results = df[df[name_key] == tname][[name_key,pid_key]]
-            if len(results)==0:
-                logging.error('  task %16s NOT found', tname)
-                continue
-            (name, pid) = results.head(1).values[0]
-            if name!=tname:
-                logging.error('  task %16s NOT found', tname)
-                continue
-            if (tname not in self.tasks):
-                self.tasks[tname] = {}
-            pids = list(results[pid_key].unique())
-            self.tasks[tname]['pid'] = pids
-            logging.info('  task %16s found, pid: %s',
+            if str(tname).isdigit():
+                logging.debug("Task [%s] looks like a tid", tname)
+                tid = int(tname)
+                results = self._tasks_by_pid[tid]
+            else:
+                results = df[df[name_key] == tname][[name_key,pid_key]]
+                if len(results)==0:
+                    logging.error('  task %16s NOT found', tname)
+                    continue
+                (name, pid) = results.head(1).values[0]
+                if name!=tname:
+                    logging.error('  task %16s NOT found', tname)
+                    continue
+                if (tname not in self.tasks):
+                    self.tasks[tname] = {}
+                pids = list(results[pid_key].unique())
+                self.tasks[tname]['pid'] = pids
+                logging.info('  task %16s found, pid: %s',
                     tname, self.tasks[tname]['pid'])
         return self.tasks
 

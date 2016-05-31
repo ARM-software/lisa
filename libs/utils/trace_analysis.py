@@ -434,8 +434,9 @@ class TraceAnalysis(object):
 
         for task_name in tasks_to_plot:
             logging.debug('Plotting [%s]', task_name)
-            if isnum(task_name):
-                tid = task_name
+            if str(task_name).isdigit():
+                tid = int(task_name)
+                task_name = self.trace.getTaskByPid(tid)
             else:
                 tid = self.trace.getTaskByName(task_name)[0]
             plot_id = 0
