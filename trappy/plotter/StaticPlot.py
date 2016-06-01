@@ -159,7 +159,7 @@ class StaticPlot(AbstractDataPlotter):
         self._attr["permute"] = False
         self._attr["pivot"] = AttrConf.PIVOT
         self._attr["xlim"] = AttrConf.XLIM
-        self._attr["ylim"] = AttrConf.XLIM
+        self._attr["ylim"] = AttrConf.YLIM
         self._attr["title"] = AttrConf.TITLE
         self._attr["args_to_forward"] = {}
         self._attr["map_label"] = {}
@@ -264,6 +264,10 @@ class StaticPlot(AbstractDataPlotter):
                 self._attr["concat"],
                 self._attr["args_to_forward"]
             )
+            if self._attr["xlim"]:
+                axis.set_xlim(self._attr["xlim"])
+            if self._attr["ylim"]:
+                axis.set_ylim(self._attr["ylim"])
 
         # Show legend
         legend = self._fig.legend(self._attr["_legend_handles"],
