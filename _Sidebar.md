@@ -2,5 +2,5 @@
     + [Standard Installation](https://github.com/ARM-software/lisa/wiki/Installation#standard-installation)
     + [Virtual Machine based installation](https://github.com/ARM-software/lisa/wiki/Installation#virtual-machine-based-installation)
 * [Target platform requirements] (https://github.com/ARM-software/lisa/wiki/Target-platform-requirements)
-* [Android Tools for Tracing](https://github.com/ARM-software/lisa/wiki/Android-Tools-for-Tracing)
 * [Quickstart Tutorial](https://github.com/ARM-software/lisa/wiki/Quickstart-Tutorial)
+* [Android Tools for Tracing](https://github.com/ARM-software/lisa/wiki/Android-Tools-for-Tracing)
