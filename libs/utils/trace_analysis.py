@@ -29,6 +29,8 @@ import trappy
 # Configure logging
 import logging
 
+NON_IDLE_STATE = 4294967295
+
 class TraceAnalysis(object):
 
     def __init__(self, trace, tasks=None, plotsdir=None, prefix=''):
@@ -785,3 +787,166 @@ class TraceAnalysis(object):
         # Save generated plots into datadir
         figname = '{}/{}schedtune_conf.png'.format(self.plotsdir, self.prefix)
         pl.savefig(figname, bbox_inches='tight')
+
+    def _computeNonIdleTime(self, t_prev, t, tasks_time_intervals):
+        """
+        Compute the non-idle time spent by tasks within the time interval
+        [t_prev. t].
+
+        :param t_prev: Time interval init boundary
+        :type t_prev: double
+
+        :param t: Time interval end boundary
+        :type t: double
+
+        :param tasks_time_intervals: DataFrame containing start and end times
+            of tasks
+        :type tasks_time_intervals: :mod:`pandas.DataFrame`
+        """
+        nonidle_time = 0.0
+        for _, row in tasks_time_intervals.iterrows():
+            start = row['start']
+            end = row['end']
+            if start > t:
+                # Task not running at f_prev
+                continue
+            elif start >= t_prev and start <= t:
+                # Task starting at instant of time where frequency is f_prev
+                if end <= t:
+                    # Task runs at f_prev for the whole interval
+                    nonidle_time += end - start
+                else:
+                    # Task continues running at different frequency
+                    nonidle_time += t - start
+            else:
+                # Task started with previous frequency
+                if end > t_prev:
+                    # Task is still running now, at f_prev
+                    if end <= t:
+                        nonidle_time += end - t_prev
+                    else:
+                        # Task will continue running at different frequency
+                        nonidle_time += t - t_prev
+
+        return nonidle_time
+
+    def getCPUFrequencyResidency(self, cpu):
+        """
+        Get a DataFrame with per-CPU frequency residency, i.e. amount of
+        time CPU `cpu` spent at each frequency. Both total and active times
+        will be computed.
+
+        :param cpu: CPU ID
+        :type cpu: int
+        """
+
+        if not self.trace.hasEvents('cpu_frequency'):
+            logging.warn('Events [cpu_frequency] not found, '\
+                         'plot DISABLED!')
+            return None
+        if not self.trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, '\
+                         'plot DISABLED!')
+            return None
+
+        freq_dfr = self.trace.df('cpu_frequency')
+        cpu_freqs = freq_dfr[freq_dfr.cpu == cpu]
+        idle_dfr = self.trace.df('cpu_idle')
+        cpu_idle = idle_dfr[idle_dfr.cpu_id == cpu]
+
+        ### Compute TOTAL time spent at each frequency ###
+        time_intervals = cpu_freqs.index[1:] - cpu_freqs.index[:-1]
+        total_time = pd.DataFrame({
+            'TOTAL Time' : time_intervals,
+            'Frequency [MHz]' : [f/1000 for f in cpu_freqs.iloc[:-1].frequency]
+        })
+        total_time = total_time.groupby(['Frequency [MHz]']).sum()
+
+        ### Compute ACTIVE time spent at each frequency ###
+        # time instants where CPU is idle
+        idle_times = cpu_idle[cpu_idle['state'] != NON_IDLE_STATE]
+        # time instants where CPU is not idle
+        non_idle_times = cpu_idle[cpu_idle['state'] == NON_IDLE_STATE]
+
+        if idle_times.index[0] < non_idle_times.index[0]:
+            idle_times = idle_times.iloc[1:]
+
+        time_intervals = [t2 - t1 for t1, t2 in zip(non_idle_times.index,
+                                                    idle_times.index)]
+
+        times_len = min(len(idle_times), len(non_idle_times))
+        tasks_time_intervals = pd.DataFrame({
+            "start": non_idle_times.index[:times_len],
+            "end": idle_times.index[:times_len]
+        })
+
+        # Compute the non-IDLE time spent at a certain frequency
+        time_intervals = []
+        frequencies = []
+        row_iterator = cpu_freqs.iterrows()
+        # Take first item from row_iterator
+        t_prev, f_prev = row_iterator.next()
+        for t, f in row_iterator:
+            nonidle_time = self._computeNonIdleTime(t_prev,
+                                                    t,
+                                                    tasks_time_intervals)
+            freq = f_prev['frequency']
+            time_intervals.append(nonidle_time)
+            frequencies.append(freq)
+            t_prev = t
+            f_prev = f
+
+        active_time = pd.DataFrame({
+            'ACTIVE Time' : time_intervals,
+            'Frequency [MHz]' : [f/1000 for f in frequencies]
+        })
+        # Sum the time intervals with same frequncy
+        active_time = active_time.groupby(['Frequency [MHz]']).sum()
+        return total_time, active_time
+
+    def plotCPUFrequencyResidency(self, cpus=None):
+        """
+        Plot per-CPU frequency residency.
+
+        :param cpus: List of cpus. By default plot all CPUs
+        :type cpus: list(str)
+        """
+
+        if not cpus:
+            cpus = sorted(self.platform['clusters']['little'] + self.platform['clusters']['big'])
+        else:
+            cpus.sort()
+
+        n_cpus = len(cpus)
+        if n_cpus == 1:
+            gs = gridspec.GridSpec(1, 1)
+        else:
+            gs = gridspec.GridSpec(n_cpus/2 + n_cpus%2, 2)
+
+        fig = plt.figure()
+
+        axis = None
+        for idx, cpu in enumerate(cpus):
+            total_time, active_time = self.getCPUFrequencyResidency(cpu)
+
+            axis = fig.add_subplot(gs[idx])
+            total_time.plot.barh(ax=axis,
+                                 color='g',
+                                 legend=False,
+                                 figsize=(16,8),
+                                 fontsize=16);
+            active_time.plot.barh(ax=axis,
+                                  color='r',
+                                  legend=False,
+                                  figsize=(16,8),
+                                  fontsize=16);
+            axis.set_title('CPU{}'.format(cpu))
+            axis.set_xlabel('Time [s]')
+            axis.set_xlim(0, self.x_max)
+
+        if axis:
+            handles, labels = axis.get_legend_handles_labels()
+            plt.figlegend(handles,
+                          labels,
+                          loc='lower right')
+            plt.subplots_adjust(hspace=0.5)
