@@ -950,3 +950,158 @@ class TraceAnalysis(object):
                           labels,
                           loc='lower right')
             plt.subplots_adjust(hspace=0.5)
+
+    def getClusterFrequencyResidency(self, cluster):
+        """
+        Get a DataFrame with per cluster frequency residency, i.e. amount of
+        time spent at a given frequency in each cluster.
+
+        :param cluster: list of CPU IDs belonging to the cluster
+        :type cluster: list(int)
+        """
+
+        if not self.trace.hasEvents('cpu_frequency'):
+            logging.warn('Events [cpu_frequency] not found, '\
+                         'plot DISABLED!')
+            return None
+        if not self.trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, '\
+                         'plot DISABLED!')
+            return None
+
+        freq_dfr = self.trace.df('cpu_frequency')
+        cluster_freqs = freq_dfr[freq_dfr['cpu'].isin(cluster)]
+        idle_dfr = self.trace.df('cpu_idle')
+
+        ### Computer TOTAL Time ###
+        time_intervals = cluster_freqs.index[1:] - cluster_freqs.index[:-1]
+        total_time = pd.DataFrame({
+            'TOTAL Time' : time_intervals,
+            'Frequency [MHz]' : [f/1000 for f in cluster_freqs.iloc[:-1].frequency]
+        })
+        total_time = total_time.groupby(['Frequency [MHz]']).sum()
+
+        ### Compute ACTIVE Time ###
+        cpu_activation = {}
+        for cpu in cluster:
+            cpu_freqs = freq_dfr[freq_dfr['cpu'] == cpu]
+            cpu_idle = idle_dfr[idle_dfr['cpu_id'] == cpu]
+
+            # time instants where CPU goes to an idle state
+            idle_times = cpu_idle[cpu_idle['state'] != IDLE_STATE]
+            # time instants where CPU leaves an idle state
+            non_idle_times = cpu_idle[cpu_idle['state'] == IDLE_STATE]
+
+            if idle_times.index[0] < non_idle_times.index[0]:
+                idle_times = idle_times.iloc[1:]
+
+            activation_indexes = sorted(
+                non_idle_times.index.values.tolist() + \
+                idle_times.index.values.tolist()
+            )
+            if activation_indexes[0] != 0.0:
+                activation_indexes.insert(0, 0.0)
+                activations = [i%2 for i in range(len(activation_indexes))]
+            else:
+                activations = [(i+1)%2 for i in range(len(activation_indexes))]
+            cpu_activation[cpu] = pd.Series(activations,
+                                            index=activation_indexes)
+
+        activations = pd.DataFrame(cpu_activation)
+        activations.loc[0.0].fillna(0, inplace=True)
+        activations.fillna(method="ffill", inplace=True)
+
+        cluster_active = activations[activations.columns[0]].astype(int)
+        for c in range(1, len(activations.columns)):
+            cluster_active |= activations[activations.columns[c]].astype(int)
+
+        start = []
+        end = []
+        active = False
+        for idx, val in cluster_active.iteritems():
+            if val == 1 and not active:
+                start.append(idx)
+                active = True
+            elif val == 0 and active:
+                end.append(idx)
+                active = False
+        if len(start) > len(end):
+            end.append(self.x_max)
+
+        tasks_time_intervals = pd.DataFrame({
+            "start" : start,
+            "end"   : end
+        })
+
+        # Compute the non-IDLE time spent at a certain frequency
+        time_intervals = []
+        frequencies = []
+        row_iterator = cluster_freqs.iterrows()
+        # Take first item from row_iterator
+        t_prev, f_prev = row_iterator.next()
+        for t, f in row_iterator:
+            nonidle_time = self._computeNonIdleTime(t_prev,
+                                                    t,
+                                                    tasks_time_intervals)
+            freq = f_prev['frequency']
+            time_intervals.append(nonidle_time)
+            frequencies.append(freq)
+            t_prev = t
+            f_prev = f
+
+        active_time = pd.DataFrame({
+            'ACTIVE Time' : time_intervals,
+            'Frequency [MHz]' : [f/1000 for f in frequencies]
+        })
+        # Sum the time intervals with same frequncy
+        active_time = active_time.groupby(['Frequency [MHz]']).sum()
+        return total_time, active_time
+
+    def plotClusterFrequencyResidency(self, clusters=['big', 'little']):
+        """
+        Plot the frequency residency in a given cluster, i.e. the amount of
+        time cluster `cluster` spent at frequency `f_i`. By default, both 'big'
+        and 'LITTLE' clusters data are plotted
+
+        :param clusters: force to only plot one cluster
+        :type clusters: list(str)
+        """
+
+        if len(clusters) == 1:
+            gs = gridspec.GridSpec(1, 1)
+        else:
+            gs = gridspec.GridSpec(1, 2)
+        fig = plt.figure()
+        fig.subplots_adjust(hspace=.5);
+
+        axis = None
+        for idx, c in enumerate(clusters):
+            total_time, active_time = self.getClusterFrequencyResidency(
+                self.platform['clusters'][c.lower()])
+
+            if total_time is None or active_time is None:
+                plt.close(fig)
+                return
+
+            axis = fig.add_subplot(gs[idx])
+            total_time.plot.barh(ax = axis,
+                                 color='g',
+                                 legend=False,
+                                 figsize=(16,8),
+                                 fontsize=16);
+
+            active_time.plot.barh(ax = axis,
+                                  color='r',
+                                  legend=False,
+                                  figsize=(16,8),
+                                  fontsize=16);
+
+            axis.set_title('{} Cluster'.format(c))
+            axis.set_xlabel('Time [s]')
+            axis.set_xlim(0, self.x_max)
+
+        if axis:
+            handles, labels = axis.get_legend_handles_labels()
+            plt.figlegend(handles,
+                          labels,
+                          loc='lower right')
