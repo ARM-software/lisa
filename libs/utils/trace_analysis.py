@@ -788,48 +788,6 @@ class TraceAnalysis(object):
         figname = '{}/{}schedtune_conf.png'.format(self.plotsdir, self.prefix)
         pl.savefig(figname, bbox_inches='tight')
 
-    def _computeNonIdleTime(self, t_prev, t, tasks_time_intervals):
-        """
-        Compute the non-idle time spent by tasks within the time interval
-        [t_prev. t].
-
-        :param t_prev: Time interval init boundary
-        :type t_prev: double
-
-        :param t: Time interval end boundary
-        :type t: double
-
-        :param tasks_time_intervals: DataFrame containing start and end times
-            of tasks
-        :type tasks_time_intervals: :mod:`pandas.DataFrame`
-        """
-        nonidle_time = 0.0
-        for _, row in tasks_time_intervals.iterrows():
-            start = row['start']
-            end = row['end']
-            if start > t:
-                # Task not running at f_prev
-                continue
-            elif start >= t_prev and start <= t:
-                # Task starting at instant of time where frequency is f_prev
-                if end <= t:
-                    # Task runs at f_prev for the whole interval
-                    nonidle_time += end - start
-                else:
-                    # Task continues running at different frequency
-                    nonidle_time += t - start
-            else:
-                # Task started with previous frequency
-                if end > t_prev:
-                    # Task is still running now, at f_prev
-                    if end <= t:
-                        nonidle_time += end - t_prev
-                    else:
-                        # Task will continue running at different frequency
-                        nonidle_time += t - t_prev
-
-        return nonidle_time
-
     def getCPUFrequencyResidency(self, cpu):
         """
         Get a DataFrame with per-CPU frequency residency, i.e. amount of
@@ -839,70 +797,7 @@ class TraceAnalysis(object):
         :param cpu: CPU ID
         :type cpu: int
         """
-
-        if not self.trace.hasEvents('cpu_frequency'):
-            logging.warn('Events [cpu_frequency] not found, '\
-                         'plot DISABLED!')
-            return None
-        if not self.trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
-                         'plot DISABLED!')
-            return None
-
-        freq_dfr = self.trace.df('cpu_frequency')
-        cpu_freqs = freq_dfr[freq_dfr.cpu == cpu]
-        idle_dfr = self.trace.df('cpu_idle')
-        cpu_idle = idle_dfr[idle_dfr.cpu_id == cpu]
-
-        ### Compute TOTAL time spent at each frequency ###
-        time_intervals = cpu_freqs.index[1:] - cpu_freqs.index[:-1]
-        total_time = pd.DataFrame({
-            'TOTAL Time' : time_intervals,
-            'Frequency [MHz]' : [f/1000 for f in cpu_freqs.iloc[:-1].frequency]
-        })
-        total_time = total_time.groupby(['Frequency [MHz]']).sum()
-
-        ### Compute ACTIVE time spent at each frequency ###
-        # time instants where CPU is idle
-        idle_times = cpu_idle[cpu_idle['state'] != IDLE_STATE]
-        # time instants where CPU is not idle
-        non_idle_times = cpu_idle[cpu_idle['state'] == IDLE_STATE]
-
-        if idle_times.index[0] < non_idle_times.index[0]:
-            idle_times = idle_times.iloc[1:]
-
-        time_intervals = [t2 - t1 for t1, t2 in zip(non_idle_times.index,
-                                                    idle_times.index)]
-
-        times_len = min(len(idle_times), len(non_idle_times))
-        tasks_time_intervals = pd.DataFrame({
-            "start": non_idle_times.index[:times_len],
-            "end": idle_times.index[:times_len]
-        })
-
-        # Compute the non-IDLE time spent at a certain frequency
-        time_intervals = []
-        frequencies = []
-        row_iterator = cpu_freqs.iterrows()
-        # Take first item from row_iterator
-        t_prev, f_prev = row_iterator.next()
-        for t, f in row_iterator:
-            nonidle_time = self._computeNonIdleTime(t_prev,
-                                                    t,
-                                                    tasks_time_intervals)
-            freq = f_prev['frequency']
-            time_intervals.append(nonidle_time)
-            frequencies.append(freq)
-            t_prev = t
-            f_prev = f
-
-        active_time = pd.DataFrame({
-            'ACTIVE Time' : time_intervals,
-            'Frequency [MHz]' : [f/1000 for f in frequencies]
-        })
-        # Sum the time intervals with same frequncy
-        active_time = active_time.groupby(['Frequency [MHz]']).sum()
-        return total_time, active_time
+        return self.getClusterFrequencyResidency([cpu])
 
     def plotCPUFrequencyResidency(self, cpus=None):
         """
@@ -951,6 +846,84 @@ class TraceAnalysis(object):
                           loc='lower right')
             plt.subplots_adjust(hspace=0.5)
 
+    def _getClusterActiveSignal(self, cluster):
+        """
+        Build a square wave representing the active (i.e. non-idle) cluster
+        time, i.e.:
+            cluster_active[t] = 1 if there is a task running in the cluster at
+                                time t
+            cluster_active[t] = 0 otherwise
+
+        :param cluster: list of CPU IDs belonging to a cluster
+        :type cluster: list(int)
+        """
+        freq_dfr = self.trace.df('cpu_frequency')
+        cluster_freqs = freq_dfr[freq_dfr.cpu.isin(cluster)]
+        idle_dfr = self.trace.df('cpu_idle')
+
+        cpu_activation = {}
+        for cpu in cluster:
+            cpu_freqs = freq_dfr[freq_dfr.cpu == cpu]
+            cpu_idle = idle_dfr[idle_dfr.cpu_id == cpu]
+
+            # time instants where CPU goes to an idle state
+            idle_times = cpu_idle[cpu_idle.state != IDLE_STATE]
+            # time instants where CPU leaves an idle state
+            non_idle_times = cpu_idle[cpu_idle.state == IDLE_STATE]
+
+            if idle_times.index[0] < non_idle_times.index[0]:
+                idle_times = idle_times.iloc[1:]
+
+            activation_indexes = sorted(
+                non_idle_times.index.values.tolist() + \
+                idle_times.index.values.tolist()
+            )
+            if activation_indexes[0] != 0.0:
+                activation_indexes.insert(0, 0.0)
+                activations = [i%2 for i in range(len(activation_indexes))]
+            else:
+                activations = [(i+1)%2 for i in range(len(activation_indexes))]
+            cpu_activation[cpu] = pd.Series(activations,
+                                            index=activation_indexes)
+
+        activations = pd.DataFrame(cpu_activation)
+        activations.loc[0.0].fillna(0, inplace=True)
+        activations.fillna(method='ffill', inplace=True)
+
+        cluster_active = activations[activations.columns[0]].astype(int)
+        for c in activations.columns[1:]:
+            cluster_active |= activations[c].astype(int)
+
+        return cluster_active
+
+    def _getCPUActiveSignal(self, cpu):
+        """
+        Build a square wave representing the active (i.e. non-idle) CPU time,
+        i.e.:
+            cpu_active[t] = 1 if there is a task running in the CPU at time t
+            cpu_active[t] = 0 otherwise
+
+        :param cpu: CPU ID
+        :type cpu: int
+        """
+        return self._getClusterActiveSignal([cpu])
+
+    def _integrate_square_wave(self, sq_wave):
+        """
+        Compute the integral of a square wave time series.
+
+        :param sq_wave: square wave assuming only 1.0 and 0.0 values
+        :type sq_wave: :mod:`pandas.Series`
+        """
+        sq_wave.iloc[-1] = 0.0
+        # Compact signal to obtain only 1-0-1-0 sequences
+        comp_sig = sq_wave.loc[sq_wave.shift() != sq_wave]
+        # First value for computing the difference must be a 1
+        if comp_sig.iloc[0] == 0.0:
+            return sum(comp_sig.iloc[2::2].index - comp_sig.iloc[1:-1:2].index)
+        else:
+            return sum(comp_sig.iloc[1::2].index - comp_sig.iloc[:-1:2].index)
+
     def getClusterFrequencyResidency(self, cluster):
         """
         Get a DataFrame with per cluster frequency residency, i.e. amount of
@@ -970,91 +943,52 @@ class TraceAnalysis(object):
             return None
 
         freq_dfr = self.trace.df('cpu_frequency')
-        cluster_freqs = freq_dfr[freq_dfr['cpu'].isin(cluster)]
+        cluster_freqs = freq_dfr[freq_dfr.cpu.isin(cluster)]
         idle_dfr = self.trace.df('cpu_idle')
 
         ### Computer TOTAL Time ###
         time_intervals = cluster_freqs.index[1:] - cluster_freqs.index[:-1]
         total_time = pd.DataFrame({
             'TOTAL Time' : time_intervals,
-            'Frequency [MHz]' : [f/1000 for f in cluster_freqs.iloc[:-1].frequency]
+            'Frequency [MHz]' : [
+                f/1000 for f in cluster_freqs.iloc[:-1].frequency
+            ]
         })
         total_time = total_time.groupby(['Frequency [MHz]']).sum()
 
         ### Compute ACTIVE Time ###
-        cpu_activation = {}
-        for cpu in cluster:
-            cpu_freqs = freq_dfr[freq_dfr['cpu'] == cpu]
-            cpu_idle = idle_dfr[idle_dfr['cpu_id'] == cpu]
+        cluster_active = self._getClusterActiveSignal(cluster)
 
-            # time instants where CPU goes to an idle state
-            idle_times = cpu_idle[cpu_idle['state'] != IDLE_STATE]
-            # time instants where CPU leaves an idle state
-            non_idle_times = cpu_idle[cpu_idle['state'] == IDLE_STATE]
-
-            if idle_times.index[0] < non_idle_times.index[0]:
-                idle_times = idle_times.iloc[1:]
-
-            activation_indexes = sorted(
-                non_idle_times.index.values.tolist() + \
-                idle_times.index.values.tolist()
+        # In order to compute the active time spent at each frequency we
+        # multiply 2 square waves:
+        # - cluster_active, a square of the form:
+        #           cluster_active[t] = 1 if there is a task running in the
+        #                               cluster at time t
+        #           cluster_active[t] = 0 otherwise
+        # - freq_active, square wave of the form:
+        #           freq_active[t] = 1 if at time t the frequency is f
+        #           freq_active[t] = 0 otherwise
+        available_freqs = sorted(cluster_freqs.frequency.unique())
+        new_idx = sorted(cluster_freqs.index.tolist() + \
+                         cluster_active.index.tolist())
+        cluster_freqs = cluster_freqs.reindex(
+            new_idx, method='ffill'
+        ).fillna(method='bfill')
+        cluster_active = cluster_active.reindex(new_idx, method='ffill')
+        nonidle_time = []
+        for f in available_freqs:
+            # Build square wave for the current frequency such that:
+            freq_active = cluster_freqs.frequency.apply(
+                lambda x: 1 if x == f else 0
             )
-            if activation_indexes[0] != 0.0:
-                activation_indexes.insert(0, 0.0)
-                activations = [i%2 for i in range(len(activation_indexes))]
-            else:
-                activations = [(i+1)%2 for i in range(len(activation_indexes))]
-            cpu_activation[cpu] = pd.Series(activations,
-                                            index=activation_indexes)
+            active_t = cluster_active * freq_active
+            # Sum up the time intervals by computing the integral of the square
+            # wave
+            nonidle_time.append(self._integrate_square_wave(active_t))
 
-        activations = pd.DataFrame(cpu_activation)
-        activations.loc[0.0].fillna(0, inplace=True)
-        activations.fillna(method="ffill", inplace=True)
-
-        cluster_active = activations[activations.columns[0]].astype(int)
-        for c in range(1, len(activations.columns)):
-            cluster_active |= activations[activations.columns[c]].astype(int)
-
-        start = []
-        end = []
-        active = False
-        for idx, val in cluster_active.iteritems():
-            if val == 1 and not active:
-                start.append(idx)
-                active = True
-            elif val == 0 and active:
-                end.append(idx)
-                active = False
-        if len(start) > len(end):
-            end.append(self.x_max)
-
-        tasks_time_intervals = pd.DataFrame({
-            "start" : start,
-            "end"   : end
-        })
-
-        # Compute the non-IDLE time spent at a certain frequency
-        time_intervals = []
-        frequencies = []
-        row_iterator = cluster_freqs.iterrows()
-        # Take first item from row_iterator
-        t_prev, f_prev = row_iterator.next()
-        for t, f in row_iterator:
-            nonidle_time = self._computeNonIdleTime(t_prev,
-                                                    t,
-                                                    tasks_time_intervals)
-            freq = f_prev['frequency']
-            time_intervals.append(nonidle_time)
-            frequencies.append(freq)
-            t_prev = t
-            f_prev = f
-
-        active_time = pd.DataFrame({
-            'ACTIVE Time' : time_intervals,
-            'Frequency [MHz]' : [f/1000 for f in frequencies]
-        })
-        # Sum the time intervals with same frequncy
-        active_time = active_time.groupby(['Frequency [MHz]']).sum()
+        active_time = pd.DataFrame({"ACTIVE Time" : nonidle_time},
+                                   index=[f/1000 for f in available_freqs])
+        active_time.index.name = 'Frequency [MHz]'
         return total_time, active_time
 
     def plotClusterFrequencyResidency(self, clusters=['big', 'little']):
