@@ -30,10 +30,12 @@ the trace
 
     def __call__(self, line):
         if self.before_begin_trace:
-            if line.startswith("<!-- BEGIN TRACE -->"):
+            if line.startswith("<!-- BEGIN TRACE -->") or \
+               line.startswith("<title>Android System Trace</title>"):
                 self.before_begin_trace = False
         elif self.before_script_trace_data:
-            if line.startswith('  <script class="trace-data"'):
+            if line.startswith('  <script class="trace-data"') or \
+               line.startswith("  var linuxPerfData"):
                 self.before_script_trace_data = False
         elif not line.startswith("#"):
             self.before_actual_trace = False
