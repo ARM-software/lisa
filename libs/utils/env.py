@@ -420,6 +420,9 @@ class TestEnv(ShareState):
                 logging.info(r'%14s - %10s : %s', 'Target',
                              key, self.__connection_settings[key])
 
+        logging.info(r'%14s - Connection settings:', 'Target')
+        logging.info(r'%14s -    %s', 'Target', self.__connection_settings)
+
         if platform_type.lower() == 'linux':
             logging.debug('%14s - Setup LINUX target...', 'Target')
             self.target = devlib.LinuxTarget(
