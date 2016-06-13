@@ -265,9 +265,9 @@ class Workload(object):
                          'WlGen', ftrace_dat)
             ftrace.get_trace(ftrace_dat)
 
-        self.__callback('postrun', destdir=out_dir)
-
-        logging.debug('%14s - Workload execution COMPLETED', 'WlGen')
+        if not background:
+            self.__callback('postrun', destdir=out_dir)
+            logging.debug('%14s - Workload execution COMPLETED', 'WlGen')
 
         return ftrace_dat
 
