@@ -15,8 +15,26 @@
 # limitations under the License.
 #
 
-"""Initialization for Android module"""
+import logging
 
-from screen import Screen
-from system import System
-from workload import Workload
+class System(object):
+    """
+    Collection of Android related services
+    """
+
+    @staticmethod
+    def set_airplane_mode(target, on=True):
+        """
+        Set airplane mode
+        """
+        ap_mode = 1 if on else 0
+        ap_state = 'true' if on else 'false'
+
+        target.execute('settings put global airplane_mode_on {}'\
+                       .format(ap_mode))
+        target.execute('am broadcast '\
+                       '-a android.intent.action.AIRPLANE_MODE '\
+                       '--ez state {}'\
+                       .format(ap_state))
+
+# vim :set tabstop=4 shiftwidth=4 expandtab
