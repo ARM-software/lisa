@@ -30,7 +30,6 @@ a data column, data event and the requisite filters is
 from trappy.plotter.Utils import decolonize, normalize_list
 from trappy.utils import listify
 from trappy.plotter import AttrConf
-from trappy.utils import handle_duplicate_index
 
 
 class Constraint(object):
@@ -94,16 +93,7 @@ class Constraint(object):
         self._dup_resolved = False
         self._data = self.populate_data_frame()
 
-        try:
-            self.result = self._apply()
-        except ValueError:
-            if not self._dup_resolved:
-                self._handle_duplicate_index()
-                try:
-                    self.result = self._apply()
-                except:
-                    raise ValueError("Unable to handle duplicates")
-
+        self.result = self._apply()
         self.trace_index = trace_index
 
     def _apply(self):
@@ -139,12 +129,6 @@ class Constraint(object):
                 result[pivot_val] = val_series
 
         return result
-
-    def _handle_duplicate_index(self):
-        """Handle duplicate values in index"""
-
-        self._data = handle_duplicate_index(self._data)
-        self._dup_resolved = True
 
     def _uses_trappy_trace(self):
         if not self._template:
