@@ -15,7 +15,7 @@ The `hwmon` is a generic Linux kernel subsystem, providing access to hardware mo
 
 ARM Energy Probes are lightweight power measurement tools for software developers. They can monitor up to three voltage rails simultaneously.
 
-### Equipment
+#### Equipment
 
 The required equipment is the following:
 
@@ -25,7 +25,7 @@ The required equipment is the following:
   by the load, one can properly select the value of the shunt resistor
 * `caiman` tool ([installation instructions](https://github.com/ARM-software/caiman))
 
-### LISA Target Configuration
+#### LISA Target Configuration
 
 ```python
      "emeter" : {
@@ -45,7 +45,7 @@ The required equipment is the following:
 
 The `iiocapture` instrument exploits the [BayLibre ACME](http://baylibre.com/acme/) solution for measuring power.
 
-### Equipment
+#### Equipment
 To use this instrument you need the following equipment:
 
 * A [BeagleBone Black](https://beagleboard.org/black)
@@ -53,11 +53,11 @@ To use this instrument you need the following equipment:
 * Power probes for the ACME Cape
 * The `iio-capture` tool installed in your host ([installation instructions here](https://github.com/BayLibre/iio-capture))
 
-### Build the software suite
+#### Build the software suite
 
 Next step is to build the ACME software suite by following the instructions on [Building the software with iio](http://wiki.baylibre.com/doku.php?id=acme:start#building_the_software_with_iio).
 
-### LISA Target Configuration
+#### LISA Target Configuration
 
 The target configuration for this instrument is:
 
