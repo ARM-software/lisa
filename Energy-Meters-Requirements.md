@@ -9,6 +9,8 @@ Instruments need to be specified either in `target.config` or in a configuration
 
 ## Linux HWMON
 
+The `hwmon` is a generic Linux kernel subsystem, providing access to hardware monitoring components like temperature or voltage/current sensors.
+
 ## ARM Energy Probe (AEP)
 
 ARM Energy Probes are lightweight power measurement tools for software developers. They can monitor up to three voltage rails simultaneously.
