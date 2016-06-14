@@ -202,6 +202,7 @@ class EventPlot(AbstractDataPlotter):
                     "d3-tip": '""" + IPythonConf.add_web_base("plotter_scripts/EventPlot/d3.tip.v0.6.3") + """',
                     "d3-plotter": '""" + IPythonConf.add_web_base("plotter_scripts/EventPlot/d3.min") + """'
                 },
+                waitSeconds: 15,
                 shim: {
                     "d3-plotter" : {
                         "exports" : "d3"
