@@ -11,6 +11,34 @@ Instruments need to be specified either in `target.config` or in a configuration
 
 ## ARM Energy Probe (AEP)
 
+ARM Energy Probes are lightweight power measurement tools for software developers. They can monitor up to three voltage rails simultaneously.
+
+### Equipment
+
+The required equipment is the following:
+
+* An ARM Energy Probe
+* A shunt resistor to be connected between the voltage rail and the probe. The voltage drop
+  on the resistor must be at most 165 mv. Therefore depending on the maximum current required
+  by the load, one can properly select the value of the shunt resistor
+* `caiman` tool ([installation instructions](https://github.com/ARM-software/caiman))
+
+### LISA Target Configuration
+
+```python
+     "emeter" : {
+         "instrument" : "aep",
+         "conf" : {
+             # List of labels assigned to each channel on the output files
+             'labels'          : ['BAT'],
+             # Value of the shunt resistor in Ohm
+             'resistor_values' : [0.099],
+             # Device entry assigned to the probe on the host
+             'device_entry'    : '/dev/ttyACM0',
+         }
+     },
+```
+
 ## iiocapture
 
 The `iiocapture` instrument exploits the [BayLibre ACME](http://baylibre.com/acme/) solution for measuring power.
