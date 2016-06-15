@@ -470,8 +470,8 @@ class TraceAnalysis(object):
                 plot_id = plot_id + 1
 
             # Save generated plots into datadir
-            figname = '{}/{}task_util_{}.png'.format(
-                self.plotsdir, self.prefix, task_name.replace('/', '_'))
+            task_name = re.sub('[:/]', '_', task_name)
+            figname = '{}/{}task_util_{}.png'.format(self.plotsdir, self.prefix, task_name)
             pl.savefig(figname, bbox_inches='tight')
 
     def plotEDiffTime(self, tasks=None,
