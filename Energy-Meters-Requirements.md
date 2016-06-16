@@ -11,6 +11,24 @@ Instruments need to be specified either in `target.config` or in a configuration
 
 The `hwmon` is a generic Linux kernel subsystem, providing access to hardware monitoring components like temperature or voltage/current sensors.
 
+#### LISA Target Configuration
+
+Energy sampling with `hwmon`  requires the HWMON module to be enable in the target configuration.
+
+```bash
+    "modules" = ['hwmon'],
+
+    "emeter" = {
+        "instrument" : "hwmon",
+        "conf" : {
+            #
+            'sites' : ['a53', 'a57'],
+            #
+            'kinds' : ['energy']
+        }
+    },
+```
+
 ## ARM Energy Probe (AEP)
 
 ARM Energy Probes are lightweight power measurement tools for software developers. They can monitor up to three voltage rails simultaneously.
