@@ -525,7 +525,7 @@ class LinuxTarget(Target):
     @property
     @memoized
     def abi(self):
-        value = self.execute('{} uname -m'.format(self.busybox)).strip()
+        value = self.execute('uname -m').strip()
         for abi, architectures in ABI_MAP.iteritems():
             if value in architectures:
                 result = abi
