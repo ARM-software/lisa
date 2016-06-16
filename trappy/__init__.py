@@ -14,12 +14,12 @@
 #
 
 
-import pkg_resources
 import warnings
 from trappy.bare_trace import BareTrace
 from trappy.compare_runs import summary_plots, compare_runs
 from trappy.ftrace import FTrace
 from trappy.systrace import SysTrace
+from trappy.version import __version__
 try:
     from trappy.plotter.LinePlot import LinePlot
 except ImportError as exc:
@@ -71,8 +71,3 @@ for fname in os.listdir(os.path.dirname(__file__)):
         __import__("trappy.{}".format(import_name))
 
 del fname, import_name, extension
-
-try:
-    __version__ = pkg_resources.get_distribution("trappy").version
-except pkg_resources.DistributionNotFound:
-    __version__ = "local"
