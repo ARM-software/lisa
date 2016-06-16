@@ -218,10 +218,9 @@ class EventPlot(AbstractDataPlotter):
             /* TRAPPY_PUBLISH_REMOVE_STOP */
             """
 
-        div_js += "var data = {};\n".format(self._data)
         div_js += """
         req(["require", "EventPlot"], function() { /* TRAPPY_PUBLISH_REMOVE_LINE */
-            EventPlot.generate('""" + self._fig_name + """', '""" + IPythonConf.add_web_base("") + """', data);
+            EventPlot.generate('""" + self._fig_name + "', '" + IPythonConf.add_web_base("") + "', " + self._data + """);
         }); /* TRAPPY_PUBLISH_REMOVE_LINE */
         </script>
         """
