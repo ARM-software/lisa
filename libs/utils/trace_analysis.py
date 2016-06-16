@@ -28,6 +28,7 @@ import trappy
 import operator
 from trappy.utils import listify
 import copy
+from devlib.utils.misc import memoized
 
 # Configure logging
 import logging
@@ -998,6 +999,7 @@ class TraceAnalysis(object):
         else:
             return sum(comp_sig.iloc[1::2].index - comp_sig.iloc[:-1:2].index)
 
+    @memoized
     def getClusterFrequencyResidency(self, cluster):
         """
         Get a DataFrame with per cluster frequency residency, i.e. amount of
