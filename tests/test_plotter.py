@@ -276,6 +276,18 @@ class TestILinePlotter(unittest.TestCase):
         expected_index.sort()
         self.assertEquals(expected_index, merged.index.tolist())
 
+    def test_dygraph_colors(self):
+        """Check that to_dygraph_colors() constructs a valid dygraph colors argument"""
+        from trappy.plotter.ColorMap import to_dygraph_colors
+
+        color_map = [[86, 58, 206]]
+        expected = '["rgb(86, 58, 206)"]'
+        self.assertEquals(to_dygraph_colors(color_map), expected)
+
+        color_map = [[0, 0, 0], [123, 23, 45]]
+        expected = '["rgb(0, 0, 0)", "rgb(123, 23, 45)"]'
+        self.assertEquals(to_dygraph_colors(color_map), expected)
+
 class TestBarPlot(unittest.TestCase):
     def setUp(self):
         self.dfr = pd.DataFrame({"foo": [1, 2, 3],
