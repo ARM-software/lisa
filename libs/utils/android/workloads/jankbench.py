@@ -19,7 +19,7 @@ import re
 import os
 
 from subprocess import Popen, PIPE
-from android import Screen, Workload
+from android import Screen, System, Workload
 
 import logging
 
@@ -87,6 +87,9 @@ class Jankbench(Workload):
         # Close and clear application
         self.target.execute('am force-stop com.android.benchmark')
         self.target.execute('pm clear com.android.benchmark')
+
+        # Set airplane mode
+        System.set_airplane_mode(self.target, on=True)
 
         # Force screen in PORTRAIT mode
         Screen.set_orientation(self.target, portrait=True)
