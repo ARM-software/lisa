@@ -101,9 +101,7 @@ class AbstractDataPlotter(object):
             raise ValueError("column/templates specified with values")
 
         self._attr["column"] = []
-
-        if self.templates is None:
-            self.templates = []
+        self.templates = []
 
         for value in listify(self._attr["signals"]):
             template, column = self._value_parser.parseString(value)[0]
