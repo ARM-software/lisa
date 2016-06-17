@@ -151,6 +151,12 @@ class TestPlotter(BaseTestThermal):
                                  "cpu_out_power:power"],
                          pivot="cpus")
 
+        self.assertTrue(isinstance(l.templates[0], type(trappy.cpu_power.CpuInPower)))
+        self.assertEquals(l._attr["column"][0], "dynamic_power")
+        self.assertTrue(l.templates[1], type(trappy.cpu_power.CpuOutPower))
+        self.assertEquals(l._attr["column"][1], "power")
+
+        # Check that plotting doesn't barf
         l.view(test=True)
 
 
