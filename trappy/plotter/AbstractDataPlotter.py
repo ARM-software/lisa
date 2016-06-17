@@ -18,7 +18,6 @@ from abc import abstractmethod, ABCMeta
 from pandas import DataFrame
 from trappy.utils import listify
 from functools import reduce
-from trappy.stats.grammar import Group, IDENTIFIER, COLON
 # pylint: disable=R0921
 # pylint: disable=R0903
 
@@ -30,12 +29,6 @@ class AbstractDataPlotter(object):
     __metaclass__ = ABCMeta
 
     def __init__(self, traces=None, attr=None, templates=None):
-        self._value_parser = Group(
-            IDENTIFIER +
-            COLON +
-            IDENTIFIER).setParseAction(
-            self._parse_value)
-
         self._event_map = {}
         self._attr = attr if attr else {}
         self.traces = traces
@@ -73,10 +66,14 @@ class AbstractDataPlotter(object):
         else:
             raise ValueError("Empty Data received")
 
-    def _parse_value(self, tokens):
-        """Grammar parser function to parse a signal"""
+    def _parse_value(self, signal_def):
+        """Parse a signal definition into a (template, column) tuple
 
-        event, column = tokens[0]
+        :param signal_def: A signal definition. E.g. "trace_class:column"
+        :type signal_def: str
+        """
+
+        event, column = signal_def.split(":")
 
         try:
             return self._event_map[event], column
@@ -104,6 +101,6 @@ class AbstractDataPlotter(object):
         self.templates = []
 
         for value in listify(self._attr["signals"]):
-            template, column = self._value_parser.parseString(value)[0]
+            template, column = self._parse_value(value)
             self.templates.append(template)
             self._attr["column"].append(column)
