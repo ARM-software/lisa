@@ -26,12 +26,16 @@ import re
 import sys
 import trappy
 import operator
+from trappy.utils import listify
 from devlib.utils.misc import memoized
+from collections import namedtuple
 
 # Configure logging
 import logging
 
 NON_IDLE_STATE = 4294967295
+
+ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
 
 class TraceAnalysis(object):
 
@@ -905,4 +909,118 @@ class TraceAnalysis(object):
         )
 
         return cluster_active
+
+    def _integrate_square_wave(self, sq_wave):
+        """
+        Compute the integral of a square wave time series.
+
+        :param sq_wave: square wave assuming only 1.0 and 0.0 values
+        :type sq_wave: :mod:`pandas.Series`
+        """
+        sq_wave.iloc[-1] = 0.0
+        # Compact signal to obtain only 1-0-1-0 sequences
+        comp_sig = sq_wave.loc[sq_wave.shift() != sq_wave]
+        # First value for computing the difference must be a 1
+        if comp_sig.iloc[0] == 0.0:
+            return sum(comp_sig.iloc[2::2].index - comp_sig.iloc[1:-1:2].index)
+        else:
+            return sum(comp_sig.iloc[1::2].index - comp_sig.iloc[:-1:2].index)
+
+    @memoized
+    def getClusterFrequencyResidency(self, cluster):
+        """
+        Get a DataFrame with per cluster frequency residency, i.e. amount of
+        time spent at a given frequency in each cluster.
+
+        :param cluster: this can be either a single CPU ID or a list of CPU IDs
+            belonging to a cluster or the cluster name as specified in the
+            platform description
+        :type cluster: str or int or list(int)
+
+        :returns: namedtuple(ResidencyTime) - tuple of total and active time
+            dataframes
+
+        :raises: KeyError
+        """
+        if not self.trace.hasEvents('cpu_frequency'):
+            logging.warn('Events [cpu_frequency] not found, '\
+                         'frequency residency computation not possible!')
+            return None
+        if not self.trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, '\
+                         'frequency residency computation not possible!')
+            return None
+
+        if isinstance(cluster, str):
+            try:
+                _cluster = self.platform['clusters'][cluster.lower()]
+            except KeyError:
+                logging.warn('%s cluster not found!', cluster)
+                return None
+        else:
+            _cluster = listify(cluster)
+
+        freq_df = self.trace.df('cpu_frequency')
+        # Assumption: all CPUs in a cluster run at the same frequency, i.e. the
+        # frequency is scaled per-cluster not per-CPU. Hence, we can limit the
+        # cluster frequencies data to a single CPU. This assumption is verified
+        # by the Trace module when parsing the trace.
+        if len(_cluster) > 1 and not self.trace.freq_coherency:
+            logging.warn('Cluster frequency is NOT coherent,'\
+                         'cannot compute residency!')
+            return None
+        cluster_freqs = freq_df[freq_df.cpu == _cluster[0]]
+
+        ### Compute TOTAL Time ###
+        time_intervals = cluster_freqs.index[1:] - cluster_freqs.index[:-1]
+        total_time = pd.DataFrame({
+            'time' : time_intervals,
+            'frequency' : [f/1000 for f in cluster_freqs.iloc[:-1].frequency]
+        })
+        total_time = total_time.groupby(['frequency']).sum()
+
+        ### Compute ACTIVE Time ###
+        cluster_active = self.getClusterActiveSignal(_cluster)
+
+        # In order to compute the active time spent at each frequency we
+        # multiply 2 square waves:
+        # - cluster_active, a square wave of the form:
+        #     cluster_active[t] == 1 if at least one CPU is reported to be
+        #                            non-idle by CPUFreq at time t
+        #     cluster_active[t] == 0 otherwise
+        # - freq_active, square wave of the form:
+        #     freq_active[t] == 1 if at time t the frequency is f
+        #     freq_active[t] == 0 otherwise
+        available_freqs = sorted(cluster_freqs.frequency.unique())
+        new_idx = sorted(cluster_freqs.index.tolist() + \
+                         cluster_active.index.tolist())
+        cluster_freqs = cluster_freqs.reindex(new_idx, method='ffill')
+        cluster_active = cluster_active.reindex(new_idx, method='ffill')
+        nonidle_time = []
+        for f in available_freqs:
+            freq_active = cluster_freqs.frequency.apply(
+                lambda x: 1 if x == f else 0
+            )
+            active_t = cluster_active * freq_active
+            # Compute total time by integrating the square wave
+            nonidle_time.append(self._integrate_square_wave(active_t))
+
+        active_time = pd.DataFrame({'time' : nonidle_time},
+                                   index=[f/1000 for f in available_freqs])
+        active_time.index.name = 'frequency'
+        return ResidencyTime(total_time, active_time)
+
+    def getCPUFrequencyResidency(self, cpu):
+        """
+        Get a DataFrame with per-CPU frequency residency, i.e. amount of
+        time CPU `cpu` spent at each frequency. Both total and active times
+        will be computed.
+
+        :param cpu: CPU ID
+        :type cpu: int
+
+        :returns: namedtuple(ResidencyTime) - tuple of total and active time
+            dataframes
+        """
+        return self.getClusterFrequencyResidency(cpu)
 
