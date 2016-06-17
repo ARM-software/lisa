@@ -36,6 +36,7 @@ import logging
 NON_IDLE_STATE = 4294967295
 
 ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
+ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
 
 class TraceAnalysis(object):
 
@@ -1023,4 +1024,282 @@ class TraceAnalysis(object):
             dataframes
         """
         return self.getClusterFrequencyResidency(cpu)
+
+    def _plotFrequencyResidencyAbs(self, axes, residency, n_plots,
+                                is_first, is_last, xmax, title=''):
+        """
+        Private method to generate frequency residency plots.
+
+        :param axes: axes over which to generate the plot
+        :type axes: matplotlib.axes.Axes
+
+        :param residency: tuple of total and active time dataframes
+        :type residency: namedtuple(ResidencyTime)
+
+        :param n_plots: total number of plots
+        :type n_plots: int
+
+        :param is_first: if True this is the first plot
+        :type is_first: bool
+
+        :param is_first: if True this is the last plot
+        :type is_first: bool
+
+        :param xmax: x-axes higher bound
+        :param xmax: double
+
+        :param title: title of this subplot
+        :type title: str
+        """
+        yrange = 0.4 * max(6, len(residency.total)) * n_plots
+        residency.total.plot.barh(ax = axes, color='g',
+                                  legend=False, figsize=(16,yrange))
+        residency.active.plot.barh(ax = axes, color='r',
+                                   legend=False, figsize=(16,yrange))
+
+        axes.set_xlim(0, 1.05*xmax)
+        axes.set_ylabel('Frequency [MHz]')
+        axes.set_title(title)
+        axes.grid(True)
+        if is_last:
+            axes.set_xlabel('Time [s]')
+        else:
+            axes.set_xticklabels([])
+
+        if is_first:
+            # Put title on top of the figure. As of now there is no clean way
+            # to make the title appear always in the same position in the
+            # figure because figure heights may vary between different
+            # platforms (different number of OPPs). Hence, we use annotation
+            legend_y = axes.get_ylim()[1]
+            axes.annotate('OPP Residency Time', xy=(0, legend_y),
+                          xytext=(-50, 45), textcoords='offset points',
+                          fontsize=18)
+            axes.annotate('GREEN: Total', xy=(0, legend_y),
+                          xytext=(-50, 25), textcoords='offset points',
+                          color='g', fontsize=14)
+            axes.annotate('RED: Active', xy=(0, legend_y),
+                          xytext=(50, 25), textcoords='offset points',
+                          color='r', fontsize=14)
+
+    def _plotFrequencyResidencyPct(self, axes, residency_df, label,
+                                   n_plots, is_first, is_last, res_type):
+        """
+        Private method to generate PERCENTAGE frequency residency plots.
+
+        :param axes: axes over which to generate the plot
+        :type axes: matplotlib.axes.Axes
+
+        :param residency_df: residency time dataframe
+        :type residency_df: :mod:`pandas.DataFrame`
+
+        :param label: label to be used for percentage residency dataframe
+        :type label: str
+
+        :param n_plots: total number of plots
+        :type n_plots: int
+
+        :param is_first: if True this is the first plot
+        :type is_first: bool
+
+        :param is_first: if True this is the last plot
+        :type is_first: bool
+
+        :param res_type: type of residency, either TOTAL or ACTIVE
+        :type title: str
+        """
+        # Compute sum of the time intervals
+        duration = residency_df.time.sum()
+        residency_pct = pd.DataFrame(
+            {label : residency_df.time.apply(lambda x: x*100/duration)},
+            index=residency_df.index
+        )
+        yrange = 3 * n_plots
+        residency_pct.T.plot.barh(ax=axes, stacked=True, figsize=(16, yrange))
+
+        axes.legend(loc='lower center', ncol=7)
+        axes.set_xlim(0, 100)
+        axes.grid(True)
+        if is_last:
+            axes.set_xlabel('Residency [%]')
+        else:
+            axes.set_xticklabels([])
+        if is_first:
+            legend_y = axes.get_ylim()[1]
+            axes.annotate('OPP {} Residency Time'.format(res_type),
+                          xy=(0, legend_y), xytext=(-50, 35),
+                          textcoords='offset points', fontsize=18)
+
+    def _plotFrequencyResidency(self, residencies, entity_name, xmax,
+                                pct, active):
+        """
+        Generate Frequency residency plots for the given entities.
+
+        :param residencies:
+        :type residencies: namedtuple(ResidencyData) - tuple containing:
+            1) as first element, a label to be used as subplot title
+            2) as second element, a namedtuple(ResidencyTime)
+
+        :param entity_name: name of the entity ('cpu' or 'cluster') used in the
+            figure name
+        :type entity_name: str
+
+        :param xmax: upper bound of x-axes
+        :type xmax: double
+
+        :param pct: plot residencies in percentage
+        :type pct: bool
+
+        :param active: for percentage plot specify whether to plot active or
+            total time. Default is TOTAL time
+        :type active: bool
+        """
+        n_plots = len(residencies)
+        gs = gridspec.GridSpec(n_plots, 1)
+        fig = plt.figure()
+
+        figtype = ""
+        for idx, data in enumerate(residencies):
+            label = data[0]
+            r = data[1]
+            if r is None:
+                plt.close(fig)
+                return
+
+            axes = fig.add_subplot(gs[idx])
+            is_first = idx == 0
+            is_last = idx+1 == n_plots
+            if pct and active:
+                self._plotFrequencyResidencyPct(axes, data.residency.active,
+                                                data.label, n_plots,
+                                                is_first, is_last,
+                                                'ACTIVE')
+                figtype = "_pct_active"
+                continue
+            if pct:
+                self._plotFrequencyResidencyPct(axes, data.residency.total,
+                                                data.label, n_plots,
+                                                is_first, is_last,
+                                                'TOTAL')
+                figtype = "_pct_total"
+                continue
+
+            self._plotFrequencyResidencyAbs(axes, data.residency,
+                                            n_plots, is_first,
+                                            is_last, xmax,
+                                            title=data.label)
+
+        figname = '{}/{}{}_freq_residency{}.png'\
+                  .format(self.plotsdir, self.prefix, entity_name, figtype)
+
+        pl.savefig(figname, bbox_inches='tight')
+
+    def plotCPUFrequencyResidency(self, cpus=None, pct=False, active=False):
+        """
+        Plot per-CPU frequency residency. big CPUs are plotted first and then
+        LITTLEs.
+
+        Requires the following trace events:
+            - cpu_frequency
+            - cpu_idle
+
+        :param cpus: List of cpus. By default plot all CPUs
+        :type cpus: list(str)
+
+        :param pct: plot residencies in percentage
+        :type pct: bool
+
+        :param active: for percentage plot specify whether to plot active or
+            total time. Default is TOTAL time
+        :type active: bool
+        """
+        if not self.trace.hasEvents('cpu_frequency'):
+            logging.warn('Events [cpu_frequency] not found, plot DISABLED!')
+            return
+        if not self.trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, plot DISABLED!')
+            return
+
+        if cpus is None:
+            # Generate plots only for available CPUs
+            cpufreq_data = self.trace.df('cpu_frequency')
+            _cpus = range(cpufreq_data.cpu.max()+1)
+        else:
+            _cpus = listify(cpus)
+
+        # Split between big and LITTLE CPUs ordered from higher to lower ID
+        _cpus.reverse()
+        big_cpus = [c for c in _cpus if c in self.platform['clusters']['big']]
+        little_cpus = [c for c in _cpus if c in
+                       self.platform['clusters']['little']]
+        _cpus = big_cpus + little_cpus
+
+        # Precompute active and total time for each CPU
+        residencies = []
+        xmax = 0.0
+        for c in _cpus:
+            r = self.getCPUFrequencyResidency(c)
+            residencies.append(ResidencyData('CPU{}'.format(c), r))
+
+            max_time = r.total.max().values[0]
+            if xmax < max_time:
+                xmax = max_time
+
+        self._plotFrequencyResidency(residencies, 'cpu', xmax, pct, active)
+
+    def plotClusterFrequencyResidency(self, clusters=None,
+                                      pct=False, active=False):
+        """
+        Plot the frequency residency in a given cluster, i.e. the amount of
+        time cluster `cluster` spent at frequency `f_i`. By default, both 'big'
+        and 'LITTLE' clusters data are plotted.
+
+        Requires the following trace events:
+            - cpu_frequency
+            - cpu_idle
+
+        :param clusters: name of the clusters to be plotted (all of them by
+            default)
+        :type clusters: str ot list(str)
+
+        :param pct: plot residencies in percentage
+        :type pct: bool
+
+        :param active: for percentage plot specify whether to plot active or
+            total time. Default is TOTAL time
+        :type active: bool
+        """
+        if not self.trace.hasEvents('cpu_frequency'):
+            logging.warn('Events [cpu_frequency] not found, plot DISABLED!')
+            return
+        if not self.trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, plot DISABLED!')
+            return
+
+        # Assumption: all CPUs in a cluster run at the same frequency, i.e. the
+        # frequency is scaled per-cluster not per-CPU. Hence, we can limit the
+        # cluster frequencies data to a single CPU
+        if not self.trace.freq_coherency:
+            logging.warn('Cluster frequency is not coherent, plot DISABLED!')
+            return
+
+        # Sanitize clusters
+        if clusters is None:
+            _clusters = self.platform['clusters'].keys()
+        else:
+            _clusters = listify(clusters)
+
+        # Precompute active and total time for each cluster
+        residencies = []
+        xmax = 0.0
+        for c in _clusters:
+            r = self.getClusterFrequencyResidency(
+                    self.platform['clusters'][c.lower()])
+            residencies.append(ResidencyData('{} Cluster'.format(c), r))
+
+            max_time = r.total.max().values[0]
+            if xmax < max_time:
+                xmax = max_time
+
+        self._plotFrequencyResidency(residencies, 'cluster', xmax, pct, active)
 
