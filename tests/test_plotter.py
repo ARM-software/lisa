@@ -155,6 +155,7 @@ class TestPlotter(BaseTestThermal):
         self.assertEquals(l._attr["column"][0], "dynamic_power")
         self.assertTrue(l.templates[1], type(trappy.cpu_power.CpuOutPower))
         self.assertEquals(l._attr["column"][1], "power")
+        self.assertTrue("colors" not in l._attr)
 
         # Check that plotting doesn't barf
         l.view(test=True)
@@ -191,6 +192,33 @@ class TestPlotter(BaseTestThermal):
                             signals=["cpu_in_power:dynamic_power",
                                  "cpu_out_power:power"],
                             pivot="cpus")
+
+    def test_signals_colors(self):
+        """Test signals with colors in LinePlot"""
+
+        trace1 = trappy.FTrace(name="first")
+        trace2 = trappy.FTrace(name="second")
+
+        l = trappy.LinePlot([trace1, trace2],
+                         signals=["thermal:temp:1,2,3",
+                                 "cpu_in_power:load2:200,100,0"],
+                         pivot="cpus")
+
+        self.assertTrue(isinstance(l.templates[0], type(trappy.thermal.Thermal)))
+        self.assertEquals(l._attr["column"][0], "temp")
+        self.assertEquals(l._attr["colors"][0], [1, 2, 3])
+        self.assertTrue(l.templates[1], type(trappy.cpu_power.CpuInPower))
+        self.assertEquals(l._attr["column"][1], "load2")
+        self.assertEquals(l._attr["colors"][1], [200, 100, 0])
+
+        # Check that plotting doesn't barf
+        l.view(test=True)
+
+        # Test hex color
+        l = trappy.LinePlot([trace1, trace2],
+                         signals=["thermal:prev_temp:0xff,0x3a,0x3"],
+                         pivot="cpus")
+        self.assertEquals(l._attr["colors"][0], [0xff, 0x3a, 0x3])
 
     def test_lineplot_dataframe(self):
         """LinePlot plots DataFrames without exploding"""

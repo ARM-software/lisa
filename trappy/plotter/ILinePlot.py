@@ -104,8 +104,12 @@ class ILinePlot(AbstractDataPlotter):
         same time.
     :type group: string
 
-    :param signals: A string of the type event_name:column
-        to indicate the value that needs to be plotted
+    :param signals: A string of the type event_name:column to indicate
+        the value that needs to be plotted.  You can add an additional
+        parameter to specify the color of the lin in rgb:
+        "event_name:column:color".  The color is specified as a comma
+        separated list of rgb values, from 0 to 255 or from 0x0 to
+        0xff.  E.g. 0xff,0x0,0x0 is red and 100,40,32 is brown.
 
         .. note::
 
