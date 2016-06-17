@@ -25,9 +25,13 @@ import pylab as pl
 import re
 import sys
 import trappy
+import operator
+from devlib.utils.misc import memoized
 
 # Configure logging
 import logging
+
+NON_IDLE_STATE = 4294967295
 
 class TraceAnalysis(object):
 
@@ -839,3 +843,66 @@ class TraceAnalysis(object):
         # Save generated plots into datadir
         figname = '{}/{}schedtune_conf.png'.format(self.plotsdir, self.prefix)
         pl.savefig(figname, bbox_inches='tight')
+
+    @memoized
+    def getCPUActiveSignal(self, cpu):
+        """
+        Build a square wave representing the active (i.e. non-idle) CPU time,
+        i.e.:
+            cpu_active[t] == 1 if at least one CPU is reported to be
+                               non-idle by CPUFreq at time t
+            cpu_active[t] == 0 otherwise
+
+        :param cpu: CPU ID
+        :type cpu: int
+        """
+        if not self.trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, '\
+                         'cannot compute CPU active signal!')
+            return None
+
+        idle_df = self.trace.df('cpu_idle')
+        cpu_df = idle_df[idle_df.cpu_id == cpu]
+
+        cpu_active = cpu_df.state.apply(
+            lambda s: 1 if s == NON_IDLE_STATE else 0
+        )
+
+        start_time = 0.0
+        if not self.trace.ftrace.normalized_time:
+            start_time = self.trace.ftrace.basetime
+        if cpu_active.index[0] != start_time:
+            entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
+            cpu_active = pd.concat([entry_0, cpu_active])
+
+        return cpu_active
+
+    @memoized
+    def getClusterActiveSignal(self, cluster):
+        """
+        Build a square wave representing the active (i.e. non-idle) cluster
+        time, i.e.:
+            cluster_active[t] == 1 if at least one CPU is reported to be
+                                   non-idle by CPUFreq at time t
+            cluster_active[t] == 0 otherwise
+
+        :param cluster: list of CPU IDs belonging to a cluster
+        :type cluster: list(int)
+        """
+        cpu_active = {}
+        for cpu in cluster:
+            cpu_active[cpu] = self.getCPUActiveSignal(cpu)
+
+        active = pd.DataFrame(cpu_active)
+        active.fillna(method='ffill', inplace=True)
+
+        # Cluster active is the OR between the actives on each CPU
+        # belonging to that specific cluster
+        cluster_active = reduce(
+            operator.or_,
+            [cpu_active.astype(int) for _, cpu_active in
+             active.iteritems()]
+        )
+
+        return cluster_active
+
