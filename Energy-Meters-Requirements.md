@@ -1,11 +1,36 @@
 LISA provide integration for some types of energy probes.
 
 Currently supported instruments are:
-* `HWMON`: Linux kernel hardware monitoring
-* `AEP`: ARM Energy Probe
-* `iiocapture`: BayLibre ACME Cape
+* [`HWMON`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#linux-hwmon): Linux kernel hardware monitoring
+* [`AEP`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#arm-energy-probe-aep): ARM Energy Probe
+* [`iiocapture`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture): BayLibre ACME Cape
 
 Instruments need to be specified either in `target.config` or in a configuration dictionary to be passed to `TestEnv` when creating the test environment object.
+
+## Using Energy Meters
+
+Assuming you declare a target configuration dictionary called `my_conf`, the following code snippet shows how to use the `EnergyMeter` class to measure energy consumption of the target while running a workload.
+
+```python
+my_conf = {
+    ...
+    "emeter" : {
+        # Energy meter configuration. You need to specify an instrument here.
+    },
+    ...
+}
+
+te = TestEnv(target_conf=my_conf)
+
+# Reset energy meter
+te.emeter.reset()
+# Start workload
+wload.run()
+# Stop energy measurement and report results in a specific output directory
+nrg_data, nrg_dile = te.emeter.report(te.res_dir)
+```
+
+The `report()` method returns a dictionary containing the energy data `nrg_data` and the energy file name `nrg_file`.
 
 ## Linux HWMON
 
@@ -13,20 +38,24 @@ The `hwmon` is a generic Linux kernel subsystem, providing access to hardware mo
 
 #### LISA Target Configuration
 
-Energy sampling with `hwmon`  requires the HWMON module to be enable in the target configuration.
+Energy sampling with `hwmon` requires the HWMON module to be enabled in `devlib` be specifying it in the target configuration.
 
 ```bash
+target_conf = {
+    # Enable hwmon module in devlib
     "modules" = ['hwmon'],
 
     "emeter" = {
         "instrument" : "hwmon",
         "conf" : {
-            #
+            # List of CPUs available in the system
             'sites' : ['a53', 'a57'],
-            #
+            # Type of hardware monitor to be used (ignored because
+            # we always measure energy)
             'kinds' : ['energy']
         }
     },
+}
 ```
 
 ## ARM Energy Probe (AEP)
@@ -46,6 +75,7 @@ The required equipment is the following:
 #### LISA Target Configuration
 
 ```python
+target_conf = {
      "emeter" : {
          "instrument" : "aep",
          "conf" : {
@@ -57,6 +87,7 @@ The required equipment is the following:
              'device_entry'    : '/dev/ttyACM0',
          }
      },
+}
 ```
 
 ## iiocapture
@@ -80,7 +111,7 @@ Next step is to build the ACME software suite by following the instructions on [
 The target configuration for this instrument is:
 
 ```python
-my_conf = {
+target_conf = {
     "emeter" : {
         "instrument" : "iiocapture",
         "conf" : {
@@ -102,5 +133,5 @@ my_conf = {
 You can also verify that the probes are correctly detected by the `iio daemon` running on the BeagleBone by running `iio_info` which is part of the `iio-capture`:
 
 ```bash
-$ iio_info -n <DEVICE_IP>
+$ iio_info -n DEVICE_IP
 ```
