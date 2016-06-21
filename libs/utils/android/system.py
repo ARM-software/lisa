@@ -37,4 +37,48 @@ class System(object):
                        '--ez state {}'\
                        .format(ap_state))
 
+    @staticmethod
+    def start(target, apk_name, activity_name):
+        """
+        Start an application.
+
+        :param apk_name: name of the apk
+        :type apk_name: str
+
+        :param activity_name: name of the activity to launch
+        :type activity_name: str
+        """
+        target.execute('am start -n {}/{}'.format(apk_name, activity_name))
+
+    @staticmethod
+    def force_stop(target, apk_name, clear=False):
+        """
+        Stop the application and clear its data if necessary.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param apk_name: name of the apk
+        :type apk_name: str
+
+        :param clear: clear application data
+        :type clear: bool
+        """
+        target.execute('am force-stop {}'.format(apk_name))
+        if clear:
+            target.execute('pm clear {}'.format(apk_name))
+
+    @staticmethod
+    def tap(target, x, y):
+        """
+        Tap a given point on the screen.
+
+        :param x: horizontal coordinate
+        :type x: int
+
+        :param y: vertical coordinate
+        :type y: int
+        """
+        target.execute('tap {} {}'.format(x, y))
+
 # vim :set tabstop=4 shiftwidth=4 expandtab
