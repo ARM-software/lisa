@@ -69,6 +69,7 @@ params = dict(
         'python-dateutil',  # converting between UTC and local time.
         'pexpect>=3.3',  # Send/recieve to/from device
         'pyserial',  # Serial port interface
+        'wrapt',  # Basic for construction of decorator functions
     ],
     extras_require={
         'daq': ['daqpower'],
