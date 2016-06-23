@@ -69,16 +69,28 @@ class System(object):
             target.execute('pm clear {}'.format(apk_name))
 
     @staticmethod
-    def tap(target, x, y):
+    def tap(target, x, y, absolute=False):
         """
         Tap a given point on the screen.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
 
         :param x: horizontal coordinate
         :type x: int
 
         :param y: vertical coordinate
         :type y: int
+
+        :param absolute: use absolute coordinates or percentage of screen
+            resolution
+        :type absolute: bool
         """
-        target.execute('tap {} {}'.format(x, y))
+        if not absolute:
+            w, h = target.screen_resolution
+            x = w * x / 100
+            y = h * y / 100
+
+        target.execute('input tap {} {}'.format(x, y))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
