@@ -29,6 +29,8 @@ import trappy
 # Configure logging
 import logging
 
+IDLE_STATE = 4294967295
+
 class TraceAnalysis(object):
 
     def __init__(self, trace, tasks=None, plotsdir=None, prefix=''):
@@ -796,3 +798,255 @@ class TraceAnalysis(object):
         # Save generated plots into datadir
         figname = '{}/{}schedtune_conf.png'.format(self.plotsdir, self.prefix)
         pl.savefig(figname, bbox_inches='tight')
+
+    def getCPUFrequencyResidency(self, cpu):
+        """
+        Get a DataFrame with per-CPU frequency residency, i.e. amount of
+        time CPU `cpu` spent at each frequency. Both total and active times
+        will be computed.
+
+        :param cpu: CPU ID
+        :type cpu: int
+        """
+        return self.getClusterFrequencyResidency([cpu])
+
+    def plotCPUFrequencyResidency(self, cpus=None):
+        """
+        Plot per-CPU frequency residency.
+
+        :param cpus: List of cpus. By default plot all CPUs
+        :type cpus: list(str)
+        """
+
+        if not cpus:
+            cpus = sorted(self.platform['clusters']['little'] + self.platform['clusters']['big'])
+        else:
+            cpus.sort()
+
+        n_cpus = len(cpus)
+        if n_cpus == 1:
+            gs = gridspec.GridSpec(1, 1)
+        else:
+            gs = gridspec.GridSpec(n_cpus/2 + n_cpus%2, 2)
+
+        fig = plt.figure()
+
+        axis = None
+        for idx, cpu in enumerate(cpus):
+            total_time, active_time = self.getCPUFrequencyResidency(cpu)
+
+            axis = fig.add_subplot(gs[idx])
+            total_time.plot.barh(ax=axis,
+                                 color='g',
+                                 legend=False,
+                                 figsize=(16,8),
+                                 fontsize=16);
+            active_time.plot.barh(ax=axis,
+                                  color='r',
+                                  legend=False,
+                                  figsize=(16,8),
+                                  fontsize=16);
+            axis.set_title('CPU{}'.format(cpu))
+            axis.set_xlabel('Time [s]')
+            axis.set_xlim(0, self.x_max)
+
+        if axis:
+            handles, labels = axis.get_legend_handles_labels()
+            plt.figlegend(handles,
+                          labels,
+                          loc='lower right')
+            plt.subplots_adjust(hspace=0.5)
+
+    def _getClusterActiveSignal(self, cluster):
+        """
+        Build a square wave representing the active (i.e. non-idle) cluster
+        time, i.e.:
+            cluster_active[t] = 1 if there is a task running in the cluster at
+                                time t
+            cluster_active[t] = 0 otherwise
+
+        :param cluster: list of CPU IDs belonging to a cluster
+        :type cluster: list(int)
+        """
+        freq_dfr = self.trace.df('cpu_frequency')
+        cluster_freqs = freq_dfr[freq_dfr.cpu.isin(cluster)]
+        idle_dfr = self.trace.df('cpu_idle')
+
+        cpu_activation = {}
+        for cpu in cluster:
+            cpu_freqs = freq_dfr[freq_dfr.cpu == cpu]
+            cpu_idle = idle_dfr[idle_dfr.cpu_id == cpu]
+
+            # time instants where CPU goes to an idle state
+            idle_times = cpu_idle[cpu_idle.state != IDLE_STATE]
+            # time instants where CPU leaves an idle state
+            non_idle_times = cpu_idle[cpu_idle.state == IDLE_STATE]
+
+            if idle_times.index[0] < non_idle_times.index[0]:
+                idle_times = idle_times.iloc[1:]
+
+            activation_indexes = sorted(
+                non_idle_times.index.values.tolist() + \
+                idle_times.index.values.tolist()
+            )
+            if activation_indexes[0] != 0.0:
+                activation_indexes.insert(0, 0.0)
+                activations = [i%2 for i in range(len(activation_indexes))]
+            else:
+                activations = [(i+1)%2 for i in range(len(activation_indexes))]
+            cpu_activation[cpu] = pd.Series(activations,
+                                            index=activation_indexes)
+
+        activations = pd.DataFrame(cpu_activation)
+        activations.loc[0.0].fillna(0, inplace=True)
+        activations.fillna(method='ffill', inplace=True)
+
+        cluster_active = activations[activations.columns[0]].astype(int)
+        for c in activations.columns[1:]:
+            cluster_active |= activations[c].astype(int)
+
+        return cluster_active
+
+    def _getCPUActiveSignal(self, cpu):
+        """
+        Build a square wave representing the active (i.e. non-idle) CPU time,
+        i.e.:
+            cpu_active[t] = 1 if there is a task running in the CPU at time t
+            cpu_active[t] = 0 otherwise
+
+        :param cpu: CPU ID
+        :type cpu: int
+        """
+        return self._getClusterActiveSignal([cpu])
+
+    def _integrate_square_wave(self, sq_wave):
+        """
+        Compute the integral of a square wave time series.
+
+        :param sq_wave: square wave assuming only 1.0 and 0.0 values
+        :type sq_wave: :mod:`pandas.Series`
+        """
+        sq_wave.iloc[-1] = 0.0
+        # Compact signal to obtain only 1-0-1-0 sequences
+        comp_sig = sq_wave.loc[sq_wave.shift() != sq_wave]
+        # First value for computing the difference must be a 1
+        if comp_sig.iloc[0] == 0.0:
+            return sum(comp_sig.iloc[2::2].index - comp_sig.iloc[1:-1:2].index)
+        else:
+            return sum(comp_sig.iloc[1::2].index - comp_sig.iloc[:-1:2].index)
+
+    def getClusterFrequencyResidency(self, cluster):
+        """
+        Get a DataFrame with per cluster frequency residency, i.e. amount of
+        time spent at a given frequency in each cluster.
+
+        :param cluster: list of CPU IDs belonging to the cluster
+        :type cluster: list(int)
+        """
+
+        if not self.trace.hasEvents('cpu_frequency'):
+            logging.warn('Events [cpu_frequency] not found, '\
+                         'plot DISABLED!')
+            return None
+        if not self.trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, '\
+                         'plot DISABLED!')
+            return None
+
+        freq_dfr = self.trace.df('cpu_frequency')
+        cluster_freqs = freq_dfr[freq_dfr.cpu.isin(cluster)]
+        idle_dfr = self.trace.df('cpu_idle')
+
+        ### Computer TOTAL Time ###
+        time_intervals = cluster_freqs.index[1:] - cluster_freqs.index[:-1]
+        total_time = pd.DataFrame({
+            'TOTAL Time' : time_intervals,
+            'Frequency [MHz]' : [
+                f/1000 for f in cluster_freqs.iloc[:-1].frequency
+            ]
+        })
+        total_time = total_time.groupby(['Frequency [MHz]']).sum()
+
+        ### Compute ACTIVE Time ###
+        cluster_active = self._getClusterActiveSignal(cluster)
+
+        # In order to compute the active time spent at each frequency we
+        # multiply 2 square waves:
+        # - cluster_active, a square of the form:
+        #           cluster_active[t] = 1 if there is a task running in the
+        #                               cluster at time t
+        #           cluster_active[t] = 0 otherwise
+        # - freq_active, square wave of the form:
+        #           freq_active[t] = 1 if at time t the frequency is f
+        #           freq_active[t] = 0 otherwise
+        available_freqs = sorted(cluster_freqs.frequency.unique())
+        new_idx = sorted(cluster_freqs.index.tolist() + \
+                         cluster_active.index.tolist())
+        cluster_freqs = cluster_freqs.reindex(
+            new_idx, method='ffill'
+        ).fillna(method='bfill')
+        cluster_active = cluster_active.reindex(new_idx, method='ffill')
+        nonidle_time = []
+        for f in available_freqs:
+            # Build square wave for the current frequency such that:
+            freq_active = cluster_freqs.frequency.apply(
+                lambda x: 1 if x == f else 0
+            )
+            active_t = cluster_active * freq_active
+            # Sum up the time intervals by computing the integral of the square
+            # wave
+            nonidle_time.append(self._integrate_square_wave(active_t))
+
+        active_time = pd.DataFrame({"ACTIVE Time" : nonidle_time},
+                                   index=[f/1000 for f in available_freqs])
+        active_time.index.name = 'Frequency [MHz]'
+        return total_time, active_time
+
+    def plotClusterFrequencyResidency(self, clusters=['big', 'little']):
+        """
+        Plot the frequency residency in a given cluster, i.e. the amount of
+        time cluster `cluster` spent at frequency `f_i`. By default, both 'big'
+        and 'LITTLE' clusters data are plotted
+
+        :param clusters: force to only plot one cluster
+        :type clusters: list(str)
+        """
+
+        if len(clusters) == 1:
+            gs = gridspec.GridSpec(1, 1)
+        else:
+            gs = gridspec.GridSpec(1, 2)
+        fig = plt.figure()
+        fig.subplots_adjust(hspace=.5);
+
+        axis = None
+        for idx, c in enumerate(clusters):
+            total_time, active_time = self.getClusterFrequencyResidency(
+                self.platform['clusters'][c.lower()])
+
+            if total_time is None or active_time is None:
+                plt.close(fig)
+                return
+
+            axis = fig.add_subplot(gs[idx])
+            total_time.plot.barh(ax = axis,
+                                 color='g',
+                                 legend=False,
+                                 figsize=(16,8),
+                                 fontsize=16);
+
+            active_time.plot.barh(ax = axis,
+                                  color='r',
+                                  legend=False,
+                                  figsize=(16,8),
+                                  fontsize=16);
+
+            axis.set_title('{} Cluster'.format(c))
+            axis.set_xlabel('Time [s]')
+            axis.set_xlim(0, self.x_max)
+
+        if axis:
+            handles, labels = axis.get_legend_handles_labels()
+            plt.figlegend(handles,
+                          labels,
+                          loc='lower right')
