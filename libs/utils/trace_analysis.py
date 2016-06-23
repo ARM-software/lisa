@@ -330,7 +330,8 @@ class TraceAnalysis(object):
             max_bcap = nrg_model['big']['cpu']['cap_max']
             tip_lcap = 0.8 * max_lcap
             tip_bcap = 0.8 * max_bcap
-            logging.info('%d %d %d %d', tip_lcap, max_lcap, tip_bcap, max_bcap)
+            logging.debug('LITTLE capacity tip/max: %d/%d, big capacity tip/max: %d/%d',
+                          tip_lcap, max_lcap, tip_bcap, max_bcap)
             axes.axhline(tip_lcap, color='g', linestyle='--', linewidth=1);
             axes.axhline(max_lcap, color='g', linestyle='-', linewidth=2);
             axes.axhline(tip_bcap, color='r', linestyle='--', linewidth=1);
@@ -347,7 +348,6 @@ class TraceAnalysis(object):
 
     def _plotTaskResidencies(self, axes, tid, signals, is_last=False):
         util_df = self.trace.df('sched_load_avg_task')
-        axes.set_xlim(0, self.trace.time_range);
         data = util_df[util_df.pid == tid][['cluster', 'cpu']]
         for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
             cdata = data[data.cluster == clabel]
@@ -398,21 +398,25 @@ class TraceAnalysis(object):
                                 top of each subplot
             residencies: enable the generation of the CPUs residencies plot
 
-        Args:
-            tasks   (list): the list of task names and/or PIDs to plot.
-                            Numerical PIDs and string task names can be mixed
-                            in the same list.
-                            default: all tasks defined at TraceAnalysis
-                            creation time are plotted
-            signals (list): list of signals (and thus plots) to generate
-                            default: all the plots and signals available in the
-                            current trace
+        :param tasks: the list of task names and/or PIDs to plot.
+                      Numerical PIDs and string task names can be mixed
+                      in the same list.
+                      default: all tasks defined at TraceAnalysis
+                      creation time are plotted
+        :type tasks: list
+
+        :param signals: list of signals (and thus plots) to generate
+                        default: all the plots and signals available in the
+                        current trace
+        :type signals: list
         """
         if not signals:
             signals = ['load_avg', 'util_avg', 'boosted_util',
                        'sched_overutilized',
                        'load_sum', 'util_sum', 'period_contrib',
                        'residencies']
+
+        # Check for the minimum required signals to be available
         if not self.trace.hasEvents('sched_load_avg_task'):
             logging.warn('Events [sched_load_avg_task] not found, '\
                     'plot DISABLED!')
@@ -426,12 +430,14 @@ class TraceAnalysis(object):
         else:
             raise ValueError('No tasks to plot specified')
 
-
         # Compute number of plots to produce
         plots_count = 0
         plots_signals = [
+                # Fist plot: task's utilization
                 {'load_avg', 'util_avg', 'boosted_util'},
+                # Second plot: task residency
                 {'residencies'},
+                # Third plot: tasks's load
                 {'load_sum', 'util_sum', 'period_contrib'}
         ]
         for signals_to_plot in plots_signals:
@@ -450,7 +456,7 @@ class TraceAnalysis(object):
             if isinstance(task, int):
                 pids_to_plot.append(task)
                 continue
-            # Oterwise: add all the PIDs for task with the specified name
+            # Otherwise: add all the PIDs for task with the specified name
             pids_to_plot.extend(self.trace.getTaskByName(task))
 
         for tid in pids_to_plot:
