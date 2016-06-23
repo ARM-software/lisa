@@ -33,6 +33,7 @@ from operator import itemgetter
 from itertools import groupby
 from functools import partial
 
+import wrapt
 
 # ABI --> architectures list
 ABI_MAP = {
@@ -536,17 +537,18 @@ def mask_to_list(mask):
 __memo_cache = {}
 
 
-def memoized(func):
+@wrapt.decorator
+def memoized(wrapped, instance, args, kwargs):
     """A decorator for memoizing functions and methods."""
-    func_id = repr(func)
+    func_id = repr(wrapped)
 
     def memoize_wrapper(*args, **kwargs):
         id_string = func_id + ','.join([str(id(a)) for a in  args])
         id_string += ','.join('{}={}'.format(k, v)
                               for k, v in kwargs.iteritems())
         if id_string not in __memo_cache:
-            __memo_cache[id_string] = func(*args, **kwargs)
+            __memo_cache[id_string] = wrapped(*args, **kwargs)
         return __memo_cache[id_string]
 
-    return memoize_wrapper
+    return memoize_wrapper(*args, **kwargs)
 
