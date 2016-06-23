@@ -70,6 +70,9 @@ class Trace(object):
         # List of events available in the parsed trace
         self.available_events = []
 
+        # Cluster frequency coherency flag
+        self.freq_coherency = True
+
         # Folder containing trace
         if not os.path.isdir(datadir):
              self.datadir = os.path.dirname(datadir)
@@ -123,6 +126,8 @@ class Trace(object):
         self._sanitize_SchedOverutilized()
 
         self.__loadTasksNames(tasks)
+
+        self.__checkClusterFrequencyCoherency()
 
         # Compute plot window
         if not normalize_time:
@@ -377,3 +382,25 @@ class Trace(object):
         df['start'] = df.index
         df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
         df.drop('start', axis=1, inplace=True)
+
+    def __chuncker(seq, size):
+        return (seq.iloc[pos:pos + size] for pos in range(0, len(seq), size))
+
+    def __checkClusterFrequencyCoherency(self):
+        """
+        """
+        if not self.hasEvents('cpu_frequency'):
+            return
+
+        df = self.df('cpu_frequency')
+        clusters = self.platform['clusters']
+        for c, cpus in clusters.iteritems():
+            cluster_df = df[df.cpu.isin(cpus)]
+            for chunk in self.__chuncker(cluster_df, len(cpus)):
+                f = chunk.iloc[0].frequency
+                if any(chunk.frequency != f):
+                    logging.warn('Cluster Frequency is not coherent! '\
+                                'Failure in [cpu_frequency] events at:')
+                    logging.warn(chunk)
+                    self.freq_coherency = False
+                    return
