@@ -383,7 +383,7 @@ class Trace(object):
         df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
         df.drop('start', axis=1, inplace=True)
 
-    def __chuncker(seq, size):
+    def __chunker(self, seq, size):
         return (seq.iloc[pos:pos + size] for pos in range(0, len(seq), size))
 
     def __checkClusterFrequencyCoherency(self):
@@ -396,7 +396,7 @@ class Trace(object):
         clusters = self.platform['clusters']
         for c, cpus in clusters.iteritems():
             cluster_df = df[df.cpu.isin(cpus)]
-            for chunk in self.__chuncker(cluster_df, len(cpus)):
+            for chunk in self.__chunker(cluster_df, len(cpus)):
                 f = chunk.iloc[0].frequency
                 if any(chunk.frequency != f):
                     logging.warn('Cluster Frequency is not coherent! '\
