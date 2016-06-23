@@ -57,7 +57,8 @@ class TestEnv(ShareState):
 
     _initialized = False
 
-    def __init__(self, target_conf=None, test_conf=None, wipe=True):
+    def __init__(self, target_conf=None, test_conf=None, wipe=True,
+                 force_new=False):
         """
         Initialize the LISA test environment.
 
@@ -79,10 +80,16 @@ class TestEnv(ShareState):
         :param wipe: set true to cleanup all previous content from the output
         folder
         :type wipe: bool
+
+        :param force_new: Create a new TestEnv object even if there is
+        one available for this session.  By default, TestEnv only
+        creates one object per session, use this to override this
+        behaviour.
+        :type force_new: bool
         """
         super(TestEnv, self).__init__()
 
-        if self._initialized:
+        if self._initialized and not force_new:
             return
 
         self.conf = None
