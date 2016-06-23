@@ -124,10 +124,10 @@ class Trace(object):
         self._sanitize_SchedBoostTask()
         self._sanitize_SchedEnergyDiff()
         self._sanitize_SchedOverutilized()
+        self._sanitize_CpuFrequency()
 
         self.__loadTasksNames(tasks)
 
-        self.__checkClusterFrequencyCoherency()
 
         # Compute plot window
         if not normalize_time:
@@ -383,20 +383,18 @@ class Trace(object):
         df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
         df.drop('start', axis=1, inplace=True)
 
-    def __chuncker(seq, size):
+    def _chunker(self, seq, size):
         return (seq.iloc[pos:pos + size] for pos in range(0, len(seq), size))
 
-    def __checkClusterFrequencyCoherency(self):
-        """
-        """
+    def _sanitize_CpuFrequency(self):
         if not self.hasEvents('cpu_frequency'):
             return
-
+        # Verify that all platform reported clusters are frequency choerent
         df = self.df('cpu_frequency')
         clusters = self.platform['clusters']
         for c, cpus in clusters.iteritems():
             cluster_df = df[df.cpu.isin(cpus)]
-            for chunk in self.__chuncker(cluster_df, len(cpus)):
+            for chunk in self._chunker(cluster_df, len(cpus)):
                 f = chunk.iloc[0].frequency
                 if any(chunk.frequency != f):
                     logging.warn('Cluster Frequency is not coherent! '\
@@ -404,3 +402,5 @@ class Trace(object):
                     logging.warn(chunk)
                     self.freq_coherency = False
                     return
+        logging.info("Platform clusters verified to be Frequency choerent")
+
