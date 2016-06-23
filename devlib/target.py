@@ -81,6 +81,11 @@ class Target(object):
 
     @property
     @memoized
+    def needs_su(self):
+        return not self.connected_as_root and self.is_rooted
+
+    @property
+    @memoized
     def kernel_version(self):
         return KernelVersion(self.execute('{} uname -r -v'.format(self.busybox)).strip())
 
@@ -302,7 +307,7 @@ class Target(object):
     # sysfs interaction
 
     def read_value(self, path, kind=None):
-        output = self.execute('cat \'{}\''.format(path), as_root=self.is_rooted).strip()  # pylint: disable=E1103
+        output = self.execute('cat \'{}\''.format(path), as_root=self.needs_su).strip()  # pylint: disable=E1103
         if kind:
             return kind(output)
         else:
@@ -325,7 +330,7 @@ class Target(object):
 
     def reset(self):
         try:
-            self.execute('reboot', as_root=self.is_rooted, timeout=2)
+            self.execute('reboot', as_root=self.needs_su, timeout=2)
         except (TargetError, TimeoutError, subprocess.CalledProcessError):
             # on some targets "reboot" doesn't return gracefully
             pass
@@ -723,7 +728,7 @@ class AndroidTarget(Target):
     def reset(self, fastboot=False):  # pylint: disable=arguments-differ
         try:
             self.execute('reboot {}'.format(fastboot and 'fastboot' or ''),
-                         as_root=self.is_rooted, timeout=2)
+                         as_root=self.needs_su, timeout=2)
         except (TargetError, TimeoutError, subprocess.CalledProcessError):
             # on some targets "reboot" doesn't return gracefully
             pass
@@ -759,7 +764,7 @@ class AndroidTarget(Target):
         a subprocess object).
         """
         if as_root is None:
-            as_root = self.is_rooted
+            as_root = self.needs_su
         try:
             command = 'cd {} && {} nohup {}'.format(self.working_directory, self.busybox, command)
             output = self.execute(command, timeout=1, as_root=as_root)
@@ -888,9 +893,9 @@ class AndroidTarget(Target):
         on_device_executable = self.path.join(self.executables_directory, executable_name)
         self.push(filepath, on_device_file)
         if on_device_file != on_device_executable:
-            self.execute('cp {} {}'.format(on_device_file, on_device_executable), as_root=self.is_rooted)
-            self.remove(on_device_file, as_root=self.is_rooted)
-        self.execute("chmod 0777 '{}'".format(on_device_executable), as_root=self.is_rooted)
+            self.execute('cp {} {}'.format(on_device_file, on_device_executable), as_root=self.needs_su)
+            self.remove(on_device_file, as_root=self.needs_su)
+        self.execute("chmod 0777 '{}'".format(on_device_executable), as_root=self.needs_su)
         self._installed_binaries[executable_name] = on_device_executable
         return on_device_executable
 
@@ -900,7 +905,7 @@ class AndroidTarget(Target):
     def uninstall_executable(self, executable_name):
         on_device_executable = self.path.join(self.executables_directory, executable_name)
         self._ensure_executables_directory_is_writable()
-        self.remove(on_device_executable, as_root=self.is_rooted)
+        self.remove(on_device_executable, as_root=self.needs_su)
 
     def dump_logcat(self, filepath, filter=None, append=False, timeout=30):  # pylint: disable=redefined-builtin
         op = '>>' if append else '>'
