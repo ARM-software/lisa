@@ -343,11 +343,10 @@ class RTA(Workload):
 
             if 'delay' in task.keys():
                 if task['delay'] > 0:
-                    task['delay'] = int(task['delay'] * 1e6)
                     task_conf['phases']['p000000'] = {}
-                    task_conf['phases']['p000000']['delay'] = task['delay']
+                    task_conf['phases']['p000000']['delay'] = int(task['delay'] * 1e6)
                     self.logger.info('%14s -  | start delay: %.6f [s]',
-                            'RTApp', task['delay'] / 1e6)
+                            'RTApp', task['delay'])
 
             self.logger.info('%14s -  | calibration CPU: %d',
                              'RTApp', target_cpu)
