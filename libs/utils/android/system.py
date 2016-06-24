@@ -64,8 +64,7 @@ class System(object):
         :param action_args: arguments for the activity
         :type action_args: str
         """
-        target.execute('am start -a {} {}'\
-                       .format(apk_name, action, action_args))
+        target.execute('am start -a {} {}'.format(action, action_args))
 
     @staticmethod
     def force_stop(target, apk_name, clear=False):
