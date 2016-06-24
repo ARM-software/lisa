@@ -16,6 +16,9 @@
 #
 
 import logging
+from devlib.utils.android import adb_command
+
+GET_FRAMESTATS_CMD = 'shell dumpsys gfxinfo {} > {}'
 
 class System(object):
     """
@@ -38,9 +41,9 @@ class System(object):
                        .format(ap_state))
 
     @staticmethod
-    def start(target, apk_name, activity_name):
+    def start_activity(target, apk_name, activity_name):
         """
-        Start an application.
+        Start an application by specifying package and activity name.
 
         :param apk_name: name of the apk
         :type apk_name: str
@@ -49,6 +52,20 @@ class System(object):
         :type activity_name: str
         """
         target.execute('am start -n {}/{}'.format(apk_name, activity_name))
+
+    @staticmethod
+    def start_action(target, action, action_args=''):
+        """
+        Start an activity by specifying an action.
+
+        :param action: action to be executed
+        :type action: str
+
+        :param action_args: arguments for the activity
+        :type action_args: str
+        """
+        target.execute('am start -a {} {}'\
+                       .format(apk_name, action, action_args))
 
     @staticmethod
     def force_stop(target, apk_name, clear=False):
@@ -69,16 +86,151 @@ class System(object):
             target.execute('pm clear {}'.format(apk_name))
 
     @staticmethod
-    def tap(target, x, y):
+    def tap(target, x, y, absolute=False):
         """
         Tap a given point on the screen.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
 
         :param x: horizontal coordinate
         :type x: int
 
         :param y: vertical coordinate
         :type y: int
+
+        :param absolute: use absolute coordinates or percentage of screen
+            resolution
+        :type absolute: bool
         """
-        target.execute('tap {} {}'.format(x, y))
+        if not absolute:
+            w, h = target.screen_resolution
+            x = w * x / 100
+            y = h * y / 100
+
+        target.execute('input tap {} {}'.format(x, y))
+
+    @staticmethod
+    def vswipe(target, y_low_pct, y_top_pct, duration=None, swipe_up=True):
+        """
+        Vertical swipe
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param y_low_pct: vertical lower coordinate percentage
+        :type y_low_pct: int
+
+        :param y_top_pct: vertical upper coordinate percentage
+        :type y_top_pct: int
+
+        :param duration: duration of the swipe in milliseconds
+        :type duration: int
+
+        :param swipe_up: swipe up or down
+        :type swipe_up: bool
+        """
+        w, h = target.screen_resolution
+        x = w / 2
+        if swipe_up:
+            y1 = h * y_top_pct / 100
+            y2 = h * y_low_pct / 100
+        else:
+            y1 = h * y_low_pct / 100
+            y2 = h * y_top_pct / 100
+
+        target.execute('input swipe {} {} {} {} {}'\
+                       .format(x, y1, x, y2, duration))
+
+    @staticmethod
+    def hswipe(target, x_left_pct, x_right_pct, duration=None, swipe_right=True):
+        """
+        Horizontal swipe
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param x_left_pct: horizontal left coordinate percentage
+        :type x_left_pct: int
+
+        :param x_right_pct: horizontal right coordinate percentage
+        :type x_right_pct: int
+
+        :param duration: duration of the swipe in milliseconds
+        :type duration: int
+
+        :param swipe_right: swipe right or left
+        :type swipe_right: bool
+        """
+        w, h = target.screen_resolution
+        y = h / 2
+        if swipe_right:
+            x1 = w * x_left_pct / 100
+            x2 = w * x_right_pct / 100
+        else:
+            x1 = w * x_right_pct / 100
+            x2 = w * x_left_pct / 100
+        target.execute('input swipe {} {} {} {} {}'\
+                       .format(x1, y, x2, y, duration))
+
+    @staticmethod
+    def menu(target):
+        """
+        Press MENU button
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_MENU')
+
+    @staticmethod
+    def home(target):
+        """
+        Press HOME button
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_HOME')
+
+    @staticmethod
+    def back(target):
+        """
+        Press BACK button
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_BACK')
+
+    @staticmethod
+    def gfxinfo_reset(target, apk_name):
+        """
+        Reset gfxinfo frame statistics for a given app.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param apk_name: name of the apk
+        :type apk_name: str
+        """
+        target.execute('dumpsys gfxinfo {} reset'.format(apk_name))
+
+    @staticmethod
+    def gfxinfo_get(target, apk_name, out_file):
+        """
+        Collect frame statistics for the given app.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param apk_name: name of the apk
+        :type apk_name: str
+
+        :param out_file: output file name
+        :type out_file: str
+        """
+        adb_command(target.adb_name,
+                    GET_FRAMESTATS_CMD.format(apk_name, out_file))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
