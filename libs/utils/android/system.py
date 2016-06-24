@@ -41,9 +41,9 @@ class System(object):
                        .format(ap_state))
 
     @staticmethod
-    def start(target, apk_name, activity_name):
+    def start_activity(target, apk_name, activity_name):
         """
-        Start an application.
+        Start an application by specifying package and activity name.
 
         :param apk_name: name of the apk
         :type apk_name: str
@@ -52,6 +52,20 @@ class System(object):
         :type activity_name: str
         """
         target.execute('am start -n {}/{}'.format(apk_name, activity_name))
+
+    @staticmethod
+    def start_action(target, action, action_args=''):
+        """
+        Start an activity by specifying an action.
+
+        :param action: action to be executed
+        :type action: str
+
+        :param action_args: arguments for the activity
+        :type action_args: str
+        """
+        target.execute('am start -a {} {}'\
+                       .format(apk_name, action, action_args))
 
     @staticmethod
     def force_stop(target, apk_name, clear=False):
