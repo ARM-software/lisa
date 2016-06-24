@@ -23,6 +23,7 @@ import pandas as pd
 import pylab as pl
 
 from analysis_module import AnalysisModule
+from trace import ResidencyTime, ResidencyData
 from trappy.utils import listify
 
 # Configure logging
@@ -160,10 +161,159 @@ class IdleAnalysis(AnalysisModule):
 # Plotting Methods
 ###############################################################################
 
+    def plotCPUIdleStateResidency(self, cpus=None, pct=False):
+        """
+        Plot per-CPU idle state residency. big CPUs are plotted first and then
+        LITTLEs.
+
+        Requires cpu_idle trace events.
+
+        :param cpus: list of CPU IDs. By default plot all CPUs
+        :type cpus: list(int) or int
+
+        :param pct: plot residencies in percentage
+        :type pct: bool
+        """
+        if not self._trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, '\
+                         'plot DISABLED!')
+            return
+
+        if cpus is None:
+            # Generate plots only for available CPUs
+            cpuidle_data = self._dfg_trace_event('cpu_idle')
+            _cpus = range(cpuidle_data.cpu_id.max() + 1)
+        else:
+            _cpus = listify(cpus)
+
+        # Split between big and LITTLE CPUs ordered from higher to lower ID
+        _cpus.reverse()
+        big_cpus = [c for c in _cpus if c in self._platform['clusters']['big']]
+        little_cpus = [c for c in _cpus if c in
+                       self._platform['clusters']['little']]
+        _cpus = big_cpus + little_cpus
+
+        residencies = []
+        xmax = 0.0
+        for cpu in _cpus:
+            r = self._dfg_cpu_idle_state_residency(cpu)
+            residencies.append(ResidencyData('CPU{}'.format(cpu), r))
+
+            max_time = r.max().values[0]
+            if xmax < max_time:
+                xmax = max_time
+
+        self._plotIdleStateResidency(residencies, 'cpu', xmax, pct=pct)
+
+    def plotClusterIdleStateResidency(self, clusters=None, pct=False):
+        """
+        Plot per-cluster idle state residency in a given cluster, i.e. the
+        amount of time cluster `cluster` spent in idle state `i`. By default,
+        both 'big' and 'LITTLE' clusters data are plotted.
+
+        Requires cpu_idle following trace events.
+        :param clusters: name of the clusters to be plotted (all of them by
+            default)
+        :type clusters: str ot list(str)
+        """
+        if not self._trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, plot DISABLED!')
+            return
+
+        # Sanitize clusters
+        if clusters is None:
+            _clusters = self._platform['clusters'].keys()
+        else:
+            _clusters = listify(clusters)
+
+        # Precompute residencies for each cluster
+        residencies = []
+        xmax = 0.0
+        for c in _clusters:
+            r = self._dfg_cluster_idle_state_residency(c.lower())
+            residencies.append(ResidencyData('{} Cluster'.format(c), r))
+
+            max_time = r.max().values[0]
+            if xmax < max_time:
+                xmax = max_time
+
+        self._plotIdleStateResidency(residencies, 'cluster', xmax, pct=pct)
 
 ###############################################################################
 # Utility Methods
 ###############################################################################
 
+    def _plotIdleStateResidency(self, residencies, entity_name, xmax,
+                                pct=False):
+        """
+        Generate Idle state residency plots for the given entities.
+
+        :param residencies: list of residencies to be plot
+        :type residencies: list(namedtuple(ResidencyData)) - each tuple
+            contains:
+            - a label to be used as subplot title
+            - a dataframe with residency for each idle state
+
+        :param entity_name: name of the entity ('cpu' or 'cluster') used in the
+            figure name
+        :type entity_name: str
+
+        :param xmax: upper bound of x-axes
+        :type xmax: double
+
+        :param pct: plot residencies in percentage
+        :type pct: bool
+        """
+        n_plots = len(residencies)
+        gs = gridspec.GridSpec(n_plots, 1)
+        fig = plt.figure()
+
+        for idx, data in enumerate(residencies):
+            r = data.residency
+            if r is None:
+                plt.close(fig)
+                return
+
+            axes = fig.add_subplot(gs[idx])
+            is_first = idx == 0
+            is_last = idx+1 == n_plots
+            yrange = 0.4 * max(6, len(r)) * n_plots
+            if pct:
+                duration = r.time.sum()
+                r_pct = r.apply(lambda x: x*100/duration)
+                r_pct.columns = [data.label]
+                r_pct.T.plot.barh(ax=axes, stacked=True, figsize=(16, yrange))
+
+                axes.legend(loc='lower center', ncol=7)
+                axes.set_xlim(0, 100)
+            else:
+                r.plot.barh(ax=axes, color='g',
+                            legend=False, figsize=(16, yrange))
+
+                axes.set_xlim(0, 1.05*xmax)
+                axes.set_ylabel('Idle State')
+                axes.set_title(data.label)
+
+            axes.grid(True)
+            if is_last:
+                if pct:
+                    axes.set_xlabel('Residency [%]')
+                else:
+                    axes.set_xlabel('Time [s]')
+            else:
+                axes.set_xticklabels([])
+
+            if is_first:
+                legend_y = axes.get_ylim()[1]
+                axes.annotate('Idle State Residency Time', xy=(0, legend_y),
+                              xytext=(-50, 45), textcoords='offset points',
+                              fontsize=18)
+
+        figname = '{}/{}{}_idle_state_residency.png'\
+                  .format(self._trace.plots_dir,
+                          self._trace.plots_prefix,
+                          entity_name)
+
+        pl.savefig(figname, bbox_inches='tight')
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
