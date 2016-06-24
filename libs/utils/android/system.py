@@ -111,7 +111,7 @@ class System(object):
         target.execute('input tap {} {}'.format(x, y))
 
     @staticmethod
-    def vswipe(target, y_low_pct, y_top_pct, duration=None, swipe_up=True):
+    def vswipe(target, y_low_pct, y_top_pct, duration='', swipe_up=True):
         """
         Vertical swipe
 
@@ -143,7 +143,7 @@ class System(object):
                        .format(x, y1, x, y2, duration))
 
     @staticmethod
-    def hswipe(target, x_left_pct, x_right_pct, duration=None, swipe_right=True):
+    def hswipe(target, x_left_pct, x_right_pct, duration='', swipe_right=True):
         """
         Horizontal swipe
 
