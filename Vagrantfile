@@ -50,5 +50,17 @@ Vagrant.configure(2) do |config|
     echo "export ANDROID_HOME=/vagrant/tools/android-sdk-linux" >> /home/vagrant/.bashrc
     echo "export PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/tools:$PATH" >> /home/vagrant/.bashrc
     echo source init_env >> /home/vagrant/.bashrc
+
+    echo "Virtual Machine Installation completed successfully!                "
+    echo "                                                                    "
+    echo "You can now access and use the virtual machine by running:          "
+    echo "                                                                    "
+    echo "    $ vagrant ssh                                                   "
+    echo "                                                                    "
+    echo "NOTE: if you exit, the virtual machine is still running. To shut it "
+    echo "      down, please run:                                             "
+    echo "                                                                    "
+    echo "    $ vagrant suspend                                               "
+    echo "                                                                    "
   SHELL
 end
