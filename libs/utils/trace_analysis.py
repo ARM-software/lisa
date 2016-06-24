@@ -1135,10 +1135,12 @@ class TraceAnalysis(object):
         """
         Generate Frequency residency plots for the given entities.
 
-        :param residencies:
-        :type residencies: namedtuple(ResidencyData) - tuple containing:
-            1) as first element, a label to be used as subplot title
-            2) as second element, a namedtuple(ResidencyTime)
+        :param residencies: list of residencies to be plotted
+        :type residencies: list(namedtuple(ResidencyData)) - each tuple
+            contains:
+
+            - a label to be used as subplot title
+            - a namedtuple(ResidencyTime)
 
         :param entity_name: name of the entity ('cpu' or 'cluster') used in the
             figure name
@@ -1203,8 +1205,8 @@ class TraceAnalysis(object):
             - cpu_frequency
             - cpu_idle
 
-        :param cpus: List of cpus. By default plot all CPUs
-        :type cpus: list(str)
+        :param cpus: list of CPU IDs. By default plot all CPUs
+        :type cpus: list(int) or int
 
         :param pct: plot residencies in percentage
         :type pct: bool
@@ -1390,10 +1392,11 @@ class TraceAnalysis(object):
         Generate Idle state residency plots for the given entities.
 
         :param residencies: list of residencies to be plot
-        :type residencies: list(namedtuple(ResidencyData)) - tuple containing:
-            1) as first element, a label to be used as subplot title
-            2) as second element, a dataframe with residency for each idle
-               state
+        :type residencies: list(namedtuple(ResidencyData)) - each tuple
+            contains:
+
+            - a label to be used as subplot title
+            - a dataframe with residency for each idle state
 
         :param entity_name: name of the entity ('cpu' or 'cluster') used in the
             figure name
