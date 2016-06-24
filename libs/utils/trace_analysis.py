@@ -1303,3 +1303,85 @@ class TraceAnalysis(object):
 
         self._plotFrequencyResidency(residencies, 'cluster', xmax, pct, active)
 
+    def _getIdleStateResidency(self, entity):
+        """
+        Compute time spent by a given entity in each idle state.
+
+        :param entity: cpu ID or cluster name or list of CPU IDs
+        :type entity: int or str or list(int)
+
+        :returns: :mod:`pandas.DataFrame` - idle time dataframe
+        """
+        if not self.trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, '\
+                         'idle state residency computation not possible!')
+            return None
+
+        if isinstance(entity, str):
+            try:
+                _entity = self.platform['clusters'][entity.lower()]
+            except KeyError:
+                logging.warn('%s entity not found!', entity)
+                return None
+        else:
+            _entity = listify(entity)
+
+        idle_df = self.trace.df('cpu_idle')
+        entity_idle_df = idle_df[idle_df.cpu_id == _entity[0]]
+
+        # Build cpu_idle, a square wave of the form:
+        #     entity_idle[t] == 1 if all CPUs in the entity are reported to be
+        #                       idle by cpufreq at time t
+        #     entity_idle[t] == 0 otherwise
+        entity_idle = self.getClusterActiveSignal(_entity) ^ 1
+
+        # In order to compute the time spent in each idle statefrequency we
+        # multiply 2 square waves:
+        # - entity_idle
+        # - idle_state, square wave of the form:
+        #     idle_state[t] == 1 if at time t entity is in idle state i
+        #     idle_state[t] == 0 otherwise
+        available_idles = sorted(idle_df.state.unique())
+        # Remove non-idle state from availables
+        available_idles.pop()
+        new_idx = sorted(entity_idle_df.index.tolist() + \
+                         entity_idle.index.tolist())
+        entity_idle_df = entity_idle_df.reindex(new_idx, method='ffill')
+        entity_idle = entity_idle.reindex(new_idx, method='ffill')
+        idle_time = []
+        for i in available_idles:
+            idle_state = entity_idle_df.state.apply(
+                lambda x: 1 if x == i else 0
+            )
+            idle_t = entity_idle * idle_state
+            # Compute total time by integrating the square wave
+            idle_time.append(self._integrate_square_wave(idle_t))
+
+        idle_time_df = pd.DataFrame({'time' : idle_time}, index=available_idles)
+        idle_time_df.index.name = 'idle_state'
+        return idle_time_df
+
+    @memoized
+    def getCPUIdleStateResidency(self, cpu):
+        """
+        Compute time spent by a given CPU in each idle state.
+
+        :param cpu: CPU ID
+        :type cpu: int
+
+        :returns: :mod:`pandas.DataFrame` - idle time dataframe
+        """
+        return self._getIdleStateResidency(cpu)
+
+    @memoized
+    def getClusterIdleStateResidency(self, cluster):
+        """
+        Compute time spent by a given cluster in each idle state.
+
+        :param cluster: cluster name or list of CPUs ID
+        :type cluster: str or list(int)
+
+        :returns: :mod:`pandas.DataFrame` - idle time dataframe
+        """
+        return self._getIdleStateResidency(cluster)
+
