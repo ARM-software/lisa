@@ -130,7 +130,7 @@ target_conf = {
 }
 ```
 
-You can also verify that the probes are correctly detected by the `iio daemon` running on the BeagleBone by running `iio_info` which is part of the `iio-capture`:
+You can also verify that the probes are correctly detected by the `iio daemon` running on the BeagleBone by running `iio_info` which is part of the `iio-capture` infrastructure:
 
 ```bash
 $ iio_info -n DEVICE_IP
