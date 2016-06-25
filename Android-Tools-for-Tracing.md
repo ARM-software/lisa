@@ -8,7 +8,7 @@ In order to use `systrace` it is recommended to set up `catapult` by simply clon
 
 and use `systrace` inside an IPython Notebook. Examples of usage of `systrace` can be found in:
 
-* [Android_YouTube](https://github.com/ARM-software/lisa/blob/master/ipynb/android/workloads/Android_Workloads.ipynb)
+* [Android_YouTube](https://github.com/ARM-software/lisa/blob/master/ipynb/android/workloads/Android_YouTube.ipynb)
 * [Android_Workloads](https://github.com/ARM-software/lisa/blob/master/ipynb/android/Android_Workloads.ipynb)
 
 ### atrace
