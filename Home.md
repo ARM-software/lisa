@@ -1,4 +1,4 @@
-## Linux Interactive System Analysis
+## LISA - Linux Interactive System Analysis
 
 ### What is LISA?
 
