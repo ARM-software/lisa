@@ -1,6 +1,6 @@
 ## Systrace
 
-When performing tests on Android devices, it is possible to exploit `systrace` ([Systrace](https://developer.android.com/studio/profile/systrace-commandline.html)).
+When performing tests on Android devices, it is possible to exploit [`systrace`](https://developer.android.com/studio/profile/systrace-commandline.html).
 
 In order to use `systrace` it is recommended to set up `catapult` by simply cloning the repository:
 
