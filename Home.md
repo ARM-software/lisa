@@ -15,6 +15,6 @@ Main goals of LISA are:
 * Get insights on what's not working and possibly chase down why
 * Share reproducible experiments by means of a **common language** that:
     * is **flexible enough** to reproduce the same experiment on different targets
-    * **eases** generation and execution of well defined workloads
+    * **simplifies** generation and execution of well defined workloads
     * **defines** a set of metrics to evaluate kernel behaviours
     * **enables** kernel developers to easily post process data to produce statistics and plots
