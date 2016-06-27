@@ -167,14 +167,31 @@ class Trace(object):
         :param t_max: upper bound
         :type t_max: int or float
         """
-        if t_min is None:
-            self.x_min = 0
-        else:
-            self.x_min = t_min
-        if t_max is None:
-            self.x_max = self.time_range
-        else:
-            self.x_max = t_max
+        self.x_min = self.window[0]
+        self.x_max = self.window[1]
+
+        if t_min is not None:
+            if t_min < self.x_min:
+                self._log.warning('t_min out of range: '
+                                  'capping to trace minimum %.6f [s]',
+                                  self.x_min)
+            elif t_min > self.x_max:
+                raise ValueError('t_min out of range: '
+                                 'trace boundaries are ({:.6f}, {:.6f}) [s]'\
+                                 .format(self.x_min, self.x_max))
+            else:
+                self.x_min = t_min
+        if t_max is not None:
+            if t_max > self.x_max:
+                self._log.warning('t_max out of range: '
+                                  'capping to trace maximum %.6f [s]',
+                                  self.x_max)
+            elif t_max < self.x_min:
+                raise ValueError('t_max out of range: '
+                                 'trace boundaries are ({:.6f}, {:.6f}) [s]'\
+                                 .format(self.window[0], self.x_max))
+            else:
+                self.x_max = t_max
         self._log.debug('Set plots time range to (%.6f, %.6f)[s]',
                        self.x_min, self.x_max)
 
