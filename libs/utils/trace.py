@@ -871,6 +871,43 @@ class Trace(object):
 
         return cluster_active
 
+    def _cropToXTimeRange(self, data):
+        """
+        Crop a series of FTrace events to the X time range specified by the
+        user through setXTimeRange().
+
+        When cropping a series it might be necessary to include a first and
+        last element with timestamps equal to the boundaries of the X time
+        range.
+
+        :param data: series to be cropped
+        :type data: :mod:`pandas.Series`
+        """
+        if not isinstance(data, pd.Series):
+            msg = 'Cropping supported only for pandas.Series objects!'
+            raise ValueError(msg)
+
+        first = None
+        # Avoid duplicate indexes in case the user specifies an x_min that
+        # corresponds to the time stamp of an existing event.
+        if self.x_min not in data.index:
+            # data[data.index < self.x_min] may return an empty series if x_min
+            # is lower than the lowest index of the data series. This will
+            # raise an exception that can be caught and leave first to None, as
+            # in this case a first element is not needed
+            try:
+                first = pd.Series([data[data.index < self.x_min].iloc[-1]],
+                                  index=[self.x_min])
+            except: pass
+        last = None
+        if self.x_max not in data.index:
+            try:
+                last = pd.Series([data[data.index <= self.x_max].iloc[-1]],
+                                  index=[self.x_max])
+            except: pass
+        data = data.loc[self.x_min:self.x_max]
+        return pd.concat([first, data, last])
+
 
 class TraceData:
     """ A DataFrame collector exposed to Trace's clients """

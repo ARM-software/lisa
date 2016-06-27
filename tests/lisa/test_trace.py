@@ -113,3 +113,18 @@ class TestTrace(TestCase):
         self.trace.setXTimeRange(t_min, t_max)
         self.assertEqual(self.trace.x_min, self.trace.window[0])
         self.assertEqual(self.trace.x_max, self.trace.window[1])
+
+    def test_cropToXTimeRange(self):
+        """
+        TestTrace: cropToXTimeRange() properly crops the data frame to the X
+        time range specified by the user through setXTimeRange().
+        """
+        series = self.trace.data_frame.trace_event('sched_switch').prev_state
+
+        t_min = self.trace.window[0] + 2
+        t_max = self.trace.window[1] - 2
+        self.trace.setXTimeRange(t_min, t_max)
+
+        cropped_series = self.trace._cropToXTimeRange(series)
+        self.assertTrue(cropped_series.index[0] >= t_min)
+        self.assertTrue(cropped_series.index[-1] <= t_max)
