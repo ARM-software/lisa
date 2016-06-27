@@ -339,9 +339,9 @@ class FrequencyAnalysis(AnalysisModule):
             return None
 
         idle_df = self._dfg_trace_event('cpu_idle')
-        cpu_df = idle_df[idle_df.cpu_id == cpu]
+        cpu_states = idle_df[idle_df.cpu_id == cpu].state
 
-        cpu_active = cpu_df.state.apply(
+        cpu_active = cpu_states.apply(
             lambda s: 1 if s == NON_IDLE_STATE else 0
         )
 
@@ -426,13 +426,13 @@ class FrequencyAnalysis(AnalysisModule):
             logging.warn('Cluster frequency is NOT coherent,'
                          'cannot compute residency!')
             return None
-        cluster_freqs = freq_df[freq_df.cpu == _cluster[0]]
+        cluster_freqs = freq_df[freq_df.cpu == _cluster[0]].frequency
 
         # Compute TOTAL Time
         time_intervals = cluster_freqs.index[1:] - cluster_freqs.index[:-1]
         total_time = pd.DataFrame({
             'time': time_intervals,
-            'frequency': [f/1000.0 for f in cluster_freqs.iloc[:-1].frequency]
+            'frequency': [f/1000.0 for f in cluster_freqs.iloc[:-1]]
         })
         total_time = total_time.groupby(['frequency']).sum()
 
@@ -448,16 +448,14 @@ class FrequencyAnalysis(AnalysisModule):
         # - freq_active, square wave of the form:
         #     freq_active[t] == 1 if at time t the frequency is f
         #     freq_active[t] == 0 otherwise
-        available_freqs = sorted(cluster_freqs.frequency.unique())
+        available_freqs = sorted(cluster_freqs.unique())
         new_idx = sorted(cluster_freqs.index.tolist() +
                          cluster_active.index.tolist())
         cluster_freqs = cluster_freqs.reindex(new_idx, method='ffill')
         cluster_active = cluster_active.reindex(new_idx, method='ffill')
         nonidle_time = []
         for f in available_freqs:
-            freq_active = cluster_freqs.frequency.apply(
-                lambda x: 1 if x == f else 0
-            )
+            freq_active = cluster_freqs.apply(lambda x: 1 if x == f else 0)
             active_t = cluster_active * freq_active
             # Compute total time by integrating the square wave
             nonidle_time.append(self._trace.integrate_square_wave(active_t))
