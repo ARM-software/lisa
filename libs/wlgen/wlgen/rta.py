@@ -502,7 +502,7 @@ class RTA(Workload):
 
         self.rta_cmd  = self.target.executables_directory + '/rt-app'
         self.rta_conf = self.run_dir + '/' + self.json
-        self.command = '{0:s} {1:s}'.format(self.rta_cmd, self.rta_conf)
+        self.command = '{0:s} {1:s} 2>&1'.format(self.rta_cmd, self.rta_conf)
 
         # Set and return the test label
         self.test_label = '{0:s}_{1:02d}'.format(self.name, self.exc_id)
