@@ -1,0 +1,7 @@
+config:
+    device: generic_android
+workloads:
+    - id: lisa_camerarecord_10
+      name: camerarecord
+      workload_parameters:
+          recording_time: 10
