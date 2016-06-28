@@ -92,12 +92,12 @@ MPL_STYLE = {
     'ytick.minor.size': 0.0
 }
 
-from distutils.version import StrictVersion
+from distutils.version import LooseVersion
 import matplotlib
 
 colors = ['#348ABD', '#7A68A6', '#A60628', '#467821', '#CF4457', '#188487',
           '#E24A33']
-if StrictVersion(matplotlib.__version__) < StrictVersion("1.5.1"):
+if LooseVersion(matplotlib.__version__) < LooseVersion("1.5.1"):
     MPL_STYLE['axes.color_cycle'] = colors
 else:
     MPL_STYLE['axes.prop_cycle'] = matplotlib.cycler("color", colors)
