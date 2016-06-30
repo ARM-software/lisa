@@ -249,10 +249,14 @@ class TestPlotter(BaseTestThermal):
 
 class TestILinePlotter(unittest.TestCase):
     def test_simple_dfr(self):
+        """ILinePlot doesn't barf when plotting DataFrames"""
         dfr1 = pd.DataFrame([1, 2, 3, 4], columns=["a"])
         dfr2 = pd.DataFrame([2, 3, 4, 5], columns=["a"])
 
         trappy.ILinePlot([dfr1, dfr2], column=["a", "a"]).view(test=True)
+
+        with self.assertRaises(ValueError):
+            trappy.ILinePlot([dfr1, dfr2]).view(test=True)
 
     def test_duplicate_merging(self):
         dfr1 = pd.DataFrame([1, 2, 3, 4], index=[0., 0., 1., 2.], columns=["a"])
