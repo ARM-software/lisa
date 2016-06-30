@@ -104,7 +104,9 @@ To use this instrument you need the following equipment:
 
 #### Build the software suite
 
-Next step is to build the ACME software suite by following the instructions on [Building the software with iio](http://wiki.baylibre.com/doku.php?id=acme:start#building_the_software_with_iio).
+Next step is to get an *IIO version* of the ACME BeagleBone black image. The recommended way of using ACME is to use the pre-built image provided by BayLibre:
+
+* ACME Image (this is a beta release at the moment): https://github.com/baylibre-acme/ACME/releases/tag/b0
 
 #### LISA Target Configuration
 
