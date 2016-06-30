@@ -24,6 +24,7 @@ from nose.tools import assert_equal, assert_in, raises
 
 from wlauto.core.agenda import Agenda
 from wlauto.exceptions import ConfigError
+from wlauto.utils.serializer import SerializerSyntaxError
 
 
 YAML_TEST_FILE = os.path.join(os.path.dirname(__file__), 'data', 'test-agenda.yaml')
@@ -35,7 +36,7 @@ workloads:
           test: 1
 """
 invalid_agenda = StringIO(invalid_agenda_text)
-invalid_agenda.name = 'invalid1'
+invalid_agenda.name = 'invalid1.yaml'
 
 duplicate_agenda_text = """
 global:
@@ -49,13 +50,13 @@ workloads:
       workload_name: andebench
 """
 duplicate_agenda = StringIO(duplicate_agenda_text)
-duplicate_agenda.name = 'invalid2'
+duplicate_agenda.name = 'invalid2.yaml'
 
 short_agenda_text = """
 workloads: [antutu, linpack, andebench]
 """
 short_agenda = StringIO(short_agenda_text)
-short_agenda.name = 'short'
+short_agenda.name = 'short.yaml'
 
 default_ids_agenda_text = """
 workloads:
@@ -69,7 +70,7 @@ workloads:
     - vellamo
 """
 default_ids_agenda = StringIO(default_ids_agenda_text)
-default_ids_agenda.name = 'default_ids'
+default_ids_agenda.name = 'default_ids.yaml'
 
 sectioned_agenda_text = """
 sections:
@@ -91,7 +92,7 @@ workloads:
     - nenamark
 """
 sectioned_agenda = StringIO(sectioned_agenda_text)
-sectioned_agenda.name = 'sectioned'
+sectioned_agenda.name = 'sectioned.yaml'
 
 dup_sectioned_agenda_text = """
 sections:
@@ -105,7 +106,7 @@ workloads:
     - nenamark
 """
 dup_sectioned_agenda = StringIO(dup_sectioned_agenda_text)
-dup_sectioned_agenda.name = 'dup-sectioned'
+dup_sectioned_agenda.name = 'dup-sectioned.yaml'
 
 caps_agenda_text = """
 config:
@@ -120,17 +121,17 @@ workloads:
       name: linpack
 """
 caps_agenda = StringIO(caps_agenda_text)
-caps_agenda.name = 'caps'
+caps_agenda.name = 'caps.yaml'
 
 bad_syntax_agenda_text = """
 config:
     # tab on the following line
-	reboot_policy: never
+    reboot_policy: never
 workloads:
     - antutu
 """
 bad_syntax_agenda = StringIO(bad_syntax_agenda_text)
-bad_syntax_agenda.name = 'bad_syntax'
+bad_syntax_agenda.name = 'bad_syntax.yaml'
 
 section_ids_test_text = """
 config:
@@ -145,7 +146,7 @@ sections:
     - id: bar
 """
 section_ids_agenda = StringIO(section_ids_test_text)
-section_ids_agenda.name = 'section_ids'
+section_ids_agenda.name = 'section_ids.yaml'
 
 
 class AgendaTest(TestCase):
@@ -154,42 +155,18 @@ class AgendaTest(TestCase):
         agenda = Agenda(YAML_TEST_FILE)
         assert_equal(len(agenda.workloads), 4)
 
-    def test_duplicate_id(self):
-        try:
-            Agenda(duplicate_agenda)
-        except ConfigError, e:
-            assert_in('duplicate', e.message.lower())  # pylint: disable=E1101
-        else:
-            raise Exception('ConfigError was not raised for an agenda with duplicate ids.')
-
     def test_yaml_missing_field(self):
         try:
-            Agenda(invalid_agenda_text)
+            Agenda(invalid_agenda)
         except ConfigError, e:
             assert_in('workload name', e.message)
         else:
             raise Exception('ConfigError was not raised for an invalid agenda.')
 
-    def test_defaults(self):
-        agenda = Agenda(short_agenda)
-        assert_equal(len(agenda.workloads), 3)
-        assert_equal(agenda.workloads[0].workload_name, 'antutu')
-        assert_equal(agenda.workloads[0].id, '1')
-
-    def test_default_id_assignment(self):
-        agenda = Agenda(default_ids_agenda)
-        assert_equal(agenda.workloads[0].id, '2')
-        assert_equal(agenda.workloads[3].id, '3')
-
-    def test_sections(self):
-        agenda = Agenda(sectioned_agenda)
-        assert_equal(agenda.sections[0].workloads[0].workload_name, 'antutu')
-        assert_equal(agenda.sections[1].runtime_parameters['dp'], 'three')
-
     @raises(ConfigError)
     def test_dup_sections(self):
         Agenda(dup_sectioned_agenda)
 
-    @raises(ConfigError)
+    @raises(SerializerSyntaxError)
     def test_bad_syntax(self):
         Agenda(bad_syntax_agenda)
