@@ -207,6 +207,8 @@ class ConstraintManager(object):
     :param pivot: The column around which the data will be
         pivoted:
     :type pivot: str
+    :param templates: TRAPpy events
+    :type templates: :mod:`trappy.base.Base`
     :param filters: A dictionary of values to be applied on the
         respective columns
     :type filters: dict
