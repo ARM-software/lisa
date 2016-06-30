@@ -3,7 +3,7 @@ LISA provide integration for some types of energy probes.
 Currently supported instruments are:
 * [`HWMON`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#linux-hwmon): Linux kernel hardware monitoring
 * [`AEP`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#arm-energy-probe-aep): ARM Energy Probe
-* [`iiocapture`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture): BayLibre ACME Cape
+* [`iiocapture`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture---baylibre-acme-cape): BayLibre ACME Cape
 
 Instruments need to be specified either in `target.config` or in a configuration dictionary to be passed to `TestEnv` when creating the test environment object.
 
