@@ -44,7 +44,7 @@ from datetime import datetime
 from wlauto.core.plugin import Plugin
 from wlauto.exceptions import WAError
 from wlauto.utils.types import numeric
-from wlauto.utils.misc import enum_metaclass, merge_dicts
+from wlauto.utils.misc import enum_metaclass, merge_dicts_simple
 
 
 class ResultManager(object):
@@ -263,9 +263,8 @@ class IterationResult(object):
         self.artifacts = []
 
     def add_metric(self, name, value, units=None, lower_is_better=False, classifiers=None):
-        classifiers = merge_dicts(self.classifiers, classifiers or {},
-                                  list_duplicates='last', should_normalize=False)
-        self.metrics.append(Metric(name, value, units, lower_is_better, classifiers))
+        self.metrics.append(Metric(name, value, units, lower_is_better,
+                                   merge_dicts_simple(self.classifiers, classifiers)))
 
     def has_metric(self, name):
         for metric in self.metrics:

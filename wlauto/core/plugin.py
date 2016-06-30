@@ -26,10 +26,11 @@ from itertools import chain
 from copy import copy
 
 from wlauto.exceptions import NotFoundError, LoaderError, ValidationError, ConfigError
-from wlauto.utils.misc import isiterable, ensure_directory_exists as _d, walk_modules, load_class, merge_dicts, get_article
+from wlauto.utils.misc import (isiterable, ensure_directory_exists as _d,
+                               walk_modules, load_class, merge_dicts_simple, get_article)
 from wlauto.core.configuration import settings
 from wlauto.utils.types import identifier, integer, boolean
-from wlauto.core.configuration import ConfigurationPoint, ConfigurationPointCollection
+from wlauto.core.configuration import ConfigurationPoint
 
 MODNAME_TRANS = string.maketrans(':/\\.', '____')
 
@@ -711,7 +712,8 @@ class PluginLoader(object):
         """
         real_name, alias_config = self.resolve_alias(name)
         base_default_config = self.get_plugin_class(real_name).get_default_config()
-        return merge_dicts(base_default_config, alias_config, list_duplicates='last', dict_type=OrderedDict)
+        return merge_dicts_simple(base_default_config, alias_config)
+
 
     def list_plugins(self, kind=None):
         """

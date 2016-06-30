@@ -341,14 +341,22 @@ class prioritylist(object):
         return self.size
 
 
-class enable_disable_list(list):
+class toggle_set(set):
+    """
+    A list that contains items to enable or disable something.
+
+    A prefix of ``~`` is used to denote disabling something, for example
+    the list ['apples', '~oranges', 'cherries'] enables both ``apples``
+    and ``cherries`` but disables ``oranges``.
+    """
+
     def merge_with(self, other):
         new_self = copy(self)
-        return enable_disable_list.merge(other, new_self)
+        return toggle_set.merge(other, new_self)
 
     def merge_into(self, other):
         other = copy(other)
-        return enable_disable_list.merge(self, other)
+        return toggle_set.merge(self, other)
 
     @staticmethod
     def merge(source, dest):
@@ -364,4 +372,33 @@ class enable_disable_list(list):
         return dest
 
     def values(self):
+        """
+        returns a list of enabled items.
+        """
         return [item for item in self if not item.startswith('~')]
+
+    def conflicts_with(self, other):
+        """
+        Checks if any items in ``other`` conflict with items already in this list.
+
+        Args:
+            other (list): The list to be checked against
+
+        Returns:
+            A list of items in ``other`` that conflict with items in this list
+        """
+        conflicts = []
+        for item in other:
+            if item.startswith('~') and item[1:] in self:
+                conflicts.append(item)
+            if not item.startswith('~') and ('~' + item) in self:
+                conflicts.append(item)
+        return conflicts
+
+class ID(str):
+
+    def merge_with(self, other):
+        return '_'.join(self, other)
+
+    def merge_into(self, other):
+        return '_'.join(other, self)

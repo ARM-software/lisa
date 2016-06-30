@@ -56,7 +56,7 @@ from wlauto.core.resolver import ResourceResolver
 from wlauto.core.result import ResultManager, IterationResult, RunResult
 from wlauto.exceptions import (WAError, ConfigError, TimeoutError, InstrumentError,
                                DeviceError, DeviceNotRespondingError)
-from wlauto.utils.misc import ensure_directory_exists as _d, get_traceback, merge_dicts, format_duration
+from wlauto.utils.misc import ensure_directory_exists as _d, get_traceback, format_duration
 from wlauto.utils.serializer import json
 
 # The maximum number of reboot attempts for an iteration.
@@ -92,10 +92,8 @@ class RunInfo(object):
     def to_dict(self):
         d = copy(self.__dict__)
         d['uuid'] = str(self.uuid)
-        del d['config']
-        d = merge_dicts(d, self.config.to_dict())
         return d
-
+    #TODO: pod
 
 class ExecutionContext(object):
     """

@@ -34,3 +34,7 @@ class JarFile(FileResource):
 class ApkFile(FileResource):
 
     name = 'apk'
+
+    def __init__(self, owner, version):
+        super(ApkFile, self).__init__(owner)
+        self.version = version

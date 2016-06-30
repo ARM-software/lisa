@@ -36,20 +36,19 @@ import hashlib
 from datetime import datetime, timedelta
 from operator import mul, itemgetter
 from StringIO import StringIO
-from itertools import cycle, groupby
+from itertools import cycle, groupby, chain
 from functools import partial
 from distutils.spawn import find_executable
 
 import yaml
 from dateutil import tz
 
-from devlib.utils.misc import ABI_MAP, check_output, walk_modules, \
-                              ensure_directory_exists, ensure_file_directory_exists, \
-                              merge_dicts, merge_lists, normalize, convert_new_lines, \
-                              escape_quotes, escape_single_quotes, escape_double_quotes, \
-                              isiterable, getch, as_relative, ranges_to_list, \
-                              list_to_ranges, list_to_mask, mask_to_list, which, \
-                              get_cpu_mask, unique
+from devlib.utils.misc import (ABI_MAP, check_output, walk_modules,
+                               ensure_directory_exists, ensure_file_directory_exists,
+                               normalize, convert_new_lines, get_cpu_mask, unique,
+                               escape_quotes, escape_single_quotes, escape_double_quotes,
+                               isiterable, getch, as_relative, ranges_to_list,
+                               list_to_ranges, list_to_mask, mask_to_list, which)
 
 check_output_logger = logging.getLogger('check_output')
 
@@ -469,3 +468,128 @@ def istextfile(fileobj, blocksize=512):
     # occurrences of _text_characters from the block
     nontext = block.translate(None, _text_characters)
     return float(len(nontext)) / len(block) <= 0.30
+
+
+def categorize(v):
+    if hasattr(v, 'merge_with') and hasattr(v, 'merge_into'):
+        return 'o'
+    elif hasattr(v, 'iteritems'):
+        return 'm'
+    elif isiterable(v):
+        return 's'
+    elif v is None:
+        return 'n'
+    else:
+        return 'c'
+
+
+def merge_config_values(base, other):
+    """
+    This is used to merge two objects, typically when setting the value of a
+    ``ConfigurationPoint``. First, both objects are categorized into
+
+        c: A scalar value. Basically, most objects. These values
+           are treated as atomic, and not mergeable.
+        s: A sequence. Anything iterable that is not a dict or
+           a string (strings are considered scalars).
+        m: A key-value mapping. ``dict`` and it's derivatives.
+        n: ``None``.
+        o: A mergeable object; this is an object that implements both
+          ``merge_with`` and ``merge_into`` methods.
+
+    The merge rules based on the two categories are then as follows:
+
+        (c1, c2) --> c2
+        (s1, s2) --> s1 . s2
+        (m1, m2) --> m1 . m2
+        (c, s) --> [c] . s
+        (s, c) --> s . [c]
+        (s, m) --> s . [m]
+        (m, s) --> [m] . s
+        (m, c) --> ERROR
+        (c, m) --> ERROR
+        (o, X) --> o.merge_with(X)
+        (X, o) --> o.merge_into(X)
+        (X, n) --> X
+        (n, X) --> X
+
+    where:
+
+        '.'  means concatenation (for maps, contcationation of (k, v) streams
+             then converted back into a map). If the types of the two objects
+             differ, the type of ``other`` is used for the result.
+        'X'  means "any category"
+        '[]' used to indicate a literal sequence (not necessarily a ``list``).
+             when this is concatenated with an actual sequence, that sequencies
+             type is used.
+
+    notes:
+
+        - When a mapping is combined with a sequence, that mapping is
+          treated as a scalar value.
+        - When combining two mergeable objects, they're combined using
+          ``o1.merge_with(o2)`` (_not_ using o2.merge_into(o1)).
+        - Combining anything with ``None`` yields that value, irrespective
+          of the order. So a ``None`` value is eqivalent to the corresponding
+          item being omitted.
+        - When both values are scalars, merging is equivalent to overwriting.
+        - There is no recursion (e.g. if map values are lists, they will not
+          be merged; ``other`` will overwrite ``base`` values). If complicated
+          merging semantics (such as recursion) are required, they should be
+          implemented within custom mergeable types (i.e. those that implement
+          ``merge_with`` and ``merge_into``).
+
+    While this can be used as a generic "combine any two arbitry objects"
+    function, the semantics have been selected specifically for merging
+    configuration point values.
+
+    """
+    cat_base = categorize(base)
+    cat_other = categorize(other)
+
+    if cat_base == 'n':
+        return other
+    elif cat_other == 'n':
+        return base
+
+    if cat_base == 'o':
+        return base.merge_with(other)
+    elif cat_other == 'o':
+        return other.merge_into(base)
+
+    if cat_base == 'm':
+        if cat_other == 's':
+            return merge_sequencies([base], other)
+        elif cat_other == 'm':
+            return merge_maps(base, other)
+        else:
+            message = 'merge error ({}, {}): "{}" and "{}"'
+            raise ValueError(message.format(cat_base, cat_other, base, other))
+    elif cat_base == 's':
+        if cat_other == 's':
+            return merge_sequencies(base, other)
+        else:
+            return merge_sequencies(base, [other])
+    else:  # cat_base == 'c'
+        if cat_other == 's':
+            return merge_sequencies([base], other)
+        elif cat_other == 'm':
+            message = 'merge error ({}, {}): "{}" and "{}"'
+            raise ValueError(message.format(cat_base, cat_other, base, other))
+        else:
+            return other
+
+
+def merge_sequencies(s1, s2):
+    return type(s2)(unique(chain(s1, s2)))
+
+
+def merge_maps(m1, m2):
+    return type(m2)(chain(m1.iteritems(), m2.iteritems()))
+
+
+def merge_dicts_simple(base, other):
+    result = base.copy()
+    for key, value in (base or {}).iteritems():
+        result[key] = merge_config_values(result.get(key), value)
+    return result
