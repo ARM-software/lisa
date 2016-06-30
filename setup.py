@@ -82,7 +82,7 @@ params = dict(
     ],
     extras_require={
         'other': ['jinja2', 'pandas>=0.13.1'],
-        'test': ['nose'],
+        'test': ['nose', 'mock'],
         'mongodb': ['pymongo'],
         'notify': ['notify2'],
         'doc': ['sphinx'],
