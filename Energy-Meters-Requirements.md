@@ -90,7 +90,7 @@ target_conf = {
 }
 ```
 
-## iiocapture
+## iiocapture - Baylibre ACME Cape
 
 The `iiocapture` instrument exploits the [BayLibre ACME](http://baylibre.com/acme/) solution for measuring power.
 
@@ -100,7 +100,7 @@ To use this instrument you need the following equipment:
 * A [BeagleBone Black](https://beagleboard.org/black)
 * An [ACME Cape](http://sigrok.org/wiki/BayLibre_ACME)
 * Power probes for the ACME Cape
-* The `iio-capture` tool installed in your host ([installation instructions here](https://github.com/BayLibre/iio-capture))
+* The `iio-capture` tool installed in your host ([installation instructions here](https://github.com/BayLibre/iio-capture---baylibre-acme-cape))
 
 #### Build the software suite
 
