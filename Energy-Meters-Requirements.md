@@ -3,11 +3,17 @@ LISA provide integration for some types of energy probes.
 Currently supported instruments are:
 * [`HWMON`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#linux-hwmon): Linux kernel hardware monitoring
 * [`AEP`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#arm-energy-probe-aep): ARM Energy Probe
-* [`iiocapture`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture---baylibre-acme-cape): BayLibre ACME Cape
+* [`iiocapture`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture---baylibre-acme-cape): BleagleBone Black + BayLibre ACME Cape
 
-Instruments need to be specified either in `target.config` or in a configuration dictionary to be passed to `TestEnv` when creating the test environment object.
+Instruments need to be specified either in `target.config` or in aconfiguration dictionary to be passed to `TestEnv` when creating the test environment object.
 
 ## Using Energy Meters
+
+In general, energy meters provide the following methods:
+
+* `reset()` - reset the energy meters
+* `report()` - get total energy consumption since last reset
+* `sample()` (optional) - get a sample from the energy meters
 
 Assuming you declare a target configuration dictionary called `my_conf`, the following code snippet shows how to use the `EnergyMeter` class to measure energy consumption of the target while running a workload.
 
@@ -27,10 +33,12 @@ te.emeter.reset()
 # Start workload
 wload.run()
 # Stop energy measurement and report results in a specific output directory
-nrg_data, nrg_dile = te.emeter.report(te.res_dir)
+nrg_data, nrg_file = te.emeter.report(te.res_dir)
 ```
 
 The `report()` method returns a dictionary containing the energy data `nrg_data` and the energy file name `nrg_file`.
+
+***
 
 ## Linux HWMON
 
@@ -40,23 +48,28 @@ The `hwmon` is a generic Linux kernel subsystem, providing access to hardware mo
 
 Energy sampling with `hwmon` requires the HWMON module to be enabled in `devlib` be specifying it in the target configuration.
 
-```bash
+```python
 target_conf = {
     # Enable hwmon module in devlib
     "modules" = ['hwmon'],
 
     "emeter" = {
         "instrument" : "hwmon",
-        "conf" : {
+        # conf for "hwmon" is currently ignored
+#        "conf" : {
             # List of CPUs available in the system
-            'sites' : ['a53', 'a57'],
+#            'sites' : ['a53', 'a57'],
             # Type of hardware monitor to be used (ignored because
             # we always measure energy)
-            'kinds' : ['energy']
-        }
+#            'kinds' : ['energy']
+#        }
     },
 }
 ```
+
+HWMON are the default energy meter in LISA. Therefore, enabling them as a `devlib` module is enough to get them as energy meters.
+
+***
 
 ## ARM Energy Probe (AEP)
 
@@ -71,6 +84,8 @@ The required equipment is the following:
   on the resistor must be at most 165 mv. Therefore depending on the maximum current required
   by the load, one can properly select the value of the shunt resistor
 * `caiman` tool ([installation instructions](https://github.com/ARM-software/caiman))
+
+![ARM Energy Probe](https://developer.arm.com/-/media/developer/products/software-tools/ds-5-development-studio/images/ARM%20Energy%20Probe/ARM_Energy_Probe_4.png?h=378&w=416&hash=90D98087E80D9178CCC28026C1C8E476A6736D09&hash=90D98087E80D9178CCC28026C1C8E476A6736D09&la=en)
 
 #### LISA Target Configuration
 
@@ -89,6 +104,8 @@ target_conf = {
      },
 }
 ```
+
+***
 
 ## iiocapture - Baylibre ACME Cape
 
@@ -118,10 +135,6 @@ target_conf = {
         "instrument" : "iiocapture",
         "conf" : {
             # List of iio devices (i.e. probes) attached to the ACME Cape
-            # The ACME Cape 8 probe slots numbered 1 to 8. iio:device<n> is
-            # the n-th discovered probe and they are discovered in ascending order.
-            # For example, if you have 2 probes attached to PROBE2 and PROBE7, then
-            # PROBE2 will be iio:device0 and PROBE7 will be iio:device1
             'iiodevice'     : ['iio:device0'],
             # Absolute path to the iio-capture binary on the host
             'iiocapturebin' : '<PATH_TO_iio-capture>/iio-capture',
@@ -131,6 +144,9 @@ target_conf = {
     },
 }
 ```
+
+The ACME Cape 8 probe slots numbered 1 to 8. `iio:device<n>` is the n-th discovered probe and they are discovered in ascending order. For example, if you have 2 probes attached to PROBE2 and PROBE7, then PROBE2 will be `iio:device0` and PROBE7 will be `iio:device1`
+
 
 You can also verify that the probes are correctly detected by the `iio daemon` running on the BeagleBone by running `iio_info` which is part of the `iio-capture` infrastructure:
 
