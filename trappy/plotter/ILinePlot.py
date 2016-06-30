@@ -150,7 +150,12 @@ class ILinePlot(AbstractDataPlotter):
         raise NotImplementedError("Not Available for ILinePlot")
 
     def view(self, test=False):
-        """Displays the graph"""
+        """Displays the graph
+
+        :param test: For testing purposes.  Only set to true if run
+        from the testsuite.
+        :type test: boolean
+        """
 
         # Defer installation of IPython components
         # to the .view call to avoid any errors at
