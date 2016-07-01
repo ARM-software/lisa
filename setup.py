@@ -16,7 +16,7 @@
 from setuptools import setup, find_packages
 
 
-VERSION = "5.5.0"
+execfile("trappy/version.py")
 
 LONG_DESCRIPTION = """TRAPpy is a framework written in python for
 analysing and plotting FTrace data by converting it into standardised
@@ -48,7 +48,7 @@ data_files = {"trappy.plotter": ["js/EventPlot.js",
 }
 
 setup(name='TRAPpy',
-      version=VERSION,
+      version=__version__,
       license="Apache v2",
       author="ARM-TRAPPY",
       author_email="trappy@arm.com",
