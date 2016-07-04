@@ -19,6 +19,18 @@ import matplotlib.cm as cmx
 from matplotlib.colors import ListedColormap, Normalize
 
 
+def to_dygraph_colors(color_map):
+    """Convert a color_map specified as a list of rgb tuples to the
+    syntax that dygraphs expect: ["rgb(1, 2, 3)", "rgb(4, 5, 6)",...]
+
+    :param color_map: a list of rgb tuples
+    :type color_map: list of tuples
+    """
+
+    rgb_list = ["rgb(" + ", ".join(str(i) for i in e) + ")" for e in color_map]
+
+    return '["' + '", "'.join(rgb_list) + '"]'
+
 class ColorMap(object):
 
     """The Color Map Class to return a gradient method

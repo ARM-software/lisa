@@ -149,17 +149,16 @@ var ILinePlot = ( function() {
         }
     };
 
-    var generate = function(data) {
-        create_graph(data);
+    var generate = function(data, colors) {
+        create_graph(data, colors);
         purge();
         if (data.syncGroup != undefined)
             sync(data.syncGroup);
     };
 
-    var create_graph = function(t_info) {
+    var create_graph = function(t_info, colors) {
         var tabular = convertToDataTable(t_info.data, t_info.index_col);
-
-        var graph = new Dygraph(document.getElementById(t_info.name), tabular.data, {
+        var options = {
             legend: 'always',
             title: t_info.title,
             labels: tabular.labels,
@@ -182,7 +181,12 @@ var ILinePlot = ( function() {
             strokeWidth: t_info.strokeWidth,
             pointSize: t_info.pointSize,
             dateWindow: t_info.dateWindow
-        });
+        };
+
+        if (typeof colors !== 'undefined')
+            options["colors"] = colors;
+
+        var graph = new Dygraph(document.getElementById(t_info.name), tabular.data, options);
 
         var width = $("#" + t_info.name)
             .closest(".output_subarea").width() / t_info.per_line

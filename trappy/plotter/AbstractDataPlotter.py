@@ -16,9 +16,9 @@
 """This is the template class that all Plotters inherit"""
 from abc import abstractmethod, ABCMeta
 from pandas import DataFrame
+import re
 from trappy.utils import listify
 from functools import reduce
-from trappy.stats.grammar import Group, IDENTIFIER, COLON
 # pylint: disable=R0921
 # pylint: disable=R0903
 
@@ -30,12 +30,6 @@ class AbstractDataPlotter(object):
     __metaclass__ = ABCMeta
 
     def __init__(self, traces=None, attr=None, templates=None):
-        self._value_parser = Group(
-            IDENTIFIER +
-            COLON +
-            IDENTIFIER).setParseAction(
-            self._parse_value)
-
         self._event_map = {}
         self._attr = attr if attr else {}
         self.traces = traces
@@ -73,19 +67,32 @@ class AbstractDataPlotter(object):
         else:
             raise ValueError("Empty Data received")
 
-    def _parse_value(self, tokens):
-        """Grammar parser function to parse a signal"""
+    def _parse_value(self, signal_def):
+        """Parse a signal definition into a (template, column) tuple
 
-        event, column = tokens[0]
+        :param signal_def: A signal definition. E.g. "trace_class:column"
+        :type signal_def: str
+        """
+
+        match = re.match(r"(?P<event>[^:]+):(?P<column>[^:]+)(?P<color>:.+)?",
+                         signal_def)
+        event = match.group("event")
+        column = match.group("column")
+        color_match = match.group("color")
+        if color_match:
+            color_list = color_match[1:].split(",", 2)
+            color = [int(n, 16) if n.startswith("0x") else int(n) for n in color_list]
+        else:
+            color = None
 
         try:
-            return self._event_map[event], column
+            return self._event_map[event], column, color
         except KeyError:
             for trace in listify(self.traces):
 
                 if event in trace.class_definitions:
                     self._event_map[event] = trace.class_definitions[event]
-                    return self._event_map[event], column
+                    return self._event_map[event], column, color
 
             raise ValueError(
                 "Event: " +
@@ -101,11 +108,14 @@ class AbstractDataPlotter(object):
             raise ValueError("column/templates specified with values")
 
         self._attr["column"] = []
-
-        if self.templates is None:
-            self.templates = []
+        self.templates = []
+        colors = []
 
         for value in listify(self._attr["signals"]):
-            template, column = self._value_parser.parseString(value)[0]
+            template, column, color = self._parse_value(value)
             self.templates.append(template)
             self._attr["column"].append(column)
+            colors.append(color)
+
+        if any(colors):
+            self._attr["colors"] = colors
