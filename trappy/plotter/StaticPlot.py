@@ -136,7 +136,8 @@ class StaticPlot(AbstractDataPlotter):
         zip_constraints = not self._attr["permute"]
         self.c_mgr = ConstraintManager(traces, self._attr["column"],
                                        self.templates, self._attr["pivot"],
-                                       self._attr["filters"], zip_constraints)
+                                       self._attr["filters"],
+                                       zip_constraints=zip_constraints)
 
     def savefig(self, *args, **kwargs):
         """Save the plot as a PNG fill. This calls into
