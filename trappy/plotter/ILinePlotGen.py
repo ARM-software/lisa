@@ -199,6 +199,12 @@ class ILinePlotGen(object):
         :type title: str
         """
 
+        datapoints = sum(len(v) for _, v in data_dict.iteritems())
+        if datapoints > self._attr["max_datapoints"]:
+            msg = "This plot is too big and will probably make your browser unresponsive.  If you are happy to wait, pass max_datapoints={} to view()".\
+                  format(datapoints + 1)
+            raise ValueError(msg)
+
         fig_name = self._fig_map[plot_num]
         fig_params = {}
         fig_params["data"] = OrderedDict((k, v.T.to_dict()) for k, v in data_dict.iteritems())

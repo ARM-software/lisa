@@ -149,8 +149,21 @@ class ILinePlot(AbstractDataPlotter):
     def savefig(self, *args, **kwargs):
         raise NotImplementedError("Not Available for ILinePlot")
 
-    def view(self, test=False):
-        """Displays the graph"""
+    def view(self, max_datapoints=75000, test=False):
+        """Displays the graph
+
+        :param max_datapoints: Maximum number of datapoints to plot.
+        Dygraph can make the browser unresponsive if it tries to plot
+        too many datapoints.  Chrome 50 chokes at around 75000 on an
+        i7-4770 @ 3.4GHz, Firefox 47 can handle up to 200000 before
+        becoming too slow in the same machine.  You can increase this
+        number if you know what you're doing and are happy to wait for
+        the plot to render.  :type max_datapoints: int
+
+        :param test: For testing purposes.  Only set to true if run
+        from the testsuite.
+        :type test: boolean
+        """
 
         # Defer installation of IPython components
         # to the .view call to avoid any errors at
@@ -159,6 +172,8 @@ class ILinePlot(AbstractDataPlotter):
         # an IPython notebook
         if not test:
             IPythonConf.iplot_install("ILinePlot")
+
+        self._attr["max_datapoints"] = max_datapoints
 
         if self._attr["concat"]:
             self._plot_concat()
