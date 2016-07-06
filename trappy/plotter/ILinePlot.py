@@ -83,6 +83,12 @@ class ILinePlot(AbstractDataPlotter):
     :param fill: Fill the area under the plots
     :type fill: bool
 
+    :param xlim: A tuple representing the upper and lower xlimits
+    :type xlim: tuple
+
+    :param ylim: A tuple representing the upper and lower ylimits
+    :type ylim: tuple
+
     :param drawstyle: Set the drawstyle to a matplotlib compatible
         drawing style.
 
