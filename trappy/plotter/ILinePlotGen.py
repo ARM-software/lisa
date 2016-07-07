@@ -34,6 +34,24 @@ if not IPythonConf.check_ipython():
 
 from IPython.display import display, HTML
 
+def df_to_dygraph(data_frame):
+    """Helper function to convert a :mod:`pandas.DataFrame` to
+    dygraph data
+
+    :param data_frame: The DataFrame to be converted
+    :type data_frame: :mod:`pandas.DataFrame`
+    """
+
+    values = data_frame.values.tolist()
+    data = [[x] for x in data_frame.index.tolist()]
+
+    for idx, (_, val) in enumerate(zip(data, values)):
+        data[idx] += val
+
+    return {
+        "data": data,
+        "labels": ["index"] + data_frame.columns.tolist(),
+    }
 
 class ILinePlotGen(object):
     """
@@ -189,20 +207,20 @@ class ILinePlotGen(object):
 
         fig_params["pointSize"] = self._attr["point_size"]
 
-    def add_plot(self, plot_num, data_dict, title="", test=False):
+    def add_plot(self, plot_num, data_frame, title="", test=False):
         """Add a plot for the corresponding index
 
         :param plot_num: The linear index of the plot
         :type plot_num: int
 
-        :param data_dict: The data for the plot
-        :type data_dict: dict
+        :param data_frame: The data for the plot
+        :type data_frame: :mod:`pandas.DataFrame`
 
         :param title: The title for the plot
         :type title: str
         """
 
-        datapoints = sum(len(v) for _, v in data_dict.iteritems())
+        datapoints = sum(len(v) for _, v in data_frame.iteritems())
         if datapoints > self._attr["max_datapoints"]:
             msg = "This plot is too big and will probably make your browser unresponsive.  If you are happy to wait, pass max_datapoints={} to view()".\
                   format(datapoints + 1)
@@ -210,7 +228,7 @@ class ILinePlotGen(object):
 
         fig_name = self._fig_map[plot_num]
         fig_params = {}
-        fig_params["data"] = data_dict
+        fig_params["data"] = df_to_dygraph(data_frame)
         fig_params["name"] = fig_name
         fig_params["rangesel"] = False
         fig_params["logscale"] = False

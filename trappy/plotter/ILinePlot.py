@@ -240,12 +240,11 @@ class ILinePlot(AbstractDataPlotter):
                 title = ""
 
             if len(data_dict) > 1:
-                data_dict = self._fix_indexes(data_dict)
+                data_frame = self._fix_indexes(data_dict)
             else:
-                data_dict = OrderedDict(
-                    (k, v.to_dict()) for k, v in data_dict.iteritems()
-                )
-            self._layout.add_plot(plot_index, data_dict, title, test=test)
+                data_frame = pd.DataFrame(data_dict)
+
+            self._layout.add_plot(plot_index, data_frame, title, test=test)
             plot_index += 1
 
         self._layout.finish()
@@ -273,12 +272,11 @@ class ILinePlot(AbstractDataPlotter):
                     data_dict[key] = result[pivot]
 
             if len(data_dict) > 1:
-                data_dict = self._fix_indexes(data_dict)
+                data_frame = self._fix_indexes(data_dict)
             else:
-                data_dict = OrderedDict(
-                    (k, v.to_dict()) for k, v in data_dict.iteritems()
-                )
-            self._layout.add_plot(plot_index, data_dict, title)
+                data_frame = pd.DataFrame(data_dict)
+
+            self._layout.add_plot(plot_index, data_frame, title)
             plot_index += 1
 
         self._layout.finish()
@@ -310,4 +308,4 @@ class ILinePlot(AbstractDataPlotter):
             # default
             merged_df = merged_df.interpolate()
 
-        return OrderedDict(merged_df.to_dict())
+        return merged_df
