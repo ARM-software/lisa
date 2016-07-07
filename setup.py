@@ -16,7 +16,7 @@
 from setuptools import setup, find_packages
 
 
-VERSION = "1.5.0"
+execfile("bart/version.py")
 
 LONG_DESCRIPTION = """Behavioural Analysis involves the expressing the general
 expectation of the state of the system while targeting a single or set of heuristics.
@@ -34,7 +34,7 @@ REQUIRES = [
 ]
 
 setup(name='bart-py',
-      version=VERSION,
+      version=__version__,
       license="Apache v2",
       author="ARM-BART",
       author_email="bart@arm.com",
