@@ -81,10 +81,16 @@ class Constraint(object):
 
     :param filters: A dictionary of filter values
     :type filters: dict
+
+    :param window: A time window to apply to the constraint.
+    E.g. window=(5, 20) will constraint to events that happened
+    between Time=5 to Time=20.
+    :type window: tuple of two ints
+
     """
 
     def __init__(self, trappy_trace, pivot, column, template, trace_index,
-                 filters):
+                 filters, window):
         self._trappy_trace = trappy_trace
         self._filters = filters
         self._pivot = pivot
@@ -92,6 +98,13 @@ class Constraint(object):
         self._template = template
         self._dup_resolved = False
         self._data = self.populate_data_frame()
+
+        if window:
+            # We want to include the previous value before the window
+            # and the next after the window in the dataset
+            min_idx = self._data.loc[:window[0]].index.max()
+            max_idx = self._data.loc[window[1]:].index.min()
+            self._data = self._data.loc[min_idx:max_idx]
 
         self.result = self._apply()
         self.trace_index = trace_index
@@ -207,16 +220,20 @@ class ConstraintManager(object):
     :param pivot: The column around which the data will be
         pivoted:
     :type pivot: str
+    :param templates: TRAPpy events
+    :type templates: :mod:`trappy.base.Base`
     :param filters: A dictionary of values to be applied on the
         respective columns
     :type filters: dict
+    :param window: A time window to apply to the constraints
+    :type window: tuple of ints
     :param zip_constraints: Permutes the columns and traces instead
         of a one-to-one correspondence
     :type zip_constraints: bool
     """
 
     def __init__(self, traces, columns, templates, pivot, filters,
-                 zip_constraints=True):
+                 window=None, zip_constraints=True):
 
         self._ip_vec = []
         self._ip_vec.append(listify(traces))
@@ -227,6 +244,7 @@ class ConstraintManager(object):
         self._max_len = max(self._lens)
         self._pivot = pivot
         self._filters = filters
+        self.window = window
         self._constraints = []
 
         self._trace_expanded = False
@@ -299,7 +317,7 @@ class ConstraintManager(object):
             for col in self._ip_vec[1]:
                 template = self._ip_vec[2][trace_idx]
                 constraint = Constraint(trace, self._pivot, col, template,
-                                        trace_idx, self._filters)
+                                        trace_idx, self._filters, self.window)
                 self._constraints.append(constraint)
 
     def get_column_index(self, constraint):
@@ -324,7 +342,7 @@ class ConstraintManager(object):
             template = self._ip_vec[2][idx]
             self._constraints.append(
                 Constraint(trace, self._pivot, col, template, trace_idx,
-                           self._filters))
+                           self._filters, self.window))
 
     def generate_pivots(self, permute=False):
         """Return a union of the pivot values

@@ -83,6 +83,12 @@ class ILinePlot(AbstractDataPlotter):
     :param fill: Fill the area under the plots
     :type fill: bool
 
+    :param xlim: A tuple representing the upper and lower xlimits
+    :type xlim: tuple
+
+    :param ylim: A tuple representing the upper and lower ylimits
+    :type ylim: tuple
+
     :param drawstyle: Set the drawstyle to a matplotlib compatible
         drawing style.
 
@@ -145,9 +151,13 @@ class ILinePlot(AbstractDataPlotter):
 
         zip_constraints = not self._attr["permute"]
 
+        window = self._attr["xlim"] if "xlim" in self._attr else None
+
         self.c_mgr = ConstraintManager(traces, self._attr["column"], self.templates,
                                        self._attr["pivot"],
-                                       self._attr["filters"], zip_constraints)
+                                       self._attr["filters"],
+                                       window=window,
+                                       zip_constraints=zip_constraints)
 
 
     def savefig(self, *args, **kwargs):

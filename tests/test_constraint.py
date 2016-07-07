@@ -159,3 +159,28 @@ class TestConstraintManager(unittest.TestCase):
 
         self.assertEquals(result[0].iloc[0], 3)
         self.assertEquals(result[1].iloc[0], 3)
+
+    def test_constraint_with_window(self):
+        """Test that the constraint manager can constraint to a window of time"""
+        c_mgr = ConstraintManager(self.dfrs[0], "freq", None, AttrConf.PIVOT, {},
+                                  window=(1, 3))
+
+        constraint = iter(c_mgr).next()
+        series = constraint.result[AttrConf.PIVOT_VAL]
+        self.assertEquals(len(series), 3)
+
+        # For the graph to plot a value at 0.75, the resulting series
+        # must contain the value before 0.75.  Same for the upper limit.
+        c_mgr = ConstraintManager(self.dfrs[0], "freq", None, AttrConf.PIVOT, {},
+                                  window=(0.75, 1.5))
+
+        constraint = iter(c_mgr).next()
+        series = constraint.result[AttrConf.PIVOT_VAL]
+        self.assertEquals(series.index.tolist(), [0, 1, 2])
+
+        c_mgr = ConstraintManager(self.dfrs[0], "freq", None, AttrConf.PIVOT, {},
+                                  window=(0, 2))
+
+        constraint = iter(c_mgr).next()
+        series = constraint.result[AttrConf.PIVOT_VAL]
+        self.assertEquals(len(series), 3)
