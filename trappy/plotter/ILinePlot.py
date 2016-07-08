@@ -239,8 +239,12 @@ class ILinePlot(AbstractDataPlotter):
             else:
                 title = ""
 
-            # Fix data frame indexes if necessary
-            data_dict = self._fix_indexes(data_dict)
+            if len(data_dict) > 1:
+                data_dict = self._fix_indexes(data_dict)
+            else:
+                data_dict = OrderedDict(
+                    (k, v.to_dict()) for k, v in data_dict.iteritems()
+                )
             self._layout.add_plot(plot_index, data_dict, title, test=test)
             plot_index += 1
 
@@ -268,8 +272,12 @@ class ILinePlot(AbstractDataPlotter):
 
                     data_dict[key] = result[pivot]
 
-            # Fix data frame indexes if necessary
-            data_dict = self._fix_indexes(data_dict)
+            if len(data_dict) > 1:
+                data_dict = self._fix_indexes(data_dict)
+            else:
+                data_dict = OrderedDict(
+                    (k, v.to_dict()) for k, v in data_dict.iteritems()
+                )
             self._layout.add_plot(plot_index, data_dict, title)
             plot_index += 1
 
@@ -281,24 +289,25 @@ class ILinePlot(AbstractDataPlotter):
         create new ones with same indexes
         """
         # 1) Check if we are processing multiple traces
-        if len(data_dict) > 1:
-            # 2) Merge the data frames to obtain common indexes
-            df_columns = list(data_dict.keys())
-            dedup_data = [handle_duplicate_index(s) for s in data_dict.values()]
-            ret = pd.Series(dedup_data, index=df_columns)
-            merged_df = pd.concat(ret.get_values(), axis=1)
-            merged_df.columns = df_columns
-            # 3) Fill NaN values depending on drawstyle
-            if self._attr["drawstyle"] == "steps-post":
-                merged_df = merged_df.ffill()
-            elif self._attr["drawstyle"] == "steps-pre":
-                merged_df = merged_df.bfill()
-            elif self._attr["drawstyle"] == "steps-mid":
-                merged_df = merged_df.ffill()
-            else:
-                # default
-                merged_df = merged_df.interpolate()
+        if len(data_dict) <= 1:
+            raise ValueError("Cannot fix indexes for single trace. "\
+                             "Expecting multiple traces!")
 
-            return merged_df
+        # 2) Merge the data frames to obtain common indexes
+        df_columns = list(data_dict.keys())
+        dedup_data = [handle_duplicate_index(s) for s in data_dict.values()]
+        ret = pd.Series(dedup_data, index=df_columns)
+        merged_df = pd.concat(ret.get_values(), axis=1)
+        merged_df.columns = df_columns
+        # 3) Fill NaN values depending on drawstyle
+        if self._attr["drawstyle"] == "steps-post":
+            merged_df = merged_df.ffill()
+        elif self._attr["drawstyle"] == "steps-pre":
+            merged_df = merged_df.bfill()
+        elif self._attr["drawstyle"] == "steps-mid":
+            merged_df = merged_df.ffill()
         else:
-            return data_dict
+            # default
+            merged_df = merged_df.interpolate()
+
+        return OrderedDict(merged_df.to_dict())
