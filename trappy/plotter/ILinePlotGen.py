@@ -210,7 +210,7 @@ class ILinePlotGen(object):
 
         fig_name = self._fig_map[plot_num]
         fig_params = {}
-        fig_params["data"] = OrderedDict((k, v.T.to_dict()) for k, v in data_dict.iteritems())
+        fig_params["data"] = data_dict
         fig_params["name"] = fig_name
         fig_params["rangesel"] = False
         fig_params["logscale"] = False

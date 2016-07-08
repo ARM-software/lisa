@@ -312,7 +312,7 @@ class TestILinePlotter(unittest.TestCase):
 
         expected_index = index1 + index2
         expected_index.sort()
-        self.assertEquals(expected_index, merged.index.tolist())
+        self.assertEquals(expected_index, sorted(merged["s1"].keys()))
 
     def test_dygraph_colors(self):
         """Check that to_dygraph_colors() constructs a valid dygraph colors argument"""
