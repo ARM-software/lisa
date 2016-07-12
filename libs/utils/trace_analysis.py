@@ -976,7 +976,7 @@ class TraceAnalysis(object):
         time_intervals = cluster_freqs.index[1:] - cluster_freqs.index[:-1]
         total_time = pd.DataFrame({
             'time' : time_intervals,
-            'frequency' : [f/1000 for f in cluster_freqs.iloc[:-1].frequency]
+            'frequency' : [f/1000.0 for f in cluster_freqs.iloc[:-1].frequency]
         })
         total_time = total_time.groupby(['frequency']).sum()
 
@@ -1007,7 +1007,7 @@ class TraceAnalysis(object):
             nonidle_time.append(self._integrate_square_wave(active_t))
 
         active_time = pd.DataFrame({'time' : nonidle_time},
-                                   index=[f/1000 for f in available_freqs])
+                                   index=[f/1000.0 for f in available_freqs])
         active_time.index.name = 'frequency'
         return ResidencyTime(total_time, active_time)
 
