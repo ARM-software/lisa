@@ -443,7 +443,7 @@ def get_pids_for_process(ftrace, execname, cls=None):
         event = getattr(ftrace, cls.name)
         df = event.data_frame
 
-    mask = df["next_comm"].apply(lambda x : True if x.startswith(execname) else False)
+    mask = df["next_comm"].apply(lambda x : True if x == execname else False)
     return list(np.unique(df[mask]["next_pid"].values))
 
 def get_task_name(ftrace, pid, cls=None):
