@@ -436,6 +436,9 @@ def get_pids_for_process(ftrace, execname, cls=None):
             df = ftrace.sched_switch.data_frame
         except AttributeError:
             raise ValueError("SchedSwitch event not found in ftrace")
+
+        if len(df) == 0:
+            raise ValueError("SchedSwitch event not found in ftrace")
     else:
         event = getattr(ftrace, cls.name)
         df = event.data_frame
