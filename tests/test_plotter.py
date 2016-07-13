@@ -292,6 +292,32 @@ class TestILinePlotter(unittest.TestCase):
         with self.assertRaises(ValueError):
             trappy.ILinePlot([dfr1, dfr2]).view(test=True)
 
+    def test_df_to_dygraph(self):
+        """Test the ILinePlot util function: df_to_dygraph"""
+
+        dfr1 = pd.DataFrame([[1, 2],
+                             [3, 4],
+                             [5, 6]],
+                             index=[0., 1., 2.], columns=["a", "b"])
+
+        dfr2 = pd.DataFrame([1, 2, 3, 4],
+                            index=[0., 1., 2., 3.], columns=["a"])
+
+        expected_result_1 = {
+            'labels': ['index', 'a', 'b'],
+            'data': [[0.0, 1, 2], [1.0, 3, 4], [2.0, 5, 6]]
+        }
+        expected_result_2 = {
+            'labels': ['index', 'a'],
+            'data': [[0.0, 1], [1.0, 2], [2.0, 3], [3.0, 4]]
+        }
+
+        result_1 = trappy.plotter.ILinePlotGen.df_to_dygraph(dfr1)
+        result_2 = trappy.plotter.ILinePlotGen.df_to_dygraph(dfr2)
+
+        self.assertDictEqual(result_1, expected_result_1)
+        self.assertDictEqual(result_2, expected_result_2)
+
     def test_duplicate_merging(self):
         dfr1 = pd.DataFrame([1, 2, 3, 4], index=[0., 0., 1., 2.], columns=["a"])
         dfr2 = pd.DataFrame([2, 3, 4, 5], index=[1., 1., 1., 2.], columns=["a"])
