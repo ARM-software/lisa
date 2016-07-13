@@ -236,3 +236,11 @@ trappy.thermal.Thermal:temp"
 
         self.assertEquals(dfr_res.index[0], trace.thermal.data_frame.index[0])
         self.assertLess(dfr_res.index[-1], 1)
+
+    def test_filtered_parse(self):
+        """The Parser can filter a trace"""
+        trace = trappy.FTrace()
+
+        prs = Parser(trace, filters={"cdev_state": 3})
+        dfr_res = prs.solve("devfreq_out_power:freq")
+        self.assertEquals(len(dfr_res), 1)
