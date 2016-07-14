@@ -420,3 +420,15 @@ Target
    Returns ``True`` if an executable with the specified name is installed on the
    target and ``False`` other wise.
 
+.. method:: Target.extract(path, dest=None)
+
+   Extracts the specified archive/file and returns the path to the extrated
+   contents. The extraction method is determined based on the file extension.
+   ``zip``, ``tar``, ``gzip``, and ``bzip2`` are supported.
+
+   :param dest: Specified an on-target destination directory (which must exist)
+                for the extrated contents.
+
+    Returns the path to the extracted contents. In case of files (gzip and
+    bzip2), the path to the decompressed file is returned; for archives, the
+    path to the directory with the archive's contents is returned.
