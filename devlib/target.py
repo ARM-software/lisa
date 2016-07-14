@@ -491,6 +491,65 @@ class Target(object):
         self.push(path, target_path)
         self.execute('insmod {}'.format(target_path), as_root=True)
 
+
+    def extract(self, path, dest=None):
+        """
+        Extact the specified on-target file. The extraction method to be used
+        (unzip, gunzip, bunzip2, or tar) will be based on the file's extension.
+        If ``dest`` is specified, it must be an existing directory on target;
+        the extracted contents will be placed there.
+
+        Note that, depending on the archive file format (and therfore the
+        extraction method used), the original archive file may or may not exist
+        after the extraction.
+
+        The return value is the path to the extracted contents.  In case of
+        gunzip and bunzip2, this will be path to the extracted file; for tar
+        and uzip, this will be the directory with the extracted file(s)
+        (``dest`` if it was specified otherwise, the directory that cotained
+        the archive).
+
+        """
+        for ending in ['.tar.gz', '.tar.bz', '.tar.bz2',
+                       '.tgz', '.tbz', '.tbz2']:
+            if path.endswith(ending):
+                return self._extract_archive(path, 'tar xf {} -C {}', dest)
+
+        ext = self.path.splitext(path)[1]
+        if ext in ['.bz', '.bz2']:
+            return self._extract_file(path, 'bunzip2 -f {}', dest)
+        elif ext == '.gz':
+            return self._extract_file(path, 'gunzip -f {}', dest)
+        elif ext == '.zip':
+            return self._extract_archive(path, 'unzip {} -d {}', dest)
+        else:
+            raise ValueError('Unknown compression format: {}'.format(ext))
+
+    # internal methods
+
+    def _extract_archive(self, path, cmd, dest=None):
+        cmd = '{} ' + cmd  # busybox
+        if dest:
+            extracted = dest
+        else:
+            extracted = self.path.dirname(path)
+        cmdtext = cmd.format(self.busybox, path, extracted)
+        self.execute(cmdtext)
+        return extracted
+
+    def _extract_file(self, path, cmd, dest=None):
+        cmd = '{} ' + cmd  # busybox
+        cmdtext = cmd.format(self.busybox, path)
+        self.execute(cmdtext)
+        extracted = self.path.splitext(path)[0]
+        if dest:
+            self.execute('mv -f {} {}'.format(extracted, dest))
+            if dest.endswith('/'):
+                extracted = self.path.join(dest, self.path.basename(extracted))
+            else:
+                extracted = dest
+        return extracted
+
     def _update_modules(self, stage):
         for mod in self.modules:
             if isinstance(mod, dict):
