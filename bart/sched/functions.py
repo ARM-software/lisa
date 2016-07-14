@@ -436,11 +436,14 @@ def get_pids_for_process(ftrace, execname, cls=None):
             df = ftrace.sched_switch.data_frame
         except AttributeError:
             raise ValueError("SchedSwitch event not found in ftrace")
+
+        if len(df) == 0:
+            raise ValueError("SchedSwitch event not found in ftrace")
     else:
         event = getattr(ftrace, cls.name)
         df = event.data_frame
 
-    mask = df["next_comm"].apply(lambda x : True if x.startswith(execname) else False)
+    mask = df["next_comm"].apply(lambda x : True if x == execname else False)
     return list(np.unique(df[mask]["next_pid"].values))
 
 def get_task_name(ftrace, pid, cls=None):
