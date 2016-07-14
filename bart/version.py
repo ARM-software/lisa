@@ -1,4 +1,4 @@
-#    Copyright 2015-2016 ARM Limited
+#    Copyright 2016-2016 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +13,4 @@
 # limitations under the License.
 #
 
-"""Initialization for bart"""
-
-import bart.sched
-import bart.common
-import bart.thermal
-from bart.version import __version__
+__version__ = "1.5.0"
