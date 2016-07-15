@@ -65,7 +65,7 @@ class STune(LisaTest):
             task_start = boost_task_rtapp.index[0]
             after_first_period = task_start + (rtapp_period / 1000.)
 
-            boost = tc["cgroups"]["conf"]["schedtune"]["/stune"]["boost"] / 100.
+            boost = tc["cgroups"]["conf"]["schedtune"]["/stune"]["boost"]
             analyzer_const = {
                 "SCHED_LOAD_SCALE": 1024,
                 "BOOST": boost,
@@ -73,8 +73,8 @@ class STune(LisaTest):
             analyzer = Analyzer(ftrace, analyzer_const,
                                 window=(after_first_period, None))
             statement = "(((SCHED_LOAD_SCALE - boost_task_rtapp:util) * BOOST) // 100) == boost_task_rtapp:margin"
-            error_msg = "task was not boosted to the expected margin: {}".\
-                        format(boost)
+            error_msg = "task was not boosted to the expected margin: {:.2f}"\
+                        .format(boost / 100.)
             self.assertTrue(analyzer.assertStatement(statement), msg=error_msg)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
