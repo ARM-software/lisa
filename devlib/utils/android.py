@@ -265,6 +265,10 @@ def adb_get_device(timeout=None):
 
 def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS):
     _check_env()
+    # Connect is required only for ADB-over-IP
+    if "." not in device:
+        logger.debug('Device connected via USB, connect not required')
+        return
     tries = 0
     output = None
     while tries <= attempts:
