@@ -78,6 +78,51 @@ class TraceAnalysis(object):
         logging.info('Set plots time range to (%.6f, %.6f)[s]',
                 self.x_min, self.x_max)
 
+    def plotFunctionStats(self, functions=None, metrics='avg'):
+        """
+        Plot functions profiling metrics for the specified kernel functions.
+
+        For each speficied metric a barplot is generated which report the value
+        of the metric when the kernel function has been executed on each CPU.
+        By default all the kernel functions are plotted.
+
+        :param functions: the name of list of name of kernel functions to plot
+        :type functions: str or list
+
+        :param metrics: the metrics to plot
+                        avg   - average execution time
+                        time  - total execution time
+        :type metrics: srt or list
+        """
+        if not hasattr(self.trace, '_functions_stats_df'):
+            logging.warning('Functions stats data not available')
+            return
+
+        metrics = listify(metrics)
+        df = self.trace.functions_stats_df(functions)
+
+        # Check that all the required metrics are acutally availabe
+        available_metrics = df.columns.tolist()
+        if not set(metrics).issubset(set(available_metrics)):
+            msg = 'Metrics {} not supported, available metrics are {}'\
+                    .format(set(metrics) - set(available_metrics),
+                            available_metrics)
+            raise ValueError(msg)
+
+        for _m in metrics:
+            if _m.upper() == 'AVG':
+                title = 'Average Completion Time per CPUs'
+                ylabel = 'Completion Time [us]'
+            if _m.upper() == 'TIME':
+                title = 'Total Execution Time per CPUs'
+                ylabel = 'Execution Time [us]'
+            data = df[_m.lower()].unstack()
+            axes = data.plot(kind='bar',
+                             figsize=(16,8), legend=True,
+                             title=title, table=True)
+            axes.set_ylabel(ylabel)
+            axes.get_xaxis().set_visible(False)
+
     def plotClusterFrequencies(self, title='Clusters Frequencies'):
         if not self.trace.hasEvents('cpu_frequency'):
             logging.warn('Events [cpu_frequency] not found, '\
