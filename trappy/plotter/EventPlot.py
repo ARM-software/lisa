@@ -88,6 +88,25 @@ class EventPlot(AbstractDataPlotter):
 
         :param lanes: The sorted order of lanes
         :type lanes: list
+
+        :param color_map: A mapping between events and colours
+            ::
+                { "<name1>" : "colour1",
+                  .
+                  .
+                  .
+                  "<nameN>" : "colourN"
+                }
+
+            Colour string can be:
+
+            - Colour names (supported colours are listed in
+            https://www.w3.org/TR/SVG/types.html#ColorKeywords)
+
+            - HEX representation of colour, like #FF0000 for "red", #008000 for
+            "green", #0000FF for "blue" and so on
+
+        :type color_map: dict
     """
 
     def __init__(
@@ -99,7 +118,8 @@ class EventPlot(AbstractDataPlotter):
             num_lanes=0,
             summary=True,
             stride=False,
-            lanes=None):
+            lanes=None,
+            color_map=None):
 
         _data = deepcopy(data)
         self._html = []
@@ -116,6 +136,7 @@ class EventPlot(AbstractDataPlotter):
         graph["keys"] = sorted(keys, key=lambda x: avg[x], reverse=True)
         graph["showSummary"] = summary
         graph["stride"] = AttrConf.EVENT_PLOT_STRIDE
+        graph["colorMap"] = color_map
         self._data = json.dumps(graph)
 
 
