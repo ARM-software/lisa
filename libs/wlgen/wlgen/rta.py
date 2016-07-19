@@ -119,6 +119,18 @@ class RTA(Workload):
         logging.info('%s',
                 "{" + ", ".join('"%r": %r' % (key, pload[key]) for key in pload) + "}")
 
+        # Sanity check calibration values for big.LITTLE systems
+        if 'bl' in target.modules:
+            bcpu = target.bl.bigs_online[0]
+            lcpu = target.bl.littles_online[0]
+            if pload[bcpu] > pload[lcpu]:
+                logging.warning("Calibration values reports big cores less "
+                                "capable than LITTLE cores")
+                raise RuntimeError("Calibration failed: try again or file a bug")
+            bigs_speedup = ((float(pload[lcpu]) / pload[bcpu]) - 1) * 100
+            logging.info("big cores are ~%.0f%% more capable than LITTLE cores",
+                        bigs_speedup)
+
         return pload
 
     def __postrun(self, params):
