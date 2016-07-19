@@ -25,6 +25,9 @@ import pylab as pl
 import re
 import sys
 import trappy
+import json
+
+from trappy.utils import listify
 
 # Configure logging
 import logging
@@ -110,10 +113,17 @@ class Trace(object):
         self.ftrace = trace_class(path, scope="custom", events=self.events,
                                   window=window, normalize_time=normalize_time)
 
+        # Load Functions profiling data
+        has_function_stats = self._loadFunctionsStats(path)
+
         # Check for events available on the parsed trace
         self.__checkAvailableEvents()
         if len(self.available_events) == 0:
-            raise ValueError('The trace does not contain useful events')
+            if has_function_stats:
+                logging.info('Trace contains only functions stats')
+                return
+            raise ValueError('The trace does not contain useful events '
+                             'nor function stats')
 
         # Setup internal data reference to interesting events/dataframes
 
@@ -194,6 +204,53 @@ class Trace(object):
 
             logging.info('Overutilized time: %.6f [s] (%.3f%% of trace time)',
                     self.overutilized_time, self.overutilized_prc)
+
+    def _loadFunctionsStats(self, path='trace.stats'):
+        if os.path.isdir(path):
+            path = os.path.join(path, 'trace.stats')
+        if path.endswith('dat') or path.endswith('html'):
+            pre, ext = os.path.splitext(path)
+            path = pre + '.stats'
+        if not os.path.isfile(path):
+            return False
+
+        # Opening functions profiling JSON data file
+        logging.debug('Loading functions profiling data from [%s]...', path)
+        with open(os.path.join(path), 'r') as fh:
+            trace_stats = json.load(fh)
+
+        # Build DataFrame of function stats
+        frames = {}
+        for cpu, data in trace_stats.iteritems():
+            frames[int(cpu)] = pd.DataFrame.from_dict(data, orient='index')
+
+        # Build and keep track of the DataFrame
+        self._functions_stats_df = pd.concat(frames.values(), keys=frames.keys())
+
+        return len(self._functions_stats_df) > 0
+
+    def functions_stats_df(self, functions=None):
+        """
+        Get a DataFrame of specified kernel functions profile data
+
+        For each profiled function a DataFrame is returned which reports stats
+        on kernel functions execution time. The reported stats are per-CPU and
+        includes: number of times the function has been executed (hits),
+        average execution time (avg), overall execution time (time) and samples
+        variance (s_2).
+        By default returns a DataFrame of all the functions profiled.
+
+        :param functions: the name of the function or a list of function names
+                          to report
+        :type functions: str or list
+
+        """
+        if not hasattr(self, '_functions_stats_df'):
+            return None
+        df = self._functions_stats_df
+        if not functions:
+            return df
+        return df.loc[df.index.get_level_values(1).isin(listify(functions))]
 
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
         df =  df[[name_key, pid_key]]
