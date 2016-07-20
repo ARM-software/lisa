@@ -117,11 +117,18 @@ var EventPlot = (function () {
             var xMin = x.domain()[0];
             var xMax = x.domain()[1];
 
-
-            //Colour Ordinal scale. Uses Category20 Colors
-            colours = d3.scale.category20();
+            if (!d.colorMap) {
+                // Colour Ordinal scale. Uses Category20 Colors
+                colours = d3.scale.category20().range();
+            } else {
+                // Use colours provided by user
+                var colours = [];
+                for (var i in names)
+                    if (names[i] in d.colorMap)
+                        colours.push(d.colorMap[names[i]]);
+            }
             colourAxis = d3.scale.ordinal()
-                .range(colours.range())
+                .range(colours)
                 .domain(names);
 
             brushScale = d3.scale.linear()
