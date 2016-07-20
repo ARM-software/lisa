@@ -29,6 +29,7 @@ import json
 import os
 from trappy.plotter.AbstractDataPlotter import AbstractDataPlotter
 from trappy.plotter import IPythonConf
+from copy import deepcopy
 
 if not IPythonConf.check_ipython():
     raise ImportError("Ipython Environment not Found")
@@ -100,6 +101,7 @@ class EventPlot(AbstractDataPlotter):
             stride=False,
             lanes=None):
 
+        _data = deepcopy(data)
         self._html = []
         self._fig_name = self._generate_fig_name()
         # Function to get the average duration of each event
@@ -108,8 +110,8 @@ class EventPlot(AbstractDataPlotter):
         # Filter keys with zero average time
         keys = filter(lambda x : avg[x] != 0, avg)
         graph = {}
-        graph["data"] = data
-        graph["lanes"] = self._get_lanes(lanes, lane_prefix, num_lanes, data)
+        graph["data"] = _data
+        graph["lanes"] = self._get_lanes(lanes, lane_prefix, num_lanes, _data)
         graph["xDomain"] = domain
         graph["keys"] = sorted(keys, key=lambda x: avg[x], reverse=True)
         graph["showSummary"] = summary
