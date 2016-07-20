@@ -18,3 +18,12 @@ Main goals of LISA are:
     * **simplifies** generation and execution of well defined workloads
     * **defines** a set of metrics to evaluate kernel behaviours
     * **enables** kernel developers to easily post process data to produce statistics and plots
+
+
+### Overall View
+![LISA Overall View](https://cloud.githubusercontent.com/assets/63746/16997941/7644ea56-4eaf-11e6-81af-310c3f0e2ef6.png)
+
+### External Links
+* Linux Integrated System Analysis (LISA) & Friends
+  [Slides](http://events.linuxfoundation.org/sites/events/files/slides/ELC16_LISA_20160326.pdf) and
+  [Video](https://www.youtube.com/watch?v=yXZzzUEngiU)
