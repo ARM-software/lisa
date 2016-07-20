@@ -100,6 +100,23 @@ def log_result(data, log_fh):
 
 
 class ForkMigration(unittest.TestCase):
+    """
+    Goal
+    ====
+
+    Check that newly created threads start on a big CPU
+
+    Detailed Description
+    ====================
+
+    The test spawns as many threads as there are little cores.  It
+    then checks that all threads started on a big core.
+
+    Expected Behaviour
+    ==================
+
+    The threads start on a big core.
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -163,6 +180,24 @@ class ForkMigration(unittest.TestCase):
 
 
 class SmallTaskPacking(unittest.TestCase):
+    """
+    Goal
+    ====
+
+    Many small tasks are packed in little cpus
+
+    Detailed Description
+    ====================
+
+    The tests spawns as many tasks as there are cpus in the system.
+    The tasks are small, so none of them should be run on big cpus,
+    the scheduler should pack them on little cpus.
+
+    Expected Behaviour
+    ==================
+
+    All tasks run on little cpus.
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -242,6 +277,32 @@ class SmallTaskPacking(unittest.TestCase):
 
 
 class OffloadMigrationAndIdlePull(unittest.TestCase):
+    """
+    Goal
+    ====
+
+    Big cpus pull big tasks from little cpus when they become idle
+
+    Detailed Description
+    ====================
+
+    This test runs twice as many tasks are there are big cpus.  All
+    these tasks are big tasks.  Half of them are called
+    "early_starter" and the other half "migrator".  The migrator tasks
+    start 1 second after the early_starter tasks.  The test checks
+    that when the big cpus finish executing the early starter tasks,
+    the scheduler moves the migrator tasks to the big cpus.
+
+    Expected Behaviour
+    ==================
+
+    As there are as many early_starter tasks as there are big cpus,
+    the early_starter tasks should run in the big cpus until they
+    finish.  When the migrator tasks start, there is no spare capacity
+    in the big cpus so they run on the little cpus.  Once the big cpus
+    finish with the early_starters, they should pull the migrator
+    tasks and run them.
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -445,6 +506,26 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
 
 
 class WakeMigration(unittest.TestCase):
+    """
+    Goal
+    ====
+
+    A task that switches between being big and small moves to big and little cores accordingly
+
+    Detailed Description
+    ====================
+
+    This test creates two tasks that alternate between being big and
+    small workload.  They start being small load for 5 seconds, they
+    become big for another 5 seconds, then small for another 5 seconds
+    and finally big for the last 5 seconds.
+
+    Expected Behaviour
+    ==================
+
+    The tasks should run on the litlle cpus when they are small and in
+    the big cpus when they are big.
+    """
 
     @classmethod
     def setUpClass(cls):
