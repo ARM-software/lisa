@@ -94,6 +94,29 @@ class Trace(object):
         self.__parseTrace(data_dir, tasks, window, normalize_time, trace_format)
         self.__computeTimeSpan()
 
+        # Minimum and Maximum x_time to use for all plots
+        self.x_min = 0
+        self.x_max = self.time_range
+
+        # Reset x axis time range to full scale
+        t_min = self.window[0]
+        t_max = self.window[1]
+        self.setXTimeRange(t_min, t_max)
+
+        # Initialize supported analysis modules
+
+    def setXTimeRange(self, t_min=None, t_max=None):
+        if t_min is None:
+            self.x_min = 0
+        else:
+            self.x_min = t_min
+        if t_max is None:
+            self.x_max = self.time_range
+        else:
+            self.x_max = t_max
+        logging.info('Set plots time range to (%.6f, %.6f)[s]',
+                self.x_min, self.x_max)
+
     def __registerTraceEvents(self, events):
 
         if isinstance(events, basestring):
