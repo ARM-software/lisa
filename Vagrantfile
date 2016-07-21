@@ -33,7 +33,7 @@ Vagrant.configure(2) do |config|
         expect -c '
             set timeout -1;
             spawn ./tools/android-sdk-linux/tools/android update sdk --no-ui \
-                -t tool,platform-tool,platform;
+                -t tool,platform-tool,platform,build-tools-24.0.1;
             expect {
                 "Do you accept the license" { exp_send "y\r" ; exp_continue }
                 eof
