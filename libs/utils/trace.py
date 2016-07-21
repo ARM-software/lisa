@@ -37,7 +37,9 @@ class Trace(object):
     def __init__(self, platform, data_dir, events,
                  tasks=None, window=(0,None),
                  normalize_time=True,
-                 trace_format='FTrace'):
+                 trace_format='FTrace',
+                 plots_dir=None,
+                 plots_prefix=''):
 
         # The platform used to run the experiments
         self.platform = platform
@@ -81,6 +83,12 @@ class Trace(object):
             self.data_dir = os.path.dirname(data_dir)
         else:
             self.data_dir = data_dir
+
+        # By deafult, use the trace dir to save plots
+        self.plots_dir = plots_dir
+        if self.plots_dir is None:
+            self.plots_dir = self.data_dir
+        self.plots_prefix = plots_prefix
 
         self.__registerTraceEvents(events)
         self.__parseTrace(data_dir, tasks, window, normalize_time, trace_format)
