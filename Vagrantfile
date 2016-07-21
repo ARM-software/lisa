@@ -33,7 +33,7 @@ Vagrant.configure(2) do |config|
         expect -c '
             set timeout -1;
             spawn ./tools/android-sdk-linux/tools/android update sdk --no-ui \
-                -t tool,platform-tool,platform;
+                -t tool,platform-tool,platform,build-tools-24.0.1;
             expect {
                 "Do you accept the license" { exp_send "y\r" ; exp_continue }
                 eof
@@ -48,7 +48,7 @@ Vagrant.configure(2) do |config|
         echo unset $LC  >> /home/vagrant/.bashrc
     done
     echo "export ANDROID_HOME=/vagrant/tools/android-sdk-linux" >> /home/vagrant/.bashrc
-    echo "export PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/tools:$PATH" >> /home/vagrant/.bashrc
+    echo 'export PATH=\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/tools:\$PATH' >> /home/vagrant/.bashrc
     echo source init_env >> /home/vagrant/.bashrc
 
     echo "Virtual Machine Installation completed successfully!                "
