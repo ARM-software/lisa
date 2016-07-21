@@ -20,7 +20,7 @@ Vagrant.configure(2) do |config|
         openjdk-7-jre pkg-config python-all-dev python-matplotlib \
         python-nose python-numpy python-pip python-zmq sshpass trace-cmd \
         tree wget
-    sudo pip install ipython[notebook] pandas
+    sudo pip install ipython[notebook] pandas wrapt
     sudo apt-get remove -y w3m
 
     ln -s /vagrant /home/vagrant/lisa
