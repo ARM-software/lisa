@@ -34,16 +34,13 @@ import logging
 
 class Trace(object):
 
-    def __init__(self, platform, datadir, events,
+    def __init__(self, platform, data_dir, events,
                  tasks=None, window=(0,None),
                  normalize_time=True,
                  trace_format='FTrace'):
 
         # The platform used to run the experiments
         self.platform = platform
-
-        # Folder containing all perf data
-        self.datadir = None
 
         # TRAPpy Trace object
         self.ftrace = None
@@ -76,14 +73,17 @@ class Trace(object):
         # Cluster frequency coherency flag
         self.freq_coherency = True
 
+        # Folder containing all trace data
+        self.data_dir = None
+
         # Folder containing trace
-        if not os.path.isdir(datadir):
-             self.datadir = os.path.dirname(datadir)
+        if not os.path.isdir(data_dir):
+            self.data_dir = os.path.dirname(data_dir)
         else:
-            self.datadir = datadir
+            self.data_dir = data_dir
 
         self.__registerTraceEvents(events)
-        self.__parseTrace(datadir, tasks, window, normalize_time, trace_format)
+        self.__parseTrace(data_dir, tasks, window, normalize_time, trace_format)
         self.__computeTimeSpan()
 
     def __registerTraceEvents(self, events):
@@ -326,7 +326,7 @@ class Trace(object):
         Return the PANDAS dataframe with the performance data for the specified
         event
         """
-        if self.datadir is None:
+        if self.data_dir is None:
             raise ValueError("trace data not (yet) loaded")
         if self.ftrace and hasattr(self.ftrace, event):
             return getattr(self.ftrace, event).data_frame

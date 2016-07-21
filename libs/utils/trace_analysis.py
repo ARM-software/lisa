@@ -55,7 +55,7 @@ class TraceAnalysis(object):
 
         # Plotsdir is byb default the trace dir
         if self.plotsdir is None:
-            self.plotsdir = self.trace.datadir
+            self.plotsdir = self.trace.data_dir
 
         # Minimum and Maximum x_time to use for all plots
         self.x_min = 0
