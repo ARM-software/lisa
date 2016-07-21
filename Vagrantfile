@@ -48,7 +48,7 @@ Vagrant.configure(2) do |config|
         echo unset $LC  >> /home/vagrant/.bashrc
     done
     echo "export ANDROID_HOME=/vagrant/tools/android-sdk-linux" >> /home/vagrant/.bashrc
-    echo "export PATH=$ANDROID_HOME/platform-tools:$ANDROID_HOME/tools:$PATH" >> /home/vagrant/.bashrc
+    echo 'export PATH=\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/tools:\$PATH' >> /home/vagrant/.bashrc
     echo source init_env >> /home/vagrant/.bashrc
 
     echo "Virtual Machine Installation completed successfully!                "
