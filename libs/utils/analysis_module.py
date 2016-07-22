@@ -15,23 +15,18 @@
 # limitations under the License.
 #
 
-"""Initialization for utils module"""
+class AnalysisModule(object):
 
-from env import TestEnv
-from executor import Executor
+    def __init__(self, trace):
+        """
+        Support for CPUs Signals Analysis
+        """
+        self._trace = trace
+        self._platform = trace.platform
+        self._tasks = trace.tasks
+        self._data_dir = trace.data_dir
 
-from energy import EnergyMeter
-from conf import JsonConf
+        self._dfg_trace_event = trace._dfg_trace_event
 
-from trace import Trace
-from trace_analysis import TraceAnalysis
-from perf_analysis import PerfAnalysis
+        trace._registerDataFrameGetters(self)
 
-from filters import Filters
-
-from report import Report
-
-import android
-
-from analysis_register import AnalysisRegister
-from analysis_module import AnalysisModule

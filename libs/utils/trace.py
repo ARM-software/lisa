@@ -28,6 +28,7 @@ import trappy
 import json
 import warnings
 
+from analysis_register import AnalysisRegister
 from trappy.utils import listify
 
 # Configure logging
@@ -106,6 +107,8 @@ class Trace(object):
 
         self.data_frame = TraceData()
         self._registerDataFrameGetters(self)
+
+        self.analysis = AnalysisRegister(self)
 
     def _registerDataFrameGetters(self, module):
         logging.debug("Registering [%s] local data frames", module)
