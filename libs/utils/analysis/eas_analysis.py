@@ -24,7 +24,6 @@ from analysis_module import AnalysisModule
 # Configure logging
 import logging
 
-
 class EasAnalysis(AnalysisModule):
 
     def __init__(self, trace):
@@ -153,7 +152,6 @@ class EasAnalysis(AnalysisModule):
                 .format(self._trace.plots_dir, self._trace.plots_prefix)
         pl.savefig(figname, bbox_inches='tight')
 
-
         # Grid: setup stats for gris
         gs = gridspec.GridSpec(1, 3, height_ratios=[2]);
         gs.update(wspace=0.1, hspace=0.1);
@@ -172,7 +170,6 @@ class EasAnalysis(AnalysisModule):
         figname = '{}/{}ediff_stats.png'\
                 .format(self._trace.plots_dir, self._trace.plots_prefix)
         pl.savefig(figname, bbox_inches='tight')
-
 
     def plotEDiffSpace(self, tasks=None,
             min_usage_delta=None, max_usage_delta=None,
@@ -235,7 +232,6 @@ class EasAnalysis(AnalysisModule):
         axes_min = min(x_min, y_min)
         axes_max = max(x_max, y_max)
 
-
         # # Tag columns by usage_delta
         # ccol = df.usage_delta
         # df['usage_delta_group'] = np.select(
@@ -283,7 +279,6 @@ class EasAnalysis(AnalysisModule):
         axes.set_xlabel('Energy diff [%]');
         axes.set_ylabel('Capacity diff [%]');
 
-
         # Plot: per usage_delta values
         axes = plt.subplot(gs[0,1]);
 
@@ -328,7 +323,6 @@ class EasAnalysis(AnalysisModule):
         figname = '{}/{}ediff_space.png'\
                 .format(self._trace.plots_dir, self._trace.plots_prefix)
         pl.savefig(figname, bbox_inches='tight')
-
 
     def plotSchedTuneConf(self):
         """

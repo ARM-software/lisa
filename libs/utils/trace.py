@@ -136,7 +136,6 @@ class Trace(object):
         else:
             raise ValueError('Events must be a string or a list of strings')
 
-
     def __parseTrace(self, path, tasks, window, normalize_time, trace_format):
         logging.debug('Loading [sched] events from trace in [%s]...', path)
         logging.debug("Parsing events: %s", self.events)
@@ -179,7 +178,6 @@ class Trace(object):
 
         self.__loadTasksNames(tasks)
 
-
         # Compute plot window
         if not normalize_time:
             start = self.window[0]
@@ -198,7 +196,6 @@ class Trace(object):
         logging.debug('Events found on trace:')
         for evt in self.available_events:
             logging.debug(' - %s', evt)
-
 
     def __loadTasksNames(self, tasks):
         # Try to load tasks names using one of the supported events
@@ -355,7 +352,6 @@ class Trace(object):
         :param functions: the name of the function or a list of function names
                           to report
         :type functions: str or list
-
         """
         if not hasattr(self, '_functions_stats_df'):
             return None
@@ -423,7 +419,6 @@ class Trace(object):
             # Convert signals name from to v5.1 format
             df.rename(columns={'usage':'util'}, inplace=True)
         df['boosted_util'] = df['util'] + df['margin']
-
 
     def _sanitize_SchedBoostTask(self):
         if not self.hasEvents('sched_boost_task'):
