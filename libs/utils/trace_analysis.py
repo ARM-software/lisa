@@ -222,43 +222,6 @@ class TraceAnalysis(object):
         lcpus = set(cpus) & set(self.platform['clusters']['little'])
         self.__plotCPU(lcpus, "LITTLE")
 
-    def plotOverutilized(self, axes=None):
-        if not self.trace.hasEvents('sched_overutilized'):
-            logging.warn('Events [sched_overutilized] not found, '\
-                    'plot DISABLED!')
-            return
-
-        # Build sequence of overutilization "bands"
-        df = self.trace.df('sched_overutilized')
-
-        # Remove duplicated index events, keep only last event which is the
-        # only one with a non null length
-        df = df[df.len != 0]
-        # This filtering can also be achieved by removing events happening at
-        # the same time, but perhaps this filtering is more complex
-        # df = df.reset_index()\
-        #         .drop_duplicates(subset='Time', keep='last')\
-        #         .set_index('Time')
-
-        # Compute intervals in which the system is reported to be overutilized
-        bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
-
-        # If not axis provided: generate a standalone plot
-        if not axes:
-            gs = gridspec.GridSpec(1, 1)
-            plt.figure(figsize=(16, 1))
-            axes = plt.subplot(gs[0,0])
-            axes.set_title('System Status {white: EAS mode, red: Non EAS mode}');
-            axes.set_xlim(self.x_min, self.x_max);
-            axes.grid(True);
-
-        # Otherwise: draw overutilized bands on top of the specified plot
-        for (t1,td,overutilized) in bands:
-            if not overutilized:
-                continue
-            t2 = t1+td
-            axes.axvspan(t1, t2, facecolor='r', alpha=0.1)
-
     def _plotTaskSignals(self, axes, tid, signals, is_last=False):
         # Get dataframe for the required task
         util_df = self.trace.df('sched_load_avg_task')

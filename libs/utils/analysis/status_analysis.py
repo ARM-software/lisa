@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2015, ARM Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from analysis_module import AnalysisModule
+
+# Configure logging
+import logging
+
+class StatusAnalysis(AnalysisModule):
+
+    def __init__(self, trace):
+        """
+        Support for System Status analysis
+        """
+        super(StatusAnalysis, self).__init__(trace)
+
+
+################################################################################
+# DataFrame Getter Methods
+################################################################################
+
+    def _dfg_overutilized(self):
+        if not self._trace.hasEvents('sched_overutilized'):
+            return None
+
+        # Build sequence of overutilization "bands"
+        df = self._dfg_trace_event('sched_overutilized')
+
+        # Remove duplicated index events, keep only last event which is the
+        # only one with a non null length
+        df = df[df.len != 0]
+        # This filtering can also be achieved by removing events happening at
+        # the same time, but perhaps this filtering is more complex
+        # df = df.reset_index()\
+        #         .drop_duplicates(subset='Time', keep='last')\
+        #         .set_index('Time')
+
+        return df[['len', 'overutilized']]
+
+
+################################################################################
+# Plotting Methods
+################################################################################
+
+    def plotOverutilized(self, axes=None):
+        if not self._trace.hasEvents('sched_overutilized'):
+            logging.warn('Events [sched_overutilized] not found, '\
+                    'plot DISABLED!')
+            return
+
+        df = self._dfg_overutilized()
+
+        # Compute intervals in which the system is reported to be overutilized
+        bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
+
+        # If not axis provided: generate a standalone plot
+        if not axes:
+            gs = gridspec.GridSpec(1, 1)
+            plt.figure(figsize=(16, 1))
+            axes = plt.subplot(gs[0,0])
+            axes.set_title('System Status {white: EAS mode, red: Non EAS mode}');
+            axes.set_xlim(self._trace.x_min, self._trace.x_max);
+            axes.set_yticklabels([])
+            axes.set_xlabel('Time [s]')
+            axes.grid(True);
+
+        # Otherwise: draw overutilized bands on top of the specified plot
+        for (t1,td,overutilized) in bands:
+            if not overutilized:
+                continue
+            t2 = t1+td
+            axes.axvspan(t1, t2, facecolor='r', alpha=0.1)
+
