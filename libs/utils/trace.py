@@ -15,14 +15,9 @@
 # limitations under the License.
 #
 
-import glob
-import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
-import pylab as pl
-import re
 import sys
 import trappy
 import json
