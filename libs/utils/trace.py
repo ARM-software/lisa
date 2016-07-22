@@ -104,7 +104,18 @@ class Trace(object):
         t_max = self.window[1]
         self.setXTimeRange(t_min, t_max)
 
-        # Initialize supported analysis modules
+        self.data_frame = TraceData()
+        self._registerDataFrameGetters(self)
+
+    def _registerDataFrameGetters(self, module):
+        logging.debug("Registering [%s] local data frames", module)
+        for func in dir(module):
+            if not func.startswith('_dfg_'):
+                continue
+            dfg_name = func.replace('_dfg_', '')
+            dfg_func = getattr(module, func)
+            logging.debug("   %s", dfg_name)
+            setattr(self.data_frame, dfg_name, dfg_func)
 
     def setXTimeRange(self, t_min=None, t_max=None):
         if t_min is None:
@@ -509,4 +520,12 @@ class Trace(object):
                     self.freq_coherency = False
                     return
         logging.info("Platform clusters verified to be Frequency choerent")
+
+################################################################################
+# Utility Methods
+################################################################################
+
+# A DataFrame collector exposed to Trace's clients
+class TraceData:
+    pass
 
