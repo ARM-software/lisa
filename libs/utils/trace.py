@@ -26,6 +26,7 @@ import re
 import sys
 import trappy
 import json
+import warnings
 
 from trappy.utils import listify
 
@@ -193,14 +194,14 @@ class Trace(object):
     def __loadTasksNames(self, tasks):
         # Try to load tasks names using one of the supported events
         if 'sched_switch' in self.available_events:
-            self.getTasks(self.df('sched_switch'), tasks,
+            self.getTasks(self._dfg_trace_event('sched_switch'), tasks,
                 name_key='next_comm', pid_key='next_pid')
-            self._scanTasks(self.df('sched_switch'),
+            self._scanTasks(self._dfg_trace_event('sched_switch'),
                             name_key='next_comm', pid_key='next_pid')
             return
         if 'sched_load_avg_task' in self.available_events:
-            self.getTasks(self.df('sched_load_avg_task'), tasks)
-            self._scanTasks(self.df('sched_load_avg_task'))
+            self.getTasks(self._dfg_trace_event('sched_load_avg_task'), tasks)
+            self._scanTasks(self._dfg_trace_event('sched_load_avg_task'))
             return
         logging.warning('Failed to load tasks names from trace events')
 
@@ -215,7 +216,7 @@ class Trace(object):
         te = 0
 
         for events in self.available_events:
-            df = self.df(events)
+            df = self._dfg_trace_event(events)
             if len(df) == 0:
                 continue
             if (df.index[0]) < ts:
@@ -229,7 +230,7 @@ class Trace(object):
 
         # Build a stat on trace overutilization
         if self.hasEvents('sched_overutilized'):
-            df = self.df('sched_overutilized')
+            df = self._dfg_trace_event('sched_overutilized')
             self.overutilized_time = df[df.overutilized == 1].len.sum()
             self.overutilized_prc = 100. * self.overutilized_time / self.time_range
 
@@ -352,7 +353,20 @@ class Trace(object):
                     tname, self.tasks[tname]['pid'])
         return self.tasks
 
+
+################################################################################
+# DataFrame Getter Methods
+################################################################################
+
     def df(self, event):
+        warnings.simplefilter('always', DeprecationWarning) #turn off filter
+        warnings.warn("\n\tUse of Trace::df() is deprecated and will be soon removed."
+                      "\n\tUse Trace::data_frame.trace_event(event_name) instead.",
+                      category=DeprecationWarning)
+        warnings.simplefilter('default', DeprecationWarning) #reset filter
+        return self._dfg_trace_event(event)
+
+    def _dfg_trace_event(self, event):
         """
         Return the PANDAS dataframe with the performance data for the specified
         event
@@ -365,13 +379,17 @@ class Trace(object):
                          'Supported events are: {}'\
                          .format(event, self.available_events))
 
+################################################################################
+# Trace Events Sanitize Methods
+################################################################################
+
     def _sanitize_SchedCpuCapacity(self):
         # Add more columns if the energy model is available
         if not self.hasEvents('cpu_capacity') \
            or 'nrg_model' not in self.platform:
             return
 
-        df = self.df('cpu_capacity')
+        df = self._dfg_trace_event('cpu_capacity')
 
         # Add column with LITTLE and big CPUs max capacities
         nrg_model = self.platform['nrg_model']
@@ -390,7 +408,7 @@ class Trace(object):
     def _sanitize_SchedLoadAvgCpu(self):
         if not self.hasEvents('sched_load_avg_cpu'):
             return
-        df = self.df('sched_load_avg_cpu')
+        df = self._dfg_trace_event('sched_load_avg_cpu')
         if 'utilization' in df:
             # Convert signals name from v5.0 to v5.1 format
             df.rename(columns={'utilization':'util_avg'}, inplace=True)
@@ -399,7 +417,7 @@ class Trace(object):
     def _sanitize_SchedLoadAvgTask(self):
         if not self.hasEvents('sched_load_avg_task'):
             return
-        df = self.df('sched_load_avg_task')
+        df = self._dfg_trace_event('sched_load_avg_task')
         if 'utilization' in df:
             # Convert signals name from v5.0 to v5.1 format
             df.rename(columns={'utilization':'util_avg'}, inplace=True)
@@ -414,7 +432,7 @@ class Trace(object):
     def _sanitize_SchedBoostCpu(self):
         if not self.hasEvents('sched_boost_cpu'):
             return
-        df = self.df('sched_boost_cpu')
+        df = self._dfg_trace_event('sched_boost_cpu')
         if 'usage' in df:
             # Convert signals name from to v5.1 format
             df.rename(columns={'usage':'util'}, inplace=True)
@@ -424,7 +442,7 @@ class Trace(object):
     def _sanitize_SchedBoostTask(self):
         if not self.hasEvents('sched_boost_task'):
             return
-        df = self.df('sched_boost_task')
+        df = self._dfg_trace_event('sched_boost_task')
         if 'utilization' in df:
             # Convert signals name from to v5.1 format
             df.rename(columns={'utilization':'util'}, inplace=True)
@@ -447,7 +465,7 @@ class Trace(object):
                     em_lcluster['nrg_max'] + em_bcluster['nrg_max']
         print "Maximum estimated system energy: {0:d}".format(power_max)
 
-        df = self.df('sched_energy_diff')
+        df = self._dfg_trace_event('sched_energy_diff')
         df['nrg_diff_pct'] = SCHED_LOAD_SCALE * df.nrg_diff / power_max
 
         # Tag columns by usage_delta
@@ -466,7 +484,7 @@ class Trace(object):
         if not self.hasEvents('sched_overutilized'):
             return
         # Add a column with overutilized status duration
-        df = self.df('sched_overutilized')
+        df = self._dfg_trace_event('sched_overutilized')
         df['start'] = df.index
         df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
         df.drop('start', axis=1, inplace=True)
@@ -478,7 +496,7 @@ class Trace(object):
         if not self.hasEvents('cpu_frequency'):
             return
         # Verify that all platform reported clusters are frequency choerent
-        df = self.df('cpu_frequency')
+        df = self._dfg_trace_event('cpu_frequency')
         clusters = self.platform['clusters']
         for c, cpus in clusters.iteritems():
             cluster_df = df[df.cpu.isin(cpus)]
