@@ -19,11 +19,9 @@
 
 import sys
 # sys.path.insert(1, "./libs")
-#from utils.perf_analysis import PerfAnalysis
-#from utils.trace_analysis import TraceAnalysis
+
 from perf_analysis import PerfAnalysis
 from trace import Trace
-from trace_analysis import TraceAnalysis
 
 import os
 import re
@@ -145,31 +143,30 @@ def plotdir(run_dir, platform):
 
     # Load Trace Analysis modules
     trace = Trace(platform, run_dir, tasks)
-    ta = TraceAnalysis(trace, tasks)
 
     # Define time ranges for all the temporal plots
-    ta.setXTimeRange(args.tmin, args.tmax)
+    trace.setXTimeRange(args.tmin, args.tmax)
 
     # Tasks plots
     if 'tasks' in args.plots:
-        ta.plotTasks()
+        trace.analysis.tasks.plotTasks()
         if pa:
             for task in tasks:
                 pa.plotPerf(task)
 
     # Cluster and CPUs plots
     if 'clusters' in args.plots:
-        ta.plotClusterFrequencies()
+        trace.analysis.frequency.plotClusterFrequencies()
     if 'cpus' in args.plots:
-        ta.plotCPU()
+        trace.analysis.cpus.plotCPU()
 
     # SchedTune plots
     if 'stune' in args.plots:
-        ta.plotSchedTuneConf()
+        trace.analysis.eas.plotSchedTuneConf()
     if 'ediff' in args.plots:
-        ta.plotEDiffTime();
+        trace.analysis.eas.plotEDiffTime();
     if 'edspace' in args.plots:
-        ta.plotEDiffSpace();
+        trace.analysis.eas.plotEDiffSpace();
 
 if __name__ == "__main__":
     main()
