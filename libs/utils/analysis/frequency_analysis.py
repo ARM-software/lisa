@@ -35,11 +35,14 @@ ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
 ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
 
 class FrequencyAnalysis(AnalysisModule):
+    """
+    Support for plotting Frequency Analysis data
+
+    :param trace: input Trace object
+    :type trace: :mod:`libs.utils.Trace`
+    """
 
     def __init__(self, trace):
-        """
-        Support for plotting Frequency Analysis data
-        """
         super(FrequencyAnalysis, self).__init__(trace)
 
 ################################################################################
@@ -98,9 +101,16 @@ class FrequencyAnalysis(AnalysisModule):
 ################################################################################
 
     def plotClusterFrequencies(self, title='Clusters Frequencies'):
+        """
+        Plot frequency trend for all clusters. If sched_overutilized events are
+        available, the plots will also show the intervals of time where the
+        cluster was overutilized.
+
+        :param title: user-defined plot title
+        :type title: str
+        """
         if not self._trace.hasEvents('cpu_frequency'):
-            logging.warn('Events [cpu_frequency] not found, '\
-                    'plot DISABLED!')
+            logging.warn('Events [cpu_frequency] not found, plot DISABLED!')
             return
         df = self._dfg_trace_event('cpu_frequency')
 
@@ -485,8 +495,8 @@ class FrequencyAnalysis(AnalysisModule):
         :param is_first: if True this is the first plot
         :type is_first: bool
 
-        :param is_first: if True this is the last plot
-        :type is_first: bool
+        :param is_last: if True this is the last plot
+        :type is_last: bool
 
         :param xmax: x-axes higher bound
         :param xmax: double

@@ -27,11 +27,14 @@ from analysis_module import AnalysisModule
 import logging
 
 class CpusAnalysis(AnalysisModule):
+    """
+    Support for CPUs Signals Analysis
+
+    :param trace: input Trace object
+    :type trace: :mod:`libs.utils.Trace`
+    """
 
     def __init__(self, trace):
-        """
-        Support for CPUs Signals Analysis
-        """
         super(CpusAnalysis, self).__init__(trace)
 
 ################################################################################
@@ -39,6 +42,9 @@ class CpusAnalysis(AnalysisModule):
 ################################################################################
 
     def plotCPU(self, cpus=None):
+        """
+        Plot CPU-related signals for both big and LITTLE clusters.
+        """
         if not self._trace.hasEvents('sched_load_avg_cpu'):
             logging.warn('Events [sched_load_avg_cpu] not found, '\
                     'plot DISABLED!')
@@ -63,6 +69,12 @@ class CpusAnalysis(AnalysisModule):
 ################################################################################
 
     def _plotCPU(self, cpus, label=''):
+        """
+        Internal method that generates plots for all input CPUs.
+
+        :param cpus: list of CPUs to be plotted
+        :type cpus: list(int)
+        """
         if label != '':
             label1 = '{} '.format(label)
             label2 = '_{}s'.format(label.lower())

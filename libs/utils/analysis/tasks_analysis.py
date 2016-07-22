@@ -26,11 +26,14 @@ from analysis_module import AnalysisModule
 import logging
 
 class TasksAnalysis(AnalysisModule):
+    """
+    Support for Tasks signals analysis.
+
+    :param trace: input Trace object
+    :type trace: :mod:`libs.utils.Trace`
+    """
 
     def __init__(self, trace):
-        """
-        Support for Tasks signals analysis
-        """
         super(TasksAnalysis, self).__init__(trace)
 
 
@@ -66,12 +69,12 @@ class TasksAnalysis(AnalysisModule):
                       in the same list.
                       default: all tasks defined in Trace
                       creation time are plotted
-        :type tasks: list
+        :type tasks: list(str) or list(int)
 
         :param signals: list of signals (and thus plots) to generate
                         default: all the plots and signals available in the
                         current trace
-        :type signals: list
+        :type signals: list(str)
         """
         if not signals:
             signals = ['load_avg', 'util_avg', 'boosted_util',
@@ -186,6 +189,21 @@ class TasksAnalysis(AnalysisModule):
 ################################################################################
 
     def _plotTaskSignals(self, axes, tid, signals, is_last=False):
+        """
+        For task with ID `tid` plot the specified signals.
+
+        :param axes: axes over which to generate the plot
+        :type axes: :mod:`matplotlib.axes.Axes`
+
+        :param tid: task ID
+        :type tid: int
+
+        :param signals: signals to be plot
+        :param signals: list(str)
+
+        :param is_last: if True this is the last plot
+        :type is_last: bool
+        """
         # Get dataframe for the required task
         util_df = self._dfg_trace_event('sched_load_avg_task')
 
@@ -231,6 +249,21 @@ class TasksAnalysis(AnalysisModule):
             self._trace.analysis.status.plotOverutilized(axes)
 
     def _plotTaskResidencies(self, axes, tid, signals, is_last=False):
+        """
+        For task with ID `tid` plot residency information.
+
+        :param axes: axes over which to generate the plot
+        :type axes: :mod:`matplotlib.axes.Axes`
+
+        :param tid: task ID
+        :type tid: int
+
+        :param signals: signals to be plot
+        :param signals: list(str)
+
+        :param is_last: if True this is the last plot
+        :type is_last: bool
+        """
         util_df = self._dfg_trace_event('sched_load_avg_task')
         data = util_df[util_df.pid == tid][['cluster', 'cpu']]
         for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
@@ -254,6 +287,18 @@ class TasksAnalysis(AnalysisModule):
             self._trace.analysis.status.plotOverutilized(axes)
 
     def _plotTaskPelt(self, axes, tid, signals):
+        """
+        For task with ID `tid` plot PELT-related signals.
+
+        :param axes: axes over which to generate the plot
+        :type axes: :mod:`matplotlib.axes.Axes`
+
+        :param tid: task ID
+        :type tid: int
+
+        :param signals: signals to be plot
+        :param signals: list(str)
+        """
         util_df = self._dfg_trace_event('sched_load_avg_task')
         data = util_df[util_df.pid == tid][['load_sum', 'util_sum', 'period_contrib']]
         data.plot(ax=axes, drawstyle='steps-post');

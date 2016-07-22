@@ -25,11 +25,14 @@ from analysis_module import AnalysisModule
 import logging
 
 class EasAnalysis(AnalysisModule):
+    """
+    Support for EAS signals anaysis
+
+    :param trace: input Trace object
+    :type trace: :mod:`libs.utils.Trace`
+    """
 
     def __init__(self, trace):
-        """
-        Support for EAS signals anaysis
-        """
         super(EasAnalysis, self).__init__(trace)
 
 ################################################################################
@@ -46,6 +49,9 @@ class EasAnalysis(AnalysisModule):
             min_cap_delta=None, max_cap_delta=None,
             min_nrg_delta=None, max_nrg_delta=None,
             min_nrg_diff=None, max_nrg_diff=None):
+        """
+        Plot energy_diff()-related signals on time axes.
+        """
         if not self._trace.hasEvents('sched_energy_diff'):
             logging.warn('Events [sched_energy_diff] not found, plot DISABLED!')
             return
@@ -176,6 +182,10 @@ class EasAnalysis(AnalysisModule):
             min_cap_delta=None, max_cap_delta=None,
             min_nrg_delta=None, max_nrg_delta=None,
             min_nrg_diff=None, max_nrg_diff=None):
+        """
+        Plot energy_diff()-related signals on the Performance-Energy space
+        (PxE).
+        """
         if not self._trace.hasEvents('sched_energy_diff'):
             logging.warn('Events [sched_energy_diff] not found, plot DISABLED!')
             return
@@ -326,7 +336,7 @@ class EasAnalysis(AnalysisModule):
 
     def plotSchedTuneConf(self):
         """
-        Plot the configuration of the SchedTune
+        Plot the configuration of SchedTune.
         """
         if not self._trace.hasEvents('sched_tune_config'):
             logging.warn('Events [sched_tune_config] not found, plot DISABLED!')

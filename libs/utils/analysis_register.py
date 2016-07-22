@@ -27,8 +27,13 @@ from analysis_module import AnalysisModule
 # Configure logging
 import logging
 
-# Define list of supported Analysis Classes
 class AnalysisRegister(object):
+    """
+    Define list of supported Analysis Classes.
+
+    :param trace: input Trace object
+    :type trace: :mod:`libs.utils.Trace`
+    """
 
     def __init__(self, trace):
 

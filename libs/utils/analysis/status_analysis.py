@@ -25,11 +25,14 @@ from analysis_module import AnalysisModule
 import logging
 
 class StatusAnalysis(AnalysisModule):
+    """
+    Support for System Status analysis
+
+    :param trace: input Trace object
+    :type trace: :mod:`libs.utils.Trace`
+    """
 
     def __init__(self, trace):
-        """
-        Support for System Status analysis
-        """
         super(StatusAnalysis, self).__init__(trace)
 
 
@@ -38,6 +41,9 @@ class StatusAnalysis(AnalysisModule):
 ################################################################################
 
     def _dfg_overutilized(self):
+        """
+        Get data frame with sched_overutilized data.
+        """
         if not self._trace.hasEvents('sched_overutilized'):
             return None
 
@@ -61,6 +67,16 @@ class StatusAnalysis(AnalysisModule):
 ################################################################################
 
     def plotOverutilized(self, axes=None):
+        """
+        Draw a plot that shows intervals of time where the system was reported
+        as overutilized.
+
+        The optional axes parameter allows to plot the signal on an existing
+        graph.
+
+        :param axes: axes on which to plot the signal
+        :type axes: :mod:`matplotlib.axes.Axes`
+        """
         if not self._trace.hasEvents('sched_overutilized'):
             logging.warn('Events [sched_overutilized] not found, '\
                     'plot DISABLED!')

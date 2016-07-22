@@ -23,11 +23,14 @@ from analysis_module import AnalysisModule
 import logging
 
 class FunctionsAnalysis(AnalysisModule):
+    """
+    Support for kernel functions profiling and analysis
+
+    :param trace: input Trace object
+    :type trace: :mod:`libs.utils.Trace`
+    """
 
     def __init__(self, trace):
-        """
-        Support for kernel functions profiling and analysis
-        """
         super(FunctionsAnalysis, self).__init__(trace)
 
     def plotProfilingStats(self, functions=None, metrics='avg'):
@@ -39,12 +42,12 @@ class FunctionsAnalysis(AnalysisModule):
         By default all the kernel functions are plotted.
 
         :param functions: the name of list of name of kernel functions to plot
-        :type functions: str or list
+        :type functions: str or list(str)
 
         :param metrics: the metrics to plot
                         avg   - average execution time
                         time  - total execution time
-        :type metrics: srt or list
+        :type metrics: srt or list(str)
         """
         if not hasattr(self._trace, '_functions_stats_df'):
             logging.warning('Functions stats data not available')

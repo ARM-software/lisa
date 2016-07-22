@@ -30,6 +30,39 @@ from trappy.utils import listify
 import logging
 
 class Trace(object):
+    """
+    The Trace object is the LISA trace events parser.
+
+    :param platform: a dictionary containing information about the target
+        platform
+    :type platform: dict
+
+    :param data_dir: folder containing all trace data
+    :type data_dir: str
+
+    :param events: events to be parsed (everything in the trace by default)
+    :type events: list(str)
+
+    :param tasks: filter data for the specified tasks only
+    :type tasks: list(str)
+
+    :param window: time window to consider when parsing the trace
+    :type window: tuple(int, int)
+
+    :param normalize_time: normalize trace time stamps
+    :type normalize_time: bool
+
+    :param trace_format: format of the trace. Possible values are:
+        - FTrace
+        - SysTrace
+    :type trace_format: str
+
+    :param plots_dir: directory where to save plots
+    :type plots_dir: str
+
+    :param plots_prefix: prefix for plots file names
+    :type plots_prefix: str
+    """
 
     def __init__(self, platform, data_dir, events,
                  tasks=None, window=(0,None),
@@ -106,6 +139,13 @@ class Trace(object):
         self.analysis = AnalysisRegister(self)
 
     def _registerDataFrameGetters(self, module):
+        """
+        Internal utility function that looks up getter functions with a "_dfg_"
+        prefix in their name and bounds them to the specified module.
+
+        :param module: module to which the function is added
+        :type module: class
+        """
         logging.debug("Registering [%s] local data frames", module)
         for func in dir(module):
             if not func.startswith('_dfg_'):
@@ -116,6 +156,15 @@ class Trace(object):
             setattr(self.data_frame, dfg_name, dfg_func)
 
     def setXTimeRange(self, t_min=None, t_max=None):
+        """
+        Set x axis time range to the specified values.
+
+        :param t_min: lower bound
+        :type t_min: int or float
+
+        :param t_max: upper bound
+        :type t_max: int or float
+        """
         if t_min is None:
             self.x_min = 0
         else:
@@ -128,7 +177,12 @@ class Trace(object):
                 self.x_min, self.x_max)
 
     def __registerTraceEvents(self, events):
+        """
+        Save a copy of the parsed events.
 
+        :param events: single event name or list of events names
+        :type events: str or list(str)
+        """
         if isinstance(events, basestring):
             self.events = events.split(' ')
         elif isinstance(events, list):
@@ -137,6 +191,27 @@ class Trace(object):
             raise ValueError('Events must be a string or a list of strings')
 
     def __parseTrace(self, path, tasks, window, normalize_time, trace_format):
+        """
+        Internal method in charge of performing the actual parsing of the
+        trace.
+
+        :param path: path to the trace folder (or trace file)
+        :type path: str
+
+        :param tasks: filter data for the specified tasks only
+        :type tasks: list(str)
+
+        :param window: time window to consider when parsing the trace
+        :type window: tuple(int, int)
+
+        :param normalize_time: normalize trace time stamps
+        :type normalize_time: bool
+
+        :param trace_format: format of the trace. Possible values are:
+            - FTrace
+            - SysTrace
+        :type trace_format: str
+        """
         logging.debug('Loading [sched] events from trace in [%s]...', path)
         logging.debug("Parsing events: %s", self.events)
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
@@ -189,6 +264,12 @@ class Trace(object):
                            self.ftrace.basetime + duration)
 
     def __checkAvailableEvents(self, key=""):
+        """
+        Internal method used to build a list of available events.
+
+        :param key: key to be used for TRAPpy filtering
+        :type key: str
+        """
         for val in self.ftrace.get_filters(key):
             obj = getattr(self.ftrace, val)
             if len(obj.data_frame):
@@ -198,7 +279,12 @@ class Trace(object):
             logging.debug(' - %s', evt)
 
     def __loadTasksNames(self, tasks):
-        # Try to load tasks names using one of the supported events
+        """
+        Try to load tasks names using one of the supported events.
+
+        :param tasks: list of task names
+        :type tasks: list(str)
+        """
         if 'sched_switch' in self.available_events:
             self.getTasks(self._dfg_trace_event('sched_switch'), tasks,
                 name_key='next_comm', pid_key='next_pid')
@@ -212,12 +298,21 @@ class Trace(object):
         logging.warning('Failed to load tasks names from trace events')
 
     def hasEvents(self, dataset):
+        """
+        Returns True if the specified event is present in the parsed trace,
+        False otherwise.
+
+        :param dataset: trace event name or list of trace events
+        :type dataset: str or list(str)
+        """
         if dataset in self.available_events:
             return True
         return False
 
     def __computeTimeSpan(self):
-        # Compute time axis range, considering all the parsed events
+        """
+        Compute time axis range, considering all the parsed events.
+        """
         ts = sys.maxint
         te = 0
 
@@ -244,11 +339,31 @@ class Trace(object):
                     self.overutilized_time, self.overutilized_prc)
 
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
+        """
+        Extract tasks names and PIDs from the input data frame. The data frame
+        should contain a task name column and PID column.
+
+        :param df: data frame containing trace events from which tasks names
+            and PIDs will be extracted
+        :type df: :mod:`pandas.DataFrame`
+
+        :param name_key: The name of the dataframe columns containing task names
+        :type name_key: str
+
+        :param pid_key: The name of the dataframe columns containing task PIDs
+        :type pid_key: str
+        """
         df =  df[[name_key, pid_key]]
         self._tasks_by_name = df.set_index(name_key)
         self._tasks_by_pid  = df.set_index(pid_key)
 
     def getTaskByName(self, name):
+        """
+        Get the PIDs of all tasks with the specified name.
+
+        :param name: task name
+        :type name: str
+        """
         if name not in self._tasks_by_name.index:
             return []
         if len(self._tasks_by_name.ix[name].values) > 1:
@@ -257,6 +372,12 @@ class Trace(object):
         return [self._tasks_by_name.ix[name].values[0]]
 
     def getTaskByPid(self, pid):
+        """
+        Get the names of all tasks with the specified PID.
+
+        :param name: task PID
+        :type name: int
+        """
         if pid not in self._tasks_by_pid.index:
             return []
         if len(self._tasks_by_pid.ix[pid].values) > 1:
@@ -266,28 +387,33 @@ class Trace(object):
 
     def getTasks(self, dataframe=None,
             task_names=None, name_key='comm', pid_key='pid'):
-        # """ Helper function to get PIDs of specified tasks
-        #
-        #     This method requires a Pandas dataset in input to be used to
-        #     fiter out the PIDs of all the specified tasks.
-        #     In a dataset is not provided, previouslt filtered PIDs are
-        #     returned.
-        #     If a list of task names is not provided, the workload defined
-        #     task names is used instead.
-        #     The specified dataframe must provide at least two columns
-        #     reporting the task name and the task PID. The default values of
-        #     this colums could be specified using the provided parameters.
-        #
-        #     :param task_names: The list of tasks to get the PID of (by default
-        #                        the workload defined tasks)
-        #     :param dataframe: A Pandas datafram containing at least 'pid' and
-        #                       'task name' columns. If None, the previously
-        #                       filtered PIDs are returned
-        #     :param name_key: The name of the dataframe columns containing
-        #                      task names
-        #     :param pid_key:  The name of the dataframe columns containing
-        #                      task PIDs
-        # """
+        """
+        Helper function to get PIDs of specified tasks.
+
+        This method requires a Pandas dataset in input to be used to fiter out
+        the PIDs of all the specified tasks. If a dataset is not provided,
+        previously filtered PIDs are returned.
+
+        If a list of task names is not provided, the workload defined task
+        names is used instead. The specified dataframe must provide at least
+        two columns reporting the task name and the task PID. The default
+        values of this colums could be specified using the provided parameters.
+
+        :param dataframe: A Pandas datafram containing at least 'pid' and
+            'task name' columns. If None, the previously filtered PIDs are
+            returned.
+        :type dataframe: :mod:`pandas.DataFrame`
+
+        :param task_names: The list of tasks to get the PID of (by default the
+            workload defined tasks)
+        :type task_names: list(str)
+
+        :param name_key: The name of the dataframe columns containing task names
+        :type name_key: str
+
+        :param pid_key: The name of the dataframe columns containing task PIDs
+        :type pid_key: str
+        """
         if dataframe is None:
             return self.tasks
         df = dataframe
@@ -318,6 +444,13 @@ class Trace(object):
 ################################################################################
 
     def df(self, event):
+        """
+        Get a dataframe containing all occurrences of the specified trace event
+        in the parsed trace.
+
+        :param event: Trace event name
+        :type event: str
+        """
         warnings.simplefilter('always', DeprecationWarning) #turn off filter
         warnings.warn("\n\tUse of Trace::df() is deprecated and will be soon removed."
                       "\n\tUse Trace::data_frame.trace_event(event_name) instead.",
@@ -327,8 +460,11 @@ class Trace(object):
 
     def _dfg_trace_event(self, event):
         """
-        Return the PANDAS dataframe with the performance data for the specified
-        event
+        Get a dataframe containing all occurrences of the specified trace event
+        in the parsed trace.
+
+        :param event: Trace event name
+        :type event: str
         """
         if self.data_dir is None:
             raise ValueError("trace data not (yet) loaded")
@@ -351,7 +487,7 @@ class Trace(object):
 
         :param functions: the name of the function or a list of function names
                           to report
-        :type functions: str or list
+        :type functions: str or list(str)
         """
         if not hasattr(self, '_functions_stats_df'):
             return None
@@ -366,7 +502,10 @@ class Trace(object):
 ################################################################################
 
     def _sanitize_SchedCpuCapacity(self):
-        # Add more columns if the energy model is available
+        """
+        Add more columns to cpu_capacity data frame if the energy model is
+        available.
+        """
         if not self.hasEvents('cpu_capacity') \
            or 'nrg_model' not in self.platform:
             return
@@ -388,20 +527,24 @@ class Trace(object):
                 [tip_lcap], tip_bcap)
 
     def _sanitize_SchedLoadAvgCpu(self):
+        """
+        If necessary, rename certain signal names from v5.0 to v5.1 format.
+        """
         if not self.hasEvents('sched_load_avg_cpu'):
             return
         df = self._dfg_trace_event('sched_load_avg_cpu')
         if 'utilization' in df:
-            # Convert signals name from v5.0 to v5.1 format
             df.rename(columns={'utilization':'util_avg'}, inplace=True)
             df.rename(columns={'load':'load_avg'}, inplace=True)
 
     def _sanitize_SchedLoadAvgTask(self):
+        """
+        If necessary, rename certain signal names from v5.0 to v5.1 format.
+        """
         if not self.hasEvents('sched_load_avg_task'):
             return
         df = self._dfg_trace_event('sched_load_avg_task')
         if 'utilization' in df:
-            # Convert signals name from v5.0 to v5.1 format
             df.rename(columns={'utilization':'util_avg'}, inplace=True)
             df.rename(columns={'load':'load_avg'}, inplace=True)
             df.rename(columns={'avg_period':'period_contrib'}, inplace=True)
@@ -412,15 +555,26 @@ class Trace(object):
                 ['LITTLE'], 'big')
 
     def _sanitize_SchedBoostCpu(self):
+        """
+        Add a boosted utilization signal as the sum of utilization and margin.
+
+        Also, if necessary, rename certain signal names from v5.0 to v5.1
+        format.
+        """
         if not self.hasEvents('sched_boost_cpu'):
             return
         df = self._dfg_trace_event('sched_boost_cpu')
         if 'usage' in df:
-            # Convert signals name from to v5.1 format
             df.rename(columns={'usage':'util'}, inplace=True)
         df['boosted_util'] = df['util'] + df['margin']
 
     def _sanitize_SchedBoostTask(self):
+        """
+        Add a boosted utilization signal as the sum of utilization and margin.
+
+        Also, if necessary, rename certain signal names from v5.0 to v5.1
+        format.
+        """
         if not self.hasEvents('sched_boost_task'):
             return
         df = self._dfg_trace_event('sched_boost_task')
@@ -430,6 +584,10 @@ class Trace(object):
         df['boosted_util'] = df['util'] + df['margin']
 
     def _sanitize_SchedEnergyDiff(self):
+        """
+        If a energy model is provided, some signals are added to the
+        sched_energy_diff trace event data frame.
+        """
         if not self.hasEvents('sched_energy_diff') \
            or 'nrg_model' not in self.platform:
             return
@@ -462,21 +620,34 @@ class Trace(object):
             ['Optimal Accept', 'SchedTune Accept', 'SchedTune Reject'], 'Suboptimal Reject')
 
     def _sanitize_SchedOverutilized(self):
+        """ Add a column with overutilized status duration. """
         if not self.hasEvents('sched_overutilized'):
             return
-        # Add a column with overutilized status duration
         df = self._dfg_trace_event('sched_overutilized')
         df['start'] = df.index
         df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
         df.drop('start', axis=1, inplace=True)
 
     def _chunker(self, seq, size):
+        """
+        Given a data frame or a series, generate a sequence of chunks of the
+        given size.
+
+        :param seq: data to be split into chunks
+        :type seq: :mod:`pandas.Series` or :mod:`pandas.DataFrame`
+
+        :param size: size of each chunk
+        :type size: int
+        """
         return (seq.iloc[pos:pos + size] for pos in range(0, len(seq), size))
 
     def _sanitize_CpuFrequency(self):
+        """
+        Verify that all platform reported clusters are frequency coherent (i.e.
+        frequency scaling is performed at a cluster level).
+        """
         if not self.hasEvents('cpu_frequency'):
             return
-        # Verify that all platform reported clusters are frequency choerent
         df = self._dfg_trace_event('cpu_frequency')
         clusters = self.platform['clusters']
         for c, cpus in clusters.iteritems():
@@ -489,7 +660,7 @@ class Trace(object):
                     logging.warn(chunk)
                     self.freq_coherency = False
                     return
-        logging.info("Platform clusters verified to be Frequency choerent")
+        logging.info("Platform clusters verified to be Frequency coherent")
 
 ################################################################################
 # Utility Methods
@@ -512,6 +683,13 @@ class Trace(object):
             return sum(comp_sig.iloc[1::2].index - comp_sig.iloc[:-1:2].index)
 
     def _loadFunctionsStats(self, path='trace.stats'):
+        """
+        Read functions profiling file and build a data frame containing all
+        relevant data.
+
+        :param path: path to the functions profiling trace file
+        :type path: str
+        """
         if os.path.isdir(path):
             path = os.path.join(path, 'trace.stats')
         if path.endswith('dat') or path.endswith('html'):

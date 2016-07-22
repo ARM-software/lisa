@@ -16,11 +16,14 @@
 #
 
 class AnalysisModule(object):
+    """
+    Base class for Analysis modules.
+
+    :param trace: input Trace object
+    :type trace: :mod:`libs.utils.Trace`
+    """
 
     def __init__(self, trace):
-        """
-        Support for CPUs Signals Analysis
-        """
         self._trace = trace
         self._platform = trace.platform
         self._tasks = trace.tasks
