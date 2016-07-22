@@ -24,7 +24,6 @@ from energy import EnergyMeter
 from conf import JsonConf
 
 from trace import Trace
-from trace_analysis import TraceAnalysis
 from perf_analysis import PerfAnalysis
 
 from filters import Filters
