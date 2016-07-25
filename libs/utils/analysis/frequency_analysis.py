@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+""" Frequency Analysis Module """
+
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -34,6 +36,7 @@ NON_IDLE_STATE = 4294967295
 ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
 ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
 
+
 class FrequencyAnalysis(AnalysisModule):
     """
     Support for plotting Frequency Analysis data
@@ -45,9 +48,9 @@ class FrequencyAnalysis(AnalysisModule):
     def __init__(self, trace):
         super(FrequencyAnalysis, self).__init__(trace)
 
-################################################################################
+###############################################################################
 # DataFrame Getter Methods
-################################################################################
+###############################################################################
 
     def _dfg_cpu_frequency_residency(self, cpu, total=True):
         """
@@ -96,9 +99,9 @@ class FrequencyAnalysis(AnalysisModule):
         return residency.active
 
 
-################################################################################
+###############################################################################
 # Plotting Methods
-################################################################################
+###############################################################################
 
     def plotClusterFrequencies(self, title='Clusters Frequencies'):
         """
@@ -132,76 +135,75 @@ class FrequencyAnalysis(AnalysisModule):
         # Compute AVG frequency for LITTLE cluster
         avg_lfreq = 0
         if len(lfreq) > 0:
-            lfreq['timestamp'] = lfreq.index;
-            lfreq['delta'] = (lfreq['timestamp'] - lfreq['timestamp'].shift()).fillna(0).shift(-1);
-            lfreq['cfreq'] = (lfreq['frequency'] * lfreq['delta']).fillna(0);
-            timespan = lfreq.iloc[-1].timestamp - lfreq.iloc[0].timestamp;
-            avg_lfreq = lfreq['cfreq'].sum()/timespan;
+            lfreq['timestamp'] = lfreq.index
+            lfreq['delta'] = (lfreq['timestamp'] -lfreq['timestamp'].shift()).fillna(0).shift(-1)
+            lfreq['cfreq'] = (lfreq['frequency'] * lfreq['delta']).fillna(0)
+            timespan = lfreq.iloc[-1].timestamp - lfreq.iloc[0].timestamp
+            avg_lfreq = lfreq['cfreq'].sum()/timespan
 
         # Compute AVG frequency for big cluster
         avg_bfreq = 0
         if len(bfreq) > 0:
-            bfreq['timestamp'] = bfreq.index;
-            bfreq['delta'] = (bfreq['timestamp'] - bfreq['timestamp'].shift()).fillna(0).shift(-1);
-            bfreq['cfreq'] = (bfreq['frequency'] * bfreq['delta']).fillna(0);
-            timespan = bfreq.iloc[-1].timestamp - bfreq.iloc[0].timestamp;
-            avg_bfreq = bfreq['cfreq'].sum()/timespan;
+            bfreq['timestamp'] = bfreq.index
+            bfreq['delta'] = (bfreq['timestamp'] - bfreq['timestamp'].shift()).fillna(0).shift(-1)
+            bfreq['cfreq'] = (bfreq['frequency'] * bfreq['delta']).fillna(0)
+            timespan = bfreq.iloc[-1].timestamp - bfreq.iloc[0].timestamp
+            avg_bfreq = bfreq['cfreq'].sum()/timespan
 
         pd.options.mode.chained_assignment = 'warn'
 
         # Setup a dual cluster plot
-        fig, pltaxes = plt.subplots(2, 1, figsize=(16, 8));
-        plt.suptitle(title, y=.97, fontsize=16,
-                horizontalalignment='center');
+        fig, pltaxes = plt.subplots(2, 1, figsize=(16, 8))
+        plt.suptitle(title, y=.97, fontsize=16, horizontalalignment='center')
 
         # Plot Cluster frequencies
         axes = pltaxes[0]
-        axes.set_title('big Cluster');
+        axes.set_title('big Cluster')
         if avg_bfreq > 0:
-            axes.axhline(avg_bfreq, color='r', linestyle='--', linewidth=2);
+            axes.axhline(avg_bfreq, color='r', linestyle='--', linewidth=2)
         axes.set_ylim(
                 (self._platform['freqs']['big'][0] - 100000)/1e3,
                 (self._platform['freqs']['big'][-1] + 100000)/1e3
-        );
+        )
         if len(bfreq) > 0:
             bfreq['frequency'].plot(style=['r-'], ax=axes,
-                    drawstyle='steps-post', alpha=0.4);
+                                    drawstyle='steps-post', alpha=0.4)
         else:
             logging.warn('NO big CPUs frequency events to plot')
-        axes.set_xlim(self._trace.x_min, self._trace.x_max);
+        axes.set_xlim(self._trace.x_min, self._trace.x_max)
         axes.set_ylabel('MHz')
-        axes.grid(True);
+        axes.grid(True)
         axes.set_xticklabels([])
         axes.set_xlabel('')
         self._trace.analysis.status.plotOverutilized(axes)
 
         axes = pltaxes[1]
-        axes.set_title('LITTLE Cluster');
+        axes.set_title('LITTLE Cluster')
         if avg_lfreq > 0:
-            axes.axhline(avg_lfreq, color='b', linestyle='--', linewidth=2);
+            axes.axhline(avg_lfreq, color='b', linestyle='--', linewidth=2)
         axes.set_ylim(
                 (self._platform['freqs']['little'][0] - 100000)/1e3,
                 (self._platform['freqs']['little'][-1] + 100000)/1e3
-        );
+        )
         if len(lfreq) > 0:
             lfreq['frequency'].plot(style=['b-'], ax=axes,
-                    drawstyle='steps-post', alpha=0.4);
+                                    drawstyle='steps-post', alpha=0.4)
         else:
             logging.warn('NO LITTLE CPUs frequency events to plot')
-        axes.set_xlim(self._trace.x_min, self._trace.x_max);
+        axes.set_xlim(self._trace.x_min, self._trace.x_max)
         axes.set_ylabel('MHz')
-        axes.grid(True);
+        axes.grid(True)
         self._trace.analysis.status.plotOverutilized(axes)
 
         # Save generated plots into datadir
         figname = '{}/{}cluster_freqs.png'\
-                .format(self._trace.plots_dir, self._trace.plots_prefix)
+                  .format(self._trace.plots_dir, self._trace.plots_prefix)
         pl.savefig(figname, bbox_inches='tight')
 
         logging.info('LITTLE cluster average frequency: %.3f GHz',
-                avg_lfreq/1e3)
+                     avg_lfreq/1e3)
         logging.info('big    cluster average frequency: %.3f GHz',
-                avg_bfreq/1e3)
+                     avg_bfreq/1e3)
 
         return (avg_lfreq/1e3, avg_bfreq/1e3)
 
@@ -248,11 +250,11 @@ class FrequencyAnalysis(AnalysisModule):
         # Precompute active and total time for each CPU
         residencies = []
         xmax = 0.0
-        for c in _cpus:
-            r = self._getCPUFrequencyResidency(c)
-            residencies.append(ResidencyData('CPU{}'.format(c), r))
+        for cpu in _cpus:
+            res = self._getCPUFrequencyResidency(cpu)
+            residencies.append(ResidencyData('CPU{}'.format(cpu), res))
 
-            max_time = r.total.max().values[0]
+            max_time = res.total.max().values[0]
             if xmax < max_time:
                 xmax = max_time
 
@@ -303,20 +305,21 @@ class FrequencyAnalysis(AnalysisModule):
         # Precompute active and total time for each cluster
         residencies = []
         xmax = 0.0
-        for c in _clusters:
-            r = self._getClusterFrequencyResidency(
-                    self._platform['clusters'][c.lower()])
-            residencies.append(ResidencyData('{} Cluster'.format(c), r))
+        for cluster in _clusters:
+            res = self._getClusterFrequencyResidency(
+                self._platform['clusters'][cluster.lower()])
+            residencies.append(ResidencyData('{} Cluster'.format(cluster),
+                                             res))
 
-            max_time = r.total.max().values[0]
+            max_time = res.total.max().values[0]
             if xmax < max_time:
                 xmax = max_time
 
         self._plotFrequencyResidency(residencies, 'cluster', xmax, pct, active)
 
-################################################################################
+###############################################################################
 # Utility Methods
-################################################################################
+###############################################################################
 
     @memoized
     def _getCPUActiveSignal(self, cpu):
@@ -331,7 +334,7 @@ class FrequencyAnalysis(AnalysisModule):
         :type cpu: int
         """
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
+            logging.warn('Events [cpu_idle] not found, '
                          'cannot compute CPU active signal!')
             return None
 
@@ -397,11 +400,11 @@ class FrequencyAnalysis(AnalysisModule):
         :raises: KeyError
         """
         if not self._trace.hasEvents('cpu_frequency'):
-            logging.warn('Events [cpu_frequency] not found, '\
+            logging.warn('Events [cpu_frequency] not found, '
                          'frequency residency computation not possible!')
             return None
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
+            logging.warn('Events [cpu_idle] not found, '
                          'frequency residency computation not possible!')
             return None
 
@@ -420,20 +423,20 @@ class FrequencyAnalysis(AnalysisModule):
         # cluster frequencies data to a single CPU. This assumption is verified
         # by the Trace module when parsing the trace.
         if len(_cluster) > 1 and not self._trace.freq_coherency:
-            logging.warn('Cluster frequency is NOT coherent,'\
+            logging.warn('Cluster frequency is NOT coherent,'
                          'cannot compute residency!')
             return None
         cluster_freqs = freq_df[freq_df.cpu == _cluster[0]]
 
-        ### Compute TOTAL Time ###
+        # Compute TOTAL Time
         time_intervals = cluster_freqs.index[1:] - cluster_freqs.index[:-1]
         total_time = pd.DataFrame({
-            'time' : time_intervals,
-            'frequency' : [f/1000.0 for f in cluster_freqs.iloc[:-1].frequency]
+            'time': time_intervals,
+            'frequency': [f/1000.0 for f in cluster_freqs.iloc[:-1].frequency]
         })
         total_time = total_time.groupby(['frequency']).sum()
 
-        ### Compute ACTIVE Time ###
+        # Compute ACTIVE Time
         cluster_active = self._getClusterActiveSignal(_cluster)
 
         # In order to compute the active time spent at each frequency we
@@ -446,7 +449,7 @@ class FrequencyAnalysis(AnalysisModule):
         #     freq_active[t] == 1 if at time t the frequency is f
         #     freq_active[t] == 0 otherwise
         available_freqs = sorted(cluster_freqs.frequency.unique())
-        new_idx = sorted(cluster_freqs.index.tolist() + \
+        new_idx = sorted(cluster_freqs.index.tolist() +
                          cluster_active.index.tolist())
         cluster_freqs = cluster_freqs.reindex(new_idx, method='ffill')
         cluster_active = cluster_active.reindex(new_idx, method='ffill')
@@ -459,7 +462,7 @@ class FrequencyAnalysis(AnalysisModule):
             # Compute total time by integrating the square wave
             nonidle_time.append(self._trace.integrate_square_wave(active_t))
 
-        active_time = pd.DataFrame({'time' : nonidle_time},
+        active_time = pd.DataFrame({'time': nonidle_time},
                                    index=[f/1000.0 for f in available_freqs])
         active_time.index.name = 'frequency'
         return ResidencyTime(total_time, active_time)
@@ -479,7 +482,7 @@ class FrequencyAnalysis(AnalysisModule):
         return self._getClusterFrequencyResidency(cpu)
 
     def _plotFrequencyResidencyAbs(self, axes, residency, n_plots,
-                                is_first, is_last, xmax, title=''):
+                                   is_first, is_last, xmax, title=''):
         """
         Private method to generate frequency residency plots.
 
@@ -505,10 +508,10 @@ class FrequencyAnalysis(AnalysisModule):
         :type title: str
         """
         yrange = 0.4 * max(6, len(residency.total)) * n_plots
-        residency.total.plot.barh(ax = axes, color='g',
-                                  legend=False, figsize=(16,yrange))
-        residency.active.plot.barh(ax = axes, color='r',
-                                   legend=False, figsize=(16,yrange))
+        residency.total.plot.barh(ax=axes, color='g',
+                                  legend=False, figsize=(16, yrange))
+        residency.active.plot.barh(ax=axes, color='r',
+                                   legend=False, figsize=(16, yrange))
 
         axes.set_xlim(0, 1.05*xmax)
         axes.set_ylabel('Frequency [MHz]')
@@ -564,7 +567,7 @@ class FrequencyAnalysis(AnalysisModule):
         # Compute sum of the time intervals
         duration = residency_df.time.sum()
         residency_pct = pd.DataFrame(
-            {label : residency_df.time.apply(lambda x: x*100/duration)},
+            {label: residency_df.time.apply(lambda x: x*100/duration)},
             index=residency_df.index
         )
         yrange = 3 * n_plots
@@ -613,9 +616,7 @@ class FrequencyAnalysis(AnalysisModule):
 
         figtype = ""
         for idx, data in enumerate(residencies):
-            label = data[0]
-            r = data[1]
-            if r is None:
+            if data.residency is None:
                 plt.close(fig)
                 return
 
@@ -648,3 +649,4 @@ class FrequencyAnalysis(AnalysisModule):
                           entity_name, figtype)
         pl.savefig(figname, bbox_inches='tight')
 
+# vim :set tabstop=4 shiftwidth=4 expandtab

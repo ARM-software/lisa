@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+""" Trace Parser Module """
+
 import numpy as np
 import os
 import pandas as pd
@@ -28,6 +30,7 @@ from trappy.utils import listify
 
 # Configure logging
 import logging
+
 
 class Trace(object):
     """
@@ -65,7 +68,7 @@ class Trace(object):
     """
 
     def __init__(self, platform, data_dir, events,
-                 tasks=None, window=(0,None),
+                 tasks=None, window=(0, None),
                  normalize_time=True,
                  trace_format='FTrace',
                  plots_dir=None,
@@ -121,7 +124,8 @@ class Trace(object):
         self.plots_prefix = plots_prefix
 
         self.__registerTraceEvents(events)
-        self.__parseTrace(data_dir, tasks, window, normalize_time, trace_format)
+        self.__parseTrace(data_dir, tasks, window, normalize_time,
+                          trace_format)
         self.__computeTimeSpan()
 
         # Minimum and Maximum x_time to use for all plots
@@ -174,7 +178,7 @@ class Trace(object):
         else:
             self.x_max = t_max
         logging.info('Set plots time range to (%.6f, %.6f)[s]',
-                self.x_min, self.x_max)
+                     self.x_min, self.x_max)
 
     def __registerTraceEvents(self, events):
         """
@@ -287,7 +291,7 @@ class Trace(object):
         """
         if 'sched_switch' in self.available_events:
             self.getTasks(self._dfg_trace_event('sched_switch'), tasks,
-                name_key='next_comm', pid_key='next_pid')
+                          name_key='next_comm', pid_key='next_pid')
             self._scanTasks(self._dfg_trace_event('sched_switch'),
                             name_key='next_comm', pid_key='next_pid')
             return
@@ -327,7 +331,7 @@ class Trace(object):
             self.time_range = te - ts
 
         logging.info('Collected events spans a %.3f [s] time interval',
-                self.time_range)
+                     self.time_range)
 
         # Build a stat on trace overutilization
         if self.hasEvents('sched_overutilized'):
@@ -336,7 +340,7 @@ class Trace(object):
             self.overutilized_prc = 100. * self.overutilized_time / self.time_range
 
             logging.info('Overutilized time: %.6f [s] (%.3f%% of trace time)',
-                    self.overutilized_time, self.overutilized_prc)
+                         self.overutilized_time, self.overutilized_prc)
 
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
         """
@@ -347,15 +351,16 @@ class Trace(object):
             and PIDs will be extracted
         :type df: :mod:`pandas.DataFrame`
 
-        :param name_key: The name of the dataframe columns containing task names
+        :param name_key: The name of the dataframe columns containing task
+            names
         :type name_key: str
 
         :param pid_key: The name of the dataframe columns containing task PIDs
         :type pid_key: str
         """
-        df =  df[[name_key, pid_key]]
+        df = df[[name_key, pid_key]]
         self._tasks_by_name = df.set_index(name_key)
-        self._tasks_by_pid  = df.set_index(pid_key)
+        self._tasks_by_pid = df.set_index(pid_key)
 
     def getTaskByName(self, name):
         """
@@ -386,7 +391,7 @@ class Trace(object):
         return [self._tasks_by_pid.ix[pid].values[0]]
 
     def getTasks(self, dataframe=None,
-            task_names=None, name_key='comm', pid_key='pid'):
+                 task_names=None, name_key='comm', pid_key='pid'):
         """
         Helper function to get PIDs of specified tasks.
 
@@ -408,7 +413,8 @@ class Trace(object):
             workload defined tasks)
         :type task_names: list(str)
 
-        :param name_key: The name of the dataframe columns containing task names
+        :param name_key: The name of the dataframe columns containing task
+            names
         :type name_key: str
 
         :param pid_key: The name of the dataframe columns containing task PIDs
@@ -422,26 +428,26 @@ class Trace(object):
         logging.debug("Lookup dataset for tasks...")
         for tname in task_names:
             logging.debug("Lookup for task [%s]...", tname)
-            results = df[df[name_key] == tname][[name_key,pid_key]]
-            if len(results)==0:
+            results = df[df[name_key] == tname][[name_key, pid_key]]
+            if len(results) == 0:
                 logging.error('  task %16s NOT found', tname)
                 continue
             (name, pid) = results.head(1).values[0]
-            if name!=tname:
+            if name != tname:
                 logging.error('  task %16s NOT found', tname)
                 continue
-            if (tname not in self.tasks):
+            if tname not in self.tasks:
                 self.tasks[tname] = {}
             pids = list(results[pid_key].unique())
             self.tasks[tname]['pid'] = pids
             logging.info('  task %16s found, pid: %s',
-                    tname, self.tasks[tname]['pid'])
+                         tname, self.tasks[tname]['pid'])
         return self.tasks
 
 
-################################################################################
+###############################################################################
 # DataFrame Getter Methods
-################################################################################
+###############################################################################
 
     def df(self, event):
         """
@@ -470,8 +476,8 @@ class Trace(object):
             raise ValueError("trace data not (yet) loaded")
         if self.ftrace and hasattr(self.ftrace, event):
             return getattr(self.ftrace, event).data_frame
-        raise ValueError('Event [{}] not supported. '\
-                         'Supported events are: {}'\
+        raise ValueError('Event [{}] not supported. '
+                         'Supported events are: {}'
                          .format(event, self.available_events))
 
     def _dfg_functions_stats(self, functions=None):
@@ -497,9 +503,9 @@ class Trace(object):
         return df.loc[df.index.get_level_values(1).isin(listify(functions))]
 
 
-################################################################################
+###############################################################################
 # Trace Events Sanitize Methods
-################################################################################
+###############################################################################
 
     def _sanitize_SchedCpuCapacity(self):
         """
@@ -534,8 +540,8 @@ class Trace(object):
             return
         df = self._dfg_trace_event('sched_load_avg_cpu')
         if 'utilization' in df:
-            df.rename(columns={'utilization':'util_avg'}, inplace=True)
-            df.rename(columns={'load':'load_avg'}, inplace=True)
+            df.rename(columns={'utilization': 'util_avg'}, inplace=True)
+            df.rename(columns={'load': 'load_avg'}, inplace=True)
 
     def _sanitize_SchedLoadAvgTask(self):
         """
@@ -545,21 +551,21 @@ class Trace(object):
             return
         df = self._dfg_trace_event('sched_load_avg_task')
         if 'utilization' in df:
-            df.rename(columns={'utilization':'util_avg'}, inplace=True)
-            df.rename(columns={'load':'load_avg'}, inplace=True)
-            df.rename(columns={'avg_period':'period_contrib'}, inplace=True)
-            df.rename(columns={'runnable_avg_sum':'load_sum'}, inplace=True)
-            df.rename(columns={'running_avg_sum':'util_sum'}, inplace=True)
+            df.rename(columns={'utilization': 'util_avg'}, inplace=True)
+            df.rename(columns={'load': 'load_avg'}, inplace=True)
+            df.rename(columns={'avg_period': 'period_contrib'}, inplace=True)
+            df.rename(columns={'runnable_avg_sum': 'load_sum'}, inplace=True)
+            df.rename(columns={'running_avg_sum': 'util_sum'}, inplace=True)
         df['cluster'] = np.select(
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 ['LITTLE'], 'big')
         # Add a column which represents the max capacity of the smallest
         # clustre which can accomodate the task utilization
-        little_cap  = self.platform['nrg_model']['little']['cpu']['cap_max']
-        big_cap  = self.platform['nrg_model']['big']['cpu']['cap_max']
+        little_cap = self.platform['nrg_model']['little']['cpu']['cap_max']
+        big_cap = self.platform['nrg_model']['big']['cpu']['cap_max']
         df['min_cluster_cap'] = df.util_avg.map(
-            lambda util_avg :
-            big_cap if util_avg > little_cap else little_cap)
+            lambda util_avg: big_cap if util_avg > little_cap else little_cap
+        )
 
     def _sanitize_SchedBoostCpu(self):
         """
@@ -572,7 +578,7 @@ class Trace(object):
             return
         df = self._dfg_trace_event('sched_boost_cpu')
         if 'usage' in df:
-            df.rename(columns={'usage':'util'}, inplace=True)
+            df.rename(columns={'usage': 'util'}, inplace=True)
         df['boosted_util'] = df['util'] + df['margin']
 
     def _sanitize_SchedBoostTask(self):
@@ -587,7 +593,7 @@ class Trace(object):
         df = self._dfg_trace_event('sched_boost_task')
         if 'utilization' in df:
             # Convert signals name from to v5.1 format
-            df.rename(columns={'utilization':'util'}, inplace=True)
+            df.rename(columns={'utilization': 'util'}, inplace=True)
         df['boosted_util'] = df['util'] + df['margin']
 
     def _sanitize_SchedEnergyDiff(self):
@@ -608,7 +614,7 @@ class Trace(object):
         SCHED_LOAD_SCALE = 1024
 
         power_max = em_lcpu['nrg_max'] * lcpus + em_bcpu['nrg_max'] * bcpus + \
-                    em_lcluster['nrg_max'] + em_bcluster['nrg_max']
+            em_lcluster['nrg_max'] + em_bcluster['nrg_max']
         print "Maximum estimated system energy: {0:d}".format(power_max)
 
         df = self._dfg_trace_event('sched_energy_diff')
@@ -624,7 +630,8 @@ class Trace(object):
         ccol = df.nrg_payoff
         df['nrg_payoff_group'] = np.select(
             [ccol > 2e9, ccol > 0, ccol > -2e9],
-            ['Optimal Accept', 'SchedTune Accept', 'SchedTune Reject'], 'Suboptimal Reject')
+            ['Optimal Accept', 'SchedTune Accept', 'SchedTune Reject'],
+            'Suboptimal Reject')
 
     def _sanitize_SchedOverutilized(self):
         """ Add a column with overutilized status duration. """
@@ -657,21 +664,21 @@ class Trace(object):
             return
         df = self._dfg_trace_event('cpu_frequency')
         clusters = self.platform['clusters']
-        for c, cpus in clusters.iteritems():
+        for _, cpus in clusters.iteritems():
             cluster_df = df[df.cpu.isin(cpus)]
             for chunk in self._chunker(cluster_df, len(cpus)):
                 f = chunk.iloc[0].frequency
                 if any(chunk.frequency != f):
-                    logging.warn('Cluster Frequency is not coherent! '\
-                                'Failure in [cpu_frequency] events at:')
+                    logging.warn('Cluster Frequency is not coherent! '
+                                 'Failure in [cpu_frequency] events at:')
                     logging.warn(chunk)
                     self.freq_coherency = False
                     return
         logging.info("Platform clusters verified to be Frequency coherent")
 
-################################################################################
+###############################################################################
 # Utility Methods
-################################################################################
+###############################################################################
 
     def integrate_square_wave(self, sq_wave):
         """
@@ -716,11 +723,14 @@ class Trace(object):
             frames[int(cpu)] = pd.DataFrame.from_dict(data, orient='index')
 
         # Build and keep track of the DataFrame
-        self._functions_stats_df = pd.concat(frames.values(), keys=frames.keys())
+        self._functions_stats_df = pd.concat(frames.values(),
+                                             keys=frames.keys())
 
         return len(self._functions_stats_df) > 0
 
-# A DataFrame collector exposed to Trace's clients
+
 class TraceData:
+    """ A DataFrame collector exposed to Trace's clients """
     pass
 
+# vim :set tabstop=4 shiftwidth=4 expandtab

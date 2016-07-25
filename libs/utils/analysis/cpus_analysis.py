@@ -15,7 +15,8 @@
 # limitations under the License.
 #
 
-import matplotlib.gridspec as gridspec
+""" CPUs Analysis Module """
+
 import matplotlib.pyplot as plt
 import pylab as pl
 
@@ -25,6 +26,7 @@ from analysis_module import AnalysisModule
 
 # Configure logging
 import logging
+
 
 class CpusAnalysis(AnalysisModule):
     """
@@ -37,22 +39,23 @@ class CpusAnalysis(AnalysisModule):
     def __init__(self, trace):
         super(CpusAnalysis, self).__init__(trace)
 
-################################################################################
+###############################################################################
 # Plotting Methods
-################################################################################
+###############################################################################
 
     def plotCPU(self, cpus=None):
         """
         Plot CPU-related signals for both big and LITTLE clusters.
         """
         if not self._trace.hasEvents('sched_load_avg_cpu'):
-            logging.warn('Events [sched_load_avg_cpu] not found, '\
-                    'plot DISABLED!')
+            logging.warn('Events [sched_load_avg_cpu] not found, '
+                         'plot DISABLED!')
             return
 
         # Filter on specified cpus
         if cpus is None:
-            cpus = sorted(self._platform['clusters']['little'] + self._platform['clusters']['big'])
+            cpus = sorted(self._platform['clusters']['little'] +
+                          self._platform['clusters']['big'])
         cpus = listify(cpus)
 
         # Plot: big CPUs
@@ -64,9 +67,9 @@ class CpusAnalysis(AnalysisModule):
         self._plotCPU(lcpus, "LITTLE")
 
 
-################################################################################
+###############################################################################
 # Utility Methods
-################################################################################
+###############################################################################
 
     def _plotCPU(self, cpus, label=''):
         """
@@ -80,24 +83,25 @@ class CpusAnalysis(AnalysisModule):
             label2 = '_{}s'.format(label.lower())
 
         # Plot required CPUs
-        fig, pltaxes = plt.subplots(len(cpus), 1, figsize=(16, 3*(len(cpus))));
+        _, pltaxes = plt.subplots(len(cpus), 1, figsize=(16, 3*(len(cpus))))
         plt.suptitle("{}CPUs Signals".format(label1),
-                     y=.99, fontsize=16, horizontalalignment='center');
+                     y=.99, fontsize=16, horizontalalignment='center')
 
         idx = 0
         for cpu in cpus:
 
             # Reference axes to be used
             axes = pltaxes
-            if (len(cpus) > 1):
+            if len(cpus) > 1:
                 axes = pltaxes[idx]
 
             # Add CPU utilization
-            axes.set_title('{0:s}CPU [{1:d}]'.format(label1, cpu));
+            axes.set_title('{0:s}CPU [{1:d}]'.format(label1, cpu))
             df = self._dfg_trace_event('sched_load_avg_cpu')
             df = df[df.cpu == cpu]
             if len(df):
-                df[['util_avg']].plot(ax=axes, drawstyle='steps-post', alpha=0.4);
+                df[['util_avg']].plot(ax=axes, drawstyle='steps-post',
+                                      alpha=0.4)
 
             # if self._trace.hasEvents('sched_boost_cpu'):
             #     df = self._dfg_trace_event('sched_boost_cpu')
@@ -115,23 +119,24 @@ class CpusAnalysis(AnalysisModule):
                 if len(df):
                     # data = df[['capacity', 'tip_capacity', 'max_capacity']]
                     # data.plot(ax=axes, style=['m', 'y', 'r'],
-                    data = df[['capacity', 'tip_capacity' ]]
-                    data.plot(ax=axes, style=['m', '--y' ],
+                    data = df[['capacity', 'tip_capacity']]
+                    data.plot(ax=axes, style=['m', '--y'],
                               drawstyle='steps-post')
 
-            axes.set_ylim(0, 1100);
-            axes.set_xlim(self._trace.x_min, self._trace.x_max);
+            axes.set_ylim(0, 1100)
+            axes.set_xlim(self._trace.x_min, self._trace.x_max)
 
             # Disable x-axis timestamp for top-most cpus
-            if (len(cpus) > 1 and idx < len(cpus)-1):
+            if len(cpus) > 1 and idx < len(cpus)-1:
                 axes.set_xticklabels([])
                 axes.set_xlabel('')
-            axes.grid(True);
+            axes.grid(True)
 
-            idx+=1
+            idx += 1
 
         # Save generated plots into datadir
         figname = '{}/{}cpus{}.png'.format(self._trace.plots_dir,
                                            self._trace.plots_prefix, label2)
         pl.savefig(figname, bbox_inches='tight')
 
+# vim :set tabstop=4 shiftwidth=4 expandtab

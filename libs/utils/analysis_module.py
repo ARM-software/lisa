@@ -15,6 +15,9 @@
 # limitations under the License.
 #
 
+""" Helper module for Analysis classes """
+
+
 class AnalysisModule(object):
     """
     Base class for Analysis modules.
@@ -31,10 +34,11 @@ class AnalysisModule(object):
 
         self._dfg_trace_event = trace._dfg_trace_event
 
-        self._big_cap     = self._platform['nrg_model']['big']['cpu']['cap_max']
-        self._little_cap  = self._platform['nrg_model']['little']['cpu']['cap_max']
-        self._big_cpus    = self._platform['clusters']['big']
+        self._big_cap = self._platform['nrg_model']['big']['cpu']['cap_max']
+        self._little_cap = self._platform['nrg_model']['little']['cpu']['cap_max']
+        self._big_cpus = self._platform['clusters']['big']
         self._little_cpus = self._platform['clusters']['little']
 
         trace._registerDataFrameGetters(self)
 
+# vim :set tabstop=4 shiftwidth=4 expandtab

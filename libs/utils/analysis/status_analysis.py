@@ -15,14 +15,18 @@
 # limitations under the License.
 #
 
+# pylint: disable=E1101
+
+""" System Status Analaysis Module """
+
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
-import pandas as pd
 
 from analysis_module import AnalysisModule
 
 # Configure logging
 import logging
+
 
 class StatusAnalysis(AnalysisModule):
     """
@@ -36,9 +40,9 @@ class StatusAnalysis(AnalysisModule):
         super(StatusAnalysis, self).__init__(trace)
 
 
-################################################################################
+###############################################################################
 # DataFrame Getter Methods
-################################################################################
+###############################################################################
 
     def _dfg_overutilized(self):
         """
@@ -62,9 +66,9 @@ class StatusAnalysis(AnalysisModule):
         return df[['len', 'overutilized']]
 
 
-################################################################################
+###############################################################################
 # Plotting Methods
-################################################################################
+###############################################################################
 
     def plotOverutilized(self, axes=None):
         """
@@ -78,8 +82,8 @@ class StatusAnalysis(AnalysisModule):
         :type axes: :mod:`matplotlib.axes.Axes`
         """
         if not self._trace.hasEvents('sched_overutilized'):
-            logging.warn('Events [sched_overutilized] not found, '\
-                    'plot DISABLED!')
+            logging.warn('Event [sched_overutilized] not found, '
+                         'plot DISABLED!')
             return
 
         df = self._dfg_overutilized()
@@ -91,17 +95,19 @@ class StatusAnalysis(AnalysisModule):
         if not axes:
             gs = gridspec.GridSpec(1, 1)
             plt.figure(figsize=(16, 1))
-            axes = plt.subplot(gs[0,0])
-            axes.set_title('System Status {white: EAS mode, red: Non EAS mode}');
-            axes.set_xlim(self._trace.x_min, self._trace.x_max);
+            axes = plt.subplot(gs[0, 0])
+            axes.set_title('System Status {white: EAS mode, '
+                           'red: Non EAS mode}')
+            axes.set_xlim(self._trace.x_min, self._trace.x_max)
             axes.set_yticklabels([])
             axes.set_xlabel('Time [s]')
-            axes.grid(True);
+            axes.grid(True)
 
         # Otherwise: draw overutilized bands on top of the specified plot
-        for (t1,td,overutilized) in bands:
+        for (start, delta, overutilized) in bands:
             if not overutilized:
                 continue
-            t2 = t1+td
-            axes.axvspan(t1, t2, facecolor='r', alpha=0.1)
+            end = start + delta
+            axes.axvspan(start, end, facecolor='r', alpha=0.1)
 
+# vim :set tabstop=4 shiftwidth=4 expandtab

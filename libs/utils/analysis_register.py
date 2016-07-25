@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+""" Helper module for registering Analysis classes methods """
+
 import os
 import sys
 
@@ -26,6 +28,7 @@ from analysis_module import AnalysisModule
 
 # Configure logging
 import logging
+
 
 class AnalysisRegister(object):
     """
@@ -64,8 +67,8 @@ class AnalysisRegister(object):
                 handler = getattr(module, member)
                 if handler and isclass(handler) and \
                    issubclass(handler, AnalysisModule):
-                    class_name = handler.__name__
                     module_name = module.__name__.replace('_analysis', '')
                     setattr(self, module_name, handler(trace))
                     logging.info("   %s", module_name)
 
+# vim :set tabstop=4 shiftwidth=4 expandtab

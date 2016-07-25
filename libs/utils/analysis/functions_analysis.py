@@ -15,12 +15,15 @@
 # limitations under the License.
 #
 
+""" Functions Analysis Module """
+
 from trappy.utils import listify
 
 from analysis_module import AnalysisModule
 
 # Configure logging
 import logging
+
 
 class FunctionsAnalysis(AnalysisModule):
     """
@@ -64,17 +67,18 @@ class FunctionsAnalysis(AnalysisModule):
                             available_metrics)
             raise ValueError(msg)
 
-        for _m in metrics:
-            if _m.upper() == 'AVG':
+        for metric in metrics:
+            if metric.upper() == 'AVG':
                 title = 'Average Completion Time per CPUs'
                 ylabel = 'Completion Time [us]'
-            if _m.upper() == 'TIME':
+            if metric.upper() == 'TIME':
                 title = 'Total Execution Time per CPUs'
                 ylabel = 'Execution Time [us]'
-            data = df[_m.lower()].unstack()
+            data = df[metric.lower()].unstack()
             axes = data.plot(kind='bar',
-                             figsize=(16,8), legend=True,
+                             figsize=(16, 8), legend=True,
                              title=title, table=True)
             axes.set_ylabel(ylabel)
             axes.get_xaxis().set_visible(False)
 
+# vim :set tabstop=4 shiftwidth=4 expandtab

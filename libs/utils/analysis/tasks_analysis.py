@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+""" Tasks Analysis Module """
+
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,6 +28,7 @@ from devlib.utils.misc import memoized
 
 # Configure logging
 import logging
+
 
 class TasksAnalysis(AnalysisModule):
     """
@@ -39,9 +42,9 @@ class TasksAnalysis(AnalysisModule):
         super(TasksAnalysis, self).__init__(trace)
 
 
-################################################################################
+###############################################################################
 # DataFrame Getter Methods
-################################################################################
+###############################################################################
 
     def _dfg_top_big_tasks(self, min_samples=100, min_utilization=None):
         """
@@ -52,7 +55,7 @@ class TasksAnalysis(AnalysisModule):
         :type min_samples: int
 
         :param min_utilization: minimum utilization used to filter samples
-                                default: capacity of a little cluster
+            default: capacity of a little cluster
         :type min_utilization: int
         """
         if not self._trace.hasEvents('sched_load_avg_task'):
@@ -93,17 +96,20 @@ class TasksAnalysis(AnalysisModule):
 
         # Add task name column
         big_tasks_stats['comm'] = big_tasks_stats.index.map(
-            lambda pid : ', '.join(self._trace.getTaskByPid(pid)))
+            lambda pid: ', '.join(self._trace.getTaskByPid(pid)))
 
         # Filter columns of interest
         big_tasks_stats = big_tasks_stats[['count', 'comm']]
-        big_tasks_stats.rename(columns={'count' : 'samples'}, inplace=True)
+        big_tasks_stats.rename(columns={'count': 'samples'}, inplace=True)
 
         return big_tasks_stats
 
     def _dfg_top_wakeup_tasks(self, min_wakeups=100):
         """
-        Tasks which wakeups more frequent than a specified threshold
+        Tasks which wakeup more frequently than a specified threshold.
+
+        :param min_wakeups: minimum number of wakeups
+        :type min_wakeups: int
         """
         if not self._trace.hasEvents('sched_wakeup'):
             logging.warn('Events [sched_wakeup] not found')
@@ -114,27 +120,29 @@ class TasksAnalysis(AnalysisModule):
         # Compute number of wakeups above threshold
         wkp_tasks_stats = df.groupby('pid').describe(include=['object'])
         wkp_tasks_stats = wkp_tasks_stats.unstack()['comm']\
-                            .sort_values(by=['count'], ascending=False)
+                          .sort_values(by=['count'], ascending=False)
 
         # Filter for number of occurrences
         wkp_tasks_stats = wkp_tasks_stats[
             wkp_tasks_stats['count'] > min_wakeups]
         if not len(df):
-            logging.warn('No tasks with more than %d wakeups', len(wkp_tasks_stats))
+            logging.warn('No tasks with more than %d wakeups',
+                         len(wkp_tasks_stats))
             return None
-        logging.info('%5d tasks with more than %d wakeups', len(wkp_tasks_stats))
+        logging.info('%5d tasks with more than %d wakeups',
+                     len(df), len(wkp_tasks_stats))
 
         # Add task name column
         wkp_tasks_stats['comm'] = wkp_tasks_stats.index.map(
-            lambda pid : ', '.join(self._trace.getTaskByPid(pid)))
+            lambda pid: ', '.join(self._trace.getTaskByPid(pid)))
 
         # Filter columns of interest
         wkp_tasks_stats = wkp_tasks_stats[['count', 'comm']]
-        wkp_tasks_stats.rename(columns={'count' : 'samples'}, inplace=True)
+        wkp_tasks_stats.rename(columns={'count': 'samples'}, inplace=True)
 
         return wkp_tasks_stats
 
-    def _dfg_rt_tasks(self, min_prio = 100):
+    def _dfg_rt_tasks(self, min_prio=100):
         """
         Tasks with RT priority
 
@@ -162,22 +170,24 @@ class TasksAnalysis(AnalysisModule):
         rt_tasks = rt_tasks.drop_duplicates()
 
         # Order by priority
-        rt_tasks.sort_values(by=['next_prio', 'next_pid'], ascending=True, inplace=True)
-        rt_tasks.rename(columns={'next_pid' : 'pid', 'next_prio' : 'prio'}, inplace=True)
+        rt_tasks.sort_values(by=['next_prio', 'next_pid'], ascending=True,
+                             inplace=True)
+        rt_tasks.rename(columns={'next_pid': 'pid', 'next_prio': 'prio'},
+                        inplace=True)
 
         # Set PID as index
         rt_tasks.set_index('pid', inplace=True)
 
         # Add task name column
         rt_tasks['comm'] = rt_tasks.index.map(
-            lambda pid : ', '.join(self._trace.getTaskByPid(pid)))
+            lambda pid: ', '.join(self._trace.getTaskByPid(pid)))
 
         return rt_tasks
 
 
-################################################################################
+###############################################################################
 # Plotting Methods
-################################################################################
+###############################################################################
 
     def plotTasks(self, tasks=None, signals=None):
         """
@@ -217,8 +227,8 @@ class TasksAnalysis(AnalysisModule):
 
         # Check for the minimum required signals to be available
         if not self._trace.hasEvents('sched_load_avg_task'):
-            logging.warn('Events [sched_load_avg_task] not found, '\
-                    'plot DISABLED!')
+            logging.warn('Events [sched_load_avg_task] not found, '
+                         'plot DISABLED!')
             return
 
         if not isinstance(tasks, str) and \
@@ -249,8 +259,8 @@ class TasksAnalysis(AnalysisModule):
                 plots_count = plots_count + 1
 
         # Grid
-        gs = gridspec.GridSpec(plots_count, 1, height_ratios=[2,1,1]);
-        gs.update(wspace=0.1, hspace=0.1);
+        gs = gridspec.GridSpec(plots_count, 1, height_ratios=[2, 1, 1])
+        gs.update(wspace=0.1, hspace=0.1)
 
         # Build list of all PIDs for each task_name to plot
         pids_to_plot = []
@@ -272,18 +282,18 @@ class TasksAnalysis(AnalysisModule):
             plot_id = 0
 
             # Figure
-            plt.figure(figsize=(16, 2*6+3));
+            plt.figure(figsize=(16, 2*6+3))
             plt.suptitle("Task Signals",
-                         y=.94, fontsize=16, horizontalalignment='center');
+                         y=.94, fontsize=16, horizontalalignment='center')
 
             # Plot load and utilization
             signals_to_plot = {'load_avg', 'util_avg',
                                'boosted_util', 'sched_overutilized'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
             if len(signals_to_plot) > 0:
-                axes = plt.subplot(gs[plot_id,0]);
-                axes.set_title('Task [{0:d}:{1:s}] Signals'\
-                               .format(tid, task_name));
+                axes = plt.subplot(gs[plot_id, 0])
+                axes.set_title('Task [{0:d}:{1:s}] Signals'
+                               .format(tid, task_name))
                 plot_id = plot_id + 1
                 is_last = (plot_id == plots_count)
                 self._plotTaskSignals(axes, tid, signals_to_plot, is_last)
@@ -292,9 +302,11 @@ class TasksAnalysis(AnalysisModule):
             signals_to_plot = {'residencies', 'sched_overutilized'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
             if len(signals_to_plot) > 0:
-                axes = plt.subplot(gs[plot_id,0]);
-                axes.set_title('Task [{0:d}:{1:s}] Residency (green: LITTLE, red: big)'\
-                               .format(tid, task_name));
+                axes = plt.subplot(gs[plot_id, 0])
+                axes.set_title(
+                    'Task [{0:d}:{1:s}] Residency (green: LITTLE, red: big)'
+                    .format(tid, task_name)
+                )
                 plot_id = plot_id + 1
                 is_last = (plot_id == plots_count)
                 self._plotTaskResidencies(axes, tid, signals_to_plot, is_last)
@@ -305,9 +317,9 @@ class TasksAnalysis(AnalysisModule):
                 'period_contrib', 'sched_overutilized'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
             if len(signals_to_plot) > 0:
-                axes = plt.subplot(gs[plot_id,0]);
-                axes.set_title('Task [{0:d}:{1:s}] PELT Signals'\
-                               .format(tid, task_name));
+                axes = plt.subplot(gs[plot_id, 0])
+                axes.set_title('Task [{0:d}:{1:s}] PELT Signals'
+                               .format(tid, task_name))
                 plot_id = plot_id + 1
                 self._plotTaskPelt(axes, tid, signals_to_plot)
 
@@ -316,12 +328,27 @@ class TasksAnalysis(AnalysisModule):
                 task_name = re.sub('[:/]', '_', task_name[0])
             else:
                 task_name = re.sub('[:/]', '_', task_name)
-            figname = '{}/{}task_util_{}_{}.png'.format(
-                self._trace.plots_dir, self._trace.plots_prefix, tid, task_name)
+            figname = '{}/{}task_util_{}_{}.png'\
+                      .format(self._trace.plots_dir, self._trace.plots_prefix,
+                              tid, task_name)
             pl.savefig(figname, bbox_inches='tight')
 
     def plotBigTasks(self, max_tasks=10, min_samples=100,
-                            min_utilization=None):
+                     min_utilization=None):
+        """
+        For each big task plot utilization and show the smallest cluster
+        capacity suitable for accommodating task utilization.
+
+        :param max_tasks: maximum number of tasks to consider
+        :type max_tasks: int
+
+        :param min_samples: minumum number of samples over the min_utilization
+        :type min_samples: int
+
+        :param min_utilization: minimum utilization used to filter samples
+            default: capacity of a little cluster
+        :type min_utilization: int
+        """
 
         # Get PID of big tasks
         big_frequent_task_df = self._dfg_top_big_tasks(
@@ -371,7 +398,7 @@ class TasksAnalysis(AnalysisModule):
             ax.grid(True)
             self._trace.analysis.status.plotOverutilized(ax)
 
-            plot_idx+=1
+            plot_idx += 1
 
         ax.set_xlabel('Time [s]')
 
@@ -379,7 +406,19 @@ class TasksAnalysis(AnalysisModule):
                      self._little_cap, min_samples)
 
     def plotWakeupTasks(self, max_tasks=10, min_wakeups=0, per_cluster=False):
+        """
+        Show waking up tasks over time and newly forked tasks in two separate
+        plots.
 
+        :param max_tasks: maximum number of tasks to consider
+        :param max_tasks: int
+
+        :param min_wakeups: minimum number of wakeups of each task
+        :type min_wakeups: int
+
+        :param per_cluster: if True get per-cluster wakeup events
+        :type per_cluster: bool
+        """
         if per_cluster is True and \
            not self._trace.hasEvents('sched_wakeup_new'):
             logging.warn('Events [sched_wakeup_new] not found, '
@@ -392,8 +431,8 @@ class TasksAnalysis(AnalysisModule):
             return
 
         # Define axes for side-by-side plottings
-        fig, axes = plt.subplots(2, 1, figsize=(14, 5));
-        plt.subplots_adjust(wspace=0.2, hspace=0.3);
+        fig, axes = plt.subplots(2, 1, figsize=(14, 5))
+        plt.subplots_adjust(wspace=0.2, hspace=0.3)
 
         if per_cluster:
 
@@ -411,9 +450,11 @@ class TasksAnalysis(AnalysisModule):
             ntlc_count = len(ntlc)
 
             logging.info("%5d tasks forked on big cluster    (%3.1f %%)",
-                         ntbc_count, 100. * ntbc_count / (ntbc_count + ntlc_count))
+                         ntbc_count,
+                         100. * ntbc_count / (ntbc_count + ntlc_count))
             logging.info("%5d tasks forked on LITTLE cluster (%3.1f %%)",
-                         ntlc_count, 100. * ntlc_count / (ntbc_count + ntlc_count))
+                         ntlc_count,
+                         100. * ntlc_count / (ntbc_count + ntlc_count))
 
             ax = axes[0]
             ax.set_title('Tasks Forks on big CPUs');
@@ -440,31 +481,44 @@ class TasksAnalysis(AnalysisModule):
             logging.info("Plotting %d frequent wakeup tasks", len(wkp_task_pids))
 
         ax = axes[0]
-        ax.set_title('Tasks WakeUps Events');
+        ax.set_title('Tasks WakeUps Events')
         df = self._dfg_trace_event('sched_wakeup')
         if len(df):
             df = df[df.pid.isin(wkp_task_pids)]
-            df.pid.astype(int).plot(style=['b.'], ax=ax);
-            ax.set_xlim(self._trace.x_min, self._trace.x_max);
+            df.pid.astype(int).plot(style=['b.'], ax=ax)
+            ax.set_xlim(self._trace.x_min, self._trace.x_max)
             ax.set_xticklabels([])
             ax.set_xlabel('')
             ax.grid(True)
             self._trace.analysis.status.plotOverutilized(ax)
 
         ax = axes[1]
-        ax.set_title('Tasks Forks Events');
+        ax.set_title('Tasks Forks Events')
         df = self._dfg_trace_event('sched_wakeup_new')
         if len(df):
             df = df[df.pid.isin(wkp_task_pids)]
-            df.pid.astype(int).plot(style=['r.'], ax=ax);
-            ax.set_xlim(self._trace.x_min, self._trace.x_max);
+            df.pid.astype(int).plot(style=['r.'], ax=ax)
+            ax.set_xlim(self._trace.x_min, self._trace.x_max)
             ax.grid(True)
             self._trace.analysis.status.plotOverutilized(ax)
 
-    def plotBigTasksVsCapacity(self,
-                            min_samples=1,
-                            min_utilization=None,
-                            big_cluster=True):
+    def plotBigTasksVsCapacity(self, min_samples=1,
+                               min_utilization=None, big_cluster=True):
+        """
+        Draw a plot that shows whether tasks are placed on the correct cluster
+        based on their utilization and cluster capacity. Green dots mean the
+        task was placed on the correct cluster, Red means placement was wrong
+
+        :param min_samples: minumum number of samples over the min_utilization
+        :type min_samples: int
+
+        :param min_utilization: minimum utilization used to filter samples
+            default: capacity of a little cluster
+        :type min_utilization: int
+
+        :param big_cluster:
+        :type big_cluster: bool
+        """
 
         if not self._trace.hasEvents('sched_load_avg_task'):
             logging.warn('Events [sched_load_avg_task] not found')
@@ -481,7 +535,7 @@ class TasksAnalysis(AnalysisModule):
             cpus = self._little_cpus
 
         # Get all utilization update events
-        df  = self._dfg_trace_event('sched_load_avg_task')
+        df = self._dfg_trace_event('sched_load_avg_task')
 
         # Keep events of defined big tasks
         big_task_pids = self._dfg_top_big_tasks(
@@ -494,8 +548,8 @@ class TasksAnalysis(AnalysisModule):
                          'samples bigger than %d, plots DISABLED!')
             return
 
-        fig, axes = plt.subplots(2, 1, figsize=(14, 5));
-        plt.subplots_adjust(wspace=0.2, hspace=0.3);
+        fig, axes = plt.subplots(2, 1, figsize=(14, 5))
+        plt.subplots_adjust(wspace=0.2, hspace=0.3)
 
         # Add column of expected cluster depending on:
         # a) task utilization value
@@ -511,20 +565,19 @@ class TasksAnalysis(AnalysisModule):
         # The Cluster CAPacity Matches the UTILization (ccap_mutil) iff:
         # - tasks with util_avg  > little_cap are running on a BIG cpu
         # - tasks with util_avg <= little_cap are running on a LITTLe cpu
-        df.loc[:,'ccap_mutil'] = np.select(
-            [(bu_bc | su_lc)], [True], False)
+        df.loc[:,'ccap_mutil'] = np.select([(bu_bc | su_lc)], [True], False)
 
         df_freq = self._dfg_trace_event('cpu_frequency')
         df_freq = df_freq[df_freq.cpu == cpus[0]]
 
         ax = axes[0]
-        ax.set_title('Tasks Utilization vs Allocation');
+        ax.set_title('Tasks Utilization vs Allocation')
         for ucolor, umatch in zip('gr', [True, False]):
-            cdata  = df[df['ccap_mutil'] == umatch]
-            if (len(cdata) > 0):
+            cdata = df[df['ccap_mutil'] == umatch]
+            if len(cdata) > 0:
                 cdata['util_avg'].plot(ax=ax,
-                        style=[ucolor+'.'], legend=False);
-        ax.set_xlim(self._trace.x_min, self._trace.x_max);
+                        style=[ucolor+'.'], legend=False)
+        ax.set_xlim(self._trace.x_min, self._trace.x_max)
         ax.set_xticklabels([])
         ax.set_xlabel('')
         ax.grid(True)
@@ -532,7 +585,7 @@ class TasksAnalysis(AnalysisModule):
 
         ax = axes[1]
         ax.set_title('Frequencies on "{}" cluster'.format(cluster_correct))
-        df_freq['frequency'].plot(style=['-b'], ax=ax, drawstyle='steps-post');
+        df_freq['frequency'].plot(style=['-b'], ax=ax, drawstyle='steps-post')
         ax.set_xlim(self._trace.x_min, self._trace.x_max);
         ax.grid(True)
         self._trace.analysis.status.plotOverutilized(ax)
@@ -548,9 +601,9 @@ class TasksAnalysis(AnalysisModule):
                          fontsize=14)
 
 
-################################################################################
+###############################################################################
 # Utility Methods
-################################################################################
+###############################################################################
 
     def _plotTaskSignals(self, axes, tid, signals, is_last=False):
         """
@@ -575,15 +628,15 @@ class TasksAnalysis(AnalysisModule):
         signals_to_plot = list({'load_avg', 'util_avg'}.intersection(signals))
         if len(signals_to_plot):
             data = util_df[util_df.pid == tid][signals_to_plot]
-            data.plot(ax=axes, drawstyle='steps-post');
+            data.plot(ax=axes, drawstyle='steps-post')
 
         # Plot boost utilization if available
         if 'boosted_util' in signals and \
-            self._trace.hasEvents('sched_boost_task'):
+           self._trace.hasEvents('sched_boost_task'):
             boost_df = self._dfg_trace_event('sched_boost_task')
             data = boost_df[boost_df.pid == tid][['boosted_util']]
             if len(data):
-                data.plot(ax=axes, style=['y-'], drawstyle='steps-post');
+                data.plot(ax=axes, style=['y-'], drawstyle='steps-post')
             else:
                 task_name = self._trace.getTaskByPid(tid)
                 logging.warning("No 'boosted_util' data for task [%d:%s]",
@@ -596,16 +649,18 @@ class TasksAnalysis(AnalysisModule):
             max_bcap = nrg_model['big']['cpu']['cap_max']
             tip_lcap = 0.8 * max_lcap
             tip_bcap = 0.8 * max_bcap
-            logging.debug('LITTLE capacity tip/max: %d/%d, big capacity tip/max: %d/%d',
-                          tip_lcap, max_lcap, tip_bcap, max_bcap)
-            axes.axhline(tip_lcap, color='g', linestyle='--', linewidth=1);
-            axes.axhline(max_lcap, color='g', linestyle='-', linewidth=2);
-            axes.axhline(tip_bcap, color='r', linestyle='--', linewidth=1);
-            axes.axhline(max_bcap, color='r', linestyle='-', linewidth=2);
+            logging.debug(
+                'LITTLE capacity tip/max: %d/%d, big capacity tip/max: %d/%d',
+                tip_lcap, max_lcap, tip_bcap, max_bcap
+            )
+            axes.axhline(tip_lcap, color='g', linestyle='--', linewidth=1)
+            axes.axhline(max_lcap, color='g', linestyle='-', linewidth=2)
+            axes.axhline(tip_bcap, color='r', linestyle='--', linewidth=1)
+            axes.axhline(max_bcap, color='r', linestyle='-', linewidth=2)
 
-        axes.set_ylim(0, 1100);
-        axes.set_xlim(self._trace.x_min, self._trace.x_max);
-        axes.grid(True);
+        axes.set_ylim(0, 1100)
+        axes.set_xlim(self._trace.x_min, self._trace.x_max)
+        axes.grid(True)
         if not is_last:
             axes.set_xticklabels([])
             axes.set_xlabel('')
@@ -632,8 +687,8 @@ class TasksAnalysis(AnalysisModule):
         data = util_df[util_df.pid == tid][['cluster', 'cpu']]
         for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
             cdata = data[data.cluster == clabel]
-            if (len(cdata) > 0):
-                cdata.plot(ax=axes, style=[ccolor+'+'], legend=False);
+            if len(cdata) > 0:
+                cdata.plot(ax=axes, style=[ccolor+'+'], legend=False)
         # Y Axis - placeholders for legend, acutal CPUs. topmost empty lane
         cpus = [str(n) for n in range(self._platform['cpus_count'])]
         ylabels = [''] + cpus
@@ -641,9 +696,9 @@ class TasksAnalysis(AnalysisModule):
         axes.set_ylim(-1, self._platform['cpus_count'])
         axes.set_ylabel('CPUs')
         # X Axis
-        axes.set_xlim(self._trace.x_min, self._trace.x_max);
+        axes.set_xlim(self._trace.x_min, self._trace.x_max)
 
-        axes.grid(True);
+        axes.grid(True)
         if not is_last:
             axes.set_xticklabels([])
             axes.set_xlabel('')
@@ -664,12 +719,15 @@ class TasksAnalysis(AnalysisModule):
         :param signals: list(str)
         """
         util_df = self._dfg_trace_event('sched_load_avg_task')
-        data = util_df[util_df.pid == tid][['load_sum', 'util_sum', 'period_contrib']]
-        data.plot(ax=axes, drawstyle='steps-post');
-        axes.set_xlim(self._trace.x_min, self._trace.x_max);
-        axes.ticklabel_format(style='scientific', scilimits=(0,0),
+        data = util_df[util_df.pid == tid][['load_sum',
+                                            'util_sum',
+                                            'period_contrib']]
+        data.plot(ax=axes, drawstyle='steps-post')
+        axes.set_xlim(self._trace.x_min, self._trace.x_max)
+        axes.ticklabel_format(style='scientific', scilimits=(0, 0),
                               axis='y', useOffset=False)
-        axes.grid(True);
+        axes.grid(True)
         if 'sched_overutilized' in signals:
             self._trace.analysis.status.plotOverutilized(axes)
 
+# vim :set tabstop=4 shiftwidth=4 expandtab
