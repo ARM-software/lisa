@@ -26,8 +26,6 @@ from conf import JsonConf
 from trace import Trace
 from perf_analysis import PerfAnalysis
 
-from filters import Filters
-
 from report import Report
 
 import android

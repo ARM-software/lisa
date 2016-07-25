@@ -31,5 +31,10 @@ class AnalysisModule(object):
 
         self._dfg_trace_event = trace._dfg_trace_event
 
+        self._big_cap     = self._platform['nrg_model']['big']['cpu']['cap_max']
+        self._little_cap  = self._platform['nrg_model']['little']['cpu']['cap_max']
+        self._big_cpus    = self._platform['clusters']['big']
+        self._little_cpus = self._platform['clusters']['little']
+
         trace._registerDataFrameGetters(self)
 
