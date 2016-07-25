@@ -553,6 +553,13 @@ class Trace(object):
         df['cluster'] = np.select(
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 ['LITTLE'], 'big')
+        # Add a column which represents the max capacity of the smallest
+        # clustre which can accomodate the task utilization
+        little_cap  = self.platform['nrg_model']['little']['cpu']['cap_max']
+        big_cap  = self.platform['nrg_model']['big']['cpu']['cap_max']
+        df['min_cluster_cap'] = df.util_avg.map(
+            lambda util_avg :
+            big_cap if util_avg > little_cap else little_cap)
 
     def _sanitize_SchedBoostCpu(self):
         """
