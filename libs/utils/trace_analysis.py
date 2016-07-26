@@ -1180,10 +1180,12 @@ class TraceAnalysis(object):
         """
         Generate Frequency residency plots for the given entities.
 
-        :param residencies:
-        :type residencies: namedtuple(ResidencyData) - tuple containing:
-            1) as first element, a label to be used as subplot title
-            2) as second element, a namedtuple(ResidencyTime)
+        :param residencies: list of residencies to be plotted
+        :type residencies: list(namedtuple(ResidencyData)) - each tuple
+            contains:
+
+            - a label to be used as subplot title
+            - a namedtuple(ResidencyTime)
 
         :param entity_name: name of the entity ('cpu' or 'cluster') used in the
             figure name
@@ -1248,8 +1250,8 @@ class TraceAnalysis(object):
             - cpu_frequency
             - cpu_idle
 
-        :param cpus: List of cpus. By default plot all CPUs
-        :type cpus: list(str)
+        :param cpus: list of CPU IDs. By default plot all CPUs
+        :type cpus: list(int) or int
 
         :param pct: plot residencies in percentage
         :type pct: bool
@@ -1347,4 +1349,219 @@ class TraceAnalysis(object):
                 xmax = max_time
 
         self._plotFrequencyResidency(residencies, 'cluster', xmax, pct, active)
+
+    def _getIdleStateResidency(self, entity):
+        """
+        Compute time spent by a given entity in each idle state.
+
+        :param entity: cpu ID or cluster name or list of CPU IDs
+        :type entity: int or str or list(int)
+
+        :returns: :mod:`pandas.DataFrame` - idle time dataframe
+        """
+        if not self.trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, '\
+                         'idle state residency computation not possible!')
+            return None
+
+        if isinstance(entity, str):
+            try:
+                _entity = self.platform['clusters'][entity.lower()]
+            except KeyError:
+                logging.warn('%s entity not found!', entity)
+                return None
+        else:
+            _entity = listify(entity)
+
+        idle_df = self.trace.df('cpu_idle')
+        entity_idle_df = idle_df[idle_df.cpu_id == _entity[0]]
+
+        # Build cpu_idle, a square wave of the form:
+        #     entity_idle[t] == 1 if all CPUs in the entity are reported to be
+        #                       idle by cpufreq at time t
+        #     entity_idle[t] == 0 otherwise
+        entity_idle = self.getClusterActiveSignal(_entity) ^ 1
+
+        # In order to compute the time spent in each idle statefrequency we
+        # multiply 2 square waves:
+        # - entity_idle
+        # - idle_state, square wave of the form:
+        #     idle_state[t] == 1 if at time t entity is in idle state i
+        #     idle_state[t] == 0 otherwise
+        available_idles = sorted(idle_df.state.unique())
+        # Remove non-idle state from availables
+        available_idles.pop()
+        new_idx = sorted(entity_idle_df.index.tolist() + \
+                         entity_idle.index.tolist())
+        entity_idle_df = entity_idle_df.reindex(new_idx, method='ffill')
+        entity_idle = entity_idle.reindex(new_idx, method='ffill')
+        idle_time = []
+        for i in available_idles:
+            idle_state = entity_idle_df.state.apply(
+                lambda x: 1 if x == i else 0
+            )
+            idle_t = entity_idle * idle_state
+            # Compute total time by integrating the square wave
+            idle_time.append(self._integrate_square_wave(idle_t))
+
+        idle_time_df = pd.DataFrame({'time' : idle_time}, index=available_idles)
+        idle_time_df.index.name = 'idle_state'
+        return idle_time_df
+
+    @memoized
+    def getCPUIdleStateResidency(self, cpu):
+        """
+        Compute time spent by a given CPU in each idle state.
+
+        :param cpu: CPU ID
+        :type cpu: int
+
+        :returns: :mod:`pandas.DataFrame` - idle time dataframe
+        """
+        return self._getIdleStateResidency(cpu)
+
+    @memoized
+    def getClusterIdleStateResidency(self, cluster):
+        """
+        Compute time spent by a given cluster in each idle state.
+
+        :param cluster: cluster name or list of CPUs ID
+        :type cluster: str or list(int)
+
+        :returns: :mod:`pandas.DataFrame` - idle time dataframe
+        """
+        return self._getIdleStateResidency(cluster)
+
+    def _plotIdleStateResidency(self, residencies, entity_name, xmax):
+        """
+        Generate Idle state residency plots for the given entities.
+
+        :param residencies: list of residencies to be plot
+        :type residencies: list(namedtuple(ResidencyData)) - each tuple
+            contains:
+
+            - a label to be used as subplot title
+            - a dataframe with residency for each idle state
+
+        :param entity_name: name of the entity ('cpu' or 'cluster') used in the
+            figure name
+        :type entity_name: str
+
+        :param xmax: upper bound of x-axes
+        :type xmax: double
+        """
+        n_plots = len(residencies)
+        gs = gridspec.GridSpec(n_plots, 1)
+        fig = plt.figure()
+
+        for idx, data in enumerate(residencies):
+            r = data.residency
+            if r is None:
+                plt.close(fig)
+                return
+
+            axes = fig.add_subplot(gs[idx])
+            is_first = idx == 0
+            is_last = idx+1 == n_plots
+            yrange = 0.4 * max(6, len(r)) * n_plots
+            r.plot.barh(ax = axes, color='g',
+                        legend=False, figsize=(16,yrange))
+
+            axes.set_xlim(0, 1.05*xmax)
+            axes.set_ylabel('Idle State')
+            axes.set_title(data.label)
+            axes.grid(True)
+            if is_last:
+                axes.set_xlabel('Time [s]')
+            else:
+                axes.set_xticklabels([])
+
+            if is_first:
+                legend_y = axes.get_ylim()[1]
+                axes.annotate('Idle State Residency Time', xy=(0, legend_y),
+                              xytext=(-50, 45), textcoords='offset points',
+                              fontsize=18)
+
+        figname = '{}/{}{}_idle_state_residency.png'\
+                  .format(self.plotsdir, self.prefix, entity_name)
+
+        pl.savefig(figname, bbox_inches='tight')
+
+
+    def plotCPUIdleStateResidency(self, cpus=None):
+        """
+        Plot per-CPU idle state residency. big CPUs are plotted first and then
+        LITTLEs.
+
+        Requires cpu_idle trace events.
+
+        :param cpus: list of CPU IDs. By default plot all CPUs
+        :type cpus: list(int) or int
+        """
+        if not self.trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, '\
+                         'plot DISABLED!')
+            return
+
+        if cpus is None:
+            # Generate plots only for available CPUs
+            cpuidle_data = self.trace.df('cpu_idle')
+            _cpus = range(cpuidle_data.cpu_id.max()+1)
+        else:
+            _cpus = listify(cpus)
+
+        # Split between big and LITTLE CPUs ordered from higher to lower ID
+        _cpus.reverse()
+        big_cpus = [c for c in _cpus if c in self.platform['clusters']['big']]
+        little_cpus = [c for c in _cpus if c in
+                       self.platform['clusters']['little']]
+        _cpus = big_cpus + little_cpus
+
+        residencies = []
+        xmax = 0.0
+        for cpu in _cpus:
+            r = self.getCPUIdleStateResidency(cpu)
+            residencies.append(ResidencyData('CPU{}'.format(cpu), r))
+
+            max_time = r.max().values[0]
+            if xmax < max_time:
+                xmax = max_time
+
+        self._plotIdleStateResidency(residencies, 'cpu', xmax)
+
+    def plotClusterIdleStateResidency(self, clusters=None):
+        """
+
+        Plot per-cluster idle state residency in a given cluster, i.e. the
+        amount of time cluster `cluster` spent in idle state `i`. By default,
+        both 'big' and 'LITTLE' clusters data are plotted.
+
+        Requires cpu_idle following trace events.
+        :param clusters: name of the clusters to be plotted (all of them by
+            default)
+        :type clusters: str ot list(str)
+        """
+        if not self.trace.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, plot DISABLED!')
+            return
+
+        # Sanitize clusters
+        if clusters is None:
+            _clusters = self.platform['clusters'].keys()
+        else:
+            _clusters = listify(clusters)
+
+        # Precompute residencies for each cluster
+        residencies = []
+        xmax = 0.0
+        for c in _clusters:
+            r = self.getClusterIdleStateResidency(
+                    self.platform['clusters'][c.lower()])
+            residencies.append(ResidencyData('{} Cluster'.format(c), r))
+
+            max_time = r.max().values[0]
+            if xmax < max_time:
+                xmax = max_time
+
+        self._plotIdleStateResidency(residencies, 'cluster', xmax)
 
