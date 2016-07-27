@@ -117,7 +117,7 @@ To use this instrument you need the following equipment:
 * A [BeagleBone Black](https://beagleboard.org/black)
 * An [ACME Cape](http://sigrok.org/wiki/BayLibre_ACME)
 * Power probes for the ACME Cape
-* The `iio-capture` tool installed in your host ([installation instructions here](https://github.com/BayLibre/iio-capture---baylibre-acme-cape))
+* The `iio-capture` tool installed in your host ([installation instructions here](https://github.com/BayLibre/iio-capture))
 
 #### Build the software suite
 
