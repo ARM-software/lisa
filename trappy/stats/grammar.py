@@ -26,7 +26,7 @@ import types
 import numpy as np
 from trappy.stats.Topology import Topology
 from trappy.stats import StatConf
-from trappy.utils import handle_duplicate_index
+from trappy.utils import handle_duplicate_index, listify
 
 
 def parse_num(tokens):
@@ -239,6 +239,20 @@ class Parser(object):
 
     :type window: tuple
 
+    :param filters: Restrict the parsing to the rows that match the
+        specified criteria. For Example:
+        ::
+
+            filters =
+                    {
+                        "pid": 3338,
+                        "cpu": [0, 2, 4],
+                    }
+
+        will only consider rows whose pid column is 3338 and cpu is
+        either 0, 2 or 4.
+    :type filters: dict
+
     - **Operators**
 
         +----------------+----------------------+---------------+
@@ -317,7 +331,7 @@ class Parser(object):
 
     """
 
-    def __init__(self, data, pvars=None, window=(0, None), **kwargs):
+    def __init__(self, data, pvars=None, window=(0, None), filters=None, **kwargs):
         if pvars is None:
             pvars = {}
 
@@ -335,6 +349,7 @@ class Parser(object):
         self._method = kwargs.get("method", StatConf.REINDEX_METHOD_DEFAULT)
         self._fill = kwargs.get("fill", StatConf.NAN_FILL_DEFAULT)
         self._window = window
+        self._filters = filters
 
     def solve(self, expr):
         """Parses and solves the input expression
@@ -508,7 +523,7 @@ class Parser(object):
 
     def _get_data_frame(self, cls):
         """Get the data frame from the BareTrace object, applying the window
-        if set"""
+        and the filters"""
 
         data_frame = getattr(self.data, cls.name).data_frame
 
@@ -516,6 +531,20 @@ class Parser(object):
             data_frame = data_frame.loc[self._window[0]:]
         else:
             data_frame = data_frame.loc[self._window[0]:self._window[1]]
+
+        if self._filters:
+            criterion = pd.Series([True] * len(data_frame),
+                                  index=data_frame.index)
+
+            for filter_col, wanted_vals in self._filters.iteritems():
+                try:
+                    dfr_col = data_frame[filter_col]
+                except KeyError:
+                    continue
+
+                criterion &= dfr_col.isin(listify(wanted_vals))
+
+            data_frame = data_frame[criterion]
 
         return data_frame
 
