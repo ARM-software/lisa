@@ -113,7 +113,7 @@ class Cpuidle(Module):
     def get_state(self, state, cpu=0):
         if isinstance(state, int):
             try:
-                self.get_states(cpu)[state].enable()
+                return self.get_states(cpu)[state]
             except IndexError:
                 raise ValueError('Cpuidle state {} does not exist'.format(state))
         else:  # assume string-like
