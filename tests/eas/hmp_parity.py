@@ -109,8 +109,8 @@ class ForkMigration(unittest.TestCase):
     Detailed Description
     ====================
 
-    The test spawns as many threads as there are little cores.  It
-    then checks that all threads started on a big core.
+    The test spawns as many threads as there are cores in the system.
+    It then checks that all threads started on a big core.
 
     Expected Behaviour
     ==================
@@ -138,12 +138,14 @@ class ForkMigration(unittest.TestCase):
 
     @classmethod
     def populate_params(cls):
+        big_prefix = cls.task_prefix + "_big"
         for idx in range(len(cls.env.target.bl.bigs)):
-            task = cls.task_prefix + str(idx)
+            task = big_prefix + str(idx)
             cls.params[task] = Periodic(**BIG_WORKLOAD).get()
 
+        little_prefix = cls.task_prefix + "_little"
         for idx in range(len(cls.env.target.bl.littles)):
-            task = cls.task_prefix + str(idx)
+            task = little_prefix + str(idx)
             cls.params[task] = Periodic(**SMALL_WORKLOAD).get()
 
     @classmethod
