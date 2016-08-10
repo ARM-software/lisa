@@ -27,17 +27,40 @@ TESTS_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
 TESTS_CONF = os.path.join(TESTS_DIRECTORY, "smoke_test_ramp.config")
 
 class STune(LisaTest):
-    """Tests for SchedTune framework"""
+    """
+    Goal
+    ====
+
+    Verify that a task in a SchedTune cgroup is boosted
+
+    Detailed Description
+    ====================
+
+    The test runs a ramp task that has increasing load as time passes.
+    The load increases from 5% to 60% over 1 second.  It is run in
+    four different configurations: no boost, 15% boost, 30% boost and
+    60% boost.
+
+    Expected Behaviour
+    ==================
+
+    The margin of the task should match the formula
+
+    .. math::
+
+          (sched\_load\_scale - util) \\times boost
+
+    for all configurations
+
+    """
+
 
     @classmethod
     def setUpClass(cls, *args, **kwargs):
         super(STune, cls)._init(TESTS_CONF, *args, **kwargs)
 
     def test_boosted_utilization_signal(self):
-        """The boosted utilization signal is appropriately boosted
-
-        The margin should match the formula
-        (sched_load_scale - util) * boost"""
+        """Tasks in stune groups are boosted"""
 
         for tc in self.conf["confs"]:
             test_id = tc["tag"]
