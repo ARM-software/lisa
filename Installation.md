@@ -28,7 +28,7 @@ Machine based installation](https://github.com/ARM-software/lisa/wiki/Installati
 	$ sudo apt-get install python-pip python-dev
 
 	# Install (upgrade) required Python libraries
-	$ sudo pip install --upgrade trappy bart-py devlib
+	$ sudo pip install --upgrade trappy bart-py devlib psutil
 
 *NOTE:* TRAPpy and BART depend on `ipython` and `jupyter`. Some IPython
 Notebooks examples are written using the notebooks JSON nbformat version 4,
