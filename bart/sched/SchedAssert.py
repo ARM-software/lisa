@@ -14,7 +14,7 @@
 #
 
 """
-:mod:`bart.sched.SchedAssert` provides ability of assert scheduler behaviour.
+:mod:`bart.sched.SchedAssert` provides ability to assert scheduler behaviour.
 The analysis is based on TRAPpy's statistics framework and is potent enough
 to aggregate statistics over processor hierarchies.
 """
