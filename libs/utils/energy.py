@@ -119,7 +119,7 @@ class EnergyMeter(object):
         elif emeter['instrument'] == 'aep':
             EnergyMeter._meter = AEP(target, emeter['conf'], res_dir)
         elif emeter['instrument'] == 'acme':
-            EnergyMeter._meter = ACME(target, emeter['conf'], res_dir)
+            EnergyMeter._meter = ACME(target, emeter, res_dir)
 
         logging.debug('%14s - Results dir: %s', 'EnergyMeter', res_dir)
         return EnergyMeter._meter
@@ -324,9 +324,9 @@ class ACME(EnergyMeter):
         super(ACME, self).__init__(target)
 
         # Assume iio-capture is available in PATH
-        self._iiocapturebin = conf.get('iio-capture', 'iio-capture')
-        self._hostname = conf.get('ip_address', 'baylibre-acme.local')
-        self._channels = conf.get('channels', {
+        self._iiocapturebin = conf['conf'].get('iio-capture', 'iio-capture')
+        self._hostname = conf['conf'].get('ip_address', 'baylibre-acme.local')
+        self._channels = conf.get('channel_map', {
             'CH0': '0'
         })
         self._iio = [None] * len(self._channels)
@@ -473,7 +473,7 @@ class ACME(EnergyMeter):
             nrg = {}
             for kv_pair in out.split():
                 key, val = kv_pair.partition('=')[::2]
-                nrg[key] = val
+                nrg[key] = float(val)
             channels_stats[channel] = nrg
 
             logging.info('%14s - %s', 'ACME', self._str(channel))
@@ -498,6 +498,6 @@ class ACME(EnergyMeter):
         with open(nrg_stats_file, 'w') as ofile:
             json.dump(channels_stats, ofile, sort_keys=True, indent=4)
 
-        return (channels_nrg, nrg_file)
+        return EnergyReport(channels_nrg, nrg_file)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
