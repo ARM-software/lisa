@@ -149,7 +149,7 @@ class SchedAssert(object):
         of the task
 
         :param level: The topological level to which the group belongs
-        :type level (hashable):
+        :type level: str
 
         :param node: The group of CPUs for which residency
             needs to calculated
@@ -195,7 +195,7 @@ class SchedAssert(object):
             percent=False):
         """
         :param level: The topological level to which the group belongs
-        :type level (hashable):
+        :type level: str
 
         :param node: The group of CPUs for which residency
             needs to calculated
@@ -324,7 +324,7 @@ class SchedAssert(object):
            :code:`from_node` to the :code:`to_node`:
 
         :param level: The topological level to which the group belongs
-        :type level (hashable):
+        :type level: str
 
         :param from_node: The node from which the task switches out
         :type from_node: list
