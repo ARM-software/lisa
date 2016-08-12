@@ -14,12 +14,13 @@
 
 import os
 from copy import copy
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 from wlauto.exceptions import ConfigError
 from wlauto.utils.misc import (get_article, merge_config_values)
 from wlauto.utils.types import (identifier, integer, boolean,
-                                list_of_strings, toggle_set)
+                                list_of_strings, toggle_set,
+                                obj_dict)
 from wlauto.core.configuration.tree import SectionNode
 
 ##########################
@@ -305,6 +306,88 @@ class ConfigurationPoint(object):
 #####################
 ### Configuration ###
 #####################
+
+# pylint: disable=too-many-nested-blocks, too-many-branches
+def merge_using_priority_specificity(generic_name, specific_name, plugin_cache):
+    """
+    WA configuration can come from various sources of increasing priority, as well
+    as being specified in a generic and specific manner (e.g. ``device_config``
+    and ``nexus10`` respectivly). WA has two rules for the priority of configuration:
+
+        - Configuration from higher priority sources overrides configuration from
+          lower priority sources.
+        - More specific configuration overrides less specific configuration.
+
+    There is a situation where these two rules come into conflict. When a generic
+    configuration is given in config source of high priority and a specific
+    configuration is given in a config source of lower priority. In this situation
+    it is not possible to know the end users intention and WA will error.
+
+    :param generic_name: The name of the generic configuration e.g ``device_config``
+    :param specific_name: The name of the specific configuration used, e.g ``nexus10``
+    :param cfg_point: A dict of ``ConfigurationPoint``s to be used when merging configuration.
+                      keys=config point name, values=config point
+
+    :rtype: A fully merged and validated configuration in the form of a obj_dict.
+    """
+    generic_config = plugin_cache.get_plugin_config(generic_name)
+    specific_config = plugin_cache.get_plugin_config(specific_name)
+    cfg_points = plugin_cache.get_plugin_config_points(specific_name)
+    sources = plugin_cache.sources
+    final_config = obj_dict(not_in_dict=['name'])
+    seen_specific_config = defaultdict(list)
+
+    # set_value uses the 'name' attribute of the passed object in it error
+    # messages, to ensure these messages make sense the name will have to be
+    # changed several times during this function.
+    final_config.name = specific_name
+
+    # Load default config
+    for cfg_point in cfg_points.itervalues():
+        cfg_point.set_value(final_config, check_mandatory=False)
+
+    # pylint: disable=too-many-nested-blocks
+    for source in sources:
+        try:
+            if source in generic_config:
+                for name, cfg_point in cfg_points.iteritems():
+                    final_config.name = generic_name
+                    if name in generic_config[source]:
+                        if name in seen_specific_config:
+                            msg = ('"{generic_name}" configuration "{config_name}" has already been '
+                                   'specified more specifically for {specific_name} in:\n\t\t{sources}')
+                            msg = msg.format(generic_name=generic_name,
+                                             config_name=name,
+                                             specific_name=specific_name,
+                                             sources="\n\t\t".join(seen_specific_config[name]))
+                            raise ConfigError(msg)
+                        value = generic_config[source].pop(name)
+                        cfg_point.set_value(final_config, value, check_mandatory=False)
+                if generic_config[source]:
+                    msg = 'Invalid entry(ies) for "{}" in "{}": "{}"'
+                    msg = msg.format(specific_name, generic_name, '", "'.join(generic_config[source]))
+                    raise ConfigError(msg)
+
+            if source in specific_config:
+                final_config.name = specific_name
+                for name, cfg_point in cfg_points.iteritems():
+                    if name in specific_config[source]:
+                        seen_specific_config[name].append(source)
+                        value = specific_config[source].pop(name)
+                        cfg_point.set_value(final_config, value, check_mandatory=False)
+                if specific_config[source]:
+                    msg = 'Invalid entry(ies) for "{}": "{}"'
+                    raise ConfigError(msg.format(specific_name, '", "'.join(specific_config[source])))
+
+        except ConfigError as e:
+            raise ConfigError('Error in "{}":\n\t{}'.format(source, str(e)))
+
+    # Validate final configuration
+    final_config.name = specific_name
+    for cfg_point in cfg_points.itervalues():
+        cfg_point.validate(final_config)
+
+    return final_config
 
 
 class Configuration(object):
