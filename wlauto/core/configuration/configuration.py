@@ -20,7 +20,7 @@ from wlauto.exceptions import ConfigError
 from wlauto.utils.misc import (get_article, merge_config_values)
 from wlauto.utils.types import (identifier, integer, boolean,
                                 list_of_strings, toggle_set)
-from wlauto.core.configuration.tree import Node
+from wlauto.core.configuration.tree import SectionNode
 
 ##########################
 ### CONFIG POINT TYPES ###

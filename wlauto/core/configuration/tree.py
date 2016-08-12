@@ -13,24 +13,60 @@
 # limitations under the License.
 
 
-class Node(object):
+class JobSpecSource(object):
+
+    kind = ""
+
+    def __init__(self, config, parent=None):
+        self.config = config
+        self.parent = parent
+
+    @property
+    def id(self):
+        return self.config['id']
+
+    def name(self):
+        raise NotImplementedError()
+
+
+class WorkloadEntry(JobSpecSource):
+    kind = "workload"
+
+    @property
+    def name(self):
+        if self.parent.id == "global":
+            return 'workload "{}"'.format(self.id)
+        else:
+            return 'workload "{}" from section "{}"'.format(self.id, self.parent.id)
+
+
+class SectionNode(JobSpecSource):
+
+    kind = "section"
+
+    @property
+    def name(self):
+        if self.id == "global":
+            return "globally specified configuration"
+        else:
+            return 'section "{}"'.format(self.id)
+
     @property
     def is_leaf(self):
         return not bool(self.children)
 
-    def __init__(self, value, parent=None):
-        self.workloads = []
-        self.parent = parent
+    def __init__(self, config, parent=None):
+        super(SectionNode, self).__init__(config, parent=parent)
+        self.workload_entries = []
         self.children = []
-        self.config = value
 
     def add_section(self, section):
-        new_node = Node(section, parent=self)
+        new_node = SectionNode(section, parent=self)
         self.children.append(new_node)
         return new_node
 
-    def add_workload(self, workload):
-        self.workloads.append(workload)
+    def add_workload(self, workload_config):
+        self.workload_entries.append(WorkloadEntry(workload_config, self))
 
     def descendants(self):
         for child in self.children:
