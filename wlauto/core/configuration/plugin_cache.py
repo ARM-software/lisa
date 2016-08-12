@@ -15,41 +15,53 @@
 
 from collections import OrderedDict
 
+from wlauto.utils.types import obj_dict
+
 
 class PluginCache(object):
+    """
+    The plugin cache is used to store configuration that cannot be processed at
+    this stage, whether thats because it is unknown if its needed
+    (in the case of disabled plug-ins) or it is not know what it belongs to (in
+    the case of "device-config" ect.). It also maintains where configuration came
+    from, and the priority order of said sources.
+    """
 
     def __init__(self):
         self.plugin_configs = {}
-        self.device_config = OrderedDict()
-        self.source_list = []
+        self.global_alias = {}
+        self.sources = []
         self.finalised = False
-        # TODO: Build dics of global_alias: [list of destinations]
+        # TODO: Build dicts of global_alias: [list of destinations]
 
     def add_source(self, source):
-        if source in self.source_list:
+        if source in self.sources:
             raise Exception("Source has already been added.")
-        self.source_list.append(source)
+        self.sources.append(source)
 
-    def add(self, name, config, source):
-        if source not in self.source_list:
+    def _add_config(self, destination, name, value, source):
+        if source not in self.sources:
             msg = "Source '{}' has not been added to the plugin cache."
             raise Exception(msg.format(source))
 
-        if name not in self.plugin_configs:
-            self.plugin_configs[name] = OrderedDict()
-        self.plugin_configs[name][source] = config
+        if name not in destination:
+            destination[name] = OrderedDict()
+        destination[name][source] = value
+
+    def add_plugin_config(self, name, config, source):
+        self._add_config(self.plugin_configs, name, config, source)
+
+    def add_global_alias(self, name, config, source):
+        self._add_config(self.global_alias, name, config, source)
 
     def finalise_config(self):
-        pass
-
-    def disable_instrument(self, instrument):
-        pass
-
-    def add_device_config(self, config):
         pass
 
     def is_global_alias(self, name):
         pass
 
-    def add_global_alias(self, name, value):
+    def get_plugin_config(self, name):
+        return self.plugin_configs[name]
+
+    def get_plugin_config_points(self, name):
         pass
