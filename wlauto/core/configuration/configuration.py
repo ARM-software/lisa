@@ -547,11 +547,6 @@ class RunConfiguration(Configuration):
                            description='''
                            A descriptive name for this WA run.
                            '''),
-        ConfigurationPoint('output_directory', kind=str,
-                           # default=settings.default_output_directory,
-                           description='''
-                           The path where WA will output its results.
-                           '''),
         ConfigurationPoint('project', kind=str,
                            description='''
                            The project this WA run belongs too.
@@ -570,7 +565,7 @@ class RunConfiguration(Configuration):
                            description='''
                            How the device will be rebooted during the run.
                            '''),
-        ConfigurationPoint('device', kind=str,
+        ConfigurationPoint('device', kind=str, mandatory=True,
                            description='''
                            The type of device this WA run will be executed on.
                            '''),
@@ -587,6 +582,48 @@ class RunConfiguration(Configuration):
                            '''),
     ]
     configuration = {cp.name: cp for cp in __configuration}
+
+    def __init__(self):
+        super(RunConfiguration, self).__init__()
+        self.device_config = None
+
+    def merge_device_config(self, plugin_cache):
+        """
+        Merges global device config and validates that it is correct for the
+        selected device.
+        """
+        # pylint: disable=no-member
+        self.device_config = merge_using_priority_specificity("device_config",
+                                                              self.device,
+                                                              plugin_cache)
+
+    def to_pod(self):
+        pod = super(RunConfiguration, self).to_pod()
+        pod['device_config'] = self.device_config
+        return pod
+
+    # pylint: disable=no-member
+    @classmethod
+    def from_pod(cls, pod, plugin_cache):
+        try:
+            device_config = obj_dict(values=pod.pop("device_config"), not_in_dict=['name'])
+        except KeyError as e:
+            msg = 'No value specified for mandatory parameter "{}".'
+            raise ConfigError(msg.format(e.args[0]))
+
+        instance = super(RunConfiguration, cls).from_pod(pod, plugin_cache)
+
+        device_config.name = "device_config"
+        cfg_points = plugin_cache.get_plugin_config_points(instance.device)
+        for entry_name in device_config.iterkeys():
+            if entry_name not in cfg_points.iterkeys():
+                msg = 'Invalid entry "{}" for device "{}".'
+                raise ConfigError(msg.format(entry_name, instance.device, cls.name))
+            else:
+                cfg_points[entry_name].validate(device_config)
+
+        instance.device_config = device_config
+        return instance
 
 
 # This is the configuration for WA jobs
