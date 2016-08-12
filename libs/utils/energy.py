@@ -34,6 +34,10 @@ DEFAULT_ENERGY_METER = {
         'conf' : {
             'sites' : [ 'A7 Jcore', 'A15 Jcore' ],
             'kinds' : [ 'energy']
+        },
+        'channel_map' : {
+            'LITTLE' : 'A7 Jcore',
+            'big' : 'A15 Jcore',
         }
     },
 
@@ -43,6 +47,10 @@ DEFAULT_ENERGY_METER = {
         'conf' : {
             'sites' : [ 'a53', 'a57' ],
             'kinds' : [ 'energy' ],
+        },
+        'channel_map' : {
+            'LITTLE' : 'a53',
+            'big' : 'a57',
         }
     },
     'juno2' : {
@@ -55,7 +63,7 @@ DEFAULT_ENERGY_METER = {
         # little/big cores on the board, use a channel_map section to
         # indicate which channel is which
         'channel_map' : {
-            'little' : 'BOARDLITTLE',
+            'LITTLE' : 'BOARDLITTLE',
             'big' : 'BOARDBIG',
         }
     },
@@ -73,6 +81,8 @@ DEFAULT_ENERGY_METER = {
 }
 
 EnergyCounter = namedtuple('EnergyCounter', ['site', 'pwr_total' , 'pwr_samples', 'pwr_avg', 'time', 'nrg'])
+EnergyReport = namedtuple('EnergyReport', ['channels', 'report_file'])
+
 class EnergyMeter(object):
 
     _meter = None
@@ -125,7 +135,7 @@ class EnergyMeter(object):
 
 class HWMon(EnergyMeter):
 
-    def __init__(self, target, hwmon_conf=None, res_dir=None):
+    def __init__(self, target, conf=None, res_dir=None):
         super(HWMon, self).__init__(target, res_dir)
 
         # The HWMon energy meter
@@ -145,29 +155,23 @@ class HWMon(EnergyMeter):
         self._hwmon = devlib.HwmonInstrument(self._target)
 
         # Configure channels for energy measurements
-        logging.debug('%14s - Enabling channels %s', 'HWMon', hwmon_conf['conf'])
-        self._hwmon.reset(**hwmon_conf['conf'])
+        logging.debug('%14s - Enabling channels %s', 'HWMon', conf['conf'])
+        self._hwmon.reset(**conf['conf'])
 
         # Logging enabled channels
         logging.info('%14s - Channels selected for energy sampling:', 'HWMon')
         for channel in self._hwmon.active_channels:
             logging.info('%14s -    %s', 'HWMon', channel.label)
 
-        # record the hwmon channel mapping
-        self.little_channel = self._target.little_core.upper()
-        self.big_channel = self._target.big_core.upper()
-        if hwmon_conf and 'channel_map' in hwmon_conf:
-            self.little_channel = hwmon_conf['channel_map']['little']
-            self.big_channel = hwmon_conf['channel_map']['big']
-        logging.info('%14s - Using channel %s as little channel',
-                     'HWMon', self.little_channel)
-        logging.info('%14s - Using channel %s as big channel',
-                     'HWMon', self.big_channel)
-
+        # record the HWMon channels
+        self._channels = conf.get('channel_map', {
+            'LITTLE': self._target.little_core.upper(),
+            'big': self._target.big_core.upper()
+        })
 
     def sample(self):
         if self._hwmon is None:
-            return
+            return None
         samples = self._hwmon.take_measurement()
         for s in samples:
             label = s.channel.label\
@@ -199,41 +203,25 @@ class HWMon(EnergyMeter):
             self.readings[label]['total'] = 0
         logging.debug('RESET: %s', self.readings)
 
-
     def report(self, out_dir, out_file='energy.json'):
         if self._hwmon is None:
-            return
+            return (None, None)
         # Retrive energy consumption data
         nrg = self.sample()
         # Reformat data for output generation
         clusters_nrg = {}
-        for ch in nrg:
-            nrg_total = nrg[ch]['total']
-            logging.info('%14s - Energy [%16s]: %.6f',
-                         'HWMon', ch, nrg_total)
-            if ch.upper() == self.little_channel:
-                clusters_nrg['LITTLE'] = '{:.6f}'.format(nrg_total)
-            elif ch.upper() == self.big_channel:
-                clusters_nrg['big'] = '{:.6f}'.format(nrg_total)
-            else:
-                logging.warning('%14s - Unable to bind hwmon channel [%s]'\
-                        ' to a big.LITTLE cluster',
-                        'HWMon', ch)
-                clusters_nrg[ch] = '{:.6f}'.format(nrg_total)
-        if 'LITTLE' not in clusters_nrg:
-                logging.warning('%14s - No energy data for LITTLE cluster',
-                                'HWMon')
-        if 'big' not in clusters_nrg:
-                logging.warning('%14s - No energy data for big cluster',
-                                'HWMon')
+        for channel in self._channels:
+            label = self._channels[channel]
+            nrg_total = nrg[label]['total']
+            logging.info('%14s - Energy [%16s]: %.6f', 'HWMon', label, nrg_total)
+            clusters_nrg[channel] = nrg_total
 
         # Dump data as JSON file
         nrg_file = '{}/{}'.format(out_dir, out_file)
         with open(nrg_file, 'w') as ofile:
             json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
 
-        return (clusters_nrg, nrg_file)
-
+        return EnergyReport(clusters_nrg, nrg_file)
 
 class AEP(EnergyMeter):
 
