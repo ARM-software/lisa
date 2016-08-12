@@ -69,14 +69,17 @@ target_conf = {
 
     "emeter" = {
         "instrument" : "hwmon",
-        # conf for "hwmon" is currently ignored
-#        "conf" : {
-            # List of CPUs available in the system
-#            'sites' : ['a53', 'a57'],
-            # Type of hardware monitor to be used (ignored because
-            # we always measure energy)
-#            'kinds' : ['energy']
-#        }
+        "conf" : {
+            # Prefixes of the HWMon labels
+            'sites' : ['a53', 'a57'],
+            # Type of hardware monitor to be used
+            'kinds' : ['energy']
+        },
+        # Mapping between sites and user-defined channel names
+        "channel_map" : {
+            'little' : 'a53',
+            'big' : 'a57'
+        }
     },
 }
 ```
