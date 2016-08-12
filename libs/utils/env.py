@@ -337,6 +337,8 @@ class TestEnv(ShareState):
         ########################################################################
 
         # Setup board default if not specified by configuration
+        platform = None
+        self.__modules = []
         if 'board' not in self.conf:
             self.conf['board'] = 'UNKNOWN'
 
@@ -365,10 +367,18 @@ class TestEnv(ShareState):
                                )
             self.__modules = ['bl', 'cpufreq']
 
-        # Initialize default UNKNOWN board
-        else:
-            platform = None
-            self.__modules = []
+        elif self.conf['board'] != 'UNKNOWN':
+            # Initilize from platform descriptor (if available)
+            board = self._load_board(self.conf['board'])
+            if board:
+                core_names=board['cores']
+                platform = Platform(
+                    model=self.conf['board'],
+                    core_names=core_names,
+                    core_clusters = self._get_clusters(core_names),
+                    big_core=board.get('big_core', None)
+                )
+                self.__modules=board.get('modules', [])
 
         ########################################################################
         # Modules configuration
@@ -591,6 +601,31 @@ class TestEnv(ShareState):
         if 'nrg_model' not in board.json:
             return None
         return board.json['nrg_model']
+
+    def _load_board(self, board):
+        board_path = os.path.join(basepath,
+                'libs/utils/platforms', board.lower() + '.json')
+        logging.debug('%14s - Trying to load board descriptor from %s',
+                      'Platform', board_path)
+        if not os.path.exists(board_path):
+            return None
+        logging.info('%14s - Loading board:', 'Platform')
+        logging.info('%14s -    %s', 'Platform', board_path)
+        board = JsonConf(board_path)
+        board.load()
+        if 'board' not in board.json:
+            return None
+        return board.json['board']
+
+    def _get_clusters(self, core_names):
+        idx = 0
+        clusters = []
+        ids_map = { core_names[0] : 0 }
+        for name in core_names:
+            idx = ids_map.get(name, idx+1)
+            ids_map[name] = idx
+            clusters.append(idx)
+        return clusters
 
     def _init_platform(self):
         if 'bl' in self.target.modules:
