@@ -15,6 +15,6 @@
 from wlauto.core.configuration.configuration import (settings,
                                                      WAConfiguration,
                                                      RunConfiguration,
-                                                     JobsConfiguration,
+                                                     JobGenerator,
                                                      ConfigurationPoint)
 from wlauto.core.configuration.plugin_cache import PluginCache

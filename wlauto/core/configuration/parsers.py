@@ -201,6 +201,9 @@ class AgendaParser(object):
             global_workloads = raw.pop("workloads", [])
             if not isinstance(global_workloads, list):
                 raise ConfigError('Invalid entry "workloads" in {} - must be a list'.format(filepath))
+            if raw:
+                msg = 'Invalid top level agenda entry(ies): "{}"'
+                raise ConfigError(msg.format('", "'.join(raw.keys())))
 
             # PHASE 3: Collecting existing workload and section IDs
             seen_section_ids = set()
@@ -261,7 +264,7 @@ class AgendaParser(object):
 
 
 class EnvironmentVarsParser(object):
-
+    #TODO: podable
     def __init__(self, wa_config, environ):
         user_directory = environ.pop('WA_USER_DIRECTORY', '')
         if user_directory:
@@ -278,11 +281,10 @@ class EnvironmentVarsParser(object):
 # certain arguments to the correct configuration points and keep a record of
 # how WA was invoked
 class CommandLineArgsParser(object):
-
+    #TODO: podable
     def __init__(self, cmd_args, wa_config, run_config, jobs_config):
         wa_config.set("verbosity", cmd_args.verbosity)
         # TODO: Is this correct? Does there need to be a third output dir param
-        run_config.set('output_directory', cmd_args.output_directory)
         disabled_instruments = toggle_set(["~{}".format(i) for i in cmd_args.instruments_to_disable])
         jobs_config.disable_instruments(disabled_instruments)
         jobs_config.only_run_ids(cmd_args.only_run_ids)
