@@ -30,7 +30,7 @@ import re
 import math
 import shlex
 from bisect import insort
-from collections import defaultdict
+from collections import defaultdict, MutableMapping
 from copy import copy
 
 from wlauto.utils.misc import isiterable, to_identifier
@@ -402,3 +402,67 @@ class ID(str):
 
     def merge_into(self, other):
         return '_'.join(other, self)
+
+
+class obj_dict(MutableMapping):
+    """
+    An object that behaves like a dict but each dict entry can also be accesed
+    as an attribute.
+
+    :param not_in_dict: A list of keys that can only be accessed as attributes
+    """
+
+    def __init__(self, not_in_dict=None, values={}):
+        self.__dict__['not_in_dict'] = not_in_dict if not_in_dict is not None else []
+        self.__dict__['dict'] = dict(values)
+
+    def __getitem__(self, key):
+        if key in self.not_in_dict:
+            msg = '"{}" is in the list keys that can only be accessed as attributes'
+            raise KeyError(msg.format(key))
+        return self.__dict__['dict'][key]
+
+    def __setitem__(self, key, value):
+        self.__dict__['dict'][key] = value
+
+    def __delitem__(self, key):
+        del self.__dict__['dict'][key]
+
+    def __len__(self):
+        return sum(1 for _ in self)
+
+    def __iter__(self):
+        for key in self.__dict__['dict']:
+            if key not in self.__dict__['not_in_dict']:
+                yield key
+
+    def __repr__(self):
+        return repr(dict(self))
+
+    def __str__(self):
+        return str(dict(self))
+
+    def __setattr__(self, name, value):
+        self.__dict__['dict'][name] = value
+
+    def __delattr__(self, name):
+        if name in self:
+            del self.__dict__['dict'][name]
+        else:
+            raise AttributeError("No such attribute: " + name)
+
+    def __getattr__(self, name):
+        if name in self.__dict__['dict']:
+            return self.__dict__['dict'][name]
+        else:
+            raise AttributeError("No such attribute: " + name)
+
+    def to_pod(self):
+        return self.__dict__.copy()
+
+    @staticmethod
+    def from_pod(pod):
+        instance = ObjDict()
+        for k, v in pod.iteritems():
+            instance[k] = v
+        return instance
