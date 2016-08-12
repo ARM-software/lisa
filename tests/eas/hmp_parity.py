@@ -291,9 +291,10 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
     This test runs twice as many tasks are there are big cpus.  All
     these tasks are big tasks.  Half of them are called
     "early_starter" and the other half "migrator".  The migrator tasks
-    start 1 second after the early_starter tasks.  The test checks
-    that when the big cpus finish executing the early starter tasks,
-    the scheduler moves the migrator tasks to the big cpus.
+    start 1 second after the early_starter tasks.  As the big cpus are
+    fully utilized when the migrator tasks start, some tasks are
+    offloaded to the little cpus.  As the big cpus finish their tasks,
+    they pull tasks from the little to complete them.
 
     Expected Behaviour
     ==================
@@ -304,6 +305,21 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
     in the big cpus so they run on the little cpus.  Once the big cpus
     finish with the early_starters, they should pull the migrator
     tasks and run them.
+
+    It is possible that when the migrator tasks start they do it on
+    big cpus and they end up displacing the early starters.  This is
+    acceptable behaviour.  As long as big cpus are fully utilized
+    running big tasks, the scheduler is doing a good job.
+
+    That is why this test doesn't test for migrations of the migrator
+    tasks to the bigs when we expect that the early starters have
+    finished.  Instead, it tests that the big cpus were fully loaded
+    as long as there are tasks left to run in the system; that the
+    little cpus run tasks while the bigs are busy (offload migration);
+    that all tasks get a chance on a big cpu (either because they
+    started there or because of idle pull); and that all tasks are
+    finished off in a big cpu.
+
     """
 
     @classmethod
@@ -319,14 +335,17 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
         local_setup(cls.env)
         cls.run_workload()
 
-        cls.offset = cls.get_offset(cls.early_starters[0])
-
         cls.trace = trappy.FTrace(cls.trace_file)
         cls.m_assert = SchedMultiAssert(cls.trace, cls.env.topology,
                                         execnames=cls.migrators)
         cls.e_assert = SchedMultiAssert(cls.trace, cls.env.topology,
                                         execnames=cls.early_starters)
 
+        all_tasks = cls.early_starters + cls.migrators
+        cls.a_assert = SchedMultiAssert(cls.trace, cls.env.topology,
+                                        execnames=all_tasks)
+
+        cls.end_times = cls.calculate_end_times()
         cls.log_fh = open(os.path.join(cls.env.res_dir, cls.log_file), "w")
 
     @classmethod
@@ -365,11 +384,15 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
         trace = cls.env.ftrace.get_trace(cls.trace_file)
 
     @classmethod
-    def get_offset(cls, task_name):
-        return SchedAssert(
-            cls.trace,
-            cls.env.topology,
-            execname=task_name).getStartTime()
+    def calculate_end_times(cls):
+
+        end_times = {}
+        for task in cls.params.keys():
+            sched_assert = SchedAssert(cls.trace, cls.env.topology,
+                                       execname=task)
+            end_times[task] = sched_assert.getEndTime()
+
+        return end_times
 
     def test_first_cpu_early_starters(self):
         """Offload Migration and Idle Pull: Test First CPU (Early Starters)"""
@@ -400,108 +423,92 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
                 rank=self.num_tasks),
             msg="Not all the new 'migrator' tasks started on a big CPU")
 
-    def test_little_res_migrators(self):
-        "Offload Migration and Idle Pull: Test Little Residency (Migrators)"
-        little_residency_window = (self.offset + 1, self.offset + 5)
+    def test_big_cpus_fully_loaded(self):
+        """Offload Migration and Idle Pull: Big cpus are fully loaded as long as there are tasks left to run in the system"""
+        num_big_cpus = len(self.env.target.bl.bigs)
 
-        logging.info(
-            "Offload Migration and Idle Pull: Test Little Residency (Migrators)")
+        end_times = sorted(self.end_times.values())
 
-        log_result(
-            self.m_assert.getResidency(
-                "cluster",
-                self.env.target.bl.littles,
-                percent=True,
-                window=little_residency_window
-            ), self.log_fh)
+        # Window of time until the first migrator finishes
+        window = (0, end_times[-num_big_cpus])
+        busy_time = self.a_assert.getCPUBusyTime("cluster",
+                                                 self.env.target.bl.bigs,
+                                                 window=window, percent=True)
+        msg = "Big cpus were not fully loaded while there were enough big tasks to fill them"
+        self.assertGreater(busy_time, EXPECTED_BIG_BUSY_TIME_PCT, msg=msg)
 
-        self.assertTrue(
-            self.m_assert.assertResidency(
-                "cluster",
-                self.env.target.bl.littles,
-                EXPECTED_RESIDENCY_PCT,
-                operator.ge,
-                percent=True,
-                window=little_residency_window,
-                rank=self.num_tasks),
-            msg="Not all 'migrator' tasks are running on LITTLE cores for at least {}% of their execution time"\
-                    .format(EXPECTED_RESIDENCY_PCT))
+        # As the migrators start finishing, make sure that the tasks
+        # that are left are running on the big cpus
+        for i in range(num_big_cpus-1):
+            big_cpus_left = num_big_cpus - i - 1
+            window = (end_times[-num_big_cpus+i], end_times[-num_big_cpus+i+1])
+            busy_time = self.a_assert.getCPUBusyTime("cluster",
+                                                     self.env.target.bl.bigs,
+                                                     window=window, percent=True)
 
-    def test_big_res_migrators(self):
-        "Offload Migration and Idle Pull: Test Big Residency (Migrators)"
-        big_residency_window = (self.offset + 5, self.offset + 10)
+            expected_busy_time = EXPECTED_BIG_BUSY_TIME_PCT * \
+                                 big_cpus_left / num_big_cpus
+            msg = "Big tasks were not running on big cpus from {} to {}".format(
+                window[0], window[1])
 
-        logging.info(
-            "Offload Migration and Idle Pull: Test Big Residency (Migrators)")
+            self.assertGreater(busy_time, expected_busy_time, msg=msg)
 
-        log_result(
-            self.m_assert.getResidency(
-                "cluster",
-                self.env.target.bl.bigs,
-                percent=True,
-                window=big_residency_window
-            ), self.log_fh)
+    def test_little_cpus_run_tasks(self):
+        """Offload Migration and Idle Pull: Little cpus run tasks while bigs are busy"""
+        tasks = self.params.keys()
+        num_offloaded_tasks = len(tasks) / 2
 
-        self.assertTrue(
-            self.m_assert.assertResidency(
-                "cluster",
-                self.env.target.bl.bigs,
-                EXPECTED_RESIDENCY_PCT,
-                operator.ge,
-                percent=True,
-                window=big_residency_window,
-                rank=self.num_tasks),
-            msg="Not all 'migrator' tasks are running on big cores for at least {}% of their execution time"\
-                    .format(EXPECTED_RESIDENCY_PCT))
+        first_task_finish_time = None
+        for task in tasks:
+            end_time = self.end_times[task]
+            if not first_task_finish_time or (end_time < first_task_finish_time):
+                first_task_finish_time = end_time
 
+        window = (OFFLOAD_MIGRATION_MIGRATOR_DELAY, first_task_finish_time)
+        busy_time = self.a_assert.getCPUBusyTime("cluster",
+                                                 self.env.target.bl.littles,
+                                                 window=window)
 
-    def test_migrators_switch(self):
-        "Offload Migration and Idle Pull: Test LITTLE -> BIG Idle Pull Switch (Migrators)"
-        switch_window = (self.offset + 4.5, self.offset + 5.5)
+        window_len = window[1] - window[0]
+        expected_busy_time = window_len * num_offloaded_tasks * \
+                             EXPECTED_BIG_BUSY_TIME_PCT / 100.
+        msg = "Little cpus did not pick up big tasks while big cpus were fully loaded"
 
-        logging.info(
-            "Offload Migration and Idle Pull: Test LITTLE -> BIG Idle Pull Switch (Migrators)")
-        log_result(
-            self.m_assert.assertSwitch(
-                "cluster",
-                self.env.target.bl.littles,
-                self.env.target.bl.bigs,
-                window=switch_window), self.log_fh)
+        self.assertGreater(busy_time, expected_busy_time, msg=msg)
 
-        self.assertTrue(
-            self.m_assert.assertSwitch(
-                "cluster",
-                self.env.target.bl.littles,
-                self.env.target.bl.bigs,
-                window=switch_window,
-                rank=self.num_tasks),
-            msg="Not all 'migrator' tasks are pulled by idle big cores when expected")
+    def test_all_tasks_run_on_a_big_cpu(self):
+        """Offload Migration and Idle Pull: All tasks run on a big cpu at some point
 
+        Note: this test may fail in big.LITTLE platforms in which the
+        little cpus are almost as performant as the big ones.
 
-    def test_big_res_early_starters(self):
-        """Offload Migration and Idle Pull: Test Big Residency (EarlyStarters)"""
-        logging.info(
-            "Offload Migration and Idle Pull: Test Big Residency (EarlyStarters)")
+        """
 
-        big_residency_window = (self.offset, self.offset + 5)
+        for task in self.params.keys():
+            sa = SchedAssert(self.trace, self.env.topology, execname=task)
+            window = (0, self.end_times[task])
+            big_residency = sa.getResidency("cluster", self.env.target.bl.bigs,
+                                            window=window, percent=True)
+            log_result(big_residency, self.log_fh)
 
-        log_result(self.e_assert.getResidency(
-            "cluster",
-            self.env.target.bl.bigs,
-            percent=True,
-            window=big_residency_window), self.log_fh)
+            msg = "Task {} didn't run on a big cpu.".format(task)
+            self.assertGreater(big_residency, 0, msg=msg)
 
-        self.assertTrue(
-            self.e_assert.assertResidency(
-                "cluster",
-                self.env.target.bl.bigs,
-                EXPECTED_RESIDENCY_PCT,
-                operator.ge,
-                percent=True,
-                window=big_residency_window,
-                rank=self.num_tasks),
-            msg="Not all 'early starter' tasks are running on big cores for at least {}% of their execution time"\
-                    .format(EXPECTED_RESIDENCY_PCT))
+    def test_all_tasks_finish_on_a_big_cpu(self):
+        """Offload Migration and Idle Pull: All tasks finish on a big cpu
+
+        Note: this test may fail in big.LITTLE systems where the
+        little cpus' performance is comparable to the bigs' and they
+        can take almost the same time as a big cpu to complete a
+        task.
+
+        """
+
+        for task in self.params.keys():
+            sa = SchedAssert(self.trace, self.env.topology, execname=task)
+
+            msg = "Task {} did not finish on a big cpu".format(task)
+            self.assertIn(sa.getLastCpu(), self.env.target.bl.bigs, msg=msg)
 
 
 class WakeMigration(unittest.TestCase):
