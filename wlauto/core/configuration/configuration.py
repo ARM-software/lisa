@@ -121,19 +121,20 @@ class LoggingConfig(dict):
             raise ValueError(config)
 
 
+# Mapping for kind conversion; see docs for convert_types below
+KIND_MAP = {
+    int: integer,
+    bool: boolean,
+    dict: OrderedDict,
+}
+
+
 class ConfigurationPoint(object):
     """
     This defines a generic configuration point for workload automation. This is
     used to handle global settings, plugin parameters, etc.
 
     """
-
-    # Mapping for kind conversion; see docs for convert_types below
-    kind_map = {
-        int: integer,
-        bool: boolean,
-        dict: OrderedDict,
-    }
 
     def __init__(self, name,
                  kind=None,
@@ -144,8 +145,7 @@ class ConfigurationPoint(object):
                  description=None,
                  constraint=None,
                  merge=False,
-                 aliases=None,
-                 convert_types=True):
+                 aliases=None):
         """
         Create a new Parameter object.
 
@@ -193,20 +193,12 @@ class ConfigurationPoint(object):
                       ``merge_config_values`` documentation for details.
         :param aliases: Alternative names for the same configuration point.
                         These are largely for backwards compatibility.
-        :param convert_types: If ``True`` (the default), will automatically
-                              convert ``kind`` values from native Python
-                              types to WA equivalents. This allows more
-                              ituitive interprestation of parameter values,
-                              e.g. the string ``"false"`` being interpreted
-                              as ``False`` when specifed as the value for
-                              a boolean Parameter.
-
         """
         self.name = identifier(name)
         if kind is not None and not callable(kind):
             raise ValueError('Kind must be callable.')
-        if convert_types and kind in self.kind_map:
-            kind = self.kind_map[kind]
+        if kind in KIND_MAP:
+            kind = KIND_MAP[kind]
         self.kind = kind
         self.mandatory = mandatory
         self.default = default
