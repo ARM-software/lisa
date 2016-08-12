@@ -72,6 +72,7 @@ DEFAULT_ENERGY_METER = {
 
 }
 
+EnergyCounter = namedtuple('EnergyCounter', ['site', 'pwr_total' , 'pwr_samples', 'pwr_avg', 'time', 'nrg'])
 class EnergyMeter(object):
 
     _meter = None
@@ -99,7 +100,7 @@ class EnergyMeter(object):
             conf['board'] in DEFAULT_ENERGY_METER:
                 emeter = DEFAULT_ENERGY_METER[conf['board']]
                 logging.debug('%14s - using default energy meter for [%s]',
-                        'EnergyMeter', conf['board'])
+                              'EnergyMeter', conf['board'])
         else:
             return None
 
@@ -134,25 +135,23 @@ class HWMon(EnergyMeter):
         self.readings = {}
 
         if 'hwmon' not in self._target.modules:
-            logging.info('%14s - HWMON module not enabled',
-                    'EnergyMeter')
+            logging.info('%14s - HWMON module not enabled', 'HWMon')
             logging.warning('%14s - Energy sampling disabled by configuration',
-                    'EnergyMeter')
+                            'HWMon')
             return
 
         # Initialize HWMON instrument
-        logging.info('%14s - Scanning for HWMON channels, may take some time...', 'EnergyMeter')
+        logging.info('%14s - Scanning for HWMON channels, may take some time...', 'HWMon')
         self._hwmon = devlib.HwmonInstrument(self._target)
 
         # Configure channels for energy measurements
-        logging.debug('%14s - Enabling channels %s', 'EnergyMeter', hwmon_conf['conf'])
+        logging.debug('%14s - Enabling channels %s', 'HWMon', hwmon_conf['conf'])
         self._hwmon.reset(**hwmon_conf['conf'])
 
         # Logging enabled channels
-        logging.info('%14s - Channels selected for energy sampling:',
-                     'EnergyMeter')
+        logging.info('%14s - Channels selected for energy sampling:', 'HWMon')
         for channel in self._hwmon.active_channels:
-            logging.info('%14s -    %s', 'EnergyMeter', channel.label)
+            logging.info('%14s -    %s', 'HWMon', channel.label)
 
         # record the hwmon channel mapping
         self.little_channel = self._target.little_core.upper()
@@ -161,9 +160,9 @@ class HWMon(EnergyMeter):
             self.little_channel = hwmon_conf['channel_map']['little']
             self.big_channel = hwmon_conf['channel_map']['big']
         logging.info('%14s - Using channel %s as little channel',
-                     'EnergyMeter', self.little_channel)
+                     'HWMon', self.little_channel)
         logging.info('%14s - Using channel %s as big channel',
-                     'EnergyMeter', self.big_channel)
+                     'HWMon', self.big_channel)
 
 
     def sample(self):
@@ -211,7 +210,7 @@ class HWMon(EnergyMeter):
         for ch in nrg:
             nrg_total = nrg[ch]['total']
             logging.info('%14s - Energy [%16s]: %.6f',
-                    'EnergyReport', ch, nrg_total)
+                         'HWMon', ch, nrg_total)
             if ch.upper() == self.little_channel:
                 clusters_nrg['LITTLE'] = '{:.6f}'.format(nrg_total)
             elif ch.upper() == self.big_channel:
@@ -219,14 +218,14 @@ class HWMon(EnergyMeter):
             else:
                 logging.warning('%14s - Unable to bind hwmon channel [%s]'\
                         ' to a big.LITTLE cluster',
-                        'EnergyReport', ch)
+                        'HWMon', ch)
                 clusters_nrg[ch] = '{:.6f}'.format(nrg_total)
         if 'LITTLE' not in clusters_nrg:
                 logging.warning('%14s - No energy data for LITTLE cluster',
-                        'EnergyMeter')
+                                'HWMon')
         if 'big' not in clusters_nrg:
                 logging.warning('%14s - No energy data for big cluster',
-                        'EnergyMeter')
+                                'HWMon')
 
         # Dump data as JSON file
         nrg_file = '{}/{}'.format(out_dir, out_file)
@@ -235,7 +234,6 @@ class HWMon(EnergyMeter):
 
         return (clusters_nrg, nrg_file)
 
-EnergyCounter = namedtuple('EnergyCounter', ['site', 'pwr_total' , 'pwr_samples', 'pwr_avg', 'time', 'nrg'])
 
 class AEP(EnergyMeter):
 
@@ -249,18 +247,18 @@ class AEP(EnergyMeter):
         self.time = {}
 
         # Configure channels for energy measurements
-        logging.info('%14s - AEP configuration', 'EnergyMeter')
-        logging.info('%14s -     %s', 'EnergyMeter', aep_conf)
+        logging.info('%14s - AEP configuration', 'AEP')
+        logging.info('%14s -     %s', 'AEP', aep_conf)
         self._aep = devlib.EnergyProbeInstrument(self._target, **aep_conf)
 
         # Configure channels for energy measurements
-        logging.debug('EnergyMeter - Enabling channels')
+        logging.debug('AEP - Enabling channels')
         self._aep.reset()
 
         # Logging enabled channels
         logging.info('%14s - Channels selected for energy sampling:\n%s',
-                'EnergyMeter', str(self._aep.active_channels))
-        logging.debug('%14s - Results dir: %s', 'EnergyMeter', self._res_dir)
+                     'AEP', str(self._aep.active_channels))
+        logging.debug('%14s - Results dir: %s', 'AEP', self._res_dir)
 
     def _get_energy(self, samples, time, idx, site):
         pwr_total = 0
@@ -291,13 +289,13 @@ class AEP(EnergyMeter):
                 continue
             ec = self._get_energy(samples, self.time['diff'], idx, channel.site)
             logging.debug('%14s - CH[%s] Power: %.6f (samples: %d, time: %.6f), avg: %.f6',
-                          'EnergyMeter', channel.site, ec.pwr_total,
+                          'AEP', channel.site, ec.pwr_total,
                           ec.pwr_samples, ec.time, ec.pwr_avg)
             logging.debug('%14s - CH[%s] Estimated energy:  %.6f',
-                          'EnergyMeter', channel.site, ec.nrg)
+                          'AEP', channel.site, ec.nrg)
             self.channels.append(ec)
 
-        logging.debug('%14s - SAMPLE: %s', 'EnergyMeter', self.channels)
+        logging.debug('%14s - SAMPLE: %s', 'AEP', self.channels)
 
     def reset(self):
         if self._aep is None:
