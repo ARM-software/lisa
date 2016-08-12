@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import psutil
+import time
 
 from collections import namedtuple
 from subprocess import Popen, PIPE, STDOUT
@@ -72,9 +73,13 @@ DEFAULT_ENERGY_METER = {
     'hikey' : {
         'instrument' : 'aep',
         'conf' : {
-            'labels'          : ['LITTLE'],
             'resistor_values' : [0.033],
             'device_entry'    : '/dev/ttyACM0',
+        },
+        # AEP requires channel_map for compatibility with the generic energy
+        # meters interface
+        "channel_map" : {
+            "LITTLE" : 'LITTLE',
         }
     }
 
@@ -117,7 +122,7 @@ class EnergyMeter(object):
         if emeter['instrument'] == 'hwmon':
             EnergyMeter._meter = HWMon(target, emeter, res_dir)
         elif emeter['instrument'] == 'aep':
-            EnergyMeter._meter = AEP(target, emeter['conf'], res_dir)
+            EnergyMeter._meter = AEP(target, emeter, res_dir)
         elif emeter['instrument'] == 'acme':
             EnergyMeter._meter = ACME(target, emeter, res_dir)
 
@@ -225,7 +230,7 @@ class HWMon(EnergyMeter):
 
 class AEP(EnergyMeter):
 
-    def __init__(self, target, aep_conf, res_dir):
+    def __init__(self, target, conf, res_dir):
         super(AEP, self).__init__(target, res_dir)
 
         # Energy channels
@@ -236,11 +241,12 @@ class AEP(EnergyMeter):
 
         # Configure channels for energy measurements
         logging.info('%14s - AEP configuration', 'AEP')
-        logging.info('%14s -     %s', 'AEP', aep_conf)
-        self._aep = devlib.EnergyProbeInstrument(self._target, **aep_conf)
+        logging.info('%14s -     %s', 'AEP', conf)
+        self._aep = devlib.EnergyProbeInstrument(
+            self._target, labels=conf['channel_map'], **conf['conf'])
 
         # Configure channels for energy measurements
-        logging.debug('AEP - Enabling channels')
+        logging.debug('%14s - Enabling channels', 'AEP')
         self._aep.reset()
 
         # Logging enabled channels
@@ -306,14 +312,14 @@ class AEP(EnergyMeter):
         # Reformat data for output generation
         channels_nrg = {}
         for channel in self.channels:
-            channels_nrg[channel.site] = '{:.6f}'.format(channel.nrg)
+            channels_nrg[channel.site] = channel.nrg
 
         # Dump data as JSON file
         nrg_file = '{}/{}'.format(out_dir, out_energy)
         with open(nrg_file, 'w') as ofile:
             json.dump(channels_nrg, ofile, sort_keys=True, indent=4)
 
-        return (channels_nrg, nrg_file)
+        return EnergyReport(channels_nrg, nrg_file)
 
 class ACME(EnergyMeter):
     """
