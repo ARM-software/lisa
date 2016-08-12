@@ -24,6 +24,8 @@ from wlauto.core.configuration.configuration import JobSpec
 ### Helper functions ###
 ########################
 
+DUPLICATE_ENTRY_ERROR = 'Only one of {} may be specified in a single entry'
+
 
 def get_aliased_param(cfg_point, d, default=None, pop=True):
     """
@@ -36,8 +38,7 @@ def get_aliased_param(cfg_point, d, default=None, pop=True):
     aliases = [cfg_point.name] + cfg_point.aliases
     alias_map = [a for a in aliases if a in d]
     if len(alias_map) > 1:
-        message = 'Only one of {} may be specified in a single entry'
-        raise ConfigError(message.format(aliases))
+        raise ConfigError(DUPLICATE_ENTRY_ERROR.format(aliases))
     elif alias_map:
         if pop:
             return d.pop(alias_map[0])
@@ -150,21 +151,23 @@ class ConfigParser(object):
             for cfg_point in JobSpec.configuration.itervalues():
                 value = get_aliased_param(cfg_point, raw)
                 if value is not None:
-                    self.jobs_config.set_global_config(cfg_point.name, value)
+                    #TODO: runtime_params and boot_params
+                    if cfg_point.name == "workload_parameters":
+                        self.plugin_cache.add_plugin_config("workload_parameters", value, source)
+                    else:
+                        self.jobs_config.set_global_value(cfg_point.name, value)
+
+            device_config = raw.pop('device_config', None)
+            if device_config:
+                self.plugin_cache.add_device_config('device_config', device_config, source)
 
             for name, value in raw.iteritems():
                 if self.plugin_cache.is_global_alias(name):
                     self.plugin_cache.add_global_alias(name, value, source)
-
-                if "device_config" in raw:
-                    if self.plugin_cache.is_device(name):
-                        msg = "You cannot specify 'device_config' and '{}' in the same config"
-                        raise ConfigError(msg.format(name))
-                    self.plugin_cache.add_device_config(raw.pop('device-config', dict()), source)
-
-                # Assume that all leftover config is for a plug-in
-                # it is up to PluginCache to assert this assumption
-                self.plugin_cache.add(name, value, source)
+                else:
+                    # Assume that all leftover config is for a plug-in
+                    # it is up to PluginCache to assert this assumption
+                    self.plugin_cache.add_plugin_config(name, value, source)
 
         except ConfigError as e:
             raise ConfigError('Error in "{}":\n{}'.format(source, str(e)))
@@ -227,7 +230,10 @@ class AgendaParser(object):
                 workloads = []
                 for workload in section.pop("workloads", []):
                     workloads.append(self._process_entry(workload, seen_workload_ids))
+
                 if "params" in section:
+                    if "runtime_params" in section:
+                        raise ConfigError(DUPLICATE_ENTRY_ERROR.format(["params", "runtime_params"]))
                     section["runtime_params"] = section.pop("params")
                 section = _construct_valid_entry(section, seen_section_ids, "s")
                 self.jobs_config.add_section(section, workloads)
@@ -236,9 +242,11 @@ class AgendaParser(object):
             raise ConfigError("Error in '{}':\n\t{}".format(filepath, str(e)))
 
     def _process_entry(self, entry, seen_workload_ids):
-        entry = get_workload_entry(entry)
-        if "params" in entry:
-            entry["workload_parameters"] = entry.pop("params")
+        workload = get_workload_entry(entry)
+        if "params" in workload:
+            if "workload_params" in workload:
+                raise ConfigError(DUPLICATE_ENTRY_ERROR.format(["params", "workload_params"]))
+            workload["workload_params"] = workload.pop("params")
         return _construct_valid_entry(entry, seen_workload_ids, "wk")
 
 
