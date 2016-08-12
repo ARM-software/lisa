@@ -368,14 +368,14 @@ class toggle_set(set):
                 #Enable previously disabled item
                 if not item.startswith('~') and ('~' + item) in dest:
                     dest.remove('~' + item)
-                dest.append(item)
+                dest.add(item)
         return dest
 
     def values(self):
         """
         returns a list of enabled items.
         """
-        return [item for item in self if not item.startswith('~')]
+        return set([item for item in self if not item.startswith('~')])
 
     def conflicts_with(self, other):
         """
