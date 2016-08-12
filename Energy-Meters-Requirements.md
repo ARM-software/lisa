@@ -36,7 +36,21 @@ wload.run()
 nrg_data, nrg_file = te.emeter.report(te.res_dir)
 ```
 
-The `report()` method returns a tuple containing an energy data dictionary (`nrg_data`) and the output file name where collected energy data is stored (`nrg_file`).
+The `report()` method returns a tuple containing an energy data dictionary (`nrg_data`) with the following format:
+
+```python
+nrg_data = {
+    "channel_1" : {
+        # Collected data for channel_1
+    },
+    ...
+    "channel_n" : {
+        # Collected data for channel_n
+    }
+}
+```
+
+and the name of the output file where collected energy data is stored (`nrg_file`).
 
 ***
 
