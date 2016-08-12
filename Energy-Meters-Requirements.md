@@ -151,12 +151,15 @@ target_conf = {
     "emeter" : {
         "instrument" : "iiocapture",
         "conf" : {
-            # List of iio devices (i.e. probes) attached to the ACME Cape
-            'iiodevice'     : ['iio:device0'],
             # Absolute path to the iio-capture binary on the host
-            'iiocapturebin' : '<PATH_TO_iio-capture>/iio-capture',
-            # IP of the BeagleBone Black
-            'device_ip'     : '192.168.7.2',
+            'iio-capture' : '<PATH_TO_iio-capture>/iio-capture',
+            # Default host name of the BeagleBone Black
+            'ip_address'     : 'baylibre-acme.local',
+        },
+        "channel_map" : {
+            "Device0" : 0, # iio:device0
+            ...
+            "DeviceN" : N, # iio:deviceN
         }
     },
 }
@@ -168,5 +171,5 @@ The ACME Cape 8 probe slots numbered 1 to 8. `iio:device<n>` is the n-th discove
 You can also verify that the probes are correctly detected by the `iio daemon` running on the BeagleBone by running `iio_info` which is part of the `iio-capture` infrastructure:
 
 ```bash
-$ iio_info -n DEVICE_IP
+$ iio_info -n IP_ADDRESS
 ```
