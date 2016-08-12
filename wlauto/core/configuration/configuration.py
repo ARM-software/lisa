@@ -129,6 +129,15 @@ KIND_MAP = {
 }
 
 
+def get_type_name(kind):
+    typename = str(kind)
+    if '\'' in typename:
+        typename = typename.split('\'')[1]
+    elif typename.startswith('<function'):
+        typename = typename.split()[1]
+    return typename
+
+
 class ConfigurationPoint(object):
     """
     This defines a generic configuration point for workload automation. This is
@@ -231,7 +240,7 @@ class ConfigurationPoint(object):
             try:
                 value = self.kind(value)
             except (ValueError, TypeError):
-                typename = self.get_type_name()
+                typename = get_type_name(self.kind)
                 msg = 'Bad value "{}" for {}; must be {} {}'
                 article = get_article(typename)
                 raise ConfigError(msg.format(value, self.name, article, typename))
@@ -240,14 +249,6 @@ class ConfigurationPoint(object):
         if self.merge and hasattr(obj, self.name):
             value = merge_config_values(getattr(obj, self.name), value)
         setattr(obj, self.name, value)
-
-    def get_type_name(self):
-        typename = str(self.kind)
-        if '\'' in typename:
-            typename = typename.split('\'')[1]
-        elif typename.startswith('<function'):
-            typename = typename.split()[1]
-        return typename
 
     def validate(self, obj):
         value = getattr(obj, self.name, None)
