@@ -340,7 +340,7 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
     def populate_tasks(cls):
         migrator_workload = BIG_WORKLOAD.copy()
         migrator_workload["duration_s"] = 9
-        migrator_workload["delay_s"] = 1
+        migrator_workload["delay_s"] = OFFLOAD_MIGRATION_MIGRATOR_DELAY
 
         for idx in range(cls.num_tasks):
             task = "early_starters" + str(idx)
