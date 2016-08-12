@@ -222,6 +222,12 @@ class ConfigurationPoint(object):
         self.merge = merge
         self.aliases = aliases or []
 
+        if self.default is not None:
+            try:
+                self.validate_value("init", self.default)
+            except ConfigError:
+                raise ValueError('Default value "{}" is not valid'.format(self.default))
+
     def match(self, name):
         if name == self.name:
             return True
