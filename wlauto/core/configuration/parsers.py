@@ -210,6 +210,10 @@ class AgendaParser(object):
                     continue
                 if entry_id in seen_section_ids:
                     raise ConfigError('Duplicate section ID "{}".'.format(entry_id))
+                # "-" is reserved for joining section and workload IDs
+                if "-" in entry_id:
+                    msg = 'Invalid ID "{}"; IDs cannot contain a "-"'
+                    raise ConfigError(msg.format(entry_id))
                 seen_section_ids.add(entry_id)
 
             seen_workload_ids = set()
@@ -219,6 +223,12 @@ class AgendaParser(object):
                     continue
                 if entry_id in seen_workload_ids:
                     raise ConfigError('Duplicate workload ID "{}".'.format(entry_id))
+                # "-" is reserved for joining section and workload IDs
+                if "-" in entry_id:
+                    msg = 'Invalid ID "{}"; IDs cannot contain a "-"'
+                    raise ConfigError(msg.format(entry_id))
+                if entry_id == "global":
+                    raise ConfigError(('The ID "global" is reserved'))
                 seen_workload_ids.add(entry_id)
 
             # PHASE 4: Assigning IDs and validating entries
