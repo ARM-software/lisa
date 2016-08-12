@@ -18,3 +18,5 @@ Where:
 - `modules`: (optional) the list of `devlib` modules to be loaded by default for this board
 
 The two parameters are needed to understand the topology of the target device.
+
+The file must be placed under `<LISA_HOME>/utils/platforms/`.
