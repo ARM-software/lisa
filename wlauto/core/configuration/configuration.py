@@ -398,25 +398,43 @@ class Configuration(object):
     configuration = {cp.name: cp for cp in __configuration}
 
     def __init__(self):
-        self._finalized = False
+        # Load default values for configuration points
         for confpoint in self.configuration.itervalues():
             confpoint.set_value(self, check_mandatory=False)
 
-    def set(self, name, value):
-        if self._finalized:
-            raise RuntimeError("Cannot set configuration after it has been finalized.")
+    def set(self, name, value, check_mandatory=True):
         if name not in self.configuration:
             raise ConfigError('Unknown {} configuration "{}"'.format(self.name, name))
-        self.configuration[name].set_value(self, value)
+        self.configuration[name].set_value(self, value, check_mandatory=check_mandatory)
 
-    def update_config(self, values):
+    def update_config(self, values, check_mandatory=True):
         for k, v in values.iteritems():
-            self.set(k, v)
+            self.set(k, v, check_mandatory=check_mandatory)
 
-    def finalize(self):
-        for c in self.configuration.itervalues():
-            c.validate(self)
-        self._finalized = True
+    def validate(self):
+        for cfg_point in self.configuration.itervalues():
+            cfg_point.validate(self)
+
+    def to_pod(self):
+        pod = {}
+        for cfg_point_name in self.configuration.iterkeys():
+            value = getattr(self, cfg_point_name, None)
+            if value is not None:
+                pod[cfg_point_name] = value
+        return pod
+
+    @classmethod
+    # pylint: disable=unused-argument
+    def from_pod(cls, pod, plugin_cache):
+        instance = cls()
+        for name, cfg_point in cls.configuration.iteritems():
+            if name in pod:
+                cfg_point.set_value(instance, pod.pop(name))
+        if pod:
+            msg = 'Invalid entry(ies) for "{}": "{}"'
+            raise ConfigError(msg.format(cls.name, '", "'.join(pod.keys())))
+        instance.validate()
+        return instance
 
 
 # This configuration for the core WA framework
