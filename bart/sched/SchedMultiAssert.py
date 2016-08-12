@@ -227,6 +227,44 @@ class SchedMultiAssert(object):
         else:
             return result
 
+    def getCPUBusyTime(self, level, node, window=None, percent=False):
+        """Get the amount of time the cpus in the system were busy executing the
+        tasks
+
+        :param level: The topological level to which the group belongs
+        :type level: string
+
+        :param node: The group of CPUs for which to calculate busy time
+        :type node: list
+
+        :param window: A (start, end) tuple to limit the scope of the
+        calculation.
+        :type window: tuple
+
+        :param percent: If True the result is normalized to the total
+        time of the period, either the window or the full lenght of
+        the trace.
+        :type percent: bool
+
+        .. math::
+
+            R = \\frac{T_{busy} \\times 100}{T_{total}}
+
+        """
+        residencies = self.getResidency(level, node, window=window)
+
+        busy_time = sum(v["residency"] for v in residencies.itervalues())
+
+        if percent:
+            if window:
+                total_time = window[1] - window[0]
+            else:
+                total_time = self._ftrace.get_duration()
+            num_cpus = len(node)
+            return busy_time / (total_time * num_cpus) * 100
+        else:
+            return busy_time
+
     def generate_events(self, level, window=None):
         """Generate Events for the trace plot
 
