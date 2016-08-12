@@ -628,6 +628,9 @@ class RunConfiguration(Configuration):
 
 # This is the configuration for WA jobs
 class JobSpec(Configuration):
+
+    name = "Job Spec"
+
     __configuration = [
         ConfigurationPoint('iterations', kind=int, default=1,
                            description='''
@@ -645,20 +648,6 @@ class JobSpec(Configuration):
                            processes instead of (or in addition to) the workload
                            name. For example, the csv result processor will put
                            the label in the "workload" column of the CSV file.
-                           '''),
-        ConfigurationPoint('runtime_parameters', kind=dict, merge=True,
-                           aliases=["runtime_params"],
-                           description='''
-                           Rather than configuration for the workload,
-                           `runtime_parameters` allow you to change the configuration
-                           of the underlying device this particular workload spec.
-                           E.g. CPU frequencies, governor ect.
-                           '''),
-        ConfigurationPoint('boot_parameters', kind=dict, merge=True,
-                           aliases=["boot_params"],
-                           description='''
-                           These work in a similar way to runtime_parameters, but
-                           they get passed to the device when it reboots.
                            '''),
         ConfigurationPoint('instrumentation', kind=toggle_set, merge=True,
                            aliases=["instruments"],
@@ -679,35 +668,119 @@ class JobSpec(Configuration):
                            '''),
     ]
     configuration = {cp.name: cp for cp in __configuration}
-    #section id
-    #id mergering
-    id_parts = []  # pointers to entries
+
+    def __init__(self):
+        super(JobSpec, self).__init__()
+        self._to_merge = defaultdict(dict)
+        self._sources = []
+        self.id = None
+        self.workload_parameters = None
+        self.runtime_parameters = None
+        self.boot_parameters = None
+
+    def update_config(self, source, check_mandatory=True):
+        self._sources.append(source)
+        values = source.config
+        for k, v in values.iteritems():
+            if k == "id":
+                continue
+            elif k in ["workload_parameters", "runtime_parameters", "boot_parameters"]:
+                if v:
+                    self._to_merge[k][source] = copy(v)
+            else:
+                try:
+                    self.set(k, v, check_mandatory=check_mandatory)
+                except ConfigError as e:
+                    msg = 'Error in {}:\n\t{}'
+                    raise ConfigError(msg.format(source.name, e.message))
+
+    # pylint: disable=no-member
+    # Only call after the rest of the JobSpec is merged
+    def merge_workload_parameters(self, plugin_cache):
+        # merge global generic and specific config
+        workload_params = merge_using_priority_specificity("workload_parameters",
+                                                           self.workload_name,
+                                                           plugin_cache)
+
+        # Merge entry "workload_parameters"
+        # TODO: Wrap in - "error in [agenda path]"
+        cfg_points = plugin_cache.get_plugin_config_points(self.workload_name)
+        for source in self._sources:
+            if source in self._to_merge["workload_params"]:
+                config = self._to_merge["workload_params"][source]
+                for name, cfg_point in cfg_points.iteritems():
+                    if name in config:
+                        value = config.pop(name)
+                        cfg_point.set_value(workload_params, value, check_mandatory=False)
+                if config:
+                    msg = 'conflicting entry(ies) for "{}" in {}: "{}"'
+                    msg = msg.format(self.workload_name, source.name,
+                                     '", "'.join(workload_params[source]))
+
+        self.workload_parameters = workload_params
+
+    def finalize(self):
+        self.id = "-".join([source.config['id'] for source in self._sources[1:]])  # ignore first id, "global"
+
+    def to_pod(self):
+        pod = super(JobSpec, self).to_pod()
+        pod['workload_parameters'] = self.workload_parameters
+        pod['runtime_parameters'] = self.runtime_parameters
+        pod['boot_parameters'] = self.boot_parameters
+        return pod
+
+    @classmethod
+    def from_pod(cls, pod, plugin_cache):
+        try:
+            workload_parameters = pod['workload_parameters']
+            runtime_parameters = pod['runtime_parameters']
+            boot_parameters = pod['boot_parameters']
+        except KeyError as e:
+            msg = 'No value specified for mandatory parameter "{}}".'
+            raise ConfigError(msg.format(e.args[0]))
+
+        instance = super(JobSpec, cls).from_pod(pod, plugin_loader)
+
+        # TODO: validate parameters and construct the rest of the instance
 
 
-# This is used to construct the WA configuration tree
-class JobsConfiguration(object):
+# This is used to construct the list of Jobs WA will run
+class JobGenerator(object):
 
     name = "Jobs Configuration"
 
-    def __init__(self):
+    @property
+    def enabled_instruments(self):
+        self._read_enabled_instruments = True
+        return self._enabled_instruments
+
+    def update_enabled_instruments(self, value):
+        if self._read_enabled_instruments:
+            msg = "'enabled_instruments' cannot be updated after it has been accessed"
+            raise RuntimeError(msg)
+        self._enabled_instruments.update(value)
+
+    def __init__(self, plugin_cache):
+        self.plugin_cache = plugin_cache
+        self.ids_to_run = []
         self.sections = []
         self.workloads = []
+        self._enabled_instruments = set()
+        self._read_enabled_instruments = False
         self.disabled_instruments = []
-        self.root_node = Node(global_section())
-        self._global_finalized = False
 
-    def set_global_config(self, name, value):
-        if self._global_finalized:
-            raise RuntimeError("Cannot add global config once it has been finalized")
-        if name not in JobSpec.configuration:
-            raise ConfigError('Unknown global configuration "{}"'.format(name))
-        JobSpec.configuration[name].set_value(self.root_node.config, value,
-                                              check_mandatory=False)
-
-    def finalise_global_config(self):
+        self.job_spec_template = obj_dict(not_in_dict=['name'])
+        self.job_spec_template.name = "globally specified job spec configuration"
+        self.job_spec_template.id = "global"
+        # Load defaults
         for cfg_point in JobSpec.configuration.itervalues():
-            cfg_point.validate(self.root_node.config)
-        self._global_finalized = True
+            cfg_point.set_value(self.job_spec_template, check_mandatory=False)
+
+        self.root_node = SectionNode(self.job_spec_template)
+
+    def set_global_value(self, name, value):
+        JobSpec.configuration[name].set_value(self.job_spec_template, value,
+                                              check_mandatory=False)
 
     def add_section(self, section, workloads):
         new_node = self.root_node.add_section(section)
@@ -718,34 +791,55 @@ class JobsConfiguration(object):
         self.root_node.add_workload(workload)
 
     def disable_instruments(self, instruments):
-        self.disabled_instruments = instruments
+        #TODO: Validate
+        self.disabled_instruments = ["~{}".format(i) for i in instruments]
 
-    def only_run_ids(self):
-        pass
+    def only_run_ids(self, ids):
+        if isinstance(ids, str):
+            ids = [ids]
+        self.ids_to_run = ids
 
-    def generate_job_specs(self):
+    def generate_job_specs(self, target_manager):
+
         for leaf in self.root_node.leaves():
-            workloads = leaf.workloads
-            sections = [leaf.config]
-
+            # PHASE 1: Gather workload and section entries for this leaf
+            workload_entries = leaf.workload_entries
+            sections = [leaf]
             for ancestor in leaf.ancestors():
-                workloads += ancestor.workloads
-                sections.insert(ancestor.config, 0)
+                workload_entries = ancestor.workload_entries + workload_entries
+                sections.insert(0, ancestor)
 
-            for workload in workloads:
-                job_spec = JobSpec()
+            # PHASE 2: Create job specs for this leaf
+            for workload_entry in workload_entries:
+                job_spec = JobSpec()  # Loads defaults
+
+                # PHASE 2.1: Merge general job spec configuration
                 for section in sections:
-                    job_spec.id_parts.append(section.pop("id"))
-                    job_spec.update_config(section)
-                job_spec.id_parts.append(workload.pop("id"))
-                job_spec.update_config(workload)
+                    job_spec.update_config(section, check_mandatory=False)
+                job_spec.update_config(workload_entry, check_mandatory=False)
+
+                # PHASE 2.2: Merge global, section and workload entry "workload_parameters"
+                job_spec.merge_workload_parameters(self.plugin_cache)
+
+                # TODO: PHASE 2.3: Validate device runtime/boot paramerers
+
+                # PHASE 2.4: Disable globally disabled instrumentation
+                job_spec.set("instrumentation", self.disabled_instruments)
+                job_spec.finalize()
+
+                # PHASE 2.5: Skip job_spec if part of it's ID is not in self.ids_to_run
+                if self.ids_to_run:
+                    for job_id in self.ids_to_run:
+                        if job_id in job_spec.id:
+                            #TODO: logging
+                            break
+                    else:
+                        continue
+
+                # PHASE 2.6: Update list of instruments that need to be setup
+                # pylint: disable=no-member
+                self.update_enabled_instruments(job_spec.instrumentation.values())
+
                 yield job_spec
-
-
-class global_section(object):
-    name = "Global Configuration"
-
-    def to_pod(self):
-        return self.__dict__.copy()
 
 settings = WAConfiguration()
