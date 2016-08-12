@@ -22,6 +22,13 @@ my_conf = {
     ...
     "emeter" : {
         # Energy meter configuration. You need to specify an instrument here.
+        "instrument" : "instrument_name",
+        "conf" : {
+            ...
+        }
+        "channel_map" : {
+            ...
+        }
     },
     ...
 }
