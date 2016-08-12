@@ -191,15 +191,7 @@ class AgendaParser(object):
                     self.run_config.set('run_name', entry.pop('run_name'))
                 self.config_parser.load(entry, filepath)
 
-            # PHASE 2: Finalizing config.
-            # Agenda config is the final config, so we can now finalise WA and run config
-            self.wa_config.finalize()
-            self.run_config.finalize()
-            self.jobs_config.finalise_global_config()
-            #TODO: Device stuff
-            # target_manager_class = self.plugin_cache.get_plugin_class(self.run_config.device)
-
-            # PHASE 3: Getting "section" and "workload" entries.
+            # PHASE 2: Getting "section" and "workload" entries.
             sections = raw.pop("sections", [])
             if not isinstance(sections, list):
                 raise ConfigError('Invalid entry "sections" in {} - must be a list'.format(filepath))
@@ -207,7 +199,7 @@ class AgendaParser(object):
             if not isinstance(global_workloads, list):
                 raise ConfigError('Invalid entry "workloads" in {} - must be a list'.format(filepath))
 
-            # PHASE 4: Collecting existing workload and section IDs
+            # PHASE 3: Collecting existing workload and section IDs
             seen_section_ids = set()
             for section in sections:
                 entry_id = section.get("id")
@@ -226,7 +218,7 @@ class AgendaParser(object):
                     raise ConfigError('Duplicate workload ID "{}".'.format(entry_id))
                 seen_workload_ids.add(entry_id)
 
-            # PHASE 5: Assigning IDs and validating entries
+            # PHASE 4: Assigning IDs and validating entries
             # TODO: Error handling for workload errors vs section errors ect
             for workload in global_workloads:
                 self.jobs_config.add_workload(self._process_entry(workload, seen_workload_ids))
