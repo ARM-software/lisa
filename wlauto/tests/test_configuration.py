@@ -1,15 +1,20 @@
 # pylint: disable=R0201
+from copy import deepcopy, copy
 
 from unittest import TestCase
 
 from nose.tools import assert_equal, assert_is
-from mock.mock import MagicMock, Mock
+from mock.mock import Mock
 
 from wlauto.exceptions import ConfigError
-from wlauto.core.configuration.tree import Node
-from wlauto.core.configuration.configuration import (ConfigurationPoint, Configuration,
-                                                     JobsConfiguration)
-
+from wlauto.core.configuration.tree import SectionNode
+from wlauto.core.configuration.configuration import (ConfigurationPoint,
+                                                     Configuration,
+                                                     RunConfiguration,
+                                                     merge_using_priority_specificity,
+                                                     get_type_name)
+from wlauto.core.configuration.plugin_cache import PluginCache
+from wlauto.utils.types import obj_dict
 #       A1
 #     /    \
 #   B1      B2
@@ -17,32 +22,75 @@ from wlauto.core.configuration.configuration import (ConfigurationPoint, Configu
 # C1  C2  C3  C4
 #      \
 #      D1
-a1 = Node("A1")
-b1 = a1.add_section("B1")
-b2 = a1.add_section("B2")
-c1 = b1.add_section("C1")
-c2 = b1.add_section("C2")
-c3 = b2.add_section("C3")
-c4 = b2.add_section("C4")
-d1 = c2.add_section("D1")
+a1 = SectionNode({"id": "A1"})
+b1 = a1.add_section({"id": "B1"})
+b2 = a1.add_section({"id": "B2"})
+c1 = b1.add_section({"id": "C1"})
+c2 = b1.add_section({"id": "C2"})
+c3 = b2.add_section({"id": "C3"})
+c4 = b2.add_section({"id": "C4"})
+d1 = c2.add_section({"id": "D1"})
+
+DEFAULT_PLUGIN_CONFIG = {
+    "device_config": {
+        "a": {
+            "test3": ["there"],
+            "test5": [5, 4, 3],
+        },
+        "b": {
+            "test4": 1234,
+        },
+    },
+    "some_device": {
+        "a": {
+            "test3": ["how are"],
+            "test2": "MANDATORY",
+        },
+        "b": {
+            "test3": ["you?"],
+            "test5": [1, 2, 3],
+        }
+    }
+}
 
 
-class NodeTest(TestCase):
+def _construct_mock_plugin_cache(values=None):
+    if values is None:
+        values = deepcopy(DEFAULT_PLUGIN_CONFIG)
+
+    plugin_cache = Mock(spec=PluginCache)
+    plugin_cache.sources = ["a", "b", "c", "d", "e"]
+
+    def get_plugin_config(plugin_name):
+        return values[plugin_name]
+    plugin_cache.get_plugin_config.side_effect = get_plugin_config
+
+    def get_plugin_config_points(_):
+        return TestConfiguration.configuration
+    plugin_cache.get_plugin_config_points.side_effect = get_plugin_config_points
+
+    return plugin_cache
+
+
+class TreeTest(TestCase):
 
     def test_node(self):
-        node = Node(1)
+        node = SectionNode(1)
         assert_equal(node.config, 1)
         assert_is(node.parent, None)
-        assert_equal(node.workloads, [])
+        assert_equal(node.workload_entries, [])
         assert_equal(node.children, [])
 
     def test_add_workload(self):
-        node = Node(1)
+        node = SectionNode(1)
         node.add_workload(2)
-        assert_equal(node.workloads, [2])
+        assert_equal(len(node.workload_entries), 1)
+        wk = node.workload_entries[0]
+        assert_equal(wk.config, 2)
+        assert_is(wk.parent, node)
 
     def test_add_section(self):
-        node = Node(1)
+        node = SectionNode(1)
         new_node = node.add_section(2)
         assert_equal(len(node.children), 1)
         assert_is(node.children[0], new_node)
@@ -52,28 +100,31 @@ class NodeTest(TestCase):
 
     def test_descendants(self):
         for got, expected in zip(b1.descendants(), [c1, d1, c2]):
-            print "GOT:{} EXPECTED:{}".format(got.config, expected.config)
-            assert_is(got, expected)
-        print "----"
+            assert_equal(got.config, expected.config)
         for got, expected in zip(a1.descendants(), [c1, d1, c2, b1, c3, c4, b2]):
-            print "GOT:{} EXPECTED:{}".format(got.config, expected.config)
-            assert_is(got, expected)
+            assert_equal(got.config, expected.config)
 
     def test_ancestors(self):
         for got, expected in zip(d1.ancestors(), [c2, b1, a1]):
-            print "GOT:{} EXPECTED:{}".format(got.config, expected.config)
-            assert_is(got, expected)
+            assert_equal(got.config, expected.config)
         for _ in a1.ancestors():
             raise Exception("A1 is the root, it shouldn't have ancestors")
 
     def test_leaves(self):
         for got, expected in zip(a1.leaves(), [c1, d1, c3, c4]):
-            print "GOT:{} EXPECTED:{}".format(got.config, expected.config)
-            assert_is(got, expected)
-        print "----"
+            assert_equal(got.config, expected.config)
         for got, expected in zip(d1.leaves(), [d1]):
-            print "GOT:{} EXPECTED:{}".format(got.config, expected.config)
-            assert_is(got, expected)
+            assert_equal(got.config, expected.config)
+
+    def test_source_name(self):
+        assert_equal(a1.name, 'section "A1"')
+        global_section = SectionNode({"id": "global"})
+        assert_equal(global_section.name, "globally specified configuration")
+
+        a1.add_workload({'id': 'wk1'})
+        assert_equal(a1.workload_entries[0].name, 'workload "wk1" from section "A1"')
+        global_section.add_workload({'id': 'wk2'})
+        assert_equal(global_section.workload_entries[0].name, 'workload "wk2"')
 
 
 class ConfigurationPointTest(TestCase):
@@ -135,6 +186,11 @@ class ConfigurationPointTest(TestCase):
         cp6.set_value(mock)
 
     def test_validation(self):
+        #Test invalid default
+        with self.assertRaises(ValueError):
+            # pylint: disable=W0612
+            bad_cp = ConfigurationPoint("test", allowed_values=[1], default=100)
+
         def is_even(value):
             if value % 2:
                 return False
@@ -144,7 +200,7 @@ class ConfigurationPointTest(TestCase):
         cp2 = ConfigurationPoint("test", kind=list, allowed_values=[1, 2, 3, 4, 5])
         cp3 = ConfigurationPoint("test", kind=int, constraint=is_even)
         cp4 = ConfigurationPoint("test", kind=list, mandatory=True, allowed_values=[1, 99])
-        mock = MagicMock()
+        mock = obj_dict()
         mock.name = "ConfigurationPoint Validation Unit Test"
 
         # Test allowed values
@@ -187,10 +243,10 @@ class ConfigurationPointTest(TestCase):
         names = ["str", "list", "integer", "dummy"]
         for kind, name in zip(types, names):
             cp = ConfigurationPoint("test", kind=kind)
-            assert_equal(cp.get_type_name(), name)
+            assert_equal(get_type_name(cp.kind), name)
 
 
-# Subclass just to add some config points to use in testing
+# Subclass to add some config points for use in testing
 class TestConfiguration(Configuration):
     name = "Test Config"
     __configuration = [
@@ -205,25 +261,124 @@ class TestConfiguration(Configuration):
 
 class ConfigurationTest(TestCase):
 
-    def test(self):
+    def test_merge_using_priority_specificity(self):
+        # Test good configs
+        plugin_cache = _construct_mock_plugin_cache()
+        expected_result = {
+            "test1": "hello",
+            "test2": "MANDATORY",
+            "test3": ["hello", "there", "how are", "you?"],
+            "test4": 1234,
+            "test5": [1, 2, 3],
+        }
+        result = merge_using_priority_specificity("device_config", "some_device", plugin_cache)
+        assert_equal(result, expected_result)
+
+        # Test missing mandatory parameter
+        plugin_cache = _construct_mock_plugin_cache(values={
+            "device_config": {
+                "a": {
+                    "test1": "abc",
+                },
+            },
+            "some_device": {
+                "b": {
+                    "test5": [1, 2, 3],
+                }
+            }
+        })
+        msg = 'No value specified for mandatory parameter "test2" in some_device.'
+        with self.assertRaisesRegexp(ConfigError, msg):
+            merge_using_priority_specificity("device_config", "some_device", plugin_cache)
+
+        # Test conflict
+        plugin_cache = _construct_mock_plugin_cache(values={
+            "device_config": {
+                "e": {
+                    'test2': "NOT_CONFLICTING"
+                }
+            },
+            "some_device": {
+                'a': {
+                    'test2': "CONFLICT1"
+                },
+                'b': {
+                    'test2': "CONFLICT2"
+                },
+                'c': {
+                    'test2': "CONFLICT3"
+                },
+            },
+        })
+        msg = ('Error in "e":\n'
+               '\t"device_config" configuration "test2" has already been specified more specifically for some_device in:\n'
+               '\t\ta\n'
+               '\t\tb\n'
+               '\t\tc')
+        with self.assertRaisesRegexp(ConfigError, msg):
+            merge_using_priority_specificity("device_config", "some_device", plugin_cache)
+
+        # Test invalid entries
+        plugin_cache = _construct_mock_plugin_cache(values={
+            "device_config": {
+                "a": {
+                    "NOT_A_CFG_POINT": "nope"
+                }
+            },
+            "some_device": {}
+        })
+        msg = ('Error in "a":\n\t'
+               'Invalid entry\(ies\) for "some_device" in "device_config": "NOT_A_CFG_POINT"')
+        with self.assertRaisesRegexp(ConfigError, msg):
+            merge_using_priority_specificity("device_config", "some_device", plugin_cache)
+
+        plugin_cache = _construct_mock_plugin_cache(values={
+            "some_device": {
+                "a": {
+                    "NOT_A_CFG_POINT": "nope"
+                }
+            },
+            "device_config": {}
+        })
+        msg = ('Error in "a":\n\t'
+               'Invalid entry\(ies\) for "some_device": "NOT_A_CFG_POINT"')
+        with self.assertRaisesRegexp(ConfigError, msg):
+            merge_using_priority_specificity("device_config", "some_device", plugin_cache)
+
+    # pylint: disable=no-member
+    def test_configuration(self):
         # Test loading defaults
         cfg = TestConfiguration()
         expected = {
             "test1": "hello",
-            "test2": None,
             "test3": ["hello"],
             "test4": 123,
-            "test5": None,
         }
+        assert_equal(cfg.to_pod(), expected)
         # If a cfg point is not set an attribute with value None should still be created
-        for name, value in expected.iteritems():
-            assert_equal(getattr(cfg, name), value)
+        assert_is(cfg.test2, None)
+        assert_is(cfg.test5, None)
 
-        # Testing pre finalization "set"
+        # Testing set
+        # Good value
         cfg.set("test1", "there")
         assert_equal(cfg.test1, "there")  # pylint: disable=E1101
+        # Unknown value
         with self.assertRaisesRegexp(ConfigError, 'Unknown Test Config configuration "nope"'):
             cfg.set("nope", 123)
+        # check_mandatory
+        with self.assertRaises(ConfigError):
+            cfg.set("test2", value=None)
+        cfg.set("test2", value=None, check_mandatory=False)
+        # parameter constraints are tested in the ConfigurationPoint unit test
+        # since this just calls through to `ConfigurationPoint.set_value`
+
+        # Test validation
+        msg = 'No value specified for mandatory parameter "test2" in Test Config'
+        with self.assertRaisesRegexp(ConfigError, msg):
+            cfg.validate()
+        cfg.set("test2", 1)
+        cfg.validate()
 
         # Testing setting values from a dict
         new_values = {
@@ -238,55 +393,64 @@ class ConfigurationTest(TestCase):
         for k, v in new_values.iteritems():
             assert_equal(getattr(cfg, k), v)
 
-        # Test finalization
+        #Testing podding
+        pod = cfg.to_pod()
+        new_pod = TestConfiguration.from_pod(copy(pod), None).to_pod()
+        assert_equal(pod, new_pod)
 
-        # This is a madatory cfg point so finalization should fail
-        cfg.configuration["test2"].set_value(cfg, value=None, check_mandatory=False)
-        msg = 'No value specified for mandatory parameter "test2" in Test Config'
+        #invalid pod entry
+        pod = {'invalid_entry': "nope"}
+        msg = 'Invalid entry\(ies\) for "Test Config": "invalid_entry"'
         with self.assertRaisesRegexp(ConfigError, msg):
-            cfg.finalize()
-        assert_equal(cfg._finalized, False)  # pylint: disable=W0212
+            TestConfiguration.from_pod(pod, None)
 
-        # Valid finalization
-        cfg.set("test2", "is")
-        cfg.finalize()
-        assert_equal(cfg._finalized, True)  # pylint: disable=W0212
+        #failed pod validation
+        pod = {"test1": "testing"}
+        msg = 'No value specified for mandatory parameter "test2" in Test Config.'
+        with self.assertRaisesRegexp(ConfigError, msg):
+            TestConfiguration.from_pod(pod, None)
 
-        # post finalization set should failed
-        with self.assertRaises(RuntimeError):
-            cfg.set("test2", "is")
+    def test_run_configuration(self):
+        plugin_cache = _construct_mock_plugin_cache()
 
+        # Test `merge_device_config``
+        run_config = RunConfiguration()
+        run_config.set("device", "some_device")
+        run_config.merge_device_config(plugin_cache)
 
-class JobsConfigurationTest(TestCase):
+        # Test `to_pod`
+        expected_pod = {
+            "device": "some_device",
+            "device_config": {
+                "test1": "hello",
+                "test2": "MANDATORY",
+                "test3": ["hello", "there", "how are", "you?"],
+                "test4": 1234,
+                "test5": [1, 2, 3],
+            },
+            "execution_order": "by_iteration",
+            "reboot_policy": "as_needed",
+            "retry_on_status": ['FAILED', 'PARTIAL'],
+            "max_retries": 3,
+        }
+        pod = run_config.to_pod()
+        assert_equal(pod, expected_pod)
 
-    def test_set_global_config(self):
-        jc = JobsConfiguration()
+        # Test to_pod > from_pod
+        new_pod = RunConfiguration.from_pod(copy(pod), plugin_cache).to_pod()
+        assert_equal(pod, new_pod)
 
-        jc.set_global_config("workload_name", "test")
-        assert_equal(jc.root_node.config.workload_name, "test")
-        # Aliased names (e.g. "name") should be resolved by the parser
-        # before being passed here.
+        # from_pod with invalid device_config
+        pod['device_config']['invalid_entry'] = "nope"
+        msg = 'Invalid entry "invalid_entry" for device "some_device".'
+        with self.assertRaisesRegexp(ConfigError, msg):
+            RunConfiguration.from_pod(copy(pod), plugin_cache)
 
-        with self.assertRaises(ConfigError):
-            jc.set_global_config("unknown", "test")
+        # from_pod with no device_config
+        pod.pop("device_config")
+        msg = 'No value specified for mandatory parameter "device_config".'
+        with self.assertRaisesRegexp(ConfigError, msg):
+            RunConfiguration.from_pod(copy(pod), plugin_cache)
 
-        jc.finalise_global_config()
-        with self.assertRaises(RuntimeError):
-            jc.set_global_config("workload_name", "test")
-
-    def test_tree_manipulation(self):
-        jc = JobsConfiguration()
-
-        workloads = [123, "hello", True]
-        for w in workloads:
-            jc.add_workload(w)
-        assert_equal(jc.root_node.workloads, workloads)
-
-        jc.add_section("section", workloads)
-        assert_equal(jc.root_node.children[0].config, "section")
-        assert_equal(jc.root_node.workloads, workloads)
-
-    def test_generate_job_specs(self):
-
-    # disable_instruments
-    # only_run_ids
+    def test_generate_job_spec(self):
+        pass
