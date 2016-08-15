@@ -321,15 +321,12 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
 
         cls.offset = cls.get_offset(cls.early_starters[0])
 
-        cls.m_assert = SchedMultiAssert(
-            cls.trace_file,
-            cls.env.topology,
-            execnames=cls.migrators)
+        cls.trace = trappy.FTrace(cls.trace_file)
+        cls.m_assert = SchedMultiAssert(cls.trace, cls.env.topology,
+                                        execnames=cls.migrators)
+        cls.e_assert = SchedMultiAssert(cls.trace, cls.env.topology,
+                                        execnames=cls.early_starters)
 
-        cls.e_assert = SchedMultiAssert(
-            cls.trace_file,
-            cls.env.topology,
-            execnames=cls.early_starters)
         cls.log_fh = open(os.path.join(cls.env.res_dir, cls.log_file), "w")
 
     @classmethod
@@ -370,7 +367,7 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
     @classmethod
     def get_offset(cls, task_name):
         return SchedAssert(
-            cls.trace_file,
+            cls.trace,
             cls.env.topology,
             execname=task_name).getStartTime()
 
