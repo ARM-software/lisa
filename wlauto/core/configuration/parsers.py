@@ -79,7 +79,7 @@ def merge_result_processors_instruments(raw):
             msg = '"instrumentation" and "result_processors" have conflicting entries: {}'
             entires = ', '.join('"{}"'.format(c.strip("~")) for c in conflicts)
             raise ConfigError(msg.format(entires))
-    raw['instrumentation'] = instruments.merge_with(instruments)
+    raw['instrumentation'] = instruments.merge_with(result_processors)
 
 
 def _construct_valid_entry(raw, seen_ids, counter_name):
@@ -175,32 +175,39 @@ class ConfigParser(object):
 
 class AgendaParser(object):
 
-    def __init__(self, config_parser, wa_config, run_config, jobs_config, plugin_cache):
-        self.config_parser = config_parser
+    def __init__(self, wa_config, run_config, jobs_config, plugin_cache):
         self.wa_config = wa_config
         self.run_config = run_config
         self.jobs_config = jobs_config
         self.plugin_cache = plugin_cache
 
-    def load(self, filepath):  # pylint: disable=too-many-branches, too-many-locals
+    def load_from_path(self, filepath):
         raw = _load_file(filepath, 'Agenda')
+        self.load(raw, filepath)
+
+    def load(self, raw, source):  # pylint: disable=too-many-branches, too-many-locals
         try:
+            if not isinstance(raw, dict):
+                raise ConfigError('Invalid agenda, top level entry must be a dict')
+
             # PHASE 1: Populate and validate configuration.
             for name in ['config', 'global']:
                 entry = raw.pop(name, {})
                 if not isinstance(entry, dict):
-                    raise ConfigError('Invalid entry "{}" in {} - must be a dict'.format(name, filepath))
+                    raise ConfigError('Invalid entry "{}" - must be a dict'.format(name))
                 if 'run_name' in entry:
                     self.run_config.set('run_name', entry.pop('run_name'))
-                self.config_parser.load(entry, filepath)
+                config_parser = ConfigParser(self.wa_config, self.run_config,
+                                             self.jobs_config, self.plugin_cache)
+                config_parser.load(entry, source)
 
             # PHASE 2: Getting "section" and "workload" entries.
             sections = raw.pop("sections", [])
             if not isinstance(sections, list):
-                raise ConfigError('Invalid entry "sections" in {} - must be a list'.format(filepath))
+                raise ConfigError('Invalid entry "sections" - must be a list')
             global_workloads = raw.pop("workloads", [])
             if not isinstance(global_workloads, list):
-                raise ConfigError('Invalid entry "workloads" in {} - must be a list'.format(filepath))
+                raise ConfigError('Invalid entry "workloads" - must be a list')
             if raw:
                 msg = 'Invalid top level agenda entry(ies): "{}"'
                 raise ConfigError(msg.format('", "'.join(raw.keys())))
@@ -252,7 +259,7 @@ class AgendaParser(object):
                 self.jobs_config.add_section(section, workloads)
 
         except (ConfigError, SerializerSyntaxError) as e:
-            raise ConfigError("Error in '{}':\n\t{}".format(filepath, str(e)))
+            raise ConfigError('Error in "{}":\n\t{}'.format(source, str(e)))
 
     def _process_entry(self, entry, seen_workload_ids):
         workload = get_workload_entry(entry)
