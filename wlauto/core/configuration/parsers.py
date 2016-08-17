@@ -61,14 +61,6 @@ def _load_file(filepath, error_name):
     return raw
 
 
-def get_workload_entry(w):
-    if isinstance(w, basestring):
-        w = {'name': w}
-    elif not isinstance(w, dict):
-        raise ConfigError('Invalid workload entry: "{}"')
-    return w
-
-
 def merge_result_processors_instruments(raw):
     instruments = toggle_set(get_aliased_param(JobSpec.configuration['instrumentation'],
                                                raw, default=[]))
@@ -98,12 +90,12 @@ def _construct_valid_entry(raw, seen_ids, counter_name):
     merge_result_processors_instruments(raw)
 
     # Validate all entries
-    for cfg_point in JobSpec.configuration.itervalues():
+    for name, cfg_point in JobSpec.configuration.iteritems():
         value = get_aliased_param(cfg_point, raw)
         if value is not None:
             value = cfg_point.kind(value)
-            cfg_point.validate_value(cfg_point.name, value)
-            entries[cfg_point] = value
+            cfg_point.validate_value(name, value)
+            entries[name] = value
 
     # error if there are unknown entries
     if raw:
@@ -111,6 +103,44 @@ def _construct_valid_entry(raw, seen_ids, counter_name):
         raise ConfigError(msg.format(entries['id'], ', '.join(raw.keys())))
 
     return entries
+
+
+def _collect_valid_id(entry_id, seen_ids, entry_type):
+    if entry_id is None:
+        return
+    if entry_id in seen_ids:
+        raise ConfigError('Duplicate {} ID "{}".'.format(entry_type, entry_id))
+    # "-" is reserved for joining section and workload IDs
+    if "-" in entry_id:
+        msg = 'Invalid {} ID "{}"; IDs cannot contain a "-"'
+        raise ConfigError(msg.format(entry_type, entry_id))
+    if entry_id == "global":
+        msg = 'Invalid {} ID "global"; is a reserved ID'
+        raise ConfigError(msg.format(entry_type))
+    seen_ids.add(entry_id)
+
+
+def _resolve_params_alias(entry, param_alias):
+    if "params" in entry:
+        if param_alias in entry:
+            raise ConfigError(DUPLICATE_ENTRY_ERROR.format(["params", param_alias]))
+        entry[param_alias] = entry.pop("params")
+
+
+def _get_workload_entry(workload):
+    if isinstance(workload, basestring):
+        workload = {'name': workload}
+    elif not isinstance(workload, dict):
+        raise ConfigError('Invalid workload entry: "{}"')
+    return workload
+
+
+def _process_workload_entry(workload, seen_workload_ids):
+    workload = _get_workload_entry(workload)
+    _resolve_params_alias(workload, "workload_params")
+    workload = _construct_valid_entry(workload, seen_workload_ids, "wk")
+
+    return workload
 
 ###############
 ### Parsers ###
@@ -214,60 +244,37 @@ class AgendaParser(object):
 
             # PHASE 3: Collecting existing workload and section IDs
             seen_section_ids = set()
-            for section in sections:
-                entry_id = section.get("id")
-                if entry_id is None:
-                    continue
-                if entry_id in seen_section_ids:
-                    raise ConfigError('Duplicate section ID "{}".'.format(entry_id))
-                # "-" is reserved for joining section and workload IDs
-                if "-" in entry_id:
-                    msg = 'Invalid ID "{}"; IDs cannot contain a "-"'
-                    raise ConfigError(msg.format(entry_id))
-                seen_section_ids.add(entry_id)
-
             seen_workload_ids = set()
+
             for workload in global_workloads:
-                entry_id = workload.get("id")
-                if entry_id is None:
-                    continue
-                if entry_id in seen_workload_ids:
-                    raise ConfigError('Duplicate workload ID "{}".'.format(entry_id))
-                # "-" is reserved for joining section and workload IDs
-                if "-" in entry_id:
-                    msg = 'Invalid ID "{}"; IDs cannot contain a "-"'
-                    raise ConfigError(msg.format(entry_id))
-                if entry_id == "global":
-                    raise ConfigError(('The ID "global" is reserved'))
-                seen_workload_ids.add(entry_id)
+                workload = _get_workload_entry(workload)
+                _collect_valid_id(workload.get("id"), seen_workload_ids, "workload")
+
+            for section in sections:
+                _collect_valid_id(section.get("id"), seen_section_ids, "section")
+                for workload in section["workloads"] if "workloads" in section else []:
+                    workload = _get_workload_entry(workload)
+                    _collect_valid_id(workload.get("id"), seen_workload_ids, "workload")
 
             # PHASE 4: Assigning IDs and validating entries
             # TODO: Error handling for workload errors vs section errors ect
             for workload in global_workloads:
-                self.jobs_config.add_workload(self._process_entry(workload, seen_workload_ids))
+                self.jobs_config.add_workload(_process_workload_entry(workload,
+                                                                      seen_workload_ids))
 
             for section in sections:
                 workloads = []
                 for workload in section.pop("workloads", []):
-                    workloads.append(self._process_entry(workload, seen_workload_ids))
+                    workloads.append(_process_workload_entry(workload,
+                                                             seen_workload_ids))
 
-                if "params" in section:
-                    if "runtime_params" in section:
-                        raise ConfigError(DUPLICATE_ENTRY_ERROR.format(["params", "runtime_params"]))
-                    section["runtime_params"] = section.pop("params")
+                _resolve_params_alias(section, seen_section_ids)
                 section = _construct_valid_entry(section, seen_section_ids, "s")
                 self.jobs_config.add_section(section, workloads)
 
+            return seen_workload_ids, seen_section_ids
         except (ConfigError, SerializerSyntaxError) as e:
             raise ConfigError('Error in "{}":\n\t{}'.format(source, str(e)))
-
-    def _process_entry(self, entry, seen_workload_ids):
-        workload = get_workload_entry(entry)
-        if "params" in workload:
-            if "workload_params" in workload:
-                raise ConfigError(DUPLICATE_ENTRY_ERROR.format(["params", "workload_params"]))
-            workload["workload_params"] = workload.pop("params")
-        return _construct_valid_entry(entry, seen_workload_ids, "wk")
 
 
 class EnvironmentVarsParser(object):
