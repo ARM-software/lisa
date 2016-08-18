@@ -521,10 +521,11 @@ class WakeMigration(unittest.TestCase):
     Detailed Description
     ====================
 
-    This test creates two tasks that alternate between being big and
-    small workload.  They start being small load for 5 seconds, they
-    become big for another 5 seconds, then small for another 5 seconds
-    and finally big for the last 5 seconds.
+    This test creates as many tasks as there are big cpus.  The tasks
+    alternate between high and low utilization.  They start being
+    small load for 5 seconds, they become big for another 5 seconds,
+    then small for another 5 seconds and finally big for the last 5
+    seconds.
 
     Expected Behaviour
     ==================
@@ -558,8 +559,11 @@ class WakeMigration(unittest.TestCase):
 
     @classmethod
     def populate_params(cls):
-        cls.params[cls.task_prefix] = Step(**STEP_WORKLOAD).get()
-        cls.params[cls.task_prefix + "1"] = Step(**STEP_WORKLOAD).get()
+        num_big_cpus = len(cls.env.target.bl.bigs)
+
+        for i in range(num_big_cpus):
+            task_name = "{}_{}".format(cls.task_prefix, i)
+            cls.params[task_name] = Step(**STEP_WORKLOAD).get()
 
     @classmethod
     def run_workload(cls):
