@@ -70,6 +70,13 @@ class TestSchedAssert(utils_tests.SetupDirectory):
         self.assertAlmostEqual(s.getRuntime(window=window), expected_time,
                                places=9)
 
+    def test_get_last_cpu(self):
+        """SchedAssert.getLastCpu() gives you the last cpu in which a task ran"""
+        expected_last_cpu = 5
+
+        sa = SchedAssert("trace.dat", self.topology, execname="ls")
+        self.assertEqual(sa.getLastCpu(), expected_last_cpu)
+
 class TestSchedMultiAssert(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         self.big = [1,2]

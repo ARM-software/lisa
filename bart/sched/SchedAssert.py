@@ -612,6 +612,19 @@ class SchedAssert(object):
         cpus = Utils.listify(cpus)
         return first_cpu in cpus
 
+    def getLastCpu(self, window=None):
+        """Return the last CPU the task ran on"""
+
+        agg = self._aggregator(sched_funcs.last_cpu)
+        result = agg.aggregate(level="cpu", window=window)
+        result = list(itertools.chain.from_iterable(result))
+
+        end_time = max(result)
+        if not end_time:
+            return -1
+
+        return result.index(end_time)
+
     def generate_events(self, level, start_id=0, window=None):
         """Generate events for the trace plot
 

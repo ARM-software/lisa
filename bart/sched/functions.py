@@ -216,6 +216,27 @@ def first_cpu(series, window=None):
     else:
         return [float("inf")]
 
+def last_cpu(series, window=None):
+    """:func:`aggfunc` to calculate the time of
+    the last switch out event in the series
+    This is returned as a vector of unit length
+    so that it can be aggregated and reduced across
+    nodes to find the last cpu of a task
+
+    :param series: Input Time Series data
+    :type series: :mod:`pandas.Series`
+
+    :param window: A tuple indicating a time window
+    :type window: tuple
+    """
+    series = select_window(series, window)
+    series = series[series == SCHED_SWITCH_OUT]
+
+    if len(series):
+        return [series.index.values[-1]]
+    else:
+        return [0]
+
 def select_window(series, window):
     """Helper Function to select a portion of
     pandas time series
