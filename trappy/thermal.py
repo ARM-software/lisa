@@ -60,7 +60,7 @@ class Thermal(Base):
         :type width: int
 
         :param height: The height of the plot
-        :type int: int
+        :type height: int
         """
         from matplotlib import pyplot as plt
         from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
