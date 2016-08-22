@@ -74,7 +74,10 @@ def compare_runs(actor_order, map_label, runs, **kwords):
         trappy.wa.SysfsExtractor(path).pretty_print_in_ipython()
 
     trappy.plot_utils.plot_temperature(run_data, **kwords)
-    trappy.plot_utils.plot_load(run_data, map_label, **kwords)
+    try:
+        trappy.plot_utils.plot_load(run_data, map_label, **kwords)
+    except IndexError:
+        raise ValueError("No power allocator traces found.  Was IPA active (temp above switch on temperature) and FTrace configured to collect all thermal events?")
     trappy.plot_utils.plot_allfreqs(run_data, map_label, **kwords)
     trappy.plot_utils.plot_controller(run_data, **kwords)
     trappy.plot_utils.plot_input_power(run_data, actor_order, **kwords)

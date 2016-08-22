@@ -153,9 +153,12 @@ def plot_temperature(runs, width=None, height=None, ylim="range"):
     ax = pre_plot_setup(width, height)
 
     for run in runs:
-        current_temp = run.thermal_governor.data_frame["current_temperature"]
-        delta_temp = run.thermal_governor.data_frame["delta_temperature"]
-        control_series = (current_temp + delta_temp) / 1000
+        try:
+            current_temp = run.thermal_governor.data_frame["current_temperature"]
+            delta_temp = run.thermal_governor.data_frame["delta_temperature"]
+            control_series = (current_temp + delta_temp) / 1000
+        except KeyError:
+            control_series = None
 
         try:
             run.thermal.plot_temperature(control_temperature=control_series,
