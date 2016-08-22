@@ -37,7 +37,8 @@ class Thermal(Base):
     """The Pivot along which the data is orthogonal"""
 
     def plot_temperature(self, control_temperature=None, title="", width=None,
-                         height=None, ylim="range", ax=None, legend_label=""):
+                         height=None, ylim="range", ax=None, legend_label="",
+                         tz_id=None):
         """Plot the temperature.
 
         :param ax: Axis instance
@@ -61,6 +62,11 @@ class Thermal(Base):
 
         :param height: The height of the plot
         :type height: int
+
+        :param tz_id: thermal zone id as it appears in the id field of
+            the thermal_temperature trace event
+        :type tz_id: int
+
         """
         from matplotlib import pyplot as plt
         from trappy.plot_utils import normalize_title, pre_plot_setup, post_plot_setup
@@ -70,13 +76,19 @@ class Thermal(Base):
         if len(self.data_frame) == 0:
             raise ValueError("Empty DataFrame")
 
+        thermal_dfr = self.data_frame
+        if tz_id is not None:
+            thermal_dfr = thermal_dfr[thermal_dfr["id"] == tz_id]
+            if len(thermal_dfr) == 0:
+                raise ValueError("No thermal_temperature trace for thermal zone {}".format(tz_id))
+
         setup_plot = False
         if not ax:
             ax = pre_plot_setup(width, height)
             setup_plot = True
 
         temp_label = normalize_title("Temperature", legend_label)
-        (self.data_frame["temp"] / 1000).plot(ax=ax, label=temp_label)
+        (thermal_dfr["temp"] / 1000).plot(ax=ax, label=temp_label)
         if control_temperature is not None:
             ct_label = normalize_title("Control", legend_label)
             control_temperature.plot(ax=ax, color="y", linestyle="--",

@@ -140,7 +140,7 @@ def number_freq_plots(runs, map_label):
 
     return num_freq_plots
 
-def plot_temperature(runs, width=None, height=None, ylim="range"):
+def plot_temperature(runs, width=None, height=None, ylim="range", tz_id=None):
     """Plot temperatures
 
     runs is an array of FTrace() instances.  Extract the control_temp
@@ -153,16 +153,21 @@ def plot_temperature(runs, width=None, height=None, ylim="range"):
     ax = pre_plot_setup(width, height)
 
     for run in runs:
+        gov_dfr = run.thermal_governor.data_frame
+        if tz_id:
+            gov_dfr = gov_dfr[gov_dfr["thermal_zone_id"] == tz_id]
+
         try:
-            current_temp = run.thermal_governor.data_frame["current_temperature"]
-            delta_temp = run.thermal_governor.data_frame["delta_temperature"]
+            current_temp = gov_dfr["current_temperature"]
+            delta_temp = gov_dfr["delta_temperature"]
             control_series = (current_temp + delta_temp) / 1000
         except KeyError:
             control_series = None
 
         try:
             run.thermal.plot_temperature(control_temperature=control_series,
-                                         ax=ax, legend_label=run.name)
+                                         ax=ax, legend_label=run.name,
+                                         tz_id=tz_id)
         except ValueError:
             run.thermal_governor.plot_temperature(ax=ax, legend_label=run.name)
 
