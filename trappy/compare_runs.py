@@ -50,9 +50,14 @@ def compare_runs(actor_order, map_label, runs, **kwords):
             [("experiment1", "wa_output/antutu_antutu_1"),
              ("known good", "good/antutu_antutu_1")]
 
+    :param tz_id: thermal zone id as it appears in the id field of the
+            thermal_temperature trace event
+
     :type actor_order: list
     :type map_label: dict
     :type runs: list
+    :type tz_id: int
+
     """
     import trappy.plot_utils
     import trappy.wa
@@ -74,6 +79,9 @@ def compare_runs(actor_order, map_label, runs, **kwords):
         trappy.wa.SysfsExtractor(path).pretty_print_in_ipython()
 
     trappy.plot_utils.plot_temperature(run_data, **kwords)
+    if "tz_id" in kwords:
+        del kwords["tz_id"]
+
     try:
         trappy.plot_utils.plot_load(run_data, map_label, **kwords)
     except IndexError:
