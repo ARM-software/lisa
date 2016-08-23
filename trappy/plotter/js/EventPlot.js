@@ -90,7 +90,6 @@ var EventPlot = (function () {
             itemRects, items, colourAxis, tip, lanes;
 
         var process_chart_data = function (d) {
-
             items = d.data;
             lanes = d.lanes;
             var names = d.keys;
@@ -306,7 +305,7 @@ var EventPlot = (function () {
 
                     removeContextRect(ePlot);
                     ePlot.contextRect = drawContextRect(ePlot, current.info[0], current.info[1], current.info[2], true)
-                    ePlot.iDesc.currentDisp.attr("stroke", ePlot.colourAxis(current.name));     
+                    ePlot.iDesc.currentDisp.attr("stroke", ePlot.colourAxis(current.name));
                 }
             }
 
@@ -832,17 +831,17 @@ var EventPlot = (function () {
     };
 
 
-   function  _handle_equality(d, xMin, xMax, x, y) {
+   function  _handle_equality(d, xMin, xMax, x, y, lane) {
         var offset = 0.5 * y(1) + 0.5
         var bounds = [Math.max(d[0], xMin), Math.min(d[1],
             xMax)]
         if (bounds[0] < bounds[1])
-            return 'M' + ' ' + x(bounds[0]) + ' ' + (y(d[2]) + offset) + ' H ' +  x(bounds[1]);
+            return 'M' + ' ' + x(bounds[0]) + ' ' + (y(lane) + offset) + ' H ' +  x(bounds[1]);
         else
             return '';
     };
 
-    function _process(path, d, xMin, xMax, x, y, offset) {
+    function _process(path, d, xMin, xMax, x, y, offset, lane) {
 
         var start = d[0];
         if (start < xMin)
@@ -859,29 +858,33 @@ var EventPlot = (function () {
         else if ((end - start) < 1)
             end = start + 1;
 
-        path += 'M' + ' ' + start + ' ' + (y(d[2]) + offset) + ' H ' +  end;
+        path += 'M' + ' ' + start + ' ' + (y(lane) + offset) + ' H ' +  end;
         return path;
     }
 
-    var _get_path = function(data, xMin, xMax, offset, x, y, stride) {
+    var _get_path = function(new_data, xMin, xMax, offset, x, y, stride) {
 
             var path = ''
             var max_rects = 2000;
-            var right = search_data(data, 0, xMax, 0, data.length -
-                1)
-            var left = search_data(data, 1, xMin, 0, right)
-            //Handle Equality
-            if (left == right)
-                return _handle_equality(data[left], xMin, xMax, x, y);
 
-            data = data.slice(left, right + 1);
+            for (var lane in new_data) {
+                var data = new_data[lane];
+                var right = search_data(data, 0, xMax, 0, data.length - 1)
+                var left = search_data(data, 1, xMin, 0, right)
 
-            var stride_length = 1;
-            if (stride)
-                stride_length = Math.max(Math.ceil(data.length / max_rects), 1);
+                //Handle Equality
+                if (left == right)
+                    path += _handle_equality(data[left], xMin, xMax, x, y, lane);
 
-            for (var i = 0; i < data.length; i+= stride_length)
-                path = _process(path, data[i], xMin, xMax, x, y, offset);
+                data = data.slice(left, right + 1);
+
+                var stride_length = 1;
+                if (stride)
+                    stride_length = Math.max(Math.ceil(data.length / max_rects), 1);
+
+                for (var i = 0; i < data.length; i+= stride_length)
+                    path = _process(path, data[i], xMin, xMax, x, y, offset, lane);
+        }
 
         return path;
     }

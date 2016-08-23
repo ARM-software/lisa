@@ -29,6 +29,7 @@ import json
 import os
 from trappy.plotter.AbstractDataPlotter import AbstractDataPlotter
 from trappy.plotter import IPythonConf
+from collections import defaultdict
 from copy import deepcopy
 
 if not IPythonConf.check_ipython():
@@ -130,20 +131,31 @@ class EventPlot(AbstractDataPlotter):
         # Filter keys with zero average time
         keys = filter(lambda x : avg[x] != 0, avg)
         graph = {}
-        graph["data"] = _data
         graph["lanes"] = self._get_lanes(lanes, lane_prefix, num_lanes, _data)
         graph["xDomain"] = domain
         graph["keys"] = sorted(keys, key=lambda x: avg[x], reverse=True)
         graph["showSummary"] = summary
         graph["stride"] = AttrConf.EVENT_PLOT_STRIDE
         graph["colorMap"] = color_map
+        graph["data"] = self._group_data_by_lanes(_data)
         self._data = json.dumps(graph)
-
-
 
         # Initialize the HTML, CSS and JS Components
         self._add_css()
         self._init_html()
+
+    def _group_data_by_lanes(self, data):
+        """Group data by lanes.
+
+        This enables the Javascript code to handle the same event
+        occuring simultaneously in different lanes.
+        """
+        lane_data = {}
+        for key, value in data.items():
+            lane_data[key] = defaultdict(list)
+            for tsinfo in value:
+                lane_data[key][tsinfo[2]].append(tsinfo[:2])
+        return lane_data
 
     def view(self):
         """Views the Graph Object"""
