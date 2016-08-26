@@ -128,10 +128,42 @@ class Controller(object):
                     srcg.directory, dstg.directory, exclude),
                     as_root=True)
 
-    def move_all_tasks_to(self, dest):
+    def move_all_tasks_to(self, dest, exclude=[]):
+        """
+        Move all the tasks to the specified CGroup
+
+        Tasks are moved from all their original CGroup the the specified on.
+        The tasks which name matches one of the string in exclude are moved
+        instead in the root CGroup for the controller.
+        The name of a tasks to exclude must be a substring of the task named as
+        reported by the "ps" command. Indeed, this list will be translated into
+        a: "ps | grep -e name1 -e name2..." in order to obtain the PID of these
+        tasks.
+
+        :param exclude: list of commands to keep in the root CGroup
+        :type exlude: list(str)
+        """
+
+        if isinstance(exclude, str):
+            exclude = [exclude]
+        if not isinstance(exclude, list):
+            raise ValueError('wrong type for "exclude" parameter, '
+                             'it must be a str or a list')
+
+        logging.info('Moving all tasks into %s', dest)
+
+        # Build list of tasks to exclude
+        grep_filters = ''
+        for comm in exclude:
+            grep_filters += '-e "{}" '.format(comm)
+        logging.debug('Using grep filter: %s', grep_filters)
+        if grep_filters != '':
+            logging.info('Excluding tasks which name matches:')
+            logging.info('%s', ','.join(exclude))
+
         for cgroup in self._cgroups:
             if cgroup != dest:
-                self.move_tasks(cgroup, dest)
+                self.move_tasks(cgroup, dest, grep_filters)
 
     def tasks(self, cgroup):
         try:

@@ -8,6 +8,7 @@ FIND=${FIND:-$BUSYBOX find}
 GREP=${GREP:-$BUSYBOX grep}
 SED=${SED:-$BUSYBOX sed}
 CAT=${CAT:-$BUSYBOX cat}
+AWK=${AWK:-$BUSYBOX awk}
 
 ################################################################################
 # CPUFrequency Utility Functions
@@ -134,20 +135,21 @@ cgroups_run_into() {
 cgroups_tasks_move() {
 	SRC_GRP=${1}
 	DST_GRP=${2}
-	GREP_EXCLUSE=${3:-''}
+	shift 2
+	FILTERS=$*
 
 	$CAT $SRC_GRP/tasks | while read TID; do
 	  echo $TID > $DST_GRP/cgroup.procs
 	done
 
-	[ "$GREP_EXCLUSE" = "" ] && exit 0
+	[ "x$FILTERS" = "x" ] && exit 0
 
-	PIDS=`ps | $GREP "$GREP_EXCLUSE" | awk '{print $2}'`
+	PIDS=`ps | $GREP $FILTERS | $AWK '{print $2}'`
 	PIDS=`echo $PIDS`
 	echo "PIDs to save: [$PIDS]"
 	for TID in $PIDS; do
-	  CMDLINE=`$CAT /proc/$TID/cmdline`
-	  echo "$TID : $CMDLINE"
+	  COMM =`$CAT /proc/$TID/comm`
+	  echo "$TID : $COMM"
 	  echo $TID > $SRC_GRP/cgroup.procs
 	done
 }
