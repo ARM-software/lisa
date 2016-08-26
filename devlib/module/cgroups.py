@@ -136,6 +136,28 @@ class Controller(object):
             if cgroup != dest:
                 self.move_tasks(cgroup, dest)
 
+    def tasks(self, cgroup):
+        try:
+            cg = self._cgroups[cgroup]
+        except KeyError as e:
+            raise ValueError('Unkown group: {}'.format(e))
+        output = self.target._execute_util(
+                    'cgroups_tasks_in {}'.format(cg.directory),
+                    as_root=True)
+        entries = output.splitlines()
+        tasks = {}
+        for task in entries:
+            tid = task.split(',')[0]
+            try:
+                tname = task.split(',')[1]
+            except: continue
+            try:
+                tcmdline = task.split(',')[2]
+            except:
+                tcmdline = ''
+            tasks[int(tid)] = (tname, tcmdline)
+        return tasks
+
 class CGroup(object):
 
     def __init__(self, controller, name, create=True):

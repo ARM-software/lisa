@@ -152,6 +152,17 @@ cgroups_tasks_move() {
 	done
 }
 
+cgroups_tasks_in() {
+	GRP=${1}
+	for TID in $($CAT $GRP/tasks); do
+		COMM=`$CAT /proc/$TID/comm 2>/dev/null`
+		[ "$COMM" != "" ] && CMDL=`$CAT /proc/$TID/cmdline 2>/dev/null`
+		[ "$COMM" != "" ] && echo "$TID,$COMM,$CMDL"
+	done
+	exit 0
+}
+
+
 ################################################################################
 # Main Function Dispatcher
 ################################################################################
@@ -180,6 +191,9 @@ cgroups_run_into)
     ;;
 cgroups_tasks_move)
 	cgroups_tasks_move $*
+	;;
+cgroups_tasks_in)
+	cgroups_tasks_in $*
 	;;
 ftrace_get_function_stats)
     ftrace_get_function_stats
