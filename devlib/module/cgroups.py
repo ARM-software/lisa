@@ -423,3 +423,41 @@ class CgroupsModule(Module):
 
         return sbox_cg, isol_cg
 
+    def freeze(self, exclude=[], thaw=False):
+        """
+        Freeze all tasks while keeping a live console
+
+        A freezer cgroup is used to stop all the tasks in the target system but
+        the ones which name match one of the path specified by the exclude
+        paramater. The name of a tasks to exclude must be a substring of the
+        task named as reported by the "ps" command. Indeed, this list will be
+        translated into a: "ps | grep -e name1 -e name2..." in order to obtain
+        the PID of these tasks.
+
+        :param exclude: list of commands paths to exclude from freezer
+        :type exlude: list(str)
+        """
+
+        # Create Freezer CGroup
+        freezer = self.controller('freezer')
+        freezer_cg = freezer.cgroup('/DEVLIB_FREEZER')
+        thawed_cg = freezer.cgroup('/')
+
+        if thaw:
+            # Restart froozen tasks
+            freezer_cg.set(state='THAWED')
+            # Remove all tasks from freezer
+            freezer.move_all_tasks_to('/')
+            return
+
+        # Move all tasks into the freezer group
+        freezer.move_all_tasks_to('/DEVLIB_FREEZER', exclude)
+
+        logging.info("Non freezable tasks:")
+        tasks = freezer.tasks('/')
+        for tid in tasks:
+            logging.info("%5d: %s", tid, tasks[tid])
+
+        # Freeze all tasks
+        freezer_cg.set(state='FROZEN')
+
