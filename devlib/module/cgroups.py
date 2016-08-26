@@ -117,19 +117,16 @@ class Controller(object):
             cgroups.append(cg)
         return cgroups
 
-    def move_tasks(self, source, dest):
+    def move_tasks(self, source, dest, exclude=[]):
         try:
             srcg = self._cgroups[source]
             dstg = self._cgroups[dest]
-            command = 'for task in $(cat {}); do echo $task>{}; done'
-            self.target.execute(command.format(srcg.tasks_file, dstg.tasks_file),
-                                # this will always fail as some of the tasks
-                                # are kthreads that cannot be migrated, but we
-                                # don't care about those, so don't check exit
-                                # code.
-                                check_exit_code=False, as_root=True)
         except KeyError as e:
             raise ValueError('Unkown group: {}'.format(e))
+        output = self.target._execute_util(
+                    'cgroups_tasks_move {} {} \'{}\''.format(
+                    srcg.directory, dstg.directory, exclude),
+                    as_root=True)
 
     def move_all_tasks_to(self, dest):
         for cgroup in self._cgroups:
