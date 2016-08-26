@@ -158,6 +158,23 @@ class Controller(object):
             tasks[int(tid)] = (tname, tcmdline)
         return tasks
 
+    def tasks_count(self, cgroup):
+        try:
+            cg = self._cgroups[cgroup]
+        except KeyError as e:
+            raise ValueError('Unkown group: {}'.format(e))
+        output = self.target.execute(
+                    '{} wc -l {}/tasks'.format(
+                    self.target.busybox, cg.directory),
+                    as_root=True)
+        return int(output.split()[0])
+
+    def tasks_per_group(self):
+        tasks = {}
+        for cg in self.list_all():
+            tasks[cg] = self.tasks_count(cg)
+        return tasks
+
 class CGroup(object):
 
     def __init__(self, controller, name, create=True):
