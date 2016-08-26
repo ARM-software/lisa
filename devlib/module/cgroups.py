@@ -388,3 +388,38 @@ class CgroupsModule(Module):
             'cgroups_tasks_move {} {} {}'.format(srcg, dstg, exclude),
             as_root=True)
 
+    def isolate(self, cpus, exclude=[]):
+        """
+        Remove all userspace tasks from specified CPUs.
+
+        A list of CPUs can be specified where we do not want userspace tasks
+        running. This functions creates a sandbox cpuset CGroup where all
+        user-space tasks and not-pinned kernel-space tasks are moved into.
+        This should allows to isolate the specified CPUs which will not get
+        tasks running unless explicitely moved into the isolated group.
+
+        :param cpus: the list of CPUs to isolate
+        :type cpus: list(int)
+
+        :return: the (sandbox, isolated) tuple, where:
+                 sandbox is the CGroup of sandboxed CPUs
+                 isolated is the CGroup of isolated CPUs
+        """
+        all_cpus = set(range(self.target.number_of_cpus))
+        sbox_cpus = list(all_cpus - set(cpus))
+        isol_cpus = list(all_cpus - set(sbox_cpus))
+
+        # Create Sandbox and Isolated cpuset CGroups
+        cpuset = self.controller('cpuset')
+        sbox_cg = cpuset.cgroup('/DEVLIB_SBOX')
+        isol_cg = cpuset.cgroup('/DEVLIB_ISOL')
+
+        # Set CPUs for Sandbox and Isolated CGroups
+        sbox_cg.set(cpus=sbox_cpus, mems=0)
+        isol_cg.set(cpus=isol_cpus, mems=0)
+
+        # Move all currently running tasks to the Sandbox CGroup
+        cpuset.move_all_tasks_to('/DEVLIB_SBOX', exclude)
+
+        return sbox_cg, isol_cg
+
