@@ -825,7 +825,7 @@ class AndroidTarget(Target):
         if as_root is None:
             as_root = self.needs_su
         try:
-            command = 'cd {} && {} nohup {}'.format(self.working_directory, self.busybox, command)
+            command = 'cd {} && {} nohup {} &'.format(self.working_directory, self.busybox, command)
             output = self.execute(command, timeout=1, as_root=as_root)
         except TimeoutError:
             pass
