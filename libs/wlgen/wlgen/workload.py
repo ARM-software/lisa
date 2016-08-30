@@ -217,7 +217,8 @@ class Workload(object):
 
         # Prepend eventually required cgroup command
         if self.cgroup:
-            self.cgroup_cmd = 'cgroups_run_into {}'.format(self.cgroup)
+            self.cgroup_cmd = '{} cgroups_run_into {}'\
+                    .format(self.target.shutils, self.cgroup.name)
             _command = '{} {}'.format(self.cgroup_cmd, _command)
 
         # Start FTrace (if required)
@@ -233,23 +234,15 @@ class Workload(object):
         # Start task in background if required
         if background:
             logging.debug('%14s - WlGen [background]: %s', 'WlGen', _command)
-            self.target.kick_off(_command, as_root=as_root)
+            self.target.background(_command, as_root=as_root)
             self.output['executor'] = ''
 
         # Start task in foreground
         else:
-
             logging.info('%14s - Workload execution START:', 'WlGen')
             logging.info('%14s -    %s', 'WlGen', _command)
-
             # Run command and wait for it to complete
-            if cgroup:
-                results = self.target._execute_util(_command,
-                                                    as_root=True)
-            else:
-                results = self.target.execute(_command, timeout=None,
-                                              as_root=as_root)
-            # print type(results)
+            results = self.target.execute(_command, as_root=as_root)
             self.output['executor'] = results
 
         # Wait `end_pause` seconds before stopping ftrace
