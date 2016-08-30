@@ -218,7 +218,7 @@ class Workload(object):
         # Prepend eventually required cgroup command
         if self.cgroup:
             self.cgroup_cmd = 'cgroups_run_into {}'.format(self.cgroup)
-            _command = '{} \'{}\''.format(self.cgroup_cmd, _command)
+            _command = '{} {}'.format(self.cgroup_cmd, _command)
 
         # Start FTrace (if required)
         if ftrace:
