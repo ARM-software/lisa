@@ -7,6 +7,8 @@ BUSYBOX=${BUSYBOX:-__DEVLIB_BUSYBOX__}
 FIND=${FIND:-$BUSYBOX find}
 GREP=${GREP:-$BUSYBOX grep}
 SED=${SED:-$BUSYBOX sed}
+CAT=${CAT:-$BUSYBOX cat}
+AWK=${AWK:-$BUSYBOX awk}
 
 ################################################################################
 # CPUFrequency Utility Functions
@@ -37,7 +39,7 @@ cpufreq_get_all_governors() {
 }
 
 cpufreq_trace_all_frequencies() {
-	FREQS=$(cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq)
+	FREQS=$($CAT /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq)
 	CPU=0; for F in $FREQS; do
 		echo "cpu_frequency:        state=$F cpu_id=$CPU" > /sys/kernel/debug/tracing/trace_marker
 		CPU=$((CPU + 1))
@@ -51,7 +53,7 @@ cpufreq_trace_all_frequencies() {
 ftrace_get_function_stats() {
     for CPU in $(ls /sys/kernel/debug/tracing/trace_stat | sed 's/function//'); do
         REPLACE_STRING="s/  Function/\n  Function (CPU$CPU)/"
-        cat /sys/kernel/debug/tracing/trace_stat/function$CPU \
+        $CAT /sys/kernel/debug/tracing/trace_stat/function$CPU \
             | sed "$REPLACE_STRING"
     done
 }
@@ -133,23 +135,35 @@ cgroups_run_into() {
 cgroups_tasks_move() {
 	SRC_GRP=${1}
 	DST_GRP=${2}
-	GREP_EXCLUSE=${3:-''}
+	shift 2
+	FILTERS=$*
 
-	cat $SRC_GRP/tasks | while read TID; do
+	$CAT $SRC_GRP/tasks | while read TID; do
 	  echo $TID > $DST_GRP/cgroup.procs
 	done
 
-	[ "$GREP_EXCLUSE" = "" ] && exit 0
+	[ "x$FILTERS" = "x" ] && exit 0
 
-	PIDS=`ps | $GREP "$GREP_EXCLUSE" | awk '{print $2}'`
+	PIDS=`ps | $GREP $FILTERS | $AWK '{print $2}'`
 	PIDS=`echo $PIDS`
 	echo "PIDs to save: [$PIDS]"
 	for TID in $PIDS; do
-	  CMDLINE=`cat /proc/$TID/cmdline`
-	  echo "$TID : $CMDLINE"
+	  COMM =`$CAT /proc/$TID/comm`
+	  echo "$TID : $COMM"
 	  echo $TID > $SRC_GRP/cgroup.procs
 	done
 }
+
+cgroups_tasks_in() {
+	GRP=${1}
+	for TID in $($CAT $GRP/tasks); do
+		COMM=`$CAT /proc/$TID/comm 2>/dev/null`
+		[ "$COMM" != "" ] && CMDL=`$CAT /proc/$TID/cmdline 2>/dev/null`
+		[ "$COMM" != "" ] && echo "$TID,$COMM,$CMDL"
+	done
+	exit 0
+}
+
 
 ################################################################################
 # Main Function Dispatcher
@@ -179,6 +193,9 @@ cgroups_run_into)
     ;;
 cgroups_tasks_move)
 	cgroups_tasks_move $*
+	;;
+cgroups_tasks_in)
+	cgroups_tasks_in $*
 	;;
 ftrace_get_function_stats)
     ftrace_get_function_stats

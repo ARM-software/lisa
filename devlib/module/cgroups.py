@@ -117,24 +117,92 @@ class Controller(object):
             cgroups.append(cg)
         return cgroups
 
-    def move_tasks(self, source, dest):
+    def move_tasks(self, source, dest, exclude=[]):
         try:
             srcg = self._cgroups[source]
             dstg = self._cgroups[dest]
-            command = 'for task in $(cat {}); do echo $task>{}; done'
-            self.target.execute(command.format(srcg.tasks_file, dstg.tasks_file),
-                                # this will always fail as some of the tasks
-                                # are kthreads that cannot be migrated, but we
-                                # don't care about those, so don't check exit
-                                # code.
-                                check_exit_code=False, as_root=True)
         except KeyError as e:
             raise ValueError('Unkown group: {}'.format(e))
+        output = self.target._execute_util(
+                    'cgroups_tasks_move {} {} \'{}\''.format(
+                    srcg.directory, dstg.directory, exclude),
+                    as_root=True)
 
-    def move_all_tasks_to(self, dest):
+    def move_all_tasks_to(self, dest, exclude=[]):
+        """
+        Move all the tasks to the specified CGroup
+
+        Tasks are moved from all their original CGroup the the specified on.
+        The tasks which name matches one of the string in exclude are moved
+        instead in the root CGroup for the controller.
+        The name of a tasks to exclude must be a substring of the task named as
+        reported by the "ps" command. Indeed, this list will be translated into
+        a: "ps | grep -e name1 -e name2..." in order to obtain the PID of these
+        tasks.
+
+        :param exclude: list of commands to keep in the root CGroup
+        :type exlude: list(str)
+        """
+
+        if isinstance(exclude, str):
+            exclude = [exclude]
+        if not isinstance(exclude, list):
+            raise ValueError('wrong type for "exclude" parameter, '
+                             'it must be a str or a list')
+
+        logging.info('Moving all tasks into %s', dest)
+
+        # Build list of tasks to exclude
+        grep_filters = ''
+        for comm in exclude:
+            grep_filters += '-e "{}" '.format(comm)
+        logging.debug('Using grep filter: %s', grep_filters)
+        if grep_filters != '':
+            logging.info('Excluding tasks which name matches:')
+            logging.info('%s', ','.join(exclude))
+
         for cgroup in self._cgroups:
             if cgroup != dest:
-                self.move_tasks(cgroup, dest)
+                self.move_tasks(cgroup, dest, grep_filters)
+
+    def tasks(self, cgroup):
+        try:
+            cg = self._cgroups[cgroup]
+        except KeyError as e:
+            raise ValueError('Unkown group: {}'.format(e))
+        output = self.target._execute_util(
+                    'cgroups_tasks_in {}'.format(cg.directory),
+                    as_root=True)
+        entries = output.splitlines()
+        tasks = {}
+        for task in entries:
+            tid = task.split(',')[0]
+            try:
+                tname = task.split(',')[1]
+            except: continue
+            try:
+                tcmdline = task.split(',')[2]
+            except:
+                tcmdline = ''
+            tasks[int(tid)] = (tname, tcmdline)
+        return tasks
+
+    def tasks_count(self, cgroup):
+        try:
+            cg = self._cgroups[cgroup]
+        except KeyError as e:
+            raise ValueError('Unkown group: {}'.format(e))
+        output = self.target.execute(
+                    '{} wc -l {}/tasks'.format(
+                    self.target.busybox, cg.directory),
+                    as_root=True)
+        return int(output.split()[0])
+
+    def tasks_per_group(self):
+        tasks = {}
+        for cg in self.list_all():
+            tasks[cg] = self.tasks_count(cg)
+        return tasks
 
 class CGroup(object):
 
@@ -319,4 +387,77 @@ class CgroupsModule(Module):
         return self.target._execute_util(
             'cgroups_tasks_move {} {} {}'.format(srcg, dstg, exclude),
             as_root=True)
+
+    def isolate(self, cpus, exclude=[]):
+        """
+        Remove all userspace tasks from specified CPUs.
+
+        A list of CPUs can be specified where we do not want userspace tasks
+        running. This functions creates a sandbox cpuset CGroup where all
+        user-space tasks and not-pinned kernel-space tasks are moved into.
+        This should allows to isolate the specified CPUs which will not get
+        tasks running unless explicitely moved into the isolated group.
+
+        :param cpus: the list of CPUs to isolate
+        :type cpus: list(int)
+
+        :return: the (sandbox, isolated) tuple, where:
+                 sandbox is the CGroup of sandboxed CPUs
+                 isolated is the CGroup of isolated CPUs
+        """
+        all_cpus = set(range(self.target.number_of_cpus))
+        sbox_cpus = list(all_cpus - set(cpus))
+        isol_cpus = list(all_cpus - set(sbox_cpus))
+
+        # Create Sandbox and Isolated cpuset CGroups
+        cpuset = self.controller('cpuset')
+        sbox_cg = cpuset.cgroup('/DEVLIB_SBOX')
+        isol_cg = cpuset.cgroup('/DEVLIB_ISOL')
+
+        # Set CPUs for Sandbox and Isolated CGroups
+        sbox_cg.set(cpus=sbox_cpus, mems=0)
+        isol_cg.set(cpus=isol_cpus, mems=0)
+
+        # Move all currently running tasks to the Sandbox CGroup
+        cpuset.move_all_tasks_to('/DEVLIB_SBOX', exclude)
+
+        return sbox_cg, isol_cg
+
+    def freeze(self, exclude=[], thaw=False):
+        """
+        Freeze all tasks while keeping a live console
+
+        A freezer cgroup is used to stop all the tasks in the target system but
+        the ones which name match one of the path specified by the exclude
+        paramater. The name of a tasks to exclude must be a substring of the
+        task named as reported by the "ps" command. Indeed, this list will be
+        translated into a: "ps | grep -e name1 -e name2..." in order to obtain
+        the PID of these tasks.
+
+        :param exclude: list of commands paths to exclude from freezer
+        :type exlude: list(str)
+        """
+
+        # Create Freezer CGroup
+        freezer = self.controller('freezer')
+        freezer_cg = freezer.cgroup('/DEVLIB_FREEZER')
+        thawed_cg = freezer.cgroup('/')
+
+        if thaw:
+            # Restart froozen tasks
+            freezer_cg.set(state='THAWED')
+            # Remove all tasks from freezer
+            freezer.move_all_tasks_to('/')
+            return
+
+        # Move all tasks into the freezer group
+        freezer.move_all_tasks_to('/DEVLIB_FREEZER', exclude)
+
+        logging.info("Non freezable tasks:")
+        tasks = freezer.tasks('/')
+        for tid in tasks:
+            logging.info("%5d: %s", tid, tasks[tid])
+
+        # Freeze all tasks
+        freezer_cg.set(state='FROZEN')
 
