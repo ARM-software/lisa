@@ -150,16 +150,16 @@ class Controller(object):
             raise ValueError('wrong type for "exclude" parameter, '
                              'it must be a str or a list')
 
-        logging.info('Moving all tasks into %s', dest)
+        logging.debug('Moving all tasks into %s', dest)
 
         # Build list of tasks to exclude
         grep_filters = ''
         for comm in exclude:
             grep_filters += '-e "{}" '.format(comm)
-        logging.debug('Using grep filter: %s', grep_filters)
+        logging.debug('   using grep filter: %s', grep_filters)
         if grep_filters != '':
-            logging.info('Excluding tasks which name matches:')
-            logging.info('%s', ','.join(exclude))
+            logging.debug('   excluding tasks which name matches:')
+            logging.debug('   %s', ', '.join(exclude))
 
         for cgroup in self._cgroups:
             if cgroup != dest:
@@ -453,11 +453,11 @@ class CgroupsModule(Module):
         # Move all tasks into the freezer group
         freezer.move_all_tasks_to('/DEVLIB_FREEZER', exclude)
 
-        logging.info("Non freezable tasks:")
+        # Get list of not frozen tasks, which is reported as output
         tasks = freezer.tasks('/')
-        for tid in tasks:
-            logging.info("%5d: %s", tid, tasks[tid])
 
         # Freeze all tasks
         freezer_cg.set(state='FROZEN')
+
+        return tasks
 
