@@ -425,7 +425,7 @@ class CgroupsModule(Module):
 
     def freeze(self, exclude=[], thaw=False):
         """
-        Freeze all tasks while keeping a live console
+        Freeze all user-space tasks but the specified ones
 
         A freezer cgroup is used to stop all the tasks in the target system but
         the ones which name match one of the path specified by the exclude
@@ -435,7 +435,10 @@ class CgroupsModule(Module):
         the PID of these tasks.
 
         :param exclude: list of commands paths to exclude from freezer
-        :type exlude: list(str)
+        :type exclude: list(str)
+
+        :param thaw: if true thaw tasks instead
+        :type thaw: bool
         """
 
         # Create Freezer CGroup
