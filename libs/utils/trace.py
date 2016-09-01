@@ -788,11 +788,13 @@ class Trace(object):
                          'cannot compute cluster active signal!')
             return None
 
-        cpu_active = {}
-        for cpu in cluster:
-            cpu_active[cpu] = self.getCPUActiveSignal(cpu)
+        active = self.getCPUActiveSignal(cluster[0]).to_frame(name=cluster[0])
+        for cpu in cluster[1:]:
+            active = active.join(
+                self.getCPUActiveSignal(cpu).to_frame(name=cpu),
+                how='outer'
+            )
 
-        active = pd.DataFrame(cpu_active)
         active.fillna(method='ffill', inplace=True)
 
         # Cluster active is the OR between the actives on each CPU
