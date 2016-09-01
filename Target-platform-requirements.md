@@ -43,3 +43,5 @@ available on this git repository and branch:
 The patches required are the ones in this series:
 
 	$ git log --oneline lisa/debug_base..lisa/debug
+
+There is also a [GitWeb Link](http://www.linux-arm.org/git?p=linux-pb.git;a=shortlog;h=refs/heads/lisa/debug) to the list of required tracepoints which are the topmost patches with a name starting by "DEBUG: ".
