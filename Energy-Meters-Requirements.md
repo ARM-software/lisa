@@ -118,16 +118,19 @@ target_conf = {
      "emeter" : {
          "instrument" : "aep",
          "conf" : {
-             # List of labels assigned to each channel on the output files
-             'labels'          : ['BAT'],
              # Value of the shunt resistor in Ohm
              'resistor_values' : [0.099],
              # Device entry assigned to the probe on the host
              'device_entry'    : '/dev/ttyACM0',
+         },
+         "channel_map" : {
+             # <User-defined channel name> : <channel label>
+             "BAT" : "BAT"
          }
      },
 }
 ```
+For this instrument, `channel_map` keys and values are usually set to the same value. In fact, it would be enough to use a list of strings for specifying channel names, but to make the `EnergyMeter` API more generic, it is better to be consistent and use a dictionary also in this case. 
 
 ***
 
