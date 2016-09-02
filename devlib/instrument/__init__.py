@@ -195,8 +195,8 @@ class Instrument(object):
     def teardown(self):
         pass
 
-    def reset(self, sites=None, kinds=None):
-        if kinds is None and sites is None:
+    def reset(self, sites=None, kinds=None, channels=None):
+        if kinds is None and sites is None and channels is None:
             self.active_channels = sorted(self.channels.values(), key=lambda x: x.label)
         else:
             if isinstance(sites, basestring):
@@ -204,6 +204,12 @@ class Instrument(object):
             if isinstance(kinds, basestring):
                 kinds = [kinds]
             self.active_channels = []
+            for chan_name in (channels or []):
+                try:
+                    self.active_channels.append(self.channels[chan_name])
+                except KeyError:
+                    msg = 'Unexpected channel "{}"; must be in {}'
+                    raise ValueError(msg.format(chan_name, self.channels.keys()))
             for chan in self.channels.values():
                 if (kinds is None or chan.kind in kinds) and \
                    (sites is None or chan.site in sites):

@@ -64,8 +64,8 @@ class EnergyProbeInstrument(Instrument):
             for kind in self.attributes:
                 self.add_channel(label, kind)
 
-    def reset(self, sites=None, kinds=None):
-        super(EnergyProbeInstrument, self).reset(sites, kinds)
+    def reset(self, sites=None, kinds=None, channels=None):
+        super(EnergyProbeInstrument, self).reset(sites, kinds, channels)
         self.raw_output_directory = tempfile.mkdtemp(prefix='eprobe-caiman-')
         parts = ['-r {}:{} '.format(i, int(1000 * rval))
                  for i, rval in enumerate(self.resistor_values)]

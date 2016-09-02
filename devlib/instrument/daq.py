@@ -60,8 +60,8 @@ class DaqInstrument(Instrument):
             for kind in ['power', 'voltage']:
                 self.add_channel(label, kind)
 
-    def reset(self, sites=None, kinds=None):
-        super(DaqInstrument, self).reset(sites, kinds)
+    def reset(self, sites=None, kinds=None, channels=None):
+        super(DaqInstrument, self).reset(sites, kinds, channels)
         self.execute('close')
         result = self.execute('configure', config=self.device_config)
         if not result.status == Status.OK:  # pylint: disable=no-member

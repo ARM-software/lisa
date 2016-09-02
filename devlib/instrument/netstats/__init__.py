@@ -98,8 +98,8 @@ class NetstatsInstrument(Instrument):
             self.logger.debug('Deploying {} to target'.format(self.package))
             self.target.install(self.apk)
 
-    def reset(self, sites=None, kinds=None, period=None):  # pylint: disable=arguments-differ
-        super(NetstatsInstrument, self).reset(sites, kinds)
+    def reset(self, sites=None, kinds=None, channels=None, period=None):  # pylint: disable=arguments-differ
+        super(NetstatsInstrument, self).reset(sites, kinds, channels)
         period_arg, packages_arg = '', ''
         self.tag = 'netstats-{}'.format(datetime.now().strftime('%Y%m%d%H%M%s'))
         tag_arg = ' --es tag {}'.format(self.tag)
