@@ -537,6 +537,10 @@ def mask_to_list(mask):
 __memo_cache = {}
 
 
+def reset_memo_cache():
+    __memo_cache.clear()
+
+
 @wrapt.decorator
 def memoized(wrapped, instance, args, kwargs):
     """A decorator for memoizing functions and methods."""
