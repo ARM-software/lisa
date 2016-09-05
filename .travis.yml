@@ -11,6 +11,8 @@ install:
   - pip install matplotlib
   - pip install pandas
   - pip install ipython[all]
+env:
+  - MPLBACKEND=agg
 script: nosetests
 virtualenv:
   system_site_packages: true
