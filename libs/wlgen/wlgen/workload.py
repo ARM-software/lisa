@@ -210,7 +210,7 @@ class Workload(object):
             self.cgroup_cmd = 'cgroups_run_into {1:s}'\
                 .format(self.target.executables_directory,
                         self.cgroup)
-            self.command = '{0:s} \'{1:s}\''\
+            self.command = '{0:s} \'{1:s} \''\
                 .format(self.cgroup_cmd, self.command)
 
         # Start FTrace (if required)
