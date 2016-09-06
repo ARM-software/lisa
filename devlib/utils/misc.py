@@ -29,6 +29,7 @@ import subprocess
 import pkgutil
 import logging
 import random
+import ctypes
 from operator import itemgetter
 from itertools import groupby
 from functools import partial
@@ -541,13 +542,36 @@ def reset_memo_cache():
     __memo_cache.clear()
 
 
+def __get_memo_id(obj):
+    """
+    An object's id() may be re-used after an object is freed, so it's not
+    sufficiently unique to identify params for the memo cache (two different
+    params may end up with the same id). this attempts to generate a more unique
+    ID string.
+    """
+    obj_id = id(obj)
+    obj_pyobj = ctypes.cast(obj_id, ctypes.py_object)
+    # TODO: Note: there is still a possibility of a clash here. If Two
+    # different objects get assigned the same ID, an are large and are
+    # identical in the first thirty two bytes. This shouldn't be much of an
+    # issue in the current application of memoizing Target calls, as it's very
+    # unlikely that a target will get passed large params; but may cause
+    # problems in other applications, e.g. when memoizing results of operations
+    # on large arrays. I can't really think of a good way around that apart
+    # form, e.g., md5 hashing the entire raw object, which will have an
+    # undesirable impact on performance.
+    num_bytes = min(ctypes.sizeof(obj_pyobj), 32)
+    obj_bytes = ctypes.string_at(ctypes.addressof(obj_pyobj), num_bytes)
+    return '{}/{}'.format(obj_id, obj_bytes)
+
+
 @wrapt.decorator
 def memoized(wrapped, instance, args, kwargs):
     """A decorator for memoizing functions and methods."""
     func_id = repr(wrapped)
 
     def memoize_wrapper(*args, **kwargs):
-        id_string = func_id + ','.join([str(id(a)) for a in  args])
+        id_string = func_id + ','.join([__get_memo_id(a) for a in  args])
         id_string += ','.join('{}={}'.format(k, v)
                               for k, v in kwargs.iteritems())
         if id_string not in __memo_cache:
