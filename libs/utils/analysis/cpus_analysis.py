@@ -63,11 +63,13 @@ class CpusAnalysis(AnalysisModule):
 
         # Plot: big CPUs
         bcpus = set(cpus) & set(self._platform['clusters']['big'])
-        self._plotCPU(bcpus, "big")
+        if bcpus:
+            self._plotCPU(bcpus, "big")
 
         # Plot: LITTLE CPUs
         lcpus = set(cpus) & set(self._platform['clusters']['little'])
-        self._plotCPU(lcpus, "LITTLE")
+        if lcpus:
+            self._plotCPU(lcpus, "LITTLE")
 
 
 ###############################################################################
