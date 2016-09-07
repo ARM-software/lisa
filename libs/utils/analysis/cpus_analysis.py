@@ -123,6 +123,9 @@ class CpusAnalysis(AnalysisModule):
                     data.plot(ax=axes, style=['m', '--y'],
                               drawstyle='steps-post')
 
+            # Add overutilized signal to the plot
+            self._trace.analysis.status.plotOverutilized(axes)
+
             axes.set_ylim(0, 1100)
             axes.set_xlim(self._trace.x_min, self._trace.x_max)
 
