@@ -231,11 +231,12 @@ class TasksAnalysis(AnalysisModule):
                          'plot DISABLED!')
             return
 
-        if not isinstance(tasks, str) and \
-           not isinstance(tasks, list):
+        # Defined list of tasks to plot
+        if tasks and \
+            not isinstance(tasks, str) and \
+            not isinstance(tasks, list):
             raise ValueError('Wrong format for tasks parameter')
 
-        # Defined list of tasks to plot
         if tasks:
             tasks_to_plot = tasks
         elif self._tasks:
