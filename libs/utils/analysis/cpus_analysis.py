@@ -46,6 +46,9 @@ class CpusAnalysis(AnalysisModule):
     def plotCPU(self, cpus=None):
         """
         Plot CPU-related signals for both big and LITTLE clusters.
+
+        :param cpus: list of CPUs to be plotted
+        :type cpus: list(int)
         """
         if not self._trace.hasEvents('sched_load_avg_cpu'):
             logging.warn('Events [sched_load_avg_cpu] not found, '
