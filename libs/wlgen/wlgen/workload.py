@@ -199,18 +199,18 @@ class Workload(object):
         # Prepend eventually required taskset command
         if self.cpus:
             cpus_mask = self.getCpusMask(self.cpus)
-            self.taskset_cmd = '{0:s}/taskset 0x{1:X}'\
+            self.taskset_cmd = '{}/taskset 0x{:X}'\
                     .format(self.target.executables_directory,
                             cpus_mask)
-            self.command = '{0:s} {1:s}'\
+            self.command = '{} {}'\
                     .format(self.taskset_cmd, self.command)
 
-        # Prepend eventually required taskset command
+        # Prepend eventually required cgroup command
         if self.cgroup and self.cgroup_cmd == '':
-            self.cgroup_cmd = 'cgroups_run_into {1:s}'\
+            self.cgroup_cmd = 'cgroups_run_into {}'\
                 .format(self.target.executables_directory,
                         self.cgroup)
-            self.command = '{0:s} \'{1:s} \''\
+            self.command = '{} \'{}\''\
                 .format(self.cgroup_cmd, self.command)
 
         # Start FTrace (if required)
