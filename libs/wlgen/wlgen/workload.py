@@ -151,6 +151,7 @@ class Workload(object):
     def run(self,
             ftrace=None,
             cgroup=None,
+            cpus=None,
             background=False,
             out_dir='./',
             as_root=False,
@@ -166,6 +167,11 @@ class Workload(object):
         :param cgroup: specifies the cgroup name in which the workload has to
                        run
         :type cgroup: str
+
+        :param cpus: the CPUs on which to run the workload.
+                     NOTE: if specified it overrides the CPUs specified at
+                     configuration time
+        :type cpus: list(int)
 
         :param background: run the workload in background. In this case the
                            method will not return a result. When used with
@@ -193,25 +199,27 @@ class Workload(object):
 
         self.cgroup = cgroup
 
-        if self.command is None:
+        # Compose the actual execution command starting from the base command
+        # defined by the base class
+        _command = self.command
+
+        if not _command:
             logging.error('%14s - Error: empty executor command', 'WlGen')
 
         # Prepend eventually required taskset command
-        if self.cpus:
-            cpus_mask = self.getCpusMask(self.cpus)
-            self.taskset_cmd = '{0:s}/taskset 0x{1:X}'\
+        if cpus or self.cpus:
+            cpus_mask = self.getCpusMask(cpus if cpus else self.cpus)
+            self.taskset_cmd = '{}/taskset 0x{:X}'\
                     .format(self.target.executables_directory,
                             cpus_mask)
-            self.command = '{0:s} {1:s}'\
-                    .format(self.taskset_cmd, self.command)
+            _command = '{} {}'\
+                    .format(self.taskset_cmd, _command)
 
-        # Prepend eventually required taskset command
-        if self.cgroup and self.cgroup_cmd == '':
-            self.cgroup_cmd = 'cgroups_run_into {1:s}'\
-                .format(self.target.executables_directory,
-                        self.cgroup)
-            self.command = '{0:s} \'{1:s} \''\
-                .format(self.cgroup_cmd, self.command)
+        # Prepend eventually required cgroup command
+        if self.cgroup:
+            self.cgroup_cmd = '{} cgroups_run_into {}'\
+                    .format(self.target.shutils, self.cgroup.name)
+            _command = '{} {}'.format(self.cgroup_cmd, _command)
 
         # Start FTrace (if required)
         if ftrace:
@@ -225,24 +233,16 @@ class Workload(object):
 
         # Start task in background if required
         if background:
-            logging.debug('%14s - WlGen [background]: %s', 'WlGen', self.command)
-            self.target.kick_off(self.command, as_root=as_root)
+            logging.debug('%14s - WlGen [background]: %s', 'WlGen', _command)
+            self.target.background(_command, as_root=as_root)
             self.output['executor'] = ''
 
         # Start task in foreground
         else:
-
             logging.info('%14s - Workload execution START:', 'WlGen')
-            logging.info('%14s -    %s', 'WlGen', self.command)
-
+            logging.info('%14s -    %s', 'WlGen', _command)
             # Run command and wait for it to complete
-            if cgroup:
-                results = self.target._execute_util(self.command,
-                                                  as_root=True)
-            else:
-                results = self.target.execute(self.command,
-                        timeout=None, as_root=as_root)
-            # print type(results)
+            results = self.target.execute(_command, as_root=as_root)
             self.output['executor'] = results
 
         # Wait `end_pause` seconds before stopping ftrace
