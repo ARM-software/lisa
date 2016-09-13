@@ -67,7 +67,6 @@ cpus=5
          rcuos/0-9     [001]    34.899877: sched_switch:         rcuos/0:9 [120] S ==> swapper/1:0 [120]
           <idle>-0     [000]    34.899884: cpu_idle:             state=4294967295 cpu_id=0
           <idle>-0     [001]    34.899903: cpu_idle:             state=1 cpu_id=1
-          <idle>-0     [000]    34.899984: sched_migrate_task:   comm=sshd pid=2450 prio=120 orig_cpu=0 dest_cpu=1
           <idle>-0     [000]    34.899988: sched_stat_sleep:     comm=sshd pid=2450 delay=1003959 [ns]
           <idle>-0     [000]    34.899995: sched_wakeup:         sshd:2450 [120] success=1 CPU:001
           <idle>-0     [000]    34.900052: sched_stat_wait:      comm=rcu_sched pid=7 delay=0 [ns]
@@ -83,7 +82,6 @@ cpus=5
           <idle>-0     [000]    34.901131: cpu_idle:             state=4294967295 cpu_id=0
           <idle>-0     [000]    34.901148: sched_stat_wait:      comm=in:imuxsock pid=1767 delay=0 [ns]
           <idle>-0     [000]    34.901155: sched_switch:         swapper/0:0 [120] R ==> in:imuxsock:1767 [120]
-     in:imuxsock-1767  [000]    34.901238: sched_migrate_task:   comm=rs:main Q:Reg pid=1769 prio=120 orig_cpu=4 dest_cpu=0
      in:imuxsock-1767  [000]    34.901243: sched_stat_runtime:   comm=in:imuxsock pid=1767 runtime=496084 [ns] vruntime=6079305987 [ns]
      in:imuxsock-1767  [000]    34.901250: sched_stat_sleep:     comm=rs:main Q:Reg pid=1769 delay=1925639660 [ns]
      in:imuxsock-1767  [000]    34.901256: sched_wakeup:         rs:main Q:Reg:1769 [120] success=1 CPU:000

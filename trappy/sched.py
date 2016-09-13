@@ -135,5 +135,4 @@ class SchedCpuFrequency(Base):
 
 register_ftrace_parser(SchedCpuFrequency, "sched")
 
-register_dynamic_ftrace("SchedMigrateTask", "sched_migrate_task:", "sched",
-                        parse_raw=True)
+register_dynamic_ftrace("SchedMigrateTask", "sched_migrate_task:", "sched")
