@@ -128,14 +128,13 @@ class Trace(object):
                           trace_format)
         self.__computeTimeSpan()
 
-        # Minimum and Maximum x_time to use for all plots
-        self.x_min = 0
-        self.x_max = self.time_range
-
         # Reset x axis time range to full scale
-        t_min = self.window[0]
-        t_max = self.window[1]
-        self.setXTimeRange(t_min, t_max)
+        self.x_min = self.window[0]
+        if self.window[0] is None:
+            self.x_min = 0
+        self.x_max = self.window[1]
+        if self.window[1] is None:
+            self.x_max = self.time_range
 
         self.data_frame = TraceData()
         self._registerDataFrameGetters(self)
@@ -169,16 +168,37 @@ class Trace(object):
         :param t_max: upper bound
         :type t_max: int or float
         """
-        if t_min is None:
+        self.x_min = self.window[0]
+        if self.window[0] is None:
             self.x_min = 0
-        else:
-            self.x_min = t_min
-        if t_max is None:
+        self.x_max = self.window[1]
+        if self.window[1] is None:
             self.x_max = self.time_range
-        else:
-            self.x_max = t_max
+
+        if t_min is not None:
+            if t_min < self.x_min:
+                logging.warning('t_min out of range: '
+                                'capping to trace minimum %.6f [s]',
+                                self.x_min)
+            elif t_min > self.x_max:
+                raise ValueError('t_min out of range: '
+                                 'trace boundaries are (%.6f, %.6f) [s]',
+                                 self.x_min, self.x_max)
+            else:
+                self.x_min = t_min
+        if t_max is not None:
+            if t_max > self.x_max:
+                logging.warning('t_max out of range: '
+                                'capping to trace maximum %.6f [s]',
+                                self.x_max)
+            elif t_max < self.x_min:
+                raise ValueError('t_max out of range: '
+                                 'trace boundaries are (%.6f, %.6f) [s]',
+                                 self.window[0], self.x_max)
+            else:
+                self.x_max = t_max
         logging.info('Set plots time range to (%.6f, %.6f)[s]',
-                     self.x_min, self.x_max)
+                self.x_min, self.x_max)
 
     def __registerTraceEvents(self, events):
         """
@@ -727,6 +747,43 @@ class Trace(object):
                                              keys=frames.keys())
 
         return len(self._functions_stats_df) > 0
+
+    def _cropToXTimeRange(self, data):
+        """
+        Crop a dataframe containing FTrace events to the X time range specified
+        by the user through setXTimeRange().
+
+        When cropping a series it might be necessary to include a first and
+        last element with timestamps equal to the boundaries of the X time
+        range.
+
+        :param data: series to be cropped
+        :type data: :mod:`pandas.Series`
+        """
+        if not isinstance(data, pd.Series):
+            msg = 'Cropping supported only for pandas.Series objects!'
+            raise ValueError(msg)
+
+        first = None
+        # Avoid duplicate indexes in case the user specifies an x_min that
+        # corresponds to the time stamp of an existing event.
+        if self.x_min not in data.index:
+            # data[data.index < self.x_min] may return an empty series if x_min
+            # is lower than the lowest index of the data series. This will
+            # raise an exception that can be caught and leave first to None, as
+            # in this case a first element is not needed
+            try:
+                first = pd.Series([data[data.index < self.x_min].iloc[-1]],
+                                  index=[self.x_min])
+            except: pass
+        last = None
+        if self.x_max not in data.index:
+            try:
+                last = pd.Series([data[data.index <= self.x_max].iloc[-1]],
+                                  index=[self.x_max])
+            except: pass
+        data = data.loc[self.x_min:self.x_max]
+        return pd.concat([first, data, last])
 
 
 class TraceData:
