@@ -565,6 +565,8 @@ class WakeMigration(unittest.TestCase):
             task_name = "{}_{}".format(cls.task_prefix, i)
             cls.params[task_name] = Step(**STEP_WORKLOAD).get()
 
+        cls.phase_duration = STEP_WORKLOAD["time_s"]
+
     @classmethod
     def run_workload(cls):
         wload = RTA(
@@ -602,7 +604,7 @@ class WakeMigration(unittest.TestCase):
 
     def test_little_big_switch1(self):
         """Wake Migration: LITTLE -> BIG: 1"""
-        expected_time = self.offset + 5
+        expected_time = self.offset + self.phase_duration
         switch_window = (
             expected_time -
             SWITCH_WINDOW_HALF,
@@ -632,7 +634,11 @@ class WakeMigration(unittest.TestCase):
     def test_little_big_switch2(self):
         """Wake Migration: LITTLE -> BIG: 2"""
 
-        expected_time = self.offset + 15
+        # little - big - little - big
+        #                       ^
+        # We want to test that this little to big migration happens.  So we skip
+        # the first three phases.
+        expected_time = self.offset + 3 * self.phase_duration
         switch_window = (
             expected_time -
             SWITCH_WINDOW_HALF,
@@ -688,7 +694,11 @@ class WakeMigration(unittest.TestCase):
     def test_big_little_switch2(self):
         """Wake Migration: BIG -> LITLLE: 2"""
 
-        expected_time = self.offset + 10
+        # little - big - little - big
+        #              ^
+        # We want to test that this big to little migration happens.  So we skip
+        # the first two phases.
+        expected_time = self.offset + 2 * self.phase_duration
         switch_window = (
             expected_time -
             SWITCH_WINDOW_HALF,
