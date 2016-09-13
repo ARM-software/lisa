@@ -105,7 +105,7 @@ if [ $ret -ne 0 ]; then
     return $ret
 fi
 
-git diff-index --quiet HEAD
+git diff-index --quiet --ignore-submodules HEAD
 ret=$?
 if [ $ret -ne 0 ]; then
     echo "There are outstanding uncommitted changes."
