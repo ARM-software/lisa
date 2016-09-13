@@ -294,10 +294,9 @@ class Parser(object):
             import trappy
             from trappy.stats.grammar import Parser
 
-            pvars = {}
-            pvars["THERMAL"] = trappy.thermal.Thermal
+            pvars = {"THERMAL": trappy.thermal.Thermal}
             trace = trappy.FTrace("path/to/trace/file")
-            parser = Parser(trace)
+            parser = Parser(trace, pvars=pvars)
             parser.solve("THERMAL:temp * 2")
 
         *Using Event Name*
@@ -310,7 +309,7 @@ class Parser(object):
             parser.solve("thermal:temp * 2")
 
         The event :mod:`trappy.thermal.Thermal` is aliased
-        as **THERMAL** in the grammar
+        as **thermal** in the grammar
 
         *Dynamic Events*
         ::
@@ -321,10 +320,9 @@ class Parser(object):
             # Register Dynamic Event
             cls = trappy.register_dynamic_ftrace("my_unique_word", "event_name")
 
-            pvars = {}
-            pvars["CUSTOM"] = cls
+            pvars = {"CUSTOM": cls}
             trace = trappy.FTrace("path/to/trace/file")
-            parser = Parser(trace)
+            parser = Parser(trace, pvars=pvars)
             parser.solve("CUSTOM:col * 2")
 
         .. seealso:: :mod:`trappy.dynamic.register_dynamic_ftrace`
