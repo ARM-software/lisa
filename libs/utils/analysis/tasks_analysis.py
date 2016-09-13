@@ -282,14 +282,13 @@ class TasksAnalysis(AnalysisModule):
                 logging.info('Plotting %5d: %s...', tid, ', '.join(task_name))
             plot_id = 0
 
-            # Figure
+            # For each task create a figure with plots_count plots
             plt.figure(figsize=(16, 2*6+3))
             plt.suptitle("Task Signals",
                          y=.94, fontsize=16, horizontalalignment='center')
 
             # Plot load and utilization
-            signals_to_plot = {'load_avg', 'util_avg',
-                               'boosted_util', 'sched_overutilized'}
+            signals_to_plot = {'load_avg', 'util_avg', 'boosted_util'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
             if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id, 0])
@@ -297,10 +296,12 @@ class TasksAnalysis(AnalysisModule):
                                .format(tid, task_name))
                 plot_id = plot_id + 1
                 is_last = (plot_id == plots_count)
+                if 'sched_overutilized' in signals:
+                    signals_to_plot.append('sched_overutilized')
                 self._plotTaskSignals(axes, tid, signals_to_plot, is_last)
 
             # Plot CPUs residency
-            signals_to_plot = {'residencies', 'sched_overutilized'}
+            signals_to_plot = {'residencies'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
             if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id, 0])
@@ -310,18 +311,20 @@ class TasksAnalysis(AnalysisModule):
                 )
                 plot_id = plot_id + 1
                 is_last = (plot_id == plots_count)
+                if 'sched_overutilized' in signals:
+                    signals_to_plot.append('sched_overutilized')
                 self._plotTaskResidencies(axes, tid, signals_to_plot, is_last)
 
             # Plot PELT signals
-            signals_to_plot = {
-                'load_sum', 'util_sum',
-                'period_contrib', 'sched_overutilized'}
+            signals_to_plot = {'load_sum', 'util_sum', 'period_contrib'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
             if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id, 0])
                 axes.set_title('Task [{0:d}:{1:s}] PELT Signals'
                                .format(tid, task_name))
                 plot_id = plot_id + 1
+                if 'sched_overutilized' in signals:
+                    signals_to_plot.append('sched_overutilized')
                 self._plotTaskPelt(axes, tid, signals_to_plot)
 
             # Save generated plots into datadir
