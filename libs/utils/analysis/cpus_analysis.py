@@ -89,8 +89,6 @@ class CpusAnalysis(AnalysisModule):
 
         # Plot required CPUs
         _, pltaxes = plt.subplots(len(cpus), 1, figsize=(16, 3*(len(cpus))))
-        plt.suptitle("{}CPUs Signals".format(label1),
-                     y=.99, fontsize=16, horizontalalignment='center')
 
         idx = 0
         for cpu in cpus:
@@ -134,6 +132,11 @@ class CpusAnalysis(AnalysisModule):
             axes.set_ylim(0, 1100)
             axes.set_xlim(self._trace.x_min, self._trace.x_max)
 
+            if idx == 0:
+                axes.annotate("{}CPUs Signals".format(label1),
+                              xy=(0, axes.get_ylim()[1]),
+                              xytext=(-50, 25),
+                              textcoords='offset points', fontsize=16)
             # Disable x-axis timestamp for top-most cpus
             if len(cpus) > 1 and idx < len(cpus)-1:
                 axes.set_xticklabels([])
