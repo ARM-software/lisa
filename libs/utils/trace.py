@@ -85,9 +85,6 @@ class Trace(object):
         # Trace format
         self.trace_format = trace_format
 
-        # The time window used to limit trace parsing to
-        self.window = window
-
         # Dynamically registered TRAPpy events
         self.trappy_cls = {}
 
@@ -130,14 +127,13 @@ class Trace(object):
                           trace_format)
         self.__computeTimeSpan()
 
-        # Minimum and Maximum x_time to use for all plots
-        self.x_min = 0
-        self.x_max = self.time_range
+        # The time window used to limit trace parsing to a user-defined plot
+        # window
+        self.window = self.__computePlotWindow(window, normalize_time)
 
-        # Reset x axis time range to full scale
-        t_min = self.window[0]
-        t_max = self.window[1]
-        self.setXTimeRange(t_min, t_max)
+        # Reset x axis time range to plot window scale
+        self.x_min = self.window[0]
+        self.x_max = self.window[1]
 
         self.data_frame = TraceData()
         self._registerDataFrameGetters(self)
@@ -260,16 +256,6 @@ class Trace(object):
         self._sanitize_SchedOverutilized()
         self._sanitize_CpuFrequency()
 
-        # Compute plot window
-        if not normalize_time:
-            start = self.window[0]
-            if self.window[1]:
-                duration = min(self.ftrace.get_duration(), self.window[1])
-            else:
-                duration = self.ftrace.get_duration()
-            self.window = (self.ftrace.basetime + start,
-                           self.ftrace.basetime + duration)
-
     def __checkAvailableEvents(self, key=""):
         """
         Internal method used to build a list of available events.
@@ -332,6 +318,28 @@ class Trace(object):
 
             self._log.debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
                            self.overutilized_time, self.overutilized_prc)
+
+    def __computePlotWindow(self, window, normalize_time):
+        """
+        Compute boundaries for the plot window.
+
+        :param window: time window considered when trace was parsed
+        :type window: tuple(int or float, int or float)
+
+        :param normalize_time: normalize trace time stamps
+        :type normalize_time: bool
+        """
+        start = window[0]
+        if window[1]:
+            end = min(self.time_range, window[1])
+        else:
+            end = self.time_range
+
+        if not normalize_time:
+            start += self.ftrace.basetime
+            end += self.ftrace.basetime
+
+        return (start, end)
 
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
         """
