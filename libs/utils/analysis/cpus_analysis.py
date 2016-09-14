@@ -46,6 +46,9 @@ class CpusAnalysis(AnalysisModule):
     def plotCPU(self, cpus=None):
         """
         Plot CPU-related signals for both big and LITTLE clusters.
+
+        :param cpus: list of CPUs to be plotted
+        :type cpus: list(int)
         """
         if not self._trace.hasEvents('sched_load_avg_cpu'):
             logging.warn('Events [sched_load_avg_cpu] not found, '
@@ -60,11 +63,13 @@ class CpusAnalysis(AnalysisModule):
 
         # Plot: big CPUs
         bcpus = set(cpus) & set(self._platform['clusters']['big'])
-        self._plotCPU(bcpus, "big")
+        if bcpus:
+            self._plotCPU(bcpus, "big")
 
         # Plot: LITTLE CPUs
         lcpus = set(cpus) & set(self._platform['clusters']['little'])
-        self._plotCPU(lcpus, "LITTLE")
+        if lcpus:
+            self._plotCPU(lcpus, "LITTLE")
 
 
 ###############################################################################
@@ -84,8 +89,6 @@ class CpusAnalysis(AnalysisModule):
 
         # Plot required CPUs
         _, pltaxes = plt.subplots(len(cpus), 1, figsize=(16, 3*(len(cpus))))
-        plt.suptitle("{}CPUs Signals".format(label1),
-                     y=.99, fontsize=16, horizontalalignment='center')
 
         idx = 0
         for cpu in cpus:
@@ -123,9 +126,17 @@ class CpusAnalysis(AnalysisModule):
                     data.plot(ax=axes, style=['m', '--y'],
                               drawstyle='steps-post')
 
+            # Add overutilized signal to the plot
+            self._trace.analysis.status.plotOverutilized(axes)
+
             axes.set_ylim(0, 1100)
             axes.set_xlim(self._trace.x_min, self._trace.x_max)
 
+            if idx == 0:
+                axes.annotate("{}CPUs Signals".format(label1),
+                              xy=(0, axes.get_ylim()[1]),
+                              xytext=(-50, 25),
+                              textcoords='offset points', fontsize=16)
             # Disable x-axis timestamp for top-most cpus
             if len(cpus) > 1 and idx < len(cpus)-1:
                 axes.set_xticklabels([])

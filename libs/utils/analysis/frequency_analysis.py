@@ -66,8 +66,13 @@ class FrequencyAnalysis(AnalysisModule):
 
         :returns: :mod:`pandas.DataFrame` - "total" or "active" time residency
                   at each frequency.
+
+        :raises: TypeError
         """
-        residency = self._getCPUFrequencyResidency(cpu)
+        if not isinstance(cpu, int):
+            raise TypeError('Input CPU parameter must be an integer')
+
+        residency = self._getFrequencyResidency(cpu)
         if not residency:
             return None
         if total:
@@ -79,10 +84,10 @@ class FrequencyAnalysis(AnalysisModule):
         Get per-Cluster frequency residency, i.e. amount of time CLUSTER
         `cluster` spent at each frequency.
 
-        :param cluster: this can be either a single CPU ID or a list of CPU IDs
-            belonging to a cluster or the cluster name as specified in the
-            platform description
-        :type cluster: str or int or list(int)
+        :param cluster: this can be either a list of CPU IDs belonging to a
+            cluster or the cluster name as specified in the platform
+            description
+        :type cluster: str or list(int)
 
         :param total: if true returns the "total" time, otherwise the "active"
                       time is returned
@@ -90,8 +95,22 @@ class FrequencyAnalysis(AnalysisModule):
 
         :returns: :mod:`pandas.DataFrame` - "total" or "active" time residency
                   at each frequency.
+
+        :raises: KeyError
         """
-        residency = self._getClusterFrequencyResidency(cluster)
+        if isinstance(cluster, str):
+            try:
+                residency = self._getFrequencyResidency(
+                    self._platform['clusters'][cluster.lower()]
+                )
+            except KeyError:
+                logging.warn(
+                    'Platform descriptor has not a cluster named [%s], '
+                    'plot disabled!', cluster
+                )
+                return None
+        else:
+            residency = self._getFrequencyResidency(cluster)
         if not residency:
             return None
         if total:
@@ -251,7 +270,7 @@ class FrequencyAnalysis(AnalysisModule):
         residencies = []
         xmax = 0.0
         for cpu in _cpus:
-            res = self._getCPUFrequencyResidency(cpu)
+            res = self._getFrequencyResidency(cpu)
             residencies.append(ResidencyData('CPU{}'.format(cpu), res))
 
             max_time = res.total.max().values[0]
@@ -306,7 +325,7 @@ class FrequencyAnalysis(AnalysisModule):
         residencies = []
         xmax = 0.0
         for cluster in _clusters:
-            res = self._getClusterFrequencyResidency(
+            res = self._getFrequencyResidency(
                 self._platform['clusters'][cluster.lower()])
             residencies.append(ResidencyData('{} Cluster'.format(cluster),
                                              res))
@@ -384,20 +403,17 @@ class FrequencyAnalysis(AnalysisModule):
         return cluster_active
 
     @memoized
-    def _getClusterFrequencyResidency(self, cluster):
+    def _getFrequencyResidency(self, cluster):
         """
         Get a DataFrame with per cluster frequency residency, i.e. amount of
         time spent at a given frequency in each cluster.
 
         :param cluster: this can be either a single CPU ID or a list of CPU IDs
-            belonging to a cluster or the cluster name as specified in the
-            platform description
-        :type cluster: str or int or list(int)
+            belonging to a cluster
+        :type cluster: int or list(int)
 
         :returns: namedtuple(ResidencyTime) - tuple of total and active time
             dataframes
-
-        :raises: KeyError
         """
         if not self._trace.hasEvents('cpu_frequency'):
             logging.warn('Events [cpu_frequency] not found, '
@@ -408,14 +424,7 @@ class FrequencyAnalysis(AnalysisModule):
                          'frequency residency computation not possible!')
             return None
 
-        if isinstance(cluster, str):
-            try:
-                _cluster = self._platform['clusters'][cluster.lower()]
-            except KeyError:
-                logging.warn('%s cluster not found!', cluster)
-                return None
-        else:
-            _cluster = listify(cluster)
+        _cluster = listify(cluster)
 
         freq_df = self._dfg_trace_event('cpu_frequency')
         # Assumption: all CPUs in a cluster run at the same frequency, i.e. the
@@ -464,20 +473,6 @@ class FrequencyAnalysis(AnalysisModule):
                                    index=[f/1000.0 for f in available_freqs])
         active_time.index.name = 'frequency'
         return ResidencyTime(total_time, active_time)
-
-    def _getCPUFrequencyResidency(self, cpu):
-        """
-        Get a DataFrame with per-CPU frequency residency, i.e. amount of
-        time CPU `cpu` spent at each frequency. Both total and active times
-        will be computed.
-
-        :param cpu: CPU ID
-        :type cpu: int
-
-        :returns: namedtuple(ResidencyTime) - tuple of total and active time
-            dataframes
-        """
-        return self._getClusterFrequencyResidency(cpu)
 
     def _plotFrequencyResidencyAbs(self, axes, residency, n_plots,
                                    is_first, is_last, xmax, title=''):
