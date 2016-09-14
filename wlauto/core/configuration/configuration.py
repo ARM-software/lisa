@@ -494,7 +494,7 @@ def merge_using_priority_specificity(generic_name, specific_name, plugin_cache):
     """
     generic_config = plugin_cache.get_plugin_config(generic_name)
     specific_config = plugin_cache.get_plugin_config(specific_name)
-    cfg_points = plugin_cache.get_plugin_config_points(specific_name)
+    cfg_points = plugin_cache.get_plugin_parameters(specific_name)
     sources = plugin_cache.sources
     final_config = obj_dict(not_in_dict=['name'])
     seen_specific_config = defaultdict(list)
@@ -776,7 +776,7 @@ class RunConfiguration(Configuration):
         instance = super(RunConfiguration, cls).from_pod(pod, plugin_cache)
 
         device_config.name = "device_config"
-        cfg_points = plugin_cache.get_plugin_config_points(instance.device)
+        cfg_points = plugin_cache.get_plugin_parameters(instance.device)
         for entry_name in device_config.iterkeys():
             if entry_name not in cfg_points.iterkeys():
                 msg = 'Invalid entry "{}" for device "{}".'
@@ -866,7 +866,7 @@ class JobSpec(Configuration):
 
         # Merge entry "workload_parameters"
         # TODO: Wrap in - "error in [agenda path]"
-        cfg_points = plugin_cache.get_plugin_config_points(self.workload_name)
+        cfg_points = plugin_cache.get_plugin_parameters(self.workload_name)
         for source in self._sources:
             if source in self._to_merge["workload_params"]:
                 config = self._to_merge["workload_params"][source]

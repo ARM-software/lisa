@@ -13,7 +13,7 @@ from wlauto.core.configuration.configuration import (ConfigurationPoint,
                                                      RunConfiguration,
                                                      merge_using_priority_specificity,
                                                      get_type_name)
-from wlauto.core.configuration.plugin_cache import PluginCache
+from wlauto.core.configuration.plugin_cache import PluginCache, GENERIC_CONFIGS
 from wlauto.utils.types import obj_dict
 #       A1
 #     /    \
@@ -65,9 +65,9 @@ def _construct_mock_plugin_cache(values=None):
         return values[plugin_name]
     plugin_cache.get_plugin_config.side_effect = get_plugin_config
 
-    def get_plugin_config_points(_):
+    def get_plugin_parameters(_):
         return TestConfiguration.configuration
-    plugin_cache.get_plugin_config_points.side_effect = get_plugin_config_points
+    plugin_cache.get_plugin_parameters.side_effect = get_plugin_parameters
 
     return plugin_cache
 
@@ -454,3 +454,168 @@ class ConfigurationTest(TestCase):
 
     def test_generate_job_spec(self):
         pass
+
+
+class PluginCacheTest(TestCase):
+
+    param1 = ConfigurationPoint("param1", aliases="test_global_alias")
+    param2 = ConfigurationPoint("param2", aliases="some_other_alias")
+    param3 = ConfigurationPoint("param3")
+
+    plugin1 = obj_dict(values={
+        "name": "plugin 1",
+        "parameters": [
+            param1,
+            param2,
+        ]
+    })
+    plugin2 = obj_dict(values={
+        "name": "plugin 2",
+        "parameters": [
+            param1,
+            param3,
+        ]
+    })
+
+    def get_plugin(self, name):
+        if name == "plugin 1":
+            return self.plugin1
+        if name == "plugin 2":
+            return self.plugin2
+
+    def has_plugin(self, name):
+        return name in ["plugin 1", "plugin 2"]
+
+    def make_mock_cache(self):
+        mock_loader = Mock()
+        mock_loader.get_plugin_class.side_effect = self.get_plugin
+        mock_loader.list_plugins = Mock(return_value=[self.plugin1, self.plugin2])
+        mock_loader.has_plugin.side_effect = self.has_plugin
+        return PluginCache(loader=mock_loader)
+
+    def test_get_params(self):
+        plugin_cache = self.make_mock_cache()
+
+        expected_params = {
+            self.param1.name: self.param1,
+            self.param2.name: self.param2,
+        }
+
+        assert_equal(expected_params, plugin_cache.get_plugin_parameters("plugin 1"))
+
+    def test_global_aliases(self):
+        plugin_cache = self.make_mock_cache()
+
+        # Check the alias map
+        expected_map = {
+            "plugin 1": {
+                self.param1.aliases: self.param1,
+                self.param2.aliases: self.param2,
+            },
+            "plugin 2": {
+                self.param1.aliases: self.param1,
+            }
+        }
+        expected_set = set(["test_global_alias", "some_other_alias"])
+
+        assert_equal(expected_map, plugin_cache._global_alias_map)
+        assert_equal(expected_set, plugin_cache._list_of_global_aliases)
+        assert_equal(True, plugin_cache.is_global_alias("test_global_alias"))
+        assert_equal(False, plugin_cache.is_global_alias("not_a_global_alias"))
+
+        # Error when adding to unknown source
+        with self.assertRaises(RuntimeError):
+            plugin_cache.add_global_alias("adding", "too", "early")
+
+        # Test adding sources
+        for x in xrange(5):
+            plugin_cache.add_source(x)
+        assert_equal([0, 1, 2, 3, 4], plugin_cache.sources)
+
+        # Error when adding non plugin/global alias/generic
+        with self.assertRaises(RuntimeError):
+            plugin_cache.add_global_alias("unknow_alias", "some_value", 0)
+
+        # Test adding global alias values
+        plugin_cache.add_global_alias("test_global_alias", "some_value", 0)
+        expected_aliases = {"test_global_alias": {0: "some_value"}}
+        assert_equal(expected_aliases, plugin_cache.global_alias_values)
+
+    def test_add_config(self):
+        plugin_cache = self.make_mock_cache()
+
+        # Test adding sources
+        for x in xrange(5):
+            plugin_cache.add_source(x)
+        assert_equal([0, 1, 2, 3, 4], plugin_cache.sources)
+
+        # Test adding plugin config
+        plugin_cache.add_config("plugin 1", "param1", "some_other_value", 0)
+        expected_plugin_config = {"plugin 1": {0: {"param1": "some_other_value"}}}
+        assert_equal(expected_plugin_config, plugin_cache.plugin_configs)
+
+        # Test adding generic config
+        for name in GENERIC_CONFIGS:
+            plugin_cache.add_config(name, "param1", "some_value", 0)
+            expected_plugin_config[name] = {}
+            expected_plugin_config[name][0] = {"param1": "some_value"}
+        assert_equal(expected_plugin_config, plugin_cache.plugin_configs)
+
+    def test_get_plugin_config(self):
+        plugin_cache = self.make_mock_cache()
+        for x in xrange(5):
+            plugin_cache.add_source(x)
+
+        # Add some global aliases
+        plugin_cache.add_global_alias("test_global_alias", "1", 0)
+        plugin_cache.add_global_alias("test_global_alias", "2", 4)
+        plugin_cache.add_global_alias("test_global_alias", "3", 3)
+
+        # Test if they are being merged in source order
+        expected_config = {
+            "param1": "2",
+            "param2": None,
+        }
+        assert_equal(expected_config, plugin_cache.get_plugin_config("plugin 1"))
+
+        # Add some plugin specific config
+        plugin_cache.add_config("plugin 1", "param1", "3", 0)
+        plugin_cache.add_config("plugin 1", "param1", "4", 2)
+        plugin_cache.add_config("plugin 1", "param1", "5", 1)
+
+        # Test if they are being merged in source order on top of the global aliases
+        expected_config = {
+            "param1": "4",
+            "param2": None,
+        }
+        assert_equal(expected_config, plugin_cache.get_plugin_config("plugin 1"))
+
+    def test_merge_using_priority_specificity(self):
+        plugin_cache = self.make_mock_cache()
+        for x in xrange(5):
+            plugin_cache.add_source(x)
+
+        # Add generic configs
+        plugin_cache.add_config("device_config", "param1", '1', 1)
+        plugin_cache.add_config("device_config", "param1", '2', 2)
+        assert_equal(plugin_cache.get_plugin_config("plugin 1", generic_name="device_config"),
+                     {"param1": '2', "param2": None})
+
+        # Add specific configs at same level as generic config
+        plugin_cache.add_config("plugin 1", "param1", '3', 2)
+        assert_equal(plugin_cache.get_plugin_config("plugin 1", generic_name="device_config"),
+                     {"param1": '3', "param2": None})
+
+        # Add specific config at higher level
+        plugin_cache.add_config("plugin 1", "param1", '4', 3)
+        assert_equal(plugin_cache.get_plugin_config("plugin 1", generic_name="device_config"),
+                     {"param1": '4', "param2": None})
+
+        # Add generic config at higher level - should be an error
+        plugin_cache.add_config("device_config", "param1", '5', 4)
+        msg = 'Error in "4":\n' \
+              '\t"device_config" configuration "param1" has already been specified' \
+              ' more specifically for plugin 1 in:\n' \
+              '\t\t2, 3'
+        with self.assertRaisesRegexp(ConfigError, msg):
+            plugin_cache.get_plugin_config("plugin 1", generic_name="device_config")
