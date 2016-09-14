@@ -319,18 +319,7 @@ class Trace(object):
         """
         Compute time axis range, considering all the parsed events.
         """
-        ts = sys.maxint
-        te = 0
-
-        for events in self.available_events:
-            df = self._dfg_trace_event(events)
-            if len(df) == 0:
-                continue
-            if (df.index[0]) < ts:
-                ts = df.index[0]
-            if (df.index[-1]) > te:
-                te = df.index[-1]
-            self.time_range = te - ts
+        self.time_range = self.ftrace.get_duration()
 
         self._log.debug('Collected events spans a %.3f [s] time interval',
                        self.time_range)
