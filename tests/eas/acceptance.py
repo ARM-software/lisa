@@ -30,7 +30,7 @@ logging.basicConfig(level=logging.INFO)
 CONF_FILE = os.path.join(
     os.path.dirname(
         os.path.abspath(__file__)),
-    "hmp_parity.config")
+    "acceptance.config")
 
 with open(CONF_FILE, "r") as fh:
     conf_vars = json.load(fh)
