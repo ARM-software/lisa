@@ -78,7 +78,7 @@ class Jankbench(Workload):
             raise ValueError('Jankbench test [%s] not supported', test_name)
 
         # Initialize energy meter results
-        nrg_data, nrg_file = None, None
+        nrg_report = None
 
         self.target.execute('input keyevent 82')
         # Press Back button to be sure we run the video from the start
@@ -129,9 +129,9 @@ class Jankbench(Workload):
             match = JANKBENCH_BENCHMARK_DONE_RE.search(message)
             if match:
                 if 'energy' in collect and self.te.emeter:
-                    nrg_data, nrg_file = self.te.emeter.report(exp_dir)
+                    nrg_report = self.te.emeter.report(exp_dir)
                     self.logger.info("Estimated energy: %7.3f",
-                                     float(nrg_data['BAT']))
+                                     float(nrg_report.channels['BAT']))
                 self.logger.debug("Benchmark done!")
                 break
 
@@ -164,6 +164,6 @@ class Jankbench(Workload):
         # Switch back to screen auto rotation
         Screen.set_orientation(self.target, auto=True)
 
-        return db_file, nrg_data, nrg_file
+        return db_file, nrg_report
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

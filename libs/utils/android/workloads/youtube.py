@@ -46,7 +46,7 @@ class YouTube(Workload):
     def run(self, exp_dir, video_url, video_duration_s, collect=''):
 
         # Initialize energy meter results
-        nrg_data, nrg_file = None, None
+        nrg_report = None
 
         # Unlock device screen (assume no password required)
         self.target.execute('input keyevent 82')
@@ -77,8 +77,9 @@ class YouTube(Workload):
 
         # Stop energy collection
         if 'energy' in collect and self.te.emeter:
-            nrg_data, nrg_file = self.te.emeter.report(exp_dir)
-            logging.info("Estimated energy: %7.3f", float(nrg_data['BAT']))
+            nrg_report = self.te.emeter.report(exp_dir)
+            logging.info("Estimated energy: %7.3f",
+                         float(nrg_report.channels['BAT']))
 
         # Get frame stats
         db_file = os.path.join(exp_dir, "framestats.txt")
@@ -94,6 +95,6 @@ class YouTube(Workload):
         # Switch back to screen auto rotation
         Screen.set_orientation(self.target, auto=True)
 
-        return db_file, nrg_data, nrg_file
+        return db_file, nrg_report
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
