@@ -282,14 +282,7 @@ class AEP(EnergyMeter):
             if channel.kind is not 'power':
                 continue
             ec = self._get_energy(samples, self.time['diff'], idx, channel.site)
-            logging.debug('%14s - CH[%s] Power: %.6f (samples: %d, time: %.6f), avg: %.f6',
-                          'AEP', channel.site, ec.pwr_total,
-                          ec.pwr_samples, ec.time, ec.pwr_avg)
-            logging.debug('%14s - CH[%s] Estimated energy:  %.6f',
-                          'AEP', channel.site, ec.nrg)
             self.channels.append(ec)
-
-        logging.debug('%14s - SAMPLE: %s', 'AEP', self.channels)
 
     def reset(self):
         if self._aep is None:
@@ -312,6 +305,8 @@ class AEP(EnergyMeter):
         # Reformat data for output generation
         channels_nrg = {}
         for channel in self.channels:
+            logging.debug('%14s - Energy [%16s]: %.6f', 'AEP',
+                          channel.site, channel.nrg)
             channels_nrg[channel.site] = channel.nrg
 
         # Dump data as JSON file
