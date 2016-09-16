@@ -400,6 +400,12 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
 
         return end_times
 
+    def get_migrator_activation_time(self):
+        start_times_dict = self.m_assert.getStartTime()
+        start_time = min(t['starttime'] for t in start_times_dict.itervalues())
+
+        return start_time + OFFLOAD_MIGRATION_MIGRATOR_DELAY
+
     def test_first_cpu_early_starters(self):
         """Offload Migration and Idle Pull: Test First CPU (Early Starters)"""
 
@@ -452,7 +458,7 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
                                                      self.env.target.bl.bigs,
                                                      window=window, percent=True)
 
-            expected_busy_time = EXPECTED_BIG_BUSY_TIME_PCT * \
+            expected_busy_time = OFFLOAD_EXPECTED_BUSY_TIME_PCT * \
                                  big_cpus_left / num_big_cpus
             msg = "Big tasks were not running on big cpus from {} to {}".format(
                 window[0], window[1])
@@ -470,14 +476,14 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
             if not first_task_finish_time or (end_time < first_task_finish_time):
                 first_task_finish_time = end_time
 
-        window = (OFFLOAD_MIGRATION_MIGRATOR_DELAY, first_task_finish_time)
+        window = (self.get_migrator_activation_time(), first_task_finish_time)
         busy_time = self.a_assert.getCPUBusyTime("cluster",
                                                  self.env.target.bl.littles,
                                                  window=window)
 
         window_len = window[1] - window[0]
         expected_busy_time = window_len * num_offloaded_tasks * \
-                             EXPECTED_BIG_BUSY_TIME_PCT / 100.
+                             OFFLOAD_EXPECTED_BUSY_TIME_PCT / 100.
         msg = "Little cpus did not pick up big tasks while big cpus were fully loaded"
 
         self.assertGreater(busy_time, expected_busy_time, msg=msg)
