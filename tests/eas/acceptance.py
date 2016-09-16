@@ -400,6 +400,12 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
 
         return end_times
 
+    def get_migrator_activation_time(self):
+        start_times_dict = self.m_assert.getStartTime()
+        start_time = min(t['starttime'] for t in start_times_dict.itervalues())
+
+        return start_time + OFFLOAD_MIGRATION_MIGRATOR_DELAY
+
     def test_first_cpu_early_starters(self):
         """Offload Migration and Idle Pull: Test First CPU (Early Starters)"""
 
@@ -470,7 +476,7 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
             if not first_task_finish_time or (end_time < first_task_finish_time):
                 first_task_finish_time = end_time
 
-        window = (OFFLOAD_MIGRATION_MIGRATOR_DELAY, first_task_finish_time)
+        window = (self.get_migrator_activation_time(), first_task_finish_time)
         busy_time = self.a_assert.getCPUBusyTime("cluster",
                                                  self.env.target.bl.littles,
                                                  window=window)
