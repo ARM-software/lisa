@@ -218,7 +218,7 @@ class HWMon(EnergyMeter):
         for channel in self._channels:
             label = self._channels[channel]
             nrg_total = nrg[label]['total']
-            logging.info('%14s - Energy [%16s]: %.6f', 'HWMon', label, nrg_total)
+            logging.debug('%14s - Energy [%16s]: %.6f', 'HWMon', label, nrg_total)
             clusters_nrg[channel] = nrg_total
 
         # Dump data as JSON file
@@ -482,8 +482,8 @@ class ACME(EnergyMeter):
                 nrg[key] = float(val)
             channels_stats[channel] = nrg
 
-            logging.info('%14s - %s', 'ACME', self._str(channel))
-            logging.info('%14s - %s', 'ACME', nrg)
+            logging.debug('%14s - %s', 'ACME', self._str(channel))
+            logging.debug('%14s - %s', 'ACME', nrg)
 
             # Save CSV samples file to out_dir
             os.system('mv {}/samples_{}.csv {}'
