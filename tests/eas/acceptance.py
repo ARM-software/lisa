@@ -344,6 +344,7 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
         all_tasks = cls.early_starters + cls.migrators
         cls.a_assert = SchedMultiAssert(cls.trace, cls.env.topology,
                                         execnames=all_tasks)
+        cls.offset = cls.get_offset()
 
         cls.end_times = cls.calculate_end_times()
         cls.log_fh = open(os.path.join(cls.env.res_dir, cls.log_file), "w")
@@ -382,6 +383,11 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
             background=False)
         cls.env.ftrace.stop()
         trace = cls.env.ftrace.get_trace(cls.trace_file)
+
+    @classmethod
+    def get_offset(cls):
+        task_start_times = cls.a_assert.getStartTime().values()
+        return min([t['starttime'] for t in task_start_times])
 
     @classmethod
     def calculate_end_times(cls):
@@ -430,7 +436,7 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
         end_times = sorted(self.end_times.values())
 
         # Window of time until the first migrator finishes
-        window = (0, end_times[-num_big_cpus])
+        window = (self.offset, end_times[-num_big_cpus])
         busy_time = self.a_assert.getCPUBusyTime("cluster",
                                                  self.env.target.bl.bigs,
                                                  window=window, percent=True)
