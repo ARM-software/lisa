@@ -458,7 +458,7 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
                                                      self.env.target.bl.bigs,
                                                      window=window, percent=True)
 
-            expected_busy_time = EXPECTED_BIG_BUSY_TIME_PCT * \
+            expected_busy_time = OFFLOAD_EXPECTED_BUSY_TIME_PCT * \
                                  big_cpus_left / num_big_cpus
             msg = "Big tasks were not running on big cpus from {} to {}".format(
                 window[0], window[1])
@@ -483,7 +483,7 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
 
         window_len = window[1] - window[0]
         expected_busy_time = window_len * num_offloaded_tasks * \
-                             EXPECTED_BIG_BUSY_TIME_PCT / 100.
+                             OFFLOAD_EXPECTED_BUSY_TIME_PCT / 100.
         msg = "Little cpus did not pick up big tasks while big cpus were fully loaded"
 
         self.assertGreater(busy_time, expected_busy_time, msg=msg)
