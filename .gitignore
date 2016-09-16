@@ -5,3 +5,4 @@
 *.json
 *.log
 /tools/android-sdk-linux
+/ipynb/*.pid
