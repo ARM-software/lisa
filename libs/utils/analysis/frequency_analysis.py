@@ -19,15 +19,16 @@
 
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
+import operator
+import os
 import pandas as pd
 import pylab as pl
-import operator
-from trappy.utils import listify
-from devlib.utils.misc import memoized
 
 from analysis_module import AnalysisModule
-from trace import ResidencyTime, ResidencyData
 from bart.common.Utils import area_under_curve
+from devlib.utils.misc import memoized
+from trappy.utils import listify
+from trace import ResidencyTime, ResidencyData
 
 
 class FrequencyAnalysis(AnalysisModule):
@@ -110,6 +111,53 @@ class FrequencyAnalysis(AnalysisModule):
             return residency.total
         return residency.active
 
+    def _dfg_cpu_frequency_transitions(self, cpu):
+        """
+        Compute number of frequency transitions of a given CPU.
+
+        Requires cpu_frequency events to be available in the trace.
+
+        :param cpu: a CPU ID
+        :type cpu: int
+
+        :returns: :mod:`pandas.DataFrame` - number of frequency transitions
+        """
+        if not self._trace.hasEvents('cpu_frequency'):
+            self._log.warn('Events [cpu_frequency] not found, '
+                           'frequency data not available')
+            return None
+
+        freq_df = self._dfg_trace_event('cpu_frequency')
+        cpu_freqs = freq_df[freq_df.cpu == cpu].frequency
+
+        # Remove possible duplicates (example: when devlib sets trace markers
+        # a cpu_frequency event is triggered that can generate a duplicate)
+        cpu_freqs = cpu_freqs.loc[cpu_freqs.shift(-1) != cpu_freqs]
+        transitions = cpu_freqs.value_counts()
+        # Convert frequencies to MHz
+        transitions.index = transitions.index / 1000
+        transitions.name = "transitions"
+        transitions.sort_index(inplace=True)
+        return pd.DataFrame(transitions)
+
+    def _dfg_cpu_frequency_transition_rate(self, cpu):
+        """
+        Compute frequency transition rate of a given CPU.
+        Requires cpu_frequency events to be available in the trace.
+
+        :param cpu: a CPU ID
+        :type cpu: int
+
+        :returns: :mod:`pandas.DataFrame - number of frequency transitions per
+            second
+        """
+        transitions = self._dfg_cpu_frequency_transitions(cpu)
+        if transitions is None:
+            return None
+
+        return transitions.apply(
+            lambda x: x / (self._trace.x_max - self._trace.x_min)
+        )
 
 ###############################################################################
 # Plotting Methods
