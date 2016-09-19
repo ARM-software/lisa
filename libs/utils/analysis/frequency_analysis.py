@@ -495,6 +495,183 @@ class FrequencyAnalysis(AnalysisModule):
 
         self._plotFrequencyResidency(residencies, 'cluster', xmax, pct, active)
 
+    def plotCPUFrequencyTransitions(self, cpus=None, pct=False):
+        """
+        Plot frequency transitions count of the specified CPUs (or all if not
+        specified).
+
+        Requires cpu_frequency events to be available in the trace.
+
+        :param cpus: list of CPU IDs (all CPUs by default)
+        :type clusters: int or list(int)
+
+        :param pct: plot frequency transitions in percentage
+        :type pct: bool
+        """
+        if not self._trace.hasEvents('cpu_frequency'):
+            self._log.warn('Events [cpu_frequency] not found, plot DISABLED!')
+            return
+        df = self._dfg_trace_event('cpu_frequency')
+
+        if cpus is None:
+            _cpus = range(df.cpu.max() + 1)
+        else:
+            _cpus = listify(cpus)
+
+        n_plots = len(_cpus)
+        gs = gridspec.GridSpec(n_plots, 1)
+        fig = plt.figure()
+
+        # Precompute frequency transitions
+        transitions = {}
+        xmax = 0
+        for cpu_id in _cpus:
+            t = self._dfg_cpu_frequency_transitions(cpu_id)
+
+            if pct:
+                tot = t.transitions.sum()
+                t = t.apply(lambda x: x * 100.0 / tot)
+
+            transitions[cpu_id] = t
+            max_cnt = t.transitions.max()
+            if xmax < max_cnt: xmax = max_cnt
+
+        if pct:
+            yrange = 0.4 * max(6, len(t)) * n_plots
+            figtype = "_pct"
+            labeltype = " [%]"
+        else:
+            yrange = 3 * n_plots
+            figtype = ""
+            labeltype = ""
+
+        for idx, cpu_id in enumerate(_cpus):
+            t = transitions[cpu_id]
+
+            axes = fig.add_subplot(gs[idx])
+            if pct:
+                t.T.plot.barh(ax=axes, figsize=(16, yrange),
+                              stacked=True, title='CPU{}'.format(cpu_id))
+                axes.legend(loc='lower center', ncol=7)
+                axes.set_xlim(0, 100)
+                axes.set_yticklabels([])
+            else:
+                t.plot.barh(ax=axes, figsize=(16, yrange),
+                            color='g', legend=False,
+                            title='CPU{}'.format(cpu_id))
+                axes.set_xlim(0, xmax*1.05)
+                axes.grid(True)
+                axes.set_ylabel('Frequency [MHz]')
+
+            if idx+1 < n_plots:
+                axes.set_xticklabels([])
+
+        axes = fig.axes[0]
+        legend_y = axes.get_ylim()[1]
+        axes.annotate('OPP Transitions{}'.format(labeltype),
+                      xy=(0, legend_y), xytext=(-50, 25),
+                      textcoords='offset points', fontsize=18)
+        fig.axes[-1].set_xlabel('Number of transitions{}'.format(labeltype))
+
+        figname = '{}cpu_freq_transitions{}.png'.format(
+            self._trace.plots_prefix, figtype)
+        fig.savefig(os.path.join(self._trace.plots_dir, figname),
+                    bbox_inches='tight')
+
+    def plotClusterFrequencyTransitions(self, clusters=None, pct=False):
+        """
+        Plot frequency transitions count of the specified clusters (all of them
+        is not specified).
+
+        Requires cpu_frequency events to be available in the trace.
+
+        Notice that we assume that frequency is
+        scaled at cluster level, therefore we always consider the first CPU of
+        a cluster for this computation.
+
+        :param clusters: name of the clusters to be plotted (all of them by
+            default)
+        :type clusters: str or list(str)
+
+        :param pct: plot frequency transitions in percentage
+        :type pct: bool
+        """
+        if not self._trace.hasEvents('cpu_frequency'):
+            self._log.warn('Events [cpu_frequency] not found, plot DISABLED!')
+            return
+
+        if not self._platform or 'clusters' not in self._platform:
+            self._log.warn('No platform cluster info, plot DISABLED!')
+            return
+
+        if clusters is None:
+            _clusters = self._platform['clusters'].keys()
+        else:
+            _clusters = listify(clusters)
+
+        n_plots = len(_clusters)
+        gs = gridspec.GridSpec(n_plots, 1)
+        fig = plt.figure()
+
+        # Precompute frequency transitions
+        transitions = {}
+        xmax = 0
+        for c in _clusters:
+            # We assume frequency is scaled at cluster level and we therefore
+            # pick information from the first CPU in the cluster.
+            cpu_id = self._platform['clusters'][c.lower()][0]
+            t = self._dfg_cpu_frequency_transitions(cpu_id)
+
+            if pct:
+                tot = t.transitions.sum()
+                t = t.apply(lambda x: x * 100.0 / tot)
+
+            transitions[c] = t
+            max_cnt = t.transitions.max()
+            if xmax < max_cnt: xmax = max_cnt
+
+        if pct:
+            yrange = 0.4 * max(6, len(t)) * n_plots
+            figtype = "_pct"
+            labeltype = " [%]"
+        else:
+            yrange = 3 * n_plots
+            figtype = ""
+            labeltype = ""
+
+        for idx, c in enumerate(_clusters):
+            t = transitions[c]
+
+            axes = fig.add_subplot(gs[idx])
+            if pct:
+                t.T.plot.barh(ax=axes, figsize=(16, yrange),
+                              stacked=True, title='{} Cluster'.format(c))
+                axes.legend(loc='lower center', ncol=7)
+                axes.set_xlim(0, 100)
+                axes.set_yticklabels([])
+            else:
+                t.plot.barh(ax=axes, figsize=(16, yrange),
+                            color='g', legend=False,
+                            title='{} Cluster'.format(c))
+                axes.set_xlim(0, xmax*1.05)
+                axes.grid(True)
+                axes.set_ylabel('Frequency [MHz]')
+
+            if idx+1 < n_plots:
+                axes.set_xticklabels([])
+
+        axes = fig.axes[0]
+        legend_y = axes.get_ylim()[1]
+        axes.annotate('OPP Transitions{}'.format(labeltype),
+                      xy=(0, legend_y), xytext=(-50, 25),
+                      textcoords='offset points', fontsize=18)
+        fig.axes[-1].set_xlabel('Number of transitions{}'.format(labeltype))
+
+        figname = '{}cluster_freq_transitions{}.png'.format(
+            self._trace.plots_prefix, figtype)
+        fig.savefig(os.path.join(self._trace.plots_dir, figname),
+                    bbox_inches='tight')
+
 ###############################################################################
 # Utility Methods
 ###############################################################################
