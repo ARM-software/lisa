@@ -115,11 +115,11 @@ class TestFunctions(TestCase):
     def test_resolve_params_alias(self):
         test = {"params": "some_value"}
         _resolve_params_alias(test, "new_name")
-        assert_equal(test, {"new_name": "some_value"})
+        assert_equal(test, {"new_name_parameters": "some_value"})
 
         # Test it only affects "params"
         _resolve_params_alias(test, "new_name")
-        assert_equal(test, {"new_name": "some_value"})
+        assert_equal(test, {"new_name_parameters": "some_value"})
 
         test["params"] = "some_other_value"
         with self.assertRaises(ConfigError):

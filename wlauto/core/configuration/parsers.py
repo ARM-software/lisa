@@ -129,10 +129,12 @@ def _collect_valid_id(entry_id, seen_ids, entry_type):
 
 
 def _resolve_params_alias(entry, param_alias):
-    if "params" in entry:
-        if param_alias in entry:
-            raise ConfigError(DUPLICATE_ENTRY_ERROR.format(["params", param_alias]))
-        entry[param_alias] = entry.pop("params")
+    possible_names = {"params", "{}_params".format(param_alias), "{}_parameters".format(param_alias)}
+    duplicate_entries = possible_names.intersection(set(entry.keys()))
+    if len(duplicate_entries) > 1:
+        raise ConfigError(DUPLICATE_ENTRY_ERROR.format(list(possible_names)))
+    for name in duplicate_entries:
+        entry["{}_parameters".format(param_alias)] = entry.pop(name)
 
 
 def _get_workload_entry(workload):
@@ -145,7 +147,7 @@ def _get_workload_entry(workload):
 
 def _process_workload_entry(workload, seen_workload_ids, jobs_config):
     workload = _get_workload_entry(workload)
-    _resolve_params_alias(workload, "workload_params")
+    _resolve_params_alias(workload, "workload")
     workload = _construct_valid_entry(workload, seen_workload_ids, "wk", jobs_config)
     return workload
 
