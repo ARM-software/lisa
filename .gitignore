@@ -6,3 +6,4 @@
 *.log
 /tools/android-sdk-linux
 /ipynb/*.pid
+/vagrant
