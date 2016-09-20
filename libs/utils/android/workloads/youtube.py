@@ -51,6 +51,10 @@ class YouTube(Workload):
         # Press Back button to be sure we run the video from the start
         System.back(self.target)
 
+        # Use the monkey tool to start YouTube without playing any video.
+        # This allows to subsequently set the screen orientation to LANDSCAPE
+        # and to reset the frame statistics.
+        System.monkey(self.target, self.package)
 
         # Force screen in LANDSCAPE mode
         Screen.set_orientation(self.target, portrait=False)
