@@ -25,6 +25,13 @@ from wlauto.utils.types import (identifier, integer, boolean,
                                 obj_dict)
 from wlauto.core.configuration.tree import SectionNode
 
+# Mapping for kind conversion; see docs for convert_types below
+KIND_MAP = {
+    int: integer,
+    bool: boolean,
+    dict: OrderedDict,
+}
+
 ##########################
 ### CONFIG POINT TYPES ###
 ##########################
@@ -124,14 +131,6 @@ class LoggingConfig(dict):
             raise ValueError(config)
 
 
-# Mapping for kind conversion; see docs for convert_types below
-KIND_MAP = {
-    int: integer,
-    bool: boolean,
-    dict: OrderedDict,
-}
-
-
 def get_type_name(kind):
     typename = str(kind)
     if '\'' in typename:
@@ -207,10 +206,10 @@ class ConfigurationPoint(object):
                         These are largely for backwards compatibility.
         """
         self.name = identifier(name)
-        if kind is not None and not callable(kind):
-            raise ValueError('Kind must be callable.')
         if kind in KIND_MAP:
             kind = KIND_MAP[kind]
+        if kind is not None and not callable(kind):
+            raise ValueError('Kind must be callable.')
         self.kind = kind
         self.mandatory = mandatory
         self.default = default
@@ -314,10 +313,10 @@ class RuntimeParameter(object):
 
         self.name = re.compile(name)
         if kind is not None:
-            if not callable(kind):
-                raise ValueError('Kind must be callable.')
             if kind in KIND_MAP:
                 kind = KIND_MAP[kind]
+            if not callable(kind):
+                raise ValueError('Kind must be callable.')
         else:
             kind = str
         self.kind = kind
