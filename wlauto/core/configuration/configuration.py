@@ -832,7 +832,7 @@ class JobSpec(Configuration):
 
     def __init__(self):
         super(JobSpec, self).__init__()
-        self._to_merge = defaultdict(dict)
+        self.to_merge = defaultdict(OrderedDict)
         self._sources = []
         self.id = None
         self.workload_parameters = None
@@ -847,7 +847,7 @@ class JobSpec(Configuration):
                 continue
             elif k in ["workload_parameters", "runtime_parameters", "boot_parameters"]:
                 if v:
-                    self._to_merge[k][source] = copy(v)
+                    self.to_merge[k][source] = copy(v)
             else:
                 try:
                     self.set(k, v, check_mandatory=check_mandatory)
@@ -867,8 +867,8 @@ class JobSpec(Configuration):
         # TODO: Wrap in - "error in [agenda path]"
         cfg_points = plugin_cache.get_plugin_parameters(self.workload_name)
         for source in self._sources:
-            if source in self._to_merge["workload_params"]:
-                config = self._to_merge["workload_params"][source]
+            if source in self.to_merge["workload_params"]:
+                config = self.to_merge["workload_params"][source]
                 for name, cfg_point in cfg_points.iteritems():
                     if name in config:
                         value = config.pop(name)
@@ -916,7 +916,7 @@ class JobSpec(Configuration):
             msg = 'No value specified for mandatory parameter "{}}".'
             raise ConfigError(msg.format(e.args[0]))
 
-        instance = super(JobSpec, cls).from_pod(pod, plugin_loader)
+        instance = super(JobSpec, cls).from_pod(pod, plugin_cache)
 
         # TODO: validate parameters and construct the rest of the instance
 
@@ -958,6 +958,8 @@ class JobGenerator(object):
     def set_global_value(self, name, value):
         JobSpec.configuration[name].set_value(self.job_spec_template, value,
                                               check_mandatory=False)
+        if name == "instrumentation":
+            self.update_enabled_instruments(value)
 
     def add_section(self, section, workloads):
         new_node = self.root_node.add_section(section)

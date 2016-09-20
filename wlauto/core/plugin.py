@@ -714,7 +714,6 @@ class PluginLoader(object):
         base_default_config = self.get_plugin_class(real_name).get_default_config()
         return merge_dicts_simple(base_default_config, alias_config)
 
-
     def list_plugins(self, kind=None):
         """
         List discovered plugin classes. Optionally, only list plugins of a

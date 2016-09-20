@@ -261,13 +261,15 @@ class AgendaParser(object):
             # TODO: Error handling for workload errors vs section errors ect
             for workload in global_workloads:
                 self.jobs_config.add_workload(_process_workload_entry(workload,
-                                                                      seen_workload_ids))
+                                                                      seen_workload_ids,
+                                                                      self.jobs_config))
 
             for section in sections:
                 workloads = []
                 for workload in section.pop("workloads", []):
                     workloads.append(_process_workload_entry(workload,
-                                                             seen_workload_ids))
+                                                             seen_workload_ids,
+                                                             self.jobs_config))
 
                 _resolve_params_alias(section, seen_section_ids)
                 section = _construct_valid_entry(section, seen_section_ids, "s", self.jobs_config)
@@ -279,7 +281,6 @@ class AgendaParser(object):
 
 
 class EnvironmentVarsParser(object):
-    #TODO: podable
     def __init__(self, wa_config, environ):
         user_directory = environ.pop('WA_USER_DIRECTORY', '')
         if user_directory:
@@ -296,8 +297,7 @@ class EnvironmentVarsParser(object):
 # certain arguments to the correct configuration points and keep a record of
 # how WA was invoked
 class CommandLineArgsParser(object):
-    #TODO: podable
-    def __init__(self, cmd_args, wa_config, run_config, jobs_config):
+    def __init__(self, cmd_args, wa_config, jobs_config):
         wa_config.set("verbosity", cmd_args.verbosity)
         # TODO: Is this correct? Does there need to be a third output dir param
         disabled_instruments = toggle_set(["~{}".format(i) for i in cmd_args.instruments_to_disable])

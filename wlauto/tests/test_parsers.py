@@ -414,7 +414,7 @@ class TestCommandLineArgsParser(TestCase):
         only_run_ids=["wk1", "s1_wk4"],
         some_other_setting="value123"
     )
-    CommandLineArgsParser(cmd_args, wa_config, run_config, jobs_config)
+    CommandLineArgsParser(cmd_args, wa_config, jobs_config)
     wa_config.set.assert_has_calls([call("verbosity", 1)], any_order=True)
     jobs_config.disable_instruments.assert_has_calls([
         call(toggle_set(["~abc", "~def", "~ghi"]))
