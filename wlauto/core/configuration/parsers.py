@@ -74,7 +74,7 @@ def merge_result_processors_instruments(raw):
     raw['instrumentation'] = instruments.merge_with(result_processors)
 
 
-def _construct_valid_entry(raw, seen_ids, counter_name):
+def _construct_valid_entry(raw, seen_ids, counter_name, jobs_config):
     entries = {}
 
     # Generate an automatic ID if the entry doesn't already have one
@@ -84,9 +84,11 @@ def _construct_valid_entry(raw, seen_ids, counter_name):
             if new_id not in seen_ids:
                 break
         entries["id"] = new_id
+        seen_ids.add(new_id)
     else:
         entries["id"] = raw.pop("id")
 
+    # Process instrumentation
     merge_result_processors_instruments(raw)
 
     # Validate all entries
@@ -96,6 +98,12 @@ def _construct_valid_entry(raw, seen_ids, counter_name):
             value = cfg_point.kind(value)
             cfg_point.validate_value(name, value)
             entries[name] = value
+    entries["workload_parameters"] = raw.pop("workload_parameters", None)
+    entries["runtime_parameters"] = raw.pop("runtime_parameters", None)
+    entries["boot_parameters"] = raw.pop("boot_parameters", None)
+
+    if "instrumentation" in entries:
+        jobs_config.update_enabled_instruments(entries["instrumentation"])
 
     # error if there are unknown entries
     if raw:
@@ -135,11 +143,10 @@ def _get_workload_entry(workload):
     return workload
 
 
-def _process_workload_entry(workload, seen_workload_ids):
+def _process_workload_entry(workload, seen_workload_ids, jobs_config):
     workload = _get_workload_entry(workload)
     _resolve_params_alias(workload, "workload_params")
-    workload = _construct_valid_entry(workload, seen_workload_ids, "wk")
-
+    workload = _construct_valid_entry(workload, seen_workload_ids, "wk", jobs_config)
     return workload
 
 ###############
@@ -261,7 +268,7 @@ class AgendaParser(object):
                                                              seen_workload_ids))
 
                 _resolve_params_alias(section, seen_section_ids)
-                section = _construct_valid_entry(section, seen_section_ids, "s")
+                section = _construct_valid_entry(section, seen_section_ids, "s", self.jobs_config)
                 self.jobs_config.add_section(section, workloads)
 
             return seen_workload_ids, seen_section_ids
