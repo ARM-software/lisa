@@ -447,7 +447,7 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
                                                  self.env.target.bl.bigs,
                                                  window=window, percent=True)
         msg = "Big cpus were not fully loaded while there were enough big tasks to fill them"
-        self.assertGreater(busy_time, EXPECTED_BIG_BUSY_TIME_PCT, msg=msg)
+        self.assertGreater(busy_time, OFFLOAD_EXPECTED_BUSY_TIME_PCT, msg=msg)
 
         # As the migrators start finishing, make sure that the tasks
         # that are left are running on the big cpus
