@@ -168,36 +168,28 @@ class ConfigParser(object):
 
             merge_result_processors_instruments(raw)
 
+            # Get WA core configuration
             for cfg_point in self.wa_config.configuration.itervalues():
                 value = get_aliased_param(cfg_point, raw)
                 if value is not None:
                     self.wa_config.set(cfg_point.name, value)
 
+            # Get run specific configuration
             for cfg_point in self.run_config.configuration.itervalues():
                 value = get_aliased_param(cfg_point, raw)
                 if value is not None:
                     self.run_config.set(cfg_point.name, value)
 
+            # Get global job spec configuration
             for cfg_point in JobSpec.configuration.itervalues():
                 value = get_aliased_param(cfg_point, raw)
                 if value is not None:
-                    #TODO: runtime_params and boot_params
-                    if cfg_point.name == "workload_parameters":
-                        self.plugin_cache.add_plugin_config("workload_parameters", value, source)
-                    else:
-                        self.jobs_config.set_global_value(cfg_point.name, value)
+                    self.jobs_config.set_global_value(cfg_point.name, value)
 
-            device_config = raw.pop('device_config', None)
-            if device_config:
-                self.plugin_cache.add_device_config('device_config', device_config, source)
-
-            for name, value in raw.iteritems():
-                if self.plugin_cache.is_global_alias(name):
-                    self.plugin_cache.add_global_alias(name, value, source)
-                else:
-                    # Assume that all leftover config is for a plug-in
-                    # it is up to PluginCache to assert this assumption
-                    self.plugin_cache.add_plugin_config(name, value, source)
+            for name, values in raw.iteritems():
+                # Assume that all leftover config is for a plug-in or a global
+                # alias it is up to PluginCache to assert this assumption
+                self.plugin_cache.add_configs(name, values, source)
 
         except ConfigError as e:
             raise ConfigError('Error in "{}":\n{}'.format(source, str(e)))
