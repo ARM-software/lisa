@@ -232,4 +232,30 @@ class System(object):
         adb_command(target.adb_name,
                     GET_FRAMESTATS_CMD.format(apk_name, out_file))
 
+    @staticmethod
+    def monkey(target, apk_name, event_count=1):
+        """
+        Wrapper for adb monkey tool.
+
+        The Monkey is a program that runs on your emulator or device and
+        generates pseudo-random streams of user events such as clicks, touches,
+        or gestures, as well as a number of system-level events. You can use
+        the Monkey to stress-test applications that you are developing, in a
+        random yet repeatable manner.
+
+        Full documentation is available at:
+
+        https://developer.android.com/studio/test/monkey.html
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param apk_name: name of the apk
+        :type apk_name: str
+
+        :param event_count: number of events to generate
+        :type event_count: int
+        """
+        target.execute('monkey -p {} {}'.format(apk_name, event_count))
+
 # vim :set tabstop=4 shiftwidth=4 expandtab
