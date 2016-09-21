@@ -78,7 +78,7 @@ $ cd lisa
 # Install LISA and its dependencies within the virtual machine
 $ vagrant up
 ```	
-This last command builds and execute the VM according to the description
+This last command builds and executes the VM according to the description
 provided by the Vagrant file available in the root folder of the LISA
 source tree. The first time you run this command it will take some time
 to download the based Ubuntu image and to install the required LISA
