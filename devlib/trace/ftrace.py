@@ -107,7 +107,8 @@ class FtraceCollector(TraceCollector):
 
         # Validate required events to be traced
         available_events = self.target.execute(
-                'cat {}'.format(self.available_events_file)).splitlines()
+                'cat {}'.format(self.available_events_file),
+                as_root=True).splitlines()
         selected_events = []
         for event in self.events:
             # Convert globs supported by FTrace into valid regexp globs
@@ -138,7 +139,8 @@ class FtraceCollector(TraceCollector):
                         'A kernel build with CONFIG_FUNCTION_PROFILER enable is required')
             # Validate required functions to be traced
             available_functions = self.target.execute(
-                    'cat {}'.format(self.available_functions_file)).splitlines()
+                    'cat {}'.format(self.available_functions_file),
+                    as_root=True).splitlines()
             selected_functions = []
             for function in self.functions:
                 if function not in available_functions:
@@ -153,14 +155,16 @@ class FtraceCollector(TraceCollector):
     def reset(self):
         if self.buffer_size:
             self._set_buffer_size()
-        self.target.execute('{} reset'.format(self.target_binary), as_root=True, timeout=TIMEOUT)
+        self.target.execute('{} reset'.format(self.target_binary),
+                            as_root=True, timeout=TIMEOUT)
         self._reset_needed = False
 
     def start(self):
         self.start_time = time.time()
         if self._reset_needed:
             self.reset()
-        self.target.execute('{} start {}'.format(self.target_binary, self.event_string), as_root=True)
+        self.target.execute('{} start {}'.format(self.target_binary, self.event_string),
+                            as_root=True)
         if self.automark:
             self.mark_start()
         if 'cpufreq' in self.target.modules:
@@ -168,22 +172,29 @@ class FtraceCollector(TraceCollector):
             self.target.cpufreq.trace_frequencies()
         # Enable kernel function profiling
         if self.functions:
-            self.target.execute('echo nop > {}'.format(self.current_tracer_file))
-            self.target.execute('echo 0 > {}'.format(self.function_profile_file))
-            self.target.execute('echo {} > {}'.format(self.function_string, self.ftrace_filter_file))
-            self.target.execute('echo 1 > {}'.format(self.function_profile_file))
+            self.target.execute('echo nop > {}'.format(self.current_tracer_file),
+                                as_root=True)
+            self.target.execute('echo 0 > {}'.format(self.function_profile_file),
+                                as_root=True)
+            self.target.execute('echo {} > {}'.format(self.function_string, self.ftrace_filter_file),
+                                as_root=True)
+            self.target.execute('echo 1 > {}'.format(self.function_profile_file),
+                                as_root=True)
+
 
     def stop(self):
         # Disable kernel function profiling
         if self.functions:
-            self.target.execute('echo 1 > {}'.format(self.function_profile_file))
+            self.target.execute('echo 1 > {}'.format(self.function_profile_file),
+                                as_root=True)
         if 'cpufreq' in self.target.modules:
             self.logger.debug('Trace CPUFreq frequencies')
             self.target.cpufreq.trace_frequencies()
         self.stop_time = time.time()
         if self.automark:
             self.mark_stop()
-        self.target.execute('{} stop'.format(self.target_binary), timeout=TIMEOUT, as_root=True)
+        self.target.execute('{} stop'.format(self.target_binary),
+                            timeout=TIMEOUT, as_root=True)
         self._reset_needed = True
 
     def get_trace(self, outfile):
