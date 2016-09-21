@@ -29,7 +29,7 @@ import yaml
 
 from wlauto import PluginLoader, Command, settings
 from wlauto.exceptions import CommandError, ConfigError
-from wlauto.utils.cli import init_argument_parser
+from wlauto.core.command import init_argument_parser
 from wlauto.utils.misc import (capitalize, check_output,
                                ensure_file_directory_exists as _f, ensure_directory_exists as _d)
 from wlauto.utils.types import identifier

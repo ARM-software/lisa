@@ -16,8 +16,16 @@
 import textwrap
 
 from wlauto.core.plugin import Plugin
-from wlauto.core.entry_point import init_argument_parser
 from wlauto.utils.doc import format_body
+from wlauto.core.version import get_wa_version
+
+
+def init_argument_parser(parser):
+    parser.add_argument('-c', '--config', help='specify an additional config.py')
+    parser.add_argument('-v', '--verbose', action='count',
+                        help='The scripts will produce verbose output.')
+    parser.add_argument('--version', action='version', version='%(prog)s {}'.format(get_wa_version()))
+    return parser
 
 
 class Command(Plugin):

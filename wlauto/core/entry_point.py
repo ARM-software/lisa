@@ -23,10 +23,10 @@ import warnings
 
 from wlauto.core.configuration import settings
 from wlauto.core import pluginloader
+from wlauto.core.command import init_argument_parser
 from wlauto.exceptions import WAError, ConfigError
 from wlauto.utils.misc import get_traceback
 from wlauto.utils.log import init_logging
-from wlauto.utils.cli import init_argument_parser
 from wlauto.utils.doc import format_body
 
 from devlib import DevlibError
