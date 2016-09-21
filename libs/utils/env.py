@@ -117,6 +117,12 @@ class TestEnv(ShareState):
         # The platform descriptor to be saved into the results folder
         self.platform = {}
 
+        # Keep track of android support
+        self.LISA_HOME = os.environ.get('LISA_HOME', '/vagrant')
+        self.ANDROID_HOME = os.environ.get('ANDROID_HOME', None)
+        self.CATAPULT_HOME = os.environ.get('CATAPULT_HOME',
+                os.path.join(self.LISA_HOME, 'tools', 'catapult'))
+
         # Compute base installation path
         logging.info('%14s - Using base path: %s',
                 'Target', basepath)
@@ -331,6 +337,30 @@ class TestEnv(ShareState):
         except KeyError:
             raise ValueError('Config error: missing [platform] parameter')
 
+        if platform_type.lower() == 'android':
+            self.ANDROID_HOME = self.conf.get('ANDROID_HOME',
+                                              self.ANDROID_HOME)
+            if self.ANDROID_HOME:
+                self._adb = os.path.join(self.ANDROID_HOME,
+                                         'platform-tools', 'adb')
+                self._fastboot = os.path.join(self.ANDROID_HOME,
+                                              'platform-tools', 'fastboot')
+                os.environ['ANDROID_HOME'] = self.ANDROID_HOME
+                os.environ['CATAPULT_HOME'] = self.CATAPULT_HOME
+            else:
+                raise RuntimeError('Android SDK not found, ANDROID_HOME must be defined!')
+
+            logging.info(r'%14s - External tools using:', 'Target')
+            logging.info(r'%14s -    ANDROID_HOME: %s', 'Target',
+                         self.ANDROID_HOME)
+            logging.info(r'%14s -    CATAPULT_HOME: %s', 'Target',
+                         self.CATAPULT_HOME)
+
+            if not os.path.exists(self._adb):
+                raise RuntimeError('\nADB binary not found\n\t{}\ndoes not exists!\n\n'
+                                   'Please configure ANDROID_HOME to point to '
+                                   'a valid Android SDK installation folder.'\
+                                   .format(self._adb))
 
         ########################################################################
         # Board configuration
