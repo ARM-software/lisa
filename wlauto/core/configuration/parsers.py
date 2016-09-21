@@ -167,7 +167,7 @@ class ConfigParser(object):
     def load_from_path(self, filepath):
         self.load(_load_file(filepath, "Config"), filepath)
 
-    def load(self, raw, source):  # pylint: disable=too-many-branches
+    def load(self, raw, source, wrap_exceptions=True):  # pylint: disable=too-many-branches
         try:
             if 'run_name' in raw:
                 msg = '"run_name" can only be specified in the config section of an agenda'
@@ -201,7 +201,10 @@ class ConfigParser(object):
                 self.plugin_cache.add_configs(name, values, source)
 
         except ConfigError as e:
-            raise ConfigError('Error in "{}":\n{}'.format(source, str(e)))
+            if wrap_exceptions:
+                raise ConfigError('Error in "{}":\n{}'.format(source, str(e)))
+            else:
+                raise e
 
 
 class AgendaParser(object):
@@ -230,7 +233,7 @@ class AgendaParser(object):
                     self.run_config.set('run_name', entry.pop('run_name'))
                 config_parser = ConfigParser(self.wa_config, self.run_config,
                                              self.jobs_config, self.plugin_cache)
-                config_parser.load(entry, source)
+                config_parser.load(entry, source, wrap_exceptions=False)
 
             # PHASE 2: Getting "section" and "workload" entries.
             sections = raw.pop("sections", [])
