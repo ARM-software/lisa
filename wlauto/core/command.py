@@ -21,7 +21,7 @@ from wlauto.core.version import get_wa_version
 
 
 def init_argument_parser(parser):
-    parser.add_argument('-c', '--config', help='specify an additional config.py')
+    parser.add_argument('-c', '--config', help='specify an additional config.py', action='append')
     parser.add_argument('-v', '--verbose', action='count',
                         help='The scripts will produce verbose output.')
     parser.add_argument('--version', action='version', version='%(prog)s {}'.format(get_wa_version()))
