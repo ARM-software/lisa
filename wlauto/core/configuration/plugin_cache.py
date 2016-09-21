@@ -44,9 +44,9 @@ class PluginCache(object):
         self._list_of_global_aliases = set()
         for plugin in self.loader.list_plugins():
             for param in plugin.parameters:
-                if param.aliases:
-                    self._global_alias_map[plugin.name][param.aliases] = param
-                    self._list_of_global_aliases.add(param.aliases)
+                if param.global_alias:
+                    self._global_alias_map[plugin.name][param.global_alias] = param
+                    self._list_of_global_aliases.add(param.global_alias)
 
     def add_source(self, source):
         if source in self.sources:

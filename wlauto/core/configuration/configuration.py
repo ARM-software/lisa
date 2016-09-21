@@ -168,7 +168,8 @@ class ConfigurationPoint(object):
                  description=None,
                  constraint=None,
                  merge=False,
-                 aliases=None):
+                 aliases=None,
+                 global_alias=None):
         """
         Create a new Parameter object.
 
@@ -216,6 +217,9 @@ class ConfigurationPoint(object):
                       ``merge_config_values`` documentation for details.
         :param aliases: Alternative names for the same configuration point.
                         These are largely for backwards compatibility.
+        :param global_alias: An alias for this parameter that can be specified at
+                            the global level. A global_alias can map onto many
+                            ConfigurationPoints.
         """
         self.name = identifier(name)
         if kind in KIND_MAP:
@@ -235,6 +239,7 @@ class ConfigurationPoint(object):
         self.constraint = constraint
         self.merge = merge
         self.aliases = aliases or []
+        self.global_alias = global_alias
 
         if self.default is not None:
             try:
@@ -243,9 +248,9 @@ class ConfigurationPoint(object):
                 raise ValueError('Default value "{}" is not valid'.format(self.default))
 
     def match(self, name):
-        if name == self.name:
+        if name == self.name or name in self.aliases:
             return True
-        elif name in self.aliases:
+        elif name == self.global_alias:
             return True
         return False
 
