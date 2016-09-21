@@ -708,7 +708,9 @@ class WAConfiguration(Configuration):
     ]
     configuration = {cp.name: cp for cp in __configuration}
 
-    dependencies_directory = None  # TODO: What was this for?
+    @property
+    def dependencies_directory(self):
+        return "{}/dependencies/".format(self.user_directory)
 
 
 # This is generic top-level configuration for WA runs.
@@ -716,42 +718,106 @@ class RunConfiguration(Configuration):
 
     name = "Run Configuration"
     __configuration = [
-        ConfigurationPoint('run_name', kind=str,  # TODO: Can only come from an agenda
+        ConfigurationPoint('run_name', kind=str,
                            description='''
-                           A descriptive name for this WA run.
+                           A string that labels the WA run that is being performed. This would typically
+                           be set in the ``config`` section of an agenda (see
+                           :ref:`configuration in an agenda <configuration_in_agenda>`) rather than in the config file.
+
+                           .. _old-style format strings: http://docs.python.org/2/library/stdtypes.html#string-formatting-operations
+                           .. _log record attributes: http://docs.python.org/2/library/logging.html#logrecord-attributes
                            '''),
         ConfigurationPoint('project', kind=str,
                            description='''
-                           The project this WA run belongs too.
+                           A string naming the project for which data is being collected. This may be
+                           useful, e.g. when uploading data to a shared database that is populated from
+                           multiple projects.
                            '''),
         ConfigurationPoint('project_stage', kind=dict,
                            description='''
-                           The stage of the project this WA run is from.
+                           A dict or a string that allows adding additional identifier. This is may be
+                           useful for long-running projects.
                            '''),
         ConfigurationPoint('execution_order', kind=str, default='by_iteration',
-                           allowed_values=None,  # TODO:
+                           allowed_values=['by_iteration', 'by_spec', 'by_section', 'random'],
                            description='''
-                           The order that workload specs will be executed
+                           Defines the order in which the agenda spec will be executed. At the moment,
+                           the following execution orders are supported:
+
+                           ``"by_iteration"``
+                             The first iteration of each workload spec is executed one after the other,
+                             so all workloads are executed before proceeding on to the second iteration.
+                             E.g. A1 B1 C1 A2 C2 A3. This is the default if no order is explicitly specified.
+
+                             In case of multiple sections, this will spread them out, such that specs
+                             from the same section are further part. E.g. given sections X and Y, global
+                             specs A and B, and two iterations, this will run ::
+
+                                             X.A1, Y.A1, X.B1, Y.B1, X.A2, Y.A2, X.B2, Y.B2
+
+                           ``"by_section"``
+                             Same  as ``"by_iteration"``, however this will group specs from the same
+                             section together, so given sections X and Y, global specs A and B, and two iterations,
+                             this will run ::
+
+                                     X.A1, X.B1, Y.A1, Y.B1, X.A2, X.B2, Y.A2, Y.B2
+
+                           ``"by_spec"``
+                             All iterations of the first spec are executed before moving on to the next
+                             spec. E.g. A1 A2 A3 B1 C1 C2 This may also be specified as ``"classic"``,
+                             as this was the way workloads were executed in earlier versions of WA.
+
+                           ``"random"``
+                             Execution order is entirely random.
                            '''),
-        ConfigurationPoint('reboot_policy', kind=str, default='as_needed',
+        ConfigurationPoint('reboot_policy', kind=RebootPolicy, default='as_needed',
                            allowed_values=RebootPolicy.valid_policies,
                            description='''
-                           How the device will be rebooted during the run.
+                           This defines when during execution of a run the Device will be rebooted. The
+                           possible values are:
+
+                           ``"never"``
+                              The device will never be rebooted.
+                           ``"initial"``
+                              The device will be rebooted when the execution first starts, just before
+                              executing the first workload spec.
+                           ``"each_spec"``
+                              The device will be rebooted before running a new workload spec.
+                              Note: this acts the same as each_iteration when execution order is set to by_iteration
+                           ``"each_iteration"``
+                              The device will be rebooted before each new iteration.
                            '''),
         ConfigurationPoint('device', kind=str, mandatory=True,
                            description='''
-                           The type of device this WA run will be executed on.
+                           This setting defines what specific Device subclass will be used to interact
+                           the connected device. Obviously, this must match your setup.
                            '''),
         ConfigurationPoint('retry_on_status', kind=status_list,
                            default=status_list(['FAILED', 'PARTIAL']),
-                           allowed_values=None,  # TODO: - can it even be done?
+                           allowed_values=ITERATION_STATUS,
                            description='''
-                           Which iteration results will lead to WA retrying.
+                           This is list of statuses on which a job will be cosidered to have failed and
+                           will be automatically retried up to ``max_retries`` times. This defaults to
+                           ``["FAILED", "PARTIAL"]`` if not set. Possible values are:
+
+                           ``"OK"``
+                           This iteration has completed and no errors have been detected
+
+                           ``"PARTIAL"``
+                           One or more instruments have failed (the iteration may still be running).
+
+                           ``"FAILED"``
+                           The workload itself has failed.
+
+                           ``"ABORTED"``
+                           The user interupted the workload
                            '''),
         ConfigurationPoint('max_retries', kind=int, default=3,
                            description='''
-                           The number of times WA will attempt to retry a failed
-                           iteration.
+                           The maximum number of times failed jobs will be retried before giving up. If
+                           not set, this will default to ``3``.
+
+                           .. note:: this number does not include the original attempt
                            '''),
     ]
     configuration = {cp.name: cp for cp in __configuration}
