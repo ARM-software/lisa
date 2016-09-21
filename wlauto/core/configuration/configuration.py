@@ -32,6 +32,18 @@ KIND_MAP = {
     dict: OrderedDict,
 }
 
+ITERATION_STATUS = [
+    'NOT_STARTED',
+    'RUNNING',
+
+    'OK',
+    'NONCRITICAL',
+    'PARTIAL',
+    'FAILED',
+    'ABORTED',
+    'SKIPPED',
+]
+
 ##########################
 ### CONFIG POINT TYPES ###
 ##########################

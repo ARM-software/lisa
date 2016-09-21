@@ -42,6 +42,7 @@ from contextlib import contextmanager
 from datetime import datetime
 
 from wlauto.core.plugin import Plugin
+from wlauto.core.configuration.configuration import ITERATION_STATUS
 from wlauto.exceptions import WAError
 from wlauto.utils.types import numeric
 from wlauto.utils.misc import enum_metaclass, merge_dicts_simple
@@ -238,17 +239,7 @@ class IterationResult(object):
 
     __metaclass__ = enum_metaclass('values', return_name=True)
 
-    values = [
-        'NOT_STARTED',
-        'RUNNING',
-
-        'OK',
-        'NONCRITICAL',
-        'PARTIAL',
-        'FAILED',
-        'ABORTED',
-        'SKIPPED',
-    ]
+    values = ITERATION_STATUS
 
     def __init__(self, spec):
         self.spec = spec
