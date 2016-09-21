@@ -99,8 +99,9 @@ class Executor():
         self.te = TestEnv(target_conf, tests_conf)
         self.target = self.te.target
 
+        self._iterations = self._tests_conf.get('iterations', 1)
         # Compute total number of experiments
-        self._exp_count = self._tests_conf['iterations'] \
+        self._exp_count = self._iterations \
                 * len(self._tests_conf['wloads']) \
                 * len(self._tests_conf['confs'])
 
@@ -116,7 +117,7 @@ class Executor():
 
         logging.info('%14s -   %3d workloads (%d iterations each)',
                      'Executor', len(self._tests_conf['wloads']),
-                     self._tests_conf['iterations'])
+                     self._iterations)
         wload_confs = ', '.join(self._tests_conf['wloads'])
         logging.info('%14s -       %s', 'Executor', wload_confs)
 
@@ -138,7 +139,7 @@ class Executor():
             for wl_idx in self._tests_conf['wloads']:
                 # TEST: configuration
                 wload = self._wload_init(tc, wl_idx)
-                for itr_idx in range(1, self._tests_conf['iterations']+1):
+                for itr_idx in range(1, self._iterations + 1):
                     # WORKLOAD: execution
                     self._wload_run(exp_idx, tc, wl_idx, wload, itr_idx)
                     exp_idx += 1
@@ -491,7 +492,7 @@ class Executor():
         self._print_title('Executor', 'Experiment {}/{}, [{}:{}] {}/{}'\
                 .format(exp_idx, self._exp_count,
                         tc_idx, wl_idx,
-                        run_idx, self._tests_conf['iterations']))
+                        run_idx, self._iterations))
 
         # Setup local results folder
         self._wload_run_init(run_idx)
