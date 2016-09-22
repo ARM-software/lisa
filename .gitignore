@@ -1,7 +1,9 @@
 *~
 .*
 *.pyc
-results*
+/results*
 *.json
 *.log
-tools/android-sdk-linux
+/tools/android-sdk-linux
+/ipynb/*.pid
+/vagrant
