@@ -41,6 +41,17 @@ class System(object):
                        .format(ap_state))
 
     @staticmethod
+    def start_app(target, apk_name):
+        """
+        Start the main activity of the specified application
+
+        :param apk_name: name of the apk
+        :type apk_name: str
+        """
+        target.execute('monkey -p {} -c android.intent.category.LAUNCHER 1'\
+                      .format(apk_name))
+
+    @staticmethod
     def start_activity(target, apk_name, activity_name):
         """
         Start an application by specifying package and activity name.
