@@ -107,7 +107,17 @@ The required equipment is the following:
 * A shunt resistor to be connected between the voltage rail and the probe. The voltage drop
   on the resistor must be at most 165 mv. Therefore depending on the maximum current required
   by the load, one can properly select the value of the shunt resistor
-* `caiman` tool ([installation instructions](https://github.com/ARM-software/caiman))
+* Install `caiman` required libraries:
+
+```bash
+sudo apt-get instal libudev
+```
+
+```bash
+git clone https://github.com/ARM-software/caiman.git
+cd caiman &&  && cd -
+```
+tool ([installation instructions](https://github.com/ARM-software/caiman))
 
 ![ARM Energy Probe](https://developer.arm.com/-/media/developer/products/software-tools/ds-5-development-studio/images/ARM%20Energy%20Probe/ARM_Energy_Probe_4.png?h=378&w=416&hash=90D98087E80D9178CCC28026C1C8E476A6736D09&hash=90D98087E80D9178CCC28026C1C8E476A6736D09&la=en)
 
