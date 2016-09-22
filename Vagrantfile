@@ -13,7 +13,10 @@ Vagrant.configure(2) do |config|
   # Forward ipython notebook's port to the host
   config.vm.network "forwarded_port", guest: 8888, host: 8888
 
-  config.vm.provision "shell", inline: <<-SHELL
+  # Get VirtualBox version installed on the host
+  VBOX_VERSION = `VirtualBox -help | head -1 | cut -d' ' -f5`
+
+  config.vm.provision "shell", args: "#{VBOX_VERSION}", inline: <<-SHELL
     sudo apt-get update
     sudo apt-get install -y autoconf automake build-essential expect git \
         libfreetype6-dev libpng12-dev libtool nmap openjdk-7-jdk \
@@ -47,6 +50,26 @@ Vagrant.configure(2) do |config|
     do
         echo unset $LC  >> /home/vagrant/.bashrc
     done
+
+    # Install VirtualBox guest additions
+    cd /tmp
+    VBOX_VERSION=$1
+    VBOX_ADDITIONS_URL="http://download.virtualbox.org/virtualbox/VER/VBoxGuestAdditions_VER.iso"
+    sudo wget -q -c ${VBOX_ADDITIONS_URL//VER/$VBOX_VERSION} -O VBoxGuestAdditions_$VBOX_VERSION.iso
+    sudo mount VBoxGuestAdditions_$VBOX_VERSION.iso -o loop /mnt
+    expect -c '
+        set timeout -1;
+        spawn sudo sh /mnt/VBoxLinuxAdditions.run --nox11;
+        expect {
+            "Do you wish to continue" { exp_send "yes\r" ; exp_continue }
+            eof
+        }
+    '
+    sudo umount /mnt
+    sudo rm *.iso
+    sudo /etc/init.d/vboxadd setup
+    cd -
+
     echo "export ANDROID_HOME=/vagrant/tools/android-sdk-linux" >> /home/vagrant/.bashrc
     echo 'export PATH=\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/tools:\$PATH' >> /home/vagrant/.bashrc
     echo source init_env >> /home/vagrant/.bashrc
