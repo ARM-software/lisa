@@ -69,20 +69,6 @@ DEFAULT_ENERGY_METER = {
         }
     },
 
-    # Hikey: by default use AEP
-    'hikey' : {
-        'instrument' : 'aep',
-        'conf' : {
-            'resistor_values' : [0.033],
-            'device_entry'    : '/dev/ttyACM0',
-        },
-        # AEP requires channel_map for compatibility with the generic energy
-        # meters interface
-        "channel_map" : {
-            "LITTLE" : 'LITTLE',
-        }
-    }
-
 }
 
 EnergyCounter = namedtuple('EnergyCounter', ['site', 'pwr_total' , 'pwr_samples', 'pwr_avg', 'time', 'nrg'])
