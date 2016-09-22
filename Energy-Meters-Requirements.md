@@ -113,11 +113,13 @@ The required equipment is the following:
 sudo apt-get instal libudev
 ```
 
+* Clone, compile and install the [`caiman` tool](https://github.com/ARM-software/caiman)
+
 ```bash
 git clone https://github.com/ARM-software/caiman.git
-cd caiman &&  && cd -
+cd caiman && cmake . && make && cd -
+cp caiman/caiman /usr/bin
 ```
-tool ([installation instructions](https://github.com/ARM-software/caiman))
 
 ![ARM Energy Probe](https://developer.arm.com/-/media/developer/products/software-tools/ds-5-development-studio/images/ARM%20Energy%20Probe/ARM_Energy_Probe_4.png?h=378&w=416&hash=90D98087E80D9178CCC28026C1C8E476A6736D09&hash=90D98087E80D9178CCC28026C1C8E476A6736D09&la=en)
 
@@ -148,19 +150,29 @@ For this instrument, `channel_map` keys and values are usually set to the same v
 
 The `iiocapture` instrument exploits the [BayLibre ACME](http://baylibre.com/acme/) solution for measuring power.
 
+#### Build the software suite
+
+First step is to get an *IIO version* of the ACME BeagleBone black image. The recommended way of using ACME is to use the pre-built image provided by BayLibre:
+
+* [ACME Image (beta)](https://github.com/baylibre-acme/ACME/releases/download/b1/acme-beaglebone-black_b1-sdcard-image.xz)
+
 #### Equipment
 To use this instrument you need the following equipment:
 
 * A [BeagleBone Black](https://beagleboard.org/black)
 * An [ACME Cape](http://sigrok.org/wiki/BayLibre_ACME)
 * Power probes for the ACME Cape
-* The `iio-capture` tool installed in your host ([installation instructions here](https://github.com/BayLibre/iio-capture))
+* Install the `iio-capture` tool required libraries:
 
-#### Build the software suite
+```bash
+sudo apt-get install libiio-utils libiio-dev
+```
+* Clone, compile and install the [`iio-capture` tool](https://github.com/BayLibre/iio-capture)
 
-Next step is to get an *IIO version* of the ACME BeagleBone black image. The recommended way of using ACME is to use the pre-built image provided by BayLibre:
-
-* ACME Image (this is a beta release at the moment): https://github.com/baylibre-acme/ACME/releases/tag/b0
+```bash
+git clone https://github.com/BayLibre/iio-capture.git
+cd iio-capture && make && sudo make install && cd -
+```
 
 #### LISA Target Configuration
 
