@@ -376,9 +376,7 @@ class Executor():
         if conf['class'] == 'profile':
             params = {}
             # Load each task specification
-            for task_name in conf['params']:
-                task = conf['params'][task_name]
-                task_name = conf['prefix'] + task_name
+            for task_name, task in conf['params'].items():
                 if task['kind'] not in wlgen.__dict__:
                     logging.error(r'%14s - RTA task of kind [%s] not supported',
                             'RTApp', task['kind'])
