@@ -80,13 +80,12 @@ class Jankbench(Workload):
         # Initialize energy meter results
         nrg_report = None
 
-        self.target.execute('input keyevent 82')
-        # Press Back button to be sure we run the video from the start
-        self.target.execute('input keyevent KEYCODE_BACK')
+        # Make sure we exit the app if already open
+        System.menu(self.target)
+        System.back(self.target)
 
         # Close and clear application
-        self.target.execute('am force-stop com.android.benchmark')
-        self.target.execute('pm clear com.android.benchmark')
+        System.force_stop(self.target, self.package, clear=True)
 
         # Set airplane mode
         System.set_airplane_mode(self.target, on=True)
@@ -154,12 +153,10 @@ class Jankbench(Workload):
         db_file = os.path.join(exp_dir, JANKBENCH_DB_NAME)
         self.target.pull(JANKBENCH_DB_PATH + JANKBENCH_DB_NAME, db_file)
 
-        # Close and clear application
-        self.target.execute('am force-stop com.android.benchmark')
-        self.target.execute('pm clear com.android.benchmark')
+        System.force_stop(self.target, self.package, clear=True)
 
         # Go back to home screen
-        self.target.execute('input keyevent KEYCODE_HOME')
+        System.home(self.target)
 
         # Switch back to screen auto rotation
         Screen.set_orientation(self.target, auto=True)
