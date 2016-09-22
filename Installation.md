@@ -91,13 +91,32 @@ To be able to access devices connected through the USB, it is necessary to
 enable the USB controller for the VM in `VirtualBox`. The following steps
 explain how to do it:
 
+- Halt the vagrant VM by running
+
+```bash
+vagrant halt
+```
+
 - Open the `VirtualBox` VM Manager
 
 - Select the `lisa_default_*` virtual machine and click **Settings**
 
-- Select the **USB** tab and enable the USB controller as shown in the screenshot
+- Select the **USB** tab and enable the USB controller as shown in the screen-shot
 
-TODO: add image
+[[images/vbox_enable_usb.png]]
+
+- Add a **USB filter** for each of the devices that should be available in the VM as
+shown in the screen-shot below
+
+[[images/vbox_add_usb_filter.png]]
+
+- Finally click **OK** to save the settings
+
+It is now possible to start the VM by running:
+
+```bash
+vagrant up
+```
 
 ### Run LISA in vagrant
 
@@ -113,4 +132,4 @@ The next time you run the "up" command the VM will be started again and you
 will get a LISA shell.
 
 From within the LISA shell you can start the IPython Notebooks server
-by following the instructions in the following section.
+by following the instructions [here](https://github.com/ARM-software/lisa/wiki/Quickstart-Tutorial).
