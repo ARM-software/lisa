@@ -485,12 +485,6 @@ class Executor():
         logging.debug(r'%14s - out_dir [%s]', 'Executor', self.te.out_dir)
         os.system('mkdir -p ' + self.te.out_dir)
 
-        logging.debug(r'%14s - cleanup target output folder', 'Executor')
-
-        target_dir = self.target.working_directory
-        logging.debug('%14s - setup target directory [%s]',
-                'Executor', target_dir)
-
     def _wload_run(self, exp_idx, tc, wl_idx, wload, run_idx):
         tc_idx = tc['tag']
 
