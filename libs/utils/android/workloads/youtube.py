@@ -83,8 +83,11 @@ class YouTube(Workload):
         db_file = os.path.join(exp_dir, "framestats.txt")
         System.gfxinfo_get(self.target, self.package, db_file)
 
-        System.force_stop(self.target, self.package, clear=True)
+        # Close the app without clearing the local data to
+        # avoid the dialog to select the account at next start
+        System.force_stop(self.target, self.package, clear=False)
 
+        # Go back to home screen
         System.home(self.target)
 
         # Switch back to screen auto rotation
