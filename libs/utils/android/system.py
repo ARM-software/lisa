@@ -17,6 +17,7 @@
 
 import logging
 from devlib.utils.android import adb_command
+from devlib import TargetError
 
 GET_FRAMESTATS_CMD = 'shell dumpsys gfxinfo {} > {}'
 
@@ -33,12 +34,15 @@ class System(object):
         ap_mode = 1 if on else 0
         ap_state = 'true' if on else 'false'
 
-        target.execute('settings put global airplane_mode_on {}'\
-                       .format(ap_mode))
-        target.execute('am broadcast '\
-                       '-a android.intent.action.AIRPLANE_MODE '\
-                       '--ez state {}'\
-                       .format(ap_state))
+        try:
+            target.execute('settings put global airplane_mode_on {}'\
+                           .format(ap_mode), as_root=True)
+            target.execute('am broadcast '\
+                           '-a android.intent.action.AIRPLANE_MODE '\
+                           '--ez state {}'\
+                           .format(ap_state), as_root=True)
+        except TargetError:
+            target.logger.warning("Failed to toggle airplane mode, permission denied.")
 
     @staticmethod
     def start_app(target, apk_name):
