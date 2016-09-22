@@ -385,7 +385,12 @@ class Executor():
                         'in RT-App workload specification'\
                         .format(task))
                 task_ctor = getattr(wlgen, task['kind'])
-                params[task_name] = task_ctor(**task['params']).get()
+                task_idxs = self._wload_task_idxs(wl_idx, task['tasks'])
+                for idx in task_idxs:
+                    idx_name = str(idx) if len(task_idxs) > 0 else ""
+                    task_name_idx = conf['prefix'] + task_name + idx_name
+                    params[task_name_idx] = task_ctor(**task['params']).get()
+
             rtapp = wlgen.RTA(self.target,
                         wl_idx, calibration = self.te.calibration())
             rtapp.conf(kind='profile', params=params, loadref=loadref,
