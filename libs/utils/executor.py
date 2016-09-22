@@ -17,6 +17,7 @@
 
 from bart.common.Analyzer import Analyzer
 import collections
+from collections import namedtuple
 import datetime
 import gzip
 import json
@@ -40,6 +41,9 @@ from env import TestEnv
 from conf import JsonConf
 
 import wlgen
+
+Experiment = namedtuple('Experiment', ['wload_name', 'wload',
+                                       'conf', 'iteration', 'out_dir'])
 
 class Executor():
 
@@ -130,19 +134,28 @@ class Executor():
     def run(self):
         self._print_section('Executor', 'Experiments execution')
 
+        self.experiments = []
+
         # Run all the configured experiments
-        exp_idx = 1
         for tc in self._tests_conf['confs']:
             # TARGET: configuration
             if not self._target_configure(tc):
                 continue
             for wl_idx in self._tests_conf['wloads']:
                 # TEST: configuration
-                wload = self._wload_init(tc, wl_idx)
+                wload, test_dir = self._wload_init(tc, wl_idx)
                 for itr_idx in range(1, self._iterations + 1):
-                    # WORKLOAD: execution
-                    self._wload_run(exp_idx, tc, wl_idx, wload, itr_idx)
-                    exp_idx += 1
+                    exp = Experiment(
+                        wload_name=wl_idx,
+                        wload=wload,
+                        conf=tc,
+                        iteration=itr_idx,
+                        out_dir=os.path.join(test_dir, str(itr_idx)))
+                    self.experiments.append(exp)
+
+            # WORKLOAD: execution
+            for exp_idx, experiment in enumerate(self.experiments):
+                self._wload_run(exp_idx, experiment)
 
         self._print_section('Executor', 'Experiments execution completed')
         logging.info('%14s - Results available in:', 'Executor')
@@ -479,24 +492,21 @@ class Executor():
         with open(os.path.join(self.te.test_dir, 'kernel.version'), 'w') as fh:
             fh.write(output)
 
-        return wload
+        return wload, self.te.test_dir
 
-    def _wload_run_init(self, run_idx):
-        self.te.out_dir = '{}/{}'\
-                .format(self.te.test_dir, run_idx)
-        logging.debug(r'%14s - out_dir [%s]', 'Executor', self.te.out_dir)
-        os.system('mkdir -p ' + self.te.out_dir)
-
-    def _wload_run(self, exp_idx, tc, wl_idx, wload, run_idx):
+    def _wload_run(self, exp_idx, experiment):
+        tc = experiment.conf
+        wload = experiment.wload
         tc_idx = tc['tag']
 
         self._print_title('Executor', 'Experiment {}/{}, [{}:{}] {}/{}'\
                 .format(exp_idx, self._exp_count,
-                        tc_idx, wl_idx,
-                        run_idx, self._iterations))
+                        tc_idx, experiment.wload_name,
+                        experiment.iteration, self._iterations))
 
         # Setup local results folder
-        self._wload_run_init(run_idx)
+        logging.debug(r'%14s - out_dir [%s]', 'Executor', experiment.out_dir)
+        os.system('mkdir -p ' + experiment.out_dir)
 
         # FTRACE: start (if a configuration has been provided)
         if self.te.ftrace and self._target_conf_flag(tc, 'ftrace'):
@@ -508,23 +518,23 @@ class Executor():
             self.te.emeter.reset()
 
         # WORKLOAD: Run the configured workload
-        wload.run(out_dir=self.te.out_dir, cgroup=self._cgroup)
+        wload.run(out_dir=experiment.out_dir, cgroup=self._cgroup)
 
         # ENERGY: collect measurements
         if self.te.emeter:
-            self.te.emeter.report(self.te.out_dir)
+            self.te.emeter.report(experiment.out_dir)
 
         # FTRACE: stop and collect measurements
         if self.te.ftrace and self._target_conf_flag(tc, 'ftrace'):
             self.te.ftrace.stop()
 
-            trace_file = self.te.out_dir + '/trace.dat'
+            trace_file = experiment.out_dir + '/trace.dat'
             self.te.ftrace.get_trace(trace_file)
             logging.info(r'%14s - Collected FTrace binary trace:', 'Executor')
             logging.info(r'%14s -    %s', 'Executor',
                          trace_file.replace(self.te.res_dir, '<res_dir>'))
 
-            stats_file = self.te.out_dir + '/trace_stat.json'
+            stats_file = experiment.out_dir + '/trace_stat.json'
             self.te.ftrace.get_stats(stats_file)
             logging.info(r'%14s - Collected FTrace function profiling:', 'Executor')
             logging.info(r'%14s -    %s', 'Executor',
