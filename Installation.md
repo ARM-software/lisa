@@ -1,6 +1,6 @@
 This note assumes installation from scratch on a freshly installed
 Ubuntu 16.04 system. If you have a different system (e.g. OSX or an
-older version of Ubuntu) you can probably be interested into the [Virtual
+older version of Ubuntu) you can refer to the [Virtual
 Machine based installation](https://github.com/ARM-software/lisa/wiki/Installation#virtual-machine-based-installation).
 
 ## Contents
