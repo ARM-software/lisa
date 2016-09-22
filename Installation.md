@@ -83,10 +83,26 @@ provided by the Vagrant file available in the root folder of the LISA
 source tree. The first time you run this command it will take some time
 to download the based Ubuntu image and to install the required LISA
 dependencies. The actual time depends on the speed of your internet
-connection, the download size is rought 
+connection.
+
+### Enable USB Controller
+
+To be able to access devices connected through the USB, it is necessary to
+enable the USB controller for the VM in `VirtualBox`. The following steps
+explain how to do it:
+
+- Open the `VirtualBox` VM Manager
+
+- Select the `lisa_default_*` virtual machine and click *Settings*
+
+- Select the *USB* tab and enable the USB controller as shown in the screenshot
+
+TODO: add image
+
+### Run LISA in vagrant
 
 When the installation complete you will get a prompt from the LISA shell
-which is running withint the VM you just built. This VM shell can be
+which is running within the VM you just built. This VM shell can be
 accessed from another terminal using this command
 ```bash
 # from within the LISA root folder...
