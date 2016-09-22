@@ -93,9 +93,9 @@ explain how to do it:
 
 - Open the `VirtualBox` VM Manager
 
-- Select the `lisa_default_*` virtual machine and click *Settings*
+- Select the `lisa_default_*` virtual machine and click **Settings**
 
-- Select the *USB* tab and enable the USB controller as shown in the screenshot
+- Select the **USB** tab and enable the USB controller as shown in the screenshot
 
 TODO: add image
 
