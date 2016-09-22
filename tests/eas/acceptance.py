@@ -17,6 +17,8 @@
 
 from env import TestEnv
 from wlgen import RTA, Periodic, Step
+from devlib.target import TargetError
+
 import trappy
 import shutil
 import os
@@ -44,6 +46,13 @@ def local_setup(env):
         env.target.execute(
             "echo ENERGY_AWARE > /sys/kernel/debug/sched_features")
 
+    if SET_IS_BIG_LITTLE:
+        try:
+            env.target.write_value("/proc/sys/kernel/sched_is_big_little", 1)
+        except TargetError:
+            # That flag doesn't exist on mainline-integration kernels, so don't
+            # worry if the file isn't present.
+            pass
 
 def between_threshold_pct(a, b):
     THRESHOLD_PERCENT = 3
