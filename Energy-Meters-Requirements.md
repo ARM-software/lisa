@@ -5,7 +5,7 @@ Currently supported instruments are:
 * [`AEP`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#arm-energy-probe-aep): ARM Energy Probe
 * [`ACME`](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture---baylibre-acme-cape): BleagleBone Black + BayLibre ACME Cape
 
-Instruments need to be specified either in `target.config` or in aconfiguration dictionary to be passed to `TestEnv` when creating the test environment object.
+Instruments need to be specified either in `target.config` or inside a configuration dictionary to be passed to `TestEnv` when creating the test environment object.
 
 ## Using Energy Meters
 
