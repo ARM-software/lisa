@@ -24,13 +24,19 @@ import sys
 import trappy
 import json
 import warnings
+import operator
 
 from analysis_register import AnalysisRegister
+from collections import namedtuple
+from devlib.utils.misc import memoized
 from trappy.utils import listify
 
 # Configure logging
 import logging
 
+NON_IDLE_STATE = 4294967295
+ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
+ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
 
 class Trace(object):
     """
@@ -727,6 +733,79 @@ class Trace(object):
                                              keys=frames.keys())
 
         return len(self._functions_stats_df) > 0
+
+    @memoized
+    def getCPUActiveSignal(self, cpu):
+        """
+        Build a square wave representing the active (i.e. non-idle) CPU time,
+        i.e.:
+            cpu_active[t] == 1 if at least one CPU is reported to be
+                               non-idle by CPUFreq at time t
+            cpu_active[t] == 0 otherwise
+
+        :param cpu: CPU ID
+        :type cpu: int
+
+        :returns: :mod:`pandas.Series`
+        """
+        if not self.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, '\
+                         'cannot compute CPU active signal!')
+            return None
+
+        idle_df = self._dfg_trace_event('cpu_idle')
+        cpu_df = idle_df[idle_df.cpu_id == cpu]
+
+        cpu_active = cpu_df.state.apply(
+            lambda s: 1 if s == NON_IDLE_STATE else 0
+        )
+
+        start_time = 0.0
+        if not self.ftrace.normalized_time:
+            start_time = self.ftrace.basetime
+        if cpu_active.index[0] != start_time:
+            entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
+            cpu_active = pd.concat([entry_0, cpu_active])
+
+        return cpu_active
+
+    @memoized
+    def getClusterActiveSignal(self, cluster):
+        """
+        Build a square wave representing the active (i.e. non-idle) cluster
+        time, i.e.:
+            cluster_active[t] == 1 if at least one CPU is reported to be
+                                   non-idle by CPUFreq at time t
+            cluster_active[t] == 0 otherwise
+
+        :param cluster: list of CPU IDs belonging to a cluster
+        :type cluster: list(int)
+
+        :returns: :mod:`pandas.Series`
+        """
+        if not self.hasEvents('cpu_idle'):
+            logging.warn('Events [cpu_idle] not found, '\
+                         'cannot compute cluster active signal!')
+            return None
+
+        active = self.getCPUActiveSignal(cluster[0]).to_frame(name=cluster[0])
+        for cpu in cluster[1:]:
+            active = active.join(
+                self.getCPUActiveSignal(cpu).to_frame(name=cpu),
+                how='outer'
+            )
+
+        active.fillna(method='ffill', inplace=True)
+
+        # Cluster active is the OR between the actives on each CPU
+        # belonging to that specific cluster
+        cluster_active = reduce(
+            operator.or_,
+            [cpu_active.astype(int) for _, cpu_active in
+             active.iteritems()]
+        )
+
+        return cluster_active
 
 
 class TraceData:

@@ -24,17 +24,12 @@ import pylab as pl
 import operator
 from trappy.utils import listify
 from devlib.utils.misc import memoized
-from collections import namedtuple
 
 from analysis_module import AnalysisModule
+from trace import NON_IDLE_STATE, ResidencyTime, ResidencyData
 
 # Configure logging
 import logging
-
-NON_IDLE_STATE = 4294967295
-
-ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
-ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
 
 
 class FrequencyAnalysis(AnalysisModule):
@@ -341,68 +336,6 @@ class FrequencyAnalysis(AnalysisModule):
 ###############################################################################
 
     @memoized
-    def _getCPUActiveSignal(self, cpu):
-        """
-        Build a square wave representing the active (i.e. non-idle) CPU time,
-        i.e.:
-            cpu_active[t] == 1 if at least one CPU is reported to be
-                               non-idle by CPUFreq at time t
-            cpu_active[t] == 0 otherwise
-
-        :param cpu: CPU ID
-        :type cpu: int
-        """
-        if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '
-                         'cannot compute CPU active signal!')
-            return None
-
-        idle_df = self._dfg_trace_event('cpu_idle')
-        cpu_states = idle_df[idle_df.cpu_id == cpu].state
-
-        cpu_active = cpu_states.apply(
-            lambda s: 1 if s == NON_IDLE_STATE else 0
-        )
-
-        start_time = 0.0
-        if not self._trace.ftrace.normalized_time:
-            start_time = self._trace.ftrace.basetime
-        if cpu_active.index[0] != start_time:
-            entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
-            cpu_active = pd.concat([entry_0, cpu_active])
-
-        return cpu_active
-
-    @memoized
-    def _getClusterActiveSignal(self, cluster):
-        """
-        Build a square wave representing the active (i.e. non-idle) cluster
-        time, i.e.:
-            cluster_active[t] == 1 if at least one CPU is reported to be
-                                   non-idle by CPUFreq at time t
-            cluster_active[t] == 0 otherwise
-
-        :param cluster: list of CPU IDs belonging to a cluster
-        :type cluster: list(int)
-        """
-        cpu_active = {}
-        for cpu in cluster:
-            cpu_active[cpu] = self._getCPUActiveSignal(cpu)
-
-        active = pd.DataFrame(cpu_active)
-        active.fillna(method='ffill', inplace=True)
-
-        # Cluster active is the OR between the actives on each CPU
-        # belonging to that specific cluster
-        cluster_active = reduce(
-            operator.or_,
-            [cpu_active.astype(int) for _, cpu_active in
-             active.iteritems()]
-        )
-
-        return cluster_active
-
-    @memoized
     def _getFrequencyResidency(self, cluster):
         """
         Get a DataFrame with per cluster frequency residency, i.e. amount of
@@ -435,18 +368,18 @@ class FrequencyAnalysis(AnalysisModule):
             logging.warn('Cluster frequency is NOT coherent,'
                          'cannot compute residency!')
             return None
-        cluster_freqs = freq_df[freq_df.cpu == _cluster[0]].frequency
+        cluster_freqs = freq_df[freq_df.cpu == _cluster[0]]
 
         # Compute TOTAL Time
         time_intervals = cluster_freqs.index[1:] - cluster_freqs.index[:-1]
         total_time = pd.DataFrame({
             'time': time_intervals,
-            'frequency': [f/1000.0 for f in cluster_freqs.iloc[:-1]]
+            'frequency': [f/1000.0 for f in cluster_freqs.iloc[:-1].frequency]
         })
         total_time = total_time.groupby(['frequency']).sum()
 
         # Compute ACTIVE Time
-        cluster_active = self._getClusterActiveSignal(_cluster)
+        cluster_active = self._trace.getClusterActiveSignal(_cluster)
 
         # In order to compute the active time spent at each frequency we
         # multiply 2 square waves:
@@ -457,15 +390,14 @@ class FrequencyAnalysis(AnalysisModule):
         # - freq_active, square wave of the form:
         #     freq_active[t] == 1 if at time t the frequency is f
         #     freq_active[t] == 0 otherwise
-        available_freqs = sorted(cluster_freqs.unique())
-        new_idx = sorted(cluster_freqs.index.tolist() +
-                         cluster_active.index.tolist())
-        cluster_freqs = cluster_freqs.reindex(new_idx, method='ffill')
-        cluster_active = cluster_active.reindex(new_idx, method='ffill')
+        available_freqs = sorted(cluster_freqs.frequency.unique())
+        cluster_freqs = cluster_freqs.join(
+            cluster_active.to_frame(name='active'), how='outer')
+        cluster_freqs.fillna(method='ffill', inplace=True)
         nonidle_time = []
         for f in available_freqs:
-            freq_active = cluster_freqs.apply(lambda x: 1 if x == f else 0)
-            active_t = cluster_active * freq_active
+            freq_active = cluster_freqs.frequency.apply(lambda x: 1 if x == f else 0)
+            active_t = cluster_freqs.active * freq_active
             # Compute total time by integrating the square wave
             nonidle_time.append(self._trace.integrate_square_wave(active_t))
 
