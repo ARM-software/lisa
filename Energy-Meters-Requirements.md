@@ -200,8 +200,8 @@ target_conf = {
 The ACME Cape 8 probe slots numbered 1 to 8. `iio:device<n>` is the n-th discovered probe and they are discovered in ascending order. For example, if you have 2 probes attached to PROBE2 and PROBE7, then PROBE2 will be `iio:device0` and PROBE7 will be `iio:device1`
 
 
-You can also verify that the probes are correctly detected by the `iio daemon` running on the BeagleBone by running `iio_info` which is part of the `iio-capture` infrastructure:
+You can also verify that the probes are correctly detected by the `iio daemon` running on the BeagleBone by running `iio_info` which is part of the `libiio` library:
 
 ```bash
-$ iio_info -n IP_ADDRESS
+$ iio_info -n baylibre-acme.local
 ```
