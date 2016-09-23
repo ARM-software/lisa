@@ -196,7 +196,7 @@ class SmallTaskPacking(EasTest):
             msg="Not all tasks are running on LITTLE cores for at least {}% of their execution time"\
             .format(EXPECTED_RESIDENCY_PCT))
 
-class OffloadMigrationAndIdlePull(unittest.TestCase):
+class OffloadMigrationAndIdlePull(EasTest):
     """
     Goal
     ====
@@ -240,141 +240,49 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
 
     """
 
-    @classmethod
-    def setUpClass(cls):
-        cls.params = {}
-        cls.env = TestEnv(test_conf=TEST_CONF)
-        cls.trace_file = os.path.join(cls.env.res_dir, "offload_idle_pull.dat")
-        cls.log_file = os.path.join(cls.env.res_dir, "offload_idle_pull.json")
-        cls.early_starters = []
-        cls.migrators = []
-        cls.num_tasks = len(cls.env.target.bl.bigs)
-        cls.populate_tasks()
-        local_setup(cls.env)
-        cls.run_workload()
-
-        cls.trace = trappy.FTrace(cls.trace_file)
-        cls.m_assert = SchedMultiAssert(cls.trace, cls.env.topology,
-                                        execnames=cls.migrators)
-        cls.e_assert = SchedMultiAssert(cls.trace, cls.env.topology,
-                                        execnames=cls.early_starters)
-
-        all_tasks = cls.early_starters + cls.migrators
-        cls.a_assert = SchedMultiAssert(cls.trace, cls.env.topology,
-                                        execnames=all_tasks)
-        cls.offset = cls.get_offset()
-
-        cls.end_times = cls.calculate_end_times()
-        cls.log_fh = open(os.path.join(cls.env.res_dir, cls.log_file), "w")
+    conf_basename = "offload_idle_pull.config"
+    # m_assert = SchedAssert for migrators
+    # m_assert = for all
 
     @classmethod
-    def tearDownClass(cls):
-        cls.log_fh.close()
-
-    @classmethod
-    def populate_tasks(cls):
-        migrator_workload = BIG_WORKLOAD.copy()
-        migrator_workload["duration_s"] = 9
-        migrator_workload["delay_s"] = OFFLOAD_MIGRATION_MIGRATOR_DELAY
-
-        for idx in range(cls.num_tasks):
-            task = "early_starters" + str(idx)
-            cls.params[task] = Periodic(**BIG_WORKLOAD).get()
-            cls.early_starters.append(task)
-
-            # Tasks that will be idle pulled
-            task = "migrator" + str(idx)
-            cls.params[task] = Periodic(**migrator_workload).get()
-            cls.migrators.append(task)
-
-    @classmethod
-    def run_workload(cls):
-
-        wload = RTA(
-            cls.env.target,
-            "offload_idle_pull",
-            calibration=cls.env.calibration())
-        wload.conf(kind="profile", params=cls.params)
-        cls.env.ftrace.start()
-        wload.run(
-            out_dir=cls.env.res_dir,
-            background=False)
-        cls.env.ftrace.stop()
-        trace = cls.env.ftrace.get_trace(cls.trace_file)
-
-    @classmethod
-    def get_offset(cls):
-        task_start_times = cls.a_assert.getStartTime().values()
-        return min([t['starttime'] for t in task_start_times])
-
-    @classmethod
-    def calculate_end_times(cls):
+    def calculate_end_times(cls, experiment):
 
         end_times = {}
-        for task in cls.params.keys():
-            sched_assert = SchedAssert(cls.trace, cls.env.topology,
+        for task in experiment['wload'].tasks.keys():
+            sched_assert = SchedAssert(experiment['out_dir'], cls.te.topology,
                                        execname=task)
             end_times[task] = sched_assert.getEndTime()
 
         return end_times
 
-    def get_migrator_activation_time(self):
-        start_times_dict = self.m_assert.getStartTime()
-        start_time = min(t['starttime'] for t in start_times_dict.itervalues())
-
-        return start_time + OFFLOAD_MIGRATION_MIGRATOR_DELAY
-
-    def test_first_cpu_early_starters(self):
-        """Offload Migration and Idle Pull: Test First CPU (Early Starters)"""
-
-        logging.info(
-            "Offload Migration and Idle Pull: Test First CPU (Early Starters)")
-        log_result(
-            self.e_assert.getFirstCpu(), self.log_fh)
-
-        self.assertTrue(
-            self.e_assert.assertFirstCpu(
-                self.env.target.bl.bigs,
-                rank=self.num_tasks),
-            msg="Not all the new 'early starter' tasks started on a big CPU")
-
-    def test_first_cpu_migrators(self):
-        "Offload Migration and Idle Pull: Test First CPU (Migrators)"
-
-        logging.info(
-            "Offload Migration and Idle Pull: Test First CPU (Migrators)")
-
-        log_result(
-            self.m_assert.getFirstCpu(), self.log_fh)
-
-        self.assertTrue(
-            self.m_assert.assertFirstCpu(
-                self.env.target.bl.bigs,
-                rank=self.num_tasks),
-            msg="Not all the new 'migrator' tasks started on a big CPU")
-
-    def test_big_cpus_fully_loaded(self):
+    @experiment_test
+    def test_big_cpus_fully_loaded(self, experiment, tasks):
         """Offload Migration and Idle Pull: Big cpus are fully loaded as long as there are tasks left to run in the system"""
-        num_big_cpus = len(self.env.target.bl.bigs)
+        num_big_cpus = len(self.te.target.bl.bigs)
 
-        end_times = sorted(self.end_times.values())
+        s_assert = self.get_multi_assert(experiment, "early")
+        m_assert = self.get_multi_assert(experiment, "migrators")
+        a_assert = self.get_multi_assert(experiment)
+
+        end_times = sorted(self.calculate_end_times(experiment).values())
 
         # Window of time until the first migrator finishes
-        window = (self.offset, end_times[-num_big_cpus])
-        busy_time = self.a_assert.getCPUBusyTime("cluster",
-                                                 self.env.target.bl.bigs,
-                                                 window=window, percent=True)
+        window = (self.get_start_time(experiment), end_times[-num_big_cpus])
+        busy_time = a_assert.getCPUBusyTime("cluster",
+                                            self.te.target.bl.bigs,
+                                            window=window, percent=True)
+
         msg = "Big cpus were not fully loaded while there were enough big tasks to fill them"
         self.assertGreater(busy_time, OFFLOAD_EXPECTED_BUSY_TIME_PCT, msg=msg)
 
         # As the migrators start finishing, make sure that the tasks
         # that are left are running on the big cpus
-        for i in range(num_big_cpus-1):
+        for i in range(num_big_cpus - 1):
             big_cpus_left = num_big_cpus - i - 1
             window = (end_times[-num_big_cpus+i], end_times[-num_big_cpus+i+1])
-            busy_time = self.a_assert.getCPUBusyTime("cluster",
-                                                     self.env.target.bl.bigs,
-                                                     window=window, percent=True)
+            busy_time = a_assert.getCPUBusyTime("cluster",
+                                                self.te.target.bl.bigs,
+                                                window=window, percent=True)
 
             expected_busy_time = OFFLOAD_EXPECTED_BUSY_TIME_PCT * \
                                  big_cpus_left / num_big_cpus
@@ -383,17 +291,27 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
 
             self.assertGreater(busy_time, expected_busy_time, msg=msg)
 
-    def test_little_cpus_run_tasks(self):
+    @experiment_test
+    def test_little_cpus_run_tasks(self, experiment, tasks):
         """Offload Migration and Idle Pull: Little cpus run tasks while bigs are busy"""
-        tasks = self.params.keys()
+
         num_offloaded_tasks = len(tasks) / 2
 
-        first_task_finish_time = min(self.end_times.values())
+        end_times = self.calculate_end_times(experiment).values()
+        first_task_finish_time = min(end_times)
 
-        window = (self.get_migrator_activation_time(), first_task_finish_time)
-        busy_time = self.a_assert.getCPUBusyTime("cluster",
-                                                 self.env.target.bl.littles,
-                                                 window=window)
+        m_assert = self.get_multi_assert(experiment, "migrators")
+        start_time = min(t['starttime']
+                         for t in m_assert.getStartTime().itervalues())
+        migrator_activation_time = start_time + OFFLOAD_MIGRATION_MIGRATOR_DELAY
+
+        window = (migrator_activation_time, first_task_finish_time)
+
+        a_assert = self.get_multi_assert(experiment)
+
+        busy_time = a_assert.getCPUBusyTime("cluster",
+                                            self.te.target.bl.littles,
+                                            window=window)
 
         window_len = window[1] - window[0]
         expected_busy_time = window_len * num_offloaded_tasks * \
@@ -402,25 +320,26 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
 
         self.assertGreater(busy_time, expected_busy_time, msg=msg)
 
-    def test_all_tasks_run_on_a_big_cpu(self):
+    @experiment_test
+    def test_all_tasks_run_on_a_big_cpu(self, experiment, tasks):
         """Offload Migration and Idle Pull: All tasks run on a big cpu at some point
 
         Note: this test may fail in big.LITTLE platforms in which the
         little cpus are almost as performant as the big ones.
 
         """
-
-        for task in self.params.keys():
-            sa = SchedAssert(self.trace, self.env.topology, execname=task)
-            window = (0, self.end_times[task])
-            big_residency = sa.getResidency("cluster", self.env.target.bl.bigs,
+        for task in tasks:
+            sa = SchedAssert(experiment['out_dir'], self.te.topology, execname=task)
+            end_times = self.calculate_end_times(experiment)
+            window = (0, end_times[task])
+            big_residency = sa.getResidency("cluster", self.te.target.bl.bigs,
                                             window=window, percent=True)
-            log_result(big_residency, self.log_fh)
 
             msg = "Task {} didn't run on a big cpu.".format(task)
             self.assertGreater(big_residency, 0, msg=msg)
 
-    def test_all_tasks_finish_on_a_big_cpu(self):
+    @experiment_test
+    def test_all_tasks_finish_on_a_big_cpu(self, experiment, tasks):
         """Offload Migration and Idle Pull: All tasks finish on a big cpu
 
         Note: this test may fail in big.LITTLE systems where the
@@ -429,12 +348,11 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
         task.
 
         """
-
-        for task in self.params.keys():
-            sa = SchedAssert(self.trace, self.env.topology, execname=task)
+        for task in tasks:
+            sa = SchedAssert(experiment['out_dir'], self.te.topology, execname=task)
 
             msg = "Task {} did not finish on a big cpu".format(task)
-            self.assertIn(sa.getLastCpu(), self.env.target.bl.bigs, msg=msg)
+            self.assertIn(sa.getLastCpu(), self.te.target.bl.bigs, msg=msg)
 
 
 class WakeMigration(unittest.TestCase):
