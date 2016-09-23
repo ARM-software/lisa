@@ -25,6 +25,7 @@ import re
 
 from analysis_module import AnalysisModule
 from devlib.utils.misc import memoized
+from trappy.utils import listify
 
 # Configure logging
 import logging
@@ -238,7 +239,7 @@ class TasksAnalysis(AnalysisModule):
             raise ValueError('Wrong format for tasks parameter')
 
         if tasks:
-            tasks_to_plot = tasks
+            tasks_to_plot = listify(tasks)
         elif self._tasks:
             tasks_to_plot = sorted(self._tasks)
         else:
