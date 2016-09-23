@@ -43,10 +43,12 @@ wload.run()
 nrg_data, nrg_file = te.emeter.report(te.res_dir)
 ```
 
-The `report()` method returns a tuple containing an energy data dictionary (`nrg_data`) with the following format:
+The `report()` method returns a `namedtuple` called `EnergyReport` that contains the following data:
+
+- `channels`: a dictionary whose format is:
 
 ```python
-nrg_data = {
+channels = {
     "channel_1" : {
         # Collected data for channel_1
     },
@@ -56,8 +58,7 @@ nrg_data = {
     }
 }
 ```
-
-and the name of the output file where collected energy data is stored (`nrg_file`).
+- `report_file`: name of the file where collected energy data is stored
 
 ***
 
@@ -137,12 +138,11 @@ target_conf = {
          },
          "channel_map" : {
              # <User-defined channel name> : <channel label>
-             "BAT" : "BAT"
+             "BAT" : "channel0"
          }
      },
 }
 ```
-For this instrument, `channel_map` keys and values are usually set to the same value. In fact, it would be enough to use a list of strings for specifying channel names, but to make the `EnergyMeter` API more generic, it is better to be consistent and use a dictionary also in this case. 
 
 ***
 
