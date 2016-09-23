@@ -39,6 +39,33 @@ class CpusAnalysis(AnalysisModule):
     def __init__(self, trace):
         super(CpusAnalysis, self).__init__(trace)
 
+
+###############################################################################
+# DataFrame Getter Methods
+###############################################################################
+
+    def _dfg_context_switches(self):
+        """
+        Compute number of context switches on each CPU.
+
+        :returns: :mod:`pandas.DataFrame`
+        """
+        if not self._trace.hasEvents('sched_switch'):
+            logging.warn('Events [sched_switch] not found, context switch '
+                         'computation not possible!')
+            return None
+
+        sched_df = self._dfg_trace_event('sched_switch')
+        cpus = range(self._platform['cpus_count'])
+        ctx_sw_df = pd.DataFrame(
+            [len(sched_df[sched_df['__cpu'] == cpu]) for cpu in cpus],
+            index=cpus,
+            columns=['context_switch_cnt']
+        )
+        ctx_sw_df.index.name = 'cpu'
+        return ctx_sw_df
+
+
 ###############################################################################
 # Plotting Methods
 ###############################################################################
@@ -149,5 +176,19 @@ class CpusAnalysis(AnalysisModule):
         figname = '{}/{}cpus{}.png'.format(self._trace.plots_dir,
                                            self._trace.plots_prefix, label2)
         pl.savefig(figname, bbox_inches='tight')
+
+    def plotContextSwitch(self):
+        """
+        Plot histogram of context switches on each CPU.
+        """
+        if not self._trace.hasEvents('sched_switch'):
+            logging.warn('Events [sched_switch] not found, plot DISABLED!')
+            return
+
+        ctx_sw_df = self._dfg_context_switches()
+        ax = ctx_sw_df.plot.bar(title="Per-CPU Task Context Switches",
+                                legend=False,
+                                figsize=(16, 8))
+        ax.grid()
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
