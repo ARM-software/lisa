@@ -135,7 +135,7 @@ class EasTest(LisaTest):
                 rank=len(tasks)),
             msg="Not all the new generated tasks started on a big CPU")
 
-class ForkMigration(unittest.TestCase):
+class ForkMigration(EasTest):
     """
     Goal
     ====
@@ -154,67 +154,7 @@ class ForkMigration(unittest.TestCase):
     The threads start on a big core.
     """
 
-    @classmethod
-    def setUpClass(cls):
-        cls.params = {}
-        cls.task_prefix = "fmig"
-        cls.env = TestEnv(test_conf=TEST_CONF)
-        cls.trace_file = os.path.join(cls.env.res_dir, "fork_migration.dat")
-        cls.log_file = os.path.join(cls.env.res_dir, "fork_migration.json")
-        cls.populate_params()
-        cls.tasks = cls.params.keys()
-        cls.num_tasks = len(cls.tasks)
-        local_setup(cls.env)
-        cls.run_workload()
-        cls.log_fh = open(os.path.join(cls.env.res_dir, cls.log_file), "w")
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.log_fh.close()
-
-    @classmethod
-    def populate_params(cls):
-        big_prefix = cls.task_prefix + "_big"
-        for idx in range(len(cls.env.target.bl.bigs)):
-            task = big_prefix + str(idx)
-            cls.params[task] = Periodic(**BIG_WORKLOAD).get()
-
-        little_prefix = cls.task_prefix + "_little"
-        for idx in range(len(cls.env.target.bl.littles)):
-            task = little_prefix + str(idx)
-            cls.params[task] = Periodic(**SMALL_WORKLOAD).get()
-
-    @classmethod
-    def run_workload(cls):
-        wload = RTA(
-            cls.env.target,
-            "fork_migration",
-            calibration=cls.env.calibration())
-        wload.conf(kind="profile", params=cls.params)
-        cls.env.ftrace.start()
-        wload.run(
-            out_dir=cls.env.res_dir,
-            background=False)
-        cls.env.ftrace.stop()
-        trace = cls.env.ftrace.get_trace(cls.trace_file)
-
-    def test_first_cpu(self):
-        "Fork Migration: Test First CPU"
-
-        logging.info("Fork Migration: Test First CPU")
-        f_assert = SchedMultiAssert(
-            self.trace_file,
-            self.env.topology,
-            execnames=self.tasks)
-
-        log_result(
-            f_assert.getFirstCpu(), self.log_fh)
-
-        self.assertTrue(
-            f_assert.assertFirstCpu(
-                self.env.target.bl.bigs,
-                rank=self.num_tasks),
-            msg="Not all the new generated tasks started on a big CPU")
+    conf_basename = "fork_migration.config"
 
 
 class SmallTaskPacking(unittest.TestCase):
