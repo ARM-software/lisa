@@ -157,7 +157,7 @@ class ForkMigration(EasTest):
     conf_basename = "fork_migration.config"
 
 
-class SmallTaskPacking(unittest.TestCase):
+class SmallTaskPacking(EasTest):
     """
     Goal
     ====
@@ -177,82 +177,24 @@ class SmallTaskPacking(unittest.TestCase):
     All tasks run on little cpus.
     """
 
-    @classmethod
-    def setUpClass(cls):
-        cls.params = {}
-        cls.task_prefix = "stp"
-        cls.env = TestEnv(test_conf=TEST_CONF)
-        cls.trace_file = os.path.join(
-            cls.env.res_dir,
-            "small_task_packing.dat")
-        cls.log_file = os.path.join(cls.env.res_dir, "small_task_packing.json")
-        cls.num_tasks = len(cls.env.target.bl.bigs + cls.env.target.bl.littles)
-        cls.populate_params()
-        cls.tasks = cls.params.keys()
-        local_setup(cls.env)
-        cls.run_workload()
-        cls.s_assert = SchedMultiAssert(
-            cls.trace_file,
-            cls.env.topology,
-            execnames=cls.tasks)
-        cls.log_fh = open(os.path.join(cls.env.res_dir, cls.log_file), "w")
+    conf_basename = "small_task_packing.config"
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.log_fh.close()
-
-    @classmethod
-    def populate_params(cls):
-        for i in range(cls.num_tasks):
-            task = cls.task_prefix + str(i)
-            cls.params[task] = Periodic(**SMALL_WORKLOAD).get()
-
-    @classmethod
-    def run_workload(cls):
-        wload = RTA(
-            cls.env.target,
-            "small_task_packing",
-            calibration=cls.env.calibration())
-        wload.conf(kind="profile", params=cls.params)
-        cls.env.ftrace.start()
-        wload.run(
-            out_dir=cls.env.res_dir,
-            background=False)
-        cls.env.ftrace.stop()
-        trace = cls.env.ftrace.get_trace(cls.trace_file)
-
-    def test_small_task_pack_first_cpu(self):
-        "Small Task Packing: First CPU: BIG"
-
-        logging.info("Small Task Packing: First CPU: BIG\n")
-        log_result(self.s_assert.getFirstCpu(), self.log_fh)
-        self.assertTrue(
-            self.s_assert.assertFirstCpu(
-                self.env.target.bl.bigs,
-                rank=self.num_tasks),
-            msg="Not all the new generated tasks started on a big CPU")
-
-    def test_small_task_residency(self):
+    @experiment_test
+    def test_small_task_residency(self, experiments, tasks):
         "Small Task Packing: Test Residency (Little Cluster)"
 
-        logging.info("Small Task Packing: Test Residency (Little Cluster)")
-        log_result(
-            self.s_assert.getResidency(
-                "cluster",
-                self.env.target.bl.littles,
-                percent=True), self.log_fh)
+        s_assert = self.get_multi_assert(experiment)
 
         self.assertTrue(
-            self.s_assert.assertResidency(
+            s_assert.assertResidency(
                 "cluster",
-                self.env.target.bl.littles,
+                self.te.target.bl.littles,
                 EXPECTED_RESIDENCY_PCT,
                 operator.ge,
                 percent=True,
-                rank=self.num_tasks),
+                rank=len(tasks)),
             msg="Not all tasks are running on LITTLE cores for at least {}% of their execution time"\
-                    .format(EXPECTED_RESIDENCY_PCT))
-
+            .format(EXPECTED_RESIDENCY_PCT))
 
 class OffloadMigrationAndIdlePull(unittest.TestCase):
     """
