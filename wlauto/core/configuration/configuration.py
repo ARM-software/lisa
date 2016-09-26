@@ -24,6 +24,7 @@ from wlauto.utils.types import (identifier, integer, boolean,
                                 list_of_strings, toggle_set,
                                 obj_dict)
 from wlauto.core.configuration.tree import SectionNode
+from wlauto.utils.serializer import is_pod
 
 # Mapping for kind conversion; see docs for convert_types below
 KIND_MAP = {
@@ -228,6 +229,9 @@ class ConfigurationPoint(object):
             raise ValueError('Kind must be callable.')
         self.kind = kind
         self.mandatory = mandatory
+        if not is_pod(default):
+            msg = "The default for '{}' must be a Plain Old Data type, but it is of type '{}' instead."
+            raise TypeError(msg.format(self.name, type(default)))
         self.default = default
         self.override = override
         self.allowed_values = allowed_values
@@ -798,7 +802,7 @@ class RunConfiguration(Configuration):
                            the connected device. Obviously, this must match your setup.
                            '''),
         ConfigurationPoint('retry_on_status', kind=status_list,
-                           default=status_list(['FAILED', 'PARTIAL']),
+                           default=['FAILED', 'PARTIAL'],
                            allowed_values=ITERATION_STATUS,
                            description='''
                            This is list of statuses on which a job will be cosidered to have failed and
