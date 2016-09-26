@@ -574,10 +574,10 @@ def merge_using_priority_specificity(generic_name, specific_name, plugin_cache):
 
 class Configuration(object):
 
-    __configuration = []
+    config_points = []
     name = ""
     # The below line must be added to all subclasses
-    configuration = {cp.name: cp for cp in __configuration}
+    configuration = {cp.name: cp for cp in config_points}
 
     def __init__(self):
         # Load default values for configuration points
@@ -623,7 +623,7 @@ class Configuration(object):
 class WAConfiguration(Configuration):
 
     name = "WA Configuration"
-    __configuration = [
+    config_points = [
         ConfigurationPoint(
             'user_directory',
             description="""
@@ -715,7 +715,7 @@ class WAConfiguration(Configuration):
             """,
         ),
     ]
-    configuration = {cp.name: cp for cp in __configuration}
+    configuration = {cp.name: cp for cp in config_points}
 
     @property
     def dependencies_directory(self):
@@ -726,7 +726,9 @@ class WAConfiguration(Configuration):
 class RunConfiguration(Configuration):
 
     name = "Run Configuration"
-    __configuration = [
+
+    # Metadata is separated out because it is not loaded into the auto generated config file
+    meta_data = [
         ConfigurationPoint('run_name', kind=str,
                            description='''
                            A string that labels the WA run that is being performed. This would typically
@@ -747,6 +749,8 @@ class RunConfiguration(Configuration):
                            A dict or a string that allows adding additional identifier. This is may be
                            useful for long-running projects.
                            '''),
+    ]
+    config_points = [
         ConfigurationPoint('execution_order', kind=str, default='by_iteration',
                            allowed_values=['by_iteration', 'by_spec', 'by_section', 'random'],
                            description='''
@@ -829,7 +833,7 @@ class RunConfiguration(Configuration):
                            .. note:: this number does not include the original attempt
                            '''),
     ]
-    configuration = {cp.name: cp for cp in __configuration}
+    configuration = {cp.name: cp for cp in config_points + meta_data}
 
     def __init__(self):
         super(RunConfiguration, self).__init__()
@@ -879,7 +883,7 @@ class JobSpec(Configuration):
 
     name = "Job Spec"
 
-    __configuration = [
+    config_points = [
         ConfigurationPoint('iterations', kind=int, default=1,
                            description='''
                            How many times to repeat this workload spec
@@ -915,7 +919,7 @@ class JobSpec(Configuration):
                            for results when post processing.
                            '''),
     ]
-    configuration = {cp.name: cp for cp in __configuration}
+    configuration = {cp.name: cp for cp in config_points}
 
     def __init__(self):
         super(JobSpec, self).__init__()
