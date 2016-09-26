@@ -26,11 +26,11 @@ from itertools import chain
 from copy import copy
 
 from wlauto.exceptions import NotFoundError, LoaderError, ValidationError, ConfigError
-from wlauto.utils.misc import (isiterable, ensure_directory_exists as _d,
+from wlauto.utils.misc import (ensure_directory_exists as _d,
                                walk_modules, load_class, merge_dicts_simple, get_article)
 from wlauto.core.configuration import settings
-from wlauto.utils.types import identifier, integer, boolean
-from wlauto.core.configuration import ConfigurationPoint
+from wlauto.utils.types import identifier, boolean
+from wlauto.core.configuration.configuration import ConfigurationPoint as Parameter
 
 MODNAME_TRANS = string.maketrans(':/\\.', '____')
 
@@ -131,55 +131,6 @@ class ListCollection(list):
 
     def __init__(self, attrcls):  # pylint: disable=unused-argument
         super(ListCollection, self).__init__()
-
-
-class Parameter(ConfigurationPoint):
-
-    is_runtime = False
-
-    def __init__(self, name,
-                 kind=None,
-                 mandatory=None,
-                 default=None,
-                 override=False,
-                 allowed_values=None,
-                 description=None,
-                 constraint=None,
-                 convert_types=True,
-                 global_alias=None,
-                 reconfigurable=True):
-        """
-        :param global_alias: This is an alternative alias for this parameter,
-                             unlike the name, this alias will not be
-                             namespaced under the owning extension's name
-                             (hence the global part). This is introduced
-                             primarily for backward compatibility -- so that
-                             old extension settings names still work. This
-                             should not be used for new parameters.
-
-        :param reconfigurable: This indicated whether this parameter may be
-                               reconfigured during the run (e.g. between different
-                               iterations). This determines where in run configruation
-                               this parameter may appear.
-
-        For other parameters, see docstring for
-        ``wa.framework.config.core.ConfigurationPoint``
-
-        """
-        super(Parameter, self).__init__(name, kind, mandatory,
-                                        default, override, allowed_values,
-                                        description, constraint,
-                                        convert_types)
-        self.global_alias = global_alias
-        self.reconfigurable = reconfigurable
-
-    def __repr__(self):
-        d = copy(self.__dict__)
-        del d['description']
-        return 'Param({})'.format(d)
-
-
-Param = Parameter
 
 
 class Artifact(object):
@@ -567,55 +518,6 @@ class PluginLoaderItem(object):
         self.cls = load_class(ext_tuple.cls)
 
 
-class GlobalParameterAlias(object):
-    """
-    Represents a "global alias" for an plugin parameter. A global alias
-    is specified at the top-level of config rather namespaced under an plugin
-    name.
-
-    Multiple plugins may have parameters with the same global_alias if they are
-    part of the same inheritance hierarchy and one parameter is an override of the
-    other. This class keeps track of all such cases in its plugins dict.
-
-    """
-
-    def __init__(self, name):
-        self.name = name
-        self.plugins = {}
-
-    def iteritems(self):
-        for ext in self.plugins.itervalues():
-            yield (self.get_param(ext), ext)
-
-    def get_param(self, ext):
-        for param in ext.parameters:
-            if param.global_alias == self.name:
-                return param
-        message = 'Plugin {} does not have a parameter with global alias {}'
-        raise ValueError(message.format(ext.name, self.name))
-
-    def update(self, other_ext):
-        self._validate_ext(other_ext)
-        self.plugins[other_ext.name] = other_ext
-
-    def _validate_ext(self, other_ext):
-        other_param = self.get_param(other_ext)
-        for param, ext in self.iteritems():
-            if ((not (issubclass(ext, other_ext) or issubclass(other_ext, ext))) and
-                    other_param.kind != param.kind):
-                message = 'Duplicate global alias {} declared in {} and {} plugins with different types'
-                raise LoaderError(message.format(self.name, ext.name, other_ext.name))
-            if param.kind != other_param.kind:
-                message = 'Two params {} in {} and {} in {} both declare global alias {}, and are of different kinds'
-                raise LoaderError(message.format(param.name, ext.name,
-                                                 other_param.name, other_ext.name, self.name))
-
-    def __str__(self):
-        text = 'GlobalAlias({} => {})'
-        extlist = ', '.join(['{}.{}'.format(e.name, p.name) for p, e in self.iteritems()])
-        return text.format(self.name, extlist)
-
-
 class PluginLoader(object):
     """
     Discovers, enumerates and loads available devices, configs, etc.
@@ -885,15 +787,3 @@ class PluginLoader(object):
             if alias_id in self.plugins or alias_id in self.aliases:
                 raise LoaderError('{} "{}" already exists.'.format(obj.kind, obj.name))
             self.aliases[alias_id] = alias
-
-        # Update global aliases list. If a global alias is already in the list,
-        # then make sure this plugin is in the same parent/child hierarchy
-        # as the one already found.
-        for param in obj.parameters:
-            if param.global_alias:
-                if param.global_alias not in self.global_param_aliases:
-                    ga = GlobalParameterAlias(param.global_alias)
-                    ga.update(obj)
-                    self.global_param_aliases[ga.name] = ga
-                else:  # global alias already exists.
-                    self.global_param_aliases[param.global_alias].update(obj)
