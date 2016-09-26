@@ -163,10 +163,9 @@ To use this instrument you need the following equipment:
 * An [ACME Cape](http://sigrok.org/wiki/BayLibre_ACME)
 * Power probes for the ACME Cape
 * Install the `iio-capture` tool required libraries:
+  - If `libiio-*` is available from the repositories in your `apt-get`, then run `sudo apt-get install libiio-utils libiio-dev`
+  - Otherwise, follow the instructions on the [libiio wiki](https://wiki.analog.com/resources/tools-software/linux-software/libiio) on how to build it
 
-```bash
-sudo apt-get install libiio-utils libiio-dev
-```
 * Clone, compile and install the [`iio-capture` tool](https://github.com/BayLibre/iio-capture)
 
 ```bash
