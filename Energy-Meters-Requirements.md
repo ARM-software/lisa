@@ -111,14 +111,14 @@ The required equipment is the following:
 * Install `caiman` required libraries:
 
 ```bash
-sudo apt-get install libudev
+sudo apt-get install libudev-dev
 ```
 
 * Clone, compile and install the [`caiman` tool](https://github.com/ARM-software/caiman)
 
 ```bash
 git clone https://github.com/ARM-software/caiman.git
-cd caiman && cmake . && make && cd -
+cd caiman/caiman && cmake . && make && cd -
 cp caiman/caiman /usr/bin
 ```
 
