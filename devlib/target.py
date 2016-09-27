@@ -707,6 +707,7 @@ class AndroidTarget(Target):
     conn_cls = AdbConnection
     path = posixpath
     os = 'android'
+    ls_command = ''
 
     @property
     @memoized
@@ -832,8 +833,23 @@ class AndroidTarget(Target):
         else:
             raise ValueError('Background command exited before timeout; got "{}"'.format(output))
 
+    def __setup_list_directory(self):
+        # In at least Linaro Android 16.09 (which was their first Android 7 release) and maybe
+        # AOSP 7.0 as well, the ls command was changed.
+        # Previous versions default to a single column listing, which is nice and easy to parse.
+        # Newer versions default to a multi-column listing, which is not, but it does support
+        # a '-1' option to get into single column mode. Older versions do not support this option
+        # so we try the new version, and if it fails we use the old version.
+        self.ls_command = 'ls -1'
+        try:
+            self.execute('ls -1 /', as_root=False)
+        except TargetError:
+            self.ls_command = 'ls'
+
     def list_directory(self, path, as_root=False):
-        contents = self.execute('ls {}'.format(path), as_root=as_root)
+        if self.ls_command == '':
+            self.__setup_list_directory()
+        contents = self.execute('{} {}'.format(self.ls_command, path), as_root=as_root)
         return [x.strip() for x in contents.split('\n') if x.strip()]
 
     def install(self, filepath, timeout=None, with_name=None):  # pylint: disable=W0221
