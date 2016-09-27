@@ -24,10 +24,12 @@ import unittest
 
 from bart.sched.SchedAssert import SchedAssert
 from bart.sched.SchedMultiAssert import SchedMultiAssert
+
 from devlib.target import TargetError
 
 from wlgen import RTA, Periodic, Step
 from env import TestEnv
+from test import LisaTest, experiment_test
 
 logging.basicConfig(level=logging.INFO)
 # Read the config file and update the globals
@@ -84,6 +86,41 @@ def log_result(data, log_fh):
     logging.info(result_str)
     log_fh.write(result_str)
 
+class EasTest(LisaTest):
+    """
+    Base class for EAS tests
+    """
+
+    @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        conf_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 cls.conf_basename)
+
+        super(EasTest, cls)._init(conf_file, *args, **kwargs)
+
+    @classmethod
+    def _experimentsInit(cls, *args, **kwargs):
+        super(EasTest, cls)._experimentsInit(*args, **kwargs)
+
+        if SET_IS_BIG_LITTLE:
+            try:
+                cls.target.write_value(
+                    "/proc/sys/kernel/sched_is_big_little", 1)
+            except TargetError:
+                # That flag doesn't exist on mainline-integration kernels, so
+                # don't worry if the file isn't present.
+                pass
+
+    def _do_test_first_cpu(self, experiment, tasks):
+        """Test that all tasks start on a big CPU"""
+
+        sched_assert = self.get_multi_assert(experiment)
+
+        self.assertTrue(
+            sched_assert.assertFirstCpu(
+                self.target.bl.bigs,
+                rank=len(tasks)),
+            msg="Not all the new generated tasks started on a big CPU")
 
 class ForkMigration(unittest.TestCase):
     """
