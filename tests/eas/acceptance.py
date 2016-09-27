@@ -16,22 +16,18 @@
 #
 
 import json
-import logging
 import operator
 import os
 import trappy
 import unittest
 
 from bart.sched.SchedAssert import SchedAssert
-from bart.sched.SchedMultiAssert import SchedMultiAssert
 
 from devlib.target import TargetError
 
-from wlgen import RTA, Periodic, Step
 from env import TestEnv
 from test import LisaTest, experiment_test
 
-logging.basicConfig(level=logging.INFO)
 # Read the config file and update the globals
 CONF_FILE = os.path.join(
     os.path.dirname(
@@ -41,50 +37,6 @@ CONF_FILE = os.path.join(
 with open(CONF_FILE, "r") as fh:
     conf_vars = json.load(fh)
     globals().update(conf_vars)
-
-
-def local_setup(env):
-    env.target.cpufreq.set_all_governors("performance")
-
-    if ENABLE_EAS:
-        env.target.execute(
-            "echo ENERGY_AWARE > /sys/kernel/debug/sched_features")
-
-    if SET_IS_BIG_LITTLE:
-        try:
-            env.target.write_value("/proc/sys/kernel/sched_is_big_little", 1)
-        except TargetError:
-            # That flag doesn't exist on mainline-integration kernels, so don't
-            # worry if the file isn't present.
-            pass
-
-SMALL_WORKLOAD = {
-
-    "duty_cycle_pct": SMALL_DCYCLE,
-    "duration_s": WORKLOAD_DURATION_S,
-    "period_ms": WORKLOAD_PERIOD_MS,
-}
-
-BIG_WORKLOAD = {
-
-    "duty_cycle_pct": BIG_DCYCLE,
-    "duration_s": WORKLOAD_DURATION_S,
-    "period_ms": WORKLOAD_PERIOD_MS,
-}
-
-STEP_WORKLOAD = {
-
-    "start_pct": STEP_LOW_DCYCLE,
-    "end_pct": STEP_HIGH_DCYCLE,
-    "time_s": WORKLOAD_DURATION_S,
-    "loops": 2
-}
-
-
-def log_result(data, log_fh):
-    result_str = json.dumps(data, indent=3)
-    logging.info(result_str)
-    log_fh.write(result_str)
 
 class EasTest(LisaTest):
     """
