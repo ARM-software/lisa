@@ -56,13 +56,13 @@ class StandardProcessor(ResultProcessor):
 
 
 class CsvReportProcessor(ResultProcessor):
-    """
+
+    name = 'csv'
+    description = """
     Creates a ``results.csv`` in the output directory containing results for
     all iterations in CSV format, each line containing a single metric.
 
     """
-
-    name = 'csv'
 
     parameters = [
         Parameter('use_all_classifiers', kind=bool, default=False,
