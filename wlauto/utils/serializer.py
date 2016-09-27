@@ -7,7 +7,7 @@ structures and Python class instances).
 
 The modifications to standard serilization procedures are:
 
-    - mappings are deserialized as ``OrderedDict``\ 's are than standard
+    - mappings are deserialized as ``OrderedDict``\ 's rather than standard
       Python ``dict``\ 's. This allows for cleaner syntax in certain parts
       of WA configuration (e.g. values to be written to files can be specified
       as a dict, and they will be written in the order specified in the config).
@@ -61,15 +61,27 @@ __all__ = [
     'read_pod',
     'dump',
     'load',
+    'is_pod',
+    'POD_TYPES',
 ]
 
+POD_TYPES = [
+    list,
+    tuple,
+    dict,
+    set,
+    basestring,
+    int,
+    float,
+    bool,
+    datetime,
+    regex_type
+]
 
 class WAJSONEncoder(_json.JSONEncoder):
 
     def default(self, obj):  # pylint: disable=method-hidden
-        if hasattr(obj, 'to_pod'):
-            return obj.to_pod()
-        elif isinstance(obj, regex_type):
+        if isinstance(obj, regex_type):
             return 'REGEX:{}:{}'.format(obj.flags, obj.pattern)
         elif isinstance(obj, datetime):
             return 'DATET:{}'.format(obj.isoformat())
@@ -241,3 +253,7 @@ def _read_pod(fh, fmt=None):
         return python.load(fh)
     else:
         raise ValueError('Unknown format "{}": {}'.format(fmt, getattr(fh, 'name', '<none>')))
+
+
+def is_pod(obj):
+    return type(obj) in POD_TYPES

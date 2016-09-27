@@ -9,7 +9,7 @@ Add your configuration to that file instead.
 # configuration for WA and gives EXAMPLES of other configuration available. It
 # is not supposed to be an exhaustive list.
 # PLEASE REFER TO WA DOCUMENTATION FOR THE COMPLETE LIST OF AVAILABLE
-# EXTENSIONS AND THEIR CONFIGURATION.
+# EXTENSIONS AND THEIR configuration.
 
 
 # This defines when the device will be rebooted during Workload Automation execution.              #

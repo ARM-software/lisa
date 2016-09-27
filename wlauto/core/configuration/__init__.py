@@ -1,4 +1,4 @@
-#    Copyright 2014-2015 ARM Limited
+#    Copyright 2013-2016 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,29 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-
-from wlauto.common.resources import FileResource
-
-
-class ReventFile(FileResource):
-
-    name = 'revent'
-
-    def __init__(self, owner, stage):
-        super(ReventFile, self).__init__(owner)
-        self.stage = stage
-
-
-class JarFile(FileResource):
-
-    name = 'jar'
-
-
-class ApkFile(FileResource):
-
-    name = 'apk'
-
-    def __init__(self, owner, version):
-        super(ApkFile, self).__init__(owner)
-        self.version = version
+from wlauto.core.configuration.configuration import (settings,
+                                                     WAConfiguration,
+                                                     RunConfiguration,
+                                                     JobGenerator,
+                                                     ConfigurationPoint)
+from wlauto.core.configuration.plugin_cache import PluginCache

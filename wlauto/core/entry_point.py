@@ -23,10 +23,10 @@ import warnings
 
 from wlauto.core.configuration import settings
 from wlauto.core import pluginloader
-from wlauto.exceptions import WAError
+from wlauto.core.command import init_argument_parser
+from wlauto.exceptions import WAError, ConfigError
 from wlauto.utils.misc import get_traceback
 from wlauto.utils.log import init_logging
-from wlauto.utils.cli import init_argument_parser
 from wlauto.utils.doc import format_body
 
 from devlib import DevlibError
@@ -56,13 +56,16 @@ def main():
         init_argument_parser(parser)
         commands = load_commands(parser.add_subparsers(dest='command'))  # each command will add its own subparser
         args = parser.parse_args()
-        settings.set("verbosity", args.verbose)
-        settings.load_user_config()
+
+        #TODO: Set this stuff properly, i.e dont use settings (if possible)
+        #settings.set("verbosity", args.verbose)
+        #settings.load_user_config()
         #settings.debug = args.debug
-        if args.config:
-            if not os.path.exists(args.config):
-                raise ConfigError("Config file {} not found".format(args.config))
-            settings.load_config_file(args.config)
+
+        for config in args.config:
+            if not os.path.exists(config):
+                raise ConfigError("Config file {} not found".format(config))
+
         init_logging(settings.verbosity)
 
         command = commands[args.command]

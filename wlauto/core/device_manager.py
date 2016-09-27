@@ -1,7 +1,8 @@
 import string
-from collections import OrderedDict
+from copy import copy
 
 from wlauto.core.plugin import Plugin, Parameter
+from wlauto.core.configuration.configuration import RuntimeParameter
 from wlauto.exceptions import ConfigError
 from wlauto.utils.types import list_of_integers, list_of, caseless_string
 
@@ -10,56 +11,7 @@ from devlib.target import AndroidTarget, Cpuinfo, KernelVersion, KernelConfig
 
 __all__ = ['RuntimeParameter', 'CoreParameter', 'DeviceManager', 'TargetInfo']
 
-
-class RuntimeParameter(object):
-    """
-    A runtime parameter which has its getter and setter methods associated it
-    with it.
-
-    """
-
-    def __init__(self, name, getter, setter,
-                 getter_args=None, setter_args=None,
-                 value_name='value', override=False):
-        """
-        :param name: the name of the parameter.
-        :param getter: the getter method which returns the value of this parameter.
-        :param setter: the setter method which sets the value of this parameter. The setter
-                       always expects to be passed one argument when it is called.
-        :param getter_args: keyword arguments to be used when invoking the getter.
-        :param setter_args: keyword arguments to be used when invoking the setter.
-        :param override: A ``bool`` that specifies whether a parameter of the same name further up the
-                            hierarchy should be overridden. If this is ``False`` (the default), an exception
-                            will be raised by the ``AttributeCollection`` instead.
-
-        """
-        self.name = name
-        self.getter = getter
-        self.setter = setter
-        self.getter_args = getter_args or {}
-        self.setter_args = setter_args or {}
-        self.value_name = value_name
-        self.override = override
-
-    def __str__(self):
-        return self.name
-
-    __repr__ = __str__
-
-
-class CoreParameter(RuntimeParameter):
-    """A runtime parameter that will get expanded into a RuntimeParameter for each core type."""
-
-    def get_runtime_parameters(self, core_names):
-        params = []
-        for core in set(core_names):
-            name = string.Template(self.name).substitute(core=core)
-            getter = string.Template(self.getter).substitute(core=core)
-            setter = string.Template(self.setter).substitute(core=core)
-            getargs = dict(self.getter_args.items() + [('core', core)])
-            setargs = dict(self.setter_args.items() + [('core', core)])
-            params.append(RuntimeParameter(name, getter, setter, getargs, setargs, self.value_name, self.override))
-        return params
+UNKOWN_RTP = 'Unknown runtime parameter "{}"'
 
 
 class TargetInfo(object):
@@ -174,21 +126,12 @@ class DeviceManager(Plugin):
     ]
     modules = []
 
-    runtime_parameters = [
-        RuntimeParameter('sysfile_values', 'get_sysfile_values', 'set_sysfile_values', value_name='params'),
-        CoreParameter('${core}_cores', 'get_number_of_online_cpus', 'set_number_of_online_cpus',
-                      value_name='number'),
-        CoreParameter('${core}_min_frequency', 'get_core_min_frequency', 'set_core_min_frequency',
-                      value_name='freq'),
-        CoreParameter('${core}_max_frequency', 'get_core_max_frequency', 'set_core_max_frequency',
-                      value_name='freq'),
-        CoreParameter('${core}_frequency', 'get_core_cur_frequency', 'set_core_cur_frequency',
-                      value_name='freq'),
-        CoreParameter('${core}_governor', 'get_core_governor', 'set_core_governor',
-                      value_name='governor'),
-        CoreParameter('${core}_governor_tunables', 'get_core_governor_tunables', 'set_core_governor_tunables',
-                      value_name='tunables'),
+    runtime_parameter_managers = [
     ]
+
+    def __init__(self):
+        super(DeviceManager, self).__init__()
+        self.runtime_parameter_values = None
 
     # Framework
 
@@ -211,57 +154,37 @@ class DeviceManager(Plugin):
 
     # Runtime Parameters
 
-    def get_runtime_parameter_names(self):
-        return [p.name for p in self._expand_runtime_parameters()]
+    def merge_runtime_parameters(self, params):
+        merged_values = {}
+        for source, values in params.iteritems():
+            for name, value in values:
+                for rtpm in self.runtime_parameter_managers:
+                    if rtpm.match(name):
+                        rtpm.update_value(name, value, source, merged_values)
+                        break
+                else:
+                    msg = 'Unknown runtime parameter "{}" in "{}"'
+                    raise ConfigError(msg.format(name, source))
+        return merged_values
 
-    def get_runtime_parameters(self):
-        """ returns the runtime parameters that have been set. """
-        # pylint: disable=cell-var-from-loop
-        runtime_parameters = OrderedDict()
-        for rtp in self._expand_runtime_parameters():
-            if not rtp.getter:
-                continue
-            getter = getattr(self, rtp.getter)
-            rtp_value = getter(**rtp.getter_args)
-            runtime_parameters[rtp.name] = rtp_value
-        return runtime_parameters
+    def static_runtime_parameter_validation(self, params):
+        params = copy(params)
+        for rtpm in self.runtime_parameters_managers:
+            rtpm.static_validation(params)
+        if params:
+            msg = 'Unknown runtime_parameters for "{}": "{}"'
+            raise ConfigError(msg.format(self.name, '", "'.join(params.iterkeys())))
 
-    def set_runtime_parameters(self, params):
-        """
-        The parameters are taken from the keyword arguments and are specific to
-        a particular device. See the device documentation.
+    def dynamic_runtime_parameter_validation(self, params):
+        for rtpm in self.runtime_parameters_managers:
+            rtpm.dynamic_validation(params)
 
-        """
-        runtime_parameters = self._expand_runtime_parameters()
-        rtp_map = {rtp.name.lower(): rtp for rtp in runtime_parameters}
-
-        params = OrderedDict((k.lower(), v) for k, v in params.iteritems() if v is not None)
-
-        expected_keys = rtp_map.keys()
-        if not set(params.keys()).issubset(set(expected_keys)):
-            unknown_params = list(set(params.keys()).difference(set(expected_keys)))
-            raise ConfigError('Unknown runtime parameter(s): {}'.format(unknown_params))
-
-        for param in params:
-            self.logger.debug('Setting runtime parameter "{}"'.format(param))
-            rtp = rtp_map[param]
-            setter = getattr(self, rtp.setter)
-            args = dict(rtp.setter_args.items() + [(rtp.value_name, params[rtp.name.lower()])])
-            setter(**args)
-
-    def _expand_runtime_parameters(self):
-        expanded_params = []
-        for param in self.runtime_parameters:
-            if isinstance(param, CoreParameter):
-                expanded_params.extend(param.get_runtime_parameters(self.target.core_names))  # pylint: disable=no-member
-            else:
-                expanded_params.append(param)
-        return expanded_params
+    def commit_runtime_parameters(self, params):
+        params = copy(params)
+        for rtpm in self.runtime_parameters_managers:
+            rtpm.commit(params)
 
     #Runtime parameter getters/setters
-
-    _written_sysfiles = []
-
     def get_sysfile_values(self):
         return self._written_sysfiles
 
@@ -271,49 +194,3 @@ class DeviceManager(Plugin):
             sysfile = sysfile.rstrip('!')
             self._written_sysfiles.append((sysfile, value))
             self.target.write_value(sysfile, value, verify=verify)
-
-    # pylint: disable=E1101
-
-    def _get_core_online_cpu(self, core):
-        try:
-            return self.target.list_online_core_cpus(core)[0]
-        except IndexError:
-            raise ValueError("No {} cores are online".format(core))
-
-    def get_number_of_online_cpus(self, core):
-        return len(self._get_core_online_cpu(core))
-
-    def set_number_of_online_cpus(self, core, number):
-        for cpu in self.target.core_cpus(core)[:number]:
-            self.target.hotplug.online(cpu)
-
-    def get_core_min_frequency(self, core):
-        return self.target.cpufreq.get_min_frequency(self._get_core_online_cpu(core))
-
-    def set_core_min_frequency(self, core, frequency):
-        self.target.cpufreq.set_min_frequency(self._get_core_online_cpu(core), frequency)
-
-    def get_core_max_frequency(self, core):
-        return self.target.cpufreq.get_max_frequency(self._get_core_online_cpu(core))
-
-    def set_core_max_frequency(self, core, frequency):
-        self.target.cpufreq.set_max_frequency(self._get_core_online_cpu(core), frequency)
-
-    def get_core_frequency(self, core):
-        return self.target.cpufreq.get_frequency(self._get_core_online_cpu(core))
-
-    def set_core_frequency(self, core, frequency):
-        self.target.cpufreq.set_frequency(self._get_core_online_cpu(core), frequency)
-
-    def get_core_governor(self, core):
-        return self.target.cpufreq.get_cpu_governor(self._get_core_online_cpu(core))
-
-    def set_core_governor(self, core, governor):
-        self.target.cpufreq.set_cpu_governor(self._get_core_online_cpu(core), governor)
-
-    def get_core_governor_tunables(self, core):
-        return self.target.cpufreq.get_governor_tunables(self._get_core_online_cpu(core))
-
-    def set_core_governor_tunables(self, core, tunables):
-        self.target.cpufreq.set_governor_tunables(self._get_core_online_cpu(core),
-                                                  *tunables)
