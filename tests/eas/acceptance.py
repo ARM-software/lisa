@@ -20,7 +20,6 @@ from wlgen import RTA, Periodic, Step
 from devlib.target import TargetError
 
 import trappy
-import shutil
 import os
 import unittest
 import logging
