@@ -186,7 +186,7 @@ The target configuration for this instrument is:
 ```python
 target_conf = {
     "emeter" : {
-        "instrument" : "iiocapture",
+        "instrument" : "acme",
         "conf" : {
             # Absolute path to the iio-capture binary on the host
             'iio-capture' : '<PATH_TO_iio-capture>/iio-capture',
