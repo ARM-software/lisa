@@ -54,26 +54,6 @@ def local_setup(env):
             # worry if the file isn't present.
             pass
 
-def between_threshold_pct(a, b):
-    THRESHOLD_PERCENT = 3
-    lower = b - THRESHOLD_PERCENT
-    upper = b + THRESHOLD_PERCENT
-
-    if a >= lower and a <= upper:
-        return True
-    return False
-
-
-def between_threshold_abs(a, b):
-    THRESHOLD = 0.25
-    lower = b - THRESHOLD
-    upper = b + THRESHOLD
-
-    if a >= lower and a <= upper:
-        return True
-    return False
-
-
 SMALL_WORKLOAD = {
 
     "duty_cycle_pct": SMALL_DCYCLE,
