@@ -23,12 +23,15 @@ import os
 import trappy
 import unittest
 
+import wrapt
 from bart.sched.SchedAssert import SchedAssert
 from bart.sched.SchedMultiAssert import SchedMultiAssert
 from devlib.target import TargetError
 
 from wlgen import RTA, Periodic, Step
 from env import TestEnv
+from devlib.utils.misc import memoized
+from test import LisaTest
 
 logging.basicConfig(level=logging.INFO)
 # Read the config file and update the globals
@@ -85,6 +88,52 @@ def log_result(data, log_fh):
     logging.info(result_str)
     log_fh.write(result_str)
 
+@wrapt.decorator
+def experiment_test(wrapped_test, instance, args, kwargs):
+    for experiment in instance.executor.experiments:
+        tasks = experiment['wload'].tasks.keys()
+        try:
+            wrapped_test(experiment, tasks, *args, **kwargs)
+        except AssertionError as e:
+            trace_relpath = os.path.join(experiment['out_dir'], "trace.dat")
+            logging.error("Check trace file: " + os.path.abspath(trace_relpath))
+
+class EasTest(LisaTest):
+    """
+    Base class for EAS tests
+    """
+
+    set_is_big_little = True
+
+    @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        conf_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 cls.conf_basename)
+
+        super(EasTest, cls)._init(conf_file, *args, **kwargs)
+
+    @memoized
+    def get_multi_assert(self, experiment, task_filter=""):
+        tasks = experiment['wload'].tasks.keys()
+        return SchedMultiAssert(experiment['out_dir'],
+                                self.te.topology,
+                                [t for t in tasks if task_filter in t])
+
+    def get_start_time(self, experiment):
+        start_times_dict = self.get_multi_assert(experiment).getStartTime()
+        return min([t['starttime'] for t in start_times_dict.values()])
+
+    @experiment_test
+    def test_first_cpu(self, experiment, tasks):
+        "Test First CPU"
+
+        f_assert = self.get_multi_assert(experiment)
+
+        self.assertTrue(
+            f_assert.assertFirstCpu(
+                self.te.target.bl.bigs,
+                rank=len(tasks)),
+            msg="Not all the new generated tasks started on a big CPU")
 
 class ForkMigration(unittest.TestCase):
     """
