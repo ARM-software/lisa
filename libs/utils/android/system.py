@@ -269,4 +269,55 @@ class System(object):
         """
         target.execute('monkey -p {} {}'.format(apk_name, event_count))
 
+    @staticmethod
+    def list_packages(target, apk_filter=''):
+        """
+        List the packages matching the specified filter
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param apk_filter: a substring which must be part of the package name
+        :type apk_filter: str
+        """
+        packages = []
+
+        pkgs = target.execute('cmd package list packages {}'\
+                              .format(apk_filter.lower()))
+        for pkg in pkgs.splitlines():
+            packages.append(pkg.replace('package:', ''))
+        packages.sort()
+
+        if len(packages):
+            return packages
+        return None
+
+    @staticmethod
+    def packages_info(target, apk_filter=''):
+        """
+        Get a dictionary of installed APKs and related information
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param apk_filter: a substring which must be part of the package name
+        :type apk_filter: str
+        """
+        packages = {}
+
+        pkgs = target.execute('cmd package list packages {}'\
+                              .format(apk_filter.lower()))
+        for pkg in pkgs.splitlines():
+            pkg = pkg.replace('package:', '')
+            # Lookup for additional APK information
+            apk = target.execute('pm path {}'.format(pkg))
+            apk = apk.replace('package:', '')
+            packages[pkg] = {
+                'apk' : apk.strip()
+            }
+
+        if len(packages):
+            return packages
+        return None
+
 # vim :set tabstop=4 shiftwidth=4 expandtab
