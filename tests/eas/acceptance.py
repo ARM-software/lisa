@@ -15,16 +15,19 @@
 # limitations under the License.
 #
 
-from env import TestEnv
-from wlgen import RTA, Periodic, Step
-from devlib.target import TargetError
-
-import trappy
-import os
-import unittest
-import logging
 import json
 import logging
+import operator
+import os
+import trappy
+import unittest
+
+from bart.sched.SchedAssert import SchedAssert
+from bart.sched.SchedMultiAssert import SchedMultiAssert
+from devlib.target import TargetError
+
+from wlgen import RTA, Periodic, Step
+from env import TestEnv
 
 logging.basicConfig(level=logging.INFO)
 # Read the config file and update the globals
@@ -74,11 +77,6 @@ STEP_WORKLOAD = {
     "time_s": WORKLOAD_DURATION_S,
     "loops": 2
 }
-
-from bart.sched.SchedAssert import SchedAssert
-from bart.sched.SchedMultiAssert import SchedMultiAssert
-import operator
-import json
 
 
 def log_result(data, log_fh):
