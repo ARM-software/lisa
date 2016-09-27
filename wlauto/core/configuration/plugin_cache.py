@@ -65,7 +65,6 @@ class PluginCache(object):
         self.global_alias_values[alias][source] = value
 
     def add_configs(self, plugin_name, values, source):
-        print plugin_name, values
         if self.is_global_alias(plugin_name):
             self.add_global_alias(plugin_name, values, source)
             return

@@ -23,7 +23,6 @@ from wlauto.common.resources import Executable
 from wlauto.core.resource import NO_ONE
 from wlauto.core.resolver import ResourceResolver
 from wlauto.core.configuration import RunConfiguration
-from wlauto.core.agenda import Agenda
 from wlauto.common.android.workload import ApkWorkload
 
 

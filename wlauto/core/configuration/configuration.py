@@ -16,7 +16,6 @@ import os
 import re
 from copy import copy
 from collections import OrderedDict, defaultdict
-from devlib import TargetError
 
 from wlauto.exceptions import ConfigError
 from wlauto.utils.misc import (get_article, merge_config_values)
@@ -320,7 +319,7 @@ class ConfigurationPoint(object):
     def __repr__(self):
         d = copy(self.__dict__)
         del d['description']
-        return 'ConfPoint({})'.format(d)
+        return 'ConfigurationPoint({})'.format(d)
 
     __str__ = __repr__
 
@@ -427,6 +426,7 @@ class RuntimeParameterManager(object):
 ################################
 ### RuntimeParameterManagers ###
 ################################
+
 
 class CpuFreqParameters(object):
 
@@ -900,7 +900,6 @@ class JobSpec(Configuration):
 
         # Merge
         self.runtime_parameters = target_manager.merge_runtime_parameters(runtime_parameters)
-
 
     def finalize(self):
         self.id = "-".join([source.config['id'] for source in self._sources[1:]])  # ignore first id, "global"
