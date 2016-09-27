@@ -461,11 +461,7 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
         tasks = self.params.keys()
         num_offloaded_tasks = len(tasks) / 2
 
-        first_task_finish_time = None
-        for task in tasks:
-            end_time = self.end_times[task]
-            if not first_task_finish_time or (end_time < first_task_finish_time):
-                first_task_finish_time = end_time
+        first_task_finish_time = min(self.end_times.values())
 
         window = (self.get_migrator_activation_time(), first_task_finish_time)
         busy_time = self.a_assert.getCPUBusyTime("cluster",
