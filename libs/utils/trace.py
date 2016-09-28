@@ -202,6 +202,9 @@ class Trace(object):
             self.events = events
         else:
             raise ValueError('Events must be a string or a list of strings')
+        # Register devlib fake cpu_frequency events
+        if 'cpu_frequency' in events:
+            self.events.append('cpu_frequency_devlib')
 
     def __parseTrace(self, path, tasks, window, normalize_time, trace_format):
         """
@@ -670,10 +673,38 @@ class Trace(object):
         Verify that all platform reported clusters are frequency coherent (i.e.
         frequency scaling is performed at a cluster level).
         """
-        if not self.hasEvents('cpu_frequency'):
+        if not self.hasEvents('cpu_frequency_devlib'):
             return
+
+        devlib_freq = self._dfg_trace_event('cpu_frequency_devlib')
+        devlib_freq.rename(columns={'cpu_id':'cpu'}, inplace=True)
+        devlib_freq.rename(columns={'state':'frequency'}, inplace=True)
+
         df = self._dfg_trace_event('cpu_frequency')
         clusters = self.platform['clusters']
+
+        # devlib always introduces fake cpu_frequency events, in case the
+        # OS has not generated cpu_frequency envets there are the only
+        # frequency events to report
+        if len(df) == 0:
+            # Register devlib injected events as 'cpu_frequency' events
+            setattr(self.ftrace.cpu_frequency, 'data_frame', devlib_freq)
+            df = devlib_freq
+            self.available_events.append('cpu_frequency')
+
+        # make sure fake cpu_frequency events are never interleaved with
+        # OS generated events
+        else:
+            if len(devlib_freq) > 0:
+                first_devlib_freq = devlib_freq.iloc[:self.platform['cpus_count']]
+                if df.index[0] > first_devlib_freq.index[-1]:
+                    df = pd.concat([first_devlib_freq, df])
+                last_devlib_freq = devlib_freq.iloc[self.platform['cpus_count']:]
+                if df.index[-1] < last_devlib_freq.index[0]:
+                    df = pd.concat([df, last_devlib_freq])
+            setattr(self.ftrace.cpu_frequency, 'data_frame', df)
+
+        # Frequency Coherency Check
         for _, cpus in clusters.iteritems():
             cluster_df = df[df.cpu.isin(cpus)]
             for chunk in self._chunker(cluster_df, len(cpus)):
