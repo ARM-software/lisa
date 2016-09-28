@@ -129,8 +129,6 @@ class Jankbench(Workload):
             if match:
                 if 'energy' in collect and self.te.emeter:
                     nrg_report = self.te.emeter.report(exp_dir)
-                    self.logger.info("Estimated energy: %7.3f",
-                                     float(nrg_report.channels['BAT']))
                 self.logger.debug("Benchmark done!")
                 break
 
