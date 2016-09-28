@@ -17,6 +17,20 @@
 
 import re
 import pandas as pd
+import warnings
+
+from resource import getrusage, RUSAGE_SELF
+
+def _get_free_memory_kb():
+    try:
+        with open("/proc/meminfo") as f:
+            memfree_line = [l for l in f.readlines() if "MemFree" in l][0]
+            _, num_kb, _ = memfree_line.split()
+            return int(num_kb)
+    except:
+        # Probably either not running on Linux (no /proc/meminfo), or format has
+        # changed (we didn't find num_kb).
+        return None
 
 def trace_parser_explode_array(string, array_lengths):
     """Explode an array in the trace into individual elements for easy parsing
@@ -158,6 +172,12 @@ class Base(object):
         self.data_array.append(data)
 
     def generate_parsed_data(self):
+
+        # Get a rough idea of how much memory we have to play with
+        kb_free = _get_free_memory_kb()
+        starting_maxrss = getrusage(RUSAGE_SELF).ru_maxrss
+        check_memory_usage = True
+
         for (comm, pid, cpu, data_str) in zip(self.comm_array, self.pid_array,
                                               self.cpu_array, self.data_array):
             data_dict = {"__comm": comm, "__pid": pid, "__cpu": cpu}
@@ -176,6 +196,17 @@ class Base(object):
                     pass
                 data_dict[key] = value
                 prev_key = key
+
+            # When running out of memory, Pandas has been observed to segfault
+            # rather than throwing a proper Python error.
+            # Look at how much memory our process is using and warn if we seem
+            # to be getting close to the system's limit.
+            kb_used = (getrusage(RUSAGE_SELF).ru_maxrss - starting_maxrss)
+            if check_memory_usage and kb_free and kb_used > kb_free * 0.9:
+                warnings.warn("TRAPpy: Appear to be low on memory. "
+                              "If errors arise, try providing more RAM")
+                check_memory_usage = False
+
             yield data_dict
 
     def create_dataframe(self):
