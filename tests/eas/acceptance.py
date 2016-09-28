@@ -371,34 +371,45 @@ class WakeMigration(EasTest):
     """
 
     conf_basename = "acceptance_wake_migration.config"
-    phase_duration = WORKLOAD_DURATION_S
 
     @experiment_test
     def test_first_cpu(self, experiment, tasks):
         """Wake Migration: Test First CPU"""
         self._do_test_first_cpu(experiment, tasks)
 
-    @experiment_test
-    def test_little_big_switch1(self, experiment, tasks):
-        """Wake Migration: LITTLE -> BIG: 1"""
-        expected_time = self.get_start_time(experiment) + self.phase_duration
-        switch_window = (
-            expected_time -
-            SWITCH_WINDOW_HALF,
-            expected_time +
-            SWITCH_WINDOW_HALF)
+    def _assert_switch(self, experiment, expected_switch_to, phases):
+        if expected_switch_to == "big":
+            switch_from = self.target.bl.littles
+            switch_to   = self.target.bl.bigs
+        elif expected_switch_to == "little":
+            switch_from = self.target.bl.bigs
+            switch_to   = self.target.bl.littles
+        else:
+            raise ValueError("Invalid expected_switch_to")
 
         sched_assert = self.get_multi_assert(experiment)
+
+        expected_time = (self.get_start_time(experiment)
+                         + phases*WORKLOAD_DURATION_S)
+        switch_window = (max(expected_time - SWITCH_WINDOW_HALF, 0),
+                         expected_time + SWITCH_WINDOW_HALF)
+
+        fmt = "Not all tasks wake-migrated to {} cores in the expected window: {}"
+        msg = fmt.format(expected_switch_to, switch_window)
 
         self.assertTrue(
             sched_assert.assertSwitch(
                 "cluster",
-                self.target.bl.littles,
-                self.target.bl.bigs,
-                rank=len(tasks),
-                window=switch_window),
-            msg="Not all tasks are wake-migrated to big cores in the expected window: {}"\
-                    .format(switch_window))
+                switch_from,
+                switch_to,
+                window=switch_window,
+                rank=len(experiment.wload.tasks)),
+            msg=msg)
+
+    @experiment_test
+    def test_little_big_switch1(self, experiment, tasks):
+        """Wake Migration: LITTLE -> BIG: 1"""
+        self._assert_switch(experiment, "big", 1)
 
     @experiment_test
     def test_little_big_switch2(self, experiment, tasks):
@@ -408,44 +419,12 @@ class WakeMigration(EasTest):
         #                       ^
         # We want to test that this little to big migration happens.  So we skip
         # the first three phases.
-        expected_time = (self.get_start_time(experiment)
-                         + 3*self.phase_duration)
-        switch_window = (
-            expected_time -
-            SWITCH_WINDOW_HALF,
-            expected_time +
-            SWITCH_WINDOW_HALF)
-
-        s_assert = self.get_multi_assert(experiment)
-
-        self.assertTrue(
-            s_assert.assertSwitch(
-                "cluster",
-                self.target.bl.littles,
-                self.target.bl.bigs,
-                rank=len(tasks),
-                window=switch_window),
-            msg="Not all tasks are wake-migrated to big cores in the expected window: {}"\
-                    .format(switch_window))
+        self._assert_switch(experiment, "big", 3)
 
     @experiment_test
     def test_big_little_switch1(self, experiment, tasks):
         """Wake Migration: BIG -> LITLLE: 1"""
-        expected_time = self.get_start_time(experiment)
-        switch_window = (
-            max(expected_time - SWITCH_WINDOW_HALF, 0), expected_time + SWITCH_WINDOW_HALF)
-
-        s_assert = self.get_multi_assert(experiment)
-
-        self.assertTrue(
-            s_assert.assertSwitch(
-                "cluster",
-                self.target.bl.bigs,
-                self.target.bl.littles,
-                rank=len(tasks),
-                window=switch_window),
-            msg="Not all tasks are wake-migrated to LITTLE cores in the expected window: {}"\
-                    .format(switch_window))
+        self._assert_switch(experiment, "little", 0)
 
     @experiment_test
     def test_big_little_switch2(self, experiment, tasks):
@@ -455,22 +434,4 @@ class WakeMigration(EasTest):
         #              ^
         # We want to test that this big to little migration happens.  So we skip
         # the first two phases.
-        expected_time = (self.get_start_time(experiment)
-                         + 2*self.phase_duration)
-        switch_window = (
-            expected_time -
-            SWITCH_WINDOW_HALF,
-            expected_time +
-            SWITCH_WINDOW_HALF)
-
-        s_assert = self.get_multi_assert(experiment)
-
-        self.assertTrue(
-            s_assert.assertSwitch(
-                "cluster",
-                self.target.bl.bigs,
-                self.target.bl.littles,
-                rank=len(tasks),
-                window=switch_window),
-            msg="Not all tasks are wake-migrated to LITTLE cores in the expected window: {}"\
-                    .format(switch_window))
+        self._assert_switch(experiment, "little", 2)
