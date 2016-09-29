@@ -108,7 +108,7 @@ class Executor():
 
         logging.info('%14s - Configured to run:', 'Executor')
 
-        logging.info('%14s -   %3d targt configurations:',
+        logging.info('%14s -   %3d target configurations:',
                      'Executor', len(self._tests_conf['confs']))
         target_confs = [conf['tag'] for conf in self._tests_conf['confs']]
         target_confs = ', '.join(target_confs)
