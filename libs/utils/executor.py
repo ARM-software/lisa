@@ -478,21 +478,21 @@ class Executor():
         wload = self._wload_conf(wl_idx, wlspec)
 
         # Keep track of platform configuration
-        self.te.test_dir = '{}/{}:{}:{}'\
+        test_dir = '{}/{}:{}:{}'\
             .format(self.te.res_dir, wload.wtype, tc_idx, wl_idx)
-        os.system('mkdir -p ' + self.te.test_dir)
-        self.te.platform_dump(self.te.test_dir)
+        os.system('mkdir -p ' + test_dir)
+        self.te.platform_dump(test_dir)
 
         # Keep track of kernel configuration and version
         config = self.target.config
-        with gzip.open(os.path.join(self.te.test_dir, 'kernel.config'), 'wb') as fh:
+        with gzip.open(os.path.join(test_dir, 'kernel.config'), 'wb') as fh:
             fh.write(config.text)
         output = self.target.execute('{} uname -a'\
                 .format(self.target.busybox))
-        with open(os.path.join(self.te.test_dir, 'kernel.version'), 'w') as fh:
+        with open(os.path.join(test_dir, 'kernel.version'), 'w') as fh:
             fh.write(output)
 
-        return wload, self.te.test_dir
+        return wload, test_dir
 
     def _wload_run(self, exp_idx, experiment):
         tc = experiment.conf
