@@ -19,6 +19,8 @@ import logging
 import os
 import unittest
 
+import wrapt
+
 from conf import JsonConf
 from executor import Executor
 
@@ -99,5 +101,27 @@ class LisaTest(unittest.TestCase):
         """
         Code executed after running the experiments
         """
+
+@wrapt.decorator
+def experiment_test(wrapped_test, instance, args, kwargs):
+    """
+    Convert a LisaTest test method to be automatically called for each experiment
+
+    The method will be passed the experiment object and a list of the names of
+    tasks that were run as the experiment's workload.
+    """
+    for experiment in instance.executor.experiments:
+        tasks = experiment.wload.tasks.keys()
+        try:
+            wrapped_test(experiment, tasks, *args, **kwargs)
+        except AssertionError as e:
+            trace_relpath = os.path.join(experiment.out_dir, "trace.dat")
+            add_msg = "\n\tCheck trace file: " + os.path.abspath(trace_relpath)
+            orig_msg = e.args[0] if len(e.args) else ""
+            e.args = (orig_msg + add_msg,) + e.args[1:]
+            raise
+
+# Prevent nosetests from running experiment_test directly as a test case
+experiment_test.__test__ = False
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
