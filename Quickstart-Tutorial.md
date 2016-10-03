@@ -34,7 +34,7 @@ The main folder served by the server is:
 Once the server is started you can have a look at the provide tutorial notebooks
 are accessible by following (in your browser) this link:
 
-  http://127.0.0.1:8888/notebooks/tutorial/00_LisaInANutshell.ipynp
+  http://127.0.0.1:8888/notebooks/tutorial/00_LisaInANutshell.ipynb
 
 This intial tutorial can be seen (but not executed) also on GitHub:
 
