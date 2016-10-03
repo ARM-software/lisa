@@ -495,6 +495,14 @@ class RTA(Workload):
 
         """
 
+        for task in params.keys():
+            if len(task) > 15:
+                # rt-app uses pthread_setname_np(3) which limits the task name
+                # to 16 characters including the terminal '\0'.
+                msg = ('Task name "{}" too long, please configure your tasks '
+                       'with names shorter than 16 characters').format(task)
+                raise ValueError(msg)
+
         if not sched:
             sched = {'policy' : 'OTHER'}
 
