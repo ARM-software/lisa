@@ -33,6 +33,7 @@ import ctypes
 from operator import itemgetter
 from itertools import groupby
 from functools import partial
+from collections import Hashable
 
 import wrapt
 
@@ -557,19 +558,22 @@ def __get_memo_id(obj):
     ID string.
     """
     obj_id = id(obj)
-    obj_pyobj = ctypes.cast(obj_id, ctypes.py_object)
-    # TODO: Note: there is still a possibility of a clash here. If Two
-    # different objects get assigned the same ID, an are large and are
-    # identical in the first thirty two bytes. This shouldn't be much of an
-    # issue in the current application of memoizing Target calls, as it's very
-    # unlikely that a target will get passed large params; but may cause
-    # problems in other applications, e.g. when memoizing results of operations
-    # on large arrays. I can't really think of a good way around that apart
-    # form, e.g., md5 hashing the entire raw object, which will have an
-    # undesirable impact on performance.
-    num_bytes = min(ctypes.sizeof(obj_pyobj), 32)
-    obj_bytes = ctypes.string_at(ctypes.addressof(obj_pyobj), num_bytes)
-    return '{}/{}'.format(obj_id, obj_bytes)
+    if isinstance(obj, Hashable):
+        return '{}/{}'.format(obj_id, hash(obj))
+    else:
+        obj_pyobj = ctypes.cast(obj_id, ctypes.py_object)
+        # TODO: Note: there is still a possibility of a clash here. If Two
+        # different objects get assigned the same ID, an are large and are
+        # identical in the first thirty two bytes. This shouldn't be much of an
+        # issue in the current application of memoizing Target calls, as it's very
+        # unlikely that a target will get passed large params; but may cause
+        # problems in other applications, e.g. when memoizing results of operations
+        # on large arrays. I can't really think of a good way around that apart
+        # form, e.g., md5 hashing the entire raw object, which will have an
+        # undesirable impact on performance.
+        num_bytes = min(ctypes.sizeof(obj_pyobj), 32)
+        obj_bytes = ctypes.string_at(ctypes.addressof(obj_pyobj), num_bytes)
+        return '{}/{}'.format(obj_id, obj_bytes)
 
 
 @wrapt.decorator
