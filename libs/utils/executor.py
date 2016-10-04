@@ -484,7 +484,7 @@ class Executor():
         # Keep track of platform configuration
         test_dir = '{}/{}:{}:{}'\
             .format(self.te.res_dir, wload.wtype, tc_idx, wl_idx)
-        os.system('mkdir -p ' + test_dir)
+        os.makedirs(test_dir)
         self.te.platform_dump(test_dir)
 
         # Keep track of kernel configuration and version
