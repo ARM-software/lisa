@@ -201,7 +201,7 @@ class SmallTaskPacking(unittest.TestCase):
     ====================
 
     The tests spawns as many tasks as there are cpus in the system.
-    The tasks are small, so none of them should be run on big cpus,
+    The tasks are small, so none of them should be run on big cpus and
     the scheduler should pack them on little cpus.
 
     Expected Behaviour
@@ -322,12 +322,17 @@ class OffloadMigrationAndIdlePull(unittest.TestCase):
 
     That is why this test doesn't test for migrations of the migrator
     tasks to the bigs when we expect that the early starters have
-    finished.  Instead, it tests that the big cpus were fully loaded
-    as long as there are tasks left to run in the system; that the
-    little cpus run tasks while the bigs are busy (offload migration);
-    that all tasks get a chance on a big cpu (either because they
-    started there or because of idle pull); and that all tasks are
-    finished off in a big cpu.
+    finished.  Instead, it tests that:
+
+      * The big cpus were fully loaded as long as there are tasks left
+        to run in the system
+
+      * The little cpus run tasks while the bigs are busy (offload migration)
+
+      * All tasks get a chance on a big cpu (either because they
+        started there or because of idle pull)
+
+      * All tasks are finished off in a big cpu.
 
     """
 
@@ -537,7 +542,8 @@ class WakeMigration(unittest.TestCase):
     Goal
     ====
 
-    A task that switches between being big and small moves to big and little cores accordingly
+    A task that switches between being high and low utilization moves
+    to big and little cores accordingly
 
     Detailed Description
     ====================
