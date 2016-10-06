@@ -33,7 +33,6 @@ import ctypes
 from operator import itemgetter
 from itertools import groupby
 from functools import partial
-from collections import Hashable
 
 import wrapt
 
@@ -558,9 +557,9 @@ def __get_memo_id(obj):
     ID string.
     """
     obj_id = id(obj)
-    if isinstance(obj, Hashable):
+    try:
         return '{}/{}'.format(obj_id, hash(obj))
-    else:
+    except TypeError:  # obj is not hashable
         obj_pyobj = ctypes.cast(obj_id, ctypes.py_object)
         # TODO: Note: there is still a possibility of a clash here. If Two
         # different objects get assigned the same ID, an are large and are
