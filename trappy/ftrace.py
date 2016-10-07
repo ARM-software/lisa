@@ -453,12 +453,15 @@ class FTrace(GenericFTrace):
         the end timestamp.  Timestamps are relative to the first trace
         event that's parsed.  If you want to trace until the end of
         the trace, set the second element to None.  If you want to use
-        timestamps extracted from the trace file use "abs_window".
+        timestamps extracted from the trace file use "abs_window". The
+        window is inclusive: trace events exactly matching the start
+        or end timestamps will be included.
 
     :param abs_window: a tuple indicating an absolute time window.
         This parameter is similar to the "window" one but its values
         represent timestamps that are not normalized, (i.e. the ones
-        you find in the trace file)
+        you find in the trace file). The window is inclusive.
+
 
     :type path: str
     :type name: str
