@@ -48,6 +48,13 @@ cloned from the official GitHub repository with this command:
 
         $ git clone https://github.com/ARM-software/lisa.git
 
+### Clone the submodules
+
+LISA depends on `bart`, `devlib` and `TRAPpy`.
+
+        $ source init_env
+        $ lisa-update submodules
+
 ## Virtual Machine based installation
 
 LISA provides a Vagrant recipe which allows to automate the generation of a
