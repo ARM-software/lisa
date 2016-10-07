@@ -291,7 +291,7 @@ def adb_disconnect(device):
     _check_env()
     if not device:
         return
-    if ":" in device:
+    if ":" in device and device in adb_list_devices():
         command = "adb disconnect " + device
         logger.debug(command)
         retval = subprocess.call(command, stdout=open(os.devnull, 'wb'), shell=True)
