@@ -47,10 +47,26 @@ class CpuidleState(object):
         self.path = path
         self.id = self.target.path.basename(self.path)
         self.cpu = self.target.path.basename(self.target.path.dirname(path))
-        self.desc = self.get('desc')
-        self.name = self.get('name')
-        self.latency = self.get('latency')
-        self.power = self.get('power')
+
+    @property
+    @memoized
+    def desc(self):
+        return self.get('desc')
+
+    @property
+    @memoized
+    def name(self):
+        return self.get('name')
+
+    @property
+    @memoized
+    def latency(self):
+        return self.get('latency')
+
+    @property
+    @memoized
+    def power(self):
+        return self.get('power')
 
     def enable(self):
         self.set('disable', 0)
