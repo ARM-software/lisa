@@ -19,6 +19,9 @@ import logging
 import os
 import unittest
 
+from bart.sched.SchedAssert import SchedAssert
+from bart.sched.SchedMultiAssert import SchedMultiAssert
+from devlib.utils.misc import memoized
 import wrapt
 
 from conf import JsonConf
@@ -101,6 +104,42 @@ class LisaTest(unittest.TestCase):
         """
         Code executed after running the experiments
         """
+
+    @memoized
+    def get_multi_assert(self, experiment, task_filter=""):
+        """
+        Return a SchedMultiAssert over the tasks whose names contain task_filter
+
+        By default, this includes _all_ the tasks that were executed for the
+        experiment.
+        """
+        tasks = experiment.wload.tasks.keys()
+        return SchedMultiAssert(experiment.out_dir,
+                                self.te.topology,
+                                [t for t in tasks if task_filter in t])
+
+    def get_start_time(self, experiment):
+        """
+        Get the time at which the experiment workload began executing
+        """
+        start_times_dict = self.get_multi_assert(experiment).getStartTime()
+        return min([t["starttime"] for t in start_times_dict.itervalues()])
+
+    def get_end_times(self, experiment):
+        """
+        Get the time at which each task in the workload finished
+
+        Returned as a dict; {"task_name": finish_time, ...}
+        """
+
+        end_times = {}
+        for task in experiment.wload.tasks.keys():
+            sched_assert = SchedAssert(experiment.out_dir, self.te.topology,
+                                       execname=task)
+            end_times[task] = sched_assert.getEndTime()
+
+        return end_times
+
 
 @wrapt.decorator
 def experiment_test(wrapped_test, instance, args, kwargs):
