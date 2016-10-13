@@ -185,7 +185,8 @@ class Executor():
         for feat in feats:
             logging.info('%14s - Set scheduler feature: %s',
                          'SchedFeatures', feat)
-            self.target.execute('echo {} > /sys/kernel/debug/sched_features'.format(feat))
+            self.target.execute('echo {} > /sys/kernel/debug/sched_features'.format(feat),
+                                as_root=True)
 
     def _setup_rootfs(self, tc):
         # Initialize CGroups if required
