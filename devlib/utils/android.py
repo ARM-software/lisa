@@ -153,6 +153,7 @@ class AdbConnection(object):
     # adb disconnect is not invoked untill all connections are closed
     active_connections = defaultdict(int)
     default_timeout = 10
+    ls_command = 'ls'
 
     @property
     def name(self):
@@ -161,13 +162,29 @@ class AdbConnection(object):
     @property
     @memoized
     def newline_separator(self):
-        output = adb_command(self.device, "shell '(ls); echo \"\n$?\"'")
+        output = adb_command(self.device,
+                             "shell '({}); echo \"\n$?\"'".format(self.ls_command))
         if output.endswith('\r\n'):
             return '\r\n'
         elif output.endswith('\n'):
             return '\n'
         else:
             raise DevlibError("Unknown line ending")
+
+    # Again, we need to handle boards where the default output format from ls is
+    # single column *and* boards where the default output is multi-column.
+    # We need to do this purely because the '-1' option causes errors on older
+    # versions of the ls tool in Android pre-v7.
+    def _setup_ls(self):
+        command = "shell '(ls -1); echo \"\n$?\"'"
+        output = adb_command(self.device, command, timeout=self.timeout)
+        lines = output.splitlines()
+        retval = lines[-1].strip()
+        if int(retval) == 0:
+            self.ls_command = 'ls -1'
+        else:
+            self.ls_command = 'ls'
+        logger.info("ls command is set to {}".format(self.ls_command))
 
     def __init__(self, device=None, timeout=None):
         self.timeout = timeout if timeout is not None else self.default_timeout
@@ -176,6 +193,7 @@ class AdbConnection(object):
         self.device = device
         adb_connect(self.device)
         AdbConnection.active_connections[self.device] += 1
+        self._setup_ls()
 
     def push(self, source, dest, timeout=None):
         if timeout is None:
@@ -189,7 +207,7 @@ class AdbConnection(object):
         # Pull all files matching a wildcard expression
         if os.path.isdir(dest) and \
            ('*' in source or '?' in source):
-            command = 'shell ls {}'.format(source)
+            command = 'shell {} {}'.format(self.ls_command, source)
             output = adb_command(self.device, command, timeout=timeout)
             for line in output.splitlines():
                 command = "pull '{}' '{}'".format(line, dest)
