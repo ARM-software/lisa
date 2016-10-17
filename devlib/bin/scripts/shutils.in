@@ -41,7 +41,7 @@ cpufreq_get_all_governors() {
 cpufreq_trace_all_frequencies() {
 	FREQS=$($CAT /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq)
 	CPU=0; for F in $FREQS; do
-		echo "cpu_frequency:        state=$F cpu_id=$CPU" > /sys/kernel/debug/tracing/trace_marker
+		echo "cpu_frequency_devlib:        state=$F cpu_id=$CPU" > /sys/kernel/debug/tracing/trace_marker
 		CPU=$((CPU + 1))
 	done
 }
