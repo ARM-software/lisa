@@ -5,7 +5,6 @@ cpus=5
        trace-cmd-2461  [000]    34.896972: sched_wakeup:         sshd:2450 [120] success=1 CPU:000
        trace-cmd-2461  [000]    34.897022: sched_stat_wait:      comm=sshd pid=2450 delay=0 [ns]
        trace-cmd-2461  [000]    34.897053: sched_switch:         trace-cmd:2461 [120] R ==> sshd:2450 [120]
-          <idle>-0     [001]    34.897119: cpu_idle:             state=4294967295 cpu_id=1
           <idle>-0     [001]    34.897147: sched_stat_wait:      comm=rcuos/0 pid=9 delay=0 [ns]
           <idle>-0     [001]    34.897153: sched_switch:         swapper/1:0 [120] R ==> rcuos/0:9 [120]
          rcuos/0-9     [001]    34.897169: sched_stat_runtime:   comm=sshd pid=2450 runtime=258292 [ns] vruntime=6078688361 [ns]
@@ -13,7 +12,6 @@ cpus=5
          rcuos/0-9     [001]    34.897182: sched_wakeup:         rcu_sched:7 [120] success=1 CPU:000
          rcuos/0-9     [001]    34.897186: sched_stat_runtime:   comm=rcuos/0 pid=9 runtime=445750 [ns] vruntime=6730976621 [ns]
          rcuos/0-9     [001]    34.897230: sched_switch:         rcuos/0:9 [120] S ==> swapper/1:0 [120]
-          <idle>-0     [001]    34.897254: cpu_idle:             state=1 cpu_id=1
             sshd-2450  [000]    34.897303: sched_stat_runtime:   comm=sshd pid=2450 runtime=134042 [ns] vruntime=6078822403 [ns]
             sshd-2450  [000]    34.897313: sched_stat_wait:      comm=rcu_sched pid=7 delay=134042 [ns]
             sshd-2450  [000]    34.897319: sched_switch:         sshd:2450 [120] S ==> rcu_sched:7 [120]
@@ -27,28 +25,22 @@ cpus=5
        trace-cmd-2461  [000]    34.897703: sched_wakeup:         bash:2459 [120] success=1 CPU:001
        trace-cmd-2461  [000]    34.897708: sched_stat_runtime:   comm=trace-cmd pid=2461 runtime=33500 [ns] vruntime=6087809903 [ns]
        trace-cmd-2461  [000]    34.897738: sched_switch:         trace-cmd:2461 [120] x ==> swapper/0:0 [120]
-          <idle>-0     [000]    34.897749: cpu_idle:             state=0 cpu_id=0
-          <idle>-0     [001]    34.898057: cpu_idle:             state=4294967295 cpu_id=1
           <idle>-0     [001]    34.898076: sched_stat_wait:      comm=bash pid=2459 delay=0 [ns]
           <idle>-0     [001]    34.898082: sched_switch:         swapper/1:0 [120] R ==> bash:2459 [120]
             bash-2459  [001]    34.898188: sched_process_wait:   comm=bash pid=0 prio=120
             bash-2459  [001]    34.898653: sched_process_exit:   comm=bash pid=2459 prio=120
             bash-2459  [001]    34.898702: sched_stat_sleep:     comm=sshd pid=2450 delay=1394541 [ns]
             bash-2459  [001]    34.898708: sched_wakeup:         sshd:2450 [120] success=1 CPU:000
-          <idle>-0     [000]    34.898709: cpu_idle:             state=4294967295 cpu_id=0
           <idle>-0     [000]    34.898720: sched_stat_wait:      comm=sshd pid=2450 delay=0 [ns]
             bash-2459  [001]    34.898721: sched_stat_runtime:   comm=bash pid=2459 runtime=1027542 [ns] vruntime=6723004163 [ns]
           <idle>-0     [000]    34.898726: sched_switch:         swapper/0:0 [120] R ==> sshd:2450 [120]
             bash-2459  [001]    34.898732: sched_stat_runtime:   comm=bash pid=2459 runtime=11000 [ns] vruntime=6723015163 [ns]
             bash-2459  [001]    34.898745: sched_stat_runtime:   comm=bash pid=2459 runtime=13458 [ns] vruntime=6723028621 [ns]
             bash-2459  [001]    34.898758: sched_switch:         bash:2459 [120] x ==> swapper/1:0 [120]
-          <idle>-0     [001]    34.898776: cpu_idle:             state=1 cpu_id=1
             sshd-2450  [000]    34.898825: sched_process_wait:   comm=sshd pid=0 prio=120
             sshd-2450  [000]    34.898927: sched_process_wait:   comm=sshd pid=0 prio=120
             sshd-2450  [000]    34.898983: sched_stat_runtime:   comm=sshd pid=2450 runtime=285875 [ns] vruntime=6079108278 [ns]
             sshd-2450  [000]    34.898996: sched_switch:         sshd:2450 [120] S ==> swapper/0:0 [120]
-          <idle>-0     [000]    34.899005: cpu_idle:             state=0 cpu_id=0
-          <idle>-0     [000]    34.899122: cpu_idle:             state=4294967295 cpu_id=0
           <idle>-0     [000]    34.899144: sched_stat_sleep:     comm=rcu_sched pid=7 delay=1810584 [ns]
           <idle>-0     [000]    34.899149: sched_wakeup:         rcu_sched:7 [120] success=1 CPU:000
           <idle>-0     [000]    34.899175: sched_stat_wait:      comm=rcu_sched pid=7 delay=0 [ns]
@@ -57,29 +49,22 @@ cpus=5
        rcu_sched-7     [000]    34.899200: sched_wakeup:         rcuos/0:9 [120] success=1 CPU:001
        rcu_sched-7     [000]    34.899205: sched_stat_runtime:   comm=rcu_sched pid=7 runtime=65375 [ns] vruntime=6078875278 [ns]
        rcu_sched-7     [000]    34.899216: sched_switch:         rcu_sched:7 [120] S ==> swapper/0:0 [120]
-          <idle>-0     [000]    34.899225: cpu_idle:             state=1 cpu_id=0
-          <idle>-0     [001]    34.899572: cpu_idle:             state=4294967295 cpu_id=1
           <idle>-0     [001]    34.899620: sched_stat_wait:      comm=rcuos/0 pid=9 delay=0 [ns]
           <idle>-0     [001]    34.899628: sched_switch:         swapper/1:0 [120] R ==> rcuos/0:9 [120]
          rcuos/0-9     [001]    34.899770: sched_stat_sleep:     comm=rcu_sched pid=7 delay=538708 [ns]
          rcuos/0-9     [001]    34.899807: sched_wakeup:         rcu_sched:7 [120] success=1 CPU:000
          rcuos/0-9     [001]    34.899848: sched_stat_runtime:   comm=rcuos/0 pid=9 runtime=653458 [ns] vruntime=6731630079 [ns]
          rcuos/0-9     [001]    34.899877: sched_switch:         rcuos/0:9 [120] S ==> swapper/1:0 [120]
-          <idle>-0     [000]    34.899884: cpu_idle:             state=4294967295 cpu_id=0
-          <idle>-0     [001]    34.899903: cpu_idle:             state=1 cpu_id=1
           <idle>-0     [000]    34.899988: sched_stat_sleep:     comm=sshd pid=2450 delay=1003959 [ns]
           <idle>-0     [000]    34.899995: sched_wakeup:         sshd:2450 [120] success=1 CPU:001
           <idle>-0     [000]    34.900052: sched_stat_wait:      comm=rcu_sched pid=7 delay=0 [ns]
           <idle>-0     [000]    34.900058: sched_switch:         swapper/0:0 [120] R ==> rcu_sched:7 [120]
        rcu_sched-7     [000]    34.900069: sched_stat_runtime:   comm=rcu_sched pid=7 runtime=325042 [ns] vruntime=6079200320 [ns]
        rcu_sched-7     [000]    34.900086: sched_switch:         rcu_sched:7 [120] S ==> swapper/0:0 [120]
-          <idle>-0     [000]    34.900095: cpu_idle:             state=1 cpu_id=0
-          <idle>-0     [001]    34.900405: cpu_idle:             state=4294967295 cpu_id=1
           <idle>-0     [001]    34.900452: sched_stat_wait:      comm=sshd pid=2450 delay=0 [ns]
           <idle>-0     [001]    34.900460: sched_switch:         swapper/1:0 [120] R ==> sshd:2450 [120]
             sshd-2450  [001]    34.900756: sched_stat_sleep:     comm=in:imuxsock pid=1767 delay=1926798326 [ns]
             sshd-2450  [001]    34.900767: sched_wakeup:         in:imuxsock:1767 [120] success=1 CPU:000
-          <idle>-0     [000]    34.901131: cpu_idle:             state=4294967295 cpu_id=0
           <idle>-0     [000]    34.901148: sched_stat_wait:      comm=in:imuxsock pid=1767 delay=0 [ns]
           <idle>-0     [000]    34.901155: sched_switch:         swapper/0:0 [120] R ==> in:imuxsock:1767 [120]
      in:imuxsock-1767  [000]    34.901243: sched_stat_runtime:   comm=in:imuxsock pid=1767 runtime=496084 [ns] vruntime=6079305987 [ns]
