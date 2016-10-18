@@ -22,6 +22,7 @@ Vagrant.configure(2) do |config|
         openjdk-7-jre pkg-config python-all-dev python-matplotlib \
         python-nose python-numpy python-pip python-zmq sshpass trace-cmd \
         tree wget
+    pip install Cython
     sudo pip install ipython[notebook] pandas psutil wrapt
     sudo apt-get remove -y w3m
 
