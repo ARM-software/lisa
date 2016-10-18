@@ -14,6 +14,8 @@ Vagrant.configure(2) do |config|
   config.vm.network "forwarded_port", guest: 8888, host: 8888
 
   config.vm.provision "shell", inline: <<-SHELL
+    set -e
+
     sudo apt-get update
     sudo apt-get install -y autoconf automake build-essential expect git \
         libfreetype6-dev libpng12-dev libtool nmap openjdk-7-jdk \
