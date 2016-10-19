@@ -77,7 +77,7 @@ def area_under_curve(series, sign=None, method="trapz", step="post"):
         or negative regions. Can have two values
 
         - `"+"`
-        - `"-"`
+        - `"="`
     :type sign: str
 
     :param method: The method for area calculation. This can
