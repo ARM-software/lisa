@@ -14,12 +14,15 @@ Vagrant.configure(2) do |config|
   config.vm.network "forwarded_port", guest: 8888, host: 8888
 
   config.vm.provision "shell", inline: <<-SHELL
+    set -e
+
     sudo apt-get update
     sudo apt-get install -y autoconf automake build-essential expect git \
         libfreetype6-dev libpng12-dev libtool nmap openjdk-7-jdk \
         openjdk-7-jre pkg-config python-all-dev python-matplotlib \
         python-nose python-numpy python-pip python-zmq sshpass trace-cmd \
         tree wget
+    pip install Cython
     sudo pip install ipython[notebook] pandas psutil wrapt
     sudo apt-get remove -y w3m
 
