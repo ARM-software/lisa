@@ -250,13 +250,23 @@ echo
 
 function _lisa-test-usage {
 cat <<EOF
-Usage: lisa-test CLASS [TEST]
+Usage: lisa-test FILE[:CLASS]
+  Run automated tests. Tests can be found under the tests/ directory.
+
+  Examples:
+    Run all EAS Acceptance tests:
+
+      lisa-test eas/acceptance.py
+
+    Run ForkMigration test from EAS Acceptance suite:
+
+      lisa-test eas/acceptance.py:ForkMigration
 EOF
 }
 
 function _lisa-test {
-CLASS=${1}
-nosetests -v tests/$CLASS
+TEST=${1}
+nosetests -v tests/$TEST
 }
 
 function lisa-test {
