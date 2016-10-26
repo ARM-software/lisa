@@ -462,6 +462,9 @@ class TestEnv(ShareState):
 
         if platform_type.lower() == 'linux':
             logging.debug('%14s - Setup LINUX target...', 'Target')
+            if "host" not in self.__connection_settings:
+                raise ValueError('Missing "host" param in Linux target conf')
+
             self.target = devlib.LinuxTarget(
                     platform = platform,
                     connection_settings = self.__connection_settings,
