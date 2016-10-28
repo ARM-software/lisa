@@ -371,9 +371,15 @@ class RTA(Workload):
 
             # Setup task affinity
             if 'cpus' in task and task['cpus']:
-                task_conf['cpus'] = ranges_to_list(task['cpus'])
                 self.logger.info('%14s -  | CPUs affinity: %s',
                                  'RTApp', task['cpus'])
+                if isinstance(task['cpus'], str):
+                    task_conf['cpus'] = ranges_to_list(task['cpus'])
+                elif isinstance(task['cpus'], list):
+                    task_conf['cpus'] = task['cpus']
+                else:
+                    raise ValueError('cpus must be a list or string')
+
 
             # Setup task configuration
             self.rta_profile['tasks'][tid] = task_conf
