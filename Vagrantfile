@@ -26,7 +26,9 @@ Vagrant.configure(2) do |config|
     sudo pip install ipython[notebook] pandas psutil wrapt
     sudo apt-get remove -y w3m
 
-    ln -s /vagrant /home/vagrant/lisa
+    if [ ! -e /home/vagrant/lisa ]; then
+       ln -s /vagrant /home/vagrant/lisa
+    fi
 
     cd /home/vagrant/lisa
     ANDROID_SDK_URL="https://dl.google.com/android/android-sdk_r24.4.1-linux.tgz"
