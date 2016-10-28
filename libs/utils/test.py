@@ -19,6 +19,11 @@ import logging
 import os
 import unittest
 
+from bart.sched.SchedAssert import SchedAssert
+from bart.sched.SchedMultiAssert import SchedMultiAssert
+from devlib.utils.misc import memoized
+import wrapt
+
 from conf import JsonConf
 from executor import Executor
 
@@ -99,5 +104,63 @@ class LisaTest(unittest.TestCase):
         """
         Code executed after running the experiments
         """
+
+    @memoized
+    def get_multi_assert(self, experiment, task_filter=""):
+        """
+        Return a SchedMultiAssert over the tasks whose names contain task_filter
+
+        By default, this includes _all_ the tasks that were executed for the
+        experiment.
+        """
+        tasks = experiment.wload.tasks.keys()
+        return SchedMultiAssert(experiment.out_dir,
+                                self.te.topology,
+                                [t for t in tasks if task_filter in t])
+
+    def get_start_time(self, experiment):
+        """
+        Get the time at which the experiment workload began executing
+        """
+        start_times_dict = self.get_multi_assert(experiment).getStartTime()
+        return min([t["starttime"] for t in start_times_dict.itervalues()])
+
+    def get_end_times(self, experiment):
+        """
+        Get the time at which each task in the workload finished
+
+        Returned as a dict; {"task_name": finish_time, ...}
+        """
+
+        end_times = {}
+        for task in experiment.wload.tasks.keys():
+            sched_assert = SchedAssert(experiment.out_dir, self.te.topology,
+                                       execname=task)
+            end_times[task] = sched_assert.getEndTime()
+
+        return end_times
+
+
+@wrapt.decorator
+def experiment_test(wrapped_test, instance, args, kwargs):
+    """
+    Convert a LisaTest test method to be automatically called for each experiment
+
+    The method will be passed the experiment object and a list of the names of
+    tasks that were run as the experiment's workload.
+    """
+    for experiment in instance.executor.experiments:
+        tasks = experiment.wload.tasks.keys()
+        try:
+            wrapped_test(experiment, tasks, *args, **kwargs)
+        except AssertionError as e:
+            trace_relpath = os.path.join(experiment.out_dir, "trace.dat")
+            add_msg = "\n\tCheck trace file: " + os.path.abspath(trace_relpath)
+            orig_msg = e.args[0] if len(e.args) else ""
+            e.args = (orig_msg + add_msg,) + e.args[1:]
+            raise
+
+# Prevent nosetests from running experiment_test directly as a test case
+experiment_test.__test__ = False
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

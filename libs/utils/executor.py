@@ -17,6 +17,7 @@
 
 from bart.common.Analyzer import Analyzer
 import collections
+from collections import namedtuple
 import datetime
 import gzip
 import json
@@ -40,6 +41,9 @@ from env import TestEnv
 from conf import JsonConf
 
 import wlgen
+
+Experiment = namedtuple('Experiment', ['wload_name', 'wload',
+                                       'conf', 'iteration', 'out_dir'])
 
 class Executor():
 
@@ -99,8 +103,9 @@ class Executor():
         self.te = TestEnv(target_conf, tests_conf)
         self.target = self.te.target
 
+        self._iterations = self._tests_conf.get('iterations', 1)
         # Compute total number of experiments
-        self._exp_count = self._tests_conf['iterations'] \
+        self._exp_count = self._iterations \
                 * len(self._tests_conf['wloads']) \
                 * len(self._tests_conf['confs'])
 
@@ -108,7 +113,7 @@ class Executor():
 
         logging.info('%14s - Configured to run:', 'Executor')
 
-        logging.info('%14s -   %3d targt configurations:',
+        logging.info('%14s -   %3d target configurations:',
                      'Executor', len(self._tests_conf['confs']))
         target_confs = [conf['tag'] for conf in self._tests_conf['confs']]
         target_confs = ', '.join(target_confs)
@@ -116,7 +121,7 @@ class Executor():
 
         logging.info('%14s -   %3d workloads (%d iterations each)',
                      'Executor', len(self._tests_conf['wloads']),
-                     self._tests_conf['iterations'])
+                     self._iterations)
         wload_confs = ', '.join(self._tests_conf['wloads'])
         logging.info('%14s -       %s', 'Executor', wload_confs)
 
@@ -129,19 +134,28 @@ class Executor():
     def run(self):
         self._print_section('Executor', 'Experiments execution')
 
+        self.experiments = []
+
         # Run all the configured experiments
-        exp_idx = 1
         for tc in self._tests_conf['confs']:
             # TARGET: configuration
             if not self._target_configure(tc):
                 continue
             for wl_idx in self._tests_conf['wloads']:
                 # TEST: configuration
-                wload = self._wload_init(tc, wl_idx)
-                for itr_idx in range(1, self._tests_conf['iterations']+1):
-                    # WORKLOAD: execution
-                    self._wload_run(exp_idx, tc, wl_idx, wload, itr_idx)
-                    exp_idx += 1
+                wload, test_dir = self._wload_init(tc, wl_idx)
+                for itr_idx in range(1, self._iterations + 1):
+                    exp = Experiment(
+                        wload_name=wl_idx,
+                        wload=wload,
+                        conf=tc,
+                        iteration=itr_idx,
+                        out_dir=os.path.join(test_dir, str(itr_idx)))
+                    self.experiments.append(exp)
+
+            # WORKLOAD: execution
+            for exp_idx, experiment in enumerate(self.experiments):
+                self._wload_run(exp_idx, experiment)
 
         self._print_section('Executor', 'Experiments execution completed')
         logging.info('%14s - Results available in:', 'Executor')
@@ -367,9 +381,7 @@ class Executor():
         if conf['class'] == 'profile':
             params = {}
             # Load each task specification
-            for task_name in conf['params']:
-                task = conf['params'][task_name]
-                task_name = conf['prefix'] + task_name
+            for task_name, task in conf['params'].items():
                 if task['kind'] not in wlgen.__dict__:
                     logging.error(r'%14s - RTA task of kind [%s] not supported',
                             'RTApp', task['kind'])
@@ -378,7 +390,13 @@ class Executor():
                         'in RT-App workload specification'\
                         .format(task))
                 task_ctor = getattr(wlgen, task['kind'])
-                params[task_name] = task_ctor(**task['params']).get()
+                num_tasks = task.get('tasks', 1)
+                task_idxs = self._wload_task_idxs(wl_idx, num_tasks)
+                for idx in task_idxs:
+                    idx_name = str(idx) if len(task_idxs) > 0 else ""
+                    task_name_idx = conf['prefix'] + task_name + idx_name
+                    params[task_name_idx] = task_ctor(**task['params']).get()
+
             rtapp = wlgen.RTA(self.target,
                         wl_idx, calibration = self.te.calibration())
             rtapp.conf(kind='profile', params=params, loadref=loadref,
@@ -464,44 +482,35 @@ class Executor():
         wload = self._wload_conf(wl_idx, wlspec)
 
         # Keep track of platform configuration
-        self.te.test_dir = '{}/{}:{}:{}'\
+        test_dir = '{}/{}:{}:{}'\
             .format(self.te.res_dir, wload.wtype, tc_idx, wl_idx)
-        os.system('mkdir -p ' + self.te.test_dir)
-        self.te.platform_dump(self.te.test_dir)
+        os.makedirs(test_dir)
+        self.te.platform_dump(test_dir)
 
         # Keep track of kernel configuration and version
         config = self.target.config
-        with gzip.open(os.path.join(self.te.test_dir, 'kernel.config'), 'wb') as fh:
+        with gzip.open(os.path.join(test_dir, 'kernel.config'), 'wb') as fh:
             fh.write(config.text)
         output = self.target.execute('{} uname -a'\
                 .format(self.target.busybox))
-        with open(os.path.join(self.te.test_dir, 'kernel.version'), 'w') as fh:
+        with open(os.path.join(test_dir, 'kernel.version'), 'w') as fh:
             fh.write(output)
 
-        return wload
+        return wload, test_dir
 
-    def _wload_run_init(self, run_idx):
-        self.te.out_dir = '{}/{}'\
-                .format(self.te.test_dir, run_idx)
-        logging.debug(r'%14s - out_dir [%s]', 'Executor', self.te.out_dir)
-        os.system('mkdir -p ' + self.te.out_dir)
-
-        logging.debug(r'%14s - cleanup target output folder', 'Executor')
-
-        target_dir = self.target.working_directory
-        logging.debug('%14s - setup target directory [%s]',
-                'Executor', target_dir)
-
-    def _wload_run(self, exp_idx, tc, wl_idx, wload, run_idx):
+    def _wload_run(self, exp_idx, experiment):
+        tc = experiment.conf
+        wload = experiment.wload
         tc_idx = tc['tag']
 
         self._print_title('Executor', 'Experiment {}/{}, [{}:{}] {}/{}'\
                 .format(exp_idx, self._exp_count,
-                        tc_idx, wl_idx,
-                        run_idx, self._tests_conf['iterations']))
+                        tc_idx, experiment.wload_name,
+                        experiment.iteration, self._iterations))
 
         # Setup local results folder
-        self._wload_run_init(run_idx)
+        logging.debug(r'%14s - out_dir [%s]', 'Executor', experiment.out_dir)
+        os.system('mkdir -p ' + experiment.out_dir)
 
         # FTRACE: start (if a configuration has been provided)
         if self.te.ftrace and self._target_conf_flag(tc, 'ftrace'):
@@ -513,23 +522,23 @@ class Executor():
             self.te.emeter.reset()
 
         # WORKLOAD: Run the configured workload
-        wload.run(out_dir=self.te.out_dir, cgroup=self._cgroup)
+        wload.run(out_dir=experiment.out_dir, cgroup=self._cgroup)
 
         # ENERGY: collect measurements
         if self.te.emeter:
-            self.te.emeter.report(self.te.out_dir)
+            self.te.emeter.report(experiment.out_dir)
 
         # FTRACE: stop and collect measurements
         if self.te.ftrace and self._target_conf_flag(tc, 'ftrace'):
             self.te.ftrace.stop()
 
-            trace_file = self.te.out_dir + '/trace.dat'
+            trace_file = experiment.out_dir + '/trace.dat'
             self.te.ftrace.get_trace(trace_file)
             logging.info(r'%14s - Collected FTrace binary trace:', 'Executor')
             logging.info(r'%14s -    %s', 'Executor',
                          trace_file.replace(self.te.res_dir, '<res_dir>'))
 
-            stats_file = self.te.out_dir + '/trace_stat.json'
+            stats_file = experiment.out_dir + '/trace_stat.json'
             self.te.ftrace.get_stats(stats_file)
             logging.info(r'%14s - Collected FTrace function profiling:', 'Executor')
             logging.info(r'%14s -    %s', 'Executor',
