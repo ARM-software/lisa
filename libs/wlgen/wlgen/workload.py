@@ -215,10 +215,10 @@ class Workload(object):
             _command = '{} {}'\
                     .format(self.taskset_cmd, _command)
 
-        # Prepend eventually required cgroup command
         if self.cgroup:
+            # Get a reference to the CGroup to use
             self.cgroup_cmd = '{} cgroups_run_into {}'\
-                    .format(self.target.shutils, self.cgroup.name)
+                    .format(self.target.shutils, self.cgroup)
             _command = '{} {}'.format(self.cgroup_cmd, _command)
 
         # Start FTrace (if required)
