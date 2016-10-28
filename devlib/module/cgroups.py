@@ -326,6 +326,11 @@ class CgroupsModule(Module):
             self.logger.debug('cgroup_root already mounted at %s',
                     self.cgroup_root)
 
+        # Ensure CGroups is mounted RW
+        self.target.execute('mount -o remount,rw {}'\
+                            .format(self.cgroup_root),
+                            as_root=True)
+
         # Load list of available controllers
         controllers = []
         subsys = self.list_subsystems()
