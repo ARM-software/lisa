@@ -152,3 +152,9 @@ class Cpuidle(Module):
         for state in self.get_states(cpu):
             state.disable()
 
+    def perturb_cpus(self):
+        """
+        Momentarily wake each CPU. Ensures cpu_idle events in trace file.
+        """
+        output = self.target._execute_util('cpuidle_wake_all_cpus')
+        print(output)

@@ -170,6 +170,9 @@ class FtraceCollector(TraceCollector):
         if 'cpufreq' in self.target.modules:
             self.logger.debug('Trace CPUFreq frequencies')
             self.target.cpufreq.trace_frequencies()
+        if 'cpuidle' in self.target.modules:
+            self.logger.debug('Trace CPUIdle states')
+            self.target.cpuidle.perturb_cpus()
         # Enable kernel function profiling
         if self.functions:
             self.target.execute('echo nop > {}'.format(self.current_tracer_file),
