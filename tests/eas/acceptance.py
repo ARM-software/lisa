@@ -93,7 +93,7 @@ class EasTest(LisaTest):
 
         self.assertTrue(
             sched_assert.assertFirstCpu(
-                self.target.bl.bigs,
+                self.te.nrg_model.biggest_cpus,
                 rank=len(tasks)),
             msg="Not all the new generated tasks started on a big CPU")
 
