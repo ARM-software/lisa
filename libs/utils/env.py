@@ -27,6 +27,7 @@ import unittest
 
 import devlib
 
+import platforms.juno_energy
 from wlgen import RTA
 from energy import EnergyMeter
 from conf import JsonConf
@@ -371,6 +372,7 @@ class TestEnv(ShareState):
         # Initialize JUNO board
         elif self.conf['board'].upper() in ('JUNO', 'JUNO2'):
             platform = devlib.platform.arm.Juno()
+            self.nrg_model = platforms.juno_energy.juno_energy
             self.__modules = ['bl', 'hwmon', 'cpufreq']
 
         # Initialize OAK board
