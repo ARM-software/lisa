@@ -183,7 +183,7 @@ class Constraint(object):
         name = self.get_data_name()
 
         if not self._uses_trappy_trace():
-            return name + ":" + self.column
+            return name + ":" + str(self.column)
 
         return name + ":" + \
             self._template.name + ":" + self.column

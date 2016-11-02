@@ -18,7 +18,7 @@ import pandas as pd
 import unittest
 
 from trappy.plotter import AttrConf
-from trappy.plotter.Constraint import ConstraintManager
+from trappy.plotter.Constraint import Constraint, ConstraintManager
 
 class TestConstraintManager(unittest.TestCase):
     """Test trappy.plotter.ConstraintManager"""
@@ -184,3 +184,13 @@ class TestConstraintManager(unittest.TestCase):
         constraint = iter(c_mgr).next()
         series = constraint.result[AttrConf.PIVOT_VAL]
         self.assertEquals(len(series), 3)
+
+class TestConstraint(unittest.TestCase):
+    def test_str_constraint(self):
+        """str(constraint) doesn't fail when the column is not a string"""
+        dfr = pd.DataFrame({12: [1, 2, 3], 13: [3, 4, 5]})
+
+        constraint = Constraint(dfr, AttrConf.PIVOT, 12, template=None,
+                                trace_index=0, filters={}, window=None)
+
+        self.assertEqual(str(constraint), "DataFrame 0:12")
