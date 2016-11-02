@@ -83,6 +83,10 @@ class ILinePlot(AbstractDataPlotter):
     :param fill: Fill the area under the plots
     :type fill: bool
 
+    :param fill_alpha: Opacity of filled area under the plots.
+        Implies fill=True.
+    :type fill_alpha: float
+
     :param xlim: A tuple representing the upper and lower xlimits
     :type xlim: tuple
 

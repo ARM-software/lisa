@@ -133,6 +133,9 @@ var ILinePlot = ( function() {
             dateWindow: t_info.dateWindow
         };
 
+        if (typeof t_info.fill_alpha !== 'undefined')
+            options.fillAlpha = t_info.fill_alpha;
+
         if (typeof colors !== 'undefined')
             options["colors"] = colors;
 
