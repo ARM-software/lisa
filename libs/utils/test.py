@@ -106,6 +106,16 @@ class LisaTest(unittest.TestCase):
         start_times_dict = self.get_multi_assert(experiment).getStartTime()
         return min([t["starttime"] for t in start_times_dict.itervalues()])
 
+    def get_end_time(self, experiment):
+        """
+        Get the time at which the experiment workload finished executing
+        """
+        end_times_dict = self.get_multi_assert(experiment).getEndTime()
+        return max([t["endtime"] for t in end_times_dict.itervalues()])
+
+    def get_window(self, experiment):
+        return (self.get_start_time(experiment), self.get_end_time(experiment))
+
     def get_end_times(self, experiment):
         """
         Get the time at which each task in the workload finished
