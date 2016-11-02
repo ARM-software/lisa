@@ -763,7 +763,10 @@ class Trace(object):
         start_time = 0.0
         if not self.ftrace.normalized_time:
             start_time = self.ftrace.basetime
-        if cpu_active.index[0] != start_time:
+
+        if cpu_active.empty:
+            cpu_active = pd.Series([0], index=[start_time])
+        elif cpu_active.index[0] != start_time:
             entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
             cpu_active = pd.concat([entry_0, cpu_active])
 
