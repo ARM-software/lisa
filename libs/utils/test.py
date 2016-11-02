@@ -80,6 +80,13 @@ class LisaTest(unittest.TestCase):
         """
 
     @memoized
+    def get_sched_assert(self, experiment, task):
+        """
+        Return a SchedAssert over the task provided
+        """
+        return SchedAssert(experiment.out_dir, self.te.topology, execname=task)
+
+    @memoized
     def get_multi_assert(self, experiment, task_filter=""):
         """
         Return a SchedMultiAssert over the tasks whose names contain task_filter
