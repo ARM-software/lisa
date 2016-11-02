@@ -28,6 +28,7 @@ import unittest
 import devlib
 
 import platforms.juno_energy
+import platforms.hikey_energy
 from wlgen import RTA
 from energy import EnergyMeter
 from conf import JsonConf
@@ -379,6 +380,12 @@ class TestEnv(ShareState):
         elif self.conf['board'].upper() == 'OAK':
             platform = Platform(model='MT8173')
             self.__modules = ['bl', 'cpufreq']
+
+
+        elif self.conf['board'].upper() == 'HIKEY':
+            self.nrg_model = platforms.hikey_energy.hikey_energy
+            self.__modules = [ "cpufreq", "cpuidle" ]
+            platform = Platform(model='hikey')
 
         elif self.conf['board'] != 'UNKNOWN':
             # Initilize from platform descriptor (if available)
