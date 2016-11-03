@@ -47,17 +47,6 @@ DEFAULT_ENERGY_METER = {
     'juno' : {
         'instrument' : 'hwmon',
         'conf' : {
-            'sites' : [ 'a53', 'a57' ],
-            'kinds' : [ 'energy' ],
-        },
-        'channel_map' : {
-            'LITTLE' : 'a53',
-            'big' : 'a57',
-        }
-    },
-    'juno2' : {
-        'instrument' : 'hwmon',
-        'conf' : {
             'sites' : [ 'BOARDLITTLE', 'BOARDBIG' ],
             'kinds' : [ 'energy' ]
         },
