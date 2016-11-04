@@ -24,14 +24,13 @@ from bart.sched.SchedMultiAssert import SchedMultiAssert
 from devlib.utils.misc import memoized
 import wrapt
 
-from conf import JsonConf
 from executor import Executor
 
 class LisaTest(unittest.TestCase):
     """A base class for LISA defined tests"""
 
     @classmethod
-    def _init(cls, conf_file, *args, **kwargs):
+    def _init(cls, conf, *args, **kwargs):
         """
         Base class to run LISA test experiments
         """
@@ -42,18 +41,7 @@ class LisaTest(unittest.TestCase):
             cls.logger.setLevel(kwargs['loglevel'])
             kwargs.pop('loglevel')
 
-        cls.conf_file = conf_file
-        cls.logger.info("%14s - Using configuration:",
-                         "LisaTest")
-        cls.logger.info("%14s -    %s",
-                         "LisaTest", cls.conf_file)
-
-        cls.logger.debug("%14s - Load test specific configuration...", "LisaTest")
-        json_conf = JsonConf(cls.conf_file)
-        cls.conf = json_conf.load()
-
-        cls.logger.debug("%14s - Checking tests configuration...", "LisaTest")
-        cls._checkConf()
+        cls.conf = conf
 
         cls._runExperiments()
 
@@ -64,7 +52,7 @@ class LisaTest(unittest.TestCase):
         """
 
         cls.logger.info("%14s - Setup tests execution engine...", "LisaTest")
-        cls.executor = Executor(tests_conf = cls.conf_file);
+        cls.executor = Executor(tests_conf = cls.conf);
 
         # Alias executor objects to make less verbose tests code
         cls.te = cls.executor.te
@@ -78,20 +66,6 @@ class LisaTest(unittest.TestCase):
 
         # Execute post-experiments code defined by the test
         cls._experimentsFinalize()
-
-    @classmethod
-    def _checkConf(cls):
-        """
-        Check for mandatory configuration options
-        """
-        assert 'confs' in cls.conf, \
-            "Configuration file missing target configurations ('confs' attribute)"
-        assert cls.conf['confs'], \
-            "Configuration file with empty set of target configurations ('confs' attribute)"
-        assert 'wloads' in cls.conf, \
-            "Configuration file missing workload configurations ('wloads' attribute)"
-        assert cls.conf['wloads'], \
-            "Configuration file with empty set of workloads ('wloads' attribute)"
 
     @classmethod
     def _experimentsInit(cls):
