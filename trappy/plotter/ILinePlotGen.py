@@ -235,6 +235,9 @@ class ILinePlotGen(object):
         fig_params["title"] = title
         fig_params["step_plot"] = self._attr["step_plot"]
         fig_params["fill_graph"] = self._attr["fill"]
+        if "fill_alpha" in self._attr:
+            fig_params["fill_alpha"] = self._attr["fill_alpha"]
+            fig_params["fill_graph"] = True
         fig_params["per_line"] = self._attr["per_line"]
         fig_params["height"] = self._attr["height"]
 

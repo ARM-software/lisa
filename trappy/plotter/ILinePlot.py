@@ -83,6 +83,10 @@ class ILinePlot(AbstractDataPlotter):
     :param fill: Fill the area under the plots
     :type fill: bool
 
+    :param fill_alpha: Opacity of filled area under the plots.
+        Implies fill=True.
+    :type fill_alpha: float
+
     :param xlim: A tuple representing the upper and lower xlimits
     :type xlim: tuple
 
@@ -204,7 +208,6 @@ class ILinePlot(AbstractDataPlotter):
         self._attr["drawstyle"] = None
         self._attr["step_plot"] = False
         self._attr["fill"] = AttrConf.FILL
-        self._attr["draw_line"] = True
         self._attr["scatter"] = AttrConf.PLOT_SCATTER
         self._attr["point_size"] = AttrConf.POINT_SIZE
         self._attr["map_label"] = {}
