@@ -47,6 +47,18 @@ cpufreq_trace_all_frequencies() {
 }
 
 ################################################################################
+# CPUIdle Utility Functions
+################################################################################
+
+cpuidle_wake_all_cpus() {
+	CPU_PATHS=/sys/devices/system/cpu/cpu[0-9]*
+	MASK=0x1; for F in $CPU_PATHS; do
+		$BUSYBOX taskset $MASK true
+		MASK=$($BUSYBOX printf '0x%x' $((MASK * 2)))
+	done
+}
+
+################################################################################
 # FTrace Utility Functions
 ################################################################################
 
@@ -184,6 +196,9 @@ cpufreq_get_all_governors)
     ;;
 cpufreq_trace_all_frequencies)
     cpufreq_trace_all_frequencies $*
+    ;;
+cpuidle_wake_all_cpus)
+    cpuidle_wake_all_cpus $*
     ;;
 cgroups_get_attributes)
 	cgroups_get_attributes $*
