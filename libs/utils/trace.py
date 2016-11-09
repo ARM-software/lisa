@@ -295,17 +295,17 @@ class Trace(object):
         :param tasks: list of task names
         :type tasks: list(str)
         """
+        def load(tasks, event, name_key, pid_key):
+            df = self._dfg_trace_event(event)
+            self.getTasks(df, tasks, name_key=name_key, pid_key=pid_key)
+            self._scanTasks(df, name_key=name_key, pid_key=pid_key)
+
         if 'sched_switch' in self.available_events:
-            self.getTasks(self._dfg_trace_event('sched_switch'), tasks,
-                          name_key='next_comm', pid_key='next_pid')
-            self._scanTasks(self._dfg_trace_event('sched_switch'),
-                            name_key='next_comm', pid_key='next_pid')
-            return
-        if 'sched_load_avg_task' in self.available_events:
-            self.getTasks(self._dfg_trace_event('sched_load_avg_task'), tasks)
-            self._scanTasks(self._dfg_trace_event('sched_load_avg_task'))
-            return
-        logging.warning('Failed to load tasks names from trace events')
+            load(tasks, 'sched_switch', 'next_comm', 'next_pid')
+        elif 'sched_load_avg_task' in self.available_events:
+            load(tasks, 'sched_load_avg_task', 'comm', 'pid')
+        else:
+            logging.warning('Failed to load tasks names from trace events')
 
     def hasEvents(self, dataset):
         """
