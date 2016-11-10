@@ -55,13 +55,10 @@ class EasTest(LisaTest):
         super(EasTest, cls)._experimentsInit(*args, **kwargs)
 
         if SET_IS_BIG_LITTLE:
-            try:
-                cls.target.write_value(
-                    "/proc/sys/kernel/sched_is_big_little", 1)
-            except TargetError:
-                # That flag doesn't exist on mainline-integration kernels, so
-                # don't worry if the file isn't present.
-                pass
+            # This flag doesn't exist on mainline-integration kernels, so
+            # don't worry if the file isn't present (hence verify=False)
+            cls.target.write_value(
+                "/proc/sys/kernel/sched_is_big_little", 1, verify=False)
 
     def _do_test_first_cpu(self, experiment, tasks):
         """Test that all tasks start on a big CPU"""
