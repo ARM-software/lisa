@@ -42,6 +42,8 @@ from conf import JsonConf
 
 import wlgen
 
+from devlib import TargetError
+
 Experiment = namedtuple('Experiment', ['wload_name', 'wload',
                                        'conf', 'iteration', 'out_dir'])
 
@@ -157,6 +159,8 @@ class Executor():
             for exp_idx, experiment in enumerate(self.experiments):
                 self._wload_run(exp_idx, experiment)
 
+            self._target_cleanup(tc)
+
         self._print_section('Executor', 'Experiments execution completed')
         logging.info('%14s - Results available in:', 'Executor')
         logging.info('%14s -       %s', 'Executor', self.te.res_dir)
@@ -212,12 +216,26 @@ class Executor():
         logging.debug('%14s - Setup RT-App run folder [%s]...',
                 'TargetSetup', self.te.run_dir)
         self.target.execute('[ -d {0} ] || mkdir {0}'\
-                .format(self.te.run_dir), as_root=True)
+                .format(self.te.run_dir))
         self.target.execute(
                 'grep schedtest /proc/mounts || '\
                 '  mount -t tmpfs -o size=1024m {} {}'\
                 .format('schedtest', self.te.run_dir),
                 as_root=True)
+        # tmpfs mounts have an SELinux context with "tmpfs" as the type (while
+        # other files we create have "shell_data_file"). That prevents non-root
+        # users from creating files in tmpfs mounts. For now, just put SELinux
+        # in permissive mode to get around that.
+        try:
+            # First, save the old SELinux mode
+            self._old_selinux_mode = self.target.execute('getenforce')
+        except TargetError:
+            # Probably the target doesn't have SELinux. No problem.
+            self._old_selinux_mode = None
+        else:
+            logging.warning('%14s - Setting target SELinux in permissive mode',
+                            'Executor')
+            self.target.execute('setenforce 0', as_root=True)
 
     def _setup_cpufreq(self, tc):
         if 'cpufreq' not in tc:
@@ -305,6 +323,12 @@ class Executor():
                 'TargetConf', tc['tag'], flag, has_flag)
         return has_flag
 
+    def _target_cleanup(self, tc):
+        if self._old_selinux_mode is not None:
+            logging.info('%14s - Restoring target SELinux mode: %s',
+                         'Executor', self._old_selinux_mode)
+            self.target.execute('setenforce ' + self._old_selinux_mode,
+                                as_root=True)
 
 ################################################################################
 # Workload Setup and Execution
