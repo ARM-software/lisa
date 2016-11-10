@@ -60,6 +60,12 @@ class EasTest(LisaTest):
             cls.target.write_value(
                 "/proc/sys/kernel/sched_is_big_little", 1, verify=False)
 
+        if SET_INITIAL_TASK_UTIL:
+            # This flag doesn't exist on all kernels, so don't worry if the file
+            # isn't present (hence verify=False)
+            cls.target.write_value(
+                "/proc/sys/kernel/sched_initial_task_util", 1024, verify=False)
+
     def _do_test_first_cpu(self, experiment, tasks):
         """Test that all tasks start on a big CPU"""
 
