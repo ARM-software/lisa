@@ -76,6 +76,12 @@ class IdleAnalysis(AnalysisModule):
         cpu_idle = cpu_idle.join(cpu_is_idle.to_frame(name='is_idle'),
                                  how='outer')
         cpu_idle.fillna(method='ffill', inplace=True)
+
+        # Extend the last cpu_idle event to the end of the time window under
+        # consideration
+        final_entry = pd.DataFrame([cpu_idle.iloc[-1]], index=[self._trace.x_max])
+        cpu_idle = cpu_idle.append(final_entry)
+
         idle_time = []
         for i in available_idles:
             idle_state = cpu_idle.state.apply(
