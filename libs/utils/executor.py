@@ -34,9 +34,6 @@ logging.basicConfig(
     level=logging.INFO,
     datefmt='%I:%M:%S')
 
-# Add support for Test Environment configuration
-from env import TestEnv
-
 # Add JSON parsing support
 from conf import JsonConf
 
@@ -49,7 +46,7 @@ Experiment = namedtuple('Experiment', ['wload_name', 'wload',
 
 class Executor():
 
-    def __init__(self, target_conf=None, tests_conf=None):
+    def __init__(self, test_env, tests_conf=None):
         """
         Tests Executor
 
@@ -101,8 +98,7 @@ class Executor():
             raise ValueError(
                     'Configuration error: missing \'wloads\' definitions')
 
-        # Setup devlib to access the configured target
-        self.te = TestEnv(target_conf, tests_conf)
+        self.te = test_env
         self.target = self.te.target
 
         self._iterations = self._tests_conf.get('iterations', 1)
