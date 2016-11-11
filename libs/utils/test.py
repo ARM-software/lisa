@@ -30,8 +30,14 @@ from executor import Executor
 class LisaTest(unittest.TestCase):
     """A base class for LISA defined tests"""
 
+    test_conf = None
+    """Override this with a dictionary or JSON path to configure the TestEnv"""
+
+    experiments_conf = None
+    """Override this with a dictionary to configure the Executor"""
+
     @classmethod
-    def _init(cls, conf, *args, **kwargs):
+    def _init(cls, *args, **kwargs):
         """
         Base class to run LISA test experiments
         """
@@ -42,9 +48,27 @@ class LisaTest(unittest.TestCase):
             cls.logger.setLevel(kwargs['loglevel'])
             kwargs.pop('loglevel')
 
-        cls.conf = conf
-
         cls._runExperiments()
+
+    @classmethod
+    def _getTestConf(cls):
+        if cls.test_conf is None:
+            raise NotImplementedError("Override `test_conf` attribute")
+        return cls.test_conf
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        """
+        Get the experiments_conf used to configure the Executor
+
+        This method receives the initialized TestEnv as a parameter, so
+        subclasses can override it to configure workloads or target confs in a
+        manner dependent on the target. If not overridden, just returns the
+        experiments_conf attribute.
+        """
+        if cls.experiments_conf is None:
+            raise NotImplementedError("Override `experiments_conf` attribute")
+        return cls.experiments_conf
 
     @classmethod
     def _runExperiments(cls):
@@ -53,9 +77,10 @@ class LisaTest(unittest.TestCase):
         """
 
         cls.logger.info("%14s - Setup tests execution engine...", "LisaTest")
-        test_env = TestEnv()
+        test_env = TestEnv(test_conf=cls._getTestConf())
 
-        cls.executor = Executor(test_env, cls.conf);
+        experiments_conf = cls._getExperimentsConf(test_env)
+        cls.executor = Executor(test_env, experiments_conf)
 
         # Alias executor objects to make less verbose tests code
         cls.te = cls.executor.te
