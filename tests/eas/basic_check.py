@@ -65,33 +65,16 @@ class BasicCheck_Tests(LisaTest):
         cls.env = TestEnv(test_conf=TEST_CONF)
         cls.target = cls.env.target
 
-    def test_CPUFreq(self):
-        CPUINFO_CPU_REGEX = re.compile(r'/sys/devices/system/cpu/cpu(?P<cpu>\d+?)/(?P<rest>.*)')
-        CPUFREQ_REGEX = re.compile(r'cpufreq/(?P<type>.*):(?P<values>.*)')
-        cpu_info = {}
-        contents = self.target.execute("grep -R .* /sys/devices/system/cpu/*")
-        for line in contents.splitlines():
-            if line.startswith("/sys/devices/system/cpu/cpu"):
-                match = CPUINFO_CPU_REGEX.search(line)
-                if match:
-                    cpu_num = match.group('cpu')
-                    if not cpu_num in cpu_info:
-                        cpu_info[cpu_num] = {}
-                    rest_of_line = match.group('rest')
-                    if rest_of_line.startswith('cpufreq/'):
-                        match = CPUFREQ_REGEX.search(rest_of_line)
-                        if match:
-                            if match.group('type').startswith('stats'):
-                                continue
-                            vals = match.group('values').split()
-                            if len(vals) == 1:
-                                vals = vals[0]
-                            cpu_info[cpu_num][match.group('type')] = vals
+    def test_sched_governor_available(self):
+        """
+        Check that the "sched" cpufreq governor is available on all CPUs
+        """
         fail_list = []
-        for cpu in sorted(cpu_info.keys()):
-            if not 'sched' in cpu_info[cpu]['scaling_available_governors']:
+        for cpu in self.target.list_online_cpus():
+            if 'sched' not in self.target.cpufreq.list_governors(cpu):
                 fail_list.append(cpu)
-        self.assertTrue(len(fail_list) == 0, msg="CPUs {} do not support sched CPUFreq governor".format(fail_list))
+        msg = "CPUs {} do not support sched cpufreq governor".format(fail_list)
+        self.assertTrue(len(fail_list) == 0, msg=msg)
 
     def test_KConf(self):
         """
