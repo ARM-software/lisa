@@ -320,7 +320,8 @@ class OffloadMigrationAndIdlePull(EasTest):
     @experiment_test
     def test_big_cpus_fully_loaded(self, experiment, tasks):
         """Offload Migration and Idle Pull: Big cpus are fully loaded as long as there are tasks left to run in the system"""
-        num_big_cpus = len(self.target.bl.bigs)
+        bigs = self.te.nrg_model.biggest_cpus
+        num_big_cpus = len(bigs)
 
         sched_assert = self.get_multi_assert(experiment)
 
@@ -328,9 +329,8 @@ class OffloadMigrationAndIdlePull(EasTest):
 
         # Window of time until the first migrator finishes
         window = (self.get_start_time(experiment), end_times[-num_big_cpus])
-        busy_time = sched_assert.getCPUBusyTime("cluster",
-                                            self.target.bl.bigs,
-                                            window=window, percent=True)
+        busy_time = sched_assert.getCPUBusyTime("cluster", bigs,
+                                                window=window, percent=True)
 
         msg = "Big cpus were not fully loaded while there were enough big tasks to fill them"
         self.assertGreater(busy_time, OFFLOAD_EXPECTED_BUSY_TIME_PCT, msg=msg)
@@ -340,8 +340,7 @@ class OffloadMigrationAndIdlePull(EasTest):
         for i in range(num_big_cpus-1):
             big_cpus_left = num_big_cpus - i - 1
             window = (end_times[-num_big_cpus+i], end_times[-num_big_cpus+i+1])
-            busy_time = sched_assert.getCPUBusyTime("cluster",
-                                                    self.target.bl.bigs,
+            busy_time = sched_assert.getCPUBusyTime("cluster", bigs,
                                                     window=window, percent=True)
 
             expected_busy_time = OFFLOAD_EXPECTED_BUSY_TIME_PCT * \
@@ -354,6 +353,7 @@ class OffloadMigrationAndIdlePull(EasTest):
     @experiment_test
     def test_little_cpus_run_tasks(self, experiment, tasks):
         """Offload Migration and Idle Pull: Little cpus run tasks while bigs are busy"""
+        littles = self.te.nrg_model.littlest_cpus
 
         num_offloaded_tasks = len(tasks) / 2
 
@@ -369,8 +369,7 @@ class OffloadMigrationAndIdlePull(EasTest):
 
         all_tasks_assert = self.get_multi_assert(experiment)
 
-        busy_time = all_tasks_assert.getCPUBusyTime("cluster",
-                                                    self.target.bl.littles,
+        busy_time = all_tasks_assert.getCPUBusyTime("cluster", littles,
                                                     window=window)
 
         window_len = window[1] - window[0]
@@ -392,7 +391,8 @@ class OffloadMigrationAndIdlePull(EasTest):
             sa = SchedAssert(experiment.out_dir, self.te.topology, execname=task)
             end_times = self.get_end_times(experiment)
             window = (0, end_times[task])
-            big_residency = sa.getResidency("cluster", self.target.bl.bigs,
+            big_residency = sa.getResidency("cluster",
+                                            self.te.nrg_model.biggest_cpus,
                                             window=window, percent=True)
 
             msg = "Task {} didn't run on a big cpu.".format(task)
@@ -412,7 +412,10 @@ class OffloadMigrationAndIdlePull(EasTest):
             sa = SchedAssert(experiment.out_dir, self.te.topology, execname=task)
 
             msg = "Task {} did not finish on a big cpu".format(task)
-            self.assertIn(sa.getLastCpu(), self.target.bl.bigs, msg=msg)
+
+            self.assertIn(sa.getLastCpu(),
+                          self.te.nrg_model.biggest_cpus,
+                          msg=msg)
 
 
 class WakeMigration(EasTest):
