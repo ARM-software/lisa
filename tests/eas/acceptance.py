@@ -42,17 +42,33 @@ SET_IS_BIG_LITTLE = True
 SET_INITIAL_TASK_UTIL = True
 OFFLOAD_MIGRATION_MIGRATOR_DELAY = 1
 
+energy_aware_conf = {
+    "tag" : "energy_aware",
+    "flags" : "ftrace",
+    "sched_features" : "ENERGY_AWARE",
+}
+
 class EasTest(LisaTest):
     """
     Base class for EAS tests
     """
 
+    test_conf = {
+        "ftrace" : {
+            "events" : [
+                "sched_overutilized",
+                "sched_energy_diff",
+                "sched_load_avg_task",
+                "sched_load_avg_cpu",
+                "sched_migrate_task",
+                "sched_switch"
+            ],
+        },
+    }
+
     @classmethod
     def setUpClass(cls, *args, **kwargs):
-        conf_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                 cls.conf_basename)
-
-        super(EasTest, cls)._init(conf_file, *args, **kwargs)
+        super(EasTest, cls)._init(*args, **kwargs)
 
     @classmethod
     def _experimentsInit(cls, *args, **kwargs):
@@ -100,7 +116,31 @@ class ForkMigration(EasTest):
     The threads start on a big core.
     """
 
-    conf_basename = "acceptance_fork_migration.config"
+    experiments_conf = {
+        "wloads" : {
+            # Create N 100% tasks and M 10% tasks which run in parallel, where N
+            # is the number of big CPUs and M is the number of LITTLE CPUs.
+            "fmig" : {
+                "type" : "rt-app",
+                "conf" : {
+                    "class" : "profile",
+                    "params" : {
+                        "small" : {
+                            "kind" : "Periodic",
+                            "params" : {
+                                "duty_cycle_pct": 10,
+                                "duration_s": WORKLOAD_DURATION_S,
+                                "period_ms": WORKLOAD_PERIOD_MS,
+                            },
+                            "prefix" : "small",
+                            "tasks" : "big",
+                        },
+                    },
+                },
+            },
+        },
+        "confs" : [energy_aware_conf]
+    }
 
     @experiment_test
     def test_first_cpu(self, experiment, tasks):
