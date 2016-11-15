@@ -99,17 +99,16 @@ class BasicCheck_Tests(LisaTest):
         """
         kernel_config = self.target.config
         necessary_configs = {
-                            "CONFIG_CPU_FREQ_GOV_SCHED" : "sched governor present",
-                            "CONFIG_CPU_FREQ_DEFAULT_GOV_SCHED" : "sched governor default",
-                            "CONFIG_SCHED_TUNE" : "SchedTune present",
-                            "CONFIG_CGROUPS" : "CGroups enabled",
-                            "CONFIG_CGROUP_SCHEDTUNE" : "SchedTune CGroup Controller present",
-                            "CONFIG_SMP" : "SMP enabled",
-                            "CONFIG_SCHED_MC" : "MC-level scheduler domains",
-                            "CONFIG_CPU_FREQ" : "CPUFreq enabled",
-                            "CONFIG_CPU_IDLE" : "CPUIdle enabled",
-                            "CONFIG_SCHED_DEBUG" : "Scheduler Debugging enabled",
-                            #"CONFIG_SCHED_WALT" : "WALT Load Tracking",
+            "CONFIG_CPU_FREQ_GOV_SCHED" : "sched governor present",
+            "CONFIG_SCHED_TUNE" : "SchedTune present",
+            "CONFIG_CGROUPS" : "CGroups enabled",
+            "CONFIG_CGROUP_SCHEDTUNE" : "SchedTune CGroup Controller present",
+            "CONFIG_SMP" : "SMP enabled",
+            "CONFIG_SCHED_MC" : "MC-level scheduler domains",
+            "CONFIG_CPU_FREQ" : "CPUFreq enabled",
+            "CONFIG_CPU_IDLE" : "CPUIdle enabled",
+            "CONFIG_SCHED_DEBUG" : "Scheduler Debugging enabled",
+            #"CONFIG_SCHED_WALT" : "WALT Load Tracking",
         }
         fail_list = []
         message = ""
