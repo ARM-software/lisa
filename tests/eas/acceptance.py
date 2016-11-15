@@ -152,7 +152,7 @@ class SmallTaskPacking(EasTest):
     Goal
     ====
 
-    Many small tasks are packed in little cpus
+    Many small tasks are packed on a single cluster with the lowest capacity
 
     Detailed Description
     ====================
@@ -164,7 +164,7 @@ class SmallTaskPacking(EasTest):
     Expected Behaviour
     ==================
 
-    All tasks run on little cpus.
+    All tasks run on little cpus and are packed into a single cluster.
     """
 
     experiments_conf = {
@@ -193,20 +193,24 @@ class SmallTaskPacking(EasTest):
 
     @experiment_test
     def test_small_task_residency(self, experiment, tasks):
-        "Small Task Packing: Test Residency (Little Cluster)"
+        "Small Task Packing: Test Residency"
 
         sched_assert = self.get_multi_assert(experiment)
 
-        self.assertTrue(
-            sched_assert.assertResidency(
-                "cluster",
-                self.target.bl.littles,
-                EXPECTED_RESIDENCY_PCT,
-                operator.ge,
-                percent=True,
-                rank=len(tasks)),
-            msg="Not all tasks are running on LITTLE cores for at least {}% of their execution time"\
-                    .format(EXPECTED_RESIDENCY_PCT))
+        littlest_cpus = self.te.nrg_model.littlest_cpus
+        packed_onto_cluster = []
+
+        for cpus in self.te.topology.get_level("cluster"):
+            if all(c in littlest_cpus for c in cpus):
+                if sched_assert.assertResidency(
+                        "cluster", cpus,
+                        EXPECTED_RESIDENCY_PCT, operator.ge,
+                        percent=True, rank=len(tasks)):
+                    return
+
+        msg = "Not all tasks ran on low-capacity cluster for {}% of their time"\
+              .format(EXPECTED_RESIDENCY_PCT)
+        raise AssertionError(msg)
 
 class OffloadMigrationAndIdlePull(EasTest):
     """
