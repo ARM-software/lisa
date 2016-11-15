@@ -23,6 +23,7 @@ import unittest
 from unittest import SkipTest
 
 from bart.sched.SchedAssert import SchedAssert
+from bart.sched.SchedMultiAssert import SchedMultiAssert
 
 from devlib.target import TargetError
 
@@ -99,7 +100,8 @@ class EasTest(LisaTest):
     def _do_test_first_cpu(self, experiment, tasks):
         """Test that all tasks start on a big CPU"""
 
-        sched_assert = self.get_multi_assert(experiment)
+        sched_assert = SchedMultiAssert(
+            experiment.out_dir, self.te.topology, tasks)
 
         self.assertTrue(
             sched_assert.assertFirstCpu(
@@ -313,7 +315,7 @@ class OffloadMigrationAndIdlePull(EasTest):
     @experiment_test
     def test_first_cpu(self, experiment, tasks):
         """Offload Migration and Idle Pull: Test First CPU"""
-        self._do_test_first_cpu(experiment, tasks)
+        self._do_test_first_cpu(experiment, [t for t in tasks if "early" in t])
 
     @experiment_test
     def test_big_cpus_fully_loaded(self, experiment, tasks):
