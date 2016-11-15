@@ -20,6 +20,7 @@ import operator
 import os
 import trappy
 import unittest
+from unittest import SkipTest
 
 from bart.sched.SchedAssert import SchedAssert
 
@@ -66,9 +67,18 @@ class EasTest(LisaTest):
         },
     }
 
+    # Set to true to run a test only on heterogeneous systems
+    skip_on_smp = False
+
     @classmethod
     def setUpClass(cls, *args, **kwargs):
         super(EasTest, cls)._init(*args, **kwargs)
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        if cls.skip_on_smp and not test_env.nrg_model.is_heterogeneous:
+            raise SkipTest("Test not required on symmetric systems")
+        return super(EasTest, cls)._getExperimentsConf(test_env)
 
     @classmethod
     def _experimentsInit(cls, *args, **kwargs):
@@ -115,6 +125,8 @@ class ForkMigration(EasTest):
 
     The threads start on a big core.
     """
+
+    skip_on_smp = True
 
     experiments_conf = {
         "wloads" : {
@@ -260,6 +272,8 @@ class OffloadMigrationAndIdlePull(EasTest):
       * All tasks are finished off in a big cpu.
 
     """
+
+    skip_on_smp = True
 
     experiments_conf = {
         "wloads" : {
@@ -422,6 +436,8 @@ class WakeMigration(EasTest):
     The tasks should run on the litlle cpus when they are small and in
     the big cpus when they are big.
     """
+
+    skip_on_smp = True
 
     experiments_conf = {
         "wloads" : {
