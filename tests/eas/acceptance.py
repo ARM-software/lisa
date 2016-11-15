@@ -419,7 +419,30 @@ class WakeMigration(EasTest):
     the big cpus when they are big.
     """
 
-    conf_basename = "acceptance_wake_migration.config"
+    experiments_conf = {
+        "wloads" : {
+            "wake_migration" : {
+                "type" : "rt-app",
+                "conf" : {
+                    "class" : "profile",
+                    "params" : {
+                        "wmig" : {
+                            "kind" : "Step",
+                            "params" : {
+                                "start_pct": STEP_LOW_DCYCLE,
+                                "end_pct": STEP_HIGH_DCYCLE,
+                                "time_s": WORKLOAD_DURATION_S,
+                                "loops": 2
+                            },
+                            # Create one task for each big cpu
+                            "tasks" : "big",
+                        },
+                    },
+                },
+            },
+        },
+        "confs" : [energy_aware_conf]
+    }
 
     @experiment_test
     def test_first_cpu(self, experiment, tasks):
