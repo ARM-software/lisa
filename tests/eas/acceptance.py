@@ -28,15 +28,19 @@ from devlib.target import TargetError
 from env import TestEnv
 from test import LisaTest, experiment_test
 
-# Read the config file and update the globals
-CONF_FILE = os.path.join(
-    os.path.dirname(
-        os.path.abspath(__file__)),
-    "acceptance.config")
-
-with open(CONF_FILE, "r") as fh:
-    conf_vars = json.load(fh)
-    globals().update(conf_vars)
+# Global test configuration parameters
+WORKLOAD_DURATION_S = 5
+WORKLOAD_PERIOD_MS =  10
+SWITCH_WINDOW_HALF = 0.5
+SMALL_DCYCLE = 10
+BIG_DCYCLE = 100
+STEP_HIGH_DCYCLE = 50
+STEP_LOW_DCYCLE = 10
+EXPECTED_RESIDENCY_PCT = 85
+OFFLOAD_EXPECTED_BUSY_TIME_PCT = 97
+SET_IS_BIG_LITTLE = True
+SET_INITIAL_TASK_UTIL = True
+OFFLOAD_MIGRATION_MIGRATOR_DELAY = 1
 
 class EasTest(LisaTest):
     """
