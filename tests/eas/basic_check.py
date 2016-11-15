@@ -245,15 +245,10 @@ class BasicCheck_Tests(LisaTest):
 
         :returns: float - performance score
         """
-        # TODO use on_cpus
-        taskset_path = "{}/{}".format(self.target.executables_directory,
-                                      "taskset")
-        sysbench_path = "{}/{}".format(self.target.executables_directory,
-                                       "sysbench")
-        bench_out = self.target.execute(
-            "{} {} {} --test=cpu --num-threads=1 --max-time={} run"
-            .format(taskset_path, 2**cpu, sysbench_path, duration)
-        )
+        args = "--test=cpu --num-threads=1 --max-time={} run".format(duration)
+
+        bench_out = self.target.invoke(self.sysbench, args=args, on_cpus=[cpu])
+
         match = re.search(r'(total number of events:\s*)([\d.]*)', bench_out)
         return float(match.group(2))
 
@@ -280,6 +275,9 @@ class BasicCheck_Tests(LisaTest):
         return result[frequencies[0]] < result[frequencies[-1]]
 
     def test_WorkThroughput(self):
+        host_path = "tools/{}/sysbench".format(self.target.abi)
+        self.sysbench = self.target.install_if_needed(host_path)
+
         failed_cpus = []
         for cpulist in self.env.topology.get_level('cpu'):
             cpu = cpulist[0]
