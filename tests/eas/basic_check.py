@@ -24,6 +24,32 @@ import StringIO
 from env import TestEnv
 from test import LisaTest
 
+"""
+Goal
+====
+
+Check that the configuration of a given device is suitable
+for running EAS.
+
+Detailed Description
+====================
+
+This test reads the kernel configuration and digs around in sysfs to
+check the following attributes are true:
+    * the minimum set of required config options are enabled
+    * all CPUs have access to the 'sched' CPUFreq governor
+    * SchedTune CGroup Controller is present and mounted
+    * runtime sysctl values are configured as we would expect
+    * energy aware scheduling is present and enabled
+
+Expected Behaviour
+==================
+
+All required config options are set, sched governor is present,
+SchedTune is mounted, energy_aware_scheduler sched feature is on
+
+"""
+
 TEST_CONF = {
     "modules": ["cpufreq"],
     "results_dir": "BasicCheck",
@@ -33,38 +59,14 @@ TEST_CONF = {
     ]
 }
 
-class BasicCheck_Tests(LisaTest):
-    """
-    Goal
-    ====
-
-    Check that the configuration of a given device is suitable
-    for running EAS.
-
-    Detailed Description
-    ====================
-
-    This test reads the kernel configuration and digs around in sysfs to
-    check the following attributes are true:
-      * the minimum set of required config options are enabled
-      * all CPUs have access to the 'sched' CPUFreq governor
-      * SchedTune CGroup Controller is present and mounted
-      * runtime sysctl values are configured as we would expect
-      * energy aware scheduling is present and enabled
-
-    Expected Behaviour
-    ==================
-
-    All required config options are set, sched governor is present,
-    SchedTune is mounted, energy_aware_scheduler sched feature is on
-
-    """
+class BasicCheckTest(LisaTest):
     @classmethod
     def setUpClass(cls):
-        cls.params = {}
         cls.env = TestEnv(test_conf=TEST_CONF)
         cls.target = cls.env.target
 
+
+class TestSchedGovernor(BasicCheckTest):
     def test_sched_governor_available(self):
         """
         Check that the "sched" cpufreq governor is available on all CPUs
@@ -76,6 +78,7 @@ class BasicCheck_Tests(LisaTest):
         msg = "CPUs {} do not support sched cpufreq governor".format(fail_list)
         self.assertTrue(len(fail_list) == 0, msg=msg)
 
+class TestKernelConfig(BasicCheckTest):
     def test_kernel_config(self):
         """
         Check that the kernel config has the basic requirements for EAS
@@ -105,9 +108,10 @@ class BasicCheck_Tests(LisaTest):
                     cfg, necessary_configs[cfg])
         self.assertTrue(len(fail_list) == 0, msg=message)
 
-    def test_schedtune(self):
+class TestSchedTune(BasicCheckTest):
+    def test_schedtune_configured(self):
         """
-        Check that SchedTune is present on the target
+        Check that SchedTune is present and configured on the target
         """
         mount_output = self.target.execute('mount')
         mount_location = ''
@@ -147,7 +151,11 @@ class BasicCheck_Tests(LisaTest):
         self.assertTrue(groups_with_nonzero_boost != 0,
                         "No SchedTune groups have a boost configured")
 
+class TestRuntimeConfig(BasicCheckTest):
     def test_runtime_config(self):
+        """
+        Check that the correct sysctl, debugfs, and sysfs flags are set
+        """
         # do we want to check these values are as expected?
         #runtime_files = [
         #                 "sched_cstate_aware",
@@ -174,13 +182,15 @@ class BasicCheck_Tests(LisaTest):
         self.assertFalse('NO_ENERGY_AWARE' in sched_features,
                          "Energy Aware Scheduling is not enabled")
 
-    def get_freq_residencies(self):
+
+class TestCpufreqAccounting(BasicCheckTest):
+    def _get_freq_residencies(self):
         state_file = '/sys/devices/system/cpu/cpufreq/all_time_in_state'
         result = self.target.read_value(state_file)
         buf = StringIO.StringIO(result)
         return pandas.read_table(buf, delim_whitespace=True)
 
-    def check_freq_accounting(self, cpu):
+    def _check_freq_accounting(self, cpu):
         seconds = 1.0
         margin = 0.2
         frequencies = self.target.cpufreq.list_frequencies(cpu)
@@ -193,10 +203,10 @@ class BasicCheck_Tests(LisaTest):
         self.target.cpufreq.set_governor(cpu, "userspace")
         # Set max freq
         self.target.cpufreq.set_frequency(cpu, frequencies[-1])
-        pre_change_residencies = self.get_freq_residencies()
+        pre_change_residencies = self._get_freq_residencies()
         self.target.cpufreq.set_frequency(cpu, frequencies[0])
         time.sleep(seconds)
-        post_change_residencies = self.get_freq_residencies()
+        post_change_residencies = self._get_freq_residencies()
         # Restore governor
         self.target.cpufreq.set_governor(cpu, original_governor)
         if original_freq:
@@ -228,14 +238,16 @@ class BasicCheck_Tests(LisaTest):
         failed_cpus = []
         for cpulist in self.env.topology.get_level('cpu'):
             cpu = cpulist[0]
-            if not self.check_freq_accounting(cpu):
+            if not self._check_freq_accounting(cpu):
                 failed_cpus.append(cpu)
 
         msg="Frequency Accounting did not change with CPU Freq on CPUs: {}"\
             .format(failed_cpus)
         self.assertFalse(len(failed_cpus), msg=msg)
 
-    def run_sysbench_work(self, cpu, duration):
+
+class TestWorkThoughput(BasicCheckTest):
+    def _run_sysbench_work(self, cpu, duration):
         """
         Run benchmark using 1 thread on a given CPU.
 
@@ -252,7 +264,7 @@ class BasicCheck_Tests(LisaTest):
         match = re.search(r'(total number of events:\s*)([\d.]*)', bench_out)
         return float(match.group(2))
 
-    def check_work_throughput(self, cpu):
+    def _check_work_throughput(self, cpu):
         seconds = 1.0
         margin = 0.2
         frequencies = self.target.cpufreq.list_frequencies(cpu)
@@ -266,7 +278,7 @@ class BasicCheck_Tests(LisaTest):
         result = {}
         for freq in frequencies:
             self.target.cpufreq.set_frequency(cpu, freq)
-            result[freq] = self.run_sysbench_work(cpu, seconds)
+            result[freq] = self._run_sysbench_work(cpu, seconds)
         # restore governor
         self.target.cpufreq.set_governor(cpu, original_governor)
         if original_freq:
@@ -275,13 +287,19 @@ class BasicCheck_Tests(LisaTest):
         return result[frequencies[0]] < result[frequencies[-1]]
 
     def test_work_throughput(self):
+        """
+        Check that compute throughput increases with CPU frequency
+
+        That is, check that cpufreq really works in that setting a higher
+        frequency provides greater CPU performance
+        """
         host_path = "tools/{}/sysbench".format(self.target.abi)
         self.sysbench = self.target.install_if_needed(host_path)
 
         failed_cpus = []
         for cpulist in self.env.topology.get_level('cpu'):
             cpu = cpulist[0]
-            if not self.check_work_throughput(cpu):
+            if not self._check_work_throughput(cpu):
                 failed_cpus.append(cpu)
         msg="Work done did not scale with CPU Freq on CPUs: {}"\
             .format(failed_cpus)
