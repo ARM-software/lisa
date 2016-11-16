@@ -21,6 +21,8 @@ import re
 import pandas
 import StringIO
 
+from unittest import SkipTest
+
 from env import TestEnv
 from test import LisaTest
 
@@ -84,7 +86,10 @@ class TestKernelConfig(BasicCheckTest):
         Check that the kernel config has the basic requirements for EAS
         """
         kernel_config = self.target.config
+        if not kernel_config.text:
+            raise SkipTest("Kernel config not available on target")
         necessary_configs = {
+            "CONFIG_CPU_FREQ_STAT": "cpufreq stats",
             "CONFIG_CPU_FREQ_GOV_SCHED" : "sched governor present",
             "CONFIG_SCHED_TUNE" : "SchedTune present",
             "CONFIG_CGROUPS" : "CGroups enabled",
