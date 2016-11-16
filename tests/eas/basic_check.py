@@ -209,6 +209,8 @@ class TestCpufreqAccounting(BasicCheckTest):
         # Set max freq
         self.target.cpufreq.set_frequency(cpu, frequencies[-1])
         pre_change_residencies = self._get_freq_residencies()
+        if pre_change_residencies.empty:
+            raise SkipTest("Couldn't find cpufreq residency values")
         self.target.cpufreq.set_frequency(cpu, frequencies[0])
         time.sleep(seconds)
         post_change_residencies = self._get_freq_residencies()
