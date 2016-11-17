@@ -72,6 +72,10 @@ class Executor():
         - <wload>   : the identified of one of the specified workload
         - <run_id>  : the progressive execution number from 1 up to the
                       specified iterations
+
+        After the workloads have been run, the Executor object's `experiments`
+        attribute is a list of Experiment objects. The `out_dir` attribute of
+        these objects can be used to find the results of the experiment.
         """
 
         # Initialize globals
