@@ -55,7 +55,7 @@ class LisaTest(unittest.TestCase):
         cls.logger.info("%14s - Setup tests execution engine...", "LisaTest")
         test_env = TestEnv()
 
-        cls.executor = Executor(test_env, tests_conf=cls.conf);
+        cls.executor = Executor(test_env, cls.conf);
 
         # Alias executor objects to make less verbose tests code
         cls.te = cls.executor.te
