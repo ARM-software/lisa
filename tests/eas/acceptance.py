@@ -167,7 +167,24 @@ class SmallTaskPacking(EasTest):
     All tasks run on little cpus.
     """
 
-    conf_basename = "acceptance_small_task_packing.config"
+    experiments_conf = {
+        "wloads" : {
+            "small_tasks" : {
+                "type" : "rt-app",
+                "conf" : {
+                    "class" : "periodic",
+                    "params" : {
+                        "duty_cycle_pct": 10,
+                        "duration_s": WORKLOAD_DURATION_S,
+                        "period_ms": WORKLOAD_PERIOD_MS,
+                    },
+                    # Create one task for each CPU
+                    "tasks" : "cpus",
+                },
+            },
+        },
+        "confs" : [energy_aware_conf]
+    }
 
     @experiment_test
     def test_first_cpu(self, experiment, tasks):
