@@ -29,6 +29,8 @@ import devlib
 
 import platforms.juno_energy
 import platforms.hikey_energy
+import platforms.pixel_energy
+
 from wlgen import RTA
 from energy import EnergyMeter
 from conf import JsonConf
@@ -386,6 +388,12 @@ class TestEnv(ShareState):
             self.nrg_model = platforms.hikey_energy.hikey_energy
             self.__modules = [ "cpufreq", "cpuidle" ]
             platform = Platform(model='hikey')
+
+        # Initialize Pixel phone
+        elif self.conf['board'].upper() == 'PIXEL':
+            self.nrg_model = platforms.pixel_energy.pixel_energy
+            self.__modules = ['hwmon', 'cpufreq']
+            platform = Platform(model='pixel')
 
         elif self.conf['board'] != 'UNKNOWN':
             # Initilize from platform descriptor (if available)
