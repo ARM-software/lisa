@@ -428,11 +428,11 @@ class Trace(object):
         :param pid_key: The name of the dataframe columns containing task PIDs
         :type pid_key: str
         """
-        if dataframe is None:
-            return self.tasks
-        df = dataframe
         if task_names is None:
             task_names = self.tasks.keys()
+        if dataframe is None:
+            return {k: v for k, v in  self.tasks.iteritems() if k in task_names}
+        df = dataframe
         logging.debug("Lookup dataset for tasks...")
         for tname in task_names:
             logging.debug("Lookup for task [%s]...", tname)
