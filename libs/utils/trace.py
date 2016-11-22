@@ -52,8 +52,9 @@ class Trace(object):
     :param events: events to be parsed (everything in the trace by default)
     :type events: list(str)
 
-    :param tasks: filter data for the specified tasks only
-    :type tasks: list(str)
+    :param tasks: filter data for the specified tasks only. If None (default),
+        use data for all tasks found in the trace.
+    :type tasks: list(str) or NoneType
 
     :param window: time window to consider when parsing the trace
     :type window: tuple(int, int)
@@ -292,11 +293,13 @@ class Trace(object):
         """
         Try to load tasks names using one of the supported events.
 
-        :param tasks: list of task names
-        :type tasks: list(str)
+        :param tasks: list of task names. If None, load all tasks found.
+        :type tasks: list(str) or NoneType
         """
         def load(tasks, event, name_key, pid_key):
             df = self._dfg_trace_event(event)
+            if tasks is None:
+                tasks = df[name_key].unique()
             self.getTasks(df, tasks, name_key=name_key, pid_key=pid_key)
             self._scanTasks(df, name_key=name_key, pid_key=pid_key)
 
@@ -410,13 +413,12 @@ class Trace(object):
         two columns reporting the task name and the task PID. The default
         values of this colums could be specified using the provided parameters.
 
-        :param dataframe: A Pandas datafram containing at least 'pid' and
-            'task name' columns. If None, the previously filtered PIDs are
-            returned.
+        :param dataframe: A Pandas dataframe containing at least 'name_key' and
+            'pid_key' columns. If None, the all PIDs are returned.
         :type dataframe: :mod:`pandas.DataFrame`
 
-        :param task_names: The list of tasks to get the PID of (by default the
-            workload defined tasks)
+        :param task_names: The list of tasks to get the PID of (default: all
+            tasks)
         :type task_names: list(str)
 
         :param name_key: The name of the dataframe columns containing task
