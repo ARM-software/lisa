@@ -110,7 +110,7 @@ class Workload(object):
         mask = 0x0
         for cpu in (cpus or self.target.list_online_cpus()):
             mask |= (1 << cpu)
-        # self._log.debug('0x{0:X}'.format(mask))
+        self._log.debug('CPUs mask for {%s}: 0x{0:X}'.format(cpus, mask))
         return mask
 
     def conf(self,

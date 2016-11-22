@@ -372,33 +372,33 @@ class RTAppPerf(object):
         perf = np.multiply(perf, 100)
         self.prf['perf_avg'] = np.mean(perf)
         self.prf['perf_std'] = np.std(perf)
-        # self._log.debug('perf [%s]: %6.2f,%6.2f',
-        #                 self.name, self.prf['perf_mean'],
-        #                 self.prf['perf_std'])
+        self._log.debug('perf [%s]: %6.2f,%6.2f',
+                        self.name, self.prf['perf_avg'],
+                        self.prf['perf_std'])
 
         # Negative slacks
         nslacks = self.data[:,RTAPP_COL_SLACK]
         nslacks = nslacks[nslacks < 0]
-        # self._log.debug('Negative Slacks: %s', nslacks)
+        self._log.debug('Negative slacks: %s', nslacks)
         self.prf['slack_sum'] = -nslacks.sum()
-        # self._log.debug('Negative slack [%s] sum: %6.2f',
-        #                 self.name, self.prf['slack_sum'])
+        self._log.debug('Negative slack [%s] sum: %6.2f',
+                        self.name, self.prf['slack_sum'])
 
         # Slack over run-time
         self.prf['run_sum'] = np.sum(self.data[:,RTAPP_COL_RUN])
         self.prf['slack_pct'] = 100 * self.prf['slack_sum'] / self.prf['run_sum']
-        # self._log.debug('SlackPct [%s]: %6.2f %%', self.name, self.slack_pct)
+        self._log.debug('SlackPct [%s]: %6.2f %%', self.name, self.slack_pct)
 
         if nrg is None:
             return
 
         # Computing EDP
         self.prf['edp1'] = nrg.total * math.pow(self.prf['run_sum'], 1)
-        # self._log.debug('EDP1 [%s]: {%6.2f}', self.name, self.prf['edp1'])
+        self._log.debug('EDP1 [%s]: {%6.2f}', self.name, self.prf['edp1'])
         self.prf['edp2'] = nrg.total * math.pow(self.prf['run_sum'], 2)
-        # self._log.debug('EDP2 [%s]: %6.2f', self.name, self.prf['edp2'])
+        self._log.debug('EDP2 [%s]: %6.2f', self.name, self.prf['edp2'])
         self.prf['edp3'] = nrg.total * math.pow(self.prf['run_sum'], 3)
-        # self._log.debug('EDP3 [%s]: %6.2f', self.name, self.prf['edp3'])
+        self._log.debug('EDP3 [%s]: %6.2f', self.name, self.prf['edp3'])
 
 
 # Columns of the per-task rt-app log file
