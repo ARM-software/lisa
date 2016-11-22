@@ -28,9 +28,6 @@ from devlib.utils.misc import memoized
 from analysis_module import AnalysisModule
 from trace import NON_IDLE_STATE, ResidencyTime, ResidencyData
 
-# Configure logging
-import logging
-
 
 class FrequencyAnalysis(AnalysisModule):
     """
@@ -99,7 +96,7 @@ class FrequencyAnalysis(AnalysisModule):
                     self._platform['clusters'][cluster.lower()]
                 )
             except KeyError:
-                logging.warn(
+                self._log.warning(
                     'Platform descriptor has not a cluster named [%s], '
                     'plot disabled!', cluster
                 )
@@ -127,7 +124,7 @@ class FrequencyAnalysis(AnalysisModule):
         :type title: str
         """
         if not self._trace.hasEvents('cpu_frequency'):
-            logging.warn('Events [cpu_frequency] not found, plot DISABLED!')
+            self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
             return
         df = self._dfg_trace_event('cpu_frequency')
 
@@ -183,7 +180,7 @@ class FrequencyAnalysis(AnalysisModule):
             bfreq['frequency'].plot(style=['r-'], ax=axes,
                                     drawstyle='steps-post', alpha=0.4)
         else:
-            logging.warn('NO big CPUs frequency events to plot')
+            self._log.warning('NO big CPUs frequency events to plot')
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
         axes.set_ylabel('MHz')
         axes.grid(True)
@@ -203,7 +200,7 @@ class FrequencyAnalysis(AnalysisModule):
             lfreq['frequency'].plot(style=['b-'], ax=axes,
                                     drawstyle='steps-post', alpha=0.4)
         else:
-            logging.warn('NO LITTLE CPUs frequency events to plot')
+            self._log.warning('NO LITTLE CPUs frequency events to plot')
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
         axes.set_ylabel('MHz')
         axes.grid(True)
@@ -214,10 +211,10 @@ class FrequencyAnalysis(AnalysisModule):
                   .format(self._trace.plots_dir, self._trace.plots_prefix)
         pl.savefig(figname, bbox_inches='tight')
 
-        logging.info('LITTLE cluster average frequency: %.3f GHz',
-                     avg_lfreq/1e3)
-        logging.info('big    cluster average frequency: %.3f GHz',
-                     avg_bfreq/1e3)
+        self._log.info('LITTLE cluster average frequency: %.3f GHz',
+                       avg_lfreq/1e3)
+        self._log.info('big    cluster average frequency: %.3f GHz',
+                       avg_bfreq/1e3)
 
         return (avg_lfreq/1e3, avg_bfreq/1e3)
 
@@ -241,10 +238,10 @@ class FrequencyAnalysis(AnalysisModule):
         :type active: bool
         """
         if not self._trace.hasEvents('cpu_frequency'):
-            logging.warn('Events [cpu_frequency] not found, plot DISABLED!')
+            self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
             return
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, plot DISABLED!')
+            self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
             return
 
         if cpus is None:
@@ -297,17 +294,17 @@ class FrequencyAnalysis(AnalysisModule):
         :type active: bool
         """
         if not self._trace.hasEvents('cpu_frequency'):
-            logging.warn('Events [cpu_frequency] not found, plot DISABLED!')
+            self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
             return
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, plot DISABLED!')
+            self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
             return
 
         # Assumption: all CPUs in a cluster run at the same frequency, i.e. the
         # frequency is scaled per-cluster not per-CPU. Hence, we can limit the
         # cluster frequencies data to a single CPU
         if not self._trace.freq_coherency:
-            logging.warn('Cluster frequency is not coherent, plot DISABLED!')
+            self._log.warning('Cluster frequency is not coherent, plot DISABLED!')
             return
 
         # Sanitize clusters
@@ -349,12 +346,12 @@ class FrequencyAnalysis(AnalysisModule):
             dataframes
         """
         if not self._trace.hasEvents('cpu_frequency'):
-            logging.warn('Events [cpu_frequency] not found, '
-                         'frequency residency computation not possible!')
+            self._log.warning('Events [cpu_frequency] not found, '
+                              'frequency residency computation not possible!')
             return None
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '
-                         'frequency residency computation not possible!')
+            self._log.warning('Events [cpu_idle] not found, '
+                              'frequency residency computation not possible!')
             return None
 
         _cluster = listify(cluster)
@@ -365,8 +362,8 @@ class FrequencyAnalysis(AnalysisModule):
         # cluster frequencies data to a single CPU. This assumption is verified
         # by the Trace module when parsing the trace.
         if len(_cluster) > 1 and not self._trace.freq_coherency:
-            logging.warn('Cluster frequency is NOT coherent,'
-                         'cannot compute residency!')
+            self._log.warning('Cluster frequency is NOT coherent,'
+                              'cannot compute residency!')
             return None
         cluster_freqs = freq_df[freq_df.cpu == _cluster[0]]
 

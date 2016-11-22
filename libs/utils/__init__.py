@@ -21,7 +21,7 @@ from env import TestEnv
 from executor import Executor
 
 from energy import EnergyMeter
-from conf import JsonConf
+from conf import LisaLogging, JsonConf
 
 from trace import Trace
 from perf_analysis import PerfAnalysis

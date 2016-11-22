@@ -18,16 +18,11 @@
 from bart.sched.SchedMultiAssert import SchedMultiAssert
 from env import TestEnv
 import json
-import logging
 import time
 import trappy
 import unittest
 import os
 from wlgen import Periodic, RTA
-
-# Configure logging to print something while the test runs
-reload(logging)
-logging.basicConfig(level=logging.INFO)
 
 # Read the config file and update the globals
 CONF_FILE = os.path.join(

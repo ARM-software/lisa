@@ -17,11 +17,11 @@
 
 import re
 import os
+import logging
 
 from android import Screen, Workload, System
 from time import sleep
 
-import logging
 
 class YouTube(Workload):
     """
@@ -32,14 +32,10 @@ class YouTube(Workload):
     package = 'com.google.android.youtube'
     action = 'android.intent.action.VIEW'
 
-    # Setup logger
-    logger = logging.getLogger('YouTube')
-    logger.setLevel(logging.INFO)
-
-
     def __init__(self, test_env):
         super(YouTube, self).__init__(test_env)
-        self.logger.debug('%14s - Workload created', 'YouTube')
+        self._log = logging.getLogger('YouTube')
+        self._log.debug('Workload created')
 
     def run(self, exp_dir, video_url, video_duration_s, collect=''):
 
@@ -72,7 +68,7 @@ class YouTube(Workload):
             self.te.emeter.reset()
 
         # Wait until the end of the video
-        self.logger.info("Play video for %d [s]", video_duration_s)
+        self._log.info('Play video for %d [s]', video_duration_s)
         sleep(video_duration_s)
 
         # Stop energy collection

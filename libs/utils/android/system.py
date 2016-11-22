@@ -16,6 +16,7 @@
 #
 
 import logging
+
 from devlib.utils.android import adb_command
 from devlib import TargetError
 
@@ -42,7 +43,8 @@ class System(object):
                            '--ez state {}'\
                            .format(ap_state), as_root=True)
         except TargetError:
-            target.logger.warning("Failed to toggle airplane mode, permission denied.")
+            log = logging.getLogger('System')
+            log.warning('Failed to toggle airplane mode, permission denied.')
 
     @staticmethod
     def start_app(target, apk_name):

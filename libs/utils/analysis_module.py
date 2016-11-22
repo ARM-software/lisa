@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+import logging
+
 """ Helper module for Analysis classes """
 
 
@@ -40,5 +42,7 @@ class AnalysisModule(object):
         self._little_cpus = self._platform['clusters']['little']
 
         trace._registerDataFrameGetters(self)
+
+        self._log = logging.getLogger('Analysis')
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

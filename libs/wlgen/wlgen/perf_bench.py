@@ -29,6 +29,7 @@ class PerfMessaging(Workload):
                  target,
                  name):
 
+        # Setup logging
         self.logger = logging.getLogger('perf_bench')
 
         # TODO: Assume perf is pre-installed on target

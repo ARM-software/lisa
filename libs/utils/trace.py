@@ -25,14 +25,13 @@ import trappy
 import json
 import warnings
 import operator
+import logging
 
 from analysis_register import AnalysisRegister
 from collections import namedtuple
 from devlib.utils.misc import memoized
 from trappy.utils import listify
 
-# Configure logging
-import logging
 
 NON_IDLE_STATE = 4294967295
 ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
@@ -118,6 +117,9 @@ class Trace(object):
         # Folder containing all trace data
         self.data_dir = None
 
+        # Setup logging
+        self._log = logging.getLogger('Trace')
+
         # Folder containing trace
         if not os.path.isdir(data_dir):
             self.data_dir = os.path.dirname(data_dir)
@@ -157,13 +159,13 @@ class Trace(object):
         :param module: module to which the function is added
         :type module: class
         """
-        logging.debug("Registering [%s] local data frames", module)
+        self._log.debug('Registering [%s] local data frames', module)
         for func in dir(module):
             if not func.startswith('_dfg_'):
                 continue
             dfg_name = func.replace('_dfg_', '')
             dfg_func = getattr(module, func)
-            logging.debug("   %s", dfg_name)
+            self._log.debug('   %s', dfg_name)
             setattr(self.data_frame, dfg_name, dfg_func)
 
     def setXTimeRange(self, t_min=None, t_max=None):
@@ -184,8 +186,8 @@ class Trace(object):
             self.x_max = self.time_range
         else:
             self.x_max = t_max
-        logging.info('Set plots time range to (%.6f, %.6f)[s]',
-                     self.x_min, self.x_max)
+        self._log.info('Set plots time range to (%.6f, %.6f)[s]',
+                       self.x_min, self.x_max)
 
     def __registerTraceEvents(self, events):
         """
@@ -223,14 +225,14 @@ class Trace(object):
             - SysTrace
         :type trace_format: str
         """
-        logging.debug('Loading [sched] events from trace in [%s]...', path)
-        logging.debug("Parsing events: %s", self.events)
+        self._log.debug('Loading [sched] events from trace in [%s]...', path)
+        self._log.debug('Parsing events: %s', self.events)
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
-            logging.info('Parsing SysTrace format...')
+            self._log.info('Parsing SysTrace format...')
             trace_class = trappy.SysTrace
             self.trace_format = 'SysTrace'
         elif trace_format.upper() == 'FTRACE':
-            logging.info('Parsing FTrace format...')
+            self._log.info('Parsing FTrace format...')
             trace_class = trappy.FTrace
             self.trace_format = 'FTrace'
         else:
@@ -246,7 +248,7 @@ class Trace(object):
         self.__checkAvailableEvents()
         if len(self.available_events) == 0:
             if has_function_stats:
-                logging.info('Trace contains only functions stats')
+                self._log.info('Trace contains only functions stats')
                 return
             raise ValueError('The trace does not contain useful events '
                              'nor function stats')
@@ -285,9 +287,9 @@ class Trace(object):
             obj = getattr(self.ftrace, val)
             if len(obj.data_frame):
                 self.available_events.append(val)
-        logging.debug('Events found on trace:')
+        self._log.debug('Events found on trace:')
         for evt in self.available_events:
-            logging.debug(' - %s', evt)
+            self._log.debug(' - %s', evt)
 
     def __loadTasksNames(self, tasks):
         """
@@ -308,7 +310,7 @@ class Trace(object):
         elif 'sched_load_avg_task' in self.available_events:
             load(tasks, 'sched_load_avg_task', 'comm', 'pid')
         else:
-            logging.warning('Failed to load tasks names from trace events')
+            self._log.warning('Failed to load tasks names from trace events')
 
     def hasEvents(self, dataset):
         """
@@ -339,8 +341,8 @@ class Trace(object):
                 te = df.index[-1]
             self.time_range = te - ts
 
-        logging.info('Collected events spans a %.3f [s] time interval',
-                     self.time_range)
+        self._log.info('Collected events spans a %.3f [s] time interval',
+                       self.time_range)
 
         # Build a stat on trace overutilization
         if self.hasEvents('sched_overutilized'):
@@ -348,8 +350,8 @@ class Trace(object):
             self.overutilized_time = df[df.overutilized == 1].len.sum()
             self.overutilized_prc = 100. * self.overutilized_time / self.time_range
 
-            logging.info('Overutilized time: %.6f [s] (%.3f%% of trace time)',
-                         self.overutilized_time, self.overutilized_prc)
+            self._log.info('Overutilized time: %.6f [s] (%.3f%% of trace time)',
+                           self.overutilized_time, self.overutilized_prc)
 
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
         """
@@ -433,23 +435,23 @@ class Trace(object):
         if dataframe is None:
             return {k: v for k, v in  self.tasks.iteritems() if k in task_names}
         df = dataframe
-        logging.debug("Lookup dataset for tasks...")
+        self._log.debug('Lookup dataset for tasks...')
         for tname in task_names:
-            logging.debug("Lookup for task [%s]...", tname)
+            self._log.debug('Lookup for task [%s]...', tname)
             results = df[df[name_key] == tname][[name_key, pid_key]]
             if len(results) == 0:
-                logging.error('  task %16s NOT found', tname)
+                self._log.error('  task %16s NOT found', tname)
                 continue
             (name, pid) = results.head(1).values[0]
             if name != tname:
-                logging.error('  task %16s NOT found', tname)
+                self._log.error('  task %16s NOT found', tname)
                 continue
             if tname not in self.tasks:
                 self.tasks[tname] = {}
             pids = list(results[pid_key].unique())
             self.tasks[tname]['pid'] = pids
-            logging.debug('  task %16s found, pid: %s',
-                          tname, self.tasks[tname]['pid'])
+            self._log.debug('  task %16s found, pid: %s',
+                            tname, self.tasks[tname]['pid'])
         return self.tasks
 
 
@@ -677,12 +679,12 @@ class Trace(object):
             for chunk in self._chunker(cluster_df, len(cpus)):
                 f = chunk.iloc[0].frequency
                 if any(chunk.frequency != f):
-                    logging.warn('Cluster Frequency is not coherent! '
-                                 'Failure in [cpu_frequency] events at:')
-                    logging.warn(chunk)
+                    self._log.warning('Cluster Frequency is not coherent! '
+                                      'Failure in [cpu_frequency] events at:')
+                    self._log.warning(chunk)
                     self.freq_coherency = False
                     return
-        logging.info("Platform clusters verified to be Frequency coherent")
+        self._log.info('Platform clusters verified to be Frequency coherent')
 
 ###############################################################################
 # Utility Methods
@@ -721,7 +723,7 @@ class Trace(object):
             return False
 
         # Opening functions profiling JSON data file
-        logging.debug('Loading functions profiling data from [%s]...', path)
+        self._log.debug('Loading functions profiling data from [%s]...', path)
         with open(os.path.join(path), 'r') as fh:
             trace_stats = json.load(fh)
 
@@ -751,8 +753,8 @@ class Trace(object):
         :returns: :mod:`pandas.Series`
         """
         if not self.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
-                         'cannot compute CPU active signal!')
+            self._log.warning('Events [cpu_idle] not found, '
+                              'cannot compute CPU active signal!')
             return None
 
         idle_df = self._dfg_trace_event('cpu_idle')
@@ -789,8 +791,8 @@ class Trace(object):
         :returns: :mod:`pandas.Series`
         """
         if not self.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
-                         'cannot compute cluster active signal!')
+            self._log.warning('Events [cpu_idle] not found, '
+                              'cannot compute cluster active signal!')
             return None
 
         active = self.getCPUActiveSignal(cluster[0]).to_frame(name=cluster[0])

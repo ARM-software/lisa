@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+import logging
+
 class Screen(object):
     """
     Set of utility functions to control an Android Screen
@@ -25,18 +27,19 @@ class Screen(object):
         """
         Set screen orientation mode
         """
+        log = logging.getLogger('Screen')
         acc_mode = 1 if auto else 0
         # Force manual orientation of portrait specified
         if portrait is not None:
             acc_mode = 0
-            target.logger.info("Force manual orientation")
+            log.info('Force manual orientation')
         if acc_mode == 0:
             usr_mode = 0 if portrait else 1
             usr_mode_str = 'PORTRAIT' if portrait else 'LANDSCAPE'
-            target.logger.info('Set orientation: %s', usr_mode_str)
+            log.info('Set orientation: %s', usr_mode_str)
         else:
             usr_mode = 0
-            target.logger.info('Set orientation: AUTO')
+            log.info('Set orientation: AUTO')
 
         if acc_mode == 0:
             target.execute('content insert '\
@@ -63,6 +66,7 @@ class Screen(object):
         """
         Set screen brightness percentage
         """
+        log = logging.getLogger('Screen')
         bri_mode = 1 if auto else 0
         # Force manual brightness if a percent specified
         if percent:
@@ -81,28 +85,30 @@ class Screen(object):
                            '--uri content://settings/system '\
                            '--bind name:s:screen_brightness '\
                            '--bind value:i:{}'.format(value))
-            target.logger.info('Set brightness: %d%%', percent)
+            log.info('Set brightness: %d%%', percent)
         else:
-            target.logger.info('Set brightness: AUTO')
+            log.info('Set brightness: AUTO')
 
     @staticmethod
     def set_dim(target, auto=True):
         """
         Set screen dimming mode
         """
+        log = logging.getLogger('Screen')
         dim_mode = 1 if auto else 0
         dim_mode_str = 'ON' if auto else 'OFF'
         target.execute('content insert '\
                        '--uri content://settings/system '\
                        '--bind name:s:dim_screen '\
                        '--bind value:i:{}'.format(dim_mode))
-        target.logger.info('Dim screen mode: %s', dim_mode_str)
+        log.info('Dim screen mode: %s', dim_mode_str)
 
     @staticmethod
     def set_timeout(target, seconds=30):
         """
         Set screen off timeout in seconds
         """
+        log = logging.getLogger('Screen')
         if seconds<0:
             msg = "Screen timeout {}: cannot be negative".format(seconds)
             raise ValueError(msg)
@@ -111,7 +117,7 @@ class Screen(object):
                        '--uri content://settings/system '\
                        '--bind name:s:screen_off_timeout '\
                        '--bind value:i:{}'.format(value))
-        target.logger.info('Screen timeout: %d [s]', seconds)
+        log.info('Screen timeout: %d [s]', seconds)
 
     @staticmethod
     def set_defaults(target):
