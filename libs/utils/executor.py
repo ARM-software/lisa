@@ -94,11 +94,11 @@ class Executor():
 
         # Check for mandatory configurations
         if not self._experiments_conf.get('confs', None):
-            raise ValueError(
-                    'Configuration error: missing \'conf\' definitions')
+            raise ValueError('Configuration error: '
+                             'missing "conf" definitions')
         if not self._experiments_conf.get('wloads', None):
-            raise ValueError(
-                    'Configuration error: missing \'wloads\' definitions')
+            raise ValueError('Configuration error: '
+                             'missing "wloads" definitions')
 
         self.te = test_env
         self.target = self.te.target
@@ -356,10 +356,9 @@ class Executor():
             if 'last' in cpus:
                 return [ self.target.bl.bigs_online[-1] ]
             return self.target.bl.bigs_online
-        raise ValueError('Configuration error - '
-                'unsupported [{}] \'cpus\' value for [{}] '\
-                'workload specification'\
-                .format(cpus, wl_idx))
+        raise ValueError('unsupported [{}] "cpus" value for [{}] '
+                         'workload specification'
+                         .format(cpus, wl_idx))
 
     def _wload_task_idxs(self, wl_idx, tasks):
         if type(tasks) == int:
@@ -374,10 +373,9 @@ class Executor():
             return range(len([t
                 for t in self.target.core_names
                 if t == self.target.big_core]))
-        raise ValueError('Configuration error - '
-                'unsupported \'tasks\' value for [{}] '\
-                'RT-App workload specification'\
-                .format(wl_idx))
+        raise ValueError('unsupported "tasks" value for [{}] RT-App '
+                         'workload specification'
+                         .format(wl_idx))
 
     def _wload_rtapp(self, wl_idx, wlspec, cpus):
         conf = wlspec['conf']
@@ -399,10 +397,9 @@ class Executor():
                 if task['kind'] not in wlgen.__dict__:
                     self._log.error('RTA task of kind [%s] not supported',
                                     task['kind'])
-                    raise ValueError('Configuration error - '
-                        'unsupported \'kind\' value for task [{}] '\
-                        'in RT-App workload specification'\
-                        .format(task))
+                    raise ValueError('unsupported "kind" value for task [{}] '
+                                     'in RT-App workload specification'
+                                     .format(task))
                 task_ctor = getattr(wlgen, task['kind'])
                 num_tasks = task.get('tasks', 1)
                 task_idxs = self._wload_task_idxs(wl_idx, num_tasks)
@@ -439,10 +436,9 @@ class Executor():
                     cpus=cpus, run_dir=self.te.run_dir)
             return rtapp
 
-        raise ValueError('Configuration error - '
-                'unsupported \'class\' value for [{}] '\
-                'RT-App workload specification'\
-                .format(wl_idx))
+        raise ValueError('unsupported \'class\' value for [{}] '
+                         'RT-App workload specification'
+                         .format(wl_idx))
 
     def _wload_perf_bench(self, wl_idx, wlspec, cpus):
         conf = wlspec['conf']
@@ -458,10 +454,9 @@ class Executor():
             perf_bench.conf(**conf['params'])
             return perf_bench
 
-        raise ValueError('Configuration error - '\
-                'unsupported \'class\' value for [{}] '\
-                'perf bench workload specification'\
-                .format(wl_idx))
+        raise ValueError('unsupported "class" value for [{}] '
+                         'perf bench workload specification'
+                         .format(wl_idx))
 
     def _wload_conf(self, wl_idx, wlspec):
 
@@ -482,10 +477,9 @@ class Executor():
             return self._wload_perf_bench(wl_idx, wlspec, cpus)
 
 
-        raise ValueError('Configuration error - '
-                'unsupported \'type\' value for [{}] '\
-                'workload specification'\
-                .format(wl_idx))
+        raise ValueError('unsupported "type" value for [{}] '
+                         'workload specification'
+                         .format(wl_idx))
 
     def _wload_init(self, tc, wl_idx):
         tc_idx = tc['tag']

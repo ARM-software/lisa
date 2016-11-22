@@ -845,8 +845,7 @@ class TestEnv(ShareState):
                 self.tftp_deploy(tc['dtb'])
 
         else:
-            raise ValueError('%14s - Kernel installation method not supported',
-                    'KernelSetup')
+            raise ValueError('Kernel installation method not supported')
 
         # Keep track of last installed kernel
         self.kernel = tc['kernel']
