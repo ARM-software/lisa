@@ -28,7 +28,22 @@ from env import TestEnv
 from executor import Executor
 
 class LisaTest(unittest.TestCase):
-    """A base class for LISA defined tests"""
+    """
+    A base class for LISA tests
+
+    This class is intended to be subclassed in order to create automated tests
+    for LISA. It sets up the TestEnv and Executor and provides convenience
+    methods for making assertions on results.
+
+    Subclasses should provide a test_conf to configure the TestEnv and an
+    experiments_conf to configure the executor.
+
+    Tests whose behaviour is dependent on target parameters, for example
+    presence of cpufreq governors or number of CPUs, can override
+    _getExperimentsConf to generate target-dependent experiments.
+
+    Example users of this class can be found under LISA's tests/ directory.
+    """
 
     test_conf = None
     """Override this with a dictionary or JSON path to configure the TestEnv"""
@@ -39,7 +54,7 @@ class LisaTest(unittest.TestCase):
     @classmethod
     def _init(cls, *args, **kwargs):
         """
-        Base class to run LISA test experiments
+        Set up logging and trigger running experiments
         """
 
         cls.logger = logging.getLogger('test')
