@@ -139,6 +139,7 @@ class Executor():
         self.experiments = []
 
         # Run all the configured experiments
+        exp_idx = 0
         for tc in self._tests_conf['confs']:
             # TARGET: configuration
             if not self._target_configure(tc):
@@ -155,10 +156,9 @@ class Executor():
                         out_dir=os.path.join(test_dir, str(itr_idx)))
                     self.experiments.append(exp)
 
-            # WORKLOAD: execution
-            for exp_idx, experiment in enumerate(self.experiments):
-                self._wload_run(exp_idx, experiment)
-
+                    # WORKLOAD: execution
+                    self._wload_run(exp_idx, exp)
+                    exp_idx += 1
             self._target_cleanup(tc)
 
         self._print_section('Executor', 'Experiments execution completed')
