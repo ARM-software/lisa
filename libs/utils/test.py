@@ -26,6 +26,7 @@ import wrapt
 
 from env import TestEnv
 from executor import Executor
+from trace import Trace
 
 
 class LisaTest(unittest.TestCase):
@@ -123,7 +124,8 @@ class LisaTest(unittest.TestCase):
         """
         Return a SchedAssert over the task provided
         """
-        return SchedAssert(experiment.out_dir, self.te.topology, execname=task)
+        return SchedAssert(
+            self.get_trace(experment), self.te.topology, execname=task)
 
     @memoized
     def get_multi_assert(self, experiment, task_filter=""):
@@ -134,9 +136,28 @@ class LisaTest(unittest.TestCase):
         experiment.
         """
         tasks = experiment.wload.tasks.keys()
-        return SchedMultiAssert(experiment.out_dir,
+        return SchedMultiAssert(self.get_trace(experiment).ftrace,
                                 self.te.topology,
                                 [t for t in tasks if task_filter in t])
+
+    def get_trace(self, experiment):
+        if not hasattr(self, "__traces"):
+            self.__traces = {}
+        if experiment.out_dir in self.__traces:
+            return self.__traces[experiment.out_dir]
+
+        if ('ftrace' not in experiment.conf['flags']
+            or 'ftrace' not in self.test_conf):
+            raise ValueError(
+                'Tracing not enabled. If this test needs a trace, add "ftrace" '
+                'to your test/experiment configuration flags')
+
+        events = self.test_conf['ftrace']['events']
+        tasks = experiment.wload.tasks.keys()
+        trace = Trace(self.te.platform, experiment.out_dir, events, tasks)
+
+        self.__traces[experiment.out_dir] = trace
+        return trace
 
     def get_start_time(self, experiment):
         """
@@ -163,9 +184,9 @@ class LisaTest(unittest.TestCase):
         """
 
         end_times = {}
+        ftrace = self.get_trace(experiment).ftrace
         for task in experiment.wload.tasks.keys():
-            sched_assert = SchedAssert(experiment.out_dir, self.te.topology,
-                                       execname=task)
+            sched_assert = SchedAssert(ftrace, self.te.topology, execname=task)
             end_times[task] = sched_assert.getEndTime()
 
         return end_times
