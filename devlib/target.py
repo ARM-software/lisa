@@ -362,7 +362,8 @@ class Target(object):
 
     def file_exists(self, filepath):
         command = 'if [ -e \'{}\' ]; then echo 1; else echo 0; fi'
-        return boolean(self.execute(command.format(filepath)).strip())
+        output = self.execute(command.format(filepath), as_root=self.is_rooted)
+        return boolean(output.strip())
 
     def directory_exists(self, filepath):
         output = self.execute('if [ -d \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
