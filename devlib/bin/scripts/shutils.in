@@ -160,7 +160,7 @@ cgroups_tasks_move() {
 	PIDS=`echo $PIDS`
 	echo "PIDs to save: [$PIDS]"
 	for TID in $PIDS; do
-	  COMM =`$CAT /proc/$TID/comm`
+	  COMM=`$CAT /proc/$TID/comm`
 	  echo "$TID : $COMM"
 	  echo $TID > $SRC_GRP/cgroup.procs
 	done
