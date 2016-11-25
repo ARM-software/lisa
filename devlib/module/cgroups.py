@@ -300,7 +300,6 @@ class CgroupsModule(Module):
 
     name = 'cgroups'
     stage = 'setup'
-    cgroup_root = '/sys/fs/cgroup'
 
     @staticmethod
     def probe(target):
@@ -314,22 +313,6 @@ class CgroupsModule(Module):
         super(CgroupsModule, self).__init__(target)
 
         self.logger = logging.getLogger('CGroups')
-
-        # Initialize controllers mount point
-        mounted = self.target.list_file_systems()
-        if self.cgroup_root not in [e.mount_point for e in mounted]:
-            self.target.execute('mount -t tmpfs {} {}'\
-                    .format('cgroup_root',
-                            self.cgroup_root),
-                            as_root=True)
-        else:
-            self.logger.debug('cgroup_root already mounted at %s',
-                    self.cgroup_root)
-
-        # Ensure CGroups is mounted RW
-        self.target.execute('mount -o remount,rw {}'\
-                            .format(self.cgroup_root),
-                            as_root=True)
 
         # Load list of available controllers
         controllers = []
@@ -346,7 +329,9 @@ class CgroupsModule(Module):
             if not controller.probe(self.target):
                 continue
             try:
-                controller.mount(self.target, self.cgroup_root)
+                cgroup_root = target.path.join(target.working_directory,
+                                               'cgroups')
+                controller.mount(self.target, cgroup_root)
             except TargetError:
                 message = 'cgroups {} controller is not supported by the target'
                 raise TargetError(message.format(controller.kind))
