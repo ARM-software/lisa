@@ -448,6 +448,8 @@ class CgroupsModule(Module):
 
         # Create Freezer CGroup
         freezer = self.controller('freezer')
+        if freezer is None:
+            raise RuntimeError('freezer cgroup controller not present')
         freezer_cg = freezer.cgroup('/DEVLIB_FREEZER')
         thawed_cg = freezer.cgroup('/')
 
