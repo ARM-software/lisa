@@ -9,6 +9,7 @@ GREP=${GREP:-$BUSYBOX grep}
 SED=${SED:-$BUSYBOX sed}
 CAT=${CAT:-$BUSYBOX cat}
 AWK=${AWK:-$BUSYBOX awk}
+PS=${PS:-$BUSYBOX ps}
 
 ################################################################################
 # CPUFrequency Utility Functions
@@ -156,7 +157,7 @@ cgroups_tasks_move() {
 
 	[ "x$FILTERS" = "x" ] && exit 0
 
-	PIDS=`ps | $GREP $FILTERS | $AWK '{print $2}'`
+	PIDS=`$PS -o comm,pid | $GREP $FILTERS | $AWK '{print $2}'`
 	PIDS=`echo $PIDS`
 	echo "PIDs to save: [$PIDS]"
 	for TID in $PIDS; do
