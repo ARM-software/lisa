@@ -24,15 +24,37 @@ from bart.sched.SchedMultiAssert import SchedMultiAssert
 from devlib.utils.misc import memoized
 import wrapt
 
+from env import TestEnv
 from executor import Executor
 
 class LisaTest(unittest.TestCase):
-    """A base class for LISA defined tests"""
+    """
+    A base class for LISA tests
+
+    This class is intended to be subclassed in order to create automated tests
+    for LISA. It sets up the TestEnv and Executor and provides convenience
+    methods for making assertions on results.
+
+    Subclasses should provide a test_conf to configure the TestEnv and an
+    experiments_conf to configure the executor.
+
+    Tests whose behaviour is dependent on target parameters, for example
+    presence of cpufreq governors or number of CPUs, can override
+    _getExperimentsConf to generate target-dependent experiments.
+
+    Example users of this class can be found under LISA's tests/ directory.
+    """
+
+    test_conf = None
+    """Override this with a dictionary or JSON path to configure the TestEnv"""
+
+    experiments_conf = None
+    """Override this with a dictionary to configure the Executor"""
 
     @classmethod
-    def _init(cls, conf, *args, **kwargs):
+    def _init(cls, *args, **kwargs):
         """
-        Base class to run LISA test experiments
+        Set up logging and trigger running experiments
         """
 
         cls.logger = logging.getLogger('test')
@@ -41,9 +63,27 @@ class LisaTest(unittest.TestCase):
             cls.logger.setLevel(kwargs['loglevel'])
             kwargs.pop('loglevel')
 
-        cls.conf = conf
-
         cls._runExperiments()
+
+    @classmethod
+    def _getTestConf(cls):
+        if cls.test_conf is None:
+            raise NotImplementedError("Override `test_conf` attribute")
+        return cls.test_conf
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        """
+        Get the experiments_conf used to configure the Executor
+
+        This method receives the initialized TestEnv as a parameter, so
+        subclasses can override it to configure workloads or target confs in a
+        manner dependent on the target. If not overridden, just returns the
+        experiments_conf attribute.
+        """
+        if cls.experiments_conf is None:
+            raise NotImplementedError("Override `experiments_conf` attribute")
+        return cls.experiments_conf
 
     @classmethod
     def _runExperiments(cls):
@@ -52,7 +92,10 @@ class LisaTest(unittest.TestCase):
         """
 
         cls.logger.info("%14s - Setup tests execution engine...", "LisaTest")
-        cls.executor = Executor(tests_conf = cls.conf);
+        test_env = TestEnv(test_conf=cls._getTestConf())
+
+        experiments_conf = cls._getExperimentsConf(test_env)
+        cls.executor = Executor(test_env, experiments_conf)
 
         # Alias executor objects to make less verbose tests code
         cls.te = cls.executor.te
