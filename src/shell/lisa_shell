@@ -266,7 +266,9 @@ EOF
 
 function _lisa-test {
 TEST=${1}
-nosetests -v tests/$TEST
+nosetests -v --nocapture --nologcapture \
+          --logging-config=logging.conf \
+          $TEST
 }
 
 function lisa-test {
