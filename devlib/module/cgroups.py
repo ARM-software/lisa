@@ -155,7 +155,7 @@ class Controller(object):
         # Build list of tasks to exclude
         grep_filters = ''
         for comm in exclude:
-            grep_filters += '-e "{}" '.format(comm)
+            grep_filters += '-e {} '.format(comm)
         logging.debug('   using grep filter: %s', grep_filters)
         if grep_filters != '':
             logging.debug('   excluding tasks which name matches:')
