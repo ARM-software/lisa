@@ -163,7 +163,7 @@ cgroups_tasks_move() {
 	for TID in $PIDS; do
 	  COMM=`$CAT /proc/$TID/comm`
 	  echo "$TID : $COMM"
-	  echo $TID > $SRC_GRP/cgroup.procs
+	  echo $TID > $SRC_GRP/cgroup.procs || true
 	done
 }
 
