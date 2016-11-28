@@ -288,6 +288,7 @@ class Target(object):
                   a ``TimeoutError`` exception will be raised. Set to ``None`` if the
                   invocation should not timeout.
 
+        :returns: output of command.
         """
         command = binary
         if args:
