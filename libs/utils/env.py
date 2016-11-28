@@ -99,6 +99,7 @@ class TestEnv(ShareState):
         self.ftrace = None
         self.workdir = WORKING_DIR_DEFAULT
         self.__tools = []
+        self.__installed_tools = set()
         self.__modules = []
         self.__connection_settings = None
         self._calib = None
@@ -483,15 +484,9 @@ class TestEnv(ShareState):
 
         self._log.info('Initializing target workdir:')
         self._log.info('   %s', self.target.working_directory)
-        tools_to_install = []
-        if self.__tools:
-            for tool in self.__tools:
-                binary = '{}/tools/scripts/{}'.format(basepath, tool)
-                if not os.path.isfile(binary):
-                    binary = '{}/tools/{}/{}'\
-                            .format(basepath, self.target.abi, tool)
-                tools_to_install.append(binary)
-        self.target.setup(tools_to_install)
+
+        self.target.setup()
+        self.install_tools(self.__tools)
 
         # Verify that all the required modules have been initialized
         for module in self.__modules:
@@ -502,6 +497,28 @@ class TestEnv(ShareState):
                                 'disable module from configuration')
                 raise RuntimeError('Failed to initialized [{}] module, '
                         'update your kernel or test configurations'.format(module))
+
+    def install_tools(self, tools):
+        """
+        Install tools additional to those specified in the test config
+
+        :param tools: The list of names of tools to install
+        :type tools: list(str)
+        """
+        tools_to_install = []
+        for tool in tools:
+            if tool in self.__installed_tools:
+                continue
+            binary = '{}/tools/scripts/{}'.format(basepath, tool)
+            if not os.path.isfile(binary):
+                binary = '{}/tools/{}/{}'\
+                         .format(basepath, self.target.abi, tool)
+                tools_to_install.append(binary)
+
+        for tool_to_install in tools_to_install:
+            self.target.install(tool_to_install)
+
+        self.__installed_tools.update(tools)
 
     def ftrace_conf(self, conf):
         self._init_ftrace(True, conf)
