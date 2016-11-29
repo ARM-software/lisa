@@ -219,11 +219,9 @@ class Workload(object):
             _command = '{} {}'\
                     .format(self.taskset_cmd, _command)
 
-        if self.cgroup:
+        if self.cgroup and hasattr(self.target, 'cgroups'):
             # Get a reference to the CGroup to use
-            self.cgroup_cmd = '{} cgroups_run_into {}'\
-                    .format(self.target.shutils, self.cgroup)
-            _command = '{} {}'.format(self.cgroup_cmd, _command)
+            _command = self.target.cgroups.run_into_cmd(self.cgroup, _command)
 
         # Start FTrace (if required)
         if ftrace:
