@@ -17,11 +17,11 @@
 
 import re
 import os
+import logging
 
 from subprocess import Popen, PIPE
 from android import Screen, System, Workload
 
-import logging
 
 # Available test workloads
 _jankbench = {
@@ -61,14 +61,10 @@ class Jankbench(Workload):
     # Package required by this workload
     package = 'com.android.benchmark'
 
-    # Setup logger
-    logger = logging.getLogger('Jankbench')
-    logger.setLevel(logging.INFO)
-
-
     def __init__(self, test_env):
         super(Jankbench, self).__init__(test_env)
-        logging.debug('%14s - Workload created', 'Jankbench')
+        self._log = logging.getLogger('Jankbench')
+        self._log.debug('Workload created')
 
     def run(self, exp_dir, test_name, iterations, collect=''):
         # Setup test id
@@ -96,21 +92,21 @@ class Jankbench(Workload):
         # Clear logcat
         os.system(self._adb('logcat -c'));
 
-        self.logger.debug('Start Jank Benchmark [%d:%s]', test_id, test_name)
+        self._log.debug('Start Jank Benchmark [%d:%s]', test_id, test_name)
         test_cmd = 'am start -n "com.android.benchmark/.app.RunLocalBenchmarksActivity" '\
                     '--eia "com.android.benchmark.EXTRA_ENABLED_BENCHMARK_IDS" {0} '\
                     '--ei "com.android.benchmark.EXTRA_RUN_COUNT" {1}'\
                     .format(test_id, iterations)
-        self.logger.info(test_cmd)
+        self._log.info(test_cmd)
         self.target.execute(test_cmd);
 
         # Parse logcat output lines
         logcat_cmd = self._adb(
                 'logcat ActivityManager:* System.out:I *:S BENCH:*'\
                 .format(self.target.adb_name))
-        self.logger.info("%s", logcat_cmd)
+        self._log.info(logcat_cmd)
 
-        self.logger.debug("Iterations:")
+        self._log.debug('Iterations:')
         logcat = Popen(logcat_cmd, shell=True, stdout=PIPE)
         while True:
 
@@ -122,30 +118,30 @@ class Jankbench(Workload):
             if match:
                 if 'energy' in collect and self.te.emeter:
                     self.te.emeter.reset()
-                self.logger.debug("Benchmark started!")
+                self._log.debug('Benchmark started!')
 
             # Benchmark completed trigger
             match = JANKBENCH_BENCHMARK_DONE_RE.search(message)
             if match:
                 if 'energy' in collect and self.te.emeter:
                     nrg_report = self.te.emeter.report(exp_dir)
-                self.logger.debug("Benchmark done!")
+                self._log.debug('Benchmark done!')
                 break
 
             # Iteration completd
             match = JANKBENCH_ITERATION_COUNT_RE.search(message)
             if match:
-                self.logger.debug("Iteration %2d:",
-                                  int(match.group('iteration'))+1)
+                self._log.debug('Iteration %2d:',
+                                int(match.group('iteration'))+1)
             # Iteration metrics
             match = JANKBENCH_ITERATION_METRICS_RE.search(message)
             if match:
-                self.logger.info("   Mean: %7.3f JankP: %7.3f StdDev: %7.3f Count Bad: %4d Count Jank: %4d",
-                                 float(match.group('mean')),
-                                 float(match.group('junk_p')),
-                                 float(match.group('std_dev')),
-                                 int(match.group('count_bad')),
-                                 int(match.group('count_junk')))
+                self._log.info('   Mean: %7.3f JankP: %7.3f StdDev: %7.3f Count Bad: %4d Count Jank: %4d',
+                               float(match.group('mean')),
+                               float(match.group('junk_p')),
+                               float(match.group('std_dev')),
+                               int(match.group('count_bad')),
+                               int(match.group('count_junk')))
 
         # get results
         db_file = os.path.join(exp_dir, JANKBENCH_DB_NAME)

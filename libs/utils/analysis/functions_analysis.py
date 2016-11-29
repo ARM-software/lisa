@@ -21,9 +21,6 @@ from trappy.utils import listify
 
 from analysis_module import AnalysisModule
 
-# Configure logging
-import logging
-
 
 class FunctionsAnalysis(AnalysisModule):
     """
@@ -53,7 +50,7 @@ class FunctionsAnalysis(AnalysisModule):
         :type metrics: srt or list(str)
         """
         if not hasattr(self._trace, '_functions_stats_df'):
-            logging.warning('Functions stats data not available')
+            self._log.warning('Functions stats data not available')
             return
 
         metrics = listify(metrics)

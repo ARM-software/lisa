@@ -19,6 +19,7 @@
 
 import os
 import sys
+import logging
 
 from glob import glob
 from inspect import isclass
@@ -26,8 +27,6 @@ from importlib import import_module
 
 from analysis_module import AnalysisModule
 
-# Configure logging
-import logging
 
 
 class AnalysisRegister(object):
@@ -40,15 +39,18 @@ class AnalysisRegister(object):
 
     def __init__(self, trace):
 
+        # Setup logging
+        self._log = logging.getLogger('Analysis')
+
         # Add workloads dir to system path
         analysis_dir = os.path.dirname(os.path.abspath(__file__))
         analysis_dir = os.path.join(analysis_dir, 'analysis')
-        logging.debug('%14s - Analysis: %s', 'Analysis', analysis_dir)
+        self._log.debug('Analysis: %s', analysis_dir)
 
         sys.path.insert(0, analysis_dir)
-        logging.debug('%14s - Syspath: %s', 'Analysis', format(sys.path))
+        self._log.debug('Syspath: %s', sys.path)
 
-        logging.info("Registering trace analysis modules:")
+        self._log.info('Registering trace analysis modules:')
         for filepath in glob(os.path.join(analysis_dir, '*.py')):
             filename = os.path.splitext(os.path.basename(filepath))[0]
 
@@ -56,7 +58,7 @@ class AnalysisRegister(object):
             if filename.startswith('__'):
                 continue
 
-            logging.debug('%14s - Filename: %s', 'Analysis', filename)
+            self._log.debug('Filename: %s', filename)
 
             # Import the module for inspection
             module = import_module(filename)
@@ -69,6 +71,6 @@ class AnalysisRegister(object):
                    issubclass(handler, AnalysisModule):
                     module_name = module.__name__.replace('_analysis', '')
                     setattr(self, module_name, handler(trace))
-                    logging.info("   %s", module_name)
+                    self._log.info('   %s', module_name)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

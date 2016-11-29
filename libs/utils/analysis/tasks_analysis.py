@@ -27,9 +27,6 @@ from analysis_module import AnalysisModule
 from devlib.utils.misc import memoized
 from trappy.utils import listify
 
-# Configure logging
-import logging
-
 
 class TasksAnalysis(AnalysisModule):
     """
@@ -60,7 +57,7 @@ class TasksAnalysis(AnalysisModule):
         :type min_utilization: int
         """
         if not self._trace.hasEvents('sched_load_avg_task'):
-            logging.warn('Events [sched_load_avg_task] not found')
+            self._log.warning('Events [sched_load_avg_task] not found')
             return None
 
         if min_utilization is None:
@@ -70,14 +67,14 @@ class TasksAnalysis(AnalysisModule):
         df = self._dfg_trace_event('sched_load_avg_task')
         big_tasks_events = df[df.util_avg > min_utilization]
         if not len(big_tasks_events):
-            logging.warn('No tasks with with utilization samples > %d',
-                         min_utilization)
+            self._log.warning('No tasks with with utilization samples > %d',
+                              min_utilization)
             return None
 
         # Report the number of tasks which match the min_utilization condition
         big_tasks = big_tasks_events.pid.unique()
-        logging.info('%5d tasks with samples of utilization > %d',
-                     len(big_tasks), min_utilization)
+        self._log.info('%5d tasks with samples of utilization > %d',
+                       len(big_tasks), min_utilization)
 
         # Compute number of samples above threshold
         big_tasks_stats = big_tasks_events.groupby('pid')\
@@ -88,12 +85,12 @@ class TasksAnalysis(AnalysisModule):
         # Filter for number of occurrences
         big_tasks_stats = big_tasks_stats[big_tasks_stats['count'] > min_samples]
         if not len(big_tasks_stats):
-            logging.warn('      but none with more than %d samples',
-                         min_samples)
+            self._log.warning('      but none with more than %d samples',
+                              min_samples)
             return None
 
-        logging.info('      %d with more than %d samples',
-                     len(big_tasks_stats), min_samples)
+        self._log.info('      %d with more than %d samples',
+                       len(big_tasks_stats), min_samples)
 
         # Add task name column
         big_tasks_stats['comm'] = big_tasks_stats.index.map(
@@ -113,7 +110,7 @@ class TasksAnalysis(AnalysisModule):
         :type min_wakeups: int
         """
         if not self._trace.hasEvents('sched_wakeup'):
-            logging.warn('Events [sched_wakeup] not found')
+            self._log.warning('Events [sched_wakeup] not found')
             return None
 
         df = self._dfg_trace_event('sched_wakeup')
@@ -127,11 +124,11 @@ class TasksAnalysis(AnalysisModule):
         wkp_tasks_stats = wkp_tasks_stats[
             wkp_tasks_stats['count'] > min_wakeups]
         if not len(df):
-            logging.warn('No tasks with more than %d wakeups',
-                         len(wkp_tasks_stats))
+            self._log.warning('No tasks with more than %d wakeups',
+                              len(wkp_tasks_stats))
             return None
-        logging.info('%5d tasks with more than %d wakeups',
-                     len(df), len(wkp_tasks_stats))
+        self._log.info('%5d tasks with more than %d wakeups',
+                       len(df), len(wkp_tasks_stats))
 
         # Add task name column
         wkp_tasks_stats['comm'] = wkp_tasks_stats.index.map(
@@ -156,7 +153,7 @@ class TasksAnalysis(AnalysisModule):
         :type min_prio: int
         """
         if not self._trace.hasEvents('sched_switch'):
-            logging.warn('Events [sched_switch] not found')
+            self._log.warning('Events [sched_switch] not found')
             return None
 
         df = self._dfg_trace_event('sched_switch')
@@ -228,8 +225,8 @@ class TasksAnalysis(AnalysisModule):
 
         # Check for the minimum required signals to be available
         if not self._trace.hasEvents('sched_load_avg_task'):
-            logging.warn('Events [sched_load_avg_task] not found, '
-                         'plot DISABLED!')
+            self._log.warning('Events [sched_load_avg_task] not found, '
+                              'plot DISABLED!')
             return
 
         # Defined list of tasks to plot
@@ -278,14 +275,14 @@ class TasksAnalysis(AnalysisModule):
             task_name = self._trace.getTaskByPid(tid)
             if len(task_name) == 1:
                 task_name = task_name[0]
-                logging.info('Plotting %5d: %s...', tid, task_name)
+                self._log.info('Plotting %5d: %s...', tid, task_name)
             else:
-                logging.info('Plotting %5d: %s...', tid, ', '.join(task_name))
+                self._log.info('Plotting %5d: %s...', tid, ', '.join(task_name))
             plot_id = 0
 
             # For each task create a figure with plots_count plots
             plt.figure(figsize=(16, 2*6+3))
-            plt.suptitle("Task Signals",
+            plt.suptitle('Task Signals',
                          y=.94, fontsize=16, horizontalalignment='center')
 
             # Plot load and utilization
@@ -364,7 +361,7 @@ class TasksAnalysis(AnalysisModule):
 
         big_frequent_tasks_count = len(big_frequent_task_pids)
         if big_frequent_tasks_count == 0:
-            logging.warn("No big/frequent tasks to plot")
+            self._log.warning('No big/frequent tasks to plot')
             return
 
         # Get the list of events for all big frequent tasks
@@ -407,8 +404,8 @@ class TasksAnalysis(AnalysisModule):
 
         ax.set_xlabel('Time [s]')
 
-        logging.info('Tasks which have been a "utilization" of %d for at least %d samples',
-                     self._little_cap, min_samples)
+        self._log.info('Tasks which have been a "utilization" of %d for at least %d samples',
+                       self._little_cap, min_samples)
 
     def plotWakeupTasks(self, max_tasks=10, min_wakeups=0, per_cluster=False):
         """
@@ -426,13 +423,13 @@ class TasksAnalysis(AnalysisModule):
         """
         if per_cluster is True and \
            not self._trace.hasEvents('sched_wakeup_new'):
-            logging.warn('Events [sched_wakeup_new] not found, '
-                         'plots DISABLED!')
+            self._log.warning('Events [sched_wakeup_new] not found, '
+                              'plots DISABLED!')
             return
         elif  not self._trace.hasEvents('sched_wakeup') and \
               not self._trace.hasEvents('sched_wakeup_new'):
-            logging.warn('Events [sched_wakeup, sched_wakeup_new] not found, '
-                         'plots DISABLED!')
+            self._log.warning('Events [sched_wakeup, sched_wakeup_new] not found, '
+                              'plots DISABLED!')
             return
 
         # Define axes for side-by-side plottings
@@ -454,12 +451,12 @@ class TasksAnalysis(AnalysisModule):
             ntlc = df[little_frequent];
             ntlc_count = len(ntlc)
 
-            logging.info("%5d tasks forked on big cluster    (%3.1f %%)",
-                         ntbc_count,
-                         100. * ntbc_count / (ntbc_count + ntlc_count))
-            logging.info("%5d tasks forked on LITTLE cluster (%3.1f %%)",
-                         ntlc_count,
-                         100. * ntlc_count / (ntbc_count + ntlc_count))
+            self._log.info('%5d tasks forked on big cluster    (%3.1f %%)',
+                           ntbc_count,
+                           100. * ntbc_count / (ntbc_count + ntlc_count))
+            self._log.info('%5d tasks forked on LITTLE cluster (%3.1f %%)',
+                           ntlc_count,
+                           100. * ntlc_count / (ntbc_count + ntlc_count))
 
             ax = axes[0]
             ax.set_title('Tasks Forks on big CPUs');
@@ -483,7 +480,8 @@ class TasksAnalysis(AnalysisModule):
         wkp_task_pids = self._dfg_top_wakeup_tasks(min_wakeups)
         if len(wkp_task_pids):
             wkp_task_pids = wkp_task_pids.index.values[:max_tasks]
-            logging.info("Plotting %d frequent wakeup tasks", len(wkp_task_pids))
+            self._log.info('Plotting %d frequent wakeup tasks',
+                           len(wkp_task_pids))
 
         ax = axes[0]
         ax.set_title('Tasks WakeUps Events')
@@ -526,10 +524,10 @@ class TasksAnalysis(AnalysisModule):
         """
 
         if not self._trace.hasEvents('sched_load_avg_task'):
-            logging.warn('Events [sched_load_avg_task] not found')
+            self._log.warning('Events [sched_load_avg_task] not found')
             return
         if not self._trace.hasEvents('cpu_frequency'):
-            logging.warn('Events [cpu_frequency] not found')
+            self._log.warning('Events [cpu_frequency] not found')
             return
 
         if big_cluster:
@@ -549,8 +547,8 @@ class TasksAnalysis(AnalysisModule):
             big_task_pids = big_task_pids.index.values
             df = df[df.pid.isin(big_task_pids)]
         if not df.size:
-            logging.warn('No events for tasks with more then %d utilization '
-                         'samples bigger than %d, plots DISABLED!')
+            self._log.warning('No events for tasks with more then %d utilization '
+                              'samples bigger than %d, plots DISABLED!')
             return
 
         fig, axes = plt.subplots(2, 1, figsize=(14, 5))
@@ -644,8 +642,8 @@ class TasksAnalysis(AnalysisModule):
                 data.plot(ax=axes, style=['y-'], drawstyle='steps-post')
             else:
                 task_name = self._trace.getTaskByPid(tid)
-                logging.warning("No 'boosted_util' data for task [%d:%s]",
-                                tid, task_name)
+                self._log.warning('No "boosted_util" data for task [%d:%s]',
+                                  tid, task_name)
 
         # Add Capacities data if avilable
         if 'nrg_model' in self._platform:
@@ -654,7 +652,7 @@ class TasksAnalysis(AnalysisModule):
             max_bcap = nrg_model['big']['cpu']['cap_max']
             tip_lcap = 0.8 * max_lcap
             tip_bcap = 0.8 * max_bcap
-            logging.debug(
+            self._log.debug(
                 'LITTLE capacity tip/max: %d/%d, big capacity tip/max: %d/%d',
                 tip_lcap, max_lcap, tip_bcap, max_bcap
             )

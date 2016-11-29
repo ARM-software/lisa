@@ -28,11 +28,6 @@ import trappy
 
 # Configure logging
 import logging
-reload(logging)
-logging.basicConfig(
-    format='%(asctime)-9s %(levelname)-8s: %(message)s',
-    level=logging.INFO,
-    datefmt='%I:%M:%S')
 
 # Add JSON parsing support
 from conf import JsonConf
@@ -82,14 +77,15 @@ class Executor():
         self._default_cgroup = None
         self._cgroup = None
 
+        # Setup logging
+        self._log = logging.getLogger('Executor')
+
         # Setup test configuration
         if isinstance(experiments_conf, dict):
-            logging.info('%14s - Loading custom (inline) test configuration',
-                    'Target')
+            self._log.info('Loading custom (inline) test configuration')
             self._experiments_conf = experiments_conf
         elif isinstance(experiments_conf, str):
-            logging.info('%14s - Loading custom (file) test configuration',
-                    'Target')
+            self._log.info('Loading custom (file) test configuration')
             json_conf = JsonConf(experiments_conf)
             self._experiments_conf = json_conf.load()
         else:
@@ -98,11 +94,11 @@ class Executor():
 
         # Check for mandatory configurations
         if not self._experiments_conf.get('confs', None):
-            raise ValueError(
-                    'Configuration error: missing \'conf\' definitions')
+            raise ValueError('Configuration error: '
+                             'missing "conf" definitions')
         if not self._experiments_conf.get('wloads', None):
-            raise ValueError(
-                    'Configuration error: missing \'wloads\' definitions')
+            raise ValueError('Configuration error: '
+                             'missing "wloads" definitions')
 
         self.te = test_env
         self.target = self.te.target
@@ -113,30 +109,29 @@ class Executor():
                 * len(self._experiments_conf['wloads']) \
                 * len(self._experiments_conf['confs'])
 
-        self._print_section('Executor', 'Experiments configuration')
+        self._print_section('Experiments configuration')
 
-        logging.info('%14s - Configured to run:', 'Executor')
+        self._log.info('Configured to run:')
 
-        logging.info('%14s -   %3d target configurations:',
-                     'Executor', len(self._experiments_conf['confs']))
+        self._log.info('   %3d target configurations:',
+                       len(self._experiments_conf['confs']))
         target_confs = [conf['tag'] for conf in self._experiments_conf['confs']]
         target_confs = ', '.join(target_confs)
-        logging.info('%14s -       %s', 'Executor', target_confs)
+        self._log.info('      %s', target_confs)
 
-        logging.info('%14s -   %3d workloads (%d iterations each)',
-                     'Executor', len(self._experiments_conf['wloads']),
-                     self._iterations)
+        self._log.info('   %3d workloads (%d iterations each)',
+                       len(self._experiments_conf['wloads']),
+                       self._iterations)
         wload_confs = ', '.join(self._experiments_conf['wloads'])
-        logging.info('%14s -       %s', 'Executor', wload_confs)
+        self._log.info('      %s', wload_confs)
 
-        logging.info('%14s - Total: %d experiments',
-                     'Executor', self._exp_count)
+        self._log.info('Total: %d experiments', self._exp_count)
 
-        logging.info('%14s - Results will be collected under:', 'Executor')
-        logging.info('%14s -       %s', 'Executor', self.te.res_dir)
+        self._log.info('Results will be collected under:')
+        self._log.info('      %s', self.te.res_dir)
 
     def run(self):
-        self._print_section('Executor', 'Experiments execution')
+        self._print_section('Experiments execution')
 
         self.experiments = []
 
@@ -163,9 +158,9 @@ class Executor():
                     exp_idx += 1
             self._target_cleanup(tc)
 
-        self._print_section('Executor', 'Experiments execution completed')
-        logging.info('%14s - Results available in:', 'Executor')
-        logging.info('%14s -       %s', 'Executor', self.te.res_dir)
+        self._print_section('Experiments execution completed')
+        self._log.info('Results available in:')
+        self._log.info('      %s', self.te.res_dir)
 
 
 ################################################################################
@@ -179,15 +174,14 @@ class Executor():
         if 'cgroups' not in self.target.modules:
             raise RuntimeError('CGroups module not available. Please ensure '
                                '"cgroups" is listed in your target/test modules')
-        logging.info(r'%14s - Initialize CGroups support...', 'CGroups')
+        self._log.info('Initialize CGroups support...')
         errors = False
         for kind in tc['cgroups']['conf']:
-            logging.info(r'%14s - Setup [%s] controller...',
-                    'CGroups', kind)
+            self._log.info('Setup [%s] CGroup controller...', kind)
             controller = self.target.cgroups.controller(kind)
             if not controller:
-                logging.warning(r'%14s - CGroups controller [%s] NOT available',
-                        'CGroups', kind)
+                self._log.warning('CGroups controller [%s] NOT available',
+                                  kind)
                 errors = True
         return not errors
 
@@ -199,12 +193,11 @@ class Executor():
 
     def _setup_sched_features(self, tc):
         if 'sched_features' not in tc:
-            logging.debug('%14s - Configuration not provided', 'SchedFeatures')
+            self._log.debug('Scheduler features configuration not provided')
             return
         feats = tc['sched_features'].split(",")
         for feat in feats:
-            logging.info('%14s - Set scheduler feature: %s',
-                         'SchedFeatures', feat)
+            self._log.info('Set scheduler feature: %s', feat)
             self.target.execute('echo {} > /sys/kernel/debug/sched_features'.format(feat),
                                 as_root=True)
 
@@ -215,8 +208,7 @@ class Executor():
         self.te.run_dir = os.path.join(
                 self.target.working_directory, TGT_RUN_DIR)
         # Create run folder as tmpfs
-        logging.debug('%14s - Setup RT-App run folder [%s]...',
-                'TargetSetup', self.te.run_dir)
+        self._log.debug('Setup RT-App run folder [%s]...', self.te.run_dir)
         self.target.execute('[ -d {0} ] || mkdir {0}'\
                 .format(self.te.run_dir))
         self.target.execute(
@@ -235,26 +227,23 @@ class Executor():
             # Probably the target doesn't have SELinux. No problem.
             self._old_selinux_mode = None
         else:
-            logging.warning('%14s - Setting target SELinux in permissive mode',
-                            'Executor')
+            self._log.warning('Setting target SELinux in permissive mode')
             self.target.execute('setenforce 0', as_root=True)
 
     def _setup_cpufreq(self, tc):
         if 'cpufreq' not in tc:
-            logging.warning(r'%14s - governor not specified, '\
-                    'using currently configured governor',
-                    'CPUFreq')
+            self._log.warning('cpufreq governor not specified, '
+                              'using currently configured governor')
             return
 
         cpufreq = tc['cpufreq']
-        logging.info(r'%14s - Configuring all CPUs to use [%s] governor',
-                'CPUFreq', cpufreq['governor'])
+        self._log.info('Configuring all CPUs to use [%s] cpufreq governor',
+                       cpufreq['governor'])
 
         self.target.cpufreq.set_all_governors(cpufreq['governor'])
 
         if 'params' in cpufreq:
-            logging.info(r'%14s - governor params: %s',
-                    'CPUFreq', str(cpufreq['params']))
+            self._log.info('governor params: %s', str(cpufreq['params']))
             for cpu in self.target.list_online_cpus():
                 self.target.cpufreq.set_governor_tunables(
                         cpu,
@@ -274,9 +263,9 @@ class Executor():
         for kind in tc['cgroups']['conf']:
             controller = self.target.cgroups.controller(kind)
             if not controller:
-                logging.warning(r'%14s - Configuration error: '\
-                        '[%s] contoller NOT supported',
-                        'CGroups', kind)
+                self._log.warning('Configuration error: '
+                                  '[%s] contoller NOT supported',
+                                  kind)
                 errors = True
                 continue
             self._setup_controller(tc, controller)
@@ -289,13 +278,13 @@ class Executor():
         for name in tc['cgroups']['conf'][controller.kind]:
             if name[0] != '/':
                 raise ValueError('Wrong CGroup name [{}]. '
-                                 'CGroups names must start by "/".'\
+                                 'CGroups names must start by "/".'
                                  .format(name))
             group = controller.cgroup(name)
             if not group:
-                logging.warning(r'%14s - Configuration error: '\
-                        '[%s/%s] cgroup NOT available',
-                        'CGroups', kind, name)
+                self._log.warning('Configuration error: '
+                                  '[%s/%s] cgroup NOT available',
+                                  kind, name)
                 errors = True
                 continue
             self._setup_group(tc, group)
@@ -308,8 +297,8 @@ class Executor():
         group.set(**tc['cgroups']['conf'][kind][name])
 
     def _target_configure(self, tc):
-        self._print_header('TargetConfig',
-                r'configuring target for [{}] experiments'\
+        self._print_header(
+                'configuring target for [{}] experiments'\
                 .format(tc['tag']))
         self._setup_kernel(tc)
         self._setup_sched_features(tc)
@@ -321,14 +310,14 @@ class Executor():
             has_flag = False
         else:
             has_flag = flag in tc['flags']
-        logging.debug('%14s - Check if target conf [%s] has flag [%s]: %s',
-                'TargetConf', tc['tag'], flag, has_flag)
+        self._log.debug('Check if target configuration [%s] has flag [%s]: %s',
+                        tc['tag'], flag, has_flag)
         return has_flag
 
     def _target_cleanup(self, tc):
         if self._old_selinux_mode is not None:
-            logging.info('%14s - Restoring target SELinux mode: %s',
-                         'Executor', self._old_selinux_mode)
+            self._log.info('Restoring target SELinux mode: %s',
+                           self._old_selinux_mode)
             self.target.execute('setenforce ' + self._old_selinux_mode,
                                 as_root=True)
 
@@ -367,10 +356,9 @@ class Executor():
             if 'last' in cpus:
                 return [ self.target.bl.bigs_online[-1] ]
             return self.target.bl.bigs_online
-        raise ValueError('Configuration error - '
-                'unsupported [{}] \'cpus\' value for [{}] '\
-                'workload specification'\
-                .format(cpus, wl_idx))
+        raise ValueError('unsupported [{}] "cpus" value for [{}] '
+                         'workload specification'
+                         .format(cpus, wl_idx))
 
     def _wload_task_idxs(self, wl_idx, tasks):
         if type(tasks) == int:
@@ -385,15 +373,13 @@ class Executor():
             return range(len([t
                 for t in self.target.core_names
                 if t == self.target.big_core]))
-        raise ValueError('Configuration error - '
-                'unsupported \'tasks\' value for [{}] '\
-                'RT-App workload specification'\
-                .format(wl_idx))
+        raise ValueError('unsupported "tasks" value for [{}] RT-App '
+                         'workload specification'
+                         .format(wl_idx))
 
     def _wload_rtapp(self, wl_idx, wlspec, cpus):
         conf = wlspec['conf']
-        logging.debug(r'%14s - Configuring [%s] rt-app...',
-                'RTApp', conf['class'])
+        self._log.debug('Configuring [%s] rt-app...', conf['class'])
 
         # Setup a default "empty" task name prefix
         if 'prefix' not in conf:
@@ -409,12 +395,11 @@ class Executor():
             # Load each task specification
             for task_name, task in conf['params'].items():
                 if task['kind'] not in wlgen.__dict__:
-                    logging.error(r'%14s - RTA task of kind [%s] not supported',
-                            'RTApp', task['kind'])
-                    raise ValueError('Configuration error - '
-                        'unsupported \'kind\' value for task [{}] '\
-                        'in RT-App workload specification'\
-                        .format(task))
+                    self._log.error('RTA task of kind [%s] not supported',
+                                    task['kind'])
+                    raise ValueError('unsupported "kind" value for task [{}] '
+                                     'in RT-App workload specification'
+                                     .format(task))
                 task_ctor = getattr(wlgen, task['kind'])
                 num_tasks = task.get('tasks', 1)
                 task_idxs = self._wload_task_idxs(wl_idx, num_tasks)
@@ -451,15 +436,13 @@ class Executor():
                     cpus=cpus, run_dir=self.te.run_dir)
             return rtapp
 
-        raise ValueError('Configuration error - '
-                'unsupported \'class\' value for [{}] '\
-                'RT-App workload specification'\
-                .format(wl_idx))
+        raise ValueError('unsupported \'class\' value for [{}] '
+                         'RT-App workload specification'
+                         .format(wl_idx))
 
     def _wload_perf_bench(self, wl_idx, wlspec, cpus):
         conf = wlspec['conf']
-        logging.debug(r'%14s - Configuring perf_message...',
-                'PerfMessage')
+        self._log.debug('Configuring perf_message...')
 
         if conf['class'] == 'messaging':
             perf_bench = wlgen.PerfMessaging(self.target, wl_idx)
@@ -471,10 +454,9 @@ class Executor():
             perf_bench.conf(**conf['params'])
             return perf_bench
 
-        raise ValueError('Configuration error - '\
-                'unsupported \'class\' value for [{}] '\
-                'perf bench workload specification'\
-                .format(wl_idx))
+        raise ValueError('unsupported "class" value for [{}] '
+                         'perf bench workload specification'
+                         .format(wl_idx))
 
     def _wload_conf(self, wl_idx, wlspec):
 
@@ -495,10 +477,9 @@ class Executor():
             return self._wload_perf_bench(wl_idx, wlspec, cpus)
 
 
-        raise ValueError('Configuration error - '
-                'unsupported \'type\' value for [{}] '\
-                'workload specification'\
-                .format(wl_idx))
+        raise ValueError('unsupported "type" value for [{}] '
+                         'workload specification'
+                         .format(wl_idx))
 
     def _wload_init(self, tc, wl_idx):
         tc_idx = tc['tag']
@@ -529,18 +510,18 @@ class Executor():
         wload = experiment.wload
         tc_idx = tc['tag']
 
-        self._print_title('Executor', 'Experiment {}/{}, [{}:{}] {}/{}'\
+        self._print_title('Experiment {}/{}, [{}:{}] {}/{}'\
                 .format(exp_idx, self._exp_count,
                         tc_idx, experiment.wload_name,
                         experiment.iteration, self._iterations))
 
         # Setup local results folder
-        logging.debug(r'%14s - out_dir [%s]', 'Executor', experiment.out_dir)
+        self._log.debug('out_dir set to [%s]', experiment.out_dir)
         os.system('mkdir -p ' + experiment.out_dir)
 
         # FTRACE: start (if a configuration has been provided)
         if self.te.ftrace and self._target_conf_flag(tc, 'ftrace'):
-            logging.warning('%14s - FTrace events collection enabled', 'Executor')
+            self._log.warning('FTrace events collection enabled')
             self.te.ftrace.start()
 
         # ENERGY: start sampling
@@ -560,41 +541,41 @@ class Executor():
 
             trace_file = experiment.out_dir + '/trace.dat'
             self.te.ftrace.get_trace(trace_file)
-            logging.info(r'%14s - Collected FTrace binary trace:', 'Executor')
-            logging.info(r'%14s -    %s', 'Executor',
-                         trace_file.replace(self.te.res_dir, '<res_dir>'))
+            self._log.info('Collected FTrace binary trace:')
+            self._log.info('   %s',
+                           trace_file.replace(self.te.res_dir, '<res_dir>'))
 
             stats_file = experiment.out_dir + '/trace_stat.json'
             self.te.ftrace.get_stats(stats_file)
-            logging.info(r'%14s - Collected FTrace function profiling:', 'Executor')
-            logging.info(r'%14s -    %s', 'Executor',
-                         stats_file.replace(self.te.res_dir, '<res_dir>'))
+            self._log.info('Collected FTrace function profiling:')
+            self._log.info('   %s',
+                           stats_file.replace(self.te.res_dir, '<res_dir>'))
 
-        self._print_footer('Executor')
+        self._print_footer()
 
 ################################################################################
 # Utility Functions
 ################################################################################
 
-    def _print_section(self, tag, message):
-        logging.info('')
-        logging.info(FMT_SECTION)
-        logging.info(r'%14s - %s', tag, message)
-        logging.info(FMT_SECTION)
+    def _print_section(self, message):
+        self._log.info('')
+        self._log.info(FMT_SECTION)
+        self._log.info(message)
+        self._log.info(FMT_SECTION)
 
-    def _print_header(self, tag, message):
-        logging.info('')
-        logging.info(FMT_HEADER)
-        logging.info(r'%14s - %s', tag, message)
+    def _print_header(self, message):
+        self._log.info('')
+        self._log.info(FMT_HEADER)
+        self._log.info(message)
 
-    def _print_title(self, tag, message):
-        logging.info(FMT_TITLE)
-        logging.info(r'%14s - %s', tag, message)
+    def _print_title(self, message):
+        self._log.info(FMT_TITLE)
+        self._log.info(message)
 
-    def _print_footer(self, tag, message=None):
+    def _print_footer(self, message=None):
         if message:
-            logging.info(r'%14s - %s', tag, message)
-        logging.info(FMT_FOOTER)
+            self._log.info(message)
+        self._log.info(FMT_FOOTER)
 
 
 ################################################################################

@@ -24,11 +24,12 @@ import numpy as np
 import os
 import re
 import sys
+import logging
 
 from collections import defaultdict
 from colors import TestColors
 
-import logging
+
 
 class Results(object):
 
@@ -36,6 +37,9 @@ class Results(object):
         self.results_dir = results_dir
         self.results_json = results_dir + '/results.json'
         self.results = {}
+
+        # Setup logging
+        self._log = logging.getLogger('Results')
 
         # Do nothing if results have been already parsed
         if os.path.isfile(self.results_json):
@@ -45,7 +49,7 @@ class Results(object):
         self.base_wls = defaultdict(list)
         self.test_wls = defaultdict(list)
 
-        logging.info('%14s - Loading energy/perf data...', 'Parser')
+        self._log.info('Loading energy/perf data...')
 
         for test_idx in sorted(os.listdir(self.results_dir)):
 
@@ -57,8 +61,8 @@ class Results(object):
             test.parse()
 
         results_json = self.results_dir + '/results.json'
-        logging.info('%14s - Dump perf results on JSON file [%s]...',
-                'Parser', results_json)
+        self._log.info('Dump perf results on JSON file [%s]...',
+                       results_json)
         with open(results_json, 'w') as outfile:
             json.dump(self.results, outfile, indent=4, sort_keys=True)
 
@@ -74,10 +78,8 @@ class Test(object):
         self.res = res
         match = TEST_DIR_RE.search(test_dir)
         if not match:
-            logging.error('%14s - Results folder not matching naming template',
-                    'TestParser')
-            logging.error('%14s - Skip parsing of test results [%s]',
-                    'TestParser', test_dir)
+            self._log.error('Results folder not matching naming template')
+            self._log.error('Skip parsing of test results [%s]', test_dir)
             return
 
         # Create required JSON entries
@@ -103,8 +105,7 @@ class Test(object):
 
     def parse(self):
 
-        logging.info('%14s - Processing results from wtype [%s]',
-                'TestParser', self.wtype)
+        self._log.info('Processing results from wtype [%s]', self.wtype)
 
         # Parse test's run results
         for run_idx in sorted(os.listdir(self.test_dir)):
@@ -146,10 +147,8 @@ class TestFactory(object):
         # Retrive workload class from results folder name
         match = TEST_DIR_RE.search(test_dir)
         if not match:
-            logging.error('%14s - Results folder not matching naming template',
-                    'TestParser')
-            logging.error('%14s - Skip parsing of test results [%s]',
-                    'TestParser', test_dir)
+            self._log.error('Results folder not matching naming template')
+            self._log.error('Skip parsing of test results [%s]', test_dir)
             return
 
         # Create workload specifi test class
@@ -170,7 +169,7 @@ class Energy(object):
         self.big = 0.0
         self.total = 0.0
 
-        logging.debug('%14s - Parse [%s]...', 'Energy', nrg_file)
+        self._log.debug('Parse [%s]...', nrg_file)
 
         with open(nrg_file, 'r') as infile:
             nrg = json.load(infile)
@@ -181,8 +180,8 @@ class Energy(object):
             self.big = float(nrg['big'])
         self.total = self.little + self.big
 
-        logging.debug('%14s - Energy LITTLE [%s], big [%s], Total [%s]',
-                'Energy', self.little, self.big, self.total)
+        self._log.debug('Energy LITTLE [%s], big [%s], Total [%s]',
+                        self.little, self.big, self.total)
 
 class Stats(object):
 
@@ -232,7 +231,7 @@ class Run(object):
         self.run_idx = run_idx
         self.nrg = None
 
-        logging.debug('%14s - Parse [%s]...', 'Run', run_dir)
+        self._log.debug('Parse [%s]...', 'Run', run_dir)
 
         # Energy stats
         self.little_nrg = 0
@@ -358,7 +357,7 @@ class RTAppPerf(object):
                 'edp3' : 0
         }
 
-        logging.debug('%14s - Parse [%s]...', 'Perf', perf_file)
+        self._log.debug('Parse [%s]...', perf_file)
 
         # Load performance data for each RT-App task
         self.name = perf_file.split('-')[-2]
@@ -373,32 +372,33 @@ class RTAppPerf(object):
         perf = np.multiply(perf, 100)
         self.prf['perf_avg'] = np.mean(perf)
         self.prf['perf_std'] = np.std(perf)
-        # logging.debug('perf [%s]: %6.2f,%6.2f',
-        #     self.name, self.prf['perf_mean'], self.prf['perf_std'])
+        self._log.debug('perf [%s]: %6.2f,%6.2f',
+                        self.name, self.prf['perf_avg'],
+                        self.prf['perf_std'])
 
         # Negative slacks
         nslacks = self.data[:,RTAPP_COL_SLACK]
         nslacks = nslacks[nslacks < 0]
-        # logging.debug('Negative Slacks: %s', nslacks)
+        self._log.debug('Negative slacks: %s', nslacks)
         self.prf['slack_sum'] = -nslacks.sum()
-        # logging.debug('Negative slack [%s] sum: %6.2f',
-        #     self.name, self.prf['slack_sum'])
+        self._log.debug('Negative slack [%s] sum: %6.2f',
+                        self.name, self.prf['slack_sum'])
 
         # Slack over run-time
         self.prf['run_sum'] = np.sum(self.data[:,RTAPP_COL_RUN])
         self.prf['slack_pct'] = 100 * self.prf['slack_sum'] / self.prf['run_sum']
-        # logging.debug('SlackPct [%s]: %6.2f %%', self.name, self.slack_pct)
+        self._log.debug('SlackPct [%s]: %6.2f %%', self.name, self.slack_pct)
 
         if nrg is None:
             return
 
         # Computing EDP
         self.prf['edp1'] = nrg.total * math.pow(self.prf['run_sum'], 1)
-        # logging.debug('EDP1 [%s]: {%6.2f}', self.name, self.prf['edp1'])
+        self._log.debug('EDP1 [%s]: {%6.2f}', self.name, self.prf['edp1'])
         self.prf['edp2'] = nrg.total * math.pow(self.prf['run_sum'], 2)
-        # logging.debug('EDP2 [%s]: %6.2f', self.name, self.prf['edp2'])
+        self._log.debug('EDP2 [%s]: %6.2f', self.name, self.prf['edp2'])
         self.prf['edp3'] = nrg.total * math.pow(self.prf['run_sum'], 3)
-        # logging.debug('EDP3 [%s]: %6.2f', self.name, self.prf['edp3'])
+        self._log.debug('EDP3 [%s]: %6.2f', self.name, self.prf['edp3'])
 
 
 # Columns of the per-task rt-app log file
@@ -466,8 +466,8 @@ class DefaultRun(Run):
         # Load default performance.json
         prf_file = os.path.join(run_dir, 'performance.json')
         if not os.path.isfile(prf_file):
-            logging.warning('%14s - No performance.json found in %s',
-                    'Perf', run_dir)
+            self._log.warning('No performance.json found in %s',
+                              run_dir)
             return
 
         # Load performance report from JSON

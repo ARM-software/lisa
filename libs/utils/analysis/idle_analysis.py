@@ -26,9 +26,6 @@ from analysis_module import AnalysisModule
 from trace import ResidencyTime, ResidencyData
 from trappy.utils import listify
 
-# Configure logging
-import logging
-
 
 class IdleAnalysis(AnalysisModule):
     """
@@ -55,8 +52,8 @@ class IdleAnalysis(AnalysisModule):
         :returns: :mod:`pandas.DataFrame` - idle state residency dataframe
         """
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
-                         'idle state residency computation not possible!')
+            self._log.warning('Events [cpu_idle] not found, '
+                              'idle state residency computation not possible!')
             return None
 
         idle_df = self._dfg_trace_event('cpu_idle')
@@ -105,8 +102,8 @@ class IdleAnalysis(AnalysisModule):
         :returns: :mod:`pandas.DataFrame` - idle state residency dataframe
         """
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
-                         'idle state residency computation not possible!')
+            self._log.warning('Events [cpu_idle] not found, '
+                              'idle state residency computation not possible!')
             return None
 
         _cluster = cluster
@@ -114,7 +111,7 @@ class IdleAnalysis(AnalysisModule):
             try:
                 _cluster = self._platform['clusters'][cluster.lower()]
             except KeyError:
-                logging.warn('%s cluster not found!', cluster)
+                self._log.warning('%s cluster not found!', cluster)
                 return None
 
         idle_df = self._dfg_trace_event('cpu_idle')
@@ -181,8 +178,8 @@ class IdleAnalysis(AnalysisModule):
         :type pct: bool
         """
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
-                         'plot DISABLED!')
+            self._log.warning('Events [cpu_idle] not found, '
+                              'plot DISABLED!')
             return
 
         if cpus is None:
@@ -223,7 +220,7 @@ class IdleAnalysis(AnalysisModule):
         :type clusters: str ot list(str)
         """
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, plot DISABLED!')
+            self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
             return
 
         # Sanitize clusters

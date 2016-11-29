@@ -17,6 +17,7 @@
 
 import os
 import sys
+import logging
 
 from glob import glob
 from inspect import isclass
@@ -24,18 +25,12 @@ from importlib import import_module
 
 from collections import namedtuple
 
-import logging
 
 class Workload(object):
     """
     Base class for Android related workloads
     """
     _availables = None
-
-    # Setup logger
-    logger = logging.getLogger('Workload')
-    logger.setLevel(logging.INFO)
-
 
     _AW = namedtuple('AndroidWorkload',
           ['module_name', 'module', 'class_name', 'ctor'])
@@ -48,8 +43,9 @@ class Workload(object):
         if Workload._availables is None:
             Workload.availables(te.target)
         # Build list of case insensitive workload names
+        log = logging.getLogger('Workload')
         if name not in Workload._availables:
-            logging.warning('Workload [%s] not available on target', name)
+            log.warning('Workload [%s] not available on target', name)
             return None
         return Workload._availables[name].ctor(te)
 
@@ -63,17 +59,20 @@ class Workload(object):
 
         Workload._availables = {}
 
+        log = logging.getLogger('Workload')
+        log.debug('Building list of available workloads...')
+
         # Add workloads dir to system path
         workloads_dir = os.path.dirname(os.path.abspath(__file__))
         workloads_dir = os.path.join(workloads_dir, 'workloads')
-        logging.debug('%14s - Workdir: %s', 'Workload', workloads_dir)
+        log.debug('Workdir: %s', workloads_dir)
 
         sys.path.insert(0, workloads_dir)
-        logging.debug('%14s - Syspath: %s', 'Workload', format(sys.path))
+        log.debug('Syspath: %s', sys.path)
 
         for filepath in glob(os.path.join(workloads_dir, '*.py')):
             filename = os.path.splitext(os.path.basename(filepath))[0]
-            logging.debug('%14s - Filename: %s', 'Workload', filename)
+            log.debug('Filename: %s', filename)
 
             # Ignore __init__ files
             if filename.startswith('__'):
@@ -113,10 +112,9 @@ class Workload(object):
         if int(count) >= 1:
             return True
 
-        logging.warning('%14s - Package [%s] not installed',
-                        'Workload', package)
-        logging.warning('%14s - Workload [%s] disabled',
-                        'Workload', aw.class_name)
+        log = logging.getLogger('Workload')
+        log.warning('Package [%s] not installed', package)
+        log.warning('Workload [%s] disabled', aw.class_name)
         return False
 
     def __init__(self, test_env):
@@ -127,12 +125,11 @@ class Workload(object):
         """
         self.te = test_env
         self.target = test_env.target
-        self.logger = self.target.logger
+        self._log = logging.getLogger('Workload')
 
-        logging.debug('%14s - Building list of available workloads...', 'Workload')
         wloads = Workload.availables(self.target)
-        logging.info('%14s - Workloads available on target:', 'Workload')
-        logging.info('%14s -   %s', 'Workload', wloads)
+        self._log.info('Workloads available on target:')
+        self._log.info('  %s', wloads)
 
     def _adb(self, cmd):
         return 'adb -s {} {}'.format(self.target.adb_name, cmd)

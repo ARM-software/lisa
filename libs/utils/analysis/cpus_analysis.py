@@ -24,9 +24,6 @@ from trappy.utils import listify
 
 from analysis_module import AnalysisModule
 
-# Configure logging
-import logging
-
 
 class CpusAnalysis(AnalysisModule):
     """
@@ -51,8 +48,8 @@ class CpusAnalysis(AnalysisModule):
         :returns: :mod:`pandas.DataFrame`
         """
         if not self._trace.hasEvents('sched_switch'):
-            logging.warn('Events [sched_switch] not found, context switch '
-                         'computation not possible!')
+            self._log.warning('Events [sched_switch] not found, context switch '
+                              'computation not possible!')
             return None
 
         sched_df = self._dfg_trace_event('sched_switch')
@@ -78,8 +75,8 @@ class CpusAnalysis(AnalysisModule):
         :type cpus: list(int)
         """
         if not self._trace.hasEvents('sched_load_avg_cpu'):
-            logging.warn('Events [sched_load_avg_cpu] not found, '
-                         'plot DISABLED!')
+            self._log.warning('Events [sched_load_avg_cpu] not found, '
+                              'plot DISABLED!')
             return
 
         # Filter on specified cpus
@@ -182,7 +179,7 @@ class CpusAnalysis(AnalysisModule):
         Plot histogram of context switches on each CPU.
         """
         if not self._trace.hasEvents('sched_switch'):
-            logging.warn('Events [sched_switch] not found, plot DISABLED!')
+            self._log.warning('Events [sched_switch] not found, plot DISABLED!')
             return
 
         ctx_sw_df = self._dfg_context_switches()

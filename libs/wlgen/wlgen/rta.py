@@ -17,13 +17,14 @@
 
 import fileinput
 import json
-import logging
 import os
 import re
 
 from collections import namedtuple
 from wlgen import Workload
 from devlib.utils.misc import ranges_to_list
+
+import logging
 
 _Phase = namedtuple('Phase', 'duration_s, period_ms, duty_cycle_pct')
 class Phase(_Phase):
@@ -48,7 +49,8 @@ class RTA(Workload):
                  name,
                  calibration=None):
 
-        self.logger = logging.getLogger('rtapp')
+        # Setup logging
+        self._log = logging.getLogger('RTApp')
 
         # rt-app calibration
         self.pload = calibration
@@ -78,15 +80,18 @@ class RTA(Workload):
         pload_regexp = re.compile(r'pLoad = ([0-9]+)ns')
         pload = {}
 
+        # Setup logging
+        log = logging.getLogger('RTApp')
+
         # target.cpufreq.save_governors()
         target.cpufreq.set_all_governors('performance')
 
         for cpu in target.list_online_cpus():
 
-            logging.info('CPU%d calibration...', cpu)
+            log.info('CPU%d calibration...', cpu)
 
             max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
-            logging.debug('Max RT prio: %d', max_rtprio)
+            log.debug('Max RT prio: %d', max_rtprio)
             if max_rtprio > 10:
                 max_rtprio = 10
 
@@ -111,25 +116,25 @@ class RTA(Workload):
                 if pload_match is None:
                     continue
                 pload[cpu] = int(pload_match.group(1))
-                logging.debug('>>> cpu%d: %d', cpu, pload[cpu])
+                log.debug('>>> cpu%d: %d', cpu, pload[cpu])
 
         # target.cpufreq.load_governors()
 
-        logging.info('Target RT-App calibration:')
-        logging.info('%s',
-                "{" + ", ".join('"%r": %r' % (key, pload[key]) for key in pload) + "}")
+        log.info('Target RT-App calibration:')
+        log.info("{" + ", ".join('"%r": %r' % (key, pload[key])
+                                 for key in pload) + "}")
 
         # Sanity check calibration values for big.LITTLE systems
         if 'bl' in target.modules:
             bcpu = target.bl.bigs_online[0]
             lcpu = target.bl.littles_online[0]
             if pload[bcpu] > pload[lcpu]:
-                logging.warning("Calibration values reports big cores less "
-                                "capable than LITTLE cores")
-                raise RuntimeError("Calibration failed: try again or file a bug")
+                log.warning('Calibration values reports big cores less '
+                            'capable than LITTLE cores')
+                raise RuntimeError('Calibration failed: try again or file a bug')
             bigs_speedup = ((float(pload[lcpu]) / pload[bcpu]) - 1) * 100
-            logging.info("big cores are ~%.0f%% more capable than LITTLE cores",
-                        bigs_speedup)
+            log.info('big cores are ~%.0f%% more capable than LITTLE cores',
+                     bigs_speedup)
 
         return pload
 
@@ -137,18 +142,15 @@ class RTA(Workload):
         destdir = params['destdir']
         if destdir is None:
             return
-        self.logger.debug('%14s - Pulling logfiles to [%s]...',
-                          'RTApp', destdir)
+        self._log.debug('Pulling logfiles to [%s]...', destdir)
         for task in self.tasks.keys():
             logfile = "'{0:s}/*{1:s}*.log'"\
                     .format(self.run_dir, task)
             self.target.pull(logfile, destdir)
-        self.logger.debug('%14s - Pulling JSON to [%s]...',
-                          'RTApp', destdir)
+        self._log.debug('Pulling JSON to [%s]...', destdir)
         self.target.pull('{}/{}'.format(self.run_dir, self.json), destdir)
         logfile = '{}/output.log'.format(destdir)
-        self.logger.debug('%14s - Saving output on [%s]...',
-                          'RTApp', logfile)
+        self._log.debug('Saving output on [%s]...', logfile)
         with open(logfile, 'w') as ofile:
             for line in self.output['executor'].split('\n'):
                 ofile.write(line+'\n')
@@ -231,24 +233,20 @@ class RTA(Workload):
         if self.pload is not None:
             if loadref and loadref.upper() == 'LITTLE':
                 target_cpu = self._getFirstLittle()
-                self.logger.debug('%14s - ref on LITTLE cpu: %d',
-                                  'RTApp', target_cpu)
+                self._log.debug('ref on LITTLE cpu: %d', target_cpu)
             else:
                 target_cpu = self._getFirstBig()
-                self.logger.debug('%14s - ref on big cpu: %d',
-                                  'RTApp', target_cpu)
+                self._log.debug('ref on big cpu: %d', target_cpu)
             return target_cpu
 
         # These options are selected only when RTApp has not been
         # already calibrated
         if self.cpus is None:
             target_cpu = self._getFirstBig()
-            self.logger.debug('%14s - ref on cpu: %d',
-                              'RTApp', target_cpu)
+            self._log.debug('ref on cpu: %d', target_cpu)
         else:
             target_cpu = self._getFirstBiggest(self.cpus)
-            self.logger.debug('%14s - ref on (possible) biggest cpu: %d',
-                              'RTApp', target_cpu)
+            self._log.debug('ref on (possible) biggest cpu: %d', target_cpu)
         return target_cpu
 
     def getCalibrationConf(self, target_cpu=0):
@@ -305,11 +303,10 @@ class RTA(Workload):
         global_conf['calibration'] = calibration
         if self.duration is not None:
             global_conf['duration'] = self.duration
-            self.logger.warn('%14s - Limiting workload duration to %d [s]',
-                             'RTApp', global_conf['duration'])
+            self._log.warn('Limiting workload duration to %d [s]',
+                           global_conf['duration'])
         else:
-            self.logger.info('%14s - Workload duration defined by longest task',
-                             'RTApp')
+            self._log.info('Workload duration defined by longest task')
 
         # Setup default scheduling class
         if 'policy' in self.sched:
@@ -319,8 +316,7 @@ class RTA(Workload):
                         .format(policy))
             global_conf['default_policy'] = 'SCHED_' + self.sched['policy']
 
-        self.logger.info('%14s - Default policy: %s',
-                         'RTApp', global_conf['default_policy'])
+        self._log.info('Default policy: %s', global_conf['default_policy'])
 
         # Setup global configuration
         self.rta_profile['global'] = global_conf
@@ -350,29 +346,26 @@ class RTA(Workload):
             # Initialize task phases
             task_conf['phases'] = {}
 
-            self.logger.info('%14s - ------------------------', 'RTApp')
-            self.logger.info('%14s - task [%s], %s', 'RTApp', tid, sched_descr)
+            self._log.info('------------------------')
+            self._log.info('task [%s], %s', tid, sched_descr)
 
             if 'delay' in task.keys():
                 if task['delay'] > 0:
                     task_conf['phases']['p000000'] = {}
                     task_conf['phases']['p000000']['delay'] = int(task['delay'] * 1e6)
-                    self.logger.info('%14s -  | start delay: %.6f [s]',
-                            'RTApp', task['delay'])
+                    self._log.info(' | start delay: %.6f [s]',
+                            task['delay'])
 
-            self.logger.info('%14s -  | calibration CPU: %d',
-                             'RTApp', target_cpu)
+            self._log.info(' | calibration CPU: %d', target_cpu)
 
             if 'loops' not in task.keys():
                 task['loops'] = 1
             task_conf['loop'] = task['loops']
-            self.logger.info('%14s -  | loops count: %d',
-                             'RTApp', task['loops'])
+            self._log.info(' | loops count: %d', task['loops'])
 
             # Setup task affinity
             if 'cpus' in task and task['cpus']:
-                self.logger.info('%14s -  | CPUs affinity: %s',
-                                 'RTApp', task['cpus'])
+                self._log.info(' | CPUs affinity: %s', task['cpus'])
                 if isinstance(task['cpus'], str):
                     task_conf['cpus'] = ranges_to_list(task['cpus'])
                 elif isinstance(task['cpus'], list):
@@ -395,8 +388,8 @@ class RTA(Workload):
                 # A duty-cycle of 0[%] translates on a 'sleep' phase
                 if phase.duty_cycle_pct == 0:
 
-                    self.logger.info('%14s -  + phase_%06d: sleep %.6f [s]',
-                                     'RTApp', pid, duration/1e6)
+                    self._log.info(' + phase_%06d: sleep %.6f [s]',
+                                   pid, duration/1e6)
 
                     task_phase = {
                         'loop': 1,
@@ -406,8 +399,8 @@ class RTA(Workload):
                 # A duty-cycle of 100[%] translates on a 'run-only' phase
                 elif phase.duty_cycle_pct == 100:
 
-                    self.logger.info('%14s -  + phase_%06d: batch %.6f [s]',
-                                     'RTApp', pid, duration/1e6)
+                    self._log.info(' + phase_%06d: batch %.6f [s]',
+                                   pid, duration/1e6)
 
                     task_phase = {
                         'loop': 1,
@@ -425,15 +418,12 @@ class RTA(Workload):
                     sleep_time = period * (100 - phase.duty_cycle_pct) / 100
                     running_time = period - sleep_time
 
-                    self.logger.info(
-                            '%14s - + phase_%06d: duration %.6f [s] (%d loops)',
-                            'RTApp', pid, duration/1e6, cloops)
-                    self.logger.info(
-                            '%14s - |  period   %6d [us], duty_cycle %3d %%',
-                            'RTApp', period, phase.duty_cycle_pct)
-                    self.logger.info(
-                            '%14s - |  run_time %6d [us], sleep_time %6d [us]',
-                            'RTApp', running_time, sleep_time)
+                    self._log.info('+ phase_%06d: duration %.6f [s] (%d loops)',
+                                   pid, duration/1e6, cloops)
+                    self._log.info('|  period   %6d [us], duty_cycle %3d %%',
+                                   period, phase.duty_cycle_pct)
+                    self._log.info('|  run_time %6d [us], sleep_time %6d [us]',
+                                   running_time, sleep_time)
 
                     task_phase = {
                         'loop': cloops,

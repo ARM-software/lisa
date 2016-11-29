@@ -16,9 +16,39 @@
 #
 
 import json
-import logging
 import os
 import re
+import logging
+import logging.config
+
+
+class LisaLogging(object):
+
+    @classmethod
+    def setup(self, filepath='logging.conf', level=logging.INFO):
+        """
+        Initialize logging used for all the LISA modules.
+
+        :param filepath: the relative or absolute path of the logging configuration to use.
+                         Relative path uses the LISA_HOME environment variable
+                         has base folder.
+        :type filepath: str
+
+        :param level: the default log level to enable, INFO by default
+        :type level: logging.<level> or int in [0..50]
+        """
+
+        # Load the specified logfile using an absolute path
+        basepath = os.path.dirname(__file__).replace('/libs/utils', '')
+        filepath = os.path.join(basepath, filepath)
+        if not os.path.exists(filepath):
+            raise ValueError('Logging configuration file not found in: {}'\
+                             .format(filepath))
+        logging.config.fileConfig(filepath)
+        logging.getLogger().setLevel(level)
+
+        logging.info('Using LISA logging configuration:')
+        logging.info('  %s', filepath)
 
 class JsonConf(object):
 
@@ -36,11 +66,15 @@ class JsonConf(object):
                 ...
                 */
         """
+
+        # Setup logging
+        self._log = logging.getLogger('JsonConf')
+
         if not os.path.isfile(self.filename):
             raise RuntimeError(
                 'Missing configuration file: {}'.format(self.filename)
             )
-        logging.debug('loading JSON...')
+        self._log.debug('loading JSON...')
 
         with open(self.filename) as fh:
             content = ''.join(fh.readlines())
@@ -60,7 +94,8 @@ class JsonConf(object):
 
             # Return json file
             self.json = json.loads(content, parse_int=int)
-            logging.debug('Loaded JSON configuration:\n%s', self.json)
+            self._log.debug('Loaded JSON configuration:')
+            self._log.debug('   %s', self.json)
 
         return self.json
 

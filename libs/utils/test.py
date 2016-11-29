@@ -15,9 +15,9 @@
 # limitations under the License.
 #
 
-import logging
 import os
 import unittest
+import logging
 
 from bart.sched.SchedAssert import SchedAssert
 from bart.sched.SchedMultiAssert import SchedMultiAssert
@@ -26,6 +26,7 @@ import wrapt
 
 from env import TestEnv
 from executor import Executor
+
 
 class LisaTest(unittest.TestCase):
     """
@@ -57,12 +58,7 @@ class LisaTest(unittest.TestCase):
         Set up logging and trigger running experiments
         """
 
-        cls.logger = logging.getLogger('test')
-        cls.logger.setLevel(logging.INFO)
-        if 'loglevel' in kwargs:
-            cls.logger.setLevel(kwargs['loglevel'])
-            kwargs.pop('loglevel')
-
+        cls.logger = logging.getLogger('LisaTest')
         cls._runExperiments()
 
     @classmethod
@@ -91,7 +87,7 @@ class LisaTest(unittest.TestCase):
         Default experiments execution engine
         """
 
-        cls.logger.info("%14s - Setup tests execution engine...", "LisaTest")
+        cls.logger.info('Setup tests execution engine...')
         test_env = TestEnv(test_conf=cls._getTestConf())
 
         experiments_conf = cls._getExperimentsConf(test_env)
@@ -104,7 +100,7 @@ class LisaTest(unittest.TestCase):
         # Execute pre-experiments code defined by the test
         cls._experimentsInit()
 
-        cls.logger.info("%14s - Experiments execution...", "LisaTest")
+        cls.logger.info('Experiments execution...')
         cls.executor.run()
 
         # Execute post-experiments code defined by the test
