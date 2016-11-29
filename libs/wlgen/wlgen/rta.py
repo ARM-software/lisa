@@ -264,7 +264,6 @@ class RTA(Workload):
 
         self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
         ofile = open(self.json, 'w')
-        ifile = open(self.params['custom'], 'r')
         replacements = {
             '__DURATION__' : str(self.duration),
             '__PVALUE__'   : str(calibration),
@@ -272,11 +271,22 @@ class RTA(Workload):
             '__WORKDIR__'  : '"'+self.target.working_directory+'"',
         }
 
+	# check for inline config
+	if 'custom_config' in self.params['custom']:
+		# inline config present, turn it into a file repr so we can parse the same
+		tmp_json = json.dumps(self.params['custom']['custom_config'], indent=4, separators=(',', ': '), sort_keys=True)
+		ifile = tmp_json.split('\n')
+	else:
+		# open the supplied filename
+	        ifile = open(self.params['custom']['custom_filename'], 'r')
+
         for line in ifile:
             for src, target in replacements.iteritems():
                 line = line.replace(src, target)
+	    print "line: {}".format(line)
             ofile.write(line)
-        ifile.close()
+        if not 'custom_config' in self.params['custom']:
+		ifile.close()
         ofile.close()
 
         return self.json
@@ -468,6 +478,30 @@ class RTA(Workload):
 
         Custom workloads
         ----------------
+	When 'kind' is 'custom', you can supply existing rt-app json either
+	directly or by supplying a file name.
+	To use a task definition stored in a file, pass the file name
+	as 'custom_filename' inside the 'params' member. Note that the filename
+	is relative to the current directory.
+        To supply json directly, assign the variable content to 'custom_config'
+        inside the 'params' member.
+	Only one of these will be used - if 'custom_config' is present, then
+        'custom_filename' will be ignored.
+
+	This allows you to reuse the push/run-test/pull functionality with
+        more complex application models not covered by the workload generator.
+
+	For example, to create an RTA wrapper for an existing rt-app task
+	description stored in a file whose name is held in a variable called
+	'filename':
+
+	generated_file_name = rtapp.conf(
+	    kind='custom',
+	    duration=-1,
+	    params={
+		'custom_filename' : "{}".format(filename)
+	    },
+	    run_dir='/data/local/tmp' )
 
 
         Profile based workloads
