@@ -318,17 +318,17 @@ class CgroupsModule(Module):
         self.cgroup_root = target.path.join(
             target.working_directory, 'cgroups')
 
-        # Load list of available controllers
-        controllers = []
+        # Get the list of the available controllers
         subsys = self.list_subsystems()
-        for (n, h, c, e) in subsys:
-            controllers.append(n)
-        self.logger.debug('Available controllers: %s', controllers)
+        if len(subsys) == 0:
+            self.logger.warning('No CGroups controller available')
+            return
 
         # Initialize controllers
+        self.logger.info('Available controllers:')
         self.controllers = {}
-        for idx in controllers:
-            controller = Controller(idx)
+        for ss in subsys:
+            controller = Controller(ss.name)
             self.logger.debug('Init %s controller...', controller.kind)
             if not controller.probe(self.target):
                 continue
@@ -338,7 +338,7 @@ class CgroupsModule(Module):
                 message = 'cgroups {} controller is not supported by the target'
                 raise TargetError(message.format(controller.kind))
             self.logger.debug('Controller %s enabled', controller.kind)
-            self.controllers[idx] = controller
+            self.controllers[ss.name] = controller
 
     def list_subsystems(self):
         subsystems = []
