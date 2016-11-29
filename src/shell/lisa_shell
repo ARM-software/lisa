@@ -307,7 +307,7 @@ echo
 ################################################################################
 
 # Setup Shell variables
-PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_DEFAULT}\]"
+PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
 
 # Dump out a nice LISA Shell logo
 clear
