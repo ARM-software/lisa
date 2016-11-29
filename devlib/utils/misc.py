@@ -86,6 +86,8 @@ CPU_PART_MAP = {
             0x2: 'Krait400',
             0x3: 'Krait450',
         },
+        0x205: {0x1: 'KryoSilver'},
+        0x211: {0x1: 'KryoGold'},
     },
     0x56: {  # Marvell
         0x131: {
