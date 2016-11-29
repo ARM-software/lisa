@@ -24,29 +24,32 @@ from devlib.utils.types import boolean
 
 class Controller(object):
 
-    def __new__(cls, arg):
-        if isinstance(arg, cls):
-            return arg
-        else:
-            return object.__new__(cls, arg)
+    def __init__(self, kind, hid, clist):
+        """
+        Initialize a controller given the hierarchy it belongs to.
 
-    def __init__(self, kind):
-        self.mount_name = 'devlib_'+kind
+        :param kind: the name of the controller
+        :type kind: str
+
+        :param hid: the Hierarchy ID this controller is mounted on
+        :type hid: int
+
+        :param clist: the list of controller mounted in the same hierarchy
+        :type clist: list(str)
+        """
+        self.mount_name = 'devlib_cgh{}'.format(hid)
         self.kind = kind
+        self.hid = hid
+        self.clist = clist
         self.target = None
         self._noprefix = False
 
-        self.logger = logging.getLogger('cgroups.'+self.kind)
+        self.logger = logging.getLogger('CGroup.'+self.kind)
+        self.logger.debug('Initialized [%s, %d, %s]',
+                          self.kind, self.hid, self.clist)
+
         self.mount_point = None
         self._cgroups = {}
-
-    def probe(self, target):
-        try:
-            exists = target.execute('{} grep {} /proc/cgroups'\
-                    .format(target.busybox, self.kind))
-        except TargetError:
-            return False
-        return True
 
     def mount(self, target, mount_root):
 
@@ -64,7 +67,7 @@ class Controller(object):
             target.execute('mkdir -p {} 2>/dev/null'\
                     .format(self.mount_point), as_root=True)
             target.execute('mount -t cgroup -o {} {} {}'\
-                    .format(self.kind,
+                    .format(','.join(self.clist),
                             self.mount_name,
                             self.mount_point),
                             as_root=True)
@@ -324,20 +327,28 @@ class CgroupsModule(Module):
             self.logger.warning('No CGroups controller available')
             return
 
+        # Map hierarchy IDs into a list of controllers
+        hierarchy = {}
+        for ss in subsys:
+            try:
+                hierarchy[ss.hierarchy].append(ss.name)
+            except KeyError:
+                hierarchy[ss.hierarchy] = [ss.name]
+        self.logger.debug('Available hierarchies: %s', hierarchy)
+
         # Initialize controllers
         self.logger.info('Available controllers:')
         self.controllers = {}
         for ss in subsys:
-            controller = Controller(ss.name)
-            self.logger.debug('Init %s controller...', controller.kind)
-            if not controller.probe(self.target):
-                continue
+            hid = ss.hierarchy
+            controller = Controller(ss.name, hid, hierarchy[hid])
             try:
                 controller.mount(self.target, self.cgroup_root)
             except TargetError:
-                message = 'cgroups {} controller is not supported by the target'
+                message = 'Failed to mount "{}" controller'
                 raise TargetError(message.format(controller.kind))
-            self.logger.debug('Controller %s enabled', controller.kind)
+            self.logger.info('  %-12s : %s', controller.kind,
+                             controller.mount_point)
             self.controllers[ss.name] = controller
 
     def list_subsystems(self):
