@@ -102,7 +102,7 @@ cgroups_get_attributes() {
 cgroups_run_into() {
 
 	# Control groups mount point
-	CGMOUNT=${CGMOUNT:-/sys/fs/cgroup/devlib_*}
+	CGMOUNT=${CGMOUNT:-/sys/fs/cgroup}
 	# The control group we want to run into
 	CGP=${1}
 	shift 1

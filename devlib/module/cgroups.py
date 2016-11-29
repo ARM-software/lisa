@@ -314,6 +314,10 @@ class CgroupsModule(Module):
 
         self.logger = logging.getLogger('CGroups')
 
+        # Set Devlib's CGroups mount point
+        self.cgroup_root = target.path.join(
+            target.working_directory, 'cgroups')
+
         # Load list of available controllers
         controllers = []
         subsys = self.list_subsystems()
@@ -329,9 +333,7 @@ class CgroupsModule(Module):
             if not controller.probe(self.target):
                 continue
             try:
-                cgroup_root = target.path.join(target.working_directory,
-                                               'cgroups')
-                controller.mount(self.target, cgroup_root)
+                controller.mount(self.target, self.cgroup_root)
             except TargetError:
                 message = 'cgroups {} controller is not supported by the target'
                 raise TargetError(message.format(controller.kind))
@@ -359,12 +361,18 @@ class CgroupsModule(Module):
             return None
         return self.controllers[kind]
 
+    def run_into_cmd(self, cgroup, cmdline):
+        return 'CGMOUNT={} {} cgroups_run_into {} {}'\
+                .format(self.cgroup_root, self.target.shutils,
+                        cgroup, cmdline)
+
     def run_into(self, cgroup, cmdline):
         """
         Run the specified command into the specified CGroup
         """
         return self.target._execute_util(
-            'cgroups_run_into {} {}'.format(cgroup, cmdline),
+            'CGMOUNT={} cgroups_run_into {} {}'\
+                .format(self.cgroup_root, cgroup, cmdline),
             as_root=True)
 
 
