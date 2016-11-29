@@ -19,6 +19,8 @@ import logging
 
 from devlib.utils.android import adb_command
 from devlib import TargetError
+import os
+import pexpect as pe
 
 GET_FRAMESTATS_CMD = 'shell dumpsys gfxinfo {} > {}'
 
@@ -26,6 +28,36 @@ class System(object):
     """
     Collection of Android related services
     """
+
+    @staticmethod
+    def systrace_start(target, trace_file, time,
+                       events=['gfx', 'view', 'sched', 'freq', 'idle']):
+
+        log = logging.getLogger('System')
+
+        # Check which systrace binary is available under CATAPULT_HOME
+        for systrace in ['systrace.py', 'run_systrace.py']:
+                systrace_path = os.path.join(target.CATAPULT_HOME, 'systrace',
+                                             'systrace', systrace)
+                if os.path.isfile(systrace_path):
+                        break
+        else:
+                log.warning("Systrace binary not available under CATAPULT_HOME: %s!",
+                            target.CATAPULT_HOME)
+                return None
+
+        #  Format the command according to the specified time and events
+        systrace_pattern = "{} -e {} -o {} {} -t {}"
+        trace_cmd = systrace_pattern.format(systrace_path, target.conf['device'],
+                                            trace_file, " ".join(events), time)
+        log.info('SysTrace: %s', trace_cmd)
+
+        # Actually spawn systrace
+        return pe.spawn(trace_cmd)
+
+    @staticmethod
+    def systrace_wait(target, systrace_output):
+        systrace_output.wait()
 
     @staticmethod
     def set_airplane_mode(target, on=True):
