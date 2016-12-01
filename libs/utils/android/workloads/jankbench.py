@@ -152,8 +152,9 @@ class Jankbench(Workload):
         # Go back to home screen
         System.home(self.target)
 
-        # Switch back to screen auto rotation
+        # Reset initial setup
         Screen.set_orientation(self.target, auto=True)
+        System.set_airplane_mode(self.target, on=False)
 
         return db_file, nrg_report
 
