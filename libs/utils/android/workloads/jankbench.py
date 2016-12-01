@@ -154,6 +154,8 @@ class Jankbench(Workload):
 
         # Switch back to screen auto rotation
         Screen.set_orientation(self.target, auto=True)
+        
+        System.set_airplane_mode(self.target, on=False)
 
         return db_file, nrg_report
 
