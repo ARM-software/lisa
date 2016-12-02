@@ -205,12 +205,15 @@ class Simulator(object):
     specified time frame. It provides also an embedded support to plot the
     generated signal along with a set of expected thresholds and values
     (e.g. half-life, min/max stability values)
+
+    The capping of the decay is an experimental features which is also
+    supported by the current model.
     """
 
     _sample_us = 1024
     _signal_max = 1024
 
-    def __init__(self, init_value=0, half_life_ms=32):
+    def __init__(self, init_value=0, half_life_ms=32, decay_cap_ms=None):
         """Initialize the PELT simulator for a specified task.
 
         :param init_value: the initial PELT value for the task
@@ -219,9 +222,15 @@ class Simulator(object):
         :param half_life_ms: the [ms] interval required by a signal to
                              increased/decreased by half of its range
         :type  half_life_ms: int
+
+        :param decay_cap_ms: the [ms] interval after which we do not decay
+                             further the PELT signal
+        :type  decay_cap_ms: int
+
         """
         self.init_value = init_value
         self.half_life_ms = half_life_ms
+        self.decay_cap_ms = decay_cap_ms
 
         self._geom_y = pow(0.5, 1./half_life_ms)
         self._geom_u = float(Simulator._signal_max) * (1. - self._geom_y)
@@ -233,6 +242,7 @@ class Simulator(object):
         desc  = "PELT Simulator configured with\n"
         desc += "  initial value        : {}\n".format(self.init_value)
         desc += "  half life (HL)  [ms] : {}\n".format(self.half_life_ms)
+        desc += "  decay capping @ [ms] : {}\n".format(self.decay_cap_ms)
         desc += "  y =    0.5^(1/HL)    : {:6.3f}\n".format(self._geom_y)
         desc += "  u = {:5d}*(1 - y)    : {:6.3f}\n".format(Simulator._signal_max, self._geom_u)
         return desc
@@ -319,6 +329,9 @@ class Simulator(object):
 
         # Computed PELT samples
         samples = []
+        # Decay capping support
+        running_prev = True
+        capping = None
 
         # Validate input parameters
         if not isinstance(task, PeriodicTask):
@@ -341,15 +354,30 @@ class Simulator(object):
             # Check if the task was running in the current PELT sample
             running = task.isRunning(_us_to_ms(t_us))
 
+            # Keep track of sleep start and decay capping time
+            if self.decay_cap_ms and running_prev and not running:
+                capping = t_us + _ms_to_us(self.decay_cap_ms,
+                                           Simulator._sample_us)
+
             # Assume the task was running for all the current PELT sample
             active_us = Simulator._sample_us if running else 0
-            pelt_value = self._geomSum(pelt_value, active_us)
+
+            # Always update utilization:
+            # - when the task is running
+            # - when is not running and we are not capping the decay
+            if running or not self.decay_cap_ms:
+                pelt_value = self._geomSum(pelt_value, active_us)
+
+            # Update decay only up to the capping point
+            elif capping and t_us <= capping:
+                pelt_value = self._geomSum(pelt_value, active_us)
 
             # Append PELT sample
             sample = (_us_to_s(t_us), t_us/Simulator._sample_us, running, pelt_value)
             samples.append(sample)
 
             # Prepare for next sample computation
+            running_prev = running
             t_us += Simulator._sample_us
 
         # Create DataFrame from computed samples
