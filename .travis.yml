@@ -11,6 +11,7 @@ install:
   - pip install matplotlib
   - pip install Cython --install-option="--no-cython-compile"
   - pip install pandas
+  - pip install hypothesis
   - pip install ipython[all]
   - pip install --upgrade trappy
 script: nosetests
