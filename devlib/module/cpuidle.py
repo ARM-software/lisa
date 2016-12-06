@@ -68,6 +68,11 @@ class CpuidleState(object):
     def power(self):
         return self.get('power')
 
+    @property
+    @memoized
+    def target_residency(self):
+        return self.get('residency')
+
     def enable(self):
         self.set('disable', 0)
 
