@@ -20,6 +20,7 @@ class CpuIdle(Base):
     """Parse cpu_idle"""
 
     unique_word = "cpu_idle"
+    pivot = "cpu_id"
 
     def finalize_object(self):
         # The trace contains "4294967295" instead of "-1" when exiting an idle
