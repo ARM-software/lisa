@@ -33,7 +33,7 @@ from devlib.utils.misc import memoized
 from trappy.utils import listify
 
 
-NON_IDLE_STATE = 4294967295
+NON_IDLE_STATE = -1
 ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
 ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
 

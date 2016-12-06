@@ -69,7 +69,7 @@ class IdleAnalysis(AnalysisModule):
         #     idle_state[t] == 0 otherwise
         available_idles = sorted(idle_df.state.unique())
         # Remove non-idle state from availables
-        available_idles.pop()
+        available_idles = available_idles[1:]
         cpu_idle = cpu_idle.join(cpu_is_idle.to_frame(name='is_idle'),
                                  how='outer')
         cpu_idle.fillna(method='ffill', inplace=True)
@@ -142,7 +142,7 @@ class IdleAnalysis(AnalysisModule):
         #     idle_state[t] == 0 otherwise
         available_idles = sorted(idle_df.state.unique())
         # Remove non-idle state from availables
-        available_idles.pop()
+        available_idles = available_idles[1:]
         cl_idle = cl_idle.join(cl_is_idle.to_frame(name='is_idle'),
                                how='outer')
         cl_idle.fillna(method='ffill', inplace=True)
