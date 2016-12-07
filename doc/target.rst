@@ -10,8 +10,8 @@ Target
     :class:`Instrument`).
 
     :param connection_settings: A ``dict`` that specifies how to connect to the remote 
-       device. Its contents depend on the specific :class:`Target` type used (e.g.
-       :class:`AndroidTarget` expects the adb ``device`` name).
+       device. Its contents depend on the specific :class:`Target` type (used see
+       :ref:`connection-types`\ ).
 
     :param platform: A :class:`Target` defines interactions at Operating System level. A 
         :class:`Platform` describes the underlying hardware (such as CPUs
