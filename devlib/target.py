@@ -30,7 +30,6 @@ DEFAULT_SHELL_PROMPT = re.compile(r'^.*(shell|root)@.*:/\S* [#$] ',
 
 class Target(object):
 
-    conn_cls = None
     path = None
     os = None
 
@@ -150,6 +149,7 @@ class Target(object):
                  modules=None,
                  load_default_modules=True,
                  shell_prompt=DEFAULT_SHELL_PROMPT,
+                 conn_cls=None,
                  ):
         self.connection_settings = connection_settings or {}
         self.platform = platform or Platform()
@@ -158,6 +158,7 @@ class Target(object):
         self.modules = modules or []
         self.load_default_modules = load_default_modules
         self.shell_prompt = shell_prompt
+        self.conn_cls = conn_cls
         self.logger = logging.getLogger(self.__class__.__name__)
         self._installed_binaries = {}
         self._installed_modules = {}
@@ -194,8 +195,8 @@ class Target(object):
         self._connections = {}
 
     def get_connection(self, timeout=None):
-        if self.conn_cls is None:
-            raise NotImplementedError('conn_cls must be set by the subclass of Target')
+        if self.conn_cls == None:
+            raise ValueError('Connection class not specified on Target creation.')
         return self.conn_cls(timeout=timeout, **self.connection_settings)  # pylint: disable=not-callable
 
     def setup(self, executables=None):
@@ -584,7 +585,6 @@ class Target(object):
 
 class LinuxTarget(Target):
 
-    conn_cls = SshConnection
     path = posixpath
     os = 'linux'
 
@@ -624,6 +624,27 @@ class LinuxTarget(Target):
             raw_model = self.execute("cat /proc/device-tree/model")
             return '_'.join(raw_model.split()[:2])
         return None
+
+    def __init__(self,
+                 connection_settings=None,
+                 platform=None,
+                 working_directory=None,
+                 executables_directory=None,
+                 connect=True,
+                 modules=None,
+                 load_default_modules=True,
+                 shell_prompt=DEFAULT_SHELL_PROMPT,
+                 conn_cls=SshConnection,
+                 ):
+        super(LinuxTarget, self).__init__(connection_settings=connection_settings,
+                                          platform=platform,
+                                          working_directory=working_directory,
+                                          executables_directory=executables_directory,
+                                          connect=connect,
+                                          modules=modules,
+                                          load_default_modules=load_default_modules,
+                                          shell_prompt=shell_prompt,
+                                          conn_cls=conn_cls)
 
     def connect(self, timeout=None):
         super(LinuxTarget, self).connect(timeout=timeout)
@@ -706,7 +727,6 @@ class LinuxTarget(Target):
 
 class AndroidTarget(Target):
 
-    conn_cls = AdbConnection
     path = posixpath
     os = 'android'
     ls_command = ''
@@ -774,6 +794,7 @@ class AndroidTarget(Target):
                  modules=None,
                  load_default_modules=True,
                  shell_prompt=DEFAULT_SHELL_PROMPT,
+                 conn_cls=AdbConnection,
                  package_data_directory="/data/data",
                  ):
         super(AndroidTarget, self).__init__(connection_settings=connection_settings,
@@ -783,7 +804,8 @@ class AndroidTarget(Target):
                                             connect=connect,
                                             modules=modules,
                                             load_default_modules=load_default_modules,
-                                            shell_prompt=shell_prompt)
+                                            shell_prompt=shell_prompt,
+                                            conn_cls=conn_cls)
         self.package_data_directory = package_data_directory
 
     def reset(self, fastboot=False):  # pylint: disable=arguments-differ
@@ -1175,7 +1197,26 @@ class KernelConfig(object):
 
 class LocalLinuxTarget(LinuxTarget):
 
-    conn_cls = LocalConnection
+    def __init__(self,
+                 connection_settings=None,
+                 platform=None,
+                 working_directory=None,
+                 executables_directory=None,
+                 connect=True,
+                 modules=None,
+                 load_default_modules=True,
+                 shell_prompt=DEFAULT_SHELL_PROMPT,
+                 conn_cls=LocalConnection,
+                 ):
+        super(LocalLinuxTarget, self).__init__(connection_settings=connection_settings,
+                                               platform=platform,
+                                               working_directory=working_directory,
+                                               executables_directory=executables_directory,
+                                               connect=connect,
+                                               modules=modules,
+                                               load_default_modules=load_default_modules,
+                                               shell_prompt=shell_prompt,
+                                               conn_cls=conn_cls)
 
     def _resolve_paths(self):
         if self.working_directory is None:
