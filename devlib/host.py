@@ -28,9 +28,8 @@ class LocalConnection(object):
 
     name = 'local'
 
-    def __init__(self, timeout=10, keep_password=True, unrooted=False, password=None):
+    def __init__(self, keep_password=True, unrooted=False, password=None):
         self.logger = logging.getLogger('local_connection')
-        self.timeout = timeout
         self.keep_password = keep_password
         self.unrooted = unrooted
         self.password = password
