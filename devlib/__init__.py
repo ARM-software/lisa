@@ -16,3 +16,7 @@ from devlib.instrument.hwmon import HwmonInstrument
 from devlib.instrument.netstats import NetstatsInstrument
 
 from devlib.trace.ftrace import FtraceCollector
+
+from devlib.host import LocalConnection
+from devlib.utils.android import AdbConnection
+from devlib.utils.ssh import SshConnection
