@@ -4,3 +4,4 @@
 .ropeproject
 *.egg-info
 devlib/bin/scripts/shutils
+doc/_build/
