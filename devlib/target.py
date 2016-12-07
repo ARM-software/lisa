@@ -775,7 +775,6 @@ class AndroidTarget(Target):
                  load_default_modules=True,
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  package_data_directory="/data/data",
-                 external_storage_directory="/sdcard",
                  ):
         super(AndroidTarget, self).__init__(connection_settings=connection_settings,
                                             platform=platform,
