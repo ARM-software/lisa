@@ -61,12 +61,30 @@ class CpuidleState(object):
     @property
     @memoized
     def latency(self):
+        """Exit latency in uS"""
         return self.get('latency')
 
     @property
     @memoized
     def power(self):
+        """Power usage in mW
+
+        ..note::
+
+            This value is not always populated by the kernel and may be garbage.
+        """
         return self.get('power')
+
+    @property
+    @memoized
+    def target_residency(self):
+        """Target residency in uS
+
+        This is the amount of time in the state required to 'break even' on
+        power - the system should avoid entering the state for less time than
+        this.
+        """
+        return self.get('residency')
 
     def enable(self):
         self.set('disable', 0)
