@@ -290,7 +290,5 @@ class JunoEnergyInstrument(Instrument):
         for chan in self.active_channels:
             value = values[headings.index(chan.name)]
             result.append(Measurement(value, chan))
-        print result
         return result
-
 
