@@ -26,7 +26,7 @@ from trappy.utils import listify
 from devlib.utils.misc import memoized
 
 from analysis_module import AnalysisModule
-from trace import NON_IDLE_STATE, ResidencyTime, ResidencyData
+from trace import ResidencyTime, ResidencyData
 
 
 class FrequencyAnalysis(AnalysisModule):
