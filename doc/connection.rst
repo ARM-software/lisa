@@ -107,10 +107,9 @@ Connection Types
 
 
 .. class:: SshConnection(host, username, password=None, keyfile=None, port=None,\
-                         timeout=None, telnet=False, password_prompt=None,\
-                         original_prompt=None)
+                         timeout=None, password_prompt=None)
 
-    A connectioned to a device on the network over SSH or Telnet.
+    A connectioned to a device on the network over SSH.
 
     :param host: SSH host to which to connect
     :param username: username for SSH login
@@ -130,9 +129,33 @@ Connection Types
     :param timeout: Timeout for the connection in seconds. If a connection
                     cannot be established within this time, an error will be
                     raised.
-    :param telnet: If ``True``, Telenet will be used instead of SSH. In this
-                   case, all other parameters apart from "original_prompt" will
-                   be ignored.
+    :param password_prompt: A string with the password prompt used by
+                            ``sshpass``. Set this if your version of ``sshpass``
+                            uses somethin other than ``"[sudo] password"``.
+
+
+.. class:: TelnetConnection(host, username, password=None, port=None,\
+                            timeout=None, password_prompt=None,\
+                            original_prompt=None)
+
+    A connectioned to a device on the network over Telenet.
+
+    .. note:: Since Telenet protocol is does not support file transfer, scp is
+              used for that purpose.
+
+    :param host: SSH host to which to connect
+    :param username: username for SSH login
+    :param password: password for the SSH connection
+
+                     .. note:: In order to user password-based authentication,
+                               ``sshpass`` utility must be installed on the
+                               system.
+
+    :param port: TCP port on which SSH server is litening on the remoted device.
+                 Omit to use the default port.
+    :param timeout: Timeout for the connection in seconds. If a connection
+                    cannot be established within this time, an error will be
+                    raised.
     :param password_prompt: A string with the password prompt used by
                             ``sshpass``. Set this if your version of ``sshpass``
                             uses somethin other than ``"[sudo] password"``.

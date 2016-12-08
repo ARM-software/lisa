@@ -50,7 +50,7 @@ def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeou
         if telnet:
             if keyfile:
                 raise ValueError('keyfile may not be used with a telnet connection.')
-            conn = TelnetConnection(original_prompt=original_prompt)
+            conn = TelnetPxssh(original_prompt=original_prompt)
         else:  # ssh
             conn = pxssh.pxssh()
 
@@ -74,11 +74,11 @@ def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeou
     return conn
 
 
-class TelnetConnection(pxssh.pxssh):
+class TelnetPxssh(pxssh.pxssh):
     # pylint: disable=arguments-differ
 
     def __init__(self, original_prompt):
-        super(TelnetConnection, self).__init__()
+        super(TelnetPxssh, self).__init__()
         self.original_prompt = original_prompt or r'[#$]'
 
     def login(self, server, username, password='', login_timeout=10,
@@ -165,7 +165,7 @@ class SshConnection(object):
         self.password_prompt = password_prompt if password_prompt is not None else self.default_password_prompt
         logger.debug('Logging in {}@{}'.format(username, host))
         timeout = timeout if timeout is not None else self.default_timeout
-        self.conn = ssh_get_shell(host, username, password, self.keyfile, port, timeout, telnet, original_prompt)
+        self.conn = ssh_get_shell(host, username, password, self.keyfile, port, timeout, False, None)
 
     def push(self, source, dest, timeout=30):
         dest = '{}@{}:{}'.format(self.username, self.host, dest)
@@ -274,6 +274,29 @@ class SshConnection(object):
             raise subprocess.CalledProcessError(e.returncode, e.cmd.replace(pass_string, ''), e.output)
         except TimeoutError as e:
             raise TimeoutError(e.command.replace(pass_string, ''), e.output)
+
+
+class TelnetConnection(SshConnection):
+
+    def __init__(self,
+                 host,
+                 username,
+                 password=None,
+                 port=None,
+                 timeout=None,
+                 password_prompt=None,
+                 original_prompt=None,
+                 ):
+        self.host = host
+        self.username = username
+        self.password = password
+        self.port = port
+        self.keyfile = None
+        self.lock = threading.Lock()
+        self.password_prompt = password_prompt if password_prompt is not None else self.default_password_prompt
+        logger.debug('Logging in {}@{}'.format(username, host))
+        timeout = timeout if timeout is not None else self.default_timeout
+        self.conn = ssh_get_shell(host, username, password, None, port, timeout, True, original_prompt)
 
 
 def _give_password(password, command):

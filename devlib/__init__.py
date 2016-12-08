@@ -19,4 +19,4 @@ from devlib.trace.ftrace import FtraceCollector
 
 from devlib.host import LocalConnection
 from devlib.utils.android import AdbConnection
-from devlib.utils.ssh import SshConnection
+from devlib.utils.ssh import SshConnection, TelnetConnection
