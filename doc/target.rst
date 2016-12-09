@@ -18,7 +18,7 @@ Target
         available). If a :class:`Platform` instance is not specified on
         :class:`Target` creation, one will be created automatically and it will
         dynamically probe the device to discover as much about the underlying
-        hardware as it can.
+        hardware as it can. See also :ref:`platform`\ .
 
     :param working_directory: This is primary location for on-target file system
         interactions performed by ``devlib``. This location *must* be readable and
@@ -53,7 +53,7 @@ Target
     :param modules: a list of additional modules to be installed. Some modules will
         try to install by default (if supported by the underlying target).
         Current default modules are ``hotplug``, ``cpufreq``, ``cpuidle``, 
-        ``cgroups``, and ``hwmon``.
+        ``cgroups``, and ``hwmon`` (See :ref:`modules`\ ).
 
         See modules documentation for more detail.
 
