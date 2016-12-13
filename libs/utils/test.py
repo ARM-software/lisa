@@ -191,6 +191,12 @@ class LisaTest(unittest.TestCase):
 
         return end_times
 
+    # Defining a default, empty runTest allows test classes to be conveniently
+    # instantiated. Since we run tests via nose, runTest isn't used. Instead all
+    # the public methods with 'test' in the name are treated as test methods.
+    def runTest(self, *args, **kwargs):
+        pass
+
 
 @wrapt.decorator
 def experiment_test(wrapped_test, instance, args, kwargs):
