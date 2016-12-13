@@ -191,6 +191,16 @@ class LisaTest(unittest.TestCase):
 
         return end_times
 
+    # To instantiate unittest.TestCase you need to provide a test method name,
+    # the default being 'runTest'. If this method doesn't exist then an error is
+    # raised. This method isn't needed when running via nosetests, which detects
+    # test methods via its own mechanism. However it can be useful to
+    # instantiate test objects directly by hand in notebooks, even if you have
+    # no intention of using the test assertions. So define an empty default
+    # runTest method.
+    def runTest(self, *args, **kwargs):
+        pass
+
 
 @wrapt.decorator
 def experiment_test(wrapped_test, instance, args, kwargs):
