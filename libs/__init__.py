@@ -13,5 +13,11 @@
 # limitations under the License.
 #
 
+"""
+.. automodule:: libs.utils
+  :members:
+  :show-inheritance:
+"""
+
 import wlgen
 import utils
