@@ -90,7 +90,11 @@ class RTA(Workload):
 
             log.info('CPU%d calibration...', cpu)
 
-            max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
+            try:
+                ulimit = target.execute('ulimit -Hr')
+                max_rtprio = int(ulimit.split('\r')[0])
+            except TargetError:
+                max_rtprio = 0
             log.debug('Max RT prio: %d', max_rtprio)
             if max_rtprio > 10:
                 max_rtprio = 10
