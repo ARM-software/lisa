@@ -51,20 +51,38 @@ class LisaLogging(object):
         logging.info('  %s', filepath)
 
 class JsonConf(object):
+    """
+    Class for parsing a JSON superset with comments.
+
+    Simply strips comments and then uses the standard JSON parser.
+
+    :param filename: Path to file to parse
+    :type filename: str
+    """
 
     def __init__(self, filename):
         self.filename = filename
         self.json = None
 
     def load(self):
-        """ Parse a JSON file
-            First remove comments and then use the json module package
-            Comments look like :
-                // ...
-            or
-                /*
-                ...
-                */
+        """
+        Parse a JSON file
+
+        First remove comments and then use the json module package
+        Comments look like :
+
+        ::
+
+            // ...
+
+        or
+
+        ::
+
+            /*
+            ...
+            */
+
         """
 
         # Setup logging
@@ -100,6 +118,9 @@ class JsonConf(object):
         return self.json
 
     def show(self):
+        """
+        Pretty-print content of parsed JSON
+        """
         print json.dumps(self.json, indent=4)
 
 # Regular expression for comments
