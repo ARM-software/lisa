@@ -743,9 +743,10 @@ class Trace(object):
         """
         Build a square wave representing the active (i.e. non-idle) CPU time,
         i.e.:
-            cpu_active[t] == 1 if the CPU is reported to be non-idle by cpuidle
-                             at time t
-            cpu_active[t] == 0 otherwise
+
+          cpu_active[t] == 1 if the CPU is reported to be non-idle by cpuidle at
+          time t
+          cpu_active[t] == 0 otherwise
 
         :param cpu: CPU ID
         :type cpu: int
@@ -781,9 +782,10 @@ class Trace(object):
         """
         Build a square wave representing the active (i.e. non-idle) cluster
         time, i.e.:
-            cluster_active[t] == 1 if at least one CPU is reported to be
-                                   non-idle by CPUFreq at time t
-            cluster_active[t] == 0 otherwise
+
+          cluster_active[t] == 1 if at least one CPU is reported to be non-idle
+          by CPUFreq at time t
+          cluster_active[t] == 0 otherwise
 
         :param cluster: list of CPU IDs belonging to a cluster
         :type cluster: list(int)
