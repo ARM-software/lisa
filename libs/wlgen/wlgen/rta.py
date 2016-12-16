@@ -264,7 +264,6 @@ class RTA(Workload):
 
         self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
         ofile = open(self.json, 'w')
-        ifile = open(self.params['custom'], 'r')
         replacements = {
             '__DURATION__' : str(self.duration),
             '__PVALUE__'   : str(calibration),
@@ -272,11 +271,28 @@ class RTA(Workload):
             '__WORKDIR__'  : '"'+self.target.working_directory+'"',
         }
 
+        # check for inline config
+        close_ifile = True
+        if not isinstance(self.params['custom'], basestring):
+            # we have a dictionary, it may contain content or a filename
+            if isinstance(self.params['custom'], dict):
+                # inline config present, turn it into a file repr
+                tmp_json = json.dumps(self.params['custom'],
+                    indent=4, separators=(',', ': '), sort_keys=True)
+                ifile = tmp_json.splitlines(True)
+                close_ifile = False
+            else:
+                raise ValueError("params can be only a filename or an embedded dictionary")
+        else:
+            # we assume we are being passed a filename instead of a dict
+            ifile = open(self.params['custom'], 'r')
+
         for line in ifile:
             for src, target in replacements.iteritems():
                 line = line.replace(src, target)
             ofile.write(line)
-        ifile.close()
+        if close_ifile:
+            ifile.close()
         ofile.close()
 
         return self.json
@@ -468,6 +484,36 @@ class RTA(Workload):
 
         Custom workloads
         ----------------
+        When 'kind' is 'custom', you can supply existing rt-app job descriptions
+        either directly or by supplying a file name pointing to the json.
+        To use a job description stored in a file you must set 'params'
+        to be a filename. Note that the filename is relative to the current
+        directory. To supply rt-app job description directly, assign the
+        content to 'params'. The ordering of the elements in the final json
+        depends upon the sort operation used by the json exporter. If the exact
+        ordering of the tasks in your custom job is important, we recommend
+        using a file which is read as lines so remains in the order specified.
+        This allows you to reuse the push/run-test/pull functionality with
+        more complex application models not covered by the workload generator.
+
+        For example, to create an RTA wrapper for an existing rt-app task
+        description stored in a file whose name is held in a variable called
+        'filename':
+
+        generated_file_name = rtapp.conf(
+            kind='custom',
+            duration=-1,
+            params="{}".format(filename)
+            run_dir='/data/local/tmp' )
+
+
+        Or to write the config into a variable directly:
+
+        generated_file_name = rtapp.conf(
+            kind='custom',
+            duration=-1,
+            params={ ...my custom rt-app job description... },
+            run_dir='/data/local/tmp' )
 
 
         Profile based workloads
