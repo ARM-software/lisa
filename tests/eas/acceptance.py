@@ -20,6 +20,7 @@ import operator
 import os
 import trappy
 import unittest
+from unittest import SkipTest
 
 from bart.sched.SchedAssert import SchedAssert
 
@@ -67,9 +68,18 @@ class _EasTest(LisaTest):
         "modules": ["cgroups"],
     }
 
+    # Set to true to run a test only on heterogeneous systems
+    skip_on_smp = False
+
     @classmethod
     def setUpClass(cls, *args, **kwargs):
         super(_EasTest, cls).runExperiments(*args, **kwargs)
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        if cls.skip_on_smp and not test_env.nrg_model.is_heterogeneous:
+            raise SkipTest('Test not required on symmetric systems')
+        return super(EasTest, cls)._getExperimentsConf(test_env)
 
     @classmethod
     def _experimentsInit(cls, *args, **kwargs):
@@ -94,7 +104,7 @@ class _EasTest(LisaTest):
 
         self.assertTrue(
             sched_assert.assertFirstCpu(
-                self.target.bl.bigs,
+                self.te.nrg_model.biggest_cpus,
                 rank=len(tasks)),
             msg="Not all the new generated tasks started on a big CPU")
 
@@ -153,7 +163,7 @@ class SmallTaskPacking(_EasTest):
     Goal
     ====
 
-    Many small tasks are packed in little cpus
+    Many small tasks are packed on a single cluster with the lowest capacity
 
     Detailed Description
     ====================
@@ -187,6 +197,8 @@ class SmallTaskPacking(_EasTest):
         "confs" : [energy_aware_conf]
     }
 
+    skip_on_smp = False
+
     @experiment_test
     def test_first_cpu(self, experiment, tasks):
         """Small Task Packing: test first CPU"""
@@ -194,20 +206,23 @@ class SmallTaskPacking(_EasTest):
 
     @experiment_test
     def test_small_task_residency(self, experiment, tasks):
-        "Small Task Packing: Test Residency (Little Cluster)"
+        "Small Task Packing: Test Residency"
 
         sched_assert = self.get_multi_assert(experiment)
 
-        self.assertTrue(
-            sched_assert.assertResidency(
-                "cluster",
-                self.target.bl.littles,
-                EXPECTED_RESIDENCY_PCT,
-                operator.ge,
-                percent=True,
-                rank=len(tasks)),
-            msg="Not all tasks are running on LITTLE cores for at least {}% of their execution time"\
-                    .format(EXPECTED_RESIDENCY_PCT))
+        littlest_cpus = self.te.nrg_model.littlest_cpus
+
+        for cpus in self.te.topology.get_level("cluster"):
+            if all(c in littlest_cpus for c in cpus):
+                if sched_assert.assertResidency(
+                        "cluster", cpus,
+                        EXPECTED_RESIDENCY_PCT, operator.ge,
+                        percent=True, rank=len(tasks)):
+                    return
+
+        msg = "Not all tasks ran on low-capacity cluster for {}% of their time"\
+              .format(EXPECTED_RESIDENCY_PCT)
+        raise AssertionError(msg)
 
 class OffloadMigrationAndIdlePull(_EasTest):
     """
@@ -301,7 +316,8 @@ class OffloadMigrationAndIdlePull(_EasTest):
     @experiment_test
     def test_big_cpus_fully_loaded(self, experiment, tasks):
         """Offload Migration and Idle Pull: Big cpus are fully loaded as long as there are tasks left to run in the system"""
-        num_big_cpus = len(self.target.bl.bigs)
+        bigs = self.te.nrg_model.biggest_cpus
+        num_big_cpus = len(bigs)
 
         sched_assert = self.get_multi_assert(experiment)
 
@@ -309,9 +325,8 @@ class OffloadMigrationAndIdlePull(_EasTest):
 
         # Window of time until the first migrator finishes
         window = (self.get_start_time(experiment), end_times[-num_big_cpus])
-        busy_time = sched_assert.getCPUBusyTime("cluster",
-                                            self.target.bl.bigs,
-                                            window=window, percent=True)
+        busy_time = sched_assert.getCPUBusyTime("cluster", bigs,
+                                                window=window, percent=True)
 
         msg = "Big cpus were not fully loaded while there were enough big tasks to fill them"
         self.assertGreater(busy_time, OFFLOAD_EXPECTED_BUSY_TIME_PCT, msg=msg)
@@ -321,8 +336,7 @@ class OffloadMigrationAndIdlePull(_EasTest):
         for i in range(num_big_cpus-1):
             big_cpus_left = num_big_cpus - i - 1
             window = (end_times[-num_big_cpus+i], end_times[-num_big_cpus+i+1])
-            busy_time = sched_assert.getCPUBusyTime("cluster",
-                                                    self.target.bl.bigs,
+            busy_time = sched_assert.getCPUBusyTime("cluster", bigs,
                                                     window=window, percent=True)
 
             expected_busy_time = OFFLOAD_EXPECTED_BUSY_TIME_PCT * \
@@ -335,6 +349,7 @@ class OffloadMigrationAndIdlePull(_EasTest):
     @experiment_test
     def test_little_cpus_run_tasks(self, experiment, tasks):
         """Offload Migration and Idle Pull: Little cpus run tasks while bigs are busy"""
+        littles = self.te.nrg_model.littlest_cpus
 
         num_offloaded_tasks = len(tasks) / 2
 
@@ -350,8 +365,7 @@ class OffloadMigrationAndIdlePull(_EasTest):
 
         all_tasks_assert = self.get_multi_assert(experiment)
 
-        busy_time = all_tasks_assert.getCPUBusyTime("cluster",
-                                                    self.target.bl.littles,
+        busy_time = all_tasks_assert.getCPUBusyTime("cluster", littles,
                                                     window=window)
 
         window_len = window[1] - window[0]
@@ -373,7 +387,8 @@ class OffloadMigrationAndIdlePull(_EasTest):
             sa = SchedAssert(experiment.out_dir, self.te.topology, execname=task)
             end_times = self.get_end_times(experiment)
             window = (0, end_times[task])
-            big_residency = sa.getResidency("cluster", self.target.bl.bigs,
+            big_residency = sa.getResidency("cluster",
+                                            self.te.nrg_model.biggest_cpus,
                                             window=window, percent=True)
 
             msg = "Task {} didn't run on a big cpu.".format(task)
@@ -393,7 +408,10 @@ class OffloadMigrationAndIdlePull(_EasTest):
             sa = SchedAssert(experiment.out_dir, self.te.topology, execname=task)
 
             msg = "Task {} did not finish on a big cpu".format(task)
-            self.assertIn(sa.getLastCpu(), self.target.bl.bigs, msg=msg)
+
+            self.assertIn(sa.getLastCpu(),
+                          self.te.nrg_model.biggest_cpus,
+                          msg=msg)
 
 
 class WakeMigration(_EasTest):
@@ -452,11 +470,11 @@ class WakeMigration(_EasTest):
 
     def _assert_switch(self, experiment, expected_switch_to, phases):
         if expected_switch_to == "big":
-            switch_from = self.target.bl.littles
-            switch_to   = self.target.bl.bigs
+            switch_from = self.te.nrg_model.littlest_cpus
+            switch_to   = self.te.nrg_model.biggest_cpus
         elif expected_switch_to == "little":
-            switch_from = self.target.bl.bigs
-            switch_to   = self.target.bl.littles
+            switch_from = self.te.nrg_model.biggest_cpus
+            switch_to   = self.te.nrg_model.littlest_cpus
         else:
             raise ValueError("Invalid expected_switch_to")
 
