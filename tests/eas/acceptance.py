@@ -312,7 +312,7 @@ class OffloadMigrationAndIdlePull(_EasTest):
     @experiment_test
     def test_first_cpu(self, experiment, tasks):
         """Offload Migration and Idle Pull: Test First CPU"""
-        self._do_test_first_cpu(experiment, tasks)
+        self._do_test_first_cpu(experiment, [t for t in tasks if "early" in t])
 
     @experiment_test
     def test_big_cpus_fully_loaded(self, experiment, tasks):
