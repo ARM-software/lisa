@@ -57,6 +57,9 @@ class _EasTest(LisaTest):
             ],
         },
         "modules": ["cgroups"],
+        "cpufreq" : {
+            "governor" : "sched",
+        },
     }
 
     # Set to true to run a test only on heterogeneous systems
