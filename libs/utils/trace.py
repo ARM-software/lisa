@@ -625,7 +625,8 @@ class Trace(object):
 
         power_max = em_lcpu['nrg_max'] * lcpus + em_bcpu['nrg_max'] * bcpus + \
             em_lcluster['nrg_max'] + em_bcluster['nrg_max']
-        print "Maximum estimated system energy: {0:d}".format(power_max)
+        self._log.debug(
+            "Maximum estimated system energy: {0:d}".format(power_max))
 
         df = self._dfg_trace_event('sched_energy_diff')
         df['nrg_diff_pct'] = SCHED_LOAD_SCALE * df.nrg_diff / power_max
