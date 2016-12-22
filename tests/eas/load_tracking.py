@@ -71,18 +71,10 @@ class FreqInvarianceTest(LisaTest):
     def setUpClass(cls, *args, **kwargs):
         super(FreqInvarianceTest, cls).runExperiments(*args, **kwargs)
 
-    @memoized
-    @classmethod
-    def _get_cpu(cls, target):
-        # Run on a 'big' CPU, or any CPU if not big.LITTLE
-        if hasattr(target, 'bl'):
-            return target.bl.bigs[0]
-        else:
-            return 0
-
     @classmethod
     def _getExperimentsConf(cls, test_env):
-        cpu = cls._get_cpu(test_env.target)
+        # Run on one of the CPUs with highest capacity
+        cpu = test_env.nrg_model.biggest_cpus[0]
 
         # 10% periodic RTApp workload:
         wloads = {
