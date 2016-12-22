@@ -109,6 +109,8 @@ class EnergyModelNode(_CpuTree):
     :param children: Non-empty list of child :class:`EnergyModelNode` objects
     :param name: Optional human-readable name for this node. Leaf (CPU) nodes
                  have a default name of "cpuN" where N is the cpu number.
+
+    :ivar cpus: CPUs contained in this node. Includes those of child nodes.
     """
     def __init__(self, active_states, idle_states,
                  cpu=None, children=None, name=None):
@@ -159,6 +161,8 @@ class PowerDomain(_CpuTree):
                         objects.
     :param cpu: The CPU this node represents. If provided, this is a leaf node.
     :param children: Non-empty list of child :class:`PowerDomain` objects
+
+    :ivar cpus: CPUs contained in this node. Includes those of child nodes.
     """
     def __init__(self, idle_states, cpu=None, children=None):
         super(PowerDomain, self).__init__(cpu, children)
@@ -188,6 +192,8 @@ class EnergyModel(object):
     - A set of frequency domains, representing groups of CPUs whose clock
       frequencies must be equal (probably because they share a clock). The
       frequency domains must be a partition of the CPUs.
+
+    :ivar cpu_nodes: List of leaf (CPU) :class:`EnergyModelNode`
 
     :param root_node: Root of :class:`EnergyModelNode` tree
     :param root_power_domain: Root of :class:`PowerDomain` tree
