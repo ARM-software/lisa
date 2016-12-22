@@ -16,7 +16,6 @@
 #
 
 import logging
-import unittest
 
 from bart.common.Utils import select_window, area_under_curve
 from devlib.utils.misc import memoized
