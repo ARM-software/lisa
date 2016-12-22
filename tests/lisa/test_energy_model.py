@@ -287,3 +287,8 @@ class TestNames(TestCase):
     def test_names(self):
         self.assertListEqual([n.name for n in em.cpu_nodes],
                              ['cpu0', 'cpu1', 'cpu2', 'cpu3'])
+
+class TestCpuGroups(TestCase):
+    """Test the cpu_groups property"""
+    def test_cpu_groups(self):
+        self.assertListEqual(em.cpu_groups, [[0, 1], [2, 3]])
