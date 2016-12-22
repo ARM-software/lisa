@@ -41,8 +41,7 @@ class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
         return super(ActiveState, cls).__new__(cls, capacity, power)
 
 class _CpuTree(object):
-    """
-    Abstract representation of a CPU topology.
+    """Internal class. Abstract representation of a CPU topology.
 
     Each node contains either a single CPU or a set of child nodes.
     """
@@ -194,6 +193,7 @@ class EnergyModel(object):
       frequency domains must be a partition of the CPUs.
 
     :ivar cpu_nodes: List of leaf (CPU) :class:`EnergyModelNode`
+    :ivar cpus: List of logical CPU numbers in the system
 
     :param root_node: Root of :class:`EnergyModelNode` tree
     :param root_power_domain: Root of :class:`PowerDomain` tree
@@ -236,7 +236,7 @@ class EnergyModel(object):
     def __init__(self, root_node, root_power_domain, freq_domains):
         self.cpus = root_node.cpus
         if self.cpus != range(len(self.cpus)):
-            raise ValueError('CPU IDs are sparse')
+            raise ValueError('CPU IDs [{}] are sparse'.format(self.cpus))
 
         fd_intersection = set().intersection(*freq_domains)
         if fd_intersection:
