@@ -292,3 +292,13 @@ class TestCpuGroups(TestCase):
     """Test the cpu_groups property"""
     def test_cpu_groups(self):
         self.assertListEqual(em.cpu_groups, [[0, 1], [2, 3]])
+
+class TestGetCpuCapacity(TestCase):
+    """Test the get_cpu_capacity method"""
+    def test_get_cpu_capacity(self):
+        for node in em.root.iter_leaves():
+            [cpu] = node.cpus
+            self.assertEqual(em.get_cpu_capacity(cpu), node.max_capacity)
+            for freq, active_state in node.active_states.iteritems():
+                self.assertEqual(em.get_cpu_capacity(cpu, freq),
+                                 active_state.capacity)

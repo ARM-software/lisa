@@ -378,6 +378,17 @@ class EnergyModel(object):
 
         return [find_deepest(pd) for pd in self.cpu_pds]
 
+    def get_cpu_capacity(self, cpu, freq=None):
+        """Convenience method to get the capacity of a CPU at a given frequency
+
+        :param cpu: CPU to get capacity for
+        :param freq: Frequency to get the CPU capacity at. Default is max
+                     capacity.
+        """
+        if freq is None:
+            return self.cpu_nodes[cpu].max_capacity
+        return self.cpu_nodes[cpu].active_states[freq].capacity
+
     def guess_idle_states(self, cpus_active):
         """Pessimistically guess the idle states that each CPU may enter
 
