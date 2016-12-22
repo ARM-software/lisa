@@ -349,6 +349,23 @@ class EnergyModel(object):
         states = self.cpu_nodes[0].active_states
         return any(c.active_states != states for c in self.cpu_nodes[1:])
 
+    @property
+    @memoized
+    def cpu_groups(self):
+        """
+        List of lists of CPUs who share the same active state values
+        """
+        groups = []
+        for node in self.cpu_nodes:
+            for group in groups:
+                group_states = self.cpu_nodes[group[0]].active_states
+                if node.active_states == group_states:
+                    group.append(node.cpu)
+                    break
+            else:
+                groups.append([node.cpu])
+        return groups
+
     def _guess_idle_states(self, cpus_active):
         def find_deepest(pd):
             if not any(cpus_active[c] for c in pd.cpus):
