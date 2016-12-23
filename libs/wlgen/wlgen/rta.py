@@ -268,8 +268,10 @@ class RTA(Workload):
         if self.duration is None:
             raise ValueError('Workload duration not specified')
 
-        target_cpu = self.getTargetCpu(self.loadref)
-        calibration = self.getCalibrationConf(target_cpu)
+        calibration = '"CPU0"'
+        if self.target:
+            target_cpu = self.getTargetCpu(self.loadref)
+            calibration = self.getCalibrationConf(target_cpu)
 
         self._log.info('Loading custom configuration:')
         self._log.info('   %s', rtapp_conf)
@@ -280,7 +282,6 @@ class RTA(Workload):
             '__DURATION__' : str(self.duration),
             '__PVALUE__'   : str(calibration),
             '__LOGDIR__'   : str(self.run_dir),
-            '__WORKDIR__'  : '"'+self.target.working_directory+'"',
         }
 
         for line in ifile:
@@ -304,7 +305,6 @@ class RTA(Workload):
                 raise ValueError(msg)
 
         # Task configuration
-        target_cpu = self.getTargetCpu(self.loadref)
         self.rta_profile = {
             'tasks': {},
             'global': {}
@@ -314,13 +314,16 @@ class RTA(Workload):
         global_conf = {
                 'default_policy': 'SCHED_OTHER',
                 'duration': -1,
-                'calibration': 'CPU'+str(target_cpu),
                 'logdir': self.run_dir,
             }
 
         # Setup calibration data
-        calibration = self.getCalibrationConf(target_cpu)
-        global_conf['calibration'] = calibration
+        target_cpu = None
+        if self.target:
+            target_cpu = self.getTargetCpu(self.loadref)
+            calibration = self.getCalibrationConf(target_cpu)
+            global_conf['calibration'] = calibration
+
         if self.duration is not None:
             global_conf['duration'] = self.duration
             self._log.warn('Limiting workload duration to %d [s]',
@@ -376,7 +379,7 @@ class RTA(Workload):
                     self._log.info(' | start delay: %.6f [s]',
                             task['delay'])
 
-            self._log.info(' | calibration CPU: %d', target_cpu)
+            self._log.info(' | calibration CPU: {}'.format(target_cpu))
 
             if 'loops' not in task.keys():
                 task['loops'] = 1
@@ -525,16 +528,18 @@ class RTA(Workload):
         elif kind == 'profile':
             self._confProfile()
 
+        # Set and return the test label
+        self.test_label = '{0:s}_{1:02d}'.format(self.name, self.exc_id)
+        return self.test_label
+
+    def run(self, *args, **kwargs):
         # Move configuration file to target
         self.target.push(self.json, self.run_dir)
-
         self.rta_cmd  = self.target.executables_directory + '/rt-app'
         self.rta_conf = self.run_dir + '/' + self.json
         self.command = '{0:s} {1:s} 2>&1'.format(self.rta_cmd, self.rta_conf)
 
-        # Set and return the test label
-        self.test_label = '{0:s}_{1:02d}'.format(self.name, self.exc_id)
-        return self.test_label
+        super(RTA, self).run(*args, **kwargs)
 
 class _TaskBase(object):
 
