@@ -379,6 +379,14 @@ class TestEnv(ShareState):
             platform = Platform(model='MT8173')
             self.__modules = ['bl', 'cpufreq']
 
+        # Initialize gem5 simulation as a board
+        elif self.conf['board'].upper() == 'GEM5':
+            platform = devlib.platform.gem5.Gem5SimulationPlatform(name='gem5',
+                       gem5_bin=self.conf['gem5_bin'],
+                       gem5_args=self.conf['gem5_args'],
+                       gem5_virtio=self.conf['gem5_virtio'],
+                       host_output_dir=self.conf['host_output_dir'],
+                       gem5_telnet_port=self.conf['gem5_telnet_port'] if 'gem5_telnet_port' in self.conf else None)
         elif self.conf['board'] != 'UNKNOWN':
             # Initilize from platform descriptor (if available)
             board = self._load_board(self.conf['board'])
@@ -860,7 +868,6 @@ class TestEnv(ShareState):
                 self._log.warning('Using pre-installed DTB')
             else:
                 self.tftp_deploy(tc['dtb'])
-
         else:
             raise ValueError('Kernel installation method not supported')
 
