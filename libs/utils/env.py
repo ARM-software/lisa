@@ -687,6 +687,7 @@ class TestEnv(ShareState):
         if 'rt-app' in self.__tools:
             required = True
         elif 'wloads' in self.conf:
+            wloads = self.conf['wloads'].values()
             required = any(['rt-app' in wl['type'] for wl in wloads])
 
         if not required:
