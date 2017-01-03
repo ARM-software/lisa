@@ -268,3 +268,15 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'http://docs.python.org/': None}
+
+#
+# Fix autodoc
+#
+
+# Include __init__ docstrings (obviously)
+autoclass_content = 'both'
+
+autodoc_default_flags = [
+    'show-inheritance', # Show parent class
+    'undoc-members',    # Show members even if they don't have docstrings
+]
