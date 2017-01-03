@@ -24,6 +24,20 @@ from time import sleep
 import logging
 
 class Workload(object):
+    """
+    Base class for workload specifications
+
+    To use this class, you'll need to instantiate it, then call :meth:`conf` on
+    the instance.
+
+    :param target: Devlib target to run workload on. May be None, in which case
+                   an RT-App configuration file can be generated but the
+                   workload cannot be run, and calibration features will be
+                   missing.
+    :param name: Human-readable name for the workload
+    :param calibration: CPU calibration specification. Can be obtained from
+                        :meth:`RTA.calibration`.
+    """
 
     def __init__(self,
                  target,
@@ -91,6 +105,21 @@ class Workload(object):
         self.steps[step](kwords)
 
     def setCallback(self, step, func):
+        """
+        Add a callback to be called during an execution stage.
+
+        Intended for use by subclasses. Only one callback can exist for each
+        stage. Available callback stages are:
+
+          "postrun"
+            Called after the workload has finished executing, unless it's being
+            run in the background. Receives a ``params`` dictionary with
+            ``params["destdir"]`` set to the host directory to store workload
+            output in.
+
+        :param step: Name of the step at which to call the callback
+        :param func: Callback function
+        """
         self._log.debug('Setup step [%s] callback to [%s] function',
                         step, func.__name__)
         self.steps[step] = func
@@ -110,6 +139,7 @@ class Workload(object):
              sched={'policy': 'OTHER'},
              run_dir=None,
              exc_id=0):
+        """Configure workload. See documentation for subclasses"""
 
         self.cpus = cpus
         self.sched = sched
@@ -164,8 +194,9 @@ class Workload(object):
         :type cgroup: str
 
         :param cpus: the CPUs on which to run the workload.
-                     NOTE: if specified it overrides the CPUs specified at
-                     configuration time
+
+                     .. note:: if specified it overrides the CPUs specified at
+                               configuration time
         :type cpus: list(int)
 
         :param background: run the workload in background. In this case the
@@ -174,8 +205,8 @@ class Workload(object):
                            collection
         :type background: bool
 
-        :param out_dir: output directory where to store the collected trace (if
-                        any)
+        :param out_dir: output directory where to store the collected trace or
+                        other workload report (if any)
         :type out_dir: str
 
         :param as_root: run the workload as root on the target
@@ -284,4 +315,3 @@ class Workload(object):
             return
         self._log.info('Killing all [%s] instances:', self.executor)
         self.listAll(True)
-
