@@ -53,7 +53,6 @@ class Workload(object):
         # NOTE: requires cgroups to be properly configured and associated
         #       tools deployed on the target
         self.cgroup = None
-        self.cgroup_cmd = ''
 
         # The command to execute a workload (defined by a derived class)
         self.command = None
