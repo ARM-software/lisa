@@ -270,53 +270,6 @@ class Workload(object):
     def getOutput(self, step='executor'):
         return self.output[step]
 
-    def getTasks(self, dataframe=None, task_names=None,
-            name_key='comm', pid_key='pid'):
-        # """ Helper function to get PIDs of specified tasks
-        #
-        #     This method requires a Pandas dataset in input to be used to
-        #     fiter our the PIDs of all the specified tasks.
-        #     In a dataset is not provided, previouslt filtered PIDs are
-        #     returned.  If a list of task names is not provided, the workload
-        #     defined task names is used instead.
-        #     The specified dataframe must provide at least two columns
-        #     reporting the task name and the task PID. The default values of
-        #     this colums could be specified using the provided parameters.
-        #
-        #     :param task_names: The list of tasks to get the PID of (by default
-        #                        the workload defined tasks)
-        #     :param dataframe: A Pandas datafram containing at least 'pid' and
-        #                       'task name' columns
-        #                       If None, the previously filtered PIDs are
-        #                       returned
-        #     :param name_key: The name of the dataframe columns containing
-        #                      task names
-        #     :param pid_key:  The name of the dataframe columns containing
-        #                      task PIDs
-        # """
-        if dataframe is None:
-            return self.tasks
-        if task_names is None:
-            task_names = self.tasks.keys()
-        self._log.debug('Lookup dataset for tasks...')
-        for task_name in task_names:
-            results = dataframe[dataframe[name_key] == task_name]\
-                    [[name_key,pid_key]]
-            if len(results)==0:
-                self._log.error('  task %16s NOT found', task_name)
-                continue
-            (name, pid) = results.head(1).values[0]
-            if name != task_name:
-                self._log.error('  task %16s NOT found', task_name)
-                continue
-            if task_name not in self.tasks:
-                self.tasks[task_name] = {}
-            pids = list(results[pid_key].unique())
-            self.tasks[task_name]['pid'] = pids
-            self._log.info('  task %16s found, pid: %s',
-                           task_name, self.tasks[task_name]['pid'])
-        return self.tasks
-
     def listAll(self, kill=False):
         # Show all the instances for the current executor
         tasks = self.target.run('ps | grep {0:s}'.format(self.executor))
