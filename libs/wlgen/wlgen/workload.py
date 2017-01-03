@@ -55,11 +55,6 @@ class Workload(object):
         self.cgroup = None
         self.cgroup_cmd = ''
 
-        # taskset configuration to constraint workload execution on a specified
-        # set of CPUs
-        self.taskset = None
-        self.taskset_cmd = ''
-
         # The command to execute a workload (defined by a derived class)
         self.command = None
 
@@ -214,11 +209,11 @@ class Workload(object):
         # Prepend eventually required taskset command
         if cpus or self.cpus:
             cpus_mask = self.getCpusMask(cpus if cpus else self.cpus)
-            self.taskset_cmd = '{}/taskset 0x{:X}'\
+            taskset_cmd = '{}/taskset 0x{:X}'\
                     .format(self.target.executables_directory,
                             cpus_mask)
             _command = '{} {}'\
-                    .format(self.taskset_cmd, _command)
+                    .format(taskset_cmd, _command)
 
         if self.cgroup and hasattr(self.target, 'cgroups'):
             # Get a reference to the CGroup to use
