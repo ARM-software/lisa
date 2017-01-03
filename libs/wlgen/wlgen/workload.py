@@ -28,7 +28,7 @@ class Workload(object):
     Base class for workload specifications
 
     To use this class, you'll need to instantiate it, then call :meth:`conf` on
-    the instance.
+    the instance. The details of that method are specific to each subclass.
 
     :param target: Devlib target to run workload on. May be None, in which case
                    an RT-App configuration file can be generated but the
