@@ -49,7 +49,7 @@ class Workload(object):
         # NOTE: for the time being we support just a single CPU
         self.cpus = None
 
-	    # The cgroup on which the workload will be executed
+        # The cgroup on which the workload will be executed
         # NOTE: requires cgroups to be properly configured and associated
         #       tools deployed on the target
         self.cgroup = None
