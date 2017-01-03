@@ -46,7 +46,7 @@ class PerfMessaging(Workload):
 
     def conf(self,
              group = 1,
-             loop = 10,
+             loop = 500,
              pipe = '',
              thread = '',
              cpus=None,
