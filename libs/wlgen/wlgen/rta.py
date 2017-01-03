@@ -536,7 +536,7 @@ class RTA(Workload):
         self.test_label = '{0:s}_{1:02d}'.format(self.name, self.exc_id)
         return self.test_label
 
-class _TaskBase(object):
+class RTATask(object):
 
     def __init__(self):
         self._task = {}
@@ -549,7 +549,7 @@ class _TaskBase(object):
         return self
 
 
-class Ramp(_TaskBase):
+class Ramp(RTATask):
 
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
                  period_ms=100, delay_s=0, loops=1, sched=None, cpus=None):
@@ -641,7 +641,7 @@ class Step(Ramp):
         super(Step, self).__init__(start_pct, end_pct, delta_pct, time_s,
                                    period_ms, delay_s, loops, sched, cpus)
 
-class Pulse(_TaskBase):
+class Pulse(RTATask):
 
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched=None, cpus=None):
