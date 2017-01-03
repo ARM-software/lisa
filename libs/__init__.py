@@ -17,6 +17,9 @@
 .. automodule:: libs.utils
   :members:
   :show-inheritance:
+.. automodule:: wlgen
+  :members:
+  :show-inheritance:
 """
 
 import wlgen
