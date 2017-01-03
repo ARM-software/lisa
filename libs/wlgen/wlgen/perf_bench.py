@@ -122,6 +122,9 @@ class PerfPipe(Workload):
 
         super(PerfPipe, self).__init__(target, name, None)
 
+        # Setup logging
+        self.logger = logging.getLogger('perf_bench')
+
         # perf "sched" executor
         self.wtype = 'perf_bench_pipe'
         self.executor = 'perf bench sched pipe'
