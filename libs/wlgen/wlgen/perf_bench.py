@@ -120,7 +120,10 @@ class PerfPipe(Workload):
         # TODO: Assume perf is pre-installed on target
         #target.setup('perf')
 
-        super(PerfPipe, self).__init__(target, name, None)
+        # Setup logging
+        self.logger = logging.getLogger('perf_bench')
+
+        super(PerfPipe, self).__init__(target, name)
 
         # perf "sched" executor
         self.wtype = 'perf_bench_pipe'
