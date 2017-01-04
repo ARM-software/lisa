@@ -43,25 +43,6 @@ import trappy.nbexport
 # unregister with unregister_dynamic_ftrace()
 unregister_dynamic_ftrace = unregister_ftrace_parser
 
-# For backwards compatibility.  Remove by 2016-12-31
-class Run(FTrace):
-    """This class is deprecated.  Use trappy.FTrace instead"""
-    def __init__(self, *args, **kwargs):
-        warnings.warn("The Run object is deprecated.  Use trappy.FTrace instead")
-        super(Run, self).__init__(*args, **kwargs)
-
-# For backwards compatibility.  Remove by 2016-12-31
-def register_dynamic(*args, **kwargs):
-    """register_dynamic() is deprecated.  Use register_dynamic_ftrace() instead"""
-    warnings.warn("register_dynamic() is deprecated.  Use register_dynamic_ftrace() instead")
-    return register_dynamic_ftrace(*args, **kwargs)
-
-# For backwards compatibility.  Remove by 2016-12-31
-def register_class(*args, **kwargs):
-    """register_class() is deprecated.  Use register_ftrace_parser() instead"""
-    warnings.warn("register_class() is deprecated.  Use register_ftrace_parser() instead")
-    return register_ftrace_parser(*args, **kwargs)
-
 # Load all the modules to make sure all classes are registered with FTrace
 import os
 for fname in os.listdir(os.path.dirname(__file__)):
