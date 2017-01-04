@@ -446,15 +446,19 @@ class Parser(object):
         if params[1] in self._agg_df.columns:
             return self._agg_df[params[1]]
 
-        cls = params[0]
+        event = params[0]
         column = params[1]
 
-        if cls in self._pvars:
-            cls = self._pvars[cls]
-        elif cls in self.data.class_definitions:
-            cls = self.data.class_definitions[cls]
+        if event in self._pvars:
+            cls = self._pvars[event]
+        elif event in self.data.class_definitions:
+            cls = self.data.class_definitions[event]
         else:
-            cls = str_to_attr(cls)
+            try:
+                cls = str_to_attr(event)
+            except KeyError:
+                raise ValueError(
+                    "Can't find parser class for event {}".format(event))
 
         data_frame = self._pivot(cls, column)
         self._agg_df = pd.concat(
