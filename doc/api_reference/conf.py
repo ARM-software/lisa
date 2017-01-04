@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#    Copyright 2015-2016 ARM Limited
+#    Copyright 2015-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'TRAPpy'
-copyright = u'2016, ARM Ltd.'
+copyright = u'2017, ARM Ltd.'
 author = u'Javi Merino, Kapileshwar Singh(KP)'
 
 # The version info for the project you're documenting, acts as replacement for
