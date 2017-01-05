@@ -19,6 +19,7 @@
 
 import matplotlib.pyplot as plt
 import pylab as pl
+import pandas as pd
 
 from trappy.utils import listify
 
