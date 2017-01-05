@@ -244,3 +244,13 @@ trappy.thermal.Thermal:temp"
         prs = Parser(trace, filters={"cdev_state": 3})
         dfr_res = prs.solve("devfreq_out_power:freq")
         self.assertEquals(len(dfr_res), 1)
+
+    def test_no_events(self):
+        """Test trying to parse absent data"""
+        trace = trappy.FTrace()
+        prs = Parser(trace)
+
+        # cpu_frequency is an event we know how to parse, but it isn't present
+        # in the test trace.
+        self.assertRaisesRegexp(ValueError, "No events found for cpu_frequency",
+                                prs.solve, "cpu_frequency:frequency")
