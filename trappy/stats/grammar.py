@@ -411,6 +411,9 @@ class Parser(object):
         """Pivot Data for concatenation"""
 
         data_frame = self._get_data_frame(cls)
+        if data_frame.empty:
+            raise ValueError("No events found for {}".format(cls.name))
+
         data_frame = handle_duplicate_index(data_frame)
         new_index = self._agg_df.index.union(data_frame.index)
 
@@ -529,7 +532,9 @@ class Parser(object):
 
         data_frame = getattr(self.data, cls.name).data_frame
 
-        if self._window[1] is None:
+        if data_frame.empty:
+            return data_frame
+        elif self._window[1] is None:
             data_frame = data_frame.loc[self._window[0]:]
         else:
             data_frame = data_frame.loc[self._window[0]:self._window[1]]
