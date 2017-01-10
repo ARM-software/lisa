@@ -72,7 +72,7 @@ policies (governors). The ``devlib`` module exposes the following interface
 
    :param cpu: The cpu; could be a numeric or the corresponding string (e.g.
         ``1`` or ``"cpu1"``).
-   :param governor: The name of the governor. This must be one of the governors 
+   :param governor: The name of the governor. This must be one of the governors
                 supported by the CPU (as returned by ``list_governors()``.
 
    Keyword arguments may be used to specify governor tunable values.
@@ -126,7 +126,7 @@ policies (governors). The ``devlib`` module exposes the following interface
 cpuidle
 -------
 
-``cpufreq`` is the kernel subsystem for managing CPU low power (idle) states.
+``cpuidle`` is the kernel subsystem for managing CPU low power (idle) states.
 
 .. method:: target.cpuidle.get_driver()
 
@@ -155,7 +155,7 @@ cpuidle
     Enable or disable the specified or all states (optionally on the specified
     CPU.
 
-You can also call ``enable()`` or ``disable()`` on :class:`CpuidleState` objects 
+You can also call ``enable()`` or ``disable()`` on :class:`CpuidleState` objects
 returned by get_state(s).
 
 cgroups
@@ -182,7 +182,7 @@ Every module (ultimately) derives from :class:`Module` class.  A module must
 define the following class attributes:
 
 :name: A unique name for the module. This cannot clash with any of the existing
-       names and must be a valid Python identifier, but is otherwise free-from.
+       names and must be a valid Python identifier, but is otherwise free-form.
 :kind: This identifies the type of functionality a module implements, which in
        turn determines the interface implemented by the module (all modules of
        the same kind must expose a consistent interface). This must be a valid
@@ -271,7 +271,7 @@ HardResetModule
 .. method:: HardResetModule.__call__()
 
     Must be implemented by derived classes.
-    
+
     Implements hard reset for a target devices. The equivalent of physically
     power cycling the device.  This may be used by client code in situations
     where the target becomes unresponsive and/or a regular reboot is not
@@ -355,7 +355,7 @@ for an "Acme" device.
         name = 'acme_hard_reset'
 
         def __call__(self):
-            # Assuming Acme board comes with a "reset-acme-board" utility 
+            # Assuming Acme board comes with a "reset-acme-board" utility
             os.system('reset-acme-board {}'.format(self.target.name))
 
     register_module(AcmeHardReset)

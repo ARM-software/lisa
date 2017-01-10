@@ -114,14 +114,14 @@ Instrument
    :class:`Measurement` objects (one for each active channel).
 
    .. note:: This method is only implemented by :class:`Instrument`\ s that
-             support ``INSTANTANEOUS`` measurment.
+             support ``INSTANTANEOUS`` measurement.
 
 .. method:: Instrument.start()
 
    Starts collecting measurements from ``active_channels``.
 
    .. note:: This method is only implemented by :class:`Instrument`\ s that
-             support ``CONTINUOUS`` measurment.
+             support ``CONTINUOUS`` measurement.
 
 .. method:: Instrument.stop()
 
@@ -129,14 +129,14 @@ Instrument
    :func:`start()`.
 
    .. note:: This method is only implemented by :class:`Instrument`\ s that
-             support ``CONTINUOUS`` measurment.
+             support ``CONTINUOUS`` measurement.
 
 .. method:: Instrument.get_data(outfile)
 
    Write collected data into ``outfile``. Must be called after :func:`stop()`.
    Data will be written in CSV format with a column for each channel and a row
    for each sample. Column heading will be channel, labels in the form
-   ``<site>_<kind>`` (see :class:`InstrumentChannel`). The order of the coluns
+   ``<site>_<kind>`` (see :class:`InstrumentChannel`). The order of the columns
    will be the same as the order of channels in ``Instrument.active_channels``.
 
    This returns a :class:`MeasurementCsv` instance associated with the outfile
@@ -144,7 +144,7 @@ Instrument
    returned by ``take_measurement()``.
 
    .. note:: This method is only implemented by :class:`Instrument`\ s that
-             support ``CONTINUOUS`` measurment.
+             support ``CONTINUOUS`` measurement.
 
 .. attribute:: Instrument.sample_rate_hz
 
@@ -163,16 +163,16 @@ Instrument Channel
    ``site`` and a ``measurement_type``.
 
    A ``site`` indicates where  on the target a measurement is collected from
-   (e.g. a volage rail or location of a sensor).
+   (e.g. a voltage rail or location of a sensor).
 
    A ``measurement_type`` is an instance of :class:`MeasurmentType` that
-   describes what sort of measurment this is (power, temperature, etc). Each
-   mesurement type has a standard unit it is reported in, regardless of an
+   describes what sort of measurement this is (power, temperature, etc). Each
+   measurement type has a standard unit it is reported in, regardless of an
    instrument used to collect it.
 
    A channel (i.e. site/measurement_type combination) is unique per instrument,
    however there may be more than one channel associated with one site (e.g. for
-   both volatage and power).
+   both voltage and power).
 
    It should not be assumed that any site/measurement_type combination is valid.
    The list of available channels can queried with
@@ -180,22 +180,22 @@ Instrument Channel
 
 .. attribute:: InstrumentChannel.site
 
-   The name of the "site" from which the measurments are collected (e.g. voltage
+   The name of the "site" from which the measurements are collected (e.g. voltage
    rail, sensor, etc).
 
 .. attribute:: InstrumentChannel.kind
 
-   A string indingcating the type of measrument that will be collted. This is
+   A string indicating the type of measurement that will be collected. This is
    the ``name`` of the :class:`MeasurmentType` associated with this channel.
 
 .. attribute:: InstrumentChannel.units
 
-   Units in which measurment will be reported. this is determined by the
+   Units in which measurement will be reported. this is determined by the
    underlying :class:`MeasurmentType`.
 
 .. attribute:: InstrumentChannel.label
 
-   A label that can be attached to measurments associated with with channel.
+   A label that can be attached to measurements associated with with channel.
    This is constructed with ::
 
        '{}_{}'.format(self.site, self.kind)

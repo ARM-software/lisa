@@ -99,7 +99,7 @@ Connection Types
     ``adb`` is part of the Android SDK (though stand-alone versions are also
     available).
 
-    :param device: The name of the adb divice. This is usually a unique hex
+    :param device: The name of the adb device. This is usually a unique hex
                    string for USB-connected devices, or an ip address/port
                    combination. To see connected devices, you can run ``adb
                    devices`` on the host.
@@ -126,21 +126,21 @@ Connection Types
                     .. note:: ``keyfile`` and ``password`` can't be specified
                               at the same time.
 
-    :param port: TCP port on which SSH server is litening on the remoted device.
+    :param port: TCP port on which SSH server is listening on the remote device.
                  Omit to use the default port.
     :param timeout: Timeout for the connection in seconds. If a connection
                     cannot be established within this time, an error will be
                     raised.
     :param password_prompt: A string with the password prompt used by
                             ``sshpass``. Set this if your version of ``sshpass``
-                            uses somethin other than ``"[sudo] password"``.
+                            uses something other than ``"[sudo] password"``.
 
 
 .. class:: TelnetConnection(host, username, password=None, port=None,\
                             timeout=None, password_prompt=None,\
                             original_prompt=None)
 
-    A connectioned to a device on the network over Telenet.
+    A connection to a device on the network over Telenet.
 
     .. note:: Since Telenet protocol is does not support file transfer, scp is
               used for that purpose.
@@ -153,7 +153,7 @@ Connection Types
                                ``sshpass`` utility must be installed on the
                                system.
 
-    :param port: TCP port on which SSH server is litening on the remoted device.
+    :param port: TCP port on which SSH server is listening on the remote device.
                  Omit to use the default port.
     :param timeout: Timeout for the connection in seconds. If a connection
                     cannot be established within this time, an error will be

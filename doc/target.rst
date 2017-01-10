@@ -38,7 +38,7 @@ Target
         by the connection's account). This location will be created, 
         if necessary, during ``setup()``.
 
-        This location does *not* to be same as the system's executables
+        This location does *not* need to be same as the system's executables
         location. In fact, to prevent devlib from overwriting system's defaults,
         it better if this is a separate location, if possible.
 
@@ -83,12 +83,12 @@ Target
 
 .. attribute:: Target.big_core
 
-   This is the name of the cores that the "big"s in an ARM big.LITTLE
+   This is the name of the cores that are the "big"s in an ARM big.LITTLE
    configuration. This is obtained via the underlying :class:`Platform`.
 
 .. attribute:: Target.little_core
 
-   This is the name of the cores that the "little"s in an ARM big.LITTLE
+   This is the name of the cores that are the "little"s in an ARM big.LITTLE
    configuration. This is obtained via the underlying :class:`Platform`.
 
 .. attribute:: Target.is_connected
@@ -440,12 +440,12 @@ Target
 
 .. method:: Target.extract(path, dest=None)
 
-   Extracts the specified archive/file and returns the path to the extrated
+   Extracts the specified archive/file and returns the path to the extracted
    contents. The extraction method is determined based on the file extension.
    ``zip``, ``tar``, ``gzip``, and ``bzip2`` are supported.
 
    :param dest: Specified an on-target destination directory (which must exist)
-                for the extrated contents.
+                for the extracted contents.
 
     Returns the path to the extracted contents. In case of files (gzip and
     bzip2), the path to the decompressed file is returned; for archives, the
