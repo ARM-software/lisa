@@ -16,34 +16,12 @@ Vagrant.configure(2) do |config|
   config.vm.provision "shell", inline: <<-SHELL
     set -e
 
-    sudo apt-get update
-    sudo apt-get install -y autoconf automake build-essential expect git \
-        libfreetype6-dev libpng12-dev libtool nmap openjdk-7-jdk \
-        openjdk-7-jre pkg-config python-all-dev python-matplotlib \
-        python-nose python-numpy python-pip python-zmq sshpass trace-cmd \
-        tree wget
-    pip install Cython
-    sudo pip install ipython[notebook] pandas psutil wrapt
-    sudo apt-get remove -y w3m
-
     if [ ! -e /home/vagrant/lisa ]; then
        ln -s /vagrant /home/vagrant/lisa
     fi
 
     cd /home/vagrant/lisa
-    ANDROID_SDK_URL="https://dl.google.com/android/android-sdk_r24.4.1-linux.tgz"
-    if [ ! -e ./tools/android-sdk-linux ]; then
-        echo "Downloading Android SDK [$ANDROID_SDK_URL]..."
-        wget -qO- $ANDROID_SDK_URL | tar xz -C tools
-        expect -c '
-            set timeout -1;
-            spawn ./tools/android-sdk-linux/tools/android update sdk --no-ui
-            expect {
-                "Do you accept the license" { exp_send "y\r" ; exp_continue }
-                eof
-            }
-        '
-    fi
+    ./install_base_ubuntu.sh --install-android-sdk
 
     chown vagrant.vagrant /home/vagrant/lisa
     echo cd /home/vagrant/lisa >> /home/vagrant/.bashrc
