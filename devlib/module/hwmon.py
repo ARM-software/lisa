@@ -85,7 +85,8 @@ class HwmonDevice(object):
         path = self.path
         if not path.endswith(self.target.path.sep):
             path += self.target.path.sep
-        for entry in self.target.list_directory(path):
+        for entry in self.target.list_directory(path,
+                                                as_root=self.target.is_rooted):
             match = HWMON_FILE_REGEX.search(entry)
             if match:
                 kind = match.group('kind')
@@ -131,7 +132,8 @@ class HwmonModule(Module):
         self.scan()
 
     def scan(self):
-        for entry in self.target.list_directory(self.root):
+        for entry in self.target.list_directory(self.root,
+                                                as_root=self.target.is_rooted):
             if entry.startswith('hwmon'):
                 entry_path = self.target.path.join(self.root, entry)
                 if self.target.file_exists(self.target.path.join(entry_path, 'name')):
