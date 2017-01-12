@@ -45,6 +45,9 @@ class LisaTest(unittest.TestCase):
     _getExperimentsConf to generate target-dependent experiments.
 
     Example users of this class can be found under LISA's tests/ directory.
+
+    :ivar experiments: List of :class:`Experiment` s executed for the test. Only
+                       available after :meth:`init` has been called.
     """
 
     test_conf = None
@@ -95,6 +98,8 @@ class LisaTest(unittest.TestCase):
 
         cls.logger.info('Experiments execution...')
         cls.executor.run()
+
+        cls.experiments = cls.executor.experiments
 
         # Execute post-experiments code defined by the test
         cls._experimentsFinalize()
