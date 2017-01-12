@@ -393,7 +393,10 @@ class CgroupsModule(Module):
         :returns: Output of command.
         """
         cmd = self.run_into_cmd(cgroup, cmdline)
-        return self.target.execute(cmd)
+        raw_output = self.target.execute(cmd)
+
+        # First line of output comes from shutils; strip it out.
+        return raw_output.split('\n', 1)[1]
 
     def cgroups_tasks_move(self, srcg, dstg, exclude=''):
         """
