@@ -125,7 +125,7 @@ class LisaTest(unittest.TestCase):
         Return a SchedAssert over the task provided
         """
         return SchedAssert(
-            self.get_trace(experment), self.te.topology, execname=task)
+            self.get_trace(experiment).ftrace, self.te.topology, execname=task)
 
     @memoized
     def get_multi_assert(self, experiment, task_filter=""):
