@@ -392,11 +392,8 @@ class CgroupsModule(Module):
         :param cgroup: Name of cgroup to run command into
         :returns: Output of command.
         """
-        return self.target._execute_util(
-            'CGMOUNT={} cgroups_run_into {} {}'\
-                .format(self.cgroup_root, cgroup, cmdline),
-            as_root=True)
-
+        cmd = self.run_into_cmd(cgroup, cmdline)
+        return self.target.execute(cmd)
 
     def cgroups_tasks_move(self, srcg, dstg, exclude=''):
         """
