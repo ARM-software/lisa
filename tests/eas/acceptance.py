@@ -69,7 +69,7 @@ class _EasTest(LisaTest):
 
     @classmethod
     def setUpClass(cls, *args, **kwargs):
-        super(_EasTest, cls)._init(*args, **kwargs)
+        super(_EasTest, cls).runExperiments(*args, **kwargs)
 
     @classmethod
     def _experimentsInit(cls, *args, **kwargs):

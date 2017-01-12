@@ -66,7 +66,7 @@ class HeavyLoadTest(LisaTest):
 
     @classmethod
     def setUpClass(cls, *args, **kwargs):
-        super(HeavyLoadTest, cls)._init(*args, **kwargs)
+        super(HeavyLoadTest, cls).runExperiments(*args, **kwargs)
 
     @experiment_test
     def test_tasks_spread(self, experiment, tasks):

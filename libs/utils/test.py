@@ -54,15 +54,6 @@ class LisaTest(unittest.TestCase):
     """Override this with a dictionary to configure the Executor"""
 
     @classmethod
-    def _init(cls, *args, **kwargs):
-        """
-        Set up logging and trigger running experiments
-        """
-
-        cls.logger = logging.getLogger('LisaTest')
-        cls._runExperiments()
-
-    @classmethod
     def _getTestConf(cls):
         if cls.test_conf is None:
             raise NotImplementedError("Override `test_conf` attribute")
@@ -83,10 +74,11 @@ class LisaTest(unittest.TestCase):
         return cls.experiments_conf
 
     @classmethod
-    def _runExperiments(cls):
+    def runExperiments(cls):
         """
-        Default experiments execution engine
+        Set up logging and trigger running experiments
         """
+        cls.logger = logging.getLogger('LisaTest')
 
         cls.logger.info('Setup tests execution engine...')
         test_env = TestEnv(test_conf=cls._getTestConf())

@@ -28,7 +28,7 @@ class SFreq(LisaTest):
 
     @classmethod
     def setUpClass(cls, *args, **kwargs):
-        super(SFreq, cls)._init(TESTS_CONF, *args, **kwargs)
+        super(SFreq, cls).runExperiments(TESTS_CONF, *args, **kwargs)
 
     def test_regression(self):
         """Check that there is not regression on energy"""
