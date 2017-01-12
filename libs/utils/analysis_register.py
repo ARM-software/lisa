@@ -50,7 +50,7 @@ class AnalysisRegister(object):
         sys.path.insert(0, analysis_dir)
         self._log.debug('Syspath: %s', sys.path)
 
-        self._log.info('Registering trace analysis modules:')
+        self._log.debug('Registering trace analysis modules:')
         for filepath in glob(os.path.join(analysis_dir, '*.py')):
             filename = os.path.splitext(os.path.basename(filepath))[0]
 
@@ -71,6 +71,6 @@ class AnalysisRegister(object):
                    issubclass(handler, AnalysisModule):
                     module_name = module.__name__.replace('_analysis', '')
                     setattr(self, module_name, handler(trace))
-                    self._log.info('   %s', module_name)
+                    self._log.debug('   %s', module_name)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
