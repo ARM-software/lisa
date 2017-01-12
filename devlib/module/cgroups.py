@@ -373,6 +373,13 @@ class CgroupsModule(Module):
         return self.controllers[kind]
 
     def run_into_cmd(self, cgroup, cmdline):
+        """
+        Get the command to run a command into a given cgroup
+
+        :param cmdline: Commdand to be run into cgroup
+        :param cgroup: Name of cgroup to run command into
+        :returns: A command to run `cmdline` into `cgroup`
+        """
         return 'CGMOUNT={} {} cgroups_run_into {} {}'\
                 .format(self.cgroup_root, self.target.shutils,
                         cgroup, cmdline)
@@ -380,6 +387,10 @@ class CgroupsModule(Module):
     def run_into(self, cgroup, cmdline):
         """
         Run the specified command into the specified CGroup
+
+        :param cmdline: Command to be run into cgroup
+        :param cgroup: Name of cgroup to run command into
+        :returns: Output of command.
         """
         return self.target._execute_util(
             'CGMOUNT={} cgroups_run_into {} {}'\
