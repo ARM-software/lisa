@@ -186,7 +186,7 @@ class Trace(object):
             self.x_max = self.time_range
         else:
             self.x_max = t_max
-        self._log.info('Set plots time range to (%.6f, %.6f)[s]',
+        self._log.debug('Set plots time range to (%.6f, %.6f)[s]',
                        self.x_min, self.x_max)
 
     def __registerTraceEvents(self, events):
@@ -228,11 +228,11 @@ class Trace(object):
         self._log.debug('Loading [sched] events from trace in [%s]...', path)
         self._log.debug('Parsing events: %s', self.events)
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
-            self._log.info('Parsing SysTrace format...')
+            self._log.debug('Parsing SysTrace format...')
             trace_class = trappy.SysTrace
             self.trace_format = 'SysTrace'
         elif trace_format.upper() == 'FTRACE':
-            self._log.info('Parsing FTrace format...')
+            self._log.debug('Parsing FTrace format...')
             trace_class = trappy.FTrace
             self.trace_format = 'FTrace'
         else:
@@ -341,7 +341,7 @@ class Trace(object):
                 te = df.index[-1]
             self.time_range = te - ts
 
-        self._log.info('Collected events spans a %.3f [s] time interval',
+        self._log.debug('Collected events spans a %.3f [s] time interval',
                        self.time_range)
 
         # Build a stat on trace overutilization
@@ -350,7 +350,7 @@ class Trace(object):
             self.overutilized_time = df[df.overutilized == 1].len.sum()
             self.overutilized_prc = 100. * self.overutilized_time / self.time_range
 
-            self._log.info('Overutilized time: %.6f [s] (%.3f%% of trace time)',
+            self._log.debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
                            self.overutilized_time, self.overutilized_prc)
 
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
