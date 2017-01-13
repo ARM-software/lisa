@@ -41,6 +41,133 @@ Experiment = namedtuple('Experiment', ['wload_name', 'wload',
                                        'conf', 'iteration', 'out_dir'])
 
 class Executor():
+    """
+    Abstraction for running sets of experiments and gathering data from targets
+
+    An executor can be configured to run a set of workloads (wloads) in each
+    different target configuration of a specified set (confs). These wloads and
+    confs can be specified by the "experiments_conf" input dictionary. Each
+    (workload, conf, iteration) tuple is called an "experiment".
+
+    After the workloads have been run, the Executor object's `experiments`
+    attribute is a list of Experiment objects. The `out_dir` attribute of these
+    objects can be used to find the results of the experiment. This output
+    directory follows this format:
+
+        results/<test_id>/<wltype>:<conf>:<wload>/<run_id>
+
+    where:
+
+        test_id
+            Is the "tid" defined by the experiments_conf, or a timestamp based
+            folder in case "tid" is not specified.
+        wltype
+            Is the class of workload executed, e.g. rtapp or sched_perf.
+        conf
+            Is the "tag" of one of the specified **confs**.
+        wload
+            Is the identifier of one of the specified **wloads**.
+        run_id
+            Is the progressive execution number from 1 up to the specified
+            **iterations**.
+
+    :param experiments_conf: Dict with experiment configuration. Keys are:
+
+        **confs**
+          Mandatory. Platform configurations to be tested. List of dicts,
+          each with keys:
+
+            tag
+              String to identify this configuration. Required, may be empty.
+            flags
+              List of strings describing features required for this
+              conf. Available flags are:
+
+              "ftrace"
+                  Enable collecting ftrace during the experiment.
+              "freeze_userspace"
+                  Use the cgroups freezer to freeze as many userspace tasks as
+                  possible during the experiment execution, in order to reduce
+                  system noise. Some tasks cannot be frozen, such as those
+                  required to maintain a connection to LISA.
+
+            sched_features
+              Optional list of features to be written to
+              /sys/kernel/debug/sched_features. Prepend "NO\_" to a feature to
+              actively disable it. Requires ``CONFIG_SCHED_DEBUG`` in target
+              kernel.
+            cpufreq
+              Parameters to configure cpufreq via Devlib's cpufreq
+              module. Dictionary with fields:
+
+              .. TODO link to devlib cpufreq module docs (which don't exist)
+
+              governor
+                cpufreq governor to set (for all CPUs) before execution. The
+                previous governor is not restored when execution is finished.
+              governor_tunables
+                Dictionary of governor-specific tunables, expanded and passed as
+                kwargs to the cpufreq module's ``set_governor_tunables`` method.
+              freq
+                Requires "governor" to be "userspace". Dictionary mapping CPU
+                numbers to frequencies. Exact frequencies should be available on
+                those CPUs. It is not necessary to provide a frequency for every
+                CPU - the frequency for unspecified CPUs is not affected. Note
+                that cpufreq will transparrently set the frequencies of any
+                other CPUs sharing a clock domain.
+
+            cgroups
+              Optional cgroups configuration. To use this, ensure the 'cgroups'
+              devlib module is enabled in your test_conf Contains fields:
+
+              .. TODO reference test_conf
+              .. TODO link to devlib cgroup module's docs (which don't exist)
+
+              conf
+                Dict specifying the cgroup controllers, cgroups, and cgroup
+                parameters to setup. If a controller listed here is not
+                enabled in the target kernel, a message is logged and the
+                configuration is **ignored**. Of the form:
+
+                ::
+
+                  "<controller>" : {
+                      "<group1>" : { "<group_param" : <value> }
+                      "<group2>" : { "<group_param" : <value> }
+                  }
+
+                These cgroups can then be used in the "cgroup" field of workload
+                specifications.
+
+              default
+                The default cgroup to run workloads in, if no "cgroup" is
+                specified.
+
+              For example, to create a cpuset cgroup named "/big" which
+              restricts constituent tasks to CPUs 1 and 2:
+
+              ::
+
+                "cgroups" : {
+                    "conf" : {
+                        "cpuset" : {
+                            "/big" : {"cpus" : "1-2"},
+                        }
+                    },
+                    "default" : "/",
+                }
+
+          **wloads**
+            .. TODO document wloads field.
+
+            Mandatory. Workloads to run on each platform configuration
+
+          **iterations**
+            Number of iterations for each workload/conf combination. Default
+            is 1.
+    :type experiments_conf: dict
+    """
+
     critical_tasks = {
         'linux': ['init', 'systemd', 'sh', 'ssh'],
         'android': [
@@ -52,40 +179,12 @@ class Executor():
             'thermal-engine'
         ]
     }
-    """Tasks in the system that we can't afford to freeze"""
+    """
+    Dictionary mapping OS name to list of task names that we can't afford to
+    freeze when using freeeze_userspace.
+    """
 
     def __init__(self, test_env, experiments_conf):
-        """
-        Tests Executor
-
-        A tests executor is a module which support the execution of a
-        configured set of experiments. Each experiment is composed by:
-        - a target configuration
-        - a worload to execute
-
-        The executor module can be configured to run a set of workloads (wloads)
-        in each different target configuration of a specified set (confs). These
-        wloads and confs can be specified by the "experiments_conf" input
-        dictionary. Each (workload, conf, iteration) tuple is called an
-        "experiment".
-
-        All the results generated by each experiment will be collected a result
-        folder which is named according to this template:
-            results/<test_id>/<wltype>:<conf>:<wload>/<run_id>
-        where:
-        - <test_id> : the "tid" defined by the experiments_conf, or a timestamp
-                      based folder in case "tid" is not specified
-        - <wltype>  : the class of workload executed, e.g. rtapp or sched_perf
-        - <conf>    : the identifier of one of the specified configurations
-        - <wload>   : the identified of one of the specified workload
-        - <run_id>  : the progressive execution number from 1 up to the
-                      specified iterations
-
-        After the workloads have been run, the Executor object's `experiments`
-        attribute is a list of Experiment objects. The `out_dir` attribute of
-        these objects can be used to find the results of the experiment.
-        """
-
         # Initialize globals
         self._default_cgroup = None
         self._cgroup = None
