@@ -42,7 +42,6 @@ class Workload(object):
         self.tasks = {}
 
         # The cpus on which the workload will be executed
-        # NOTE: for the time being we support just a single CPU
         self.cpus = None
 
         # The cgroup on which the workload will be executed
