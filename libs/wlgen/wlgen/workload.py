@@ -210,9 +210,13 @@ class Workload(object):
             _command = '{} {}'\
                     .format(taskset_cmd, _command)
 
-        if self.cgroup and hasattr(self.target, 'cgroups'):
-            # Get a reference to the CGroup to use
-            _command = self.target.cgroups.run_into_cmd(self.cgroup, _command)
+        if self.cgroup:
+            if hasattr(self.target, 'cgroups'):
+                _command = self.target.cgroups.run_into_cmd(self.cgroup,
+                                                            _command)
+            else:
+                raise ValueError('To run workload in a cgroup, add "cgroups" '
+                                 'devlib module to target/test configuration')
 
         # Start FTrace (if required)
         if ftrace:
