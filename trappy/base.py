@@ -189,7 +189,7 @@ class Base(object):
                         continue
                     data_dict[prev_key] += ' ' + field
                     continue
-                (key, value) = field.split('=')
+                (key, value) = field.split('=', 1)
                 try:
                     value = int(value)
                 except ValueError:
