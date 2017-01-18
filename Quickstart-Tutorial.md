@@ -48,10 +48,18 @@ This intial tutorial can be seen (but not executed) also on GitHub:
 
 To run automated tests, you'll first need to configure the test framework to access your target. 
 Edit `target.config` with these details - this file contains comments describing the information 
-you'll need to add.
+you'll need to add. For example:
+
+- For an SSH (Linux) target you'll usually need to edit:
+  - The "platform" field to "linux"
+  - The "board" field to the name of your device (leave blank if it isn't listed as an option)
+  - The "host" field to provide the IP address
+  - The "username" and "password" fields, or the "keyfile" field to provide login credentials.
+
+- For an ADB (Android) target, you'll usually need to edit:
+  - The "platform" to "android"
+  - The "board" field to the name of your device (leave blank if it isn't listed as an option)
+  - The "device" field to provide the Android device ID.
 
 Once your target is set up, you can run automated tests via the `lisa-test` command in the LISA shell. 
 Run `lisa-test help` to see the format of this command.
-
-When using LISA notebook usage, you usually specify the target configuration inline in the notebook. 
-For automated tests, you'll need to edit `target.config` with the details of your target.
