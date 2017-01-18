@@ -42,11 +42,32 @@ There are two "entry points" for running LISA:
   domain-specific test assertions for this use-case. LISA provides some
   ready-made automated tests under the `tests/` directory.
 
+# Motivations
+
+The main goals of LISA are:
+
+* Support study of existing behaviours (i.e. *"how does PELT work?"*)
+* Support analysis of new code being developed (i.e. *"what is the impact on
+  existing code?"*)
+* Get insights on what's not working and possibly chase down why
+* Share reproducible experiments by means of a **common language** that:
+    * is **flexible enough** to reproduce the same experiment on different
+      targets
+    * **simplifies** generation and execution of well defined workloads
+    * **defines** a set of metrics to evaluate kernel behaviours
+    * **enables** kernel developers to easily post process data to produce
+      statistics and plots
+
 # Documentation
 
 * [Wiki Home page](https://github.com/ARM-software/lisa/wiki)
 * [Installation](https://github.com/ARM-software/lisa/wiki/Installation)
 * [Quickstart Tutorial](https://github.com/ARM-software/lisa/wiki/Quickstart-tutorial)
+
+# External Links
+* Linux Integrated System Analysis (LISA) & Friends
+  [Slides](http://events.linuxfoundation.org/sites/events/files/slides/ELC16_LISA_20160326.pdf)
+  and [Video](https://www.youtube.com/watch?v=yXZzzUEngiU)
 
 # License
 
