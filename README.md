@@ -1,8 +1,7 @@
 
 *__NOTE__: This is still a work in progress project, suitable for:*
 *developers, contributors and testers.*
-*None of the provided tests should be considered stable and/or suitable*
-*for the evaluation of a product.*
+*None of the provided tests have been extensively evaluated as of January 2017.*
 
 # Introduction
 
