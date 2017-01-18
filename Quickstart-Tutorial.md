@@ -1,10 +1,14 @@
-Once cloned, source init_env to initialized the LISA Shell, which provides
+Once you've cloned LISA, source init_env to initialize the LISA Shell, which provides
 a convenient set of shell commands for easy access to many LISA related
 functions.
 
 ```shell
 $ source init_env
 ```
+
+Run `lisa-help` to see an overview of the provided LISA commands.
+
+## Starting the IPython server to use LISA notebooks
 
 To start the IPython Notebook Server required to use this Notebook, on a
 LISAShell run:
@@ -39,3 +43,15 @@ are accessible by following (in your browser) this link:
 This intial tutorial can be seen (but not executed) also on GitHub:
 
   https://github.com/ARM-software/lisa/blob/master/ipynb/tutorial/00_LisaInANutshell.ipynb
+
+## Running automated tests
+
+To run automated tests, you'll first need to configure the test framework to access your target. 
+Edit `target.config` with these details - this file contains comments describing the information 
+you'll need to add.
+
+Once your target is set up, you can run automated tests via the `lisa-test` command in the LISA shell. 
+Run `lisa-test help` to see the format of this command.
+
+When using LISA notebook usage, you usually specify the target configuration inline in the notebook. 
+For automated tests, you'll need to edit `target.config` with the details of your target.
