@@ -64,6 +64,9 @@ The main goals of LISA are:
 * [Installation](https://github.com/ARM-software/lisa/wiki/Installation)
 * [Quickstart Tutorial](https://github.com/ARM-software/lisa/wiki/Quickstart-tutorial)
 
+More formal API documentation for LISA is a work in progress, however much of
+the API is currently described in the provided tutorial Jupyter notebooks.
+
 # External Links
 * Linux Integrated System Analysis (LISA) & Friends
   [Slides](http://events.linuxfoundation.org/sites/events/files/slides/ELC16_LISA_20160326.pdf)
