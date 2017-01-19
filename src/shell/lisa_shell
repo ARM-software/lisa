@@ -256,11 +256,11 @@ Usage: lisa-test FILE[:CLASS]
   Examples:
     Run all EAS Acceptance tests:
 
-      lisa-test eas/acceptance.py
+      lisa-test tests/eas/acceptance.py
 
     Run ForkMigration test from EAS Acceptance suite:
 
-      lisa-test eas/acceptance.py:ForkMigration
+      lisa-test tests/eas/acceptance.py:ForkMigration
 EOF
 }
 
