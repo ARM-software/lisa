@@ -178,7 +178,7 @@ if [ "x$IPADDR" == "x" ]; then
     echo "Usage: $0 <NETIF>"
     echo " NETIF - The network interface to start the server on"
     echo
-    exit 1
+    return 1
 fi
 # Setup paths
 PYDIR="$LISA_HOME/ipynb"
