@@ -307,18 +307,6 @@ class CpuInvarianceTest(LoadTrackingTest):
         """
         return self._test_signal(experiment, tasks, 'util_avg')
 
-    @experiment_test
-    def test_task_load_avg(self, experiment, tasks):
-        """
-        Test that the mean of the load_avg signal matched the expected value
-
-        Assuming that the system was under little stress (so the task was
-        RUNNING whenever it was RUNNABLE) and that the task was run with a
-        'nice' value of 0, the load_avg should be similar to the util_avg. So,
-        this test does the same as test_task_util_avg but for load_avg.
-        """
-        return self._test_signal(experiment, tasks, 'load_avg')
-
 # nosetests sometimes tries to set up base test classes directly even though
 # they don't have any test_* methods. That means it tries to call setUpClass on
 # LoadTrackingTest, which doesn't work. To prevent that, we set __test__ = False
