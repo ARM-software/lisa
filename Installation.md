@@ -41,6 +41,22 @@ using `pip`, which will provides the most updated version:
 	# Install most update version of the notebook
 	$ sudo pip install ipython jupyter
 
+### Installing Jupyter NBextensions
+
+The Jupyter notebook server installed in the previous step is just a basic version.
+Although it's just enough to open and use all the notebooks provided by LISA, if you
+want to take maximum advantages of the Notebooks a standard set of extensions are
+provided as a dependency repository.
+
+To install the extensions you should follow the instructions on that official websiste:
+
+   [[https://github.com/ipython-contrib/jupyter_contrib_nbextensions]]
+
+The requires steps should be:
+
+        $ pip install jupyter_contrib_nbextensions
+        $ jupyter contrib nbextension install --user
+
 ### Clone the repository
 
 The code of the LISA toolkit with all the supported tests and Notebooks can be
