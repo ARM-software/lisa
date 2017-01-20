@@ -74,7 +74,8 @@ class TestBase(utils_tests.SetupDirectory):
 
     def __init__(self, *args, **kwargs):
         super(TestBase, self).__init__(
-             [("../doc/trace.txt", "trace.txt")],
+             [("../doc/trace.txt", "trace.txt"),
+              ("trace_equals.txt", "trace_equals.txt")],
              *args,
              **kwargs)
 
@@ -201,3 +202,14 @@ class TestBase(utils_tests.SetupDirectory):
 
         self.assertEquals(round(thrm.data_frame.index[0], 7), 0)
         self.assertEquals(round(last_time - expected_last_time, 7), 0)
+
+    def test_equals_in_field_value(self):
+        """TestBase: Can parse events with fields with values containing '='"""
+        trace = trappy.FTrace("trace_equals.txt", events=['equals_event'])
+
+        df = trace.equals_event.data_frame
+        self.assertSetEqual(set(df.columns),
+                            set(["__comm", "__pid", "__cpu", "my_field"]))
+        self.assertListEqual(df["my_field"].tolist(),
+                             ["foo", "foo=bar", "foo=bar=baz", 1,
+                              "1=2", "1=foo", "1foo=2"])
