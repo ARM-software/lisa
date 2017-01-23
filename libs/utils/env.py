@@ -92,8 +92,8 @@ class TestEnv(ShareState):
         if self._initialized and not force_new:
             return
 
-        self.conf = None
-        self.test_conf = None
+        self.conf = {}
+        self.test_conf = {}
         self.res_dir = None
         self.target = None
         self.ftrace = None
