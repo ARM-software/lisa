@@ -395,29 +395,18 @@ class TestEnv(ShareState):
         # Modules configuration
         ########################################################################
 
-        # Refine modules list based on target.conf options
-        if 'modules' in self.conf:
-            self.__modules = list(set(
-                self.__modules + self.conf['modules']
-            ))
+        modules = set(self.__modules)
+
+        # Refine modules list based on target.conf
+        modules.update(self.conf.get('modules', []))
         # Merge tests specific modules
-        if self.test_conf and 'modules' in self.test_conf and \
-           self.test_conf['modules']:
-            self.__modules = list(set(
-                self.__modules + self.test_conf['modules']
-            ))
+        modules.update(self.test_conf.get('modules', []))
 
-        # Initialize modules to exclude on the target
-        if 'exclude_modules' in self.conf:
-            for module in self.conf['exclude_modules']:
-                if module in self.__modules:
-                    self.__modules.remove(module)
-        # Remove tests specific modules
-        if self.test_conf and 'exclude_modules' in self.test_conf:
-            for module in self.test_conf['exclude_modules']:
-                if module in self.__modules:
-                    self.__modules.remove(module)
+        remove_modules = set(self.conf.get('exclude_modules', []) +
+                             self.test_conf.get('exclude_modules', []))
+        modules.difference_update(remove_modules)
 
+        self.__modules = list(modules)
         self._log.info('Devlib modules to load: %s', self.__modules)
 
         ########################################################################
