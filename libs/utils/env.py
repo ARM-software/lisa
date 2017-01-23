@@ -94,7 +94,6 @@ class TestEnv(ShareState):
 
         self.conf = {}
         self.test_conf = {}
-        self.res_dir = None
         self.target = None
         self.ftrace = None
         self.workdir = WORKING_DIR_DEFAULT
@@ -199,17 +198,17 @@ class TestEnv(ShareState):
         self.calibration()
 
         # Initialize local results folder
-        # test configuration override target one
-        if self.test_conf and 'results_dir' in self.test_conf:
-            self.res_dir = self.test_conf['results_dir']
-        if not self.res_dir and 'results_dir' in self.conf:
-            self.res_dir = self.conf['results_dir']
+        # test configuration overrides target one
+        self.res_dir = (self.test_conf.get('results_dir') or
+                        self.conf.get('results_dir'))
+
         if self.res_dir and not os.path.isabs(self.res_dir):
-                self.res_dir = os.path.join(basepath, 'results', self.res_dir)
+            self.res_dir = os.path.join(basepath, 'results', self.res_dir)
         else:
             self.res_dir = os.path.join(basepath, OUT_PREFIX)
             self.res_dir = datetime.datetime.now()\
                             .strftime(self.res_dir + '/%Y%m%d_%H%M%S')
+
         if wipe and os.path.exists(self.res_dir):
             self._log.warning('Wipe previous contents of the results folder:')
             self._log.warning('   %s', self.res_dir)
