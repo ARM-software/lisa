@@ -171,9 +171,9 @@ class TestEnv(ShareState):
 
         # Initialize ftrace events
         # test configuration override target one
-        if self.test_conf and 'ftrace' in self.test_conf:
+        if 'ftrace' in self.test_conf:
             self.conf['ftrace'] = self.test_conf['ftrace']
-        if 'ftrace' in self.conf and self.conf['ftrace']:
+        if self.conf.get('ftrace'):
             self.__tools.append('trace-cmd')
 
         # Add tools dependencies
