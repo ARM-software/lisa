@@ -97,7 +97,6 @@ class TestEnv(ShareState):
         self.target = None
         self.ftrace = None
         self.workdir = WORKING_DIR_DEFAULT
-        self.__tools = []
         self.__installed_tools = set()
         self.__modules = []
         self.__connection_settings = None
@@ -158,16 +157,9 @@ class TestEnv(ShareState):
             self.workdir = self.conf['workdir']
 
         # Initialize binary tools to deploy
-        if 'tools' in self.conf:
-            self.__tools = self.conf['tools']
-        # Merge tests specific tools
-        if self.test_conf and 'tools' in self.test_conf and \
-           self.test_conf['tools']:
-            if 'tools' not in self.conf:
-                self.conf['tools'] = []
-            self.__tools = list(set(
-                self.conf['tools'] + self.test_conf['tools']
-            ))
+        test_conf_tools = self.test_conf.get('tools', [])
+        target_conf_tools = self.conf.get('tools', [])
+        self.__tools = list(set(test_conf_tools + target_conf_tools))
 
         # Initialize ftrace events
         # test configuration override target one
@@ -175,15 +167,6 @@ class TestEnv(ShareState):
             self.conf['ftrace'] = self.test_conf['ftrace']
         if self.conf.get('ftrace'):
             self.__tools.append('trace-cmd')
-
-        # Add tools dependencies
-        if 'rt-app' in self.__tools:
-            self.__tools.append('taskset')
-            self.__tools.append('trace-cmd')
-            self.__tools.append('perf')
-            self.__tools.append('cgroup_run_into.sh')
-        # Sanitize list of dependencies to remove duplicates
-        self.__tools = list(set(self.__tools))
 
         # Initialize features
         if '__features__' not in self.conf:
@@ -493,10 +476,17 @@ class TestEnv(ShareState):
         :param tools: The list of names of tools to install
         :type tools: list(str)
         """
+        tools = set(tools)
+
+        # Add tools dependencies
+        if 'rt-app' in tools:
+            tools.update(['taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh'])
+
+        # Remove duplicates and already-instaled tools
+        tools.difference_update(self.__installed_tools)
+
         tools_to_install = []
         for tool in tools:
-            if tool in self.__installed_tools:
-                continue
             binary = '{}/tools/scripts/{}'.format(basepath, tool)
             if not os.path.isfile(binary):
                 binary = '{}/tools/{}/{}'\
