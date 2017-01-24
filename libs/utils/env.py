@@ -677,6 +677,15 @@ class TestEnv(ShareState):
         return (self.platform, plt_file)
 
     def calibration(self, force=False):
+        """
+        Get rt-app calibration. Run calibration on target if necessary.
+
+        :param force: Always run calibration on target, even if we have not
+                      installed rt-app or have already run calibration.
+        :returns: A dict with calibration results, which can be passed as the
+                  ``calibration`` parameter to :class:`RTA`, or ``None`` if
+                  force=False and we have not installed rt-app.
+        """
 
         if not force and self._calib:
             return self._calib
