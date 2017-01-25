@@ -335,29 +335,33 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
     if as_root:
         command = 'echo \'{}\' | su'.format(escape_single_quotes(command))
     device_part = ['-s', device] if device else []
-    device_string = ' {} {}'.format(*device_part) if device_part else ''
-    full_command = 'adb{} shell "{}"'.format(device_string,
-                                             escape_double_quotes(command))
-    logger.debug(full_command)
-    if check_exit_code:
-        adb_shell_command = '({}); echo \"\n$?\"'.format(command)
-        actual_command = ['adb'] + device_part + ['shell', adb_shell_command]
-        raw_output, error = check_output(actual_command, timeout, shell=False)
-        if raw_output:
-            try:
-                output, exit_code, _ = raw_output.rsplit(newline_separator, 2)
-            except ValueError:
-                exit_code, _ = raw_output.rsplit(newline_separator, 1)
-                output = ''
-        else:  # raw_output is empty
-            exit_code = '969696'  # just because
-            output = ''
 
+    # On older combinations of ADB/Android versions, the adb host command always
+    # exits with 0 if it was able to run the command on the target, even if the
+    # command failed (https://code.google.com/p/android/issues/detail?id=3254).
+    # Homogenise this behaviour by running the command then echoing the exit
+    # code.
+    adb_shell_command = '({}); echo \"\n$?\"'.format(command)
+    actual_command = ['adb'] + device_part + ['shell', adb_shell_command]
+    logger.debug('adb {} shell {}'.format(' '.join(device_part), command))
+    raw_output, error = check_output(actual_command, timeout, shell=False)
+    if raw_output:
+        try:
+            output, exit_code, _ = raw_output.rsplit(newline_separator, 2)
+        except ValueError:
+            exit_code, _ = raw_output.rsplit(newline_separator, 1)
+            output = ''
+    else:  # raw_output is empty
+        exit_code = '969696'  # just because
+        output = ''
+
+    if check_exit_code:
         exit_code = exit_code.strip()
         if exit_code.isdigit():
             if int(exit_code):
-                message = 'Got exit code {}\nfrom: {}\nSTDOUT: {}\nSTDERR: {}'
-                raise TargetError(message.format(exit_code, full_command, output, error))
+                message = ('Got exit code {}\nfrom target command: {}\n'
+                           'STDOUT: {}\nSTDERR: {}')
+                raise TargetError(message.format(exit_code, command, output, error))
             elif AM_START_ERROR.findall(output):
                 message = 'Could not start activity; got the following:'
                 message += '\n{}'.format(AM_START_ERROR.findall(output)[0])
@@ -370,8 +374,7 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
                 message = 'adb has returned early; did not get an exit code. '\
                           'Was kill-server invoked?'
                 raise TargetError(message)
-    else:  # do not check exit code
-        output, _ = check_output(full_command, timeout, shell=True)
+
     return output
 
 
