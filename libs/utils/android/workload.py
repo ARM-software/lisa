@@ -26,6 +26,9 @@ class Workload(object):
     Base class for Android related workloads
     """
 
+    _packages = None
+    _availables = {}
+
     def __init__(self, test_env):
         """
         Initialized workloads available on the specified test environment
@@ -39,13 +42,46 @@ class Workload(object):
         # Set of data reported in output of each run
         self.trace_file = None
         self.nrg_report = None
-        wloads = Workload.availables(self.target)
-        self._log.info('Workloads available on target:')
-        self._log.info('  %s', wloads)
 
     def _adb(self, cmd):
         return 'adb -s {} {}'.format(self._target.adb_name, cmd)
 
+    @classmethod
+    def _check_availables(cls, test_env):
+        """
+        List the supported android workloads which are available on the target
+        """
+
+        _log = logging.getLogger('Workload')
+
+        # Getting the list of installed packages
+        cls._packages = test_env.target.list_packages()
+        _log.debug('Packages:\n%s', cls._packages)
+
+        _log.debug('Building list of available workloads...')
+        for sc in Workload.__subclasses__():
+            _log.debug('Checking workload [%s]...', sc.__name__)
+            if sc.package in cls._packages:
+                cls._availables[sc.__name__.lower()] = sc
+
+        _log.info('Supported workloads available on target:')
+        _log.info('  %s', ', '.join(cls._availables.keys()))
+
+    @classmethod
+    def getInstance(cls, test_env, name):
+        """
+        Get a reference to the specified Android workload
+        """
+
+        # Initialize list of available workloads
+        if cls._packages is None:
+            cls._check_availables(test_env)
+
+        if name.lower() not in cls._availables:
+            msg = 'Workload [{}] not available on target'.format(name)
+            raise ValueError(msg)
+
+        return cls._availables[name.lower()](test_env)
 
     def run(self, out_dir, collect='',
             **kwargs):
