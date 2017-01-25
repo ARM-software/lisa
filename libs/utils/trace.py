@@ -613,6 +613,8 @@ class Trace(object):
         """
         If a energy model is provided, some signals are added to the
         sched_energy_diff trace event data frame.
+
+        Also convert between existing field name formats for sched_energy_diff
         """
         if not self.hasEvents('sched_energy_diff') \
            or 'nrg_model' not in self.platform:
@@ -632,6 +634,10 @@ class Trace(object):
             "Maximum estimated system energy: {0:d}".format(power_max))
 
         df = self._dfg_trace_event('sched_energy_diff')
+
+        translations = {'nrg_d': 'nrg_diff', 'utl_d': 'usage_delta'}
+        df.rename(columns=translations, inplace=True)
+
         df['nrg_diff_pct'] = SCHED_LOAD_SCALE * df.nrg_diff / power_max
 
         # Tag columns by usage_delta
