@@ -321,7 +321,7 @@ class ACME(EnergyMeter):
         self._channels = conf.get('channel_map', {
             'CH0': '0'
         })
-        self._iio = [None] * len(self._channels)
+        self._iio = {}
 
         self._log.info('ACME configuration:')
         self._log.info('    binary: %s', self._iiocapturebin)
