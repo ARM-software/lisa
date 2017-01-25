@@ -30,10 +30,15 @@ class Workload(object):
 
         test_env: target test environmen
         """
+        self._te = test_env
+        self._target = test_env.target
         self.te = test_env
         self.target = test_env.target
         self._log = logging.getLogger('Workload')
 
+        # Set of data reported in output of each run
+        self.trace_file = None
+        self.nrg_report = None
         wloads = Workload.availables(self.target)
         self._log.info('Workloads available on target:')
         self._log.info('  %s', wloads)
@@ -46,5 +51,15 @@ class Workload(object):
             **kwargs):
         raise RuntimeError('Not implemeted')
 
+    def tracingStart(self):
+        # Initialize energy meter results
+        if 'energy' in self.collect and self._te.emeter:
+            self._te.emeter.reset()
+            self._log.info('Energy meter STARTED')
 
+    def tracingStop(self):
+        # Collect energy meter results
+        if 'energy' in self.collect and self._te.emeter:
+            self.nrg_report = self._te.emeter.report(self.out_dir)
+            self._log.info('Energy meter STOPPED')
 # vim :set tabstop=4 shiftwidth=4 expandtab

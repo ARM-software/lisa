@@ -48,8 +48,6 @@ class YouTube(Workload):
         # Keep track of mandatory parameters
         self.out_dir = out_dir
         self.collect = collect
-        # Initialize energy meter results
-        nrg_report = None
 
         # Unlock device screen (assume no password required)
         System.menu(self.target)
@@ -72,17 +70,11 @@ class YouTube(Workload):
         # Allow the activity to start
         sleep(1)
 
-        # Start energy collection
-        if 'energy' in collect and self.te.emeter:
-            self.te.emeter.reset()
-
         # Wait until the end of the video
+        self.tracingStart()
         self._log.info('Play video for %d [s]', video_duration_s)
         sleep(video_duration_s)
-
-        # Stop energy collection
-        if 'energy' in collect and self.te.emeter:
-            nrg_report = self.te.emeter.report(out_dir)
+        self.tracingStop()
 
         # Get frame stats
         self.db_file = os.path.join(out_dir, "framestats.txt")
@@ -97,7 +89,5 @@ class YouTube(Workload):
 
         # Switch back to screen auto rotation
         Screen.set_orientation(self.target, auto=True)
-
-        return self.db_file, nrg_report
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

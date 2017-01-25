@@ -67,8 +67,6 @@ class UiBench(Workload):
         # Keep track of mandatory parameters
         self.out_dir = out_dir
         self.collect = collect
-        # Initialize energy meter results
-        nrg_report = None
 
         # Press Back button to be sure we run the video from the start
         System.menu(self.target)
@@ -117,8 +115,7 @@ class UiBench(Workload):
             # Benchmark start trigger
             match = UIBENCH_BENCHMARK_START_RE.search(message)
             if match:
-                if 'energy' in collect and self.te.emeter:
-                    self.te.emeter.reset()
+                self.tracingStart()
                 self._log.debug("Benchmark started!")
                 break
 
@@ -126,10 +123,9 @@ class UiBench(Workload):
         self._log.info('Benchmark [%s] started, waiting %d [s]',
                      activity, duration_s)
         sleep(duration_s)
-        self._log.debug("Benchmark done!")
 
-        if 'energy' in collect and self.te.emeter:
-            nrg_report = self.te.emeter.report(out_dir)
+        self._log.debug("Benchmark done!")
+        self.tracingStop()
 
         # Get frame stats
         self.db_file = os.path.join(out_dir, "framestats.txt")
@@ -144,7 +140,5 @@ class UiBench(Workload):
         # Switch back to original settings
         Screen.set_orientation(self.target, auto=True)
         System.set_airplane_mode(self.target, on=False)
-
-        return self.db_file, nrg_report
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

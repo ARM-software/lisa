@@ -82,9 +82,6 @@ class Jankbench(Workload):
         except KeyError:
             raise ValueError('Jankbench test [%s] not supported', test_name)
 
-        # Initialize energy meter results
-        nrg_report = None
-
         # Make sure we exit the app if already open
         System.menu(self.target)
         System.back(self.target)
@@ -125,16 +122,14 @@ class Jankbench(Workload):
             # Benchmark start trigger
             match = JANKBENCH_BENCHMARK_START_RE.search(message)
             if match:
-                if 'energy' in collect and self.te.emeter:
-                    self.te.emeter.reset()
+                self.tracingStart()
                 self._log.debug('Benchmark started!')
 
             # Benchmark completed trigger
             match = JANKBENCH_BENCHMARK_DONE_RE.search(message)
             if match:
-                if 'energy' in collect and self.te.emeter:
-                    nrg_report = self.te.emeter.report(out_dir)
                 self._log.debug('Benchmark done!')
+                self.tracingStop()
                 break
 
             # Iteration completd
@@ -165,6 +160,5 @@ class Jankbench(Workload):
         Screen.set_orientation(self.target, auto=True)
         System.set_airplane_mode(self.target, on=False)
 
-        return self.db_file, nrg_report
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
