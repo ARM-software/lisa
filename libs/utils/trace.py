@@ -697,12 +697,43 @@ class Trace(object):
         # OS generated events
         else:
             if len(devlib_freq) > 0:
-                first_devlib_freq = devlib_freq.iloc[:self.platform['cpus_count']]
-                if df.index[0] > first_devlib_freq.index[-1]:
-                    df = pd.concat([first_devlib_freq, df])
-                last_devlib_freq = devlib_freq.iloc[self.platform['cpus_count']:]
-                if df.index[-1] < last_devlib_freq.index[0]:
-                    df = pd.concat([df, last_devlib_freq])
+
+                # Frequencies injection is done in a per-cluster based.
+                # This is based on the assumption that clusters are
+                # frequency choerent.
+                # For each cluster we inject devlib events only if
+                # these events does not overlaps with os-generated ones.
+
+                # Inject "initial" devlib frequencies
+                os_df = df
+                dl_df = devlib_freq.iloc[:self.platform['cpus_count']]
+                for _,c in self.platform['clusters'].iteritems():
+                    dl_freqs = dl_df[dl_df.cpu.isin(c)]
+                    os_freqs = os_df[os_df.cpu.isin(c)]
+                    self._log.debug("First freqs for %s:\n%s", c, dl_freqs)
+                    # All devlib events "before" os-generated events
+                    self._log.debug("Min os freq @: %s", os_freqs.index.min())
+                    if os_freqs.empty or \
+                       os_freqs.index.min() > dl_freqs.index.max():
+                        self._log.debug("Insert devlib freqs for %s", c)
+                        df = pd.concat([dl_freqs, df])
+
+                # Inject "final" devlib frequencies
+                os_df = df
+                dl_df = devlib_freq.iloc[self.platform['cpus_count']:]
+                for _,c in self.platform['clusters'].iteritems():
+                    dl_freqs = dl_df[dl_df.cpu.isin(c)]
+                    os_freqs = os_df[os_df.cpu.isin(c)]
+                    self._log.debug("Last freqs for %s:\n%s", c, dl_freqs)
+                    # All devlib events "after" os-generated events
+                    self._log.debug("Max os freq @: %s", os_freqs.index.max())
+                    if os_freqs.empty or \
+                       os_freqs.index.max() < dl_freqs.index.min():
+                        self._log.debug("Append devlib freqs for %s", c)
+                        df = pd.concat([df, dl_freqs])
+
+                df.sort_index(inplace=True)
+
             setattr(self.ftrace.cpu_frequency, 'data_frame', df)
 
         # Frequency Coherency Check
