@@ -32,8 +32,6 @@ class Workload(object):
         """
         self._te = test_env
         self._target = test_env.target
-        self.te = test_env
-        self.target = test_env.target
         self._log = logging.getLogger('Workload')
 
         # Set of data reported in output of each run
@@ -44,7 +42,7 @@ class Workload(object):
         self._log.info('  %s', wloads)
 
     def _adb(self, cmd):
-        return 'adb -s {} {}'.format(self.target.adb_name, cmd)
+        return 'adb -s {} {}'.format(self._target.adb_name, cmd)
 
 
     def run(self, out_dir, collect='',

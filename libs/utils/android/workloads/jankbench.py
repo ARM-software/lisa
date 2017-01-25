@@ -83,17 +83,17 @@ class Jankbench(Workload):
             raise ValueError('Jankbench test [%s] not supported', test_name)
 
         # Make sure we exit the app if already open
-        System.menu(self.target)
-        System.back(self.target)
+        System.menu(self._target)
+        System.back(self._target)
 
         # Close and clear application
-        System.force_stop(self.target, self.package, clear=True)
+        System.force_stop(self._target, self.package, clear=True)
 
         # Set airplane mode
-        System.set_airplane_mode(self.target, on=True)
+        System.set_airplane_mode(self._target, on=True)
 
         # Force screen in PORTRAIT mode
-        Screen.set_orientation(self.target, portrait=True)
+        Screen.set_orientation(self._target, portrait=True)
 
         # Clear logcat
         os.system(self._adb('logcat -c'));
@@ -104,12 +104,12 @@ class Jankbench(Workload):
                     '--ei "com.android.benchmark.EXTRA_RUN_COUNT" {1}'\
                     .format(test_id, iterations)
         self._log.info(test_cmd)
-        self.target.execute(test_cmd);
+        self._target.execute(test_cmd);
 
         # Parse logcat output lines
         logcat_cmd = self._adb(
                 'logcat ActivityManager:* System.out:I *:S BENCH:*'\
-                .format(self.target.adb_name))
+                .format(self._target.adb_name))
         self._log.info(logcat_cmd)
 
         self._log.debug('Iterations:')
@@ -149,16 +149,15 @@ class Jankbench(Workload):
 
         # get results
         self.db_file = os.path.join(out_dir, JANKBENCH_DB_NAME)
-        self.target.pull(JANKBENCH_DB_PATH + JANKBENCH_DB_NAME, self.db_file)
+        self._target.pull(JANKBENCH_DB_PATH + JANKBENCH_DB_NAME, self.db_file)
 
-        System.force_stop(self.target, self.package, clear=True)
+        System.force_stop(self._target, self.package, clear=True)
 
         # Go back to home screen
-        System.home(self.target)
+        System.home(self._target)
 
         # Reset initial setup
-        Screen.set_orientation(self.target, auto=True)
-        System.set_airplane_mode(self.target, on=False)
-
+        Screen.set_orientation(self._target, auto=True)
+        System.set_airplane_mode(self._target, on=False)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
