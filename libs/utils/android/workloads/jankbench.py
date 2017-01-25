@@ -66,7 +66,16 @@ class Jankbench(Workload):
         self._log = logging.getLogger('Jankbench')
         self._log.debug('Workload created')
 
-    def run(self, exp_dir, test_name, iterations, collect=''):
+        # Set of output data reported by Jankbench
+        self.db_file = None
+
+    def run(self, out_dir, collect,
+            test_name, iterations):
+
+        # Keep track of mandatory parameters
+        self.out_dir = out_dir
+        self.collect = collect
+
         # Setup test id
         try:
             test_id = _jankbench[test_name]
@@ -124,7 +133,7 @@ class Jankbench(Workload):
             match = JANKBENCH_BENCHMARK_DONE_RE.search(message)
             if match:
                 if 'energy' in collect and self.te.emeter:
-                    nrg_report = self.te.emeter.report(exp_dir)
+                    nrg_report = self.te.emeter.report(out_dir)
                 self._log.debug('Benchmark done!')
                 break
 
@@ -144,8 +153,8 @@ class Jankbench(Workload):
                                int(match.group('count_junk')))
 
         # get results
-        db_file = os.path.join(exp_dir, JANKBENCH_DB_NAME)
-        self.target.pull(JANKBENCH_DB_PATH + JANKBENCH_DB_NAME, db_file)
+        self.db_file = os.path.join(out_dir, JANKBENCH_DB_NAME)
+        self.target.pull(JANKBENCH_DB_PATH + JANKBENCH_DB_NAME, self.db_file)
 
         System.force_stop(self.target, self.package, clear=True)
 
@@ -156,6 +165,6 @@ class Jankbench(Workload):
         Screen.set_orientation(self.target, auto=True)
         System.set_airplane_mode(self.target, on=False)
 
-        return db_file, nrg_report
+        return self.db_file, nrg_report
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

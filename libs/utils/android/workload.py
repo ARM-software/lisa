@@ -42,7 +42,8 @@ class Workload(object):
         return 'adb -s {} {}'.format(self.target.adb_name, cmd)
 
 
-    def run(self, exp_dir, **kwargs):
+    def run(self, out_dir, collect='',
+            **kwargs):
         raise RuntimeError('Not implemeted')
 
 
