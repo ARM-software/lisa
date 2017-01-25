@@ -20,8 +20,8 @@ import os
 import logging
 
 from subprocess import Popen, PIPE
-from android import Screen, System, Workload
 
+from android import Screen, System, Workload
 
 # Available test workloads
 _jankbench = {

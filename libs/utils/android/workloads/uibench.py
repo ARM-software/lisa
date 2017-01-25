@@ -20,8 +20,10 @@ import os
 import logging
 
 from subprocess import Popen, PIPE
-from android import Screen, System, Workload
 from time import sleep
+
+from android import Screen, System
+from android.workload import Workload
 
 
 class UiBench(Workload):

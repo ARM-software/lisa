@@ -19,8 +19,10 @@ import re
 import os
 import logging
 
-from android import Screen, Workload, System
 from time import sleep
+
+from android import Screen, System
+from android.workload import Workload
 
 
 class YouTube(Workload):
