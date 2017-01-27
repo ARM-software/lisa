@@ -31,9 +31,11 @@ class that implements the following methods.
 
 .. method:: pull(self, source, dest, timeout=None)
 
-   Transfer a file from the connected device to the host machine.
+   Transfer a file, or files matching a glob pattern, from the connected device
+   to the host machine.
 
-   :param source: path of to the file on the connected device
+   :param source: path of to the file on the connected device. If ``dest`` is a
+       directory, may be a glob pattern.
    :param dest: path of to the file on the host
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
        not  complete within this period, an exception will be raised.
