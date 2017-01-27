@@ -25,7 +25,7 @@ class that implements the following methods.
    Transfer a file from the host machine to the connected device.
 
    :param source: path of to the file on the host
-   :param dest: path of to the file on the connected
+   :param dest: path of to the file on the connected device.
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
        not  complete within this period, an exception will be raised.
 
