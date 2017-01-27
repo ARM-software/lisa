@@ -22,9 +22,7 @@ import logging
 from subprocess import Popen, PIPE
 from time import sleep
 
-from android import Screen, System
-from android.workload import Workload
-
+from android import Screen, System, Workload
 
 class UiBench(Workload):
     """
@@ -60,8 +58,27 @@ class UiBench(Workload):
         # Set of output data reported by UiBench
         self.db_file = None
 
-    def run(self, out_dir, collect,
-            test_name, duration_s):
+    def run(self, out_dir, test_name, duration_s, collect=''):
+        """
+        Run single UiBench workload.
+
+        :param out_dir: Path to experiment directory where to store results.
+        :type out_dir: str
+
+        :param test_name: Name of the test to run
+        :type test_name: str
+
+        :param duration_s: Run benchmak for this required number of seconds
+        :type duration_s: int
+
+        :param collect: Specifies what to collect. Possible values:
+            - 'energy'
+            - 'systrace'
+            - 'ftrace'
+            - any combination of the above
+        :type collect: list(str)
+        """
+
         activity = '.' + test_name + 'Activity'
 
         # Keep track of mandatory parameters
@@ -69,24 +86,27 @@ class UiBench(Workload):
         self.collect = collect
 
         # Press Back button to be sure we run the video from the start
-        System.menu(self.target)
-        System.back(self.target)
+        System.menu(self._target)
+        System.back(self._target)
 
         # Close and clear application
-        System.force_stop(self.target, self.package, clear=True)
+        System.force_stop(self._target, self.package, clear=True)
 
         # Set airplane mode
-        System.set_airplane_mode(self.target, on=True)
+        System.set_airplane_mode(self._target, on=True)
+
+        # Set min brightness
+        Screen.set_brightness(self._target, auto=False, percent=0)
 
         # Start the main view of the app which must be running
         # to reset the frame statistics.
-        System.monkey(self.target, self.package)
+        System.monkey(self._target, self.package)
 
         # Force screen in PORTRAIT mode
-        Screen.set_orientation(self.target, portrait=True)
+        Screen.set_orientation(self._target, portrait=True)
 
         # Reset frame statistics
-        System.gfxinfo_reset(self.target, self.package)
+        System.gfxinfo_reset(self._target, self.package)
         sleep(1)
 
         # Clear logcat
@@ -101,11 +121,11 @@ class UiBench(Workload):
         # Parse logcat output lines
         logcat_cmd = self._adb(
                 'logcat ActivityManager:* System.out:I *:S BENCH:*'\
-                .format(self.target.adb_name))
+                .format(self._target.adb_name))
         self._log.info("%s", logcat_cmd)
 
         # Start the activity
-        System.start_activity(self.target, self.package, activity)
+        System.start_activity(self._target, self.package, activity)
         logcat = Popen(logcat_cmd, shell=True, stdout=PIPE)
         while True:
 
@@ -129,16 +149,17 @@ class UiBench(Workload):
 
         # Get frame stats
         self.db_file = os.path.join(out_dir, "framestats.txt")
-        System.gfxinfo_get(self.target, self.package, self.db_file)
+        System.gfxinfo_get(self._target, self.package, self.db_file)
 
         # Close and clear application
-        System.force_stop(self.target, self.package, clear=True)
+        System.force_stop(self._target, self.package, clear=True)
 
         # Go back to home screen
-        System.home(self.target)
+        System.home(self._target)
 
         # Switch back to original settings
-        Screen.set_orientation(self.target, auto=True)
-        System.set_airplane_mode(self.target, on=False)
+        Screen.set_orientation(self._target, auto=True)
+        System.set_airplane_mode(self._target, on=False)
+        Screen.set_brightness(self._target, auto=True)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
