@@ -351,7 +351,10 @@ class Target(object):
 
     def killall(self, process_name, signal=None, as_root=False):
         for pid in self.get_pids_of(process_name):
-            self.kill(pid, signal=signal, as_root=as_root)
+            try:
+                self.kill(pid, signal=signal, as_root=as_root)
+            except TargetError:
+                pass
 
     def get_pids_of(self, process_name):
         raise NotImplementedError()
