@@ -313,7 +313,7 @@ class ACME(EnergyMeter):
     """
 
     def __init__(self, target, conf, res_dir):
-        super(ACME, self).__init__(target)
+        super(ACME, self).__init__(target, res_dir)
 
         # Assume iio-capture is available in PATH
         iioc = conf.get('conf', {
