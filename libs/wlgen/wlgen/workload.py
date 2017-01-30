@@ -165,8 +165,9 @@ class Workload(object):
         This method starts the execution of the workload. If the user provides
         an ftrace object, the method will also collect a trace.
 
-        :param ftrace: FTrace object to collect a trace
-        :type ftrace: :mod:`trappy.trace.FTrace`
+        :param ftrace: FTrace object to collect a trace. If using
+            :class:`TestEnv`, you can use :attr:`TestEnv.ftrace` for this.
+        :type ftrace: :mod:`devlib.trace.FTraceCollector`
 
         :param cgroup: specifies the cgroup name in which the workload has to
                        run
