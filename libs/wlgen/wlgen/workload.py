@@ -126,6 +126,7 @@ class Workload(object):
         # Initialize run folder
         if self.run_dir is None:
             self.run_dir = self.target.working_directory
+        self.target.execute('mkdir -p {}'.format(self.run_dir))
 
         # Configure a profile workload
         if kind == 'profile':
