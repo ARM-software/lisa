@@ -60,7 +60,9 @@ class LocalConnection(object):
         try:
             return check_output(command, shell=True, timeout=timeout, ignore=ignore)[0]
         except subprocess.CalledProcessError as e:
-            raise TargetError(e)
+            message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'.format(
+                e.returncode, command, e.output)
+            raise TargetError(message)
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         if as_root:
