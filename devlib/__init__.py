@@ -7,6 +7,7 @@ from devlib.module import get_module, register_module
 
 from devlib.platform import Platform
 from devlib.platform.arm import TC2, Juno, JunoEnergyInstrument
+from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from devlib.instrument import Instrument, InstrumentChannel, Measurement, MeasurementsCsv
 from devlib.instrument import MEASUREMENT_TYPES, INSTANTANEOUS, CONTINUOUS
