@@ -152,7 +152,22 @@ class Target(object):
                  conn_cls=None,
                  ):
         self.connection_settings = connection_settings or {}
-        self.platform = platform or Platform()
+        # Set self.platform: either it's given directly (by platform argument)
+        # or it's given in the connection_settings argument
+        # If neither, create default Platform()
+        if platform is None:
+            self.platform = self.connection_settings.get('platform', Platform())
+        else:
+            self.platform = platform
+        # Check if the user hasn't given two different platforms
+        if 'platform' in self.connection_settings:
+            if connection_settings['platform'] is not platform:
+                raise TargetError('Platform specified in connection_settings '
+                                   '({}) differs from that directly passed '
+                                   '({})!)'
+                                   .format(connection_settings['platform'],
+                                    self.platform))
+        self.connection_settings['platform'] = self.platform
         self.working_directory = working_directory
         self.executables_directory = executables_directory
         self.modules = modules or []
@@ -221,6 +236,9 @@ class Target(object):
 
         for host_exe in (executables or []):  # pylint: disable=superfluous-parens
             self.install(host_exe)
+
+        # Check for platform dependent setup procedures
+        self.platform.setup(self)
 
         # Initialize modules which requires Buxybox (e.g. shutil dependent tasks)
         self._update_modules('setup')
