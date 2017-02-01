@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from glob import iglob
 import os
 import shutil
 import subprocess
@@ -41,7 +42,12 @@ class LocalConnection(object):
 
     def pull(self, source, dest, timeout=None, as_root=False): # pylint: disable=unused-argument
         self.logger.debug('cp {} {}'.format(source, dest))
-        shutil.copy(source, dest)
+        if ('*' in source or '?' in source) and os.path.isdir(dest):
+            # Pull all files matching a wildcard expression
+            for each_source in iglob(source):
+                shutil.copy(each_source, dest)
+        else:
+            shutil.copy(source, dest)
 
     def execute(self, command, timeout=None, check_exit_code=True, as_root=False):
         self.logger.debug(command)
@@ -54,7 +60,9 @@ class LocalConnection(object):
         try:
             return check_output(command, shell=True, timeout=timeout, ignore=ignore)[0]
         except subprocess.CalledProcessError as e:
-            raise TargetError(e)
+            message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'.format(
+                e.returncode, command, e.output)
+            raise TargetError(message)
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         if as_root:
