@@ -21,9 +21,7 @@ import logging
 
 from time import sleep
 
-from android import Screen, System
-from android.workload import Workload
-
+from android import Screen, System, Workload
 
 class YouTube(Workload):
     """
@@ -42,31 +40,52 @@ class YouTube(Workload):
         # Set of output data reported by Jankbench
         self.db_file = None
 
-    def run(self, out_dir, collect,
-            video_url, video_duration_s):
+    def run(self, out_dir, video_url, video_duration_s, collect=''):
+        """
+        Run single YouTube workload.
+
+        :param out_dir: Path to experiment directory where to store results.
+        :type out_dir: str
+
+        :param video_url: Video URL to be played
+        :type video_url: str
+
+        :param video_duration_s: Play video for this required number of seconds
+        :type video_duration_s: int
+
+        :param collect: Specifies what to collect. Possible values:
+            - 'energy'
+            - 'systrace'
+            - 'ftrace'
+            - any combination of the above
+        :type collect: list(str)
+        """
 
         # Keep track of mandatory parameters
         self.out_dir = out_dir
         self.collect = collect
 
         # Unlock device screen (assume no password required)
-        System.menu(self.target)
+        System.menu(self._target)
         # Press Back button to be sure we run the video from the start
-        System.back(self.target)
+        System.back(self._target)
 
         # Use the monkey tool to start YouTube without playing any video.
         # This allows to subsequently set the screen orientation to LANDSCAPE
         # and to reset the frame statistics.
-        System.monkey(self.target, self.package)
+        System.monkey(self._target, self.package)
 
         # Force screen in LANDSCAPE mode
-        Screen.set_orientation(self.target, portrait=False)
+        Screen.set_orientation(self._target, portrait=False)
 
-        System.gfxinfo_reset(self.target, self.package)
+        # Set min brightness
+        Screen.set_brightness(self._target, auto=False, percent=0)
+
+        System.gfxinfo_reset(self._target, self.package)
         sleep(1)
 
         # Start YouTube video on the target device
-        System.start_action(self.target, self.action, video_url)
+        System.start_action(self._target, self.action, video_url)
         # Allow the activity to start
         sleep(1)
 
@@ -78,16 +97,18 @@ class YouTube(Workload):
 
         # Get frame stats
         self.db_file = os.path.join(out_dir, "framestats.txt")
-        System.gfxinfo_get(self.target, self.package, self.db_file)
+        System.gfxinfo_get(self._target, self.package, self.db_file)
 
         # Close the app without clearing the local data to
         # avoid the dialog to select the account at next start
-        System.force_stop(self.target, self.package, clear=False)
+        System.force_stop(self._target, self.package, clear=False)
 
         # Go back to home screen
-        System.home(self.target)
+        System.home(self._target)
 
         # Switch back to screen auto rotation
-        Screen.set_orientation(self.target, auto=True)
+        Screen.set_orientation(self._target, auto=True)
+        # Set brightness back to auto
+        Screen.set_brightness(self._target, auto=True)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
