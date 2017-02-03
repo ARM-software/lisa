@@ -25,6 +25,7 @@ import devlib
 
 from env import TestEnv
 from executor import Executor
+import wlgen
 
 class SetUpTarget(TestCase):
     def setUp(self):
@@ -45,7 +46,7 @@ mock_freezer = namedtuple('MockController', ['name'])('freezer')
 class MockCgroupsModule(devlib.module.Module):
     name = 'cgroups'
     list_subsystems = Mock(return_value=[mock_freezer])
-    freeze = Mock()
+    freeze = Mock(name='Cgroups_freeze')
     @staticmethod
     def probe(target):
         return True
@@ -101,8 +102,24 @@ class TestMagicSmoke(SetUpTarget):
             os.path.isdir(result_1_dir),
             'Expected to find a directory at {}'.format(result_1_dir))
 
+class InterceptedRTA(wlgen.RTA):
+    pre_callback = None
+    def run(self, *args, **kwargs):
+        self.pre_callback()
+        super(InterceptedRTA, self).run(*args, **kwargs)
+
+class BrokenRTAException(Exception):
+    pass
+
+class BrokenRTA(wlgen.RTA):
+    pre_callback = None
+    def run(self, *args, **kwargs):
+        self.pre_callback()
+        self._log.warning('\n\nInjecting workload failure\n')
+        raise BrokenRTAException('INJECTED WORKLOAD FAILURE')
+
 class TestFreezeUserspace(SetUpTarget):
-    def test_freeze_userspace(self):
+    def _do_freezer_test(self):
         experiments_conf = {
             'confs': [{
                 'tag': 'with_freeze',
@@ -114,10 +131,25 @@ class TestFreezeUserspace(SetUpTarget):
         }
 
         freezer_mock = self.te.target.cgroups.freeze
+        freezer_mock.reset_mock()
+
+        def assert_frozen(rta):
+            freezer_mock.assert_called_once_with(
+                ['init', 'systemd', 'sh', 'ssh'])
+            freezer_mock.reset_mock()
+
+        print wlgen.RTA
+        wlgen.RTA.pre_callback = assert_frozen
 
         executor = Executor(self.te, experiments_conf)
         executor.run()
 
-        self.assertListEqual(freezer_mock.mock_calls,
-                             [call(['init', 'systemd', 'sh', 'ssh']),
-                              call(thaw=True)])
+        freezer_mock.assert_called_once_with(thaw=True)
+
+    @patch('wlgen.RTA', InterceptedRTA)
+    def test_freeze_userspace(self):
+        self._do_freezer_test()
+
+    @patch('wlgen.RTA', BrokenRTA)
+    def test_freeze_userspace_broken(self):
+        self._do_freezer_test()
