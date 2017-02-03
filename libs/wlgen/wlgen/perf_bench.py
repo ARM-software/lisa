@@ -51,17 +51,21 @@ class PerfMessaging(Workload):
              thread = '',
              cpus=None,
              cgroup=None,
-             exc_id=0):
+             exc_id=0,
+             run_dir=None):
 
         if pipe is not '':
             pipe = '--pipe'
         if thread is not '':
             thread = '--thread'
 
-        super(PerfMessaging, self).conf('custom',
-                {'group': str(group), 'loop': str(loop), 'pipe': pipe, 'thread': thread},
-                0, cpus, cgroup, exc_id)
-
+        super(PerfMessaging, self).conf(
+            'custom',
+            params={'group': str(group),
+                    'loop': str(loop),
+                    'pipe': pipe,
+                    'thread': thread},
+            duration=0, cpus=cpus, exc_id=exc_id, run_dir=run_dir)
 
         self.command = '{0:s}/perf bench sched messaging {1:s} {2:s} --group {3:s} --loop {4:s}'\
                 .format(self.target.executables_directory,
