@@ -144,7 +144,7 @@ class RTA(Workload):
             return
         self._log.debug('Pulling logfiles to [%s]...', destdir)
         for task in self.tasks.keys():
-            logfile = "'{0:s}/*{1:s}*.log'"\
+            logfile = "{0:s}/*{1:s}*.log"\
                     .format(self.run_dir, task)
             self.target.pull(logfile, destdir)
         self._log.debug('Pulling JSON to [%s]...', destdir)
