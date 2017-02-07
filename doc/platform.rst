@@ -110,3 +110,62 @@ support additional configuration:
                           just that the services needed to establish a
                           connection (e.g. sshd or adbd) are up.
 
+
+.. _gem5-platform:
+
+Gem5 Simulation Platform
+------------------------
+
+By initialising a Gem5SimulationPlatform, devlib will start a gem5 simulation (based upon the
+arguments the user provided) and then connect to it using :class:`Gem5Connection`.
+Using the methods discussed above, some methods of the :class:`Target` will be altered
+slightly to better suit gem5.
+
+.. class:: Gem5SimulationPlatform(name, host_output_dir, gem5_bin, gem5_args, gem5_virtio, gem5_telnet_port=None)
+
+    During initialisation the gem5 simulation will be kicked off (based upon the arguments
+    provided by the user) and the telnet port used by the gem5 simulation will be intercepted
+    and stored for use by the :class:`Gem5Connection`.
+
+    :param name: Platform name
+
+    :param host_output_dir: Path on the host where the gem5 outputs will be placed (e.g. stats file)
+
+    :param gem5_bin: gem5 binary
+
+    :param gem5_args: Arguments to be passed onto gem5 such as config file etc.
+
+    :param gem5_virtio: Arguments to be passed onto gem5 in terms of the virtIO device used
+                        to transfer files between the host and the gem5 simulated system.
+
+    :param gem5_telnet_port: Not yet in use as it would be used in future implementations
+                             of devlib in which the user could use the platform to pick
+                             up an existing and running simulation.
+
+
+.. method:: Gem5SimulationPlatform.init_target_connection([target])
+
+    Based upon the OS defined in the :class:`Target`, the type of :class:`Gem5Connection`
+    will be set (:class:`AndroidGem5Connection` or :class:`AndroidGem5Connection`).
+
+.. method:: Gem5SimulationPlatform.update_from_target([target])
+
+    This method provides specific setup procedures for a gem5 simulation. First of all, the m5
+    binary will be installed on the guest (if it is not present). Secondly, three methods
+    in the :class:`Target` will be monkey-patched:
+
+            - **reboot**: this is not supported in gem5
+            - **reset**: this is not supported in gem5
+            - **capture_screen**: gem5 might already have screencaps so the
+              monkey-patched method will first try to
+              transfer the existing screencaps.
+              In case that does not work, it will fall back
+              to the original :class:`Target` implementation
+              of :func:`capture_screen`.
+
+    Finally, it will call the parent implementation of :func:`update_from_target`.
+
+.. method:: Gem5SimulationPlatform.setup([target])
+
+    The m5 binary be installed, if not yet installed on the gem5 simulated system.
+    It will also resize the gem5 shell, to avoid line wrapping issues.
