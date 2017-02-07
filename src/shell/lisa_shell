@@ -250,8 +250,11 @@ echo
 
 function _lisa-test-usage {
 cat <<EOF
-Usage: lisa-test FILE[:CLASS]
+Usage: lisa-test [args] FILE[:CLASS]
   Run automated tests. Tests can be found under the tests/ directory.
+
+  This is a wrapper for the 'nosetests' utility, additional arguments are passed
+  to that tool.
 
   Examples:
     Run all EAS Acceptance tests:
@@ -261,14 +264,19 @@ Usage: lisa-test FILE[:CLASS]
     Run ForkMigration test from EAS Acceptance suite:
 
       lisa-test tests/eas/acceptance.py:ForkMigration
+
+    Run ForkMigration test from EAS Acceptance suite, generating an XML test
+    report via nose's XUnit plugin (see nosetests documentation):
+
+      lisa-test --with-xunit --xunit-file=report.xml tests/eas/acceptance.py:ForkMigration
+
 EOF
 }
 
 function _lisa-test {
-TEST=${1}
 nosetests -v --nocapture --nologcapture \
           --logging-config=logging.conf \
-          $TEST
+          $*
 }
 
 function lisa-test {
