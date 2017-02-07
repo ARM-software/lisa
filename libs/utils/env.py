@@ -92,13 +92,11 @@ class TestEnv(ShareState):
         if self._initialized and not force_new:
             return
 
-        self.conf = None
-        self.test_conf = None
-        self.res_dir = None
+        self.conf = {}
+        self.test_conf = {}
         self.target = None
         self.ftrace = None
         self.workdir = WORKING_DIR_DEFAULT
-        self.__tools = []
         self.__installed_tools = set()
         self.__modules = []
         self.__connection_settings = None
@@ -159,32 +157,16 @@ class TestEnv(ShareState):
             self.workdir = self.conf['workdir']
 
         # Initialize binary tools to deploy
-        if 'tools' in self.conf:
-            self.__tools = self.conf['tools']
-        # Merge tests specific tools
-        if self.test_conf and 'tools' in self.test_conf and \
-           self.test_conf['tools']:
-            if 'tools' not in self.conf:
-                self.conf['tools'] = []
-            self.__tools = list(set(
-                self.conf['tools'] + self.test_conf['tools']
-            ))
+        test_conf_tools = self.test_conf.get('tools', [])
+        target_conf_tools = self.conf.get('tools', [])
+        self.__tools = list(set(test_conf_tools + target_conf_tools))
 
         # Initialize ftrace events
         # test configuration override target one
-        if self.test_conf and 'ftrace' in self.test_conf:
+        if 'ftrace' in self.test_conf:
             self.conf['ftrace'] = self.test_conf['ftrace']
-        if 'ftrace' in self.conf and self.conf['ftrace']:
+        if self.conf.get('ftrace'):
             self.__tools.append('trace-cmd')
-
-        # Add tools dependencies
-        if 'rt-app' in self.__tools:
-            self.__tools.append('taskset')
-            self.__tools.append('trace-cmd')
-            self.__tools.append('perf')
-            self.__tools.append('cgroup_run_into.sh')
-        # Sanitize list of dependencies to remove duplicates
-        self.__tools = list(set(self.__tools))
 
         # Initialize features
         if '__features__' not in self.conf:
@@ -199,17 +181,17 @@ class TestEnv(ShareState):
         self.calibration()
 
         # Initialize local results folder
-        # test configuration override target one
-        if self.test_conf and 'results_dir' in self.test_conf:
-            self.res_dir = self.test_conf['results_dir']
-        if not self.res_dir and 'results_dir' in self.conf:
-            self.res_dir = self.conf['results_dir']
+        # test configuration overrides target one
+        self.res_dir = (self.test_conf.get('results_dir') or
+                        self.conf.get('results_dir'))
+
         if self.res_dir and not os.path.isabs(self.res_dir):
-                self.res_dir = os.path.join(basepath, 'results', self.res_dir)
+            self.res_dir = os.path.join(basepath, 'results', self.res_dir)
         else:
             self.res_dir = os.path.join(basepath, OUT_PREFIX)
             self.res_dir = datetime.datetime.now()\
                             .strftime(self.res_dir + '/%Y%m%d_%H%M%S')
+
         if wipe and os.path.exists(self.res_dir):
             self._log.warning('Wipe previous contents of the results folder:')
             self._log.warning('   %s', self.res_dir)
@@ -396,29 +378,18 @@ class TestEnv(ShareState):
         # Modules configuration
         ########################################################################
 
-        # Refine modules list based on target.conf options
-        if 'modules' in self.conf:
-            self.__modules = list(set(
-                self.__modules + self.conf['modules']
-            ))
+        modules = set(self.__modules)
+
+        # Refine modules list based on target.conf
+        modules.update(self.conf.get('modules', []))
         # Merge tests specific modules
-        if self.test_conf and 'modules' in self.test_conf and \
-           self.test_conf['modules']:
-            self.__modules = list(set(
-                self.__modules + self.test_conf['modules']
-            ))
+        modules.update(self.test_conf.get('modules', []))
 
-        # Initialize modules to exclude on the target
-        if 'exclude_modules' in self.conf:
-            for module in self.conf['exclude_modules']:
-                if module in self.__modules:
-                    self.__modules.remove(module)
-        # Remove tests specific modules
-        if self.test_conf and 'exclude_modules' in self.test_conf:
-            for module in self.test_conf['exclude_modules']:
-                if module in self.__modules:
-                    self.__modules.remove(module)
+        remove_modules = set(self.conf.get('exclude_modules', []) +
+                             self.test_conf.get('exclude_modules', []))
+        modules.difference_update(remove_modules)
 
+        self.__modules = list(modules)
         self._log.info('Devlib modules to load: %s', self.__modules)
 
         ########################################################################
@@ -505,10 +476,17 @@ class TestEnv(ShareState):
         :param tools: The list of names of tools to install
         :type tools: list(str)
         """
+        tools = set(tools)
+
+        # Add tools dependencies
+        if 'rt-app' in tools:
+            tools.update(['taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh'])
+
+        # Remove duplicates and already-instaled tools
+        tools.difference_update(self.__installed_tools)
+
         tools_to_install = []
         for tool in tools:
-            if tool in self.__installed_tools:
-                continue
             binary = '{}/tools/scripts/{}'.format(basepath, tool)
             if not os.path.isfile(binary):
                 binary = '{}/tools/{}/{}'\
