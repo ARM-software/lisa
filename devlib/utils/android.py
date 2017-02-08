@@ -186,7 +186,7 @@ class AdbConnection(object):
             self.ls_command = 'ls'
         logger.info("ls command is set to {}".format(self.ls_command))
 
-    def __init__(self, device=None, timeout=None):
+    def __init__(self, device=None, timeout=None, platform=None):
         self.timeout = timeout if timeout is not None else self.default_timeout
         if device is None:
             device = adb_get_device(timeout=timeout)
@@ -216,7 +216,8 @@ class AdbConnection(object):
         command = "pull '{}' '{}'".format(source, dest)
         return adb_command(self.device, command, timeout=timeout)
 
-    def execute(self, command, timeout=None, check_exit_code=False, as_root=False):
+    def execute(self, command, timeout=None, check_exit_code=False,
+                as_root=False, strip_colors=True):
         return adb_shell(self.device, command, timeout, check_exit_code,
                          as_root, self.newline_separator)
 

@@ -48,6 +48,11 @@ class Platform(object):
             self.name = self.model
         self._validate()
 
+    def setup(self, target):
+        # May be overwritten by subclasses to provide platform-specific
+        # setup procedures.
+        pass
+
     def _set_core_clusters_from_core_names(self):
         self.core_clusters = []
         clusters = []

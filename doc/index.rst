@@ -21,6 +21,7 @@ Contents:
    instrumentation
    platform
    connection
+   platform
 
 Indices and tables
 ==================

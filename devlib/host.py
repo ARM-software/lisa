@@ -49,7 +49,8 @@ class LocalConnection(object):
         else:
             shutil.copy(source, dest)
 
-    def execute(self, command, timeout=None, check_exit_code=True, as_root=False):
+    def execute(self, command, timeout=None, check_exit_code=True,
+                as_root=False, strip_colors=True):
         self.logger.debug(command)
         if as_root:
             if self.unrooted:

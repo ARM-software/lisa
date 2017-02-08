@@ -7,6 +7,7 @@ from devlib.module import get_module, register_module
 
 from devlib.platform import Platform
 from devlib.platform.arm import TC2, Juno, JunoEnergyInstrument
+from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from devlib.instrument import Instrument, InstrumentChannel, Measurement, MeasurementsCsv
 from devlib.instrument import MEASUREMENT_TYPES, INSTANTANEOUS, CONTINUOUS
@@ -19,4 +20,4 @@ from devlib.trace.ftrace import FtraceCollector
 
 from devlib.host import LocalConnection
 from devlib.utils.android import AdbConnection
-from devlib.utils.ssh import SshConnection, TelnetConnection
+from devlib.utils.ssh import SshConnection, TelnetConnection, Gem5Connection

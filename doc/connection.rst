@@ -48,7 +48,7 @@ class that implements the following methods.
    :param timeout: Timeout (in seconds) for the execution of the command. If
        specified, an exception will be raised if execution does not complete
        with the specified period.
-   :param check_exit_code: If ``True`` the exit code (on connected device) 
+   :param check_exit_code: If ``True`` the exit code (on connected device)
        from execution of the command will be checked, and an exception will be
        raised if it is not ``0``.
    :param as_root: The command will be executed as root. This will fail on
@@ -68,9 +68,9 @@ class that implements the following methods.
        unrooted connected devices.
 
    .. note:: This **will block the connection** until the command completes.
-   
+
 .. note:: The above methods are directly wrapped by :class:`Target` methods,
-          however note that some of the defaults are different. 
+          however note that some of the defaults are different.
 
 .. method:: cancel_running_command(self)
 
@@ -104,7 +104,7 @@ Connection Types
                    combination. To see connected devices, you can run ``adb
                    devices`` on the host.
     :param timeout: Connection timeout in seconds. If a connection to the device
-                    is not esblished within this period, :class:`HostError` 
+                    is not esblished within this period, :class:`HostError`
                     is raised.
 
 
@@ -120,10 +120,10 @@ Connection Types
                      .. note:: In order to user password-based authentication,
                                ``sshpass`` utility must be installed on the
                                system.
-    
+
     :param keyfile: Path to the SSH private key to be used for the connection.
 
-                    .. note:: ``keyfile`` and ``password`` can't be specified 
+                    .. note:: ``keyfile`` and ``password`` can't be specified
                               at the same time.
 
     :param port: TCP port on which SSH server is litening on the remoted device.
@@ -174,9 +174,67 @@ Connection Types
 
 
     :param keep_password: If this is ``True`` (the default) user's password will
-                          be cached in memory after it is first requested. 
+                          be cached in memory after it is first requested.
     :param unrooted: If set to ``True``, the platform will be assumed to be
                      unrooted without testing for root. This is useful to avoid
                      blocking on password request in scripts.
     :param password: Specify password on connection creation rather than
                      prompting for it.
+
+
+.. class:: Gem5Connection(platform, host=None, username=None, password=None,\
+                          timeout=None, password_prompt=None,\
+                          original_prompt=None)
+
+    A connection to a gem5 simulation using a local Telnet connection.
+
+    .. note:: Some of the following input parameters are optional and will be ignored during
+              initialisation. They were kept to keep the anology with a :class:`TelnetConnection`
+              (i.e. ``host``, `username``, ``password``, ``port``,
+              ``password_prompt`` and ``original_promp``)
+
+
+    :param host: Host on which the gem5 simulation is running
+
+                     .. note:: Even thought the input parameter for the ``host``
+                               will be ignored, the gem5 simulation needs to on
+                               the same host as the user as the user is
+                               currently on, so if the host given as input
+                               parameter is not the same as the actual host, a
+                               ``TargetError`` will be raised to prevent
+                               confusion.
+
+    :param username: Username in the simulated system
+    :param password: No password required in gem5 so does not need to be set
+    :param port: Telnet port to connect to gem5. This does not need to be set
+                 at initialisation as this will either be determined by the
+                 :class:`Gem5SimulationPlatform` or can be set using the
+                 :func:`connect_gem5` method
+    :param timeout: Timeout for the connection in seconds. Gem5 has high
+                    latencies so unless the timeout given by the user via
+                    this input parameter is higher than the default one
+                    (3600 seconds), this input parameter will be ignored.
+    :param password_prompt: A string with password prompt
+    :param original_prompt: A regex for the shell prompt
+
+There are two classes that inherit from :class:`Gem5Connection`:
+:class:`AndroidGem5Connection` and :class:`LinuxGem5Connection`.
+They inherit *almost* all methods from the parent class, without altering them.
+The only methods discussed belows are those that will be overwritten by the
+:class:`LinuxGem5Connection` and :class:`AndroidGem5Connection` respectively.
+
+.. class:: LinuxGem5Connection
+
+    A connection to a gem5 simulation that emulates a Linux system.
+
+.. method:: _login_to_device(self)
+
+    Login to the gem5 simulated system.
+
+.. class:: AndroidGem5Connection
+
+    A connection to a gem5 simulation that emulates an Android system.
+
+.. method:: _wait_for_boot(self)
+
+    Wait for the gem5 simulated system to have booted and finished the booting animation.
