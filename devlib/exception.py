@@ -14,9 +14,6 @@
 #
 
 
-from devlib.utils.misc import TimeoutError  # NOQA pylint: disable=W0611
-
-
 class DevlibError(Exception):
     """Base class for all Workload Automation exceptions."""
     pass
@@ -38,3 +35,17 @@ class HostError(DevlibError):
     """An error has occured on the host"""
     pass
 
+
+class TimeoutError(DevlibError):
+    """Raised when a subprocess command times out. This is basically a ``DevlibError``-derived version
+    of ``subprocess.CalledProcessError``, the thinking being that while a timeout could be due to
+    programming error (e.g. not setting long enough timers), it is often due to some failure in the
+    environment, and there fore should be classed as a "user error"."""
+
+    def __init__(self, command, output):
+        super(TimeoutError, self).__init__('Timed out: {}'.format(command))
+        self.command = command
+        self.output = output
+
+    def __str__(self):
+        return '\n'.join([self.message, 'OUTPUT:', self.output or ''])
