@@ -36,7 +36,7 @@ from functools import partial
 
 import wrapt
 
-from devlib.exception import TimeoutError
+from devlib.exception import HostError, TimeoutError
 
 
 # ABI --> architectures list
@@ -172,15 +172,31 @@ def walk_modules(path):
     Given package name, return a list of all modules (including submodules, etc)
     in that package.
 
+    :raises HostError: if an exception is raised while trying to import one of the
+                       modules under ``path``. The exception will have addtional
+                       attributes set: ``module`` will be set to the qualified name
+                       of the originating module, and ``orig_exc`` will contain
+                       the original exception.
+
     """
-    root_mod = __import__(path, {}, {}, [''])
+
+    def __try_import(path):
+        try:
+            return __import__(path, {}, {}, [''])
+        except Exception as e:
+            he = HostError('Could not load {}: {}'.format(path, str(e)))
+            he.module = path
+            he.orig_exc = e
+            raise he
+
+    root_mod = __try_import(path)
     mods = [root_mod]
     for _, name, ispkg in pkgutil.iter_modules(root_mod.__path__):
         submod_path = '.'.join([path, name])
         if ispkg:
             mods.extend(walk_modules(submod_path))
         else:
-            submod = __import__(submod_path, {}, {}, [''])
+            submod = __try_import(submod_path)
             mods.append(submod)
     return mods
 
