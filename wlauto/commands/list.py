@@ -39,7 +39,7 @@ class ListCommand(Command):
         self.parser.add_argument('-p', '--platform', help='Only list results that are supported by '
                                                           'the specified platform')
 
-    def execute(self, args):
+    def execute(self, state, args):
         filters = {}
         if args.name:
             filters['name'] = args.name

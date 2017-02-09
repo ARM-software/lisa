@@ -21,16 +21,15 @@ import os
 import subprocess
 import warnings
 
-from wlauto.core.configuration import settings
 from wlauto.core import pluginloader
 from wlauto.core.command import init_argument_parser
+from wlauto.core.configuration import settings
 from wlauto.core.host import init_user_directory
-from wlauto.exceptions import WAError, ConfigError
-from wlauto.utils.misc import get_traceback
-from wlauto.utils.log import init_logging
+from wlauto.core.state import WAState
+from wlauto.exceptions import WAError, DevlibError, ConfigError
 from wlauto.utils.doc import format_body
-
-from devlib import DevlibError
+from wlauto.utils.log import init_logging
+from wlauto.utils.misc import get_traceback
 
 warnings.filterwarnings(action='ignore', category=UserWarning, module='zope')
 
@@ -41,11 +40,14 @@ logger = logging.getLogger('command_line')
 def load_commands(subparsers):
     commands = {}
     for command in pluginloader.list_commands():
-        commands[command.name] = pluginloader.get_command(command.name, subparsers=subparsers)
+        commands[command.name] = pluginloader.get_command(command.name, 
+                                                          subparsers=subparsers)
     return commands
 
 
 def main():
+    state = WAState()
+
     if not os.path.exists(settings.user_directory):
         init_user_directory()
 
@@ -59,19 +61,22 @@ def main():
                                          formatter_class=argparse.RawDescriptionHelpFormatter,
                                          )
         init_argument_parser(parser)
-        commands = load_commands(parser.add_subparsers(dest='command'))  # each command will add its own subparser
+        # each command will add its own subparser
+        commands = load_commands(parser.add_subparsers(dest='command'))  
+
         args = parser.parse_args()
 
         settings.set("verbosity", args.verbose)
 
-        for config in args.config:
-            if not os.path.exists(config):
-                raise ConfigError("Config file {} not found".format(config))
+        for config_file in args.config:
+            if not os.path.exists(config_file):
+                raise ConfigError("Config file {} not found".format(config_file))
+            state.load_config_file(config_file)
 
         init_logging(settings.verbosity)
 
         command = commands[args.command]
-        sys.exit(command.execute(args))
+        sys.exit(command.execute(state, args))
 
     except KeyboardInterrupt:
         logging.info('Got CTRL-C. Aborting.')

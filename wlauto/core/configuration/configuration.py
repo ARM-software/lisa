@@ -516,8 +516,10 @@ class Configuration(object):
 
     def set(self, name, value, check_mandatory=True):
         if name not in self.configuration:
-            raise ConfigError('Unknown {} configuration "{}"'.format(self.name, name))
-        self.configuration[name].set_value(self, value, check_mandatory=check_mandatory)
+            raise ConfigError('Unknown {} configuration "{}"'.format(self.name, 
+                                                                     name))
+        self.configuration[name].set_value(self, value, 
+                                           check_mandatory=check_mandatory)
 
     def update_config(self, values, check_mandatory=True):
         for k, v in values.iteritems():
@@ -610,13 +612,15 @@ class WAConfiguration(Configuration):
     def plugins_directory(self):
         return os.path.join(self.user_directory, 'plugins')
 
+    @property
+    def user_config_file(self):
+        return os.path.joion(self.user_directory, 'config.yaml')
 
     def __init__(self, environ):
         super(WAConfiguration, self).__init__()
         user_directory = environ.pop('WA_USER_DIRECTORY', '')
         if user_directory:
             self.set('user_directory', user_directory)
-
 
 
 # This is generic top-level configuration for WA runs.

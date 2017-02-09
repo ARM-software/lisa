@@ -20,12 +20,150 @@ from wlauto.utils.serializer import read_pod, SerializerSyntaxError
 from wlauto.utils.types import toggle_set, counter
 from wlauto.core.configuration.configuration import JobSpec
 
+
+###############
+### Parsers ###
+###############
+
+class ConfigParser(object):
+
+    def load_from_path(self, state, filepath):
+        self.load(_load_file(filepath, "Config"), filepath)
+
+    def load(self, state, raw, source, wrap_exceptions=True):  # pylint: disable=too-many-branches
+        try:
+            if 'run_name' in raw:
+                msg = '"run_name" can only be specified in the config '\
+                      'section of an agenda'
+                raise ConfigError(msg)
+
+            if 'id' in raw:
+                raise ConfigError('"id" cannot be set globally')
+
+            merge_result_processors_instruments(raw)
+
+            # Get WA core configuration
+            for cfg_point in state.settings.configuration.itervalues():
+                value = get_aliased_param(cfg_point, raw)
+                if value is not None:
+                    state.settings.set(cfg_point.name, value)
+
+            # Get run specific configuration
+            for cfg_point in state.run_config.configuration.itervalues():
+                value = get_aliased_param(cfg_point, raw)
+                if value is not None:
+                    state.run_config.set(cfg_point.name, value)
+
+            # Get global job spec configuration
+            for cfg_point in JobSpec.configuration.itervalues():
+                value = get_aliased_param(cfg_point, raw)
+                if value is not None:
+                    state.jobs_config.set_global_value(cfg_point.name, value)
+
+            for name, values in raw.iteritems():
+                # Assume that all leftover config is for a plug-in or a global
+                # alias it is up to PluginCache to assert this assumption
+                state.plugin_cache.add_configs(name, values, source)
+
+        except ConfigError as e:
+            if wrap_exceptions:
+                raise ConfigError('Error in "{}":\n{}'.format(source, str(e)))
+            else:
+                raise e
+
+
+class AgendaParser(object):
+
+    def load_from_path(self, state, filepath):
+        raw = _load_file(filepath, 'Agenda')
+        self.load(state, raw, filepath)
+
+    def load(self, state, raw, source):
+        try:
+            if not isinstance(raw, dict):
+                raise ConfigError('Invalid agenda, top level entry must be a dict')
+
+            self._populate_and_validate_config(state, raw, source)
+            sections = self._pop_sections(raw)
+            global_workloads = self._pop_workloads(raw)
+
+            if raw:
+                msg = 'Invalid top level agenda entry(ies): "{}"'
+                raise ConfigError(msg.format('", "'.join(raw.keys())))
+
+            sect_ids, wkl_ids = self._collect_ids(sections, global_workloads)
+            self._process_global_workloads(state, global_workloads, wkl_ids)
+            self._process_sections(state, sections, sect_ids, wkl_ids)
+
+        except (ConfigError, SerializerSyntaxError) as e:
+            raise ConfigError('Error in "{}":\n\t{}'.format(source, str(e)))
+
+    def _populate_and_validate_config(self, state, raw, source):
+        for name in ['config', 'global']:
+            entry = raw.pop(name, None)
+            if entry is None:
+                continue
+
+            if not isinstance(entry, dict):
+                msg = 'Invalid entry "{}" - must be a dict'
+                raise ConfigError(msg.format(name))
+
+            if 'run_name' in entry:
+                state.run_config.set('run_name', entry.pop('run_name'))
+
+            state.load_config(entry, source, wrap_exceptions=False)
+
+    def _pop_sections(self, raw):
+        sections = raw.pop("sections", [])
+        if not isinstance(sections, list):
+            raise ConfigError('Invalid entry "sections" - must be a list')
+        return sections
+
+    def _pop_workloads(self, raw):
+        workloads = raw.pop("workloads", [])
+        if not isinstance(workloads, list):
+            raise ConfigError('Invalid entry "workloads" - must be a list')
+        return workloads
+
+    def _collect_ids(self, sections, global_workloads):
+        seen_section_ids = set()
+        seen_workload_ids = set()
+
+        for workload in global_workloads:
+            workload = _get_workload_entry(workload)
+            _collect_valid_id(workload.get("id"), seen_workload_ids, "workload")
+
+        for section in sections:
+            _collect_valid_id(section.get("id"), seen_section_ids, "section")
+            for workload in section["workloads"] if "workloads" in section else []:
+                workload = _get_workload_entry(workload)
+                _collect_valid_id(workload.get("id"), seen_workload_ids, 
+                                  "workload")
+
+        return seen_section_ids, seen_workload_ids
+
+    def _process_global_workloads(self, state, global_workloads, seen_wkl_ids):
+        for workload_entry in global_workloads:
+            workload = _process_workload_entry(workload_entry, seen_wkl_ids,
+                                               state.jobs_config)
+            state.jobs_config.add_workload(workload)
+
+    def _process_sections(self, state, sections, seen_sect_ids, seen_wkl_ids):
+        for section in sections:
+            workloads = []
+            for workload_entry in section.pop("workloads", []):
+                workload = _process_workload_entry(workload_entry, seen_workload_ids,
+                                                   state.jobs_config)
+                workloads.append(workload)
+
+            section = _construct_valid_entry(section, seen_section_ids, 
+                                             "s", state.jobs_config)
+            state.jobs_config.add_section(section, workloads)
+
+
 ########################
 ### Helper functions ###
 ########################
-
-DUPLICATE_ENTRY_ERROR = 'Only one of {} may be specified in a single entry'
-
 
 def get_aliased_param(cfg_point, d, default=None, pop=True):
     """
@@ -62,55 +200,79 @@ def _load_file(filepath, error_name):
 
 
 def merge_result_processors_instruments(raw):
-    instruments = toggle_set(get_aliased_param(JobSpec.configuration['instrumentation'],
-                                               raw, default=[]))
+    instr_config = JobSpec.configuration['instrumentation']
+    instruments = toggle_set(get_aliased_param(instr_config, raw, default=[]))
     result_processors = toggle_set(raw.pop('result_processors', []))
     if instruments and result_processors:
         conflicts = instruments.conflicts_with(result_processors)
         if conflicts:
-            msg = '"instrumentation" and "result_processors" have conflicting entries: {}'
+            msg = '"instrumentation" and "result_processors" have '\
+                  'conflicting entries: {}'
             entires = ', '.join('"{}"'.format(c.strip("~")) for c in conflicts)
             raise ConfigError(msg.format(entires))
     raw['instrumentation'] = instruments.merge_with(result_processors)
 
 
-def _construct_valid_entry(raw, seen_ids, counter_name, jobs_config):
-    entries = {}
+def _pop_aliased(d, names, entry_id):
+    name_count = sum(1 for n in names if n in d)
+    if name_count > 1:
+        names_list = ', '.join(names)
+        msg = 'Inivalid workload entry "{}": at moust one of ({}}) must be specified.'
+        raise ConfigError(msg.format(workload_entry['id'], names_list))
+    for name in names:
+        if name in d:
+            return d.pop(name)
+    return None
+
+
+def _construct_valid_entry(raw, seen_ids, prefix, jobs_config):
+    workload_entry = {}
 
     # Generate an automatic ID if the entry doesn't already have one
-    if "id" not in raw:
+    if 'id' not in raw:
         while True:
-            new_id = "{}{}".format(counter_name, counter(name=counter_name))
+            new_id = '{}{}'.format(prefix, counter(name=prefix))
             if new_id not in seen_ids:
                 break
-        entries["id"] = new_id
+        workload_entry['id'] = new_id
         seen_ids.add(new_id)
     else:
-        entries["id"] = raw.pop("id")
+        workload_entry['id'] = raw.pop('id')
 
     # Process instrumentation
     merge_result_processors_instruments(raw)
 
-    # Validate all entries
+    # Validate all workload_entry
     for name, cfg_point in JobSpec.configuration.iteritems():
         value = get_aliased_param(cfg_point, raw)
         if value is not None:
             value = cfg_point.kind(value)
             cfg_point.validate_value(name, value)
-            entries[name] = value
-    entries["workload_parameters"] = raw.pop("workload_parameters", None)
-    entries["runtime_parameters"] = raw.pop("runtime_parameters", None)
-    entries["boot_parameters"] = raw.pop("boot_parameters", None)
+            workload_entry[name] = value
 
-    if "instrumentation" in entries:
-        jobs_config.update_enabled_instruments(entries["instrumentation"])
+    wk_id = workload_entry['id']
+    param_names = ['workload_params', 'workload_parameters']
+    if prefix == 'wk':
+        param_names +=  ['params', 'parameters']
+    workload_entry["workload_parameters"] = _pop_aliased(raw, param_names, wk_id)
 
-    # error if there are unknown entries
+    param_names = ['runtime_parameters', 'runtime_params']
+    if prefix == 's':
+        param_names +=  ['params', 'parameters']
+    workload_entry["runtime_parameters"] = _pop_aliased(raw, param_names, wk_id)
+
+    param_names = ['boot_parameters', 'boot_params']
+    workload_entry["boot_parameters"] = _pop_aliased(raw, param_names, wk_id)
+
+    if "instrumentation" in workload_entry:
+        jobs_config.update_enabled_instruments(workload_entry["instrumentation"])
+
+    # error if there are unknown workload_entry
     if raw:
         msg = 'Invalid entry(ies) in "{}": "{}"'
-        raise ConfigError(msg.format(entries['id'], ', '.join(raw.keys())))
+        raise ConfigError(msg.format(workload_entry['id'], ', '.join(raw.keys())))
 
-    return entries
+    return workload_entry
 
 
 def _collect_valid_id(entry_id, seen_ids, entry_type):
@@ -128,15 +290,6 @@ def _collect_valid_id(entry_id, seen_ids, entry_type):
     seen_ids.add(entry_id)
 
 
-def _resolve_params_alias(entry, param_alias):
-    possible_names = {"params", "{}_params".format(param_alias), "{}_parameters".format(param_alias)}
-    duplicate_entries = possible_names.intersection(set(entry.keys()))
-    if len(duplicate_entries) > 1:
-        raise ConfigError(DUPLICATE_ENTRY_ERROR.format(list(possible_names)))
-    for name in duplicate_entries:
-        entry["{}_parameters".format(param_alias)] = entry.pop(name)
-
-
 def _get_workload_entry(workload):
     if isinstance(workload, basestring):
         workload = {'name': workload}
@@ -147,150 +300,7 @@ def _get_workload_entry(workload):
 
 def _process_workload_entry(workload, seen_workload_ids, jobs_config):
     workload = _get_workload_entry(workload)
-    _resolve_params_alias(workload, "workload")
-    workload = _construct_valid_entry(workload, seen_workload_ids, "wk", jobs_config)
+    workload = _construct_valid_entry(workload, seen_workload_ids, 
+                                      "wk", jobs_config)
     return workload
 
-###############
-### Parsers ###
-###############
-
-
-class ConfigParser(object):
-
-    def __init__(self, wa_config, run_config, jobs_config, plugin_cache):
-        self.wa_config = wa_config
-        self.run_config = run_config
-        self.jobs_config = jobs_config
-        self.plugin_cache = plugin_cache
-
-    def load_from_path(self, filepath):
-        self.load(_load_file(filepath, "Config"), filepath)
-
-    def load(self, raw, source, wrap_exceptions=True):  # pylint: disable=too-many-branches
-        try:
-            if 'run_name' in raw:
-                msg = '"run_name" can only be specified in the config section of an agenda'
-                raise ConfigError(msg)
-            if 'id' in raw:
-                raise ConfigError('"id" cannot be set globally')
-
-            merge_result_processors_instruments(raw)
-
-            # Get WA core configuration
-            for cfg_point in self.wa_config.configuration.itervalues():
-                value = get_aliased_param(cfg_point, raw)
-                if value is not None:
-                    self.wa_config.set(cfg_point.name, value)
-
-            # Get run specific configuration
-            for cfg_point in self.run_config.configuration.itervalues():
-                value = get_aliased_param(cfg_point, raw)
-                if value is not None:
-                    self.run_config.set(cfg_point.name, value)
-
-            # Get global job spec configuration
-            for cfg_point in JobSpec.configuration.itervalues():
-                value = get_aliased_param(cfg_point, raw)
-                if value is not None:
-                    self.jobs_config.set_global_value(cfg_point.name, value)
-
-            for name, values in raw.iteritems():
-                # Assume that all leftover config is for a plug-in or a global
-                # alias it is up to PluginCache to assert this assumption
-                self.plugin_cache.add_configs(name, values, source)
-
-        except ConfigError as e:
-            if wrap_exceptions:
-                raise ConfigError('Error in "{}":\n{}'.format(source, str(e)))
-            else:
-                raise e
-
-
-class AgendaParser(object):
-
-    def __init__(self, wa_config, run_config, jobs_config, plugin_cache):
-        self.wa_config = wa_config
-        self.run_config = run_config
-        self.jobs_config = jobs_config
-        self.plugin_cache = plugin_cache
-
-    def load_from_path(self, filepath):
-        raw = _load_file(filepath, 'Agenda')
-        self.load(raw, filepath)
-
-    def load(self, raw, source):  # pylint: disable=too-many-branches, too-many-locals
-        try:
-            if not isinstance(raw, dict):
-                raise ConfigError('Invalid agenda, top level entry must be a dict')
-
-            # PHASE 1: Populate and validate configuration.
-            for name in ['config', 'global']:
-                entry = raw.pop(name, {})
-                if not isinstance(entry, dict):
-                    raise ConfigError('Invalid entry "{}" - must be a dict'.format(name))
-                if 'run_name' in entry:
-                    self.run_config.set('run_name', entry.pop('run_name'))
-                config_parser = ConfigParser(self.wa_config, self.run_config,
-                                             self.jobs_config, self.plugin_cache)
-                config_parser.load(entry, source, wrap_exceptions=False)
-
-            # PHASE 2: Getting "section" and "workload" entries.
-            sections = raw.pop("sections", [])
-            if not isinstance(sections, list):
-                raise ConfigError('Invalid entry "sections" - must be a list')
-            global_workloads = raw.pop("workloads", [])
-            if not isinstance(global_workloads, list):
-                raise ConfigError('Invalid entry "workloads" - must be a list')
-            if raw:
-                msg = 'Invalid top level agenda entry(ies): "{}"'
-                raise ConfigError(msg.format('", "'.join(raw.keys())))
-
-            # PHASE 3: Collecting existing workload and section IDs
-            seen_section_ids = set()
-            seen_workload_ids = set()
-
-            for workload in global_workloads:
-                workload = _get_workload_entry(workload)
-                _collect_valid_id(workload.get("id"), seen_workload_ids, "workload")
-
-            for section in sections:
-                _collect_valid_id(section.get("id"), seen_section_ids, "section")
-                for workload in section["workloads"] if "workloads" in section else []:
-                    workload = _get_workload_entry(workload)
-                    _collect_valid_id(workload.get("id"), seen_workload_ids, "workload")
-
-            # PHASE 4: Assigning IDs and validating entries
-            # TODO: Error handling for workload errors vs section errors ect
-            for workload in global_workloads:
-                self.jobs_config.add_workload(_process_workload_entry(workload,
-                                                                      seen_workload_ids,
-                                                                      self.jobs_config))
-
-            for section in sections:
-                workloads = []
-                for workload in section.pop("workloads", []):
-                    workloads.append(_process_workload_entry(workload,
-                                                             seen_workload_ids,
-                                                             self.jobs_config))
-
-                _resolve_params_alias(section, seen_section_ids)
-                section = _construct_valid_entry(section, seen_section_ids, "s", self.jobs_config)
-                self.jobs_config.add_section(section, workloads)
-
-            return seen_workload_ids, seen_section_ids
-        except (ConfigError, SerializerSyntaxError) as e:
-            raise ConfigError('Error in "{}":\n\t{}'.format(source, str(e)))
-
-
-# Command line options are parsed in the "run" command. This is used to send
-# certain arguments to the correct configuration points and keep a record of
-# how WA was invoked
-class CommandLineArgsParser(object):
-
-    def __init__(self, cmd_args, wa_config, jobs_config):
-        wa_config.set("verbosity", cmd_args.verbosity)
-        # TODO: Is this correct? Does there need to be a third output dir param
-        disabled_instruments = toggle_set(["~{}".format(i) for i in cmd_args.instruments_to_disable])
-        jobs_config.disable_instruments(disabled_instruments)
-        jobs_config.only_run_ids(cmd_args.only_run_ids)

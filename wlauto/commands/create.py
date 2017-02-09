@@ -117,7 +117,7 @@ class CreateWorkloadSubcommand(CreateSubcommand):
                                          'should place the APK file into the workload\'s directory at the ' +
                                          'same level as the __init__.py.')
 
-    def execute(self, args):  # pylint: disable=R0201
+    def execute(self, state, args):  # pylint: disable=R0201
         where = args.path or 'local'
         check_name = not args.force
 
