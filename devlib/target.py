@@ -1084,6 +1084,31 @@ class AndroidTarget(Target):
             message = 'Could not find mount point for executables directory {}'
             raise TargetError(message.format(self.executables_directory))
 
+    _charging_enabled_path = '/sys/class/power_supply/battery/charging_enabled'
+
+    @property
+    def charging_enabled(self):
+        """
+        Whether drawing power to charge the battery is enabled
+
+        Not all devices have the ability to enable/disable battery charging
+        (e.g. because they don't have a battery). In that case,
+        ``charging_enabled`` is None.
+        """
+        if not self.file_exists(self._charging_enabled_path):
+            return None
+        return self.read_bool(self._charging_enabled_path)
+
+    @charging_enabled.setter
+    def charging_enabled(self, enabled):
+        """
+        Enable/disable drawing power to charge the battery
+
+        Not all devices have this facility. In that case, do nothing.
+        """
+        if not self.file_exists(self._charging_enabled_path):
+            return
+        self.write_value(self._charging_enabled_path, int(bool(enabled)))
 
 FstabEntry = namedtuple('FstabEntry', ['device', 'mount_point', 'fs_type', 'options', 'dump_freq', 'pass_num'])
 PsEntry = namedtuple('PsEntry', 'user pid ppid vsize rss wchan pc state name')
