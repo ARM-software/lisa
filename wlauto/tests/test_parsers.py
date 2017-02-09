@@ -8,8 +8,8 @@ from mock.mock import Mock, MagicMock, call
 from wlauto.exceptions import ConfigError
 from wlauto.core.configuration.parsers import *  # pylint: disable=wildcard-import
 from wlauto.core.configuration.parsers import _load_file, _collect_valid_id, _resolve_params_alias
-from wlauto.core.configuration import (WAConfiguration, RunConfiguration, JobGenerator,
-                                       PluginCache, ConfigurationPoint)
+from wlauto.core.configuration import RunConfiguration, JobGenerator, PluginCache, ConfigurationPoint
+from wlauto.core.configuration.configuration import WAConfiguration
 from wlauto.utils.types import toggle_set, reset_counter
 
 
@@ -124,9 +124,6 @@ class TestFunctions(TestCase):
         test["params"] = "some_other_value"
         with self.assertRaises(ConfigError):
             _resolve_params_alias(test, "new_name")
-
-    def test_construct_valid_entry(self):
-        raise Exception()
 
 
 class TestConfigParser(TestCase):
@@ -362,44 +359,6 @@ class TestAgendaParser(TestCase):
         assert_equal(workload['workload_name'], "test")
 
 
-class TestEnvironmentVarsParser(TestCase):
-
-    def test_environmentvarsparser(self):
-        wa_config = Mock(spec=WAConfiguration)
-        calls = [call('user_directory', '/testdir'),
-                 call('plugin_paths', ['/test', '/some/other/path', '/testy/mc/test/face'])]
-
-        # Valid env vars
-        valid_environ = {"WA_USER_DIRECTORY": "/testdir",
-                         "WA_PLUGIN_PATHS": "/test:/some/other/path:/testy/mc/test/face"}
-        EnvironmentVarsParser(wa_config, valid_environ)
-        wa_config.set.assert_has_calls(calls)
-
-        # Alternative env var name
-        wa_config.reset_mock()
-        alt_valid_environ = {"WA_USER_DIRECTORY": "/testdir",
-                             "WA_EXTENSION_PATHS": "/test:/some/other/path:/testy/mc/test/face"}
-        EnvironmentVarsParser(wa_config, alt_valid_environ)
-        wa_config.set.assert_has_calls(calls)
-
-        # Test that WA_EXTENSION_PATHS gets merged with WA_PLUGIN_PATHS.
-        # Also checks that other enviroment variables don't cause errors
-        wa_config.reset_mock()
-        calls = [call('user_directory', '/testdir'),
-                 call('plugin_paths', ['/test', '/some/other/path']),
-                 call('plugin_paths', ['/testy/mc/test/face'])]
-        ext_and_plgin = {"WA_USER_DIRECTORY": "/testdir",
-                         "WA_PLUGIN_PATHS": "/test:/some/other/path",
-                         "WA_EXTENSION_PATHS": "/testy/mc/test/face",
-                         "RANDOM_VAR": "random_value"}
-        EnvironmentVarsParser(wa_config, ext_and_plgin)
-        # If any_order=True then the calls can be in any order, but they must all appear
-        wa_config.set.assert_has_calls(calls, any_order=True)
-
-        # No WA enviroment variables present
-        wa_config.reset_mock()
-        EnvironmentVarsParser(wa_config, {"RANDOM_VAR": "random_value"})
-        wa_config.set.assert_not_called()
 
 
 class TestCommandLineArgsParser(TestCase):

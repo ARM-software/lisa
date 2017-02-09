@@ -22,9 +22,9 @@ import wlauto
 from wlauto import Command, settings
 from wlauto.core.execution import Executor
 from wlauto.utils.log import add_log_file
-from wlauto.core.configuration import RunConfiguration, WAConfiguration
+from wlauto.core.configuration import RunConfiguration
 from wlauto.core import pluginloader
-from wlauto.core.configuration_parsers import Agenda, ConfigFile, EnvrironmentVars, CommandLineArgs
+from wlauto.core.configuration.parsers import AgendaParser, ConfigParser, CommandLineArgsParser
 
 
 class RunCommand(Command):
@@ -74,7 +74,7 @@ class RunCommand(Command):
 
         # STAGE 1: Gather configuratation
 
-        env = EnvrironmentVars()
+        env = EnvironmentVars()
         args = CommandLineArgs(args)
 
         # STAGE 2.1a: Early WAConfiguration, required to find config files

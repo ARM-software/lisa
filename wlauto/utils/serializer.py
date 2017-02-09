@@ -51,7 +51,7 @@ import yaml as _yaml
 import dateutil.parser
 
 from wlauto.exceptions import SerializerSyntaxError
-from wlauto.utils.types import regex_type
+from wlauto.utils.types import regex_type, none_type
 from wlauto.utils.misc import isiterable
 
 
@@ -70,12 +70,14 @@ POD_TYPES = [
     tuple,
     dict,
     set,
-    basestring,
+    str,
+    unicode,
     int,
     float,
     bool,
     datetime,
-    regex_type
+    regex_type,
+    none_type,
 ]
 
 class WAJSONEncoder(_json.JSONEncoder):
@@ -257,3 +259,4 @@ def _read_pod(fh, fmt=None):
 
 def is_pod(obj):
     return type(obj) in POD_TYPES
+

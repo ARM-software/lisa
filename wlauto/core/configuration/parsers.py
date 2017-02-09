@@ -283,23 +283,11 @@ class AgendaParser(object):
             raise ConfigError('Error in "{}":\n\t{}'.format(source, str(e)))
 
 
-class EnvironmentVarsParser(object):
-    def __init__(self, wa_config, environ):
-        user_directory = environ.pop('WA_USER_DIRECTORY', '')
-        if user_directory:
-            wa_config.set('user_directory', user_directory)
-        plugin_paths = environ.pop('WA_PLUGIN_PATHS', '')
-        if plugin_paths:
-            wa_config.set('plugin_paths', plugin_paths.split(os.pathsep))
-        ext_paths = environ.pop('WA_EXTENSION_PATHS', '')
-        if ext_paths:
-            wa_config.set('plugin_paths', ext_paths.split(os.pathsep))
-
-
 # Command line options are parsed in the "run" command. This is used to send
 # certain arguments to the correct configuration points and keep a record of
 # how WA was invoked
 class CommandLineArgsParser(object):
+
     def __init__(self, cmd_args, wa_config, jobs_config):
         wa_config.set("verbosity", cmd_args.verbosity)
         # TODO: Is this correct? Does there need to be a third output dir param

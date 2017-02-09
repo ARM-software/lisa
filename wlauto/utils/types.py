@@ -169,6 +169,7 @@ list_or_bool = list_or(boolean)
 
 
 regex_type = type(re.compile(''))
+none_type = type(None)
 
 
 def regex(value):

@@ -24,6 +24,7 @@ import warnings
 from wlauto.core.configuration import settings
 from wlauto.core import pluginloader
 from wlauto.core.command import init_argument_parser
+from wlauto.core.host import init_user_directory
 from wlauto.exceptions import WAError, ConfigError
 from wlauto.utils.misc import get_traceback
 from wlauto.utils.log import init_logging
@@ -45,7 +46,11 @@ def load_commands(subparsers):
 
 
 def main():
+    if not os.path.exists(settings.user_directory):
+        init_user_directory()
+
     try:
+
         description = ("Execute automated workloads on a remote device and process "
                        "the resulting output.\n\nUse \"wa <subcommand> -h\" to see "
                        "help for individual subcommands.")
@@ -57,10 +62,7 @@ def main():
         commands = load_commands(parser.add_subparsers(dest='command'))  # each command will add its own subparser
         args = parser.parse_args()
 
-        #TODO: Set this stuff properly, i.e dont use settings (if possible)
-        #settings.set("verbosity", args.verbose)
-        #settings.load_user_config()
-        #settings.debug = args.debug
+        settings.set("verbosity", args.verbose)
 
         for config in args.config:
             if not os.path.exists(config):

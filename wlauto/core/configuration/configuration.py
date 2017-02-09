@@ -492,35 +492,10 @@ class CpuFreqParameters(object):
 class Configuration(object):
 
     config_points = []
-    name = ""
+    name = ''
+
     # The below line must be added to all subclasses
     configuration = {cp.name: cp for cp in config_points}
-
-    def __init__(self):
-        # Load default values for configuration points
-        for confpoint in self.configuration.itervalues():
-            confpoint.set_value(self, check_mandatory=False)
-
-    def set(self, name, value, check_mandatory=True):
-        if name not in self.configuration:
-            raise ConfigError('Unknown {} configuration "{}"'.format(self.name, name))
-        self.configuration[name].set_value(self, value, check_mandatory=check_mandatory)
-
-    def update_config(self, values, check_mandatory=True):
-        for k, v in values.iteritems():
-            self.set(k, v, check_mandatory=check_mandatory)
-
-    def validate(self):
-        for cfg_point in self.configuration.itervalues():
-            cfg_point.validate(self)
-
-    def to_pod(self):
-        pod = {}
-        for cfg_point_name in self.configuration.iterkeys():
-            value = getattr(self, cfg_point_name, None)
-            if value is not None:
-                pod[cfg_point_name] = value
-        return pod
 
     @classmethod
     # pylint: disable=unused-argument
@@ -535,11 +510,46 @@ class Configuration(object):
         instance.validate()
         return instance
 
+    def __init__(self):
+        for confpoint in self.config_points:
+            confpoint.set_value(self, check_mandatory=False)
+
+    def set(self, name, value, check_mandatory=True):
+        if name not in self.configuration:
+            raise ConfigError('Unknown {} configuration "{}"'.format(self.name, name))
+        self.configuration[name].set_value(self, value, check_mandatory=check_mandatory)
+
+    def update_config(self, values, check_mandatory=True):
+        for k, v in values.iteritems():
+            self.set(k, v, check_mandatory=check_mandatory)
+
+    def validate(self):
+        for cfg_point in self.config_points:
+            cfg_point.validate(self)
+
+    def to_pod(self):
+        pod = {}
+        for cfg_point_name in self.configuration.iterkeys():
+            value = getattr(self, cfg_point_name, None)
+            if value is not None:
+                pod[cfg_point_name] = value
+        return pod
+
 
 # This configuration for the core WA framework
 class WAConfiguration(Configuration):
 
     name = "WA Configuration"
+
+    plugin_packages = [
+        'wlauto.commands',
+        'wlauto.workloads',
+        'wlauto.instrumentation',
+        'wlauto.result_processors',
+        'wlauto.managers',
+        'wlauto.resource_getters',
+    ]
+
     config_points = [
         ConfigurationPoint(
             'user_directory',
@@ -549,48 +559,6 @@ class WAConfiguration(Configuration):
             """,
             kind=str,
             default=os.path.join(os.path.expanduser('~'), '.workload_automation'),
-        ),
-        ConfigurationPoint(
-            'plugin_packages',
-            kind=list_of_strings,
-            default=[
-                'wlauto.commands',
-                'wlauto.workloads',
-                'wlauto.instrumentation',
-                'wlauto.result_processors',
-                'wlauto.managers',
-                'wlauto.resource_getters',
-            ],
-            description="""
-            List of packages that will be scanned for WA plugins.
-            """,
-        ),
-        ConfigurationPoint(
-            'plugin_paths',
-            kind=list_of_strings,
-            default=[
-                'workloads',
-                'instruments',
-                'targets',
-                'processors',
-
-                # Legacy
-                'managers',
-                'result_processors',
-            ],
-            description="""
-            List of paths that will be scanned for WA plugins.
-            """,
-            merge=True
-        ),
-        ConfigurationPoint(
-            'plugin_ignore_paths',
-            kind=list_of_strings,
-            default=[],
-            description="""
-            List of (sub)paths that will be ignored when scanning
-            ``plugin_paths`` for WA plugins.
-            """,
         ),
         ConfigurationPoint(
             'assets_repository',
@@ -623,7 +591,7 @@ class WAConfiguration(Configuration):
             Verbosity of console output.
             """,
         ),
-        ConfigurationPoint(  # TODO: Needs some format for dates ect/ comes from cfg
+        ConfigurationPoint(  # TODO: Needs some format for dates etc/ comes from cfg
             'default_output_directory',
             default="wa_output",
             description="""
@@ -636,7 +604,19 @@ class WAConfiguration(Configuration):
 
     @property
     def dependencies_directory(self):
-        return "{}/dependencies/".format(self.user_directory)
+        return os.path.join(self.user_directory, 'dependencies')
+
+    @property
+    def plugins_directory(self):
+        return os.path.join(self.user_directory, 'plugins')
+
+
+    def __init__(self, environ):
+        super(WAConfiguration, self).__init__()
+        user_directory = environ.pop('WA_USER_DIRECTORY', '')
+        if user_directory:
+            self.set('user_directory', user_directory)
+
 
 
 # This is generic top-level configuration for WA runs.
@@ -1029,4 +1009,4 @@ class JobGenerator(object):
 
                 yield job_spec
 
-settings = WAConfiguration()
+settings = WAConfiguration(os.environ)
