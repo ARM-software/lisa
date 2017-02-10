@@ -135,6 +135,8 @@ class TestWorkThroughput(BasicCheckTest):
         seconds = 1.0
         margin = 0.2
         frequencies = self.target.cpufreq.list_frequencies(cpu)
+        if len(frequencies) == 1:
+            return True
         original_governor = self.target.cpufreq.get_governor(cpu)
         original_freq = None
         if original_governor == 'userspace':
