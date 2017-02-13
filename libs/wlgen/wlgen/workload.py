@@ -134,10 +134,6 @@ class Workload(object):
         # Map of task/s parameters
         self.params = {}
 
-        # Initialize run folder
-        if self.run_dir is None:
-            self.run_dir = self.target.working_directory
-
         # Configure a profile workload
         if kind == 'profile':
             self._log.debug('Configuring a profile-based workload...')
@@ -201,6 +197,10 @@ class Workload(object):
                             stopped after this wait time.
         :type end_pause_s: float
         """
+
+        # Initialize run folder
+        if self.run_dir is None:
+            self.run_dir = self.target.working_directory
 
         self.cgroup = cgroup
 
