@@ -19,5 +19,10 @@
                 "nrg_max" :   64
             }
         }
-    }
+    },
+    "clusters" : {
+        "big" : [1, 2],
+        "little" : [0, 3, 4, 5]
+    },
+    "cpus_count" : 6
 }
