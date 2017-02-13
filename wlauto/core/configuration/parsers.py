@@ -28,7 +28,7 @@ from wlauto.core.configuration.configuration import JobSpec
 class ConfigParser(object):
 
     def load_from_path(self, state, filepath):
-        self.load(_load_file(filepath, "Config"), filepath)
+        self.load(state, _load_file(filepath, "Config"), filepath)
 
     def load(self, state, raw, source, wrap_exceptions=True):  # pylint: disable=too-many-branches
         try:

@@ -593,3 +593,8 @@ def merge_dicts_simple(base, other):
     for key, value in (base or {}).iteritems():
         result[key] = merge_config_values(result.get(key), value)
     return result
+
+
+def touch(path):
+    with open(path, 'w'):
+        pass

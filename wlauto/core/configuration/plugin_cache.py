@@ -105,7 +105,8 @@ class PluginCache(object):
                 for source in self.sources:
                     if source not in self.global_alias_values[alias]:
                         continue
-                    param.set_value(config, value=self.global_alias_values[alias][source])
+                    val = self.global_alias_values[alias][source]
+                    param.set_value(config, value=val)
 
         # Merge user config
         # Perform a simple merge with the order of sources representing priority
@@ -128,27 +129,34 @@ class PluginCache(object):
         return {param.name: param for param in params}
 
     # pylint: disable=too-many-nested-blocks, too-many-branches
-    def _merge_using_priority_specificity(self, specific_name, generic_name, final_config):
+    def _merge_using_priority_specificity(self, specific_name, 
+                                          generic_name, final_config):
         """
-        WA configuration can come from various sources of increasing priority, as well
-        as being specified in a generic and specific manner (e.g. ``device_config``
-        and ``nexus10`` respectivly). WA has two rules for the priority of configuration:
+        WA configuration can come from various sources of increasing priority,
+        as well as being specified in a generic and specific manner (e.g.
+        ``device_config`` and ``nexus10`` respectivly). WA has two rules for
+        the priority of configuration:
 
-            - Configuration from higher priority sources overrides configuration from
-              lower priority sources.
+            - Configuration from higher priority sources overrides
+              configuration from lower priority sources.
             - More specific configuration overrides less specific configuration.
 
-        There is a situation where these two rules come into conflict. When a generic
-        configuration is given in config source of high priority and a specific
-        configuration is given in a config source of lower priority. In this situation
-        it is not possible to know the end users intention and WA will error.
+        There is a situation where these two rules come into conflict. When a
+        generic configuration is given in config source of high priority and a
+        specific configuration is given in a config source of lower priority.
+        In this situation it is not possible to know the end users intention
+        and WA will error.
 
-        :param generic_name: The name of the generic configuration e.g ``device_config``
-        :param specific_name: The name of the specific configuration used, e.g ``nexus10``
-        :param cfg_point: A dict of ``ConfigurationPoint``s to be used when merging configuration.
-                          keys=config point name, values=config point
+        :param generic_name: The name of the generic configuration
+                             e.g ``device_config``
+        :param specific_name: The name of the specific configuration used
+                              e.g ``nexus10``
+        :param cfg_point: A dict of ``ConfigurationPoint``s to be used when
+                          merging configuration.  keys=config point name, 
+                          values=config point
 
-        :rtype: A fully merged and validated configuration in the form of a obj_dict.
+        :rtype: A fully merged and validated configuration in the form of a
+                obj_dict.
         """
         generic_config = copy(self.plugin_configs[generic_name])
         specific_config = copy(self.plugin_configs[specific_name])

@@ -71,33 +71,6 @@ MAX_REBOOT_ATTEMPTS = 3
 REBOOT_DELAY = 3
 
 
-class RunInfo(object):
-    """
-    Information about the current run, such as its unique ID, run
-    time, etc.
-
-    """
-
-    def __init__(self, config):
-        self.config = config
-        self.uuid = uuid.uuid4()
-        self.start_time = None
-        self.end_time = None
-        self.duration = None
-        self.project = config.project
-        self.project_stage = config.project_stage
-        self.run_name = config.run_name or "{}_{}".format(os.path.split(config.output_directory)[1],
-                                                          datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S"))
-        self.notes = None
-        self.device_properties = {}
-
-    def to_dict(self):
-        d = copy(self.__dict__)
-        d['uuid'] = str(self.uuid)
-        return d
-    #TODO: pod
-
-
 class ExecutionContext(object):
     """
     Provides a context for instrumentation. Keeps track of things like
@@ -264,33 +237,26 @@ class Executor(object):
         self.device = None
         self.context = None
 
-    def execute(self, state, selectors=None):  # NOQA
+    def execute(self, state, output):
         """
         Execute the run specified by an agenda. Optionally, selectors may be
         used to only selecute a subset of the specified agenda.
 
         Params::
 
-            :agenda: an ``Agenda`` instance to be executed.
-            :selectors: A dict mapping selector name to the coresponding values.
-
-        **Selectors**
-
-        Currently, the following seectors are supported:
-
-        ids
-            The value must be a sequence of workload specfication IDs to be
-            executed. Note that if sections are specified inthe agenda, the
-            workload specifacation ID will be a combination of the section and
-            workload IDs.
+            :state: a ``WAState`` containing processed configuraiton
+            :output: an initialized ``RunOutput`` that will be used to
+                     store the results.
 
         """
         signal.connect(self._error_signalled_callback, signal.ERROR_LOGGED)
         signal.connect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
-        self.logger.info('Initializing')
+        self.logger.info('Initializing run')
 
         self.logger.debug('Loading run configuration.')
+
+    def old_exec(self, agenda, selectors={}):
         self.config.set_agenda(agenda, selectors)
         self.config.finalize()
         config_outfile = os.path.join(self.config.meta_directory, 'run_config.json')
@@ -300,7 +266,8 @@ class Executor(object):
         self.logger.debug('Initialising device configuration.')
         if not self.config.device:
             raise ConfigError('Make sure a device is specified in the config.')
-        self.device_manager = pluginloader.get_manager(self.config.device, **self.config.device_config)
+        self.device_manager = pluginloader.get_manager(self.config.device, 
+                                                       **self.config.device_config)
         self.device_manager.validate()
         self.device = self.device_manager.target
 

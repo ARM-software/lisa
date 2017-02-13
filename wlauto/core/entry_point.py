@@ -68,6 +68,7 @@ def main():
 
         settings.set("verbosity", args.verbose)
 
+        state.load_config_file(settings.user_config_file)
         for config_file in args.config:
             if not os.path.exists(config_file):
                 raise ConfigError("Config file {} not found".format(config_file))

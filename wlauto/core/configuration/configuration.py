@@ -614,7 +614,7 @@ class WAConfiguration(Configuration):
 
     @property
     def user_config_file(self):
-        return os.path.joion(self.user_directory, 'config.yaml')
+        return os.path.join(self.user_directory, 'config.yaml')
 
     def __init__(self, environ):
         super(WAConfiguration, self).__init__()
@@ -738,6 +738,8 @@ class RunConfiguration(Configuration):
 
     def __init__(self):
         super(RunConfiguration, self).__init__()
+        for confpoint in self.meta_data:
+            confpoint.set_value(self, check_mandatory=False)
         self.device_config = None
 
     def merge_device_config(self, plugin_cache):
@@ -836,7 +838,7 @@ class JobSpec(Configuration):
         for k, v in values.iteritems():
             if k == "id":
                 continue
-            elif k in ["workload_parameters", "runtime_parameters", "boot_parameters"]:
+            elif k.endswith('_parameters'):
                 if v:
                     self.to_merge[k][source] = copy(v)
             else:
@@ -846,27 +848,27 @@ class JobSpec(Configuration):
                     msg = 'Error in {}:\n\t{}'
                     raise ConfigError(msg.format(source.name, e.message))
 
-    # pylint: disable=no-member
-    # Only call after the rest of the JobSpec is merged
+
     def merge_workload_parameters(self, plugin_cache):
         # merge global generic and specific config
         workload_params = plugin_cache.get_plugin_config(self.workload_name,
                                                          generic_name="workload_parameters")
 
-        # Merge entry "workload_parameters"
-        # TODO: Wrap in - "error in [agenda path]"
         cfg_points = plugin_cache.get_plugin_parameters(self.workload_name)
         for source in self._sources:
-            if source in self.to_merge["workload_params"]:
-                config = self.to_merge["workload_params"][source]
-                for name, cfg_point in cfg_points.iteritems():
-                    if name in config:
-                        value = config.pop(name)
-                        cfg_point.set_value(workload_params, value, check_mandatory=False)
-                if config:
-                    msg = 'conflicting entry(ies) for "{}" in {}: "{}"'
-                    msg = msg.format(self.workload_name, source.name,
-                                     '", "'.join(workload_params[source]))
+            config = self.to_merge["workload_parameters"].get(source)
+            if config is None:
+                continue
+
+            for name, cfg_point in cfg_points.iteritems():
+                if name in config:
+                    value = config.pop(name)
+                    cfg_point.set_value(workload_params, value, 
+                                        check_mandatory=False)
+            if config:
+                msg = 'conflicting entry(ies) for "{}" in {}: "{}"'
+                msg = msg.format(self.workload_name, source.name,
+                                    '", "'.join(workload_params[source]))
 
         self.workload_parameters = workload_params
 
@@ -920,12 +922,6 @@ class JobGenerator(object):
         self._read_enabled_instruments = True
         return self._enabled_instruments
 
-    def update_enabled_instruments(self, value):
-        if self._read_enabled_instruments:
-            msg = "'enabled_instruments' cannot be updated after it has been accessed"
-            raise RuntimeError(msg)
-        self._enabled_instruments.update(value)
-
     def __init__(self, plugin_cache):
         self.plugin_cache = plugin_cache
         self.ids_to_run = []
@@ -962,55 +958,58 @@ class JobGenerator(object):
         #TODO: Validate
         self.disabled_instruments = ["~{}".format(i) for i in instruments]
 
+    def update_enabled_instruments(self, value):
+        if self._read_enabled_instruments:
+            msg = "'enabled_instruments' cannot be updated after it has been accessed"
+            raise RuntimeError(msg)
+        self._enabled_instruments.update(value)
+
     def only_run_ids(self, ids):
         if isinstance(ids, str):
             ids = [ids]
         self.ids_to_run = ids
 
     def generate_job_specs(self, target_manager):
-
         for leaf in self.root_node.leaves():
-            # PHASE 1: Gather workload and section entries for this leaf
             workload_entries = leaf.workload_entries
             sections = [leaf]
             for ancestor in leaf.ancestors():
                 workload_entries = ancestor.workload_entries + workload_entries
                 sections.insert(0, ancestor)
 
-            # PHASE 2: Create job specs for this leaf
             for workload_entry in workload_entries:
-                job_spec = JobSpec()  # Loads defaults
-
-                # PHASE 2.1: Merge general job spec configuration
-                for section in sections:
-                    job_spec.update_config(section, check_mandatory=False)
-                job_spec.update_config(workload_entry, check_mandatory=False)
-
-                # PHASE 2.2: Merge global, section and workload entry "workload_parameters"
-                job_spec.merge_workload_parameters(self.plugin_cache)
-                target_manager.static_runtime_parameter_validation(job_spec.runtime_parameters)
-
-                # TODO: PHASE 2.3: Validate device runtime/boot paramerers
-                job_spec.merge_runtime_parameters(self.plugin_cache, target_manager)
-                target_manager.validate_runtime_parameters(job_spec.runtime_parameters)
-
-                # PHASE 2.4: Disable globally disabled instrumentation
-                job_spec.set("instrumentation", self.disabled_instruments)
-                job_spec.finalize()
-
-                # PHASE 2.5: Skip job_spec if part of it's ID is not in self.ids_to_run
-                if self.ids_to_run:
-                    for job_id in self.ids_to_run:
-                        if job_id in job_spec.id:
-                            #TODO: logging
-                            break
-                    else:
-                        continue
-
-                # PHASE 2.6: Update list of instruments that need to be setup
-                # pylint: disable=no-member
+                job_spec = create_job_spec(workload_entry, sections, target_manager)
+                for job_id in self.ids_to_run:
+                    if job_id in job_spec.id:
+                        break
+                else:
+                    continue
                 self.update_enabled_instruments(job_spec.instrumentation.values())
+                yield  job_spec
 
-                yield job_spec
+
+
+def create_job_spec(workload_entry, sections, target_manager):
+    job_spec = JobSpec()
+
+    # PHASE 2.1: Merge general job spec configuration
+    for section in sections:
+        job_spec.update_config(section, check_mandatory=False)
+    job_spec.update_config(workload_entry, check_mandatory=False)
+
+    # PHASE 2.2: Merge global, section and workload entry "workload_parameters"
+    job_spec.merge_workload_parameters(self.plugin_cache)
+    target_manager.static_runtime_parameter_validation(job_spec.runtime_parameters)
+
+    # TODO: PHASE 2.3: Validate device runtime/boot paramerers
+    job_spec.merge_runtime_parameters(self.plugin_cache, target_manager)
+    target_manager.validate_runtime_parameters(job_spec.runtime_parameters)
+
+    # PHASE 2.4: Disable globally disabled instrumentation
+    job_spec.set("instrumentation", self.disabled_instruments)
+    job_spec.finalize()
+
+    return job_spec
+
 
 settings = WAConfiguration(os.environ)

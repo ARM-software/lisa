@@ -18,11 +18,15 @@ class WAState(object):
         self.run_config = RunConfiguration()
         self.plugin_cache = PluginCache()
         self.jobs_config = JobGenerator(self.plugin_cache)
-
+        self.loaded_config_sources = []
         self._config_parser = ConfigParser()
 
     def load_config_file(self, filepath):
         self._config_parser.load_from_path(self, filepath)
+        self.loaded_config_sources.append(filepath)
 
     def load_config(self, values, source, wrap_exceptions=True):
         self._config_parser.load(self, values, source)
+        self.loaded_config_sources.append(source)
+
+

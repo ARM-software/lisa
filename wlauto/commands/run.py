@@ -24,6 +24,7 @@ from wlauto.core import pluginloader
 from wlauto.core.configuration import RunConfiguration
 from wlauto.core.configuration.parsers import AgendaParser, ConfigParser
 from wlauto.core.execution import Executor
+from wlauto.core.output import init_wa_output
 from wlauto.exceptions import NotFoundError, ConfigError
 from wlauto.utils.log import add_log_file
 from wlauto.utils.types import toggle_set
@@ -74,8 +75,8 @@ class RunCommand(Command):
                                  """)
 
     def execute(self, state, args):
-        output_directory = self.set_up_output_directory(args)
-        add_log_file(os.path.join(output_directory, "run.log"))
+        output = self.set_up_output_directory(state, args)
+        add_log_file(output.logfile)
 
         disabled_instruments = toggle_set(["~{}".format(i) 
                                            for i in args.instruments_to_disable])
@@ -87,7 +88,7 @@ class RunCommand(Command):
             parser.load_from_path(state, args.agenda)
         else:
             try:
-                pluginloader.get_workload(args.agenda)
+                pluginloader.get_plugin_class(args.agenda, kind='workload')
                 agenda = {'workloads': [{'name': args.agenda}]}
                 parser.load(state, agenda, 'CMDLINE_ARGS')
             except NotFoundError:
@@ -97,24 +98,21 @@ class RunCommand(Command):
                 raise ConfigError(msg.format(args.agenda))
 
         executor = Executor()
-        # TODO: fix executor
-        # executor.execute(state, selectors={'ids': args.only_run_ids})
+        executor.execute(state, output)
 
-    def set_up_output_directory(self, args):
+    def set_up_output_directory(self, state, args):
         if args.output_directory:
             output_directory = args.output_directory
         else:
             output_directory = settings.default_output_directory
         self.logger.debug('Using output directory: {}'.format(output_directory))
-        if os.path.exists(output_directory):
-            if args.force:
-                self.logger.info('Removing existing output directory.')
-                shutil.rmtree(os.path.abspath(output_directory))
-            else:
-                self.logger.error('Output directory {} exists.'.format(output_directory))
-                self.logger.error('Please specify another location, or use -f option to overwrite.\n')
+        try:
+            return init_wa_output(output_directory, state, args.force)
+        except RuntimeError as e:
+            if  'path exists' in str(e):
+                msg = 'Output directory "{}" exists.\nPlease specify another '\
+                      'location, or use -f option to overwrite.'
+                self.logger.critical(msg.format(output_directory))
                 sys.exit(1)
-
-        self.logger.info('Creating output directory.')
-        os.makedirs(output_directory)
-        return output_directory
+            else:
+                raise e

@@ -228,6 +228,16 @@ def read_pod(source, fmt=None):
         message = 'source must be a path or an open file handle; got {}'
         raise ValueError(message.format(type(source)))
 
+def write_pod(pod, dest, fmt=None):
+    if isinstance(dest, basestring):
+        with open(dest, 'w') as wfh:
+            return _write_pod(pod, wfh, fmt)
+    elif hasattr(dest, 'write') and (hasattr(dest, 'name') or fmt):
+        return _write_pod(pod, dest, fmt)
+    else:
+        message = 'dest must be a path or an open file handle; got {}'
+        raise ValueError(message.format(type(dest)))
+
 
 def dump(o, wfh, fmt='json', *args, **kwargs):
     serializer = {'yaml': yaml,
@@ -256,6 +266,17 @@ def _read_pod(fh, fmt=None):
     else:
         raise ValueError('Unknown format "{}": {}'.format(fmt, getattr(fh, 'name', '<none>')))
 
+def _write_pod(pod, wfh, fmt=None):
+    if fmt is None:
+        fmt = os.path.splitext(wfh.name)[1].lower().strip('.')
+    if fmt == 'yaml':
+        return yaml.dump(pod, wfh)
+    elif fmt == 'json':
+        return json.dump(pod, wfh)
+    elif fmt == 'py':
+        raise ValueError('Serializing to Python is not supported')
+    else:
+        raise ValueError('Unknown format "{}": {}'.format(fmt, getattr(wfh, 'name', '<none>')))
 
 def is_pod(obj):
     return type(obj) in POD_TYPES
