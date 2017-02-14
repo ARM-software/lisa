@@ -26,16 +26,15 @@ TESTS_CONF = os.path.join(TESTS_DIRECTORY, "rfc.config")
 class RFC(LisaTest):
     """Tests for the Energy-Aware Scheduler"""
 
+    test_conf = TESTS_CONF
+    experiments_conf = TESTS_CONF
+
     @classmethod
     def setUpClass(cls, *args, **kwargs):
         super(RFC, cls)._init(TESTS_CONF, args, kwargs)
 
-    def test_energy_regression(self):
-        """Check that there is not regression on energy"""
-        # TODO
-
-    def test_performance_regression(self):
-        """Check that there is not regression on performance"""
-        # TODO
+    def test_run(self):
+        """A dummy test just to run configured workloads"""
+        pass
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
