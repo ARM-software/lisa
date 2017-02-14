@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 from collections import namedtuple
+from copy import deepcopy
 import shutil
 import os
 from unittest import TestCase
@@ -68,6 +69,67 @@ example_wl = {
         },
     }
 }
+
+class TestTaskNames(SetUpTarget):
+    """Tests for the names of workload tasks created by the Executor"""
+
+    def run_and_assert_task_names(self, experiments_conf, expected_tasks):
+        executor = Executor(self.te, experiments_conf)
+        executor.run()
+        [experiment] = executor.experiments
+        tasks = experiment.wload.tasks.keys()
+        self.assertSetEqual(set(expected_tasks), set(tasks))
+
+    def test_single_task_noprefix(self):
+        experiments_conf = {
+            'confs': [{
+                'tag': 'myconf'
+            }],
+            "wloads" : {
+                'mywl': example_wl
+            },
+        }
+
+        self.run_and_assert_task_names(experiments_conf, ['task_mytask'])
+
+    def test_single_task_prefix(self):
+        wlspec = deepcopy(example_wl)
+
+        wlspec['conf']['prefix'] = 'PREFIX'
+
+        print wlspec
+
+        experiments_conf = {
+            'confs': [{
+                'tag': 'myconf'
+            }],
+            "wloads" : {
+                'mywl': wlspec
+            },
+        }
+
+        self.run_and_assert_task_names(experiments_conf, ['PREFIXmytask'])
+
+    def test_multiple_task(self):
+        wlspec = deepcopy(example_wl)
+        num_tasks = 5
+
+        wlspec['conf']['params']['mytask']['tasks'] = num_tasks
+
+        print wlspec
+
+        experiments_conf = {
+            'confs': [{
+                'tag': 'myconf'
+            }],
+            "wloads" : {
+                'mywl': wlspec
+            },
+        }
+
+        exp_names = ['task_mytask_{}'.format(i) for i in range(num_tasks)]
+        self.run_and_assert_task_names(experiments_conf, exp_names)
+
 
 class TestMagicSmoke(SetUpTarget):
     def test_files_created(self):
