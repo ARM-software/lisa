@@ -62,7 +62,7 @@ example_wl = {
                 "kind" : "Periodic",
                 "params" : {
                     "duty_cycle_pct": 10,
-                    "duration_s": 1,
+                    "duration_s": 0.2,
                 },
             },
         },
