@@ -94,6 +94,10 @@ class LisaTest(unittest.TestCase):
         experiments_conf = cls._getExperimentsConf(test_env)
         cls.executor = Executor(test_env, experiments_conf)
 
+        # Alias tests and workloads configurations
+        cls.wloads = cls.executor._experiments_conf["wloads"]
+        cls.confs = cls.executor._experiments_conf["confs"]
+
         # Alias executor objects to make less verbose tests code
         cls.te = cls.executor.te
         cls.target = cls.executor.target
