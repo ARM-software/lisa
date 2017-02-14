@@ -132,14 +132,16 @@ class TestTaskNames(SetUpTarget):
 
 
 class TestMagicSmoke(SetUpTarget):
+    def get_rta_results_dir(self, conf_name, wl_name):
+        return os.path.join(self.te.LISA_HOME, 'results', self.res_dir,
+                            'rtapp:{}:{}'.format(conf_name, wl_name))
+
     def test_files_created(self):
+        """Test that we can run experiments and get output files"""
         conf_name = 'myconf'
         wl_name = 'mywl'
-        results_dir = os.path.join(
-            self.te.LISA_HOME,
-            'results',
-            self.res_dir,
-            'rtapp:{}:{}'.format(conf_name, wl_name))
+
+        results_dir = self.get_rta_results_dir(conf_name, wl_name)
         if os.path.isdir(results_dir):
             shutil.rmtree(results_dir)
 
