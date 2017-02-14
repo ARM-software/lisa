@@ -51,7 +51,7 @@ class LisaTest(unittest.TestCase):
     """Override this with a dictionary or JSON path to configure the TestEnv"""
 
     experiments_conf = None
-    """Override this with a dictionary to configure the Executor"""
+    """Override this with a dictionary or JSON path to configure the Executor"""
 
     @classmethod
     def _init(cls, *args, **kwargs):
