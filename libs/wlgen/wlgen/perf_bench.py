@@ -35,7 +35,7 @@ class PerfMessaging(Workload):
         # TODO: Assume perf is pre-installed on target
         #target.setup('perf')
 
-        super(PerfMessaging, self).__init__(target, name, None)
+        super(PerfMessaging, self).__init__(target, name)
 
         # perf "sched" executor
         self.wtype = 'perf_bench_messaging'
@@ -120,7 +120,7 @@ class PerfPipe(Workload):
         # TODO: Assume perf is pre-installed on target
         #target.setup('perf')
 
-        super(PerfPipe, self).__init__(target, name, None)
+        super(PerfPipe, self).__init__(target, name)
 
         # perf "sched" executor
         self.wtype = 'perf_bench_pipe'

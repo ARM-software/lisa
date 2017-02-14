@@ -58,7 +58,7 @@ class RTA(Workload):
         # TODO: Assume rt-app is pre-installed on target
         # self.target.setup('rt-app')
 
-        super(RTA, self).__init__(target, name, calibration)
+        super(RTA, self).__init__(target, name)
 
         # rt-app executor
         self.wtype = 'rtapp'
