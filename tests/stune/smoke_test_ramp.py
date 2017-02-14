@@ -54,6 +54,8 @@ class STune(LisaTest):
 
     """
 
+    test_conf = TESTS_CONF
+    experiments_conf = TESTS_CONF
 
     @classmethod
     def setUpClass(cls, *args, **kwargs):
@@ -62,19 +64,19 @@ class STune(LisaTest):
     def test_boosted_utilization_signal(self):
         """Tasks in stune groups are boosted"""
 
-        for tc in self.conf["confs"]:
-            test_id = tc["tag"]
+        for tc in self.confs:
+            conf_id = tc["tag"]
 
-            wload_idx = self.conf["wloads"].keys()[0]
+            wload_id = self.wloads.keys()[0]
             run_dir = os.path.join(self.te.res_dir,
-                                   "rtapp:{}:{}".format(test_id, wload_idx),
+                                   "rtapp:{}:{}".format(conf_id, wload_id),
                                    "1")
 
             ftrace_events = ["sched_boost_task"]
             ftrace = trappy.FTrace(run_dir, scope="custom",
                                    events=ftrace_events)
 
-            first_task_params = self.conf["wloads"][wload_idx]["conf"]["params"]
+            first_task_params = self.wloads[wload_id]["conf"]["params"]
             first_task_name = first_task_params.keys()[0]
             rta_task_name = "task_{}".format(first_task_name)
 
