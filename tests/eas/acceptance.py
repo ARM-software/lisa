@@ -48,7 +48,7 @@ energy_aware_conf = {
     "sched_features" : "ENERGY_AWARE",
 }
 
-class EasTest(LisaTest):
+class _EasTest(LisaTest):
     """
     Base class for EAS tests
     """
@@ -69,11 +69,11 @@ class EasTest(LisaTest):
 
     @classmethod
     def setUpClass(cls, *args, **kwargs):
-        super(EasTest, cls)._init(*args, **kwargs)
+        super(_EasTest, cls)._init(*args, **kwargs)
 
     @classmethod
     def _experimentsInit(cls, *args, **kwargs):
-        super(EasTest, cls)._experimentsInit(*args, **kwargs)
+        super(_EasTest, cls)._experimentsInit(*args, **kwargs)
 
         if SET_IS_BIG_LITTLE:
             # This flag doesn't exist on mainline-integration kernels, so
@@ -98,7 +98,7 @@ class EasTest(LisaTest):
                 rank=len(tasks)),
             msg="Not all the new generated tasks started on a big CPU")
 
-class ForkMigration(EasTest):
+class ForkMigration(_EasTest):
     """
     Goal
     ====
@@ -148,7 +148,7 @@ class ForkMigration(EasTest):
         """Fork Migration: Test First CPU"""
         self._do_test_first_cpu(experiment, tasks)
 
-class SmallTaskPacking(EasTest):
+class SmallTaskPacking(_EasTest):
     """
     Goal
     ====
@@ -209,7 +209,7 @@ class SmallTaskPacking(EasTest):
             msg="Not all tasks are running on LITTLE cores for at least {}% of their execution time"\
                     .format(EXPECTED_RESIDENCY_PCT))
 
-class OffloadMigrationAndIdlePull(EasTest):
+class OffloadMigrationAndIdlePull(_EasTest):
     """
     Goal
     ====
@@ -396,7 +396,7 @@ class OffloadMigrationAndIdlePull(EasTest):
             self.assertIn(sa.getLastCpu(), self.target.bl.bigs, msg=msg)
 
 
-class WakeMigration(EasTest):
+class WakeMigration(_EasTest):
     """
     Goal
     ====
