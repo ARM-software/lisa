@@ -35,7 +35,7 @@ class PerfMessaging(Workload):
         # TODO: Assume perf is pre-installed on target
         #target.setup('perf')
 
-        super(PerfMessaging, self).__init__(target, name, None)
+        super(PerfMessaging, self).__init__(target, name)
 
         # perf "sched" executor
         self.wtype = 'perf_bench_messaging'
@@ -46,22 +46,26 @@ class PerfMessaging(Workload):
 
     def conf(self,
              group = 1,
-             loop = 10,
+             loop = 500,
              pipe = '',
              thread = '',
              cpus=None,
              cgroup=None,
-             exc_id=0):
+             exc_id=0,
+             run_dir=None):
 
         if pipe is not '':
             pipe = '--pipe'
         if thread is not '':
             thread = '--thread'
 
-        super(PerfMessaging, self).conf('custom',
-                {'group': str(group), 'loop': str(loop), 'pipe': pipe, 'thread': thread},
-                0, cpus, cgroup, exc_id)
-
+        super(PerfMessaging, self).conf(
+            'custom',
+            params={'group': str(group),
+                    'loop': str(loop),
+                    'pipe': pipe,
+                    'thread': thread},
+            duration=0, cpus=cpus, exc_id=exc_id, run_dir=run_dir)
 
         self.command = '{0:s}/perf bench sched messaging {1:s} {2:s} --group {3:s} --loop {4:s}'\
                 .format(self.target.executables_directory,
@@ -120,7 +124,10 @@ class PerfPipe(Workload):
         # TODO: Assume perf is pre-installed on target
         #target.setup('perf')
 
-        super(PerfPipe, self).__init__(target, name, None)
+        # Setup logging
+        self.logger = logging.getLogger('perf_bench')
+
+        super(PerfPipe, self).__init__(target, name)
 
         # perf "sched" executor
         self.wtype = 'perf_bench_pipe'
