@@ -289,9 +289,11 @@ case "x${CMD^^}" in
 	;;
 *)
 	_lisa-test $*
+        local retcode=$?
 esac
 echo
 echo
+return $retcode
 }
 
 function lisa-report {
