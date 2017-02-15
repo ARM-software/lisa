@@ -173,6 +173,14 @@ git clone https://github.com/BayLibre/iio-capture.git
 cd iio-capture && make && sudo make install && cd -
 ```
 
+If you are using a MicroSD card, please ensure that the card is properly inserted in its slot and to keep pressed the power pushbutton while connecting the power (via the miniUSB cable).
+Once the board is booted, by default it has its IP address associated with the `baylibre-acme.local` hostname.
+To check for the board being visible in your network, you can use this command
+```bash
+$ avahi-browse -a
+```
+which will list all the reachable devices.
+
 You can now verify your installation and check that the probes are correctly detected by the `iio daemon` running on the BeagleBone with a simple command:
 
 ```bash
