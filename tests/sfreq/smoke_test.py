@@ -26,6 +26,9 @@ TESTS_CONF = os.path.join(TESTS_DIRECTORY, "smoke_test.config")
 class SFreq(LisaTest):
     """Tests for SchedFreq framework"""
 
+    test_conf = TESTS_CONF
+    experiments_conf = TESTS_CONF
+
     @classmethod
     def setUpClass(cls, *args, **kwargs):
         super(SFreq, cls).runExperiments(TESTS_CONF, *args, **kwargs)

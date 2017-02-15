@@ -54,7 +54,7 @@ class LisaTest(unittest.TestCase):
     """Override this with a dictionary or JSON path to configure the TestEnv"""
 
     experiments_conf = None
-    """Override this with a dictionary to configure the Executor"""
+    """Override this with a dictionary or JSON path to configure the Executor"""
 
     @classmethod
     def _getTestConf(cls):
@@ -88,6 +88,10 @@ class LisaTest(unittest.TestCase):
 
         experiments_conf = cls._getExperimentsConf(test_env)
         cls.executor = Executor(test_env, experiments_conf)
+
+        # Alias tests and workloads configurations
+        cls.wloads = cls.executor._experiments_conf["wloads"]
+        cls.confs = cls.executor._experiments_conf["confs"]
 
         # Alias executor objects to make less verbose tests code
         cls.te = cls.executor.te
