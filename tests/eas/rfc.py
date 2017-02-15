@@ -31,7 +31,7 @@ class RFC(LisaTest):
 
     @classmethod
     def setUpClass(cls, *args, **kwargs):
-        super(RFC, cls).runExperiments(TESTS_CONF, args, kwargs)
+        super(RFC, cls).runExperiments(args, kwargs)
 
     def test_run(self):
         """A dummy test just to run configured workloads"""
