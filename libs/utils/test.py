@@ -45,6 +45,9 @@ class LisaTest(unittest.TestCase):
     _getExperimentsConf to generate target-dependent experiments.
 
     Example users of this class can be found under LISA's tests/ directory.
+
+    :ivar experiments: List of :class:`Experiment` s executed for the test. Only
+                       available after :meth:`init` has been called.
     """
 
     test_conf = None
@@ -52,15 +55,6 @@ class LisaTest(unittest.TestCase):
 
     experiments_conf = None
     """Override this with a dictionary to configure the Executor"""
-
-    @classmethod
-    def _init(cls, *args, **kwargs):
-        """
-        Set up logging and trigger running experiments
-        """
-
-        cls.logger = logging.getLogger('LisaTest')
-        cls._runExperiments()
 
     @classmethod
     def _getTestConf(cls):
@@ -83,10 +77,11 @@ class LisaTest(unittest.TestCase):
         return cls.experiments_conf
 
     @classmethod
-    def _runExperiments(cls):
+    def runExperiments(cls):
         """
-        Default experiments execution engine
+        Set up logging and trigger running experiments
         """
+        cls.logger = logging.getLogger('LisaTest')
 
         cls.logger.info('Setup tests execution engine...')
         test_env = TestEnv(test_conf=cls._getTestConf())
@@ -103,6 +98,8 @@ class LisaTest(unittest.TestCase):
 
         cls.logger.info('Experiments execution...')
         cls.executor.run()
+
+        cls.experiments = cls.executor.experiments
 
         # Execute post-experiments code defined by the test
         cls._experimentsFinalize()
@@ -190,6 +187,16 @@ class LisaTest(unittest.TestCase):
             end_times[task] = sched_assert.getEndTime()
 
         return end_times
+
+    # To instantiate unittest.TestCase you need to provide a test method name,
+    # the default being 'runTest'. If this method doesn't exist then an error is
+    # raised. This method isn't needed when running via nosetests, which detects
+    # test methods via its own mechanism. However it can be useful to
+    # instantiate test objects directly by hand in notebooks, even if you have
+    # no intention of using the test assertions. So define an empty default
+    # runTest method.
+    def runTest(self, *args, **kwargs):
+        pass
 
 
 @wrapt.decorator

@@ -57,7 +57,7 @@ class STune(LisaTest):
 
     @classmethod
     def setUpClass(cls, *args, **kwargs):
-        super(STune, cls)._init(TESTS_CONF, *args, **kwargs)
+        super(STune, cls).runExperiments(TESTS_CONF, *args, **kwargs)
 
     def test_boosted_utilization_signal(self):
         """Tasks in stune groups are boosted"""

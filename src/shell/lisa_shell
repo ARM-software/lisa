@@ -30,6 +30,7 @@ export LISA_HOME="$(pwd)"
 export PYTHONPATH=''
 export PYTHONPATH=$LISA_HOME/libs/utils:$PYTHONPATH
 export PYTHONPATH=$LISA_HOME/libs/wlgen:$PYTHONPATH
+export PYTHONPATH=$LISA_HOME:$PYTHONPATH
 
 if [ "x$DEVMODE" == "x1" ]; then
 	export PYTHONPATH=$LISA_HOME/libs/devlib:$PYTHONPATH

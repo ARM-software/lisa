@@ -28,7 +28,7 @@ class RFC(LisaTest):
 
     @classmethod
     def setUpClass(cls, *args, **kwargs):
-        super(RFC, cls)._init(TESTS_CONF, args, kwargs)
+        super(RFC, cls).runExperiments(TESTS_CONF, args, kwargs)
 
     def test_energy_regression(self):
         """Check that there is not regression on energy"""
