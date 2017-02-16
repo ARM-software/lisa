@@ -237,9 +237,10 @@ class AdbConnection(object):
         pass
 
 
-def fastboot_command(command, timeout=None):
+def fastboot_command(command, timeout=None, device=None):
     _check_env()
-    full_command = "fastboot {}".format(command)
+    target = '-s {}'.format(device) if device else ''
+    full_command = 'fastboot {} {}'.format(target, command)
     logger.debug(full_command)
     output, _ = check_output(full_command, timeout, shell=True)
     return output

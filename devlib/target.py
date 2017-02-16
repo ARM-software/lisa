@@ -62,10 +62,11 @@ class Target(object):
         return self.conn is not None
 
     @property
-    @memoized
     def connected_as_root(self):
-        result = self.execute('id')
-        return 'uid=0(' in result
+        if self._connected_as_root is None:
+            result = self.execute('id')
+            self._connected_as_root = 'uid=0(' in result
+        return self._connected_as_root
 
     @property
     @memoized
@@ -151,6 +152,7 @@ class Target(object):
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  conn_cls=None,
                  ):
+        self._connected_as_root = None
         self.connection_settings = connection_settings or {}
         # Set self.platform: either it's given directly (by platform argument)
         # or it's given in the connection_settings argument
@@ -1035,6 +1037,19 @@ class AndroidTarget(Target):
     def clear_logcat(self):
         adb_command(self.adb_name, 'logcat -c', timeout=30)
 
+    def adb_reboot_bootloader(self, timeout=30):
+        adb_command(self.adb_name, 'reboot-bootloader', timeout)
+
+    def adb_root(self, enable=True):
+        if enable:
+            if self._connected_as_root:
+                return
+            adb_command(self.adb_name, 'root', timeout=30)
+            self._connected_as_root = True
+            return
+        adb_command(self.adb_name, 'unroot', timeout=30)
+        self._connected_as_root = False
+
     def is_screen_on(self):
         output = self.execute('dumpsys power')
         match = ANDROID_SCREEN_STATE_REGEX.search(output)
@@ -1069,6 +1084,31 @@ class AndroidTarget(Target):
             message = 'Could not find mount point for executables directory {}'
             raise TargetError(message.format(self.executables_directory))
 
+    _charging_enabled_path = '/sys/class/power_supply/battery/charging_enabled'
+
+    @property
+    def charging_enabled(self):
+        """
+        Whether drawing power to charge the battery is enabled
+
+        Not all devices have the ability to enable/disable battery charging
+        (e.g. because they don't have a battery). In that case,
+        ``charging_enabled`` is None.
+        """
+        if not self.file_exists(self._charging_enabled_path):
+            return None
+        return self.read_bool(self._charging_enabled_path)
+
+    @charging_enabled.setter
+    def charging_enabled(self, enabled):
+        """
+        Enable/disable drawing power to charge the battery
+
+        Not all devices have this facility. In that case, do nothing.
+        """
+        if not self.file_exists(self._charging_enabled_path):
+            return
+        self.write_value(self._charging_enabled_path, int(bool(enabled)))
 
 FstabEntry = namedtuple('FstabEntry', ['device', 'mount_point', 'fs_type', 'options', 'dump_freq', 'pass_num'])
 PsEntry = namedtuple('PsEntry', 'user pid ppid vsize rss wchan pc state name')
