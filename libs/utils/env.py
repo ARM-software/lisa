@@ -707,6 +707,18 @@ class TestEnv(ShareState):
         # Adding topology information
         self.platform['topology'] = self.topology.get_level("cluster")
 
+        # Adding kernel build information
+        kver = self.target.kernel_version
+        self.platform['kernel'] = {t: getattr(kver, t, None)
+            for t in [
+                'release', 'version',
+                'version_number', 'major', 'minor',
+                'rc', 'sha1', 'parts'
+            ]
+        }
+        self.platform['abi'] = self.target.abi
+        self.platform['os'] = self.target.os
+
         self._log.debug('Platform descriptor initialized\n%s', self.platform)
         # self.platform_dump('./')
 
