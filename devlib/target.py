@@ -62,10 +62,11 @@ class Target(object):
         return self.conn is not None
 
     @property
-    @memoized
     def connected_as_root(self):
-        result = self.execute('id')
-        return 'uid=0(' in result
+        if self._connected_as_root is None:
+            result = self.execute('id')
+            self._connected_as_root = 'uid=0(' in result
+        return self._connected_as_root
 
     @property
     @memoized
@@ -151,6 +152,7 @@ class Target(object):
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  conn_cls=None,
                  ):
+        self._connected_as_root = None
         self.connection_settings = connection_settings or {}
         # Set self.platform: either it's given directly (by platform argument)
         # or it's given in the connection_settings argument
@@ -1034,6 +1036,19 @@ class AndroidTarget(Target):
 
     def clear_logcat(self):
         adb_command(self.adb_name, 'logcat -c', timeout=30)
+
+    def adb_reboot_bootloader(self, timeout=30):
+        adb_command(self.adb_name, 'reboot-bootloader', timeout)
+
+    def adb_root(self, enable=True):
+        if enable:
+            if self._connected_as_root:
+                return
+            adb_command(self.adb_name, 'root', timeout=30)
+            self._connected_as_root = True
+            return
+        adb_command(self.adb_name, 'unroot', timeout=30)
+        self._connected_as_root = False
 
     def is_screen_on(self):
         output = self.execute('dumpsys power')
