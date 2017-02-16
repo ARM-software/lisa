@@ -68,7 +68,7 @@ class LatencyAnalysis(AnalysisModule):
         sw_df = self._dfg_trace_event('sched_switch')
 
         # Filter Task's WAKEUP events
-        task_wakeup = wk_df[wk_df.pid == td.pid][['success', 'target_cpu', 'pid']]
+        task_wakeup = wk_df[wk_df.pid == td.pid][['target_cpu', 'pid']]
 
         # Filter Task's START events
         task_events = (sw_df.prev_pid == td.pid) | (sw_df.next_pid == td.pid)
