@@ -26,7 +26,8 @@ class TargetInfo(object):
         instance.os_version = pod['os_version']
         instance.abi = pod['abi']
         instance.is_rooted = pod['is_rooted']
-        instance.kernel_version = KernelVersion(pod['kernel_version'])
+        instance.kernel_version = KernelVersion(pod['kernel_release'], 
+                                                pod['kernel_version'])
         instance.kernel_config = KernelConfig(pod['kernel_config'])
 
         if pod["target"] == "AndroidTarget":
@@ -69,15 +70,16 @@ class TargetInfo(object):
 
     def to_pod(self):
         pod = {}
-        pod['target'] = self.target.__class__.__name__
+        pod['target'] = self.target
         pod['abi'] = self.abi
-        pod['cpuinfo'] = self.cpuinfo.text
+        pod['cpuinfo'] = self.cpuinfo.sections
         pod['os'] = self.os
         pod['os_version'] = self.os_version
         pod['abi'] = self.abi
         pod['is_rooted'] = self.is_rooted
+        pod['kernel_release'] = self.kernel_version.release
         pod['kernel_version'] = self.kernel_version.version
-        pod['kernel_config'] = self.kernel_config.text
+        pod['kernel_config'] = dict(self.kernel_config.iteritems())
 
         if self.target == "AndroidTarget":
             pod['screen_resolution'] = self.screen_resolution

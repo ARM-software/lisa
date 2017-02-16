@@ -25,6 +25,7 @@ from wlauto.core.configuration import RunConfiguration
 from wlauto.core.configuration.parsers import AgendaParser, ConfigParser
 from wlauto.core.execution import Executor
 from wlauto.core.output import init_wa_output
+from wlauto.core.version import get_wa_version
 from wlauto.exceptions import NotFoundError, ConfigError
 from wlauto.utils.log import add_log_file
 from wlauto.utils.types import toggle_set
@@ -74,23 +75,26 @@ class RunCommand(Command):
                                  This option may be specified multiple times.
                                  """)
 
-    def execute(self, state, args):
-        output = self.set_up_output_directory(state, args)
+    def execute(self, config, args):
+        output = self.set_up_output_directory(config, args)
         add_log_file(output.logfile)
+
+        self.logger.debug('Version: {}'.format(get_wa_version()))
+        self.logger.debug('Command Line: {}'.format(' '.join(sys.argv)))
 
         disabled_instruments = toggle_set(["~{}".format(i) 
                                            for i in args.instruments_to_disable])
-        state.jobs_config.disable_instruments(disabled_instruments)
-        state.jobs_config.only_run_ids(args.only_run_ids)
+        config.jobs_config.disable_instruments(disabled_instruments)
+        config.jobs_config.only_run_ids(args.only_run_ids)
 
         parser = AgendaParser()
         if os.path.isfile(args.agenda):
-            parser.load_from_path(state, args.agenda)
+            parser.load_from_path(config, args.agenda)
         else:
             try:
                 pluginloader.get_plugin_class(args.agenda, kind='workload')
                 agenda = {'workloads': [{'name': args.agenda}]}
-                parser.load(state, agenda, 'CMDLINE_ARGS')
+                parser.load(config, agenda, 'CMDLINE_ARGS')
             except NotFoundError:
                 msg = 'Agenda file "{}" does not exist, and there no workload '\
                       'with that name.\nYou can get a list of available '\
@@ -98,16 +102,16 @@ class RunCommand(Command):
                 raise ConfigError(msg.format(args.agenda))
 
         executor = Executor()
-        executor.execute(state, output)
+        executor.execute(config, output)
 
-    def set_up_output_directory(self, state, args):
+    def set_up_output_directory(self, config, args):
         if args.output_directory:
             output_directory = args.output_directory
         else:
             output_directory = settings.default_output_directory
         self.logger.debug('Using output directory: {}'.format(output_directory))
         try:
-            return init_wa_output(output_directory, state, args.force)
+            return init_wa_output(output_directory, config, args.force)
         except RuntimeError as e:
             if  'path exists' in str(e):
                 msg = 'Output directory "{}" exists.\nPlease specify another '\

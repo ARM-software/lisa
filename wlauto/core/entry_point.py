@@ -24,8 +24,8 @@ import warnings
 from wlauto.core import pluginloader
 from wlauto.core.command import init_argument_parser
 from wlauto.core.configuration import settings
+from wlauto.core.configuration.manager import ConfigManager
 from wlauto.core.host import init_user_directory
-from wlauto.core.state import WAState
 from wlauto.exceptions import WAError, DevlibError, ConfigError
 from wlauto.utils.doc import format_body
 from wlauto.utils.log import init_logging
@@ -46,7 +46,7 @@ def load_commands(subparsers):
 
 
 def main():
-    state = WAState()
+    config = ConfigManager()
 
     if not os.path.exists(settings.user_directory):
         init_user_directory()
@@ -68,16 +68,16 @@ def main():
 
         settings.set("verbosity", args.verbose)
 
-        state.load_config_file(settings.user_config_file)
+        config.load_config_file(settings.user_config_file)
         for config_file in args.config:
             if not os.path.exists(config_file):
                 raise ConfigError("Config file {} not found".format(config_file))
-            state.load_config_file(config_file)
+            config.load_config_file(config_file)
 
         init_logging(settings.verbosity)
 
         command = commands[args.command]
-        sys.exit(command.execute(state, args))
+        sys.exit(command.execute(config, args))
 
     except KeyboardInterrupt:
         logging.info('Got CTRL-C. Aborting.')

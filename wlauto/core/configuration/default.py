@@ -1,4 +1,4 @@
-from wlauto.core.configuration.configuration import WAConfiguration, RunConfiguration
+from wlauto.core.configuration.configuration import MetaConfiguration, RunConfiguration
 from wlauto.core.configuration.plugin_cache import PluginCache
 from wlauto.utils.serializer import yaml
 from wlauto.utils.doc import strip_inlined_text
@@ -33,7 +33,7 @@ def _format_instruments(output):
 
 def generate_default_config(path):
     with open(path, 'w') as output:
-        for param in WAConfiguration.config_points + RunConfiguration.config_points:
+        for param in MetaConfiguration.config_points + RunConfiguration.config_points:
             entry = {param.name: param.default}
             comment = _format_yaml_comment(param)
             output.writelines(comment)

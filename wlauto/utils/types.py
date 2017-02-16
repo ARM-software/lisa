@@ -322,7 +322,8 @@ class prioritylist(object):
             raise ValueError('Invalid index {}'.format(index))
         current_global_offset = 0
         priority_counts = {priority: count for (priority, count) in
-                           zip(self.priorities, [len(self.elements[p]) for p in self.priorities])}
+                           zip(self.priorities, [len(self.elements[p]) 
+                                                 for p in self.priorities])}
         for priority in self.priorities:
             if not index_range:
                 break
@@ -351,13 +352,9 @@ class toggle_set(set):
     and ``cherries`` but disables ``oranges``.
     """
 
-    def merge_with(self, other):
-        new_self = copy(self)
-        return toggle_set.merge(other, new_self)
-
-    def merge_into(self, other):
-        other = copy(other)
-        return toggle_set.merge(self, other)
+    @staticmethod
+    def from_pod(pod):
+        return toggle_set(pod)
 
     @staticmethod
     def merge(source, dest):
@@ -371,6 +368,14 @@ class toggle_set(set):
                     dest.remove('~' + item)
                 dest.add(item)
         return dest
+
+    def merge_with(self, other):
+        new_self = copy(self)
+        return toggle_set.merge(other, new_self)
+
+    def merge_into(self, other):
+        other = copy(other)
+        return toggle_set.merge(self, other)
 
     def values(self):
         """
@@ -396,6 +401,9 @@ class toggle_set(set):
                 conflicts.append(item)
         return conflicts
 
+    def to_pod(self):
+        return list(self.values())
+
 class ID(str):
 
     def merge_with(self, other):
@@ -411,11 +419,19 @@ class obj_dict(MutableMapping):
     as an attribute.
 
     :param not_in_dict: A list of keys that can only be accessed as attributes
+
     """
 
-    def __init__(self, not_in_dict=None, values={}):
+    @staticmethod
+    def from_pod(pod):
+        return obj_dict(pod)
+
+    def __init__(self, values=None, not_in_dict=None):
+        self.__dict__['dict'] = dict(values or {})
         self.__dict__['not_in_dict'] = not_in_dict if not_in_dict is not None else []
-        self.__dict__['dict'] = dict(values)
+
+    def to_pod(self):
+        return self.__dict__['dict']
 
     def __getitem__(self, key):
         if key in self.not_in_dict:
@@ -457,13 +473,3 @@ class obj_dict(MutableMapping):
             return self.__dict__['dict'][name]
         else:
             raise AttributeError("No such attribute: " + name)
-
-    def to_pod(self):
-        return self.__dict__.copy()
-
-    @staticmethod
-    def from_pod(pod):
-        instance = ObjDict()
-        for k, v in pod.iteritems():
-            instance[k] = v
-        return instance

@@ -6,6 +6,9 @@ import sys
 import uuid
 from copy import copy
 
+from wlauto.core.configuration.configuration import JobSpec
+from wlauto.core.configuration.manager import ConfigManager
+from wlauto.core.device_manager import TargetInfo
 from wlauto.utils.misc import touch
 from wlauto.utils.serializer import write_pod, read_pod
 
@@ -78,6 +81,18 @@ class RunOutput(object):
     def statefile(self):
         return os.path.join(self.basepath, '.run_state.json')
 
+    @property
+    def configfile(self):
+        return os.path.join(self.metadir, 'config.json')
+
+    @property
+    def targetfile(self):
+        return os.path.join(self.metadir, 'target_info.json')
+
+    @property
+    def jobsfile(self):
+        return os.path.join(self.metadir, 'jobs.json')
+
     def __init__(self, path):
         self.basepath = path
         self.info = None
@@ -98,6 +113,32 @@ class RunOutput(object):
     def write_state(self):
         write_pod(self.state.to_pod(), self.statefile)
 
+    def write_config(self, config):
+        write_pod(config.to_pod(), self.configfile)
+
+    def read_config(self):
+        if not os.path.isfile(self.configfile):
+            return None
+        return ConfigManager.from_pod(read_pod(self.configfile))
+
+    def write_target_info(self, ti):
+        write_pod(ti.to_pod(), self.targetfile)
+
+    def read_config(self):
+        if not os.path.isfile(self.targetfile):
+            return None
+        return TargetInfo.from_pod(read_pod(self.targetfile))
+
+    def write_job_specs(self, job_specs):
+        job_specs[0].to_pod()
+        js_pod = {'jobs': [js.to_pod() for js in job_specs]}
+        write_pod(js_pod, self.jobsfile)
+
+    def read_job_specs(self):
+        if not os.path.isfile(self.jobsfile):
+            return None
+        pod = read_pod(self.jobsfile)
+        return [JobSpec.from_pod(jp) for jp in pod['jobs']]
 
 
 def init_wa_output(path, wa_state, force=False):

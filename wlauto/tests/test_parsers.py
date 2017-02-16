@@ -9,7 +9,7 @@ from wlauto.exceptions import ConfigError
 from wlauto.core.configuration.parsers import *  # pylint: disable=wildcard-import
 from wlauto.core.configuration.parsers import _load_file, _collect_valid_id, _resolve_params_alias
 from wlauto.core.configuration import RunConfiguration, JobGenerator, PluginCache, ConfigurationPoint
-from wlauto.core.configuration.configuration import WAConfiguration
+from wlauto.core.configuration.configuration import MetaConfiguration
 from wlauto.utils.types import toggle_set, reset_counter
 
 
@@ -129,8 +129,8 @@ class TestFunctions(TestCase):
 class TestConfigParser(TestCase):
 
     def test_error_cases(self):
-        wa_config = Mock(spec=WAConfiguration)
-        wa_config.configuration = WAConfiguration.configuration
+        wa_config = Mock(spec=MetaConfiguration)
+        wa_config.configuration = MetaConfiguration.configuration
         run_config = Mock(spec=RunConfiguration)
         run_config.configuration = RunConfiguration.configuration
         config_parser = ConfigParser(wa_config,
@@ -155,8 +155,8 @@ class TestConfigParser(TestCase):
                                "Unit test")
 
     def test_config_points(self):
-        wa_config = Mock(spec=WAConfiguration)
-        wa_config.configuration = WAConfiguration.configuration
+        wa_config = Mock(spec=MetaConfiguration)
+        wa_config.configuration = MetaConfiguration.configuration
 
         run_config = Mock(spec=RunConfiguration)
         run_config.configuration = RunConfiguration.configuration
@@ -211,8 +211,8 @@ class TestAgendaParser(TestCase):
 
     # Tests Phase 1 & 2
     def test_valid_structures(self):
-        wa_config = Mock(spec=WAConfiguration)
-        wa_config.configuration = WAConfiguration.configuration
+        wa_config = Mock(spec=MetaConfiguration)
+        wa_config.configuration = MetaConfiguration.configuration
         run_config = Mock(spec=RunConfiguration)
         run_config.configuration = RunConfiguration.configuration
         jobs_config = Mock(spec=JobGenerator)
@@ -241,8 +241,8 @@ class TestAgendaParser(TestCase):
 
     # Test Phase 3
     def test_id_collection(self):
-        wa_config = Mock(spec=WAConfiguration)
-        wa_config.configuration = WAConfiguration.configuration
+        wa_config = Mock(spec=MetaConfiguration)
+        wa_config.configuration = MetaConfiguration.configuration
         run_config = Mock(spec=RunConfiguration)
         run_config.configuration = RunConfiguration.configuration
         jobs_config = Mock(spec=JobGenerator)
@@ -267,8 +267,8 @@ class TestAgendaParser(TestCase):
 
     # Test Phase 4
     def test_id_assignment(self):
-        wa_config = Mock(spec=WAConfiguration)
-        wa_config.configuration = WAConfiguration.configuration
+        wa_config = Mock(spec=MetaConfiguration)
+        wa_config.configuration = MetaConfiguration.configuration
         run_config = Mock(spec=RunConfiguration)
         run_config.configuration = RunConfiguration.configuration
         jobs_config = Mock(spec=JobGenerator)
@@ -362,7 +362,7 @@ class TestAgendaParser(TestCase):
 
 
 class TestCommandLineArgsParser(TestCase):
-    wa_config = Mock(spec=WAConfiguration)
+    wa_config = Mock(spec=MetaConfiguration)
     run_config = Mock(spec=RunConfiguration)
     jobs_config = Mock(spec=JobGenerator)
 

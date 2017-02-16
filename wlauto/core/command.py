@@ -70,7 +70,7 @@ class Command(Plugin):
         """
         Execute this command.
 
-        :state: An initialized ``WAState`` that contains the current state of
+        :state: An initialized ``ConfigManager`` that contains the current state of
                 WA exeuction up to that point (processed configuraition, loaded
                 plugins, etc).
         :args: An ``argparse.Namespace`` containing command line arguments (as returned by

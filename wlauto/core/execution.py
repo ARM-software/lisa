@@ -51,6 +51,7 @@ import wlauto.core.signal as signal
 from wlauto.core import instrumentation
 from wlauto.core import pluginloader
 from wlauto.core.configuration import settings
+from wlauto.core.device_manager import TargetInfo
 from wlauto.core.plugin import Artifact
 from wlauto.core.resolver import ResourceResolver
 from wlauto.core.result import ResultManager, IterationResult, RunResult
@@ -213,6 +214,30 @@ def _check_artifact_path(path, rootpath):
     return full_path
 
 
+
+class FakeTargetManager(object):
+
+    def __init__(self, name, config):
+        self.device_name = name
+        self.device_config = config
+
+        from devlib import LocalLinuxTarget
+        self.target = LocalLinuxTarget({'unrooted': True})
+        
+    def get_target_info(self):
+        return TargetInfo(self.target)
+
+    def validate_runtime_parameters(self, params):
+        pass
+
+    def merge_runtime_parameters(self, params):
+        pass
+
+
+def init_target_manager(config):
+    return FakeTargetManager(config.device, config.device_config)
+
+
 class Executor(object):
     """
     The ``Executor``'s job is to set up the execution context and pass to a
@@ -237,14 +262,14 @@ class Executor(object):
         self.device = None
         self.context = None
 
-    def execute(self, state, output):
+    def execute(self, config_manager, output):
         """
         Execute the run specified by an agenda. Optionally, selectors may be
         used to only selecute a subset of the specified agenda.
 
         Params::
 
-            :state: a ``WAState`` containing processed configuraiton
+            :state: a ``ConfigManager`` containing processed configuraiton
             :output: an initialized ``RunOutput`` that will be used to
                      store the results.
 
@@ -253,8 +278,17 @@ class Executor(object):
         signal.connect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
         self.logger.info('Initializing run')
+        self.logger.debug('Finalizing run configuration.')
+        config = config_manager.finalize()
+        output.write_config(config)
 
-        self.logger.debug('Loading run configuration.')
+        self.logger.info('Connecting to target')
+        target_manager = init_target_manager(config.run_config)
+        output.write_target_info(target_manager.get_target_info())
+
+        self.logger.info('Generationg jobs')
+        job_specs = config_manager.jobs_config.generate_job_specs(target_manager)
+        output.write_job_specs(job_specs)
 
     def old_exec(self, agenda, selectors={}):
         self.config.set_agenda(agenda, selectors)
