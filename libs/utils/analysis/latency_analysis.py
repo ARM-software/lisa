@@ -79,7 +79,7 @@ class LatencyAnalysis(AnalysisModule):
         # we don't care about the status of a task we are replacing
         task_switches_df.prev_state = task_switches_df.apply(
             lambda r : np.nan if r['prev_pid'] != td.pid
-                              else self._taskState(int(r['prev_state'])),
+                              else self._taskState(r['prev_state']),
             axis=1)
 
         # Rename prev_state
@@ -372,6 +372,11 @@ class LatencyAnalysis(AnalysisModule):
 
     @memoized
     def _taskState(self, state):
+        try:
+            state = int(state)
+        except ValueError:
+            # State already converted to symbol
+            return state
 
         # Tasks STATE flags (Linux 4.8)
         TASK_STATES = {
