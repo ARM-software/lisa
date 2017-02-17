@@ -191,6 +191,30 @@ class LatencyAnalysis(AnalysisModule):
         df.rename(columns={'t_delta' : 'preempt_latency'}, inplace=True)
         return df
 
+    @memoized
+    def _dfg_activations_df(self, task):
+        """
+        DataFrame of task's wakeup intrvals
+
+        The returned DataFrame index is the time, in seconds, `task` has
+        waken-up.
+        The DataFrame has just one column:
+        - activation_interval: the time since the previous wakeup events
+
+        :param task: the task to report runtimes for
+        :type task: int or str
+        """
+        # Select all wakeup events
+        wkp_df = self._dfg_latency_df(task)
+        wkp_df = wkp_df[wkp_df.curr_state == 'W'].copy()
+        # Compute delta between successive wakeup events
+        wkp_df['activation_interval'] = (
+                wkp_df['t_start'].shift(-1) - wkp_df['t_start'])
+        wkp_df['activation_interval'] = wkp_df['activation_interval'].shift(1)
+        # Return the activation period each time the task wakeups
+        wkp_df = wkp_df[['activation_interval']].shift(-1)
+        return wkp_df
+
 
 ###############################################################################
 # Plotting Methods
@@ -391,6 +415,136 @@ class LatencyAnalysis(AnalysisModule):
                 axes.axvspan(start, end, facecolor='b', alpha=0.1)
                 axes.set_xlim(self._trace.x_min, self._trace.x_max)
         except: pass
+
+    def plotActivations(self, task, tag=None, threshold_ms=16, bins=64):
+        """
+        Plots "activation intervals" for the specified task
+
+        An "activation interval" is time incurring between two consecutive
+        wakeups of a task. A set of plots is generated to report:
+        - Activations interval at wakeup time: every time a task wakeups a
+          point is plotted to represent the time interval since the previous
+          wakeup.
+        - Activations interval cumulative function: reports the cumulative
+          function of the activation intervals.
+        - Activations intervals histogram: reports a 64 bins histogram of
+          the activation intervals.
+
+        All plots are parameterized based on the value of threshold_ms, which
+        can be used to filter activations intervals bigger than 2 times this
+        value.
+        Such a threshold is useful to filter out from the plots outliers thus
+        focusing the analysis in the most critical periodicity under analysis.
+        The number and percentage of discarded samples is reported in output.
+        A default threshold of 16 [ms] is used, which is useful for example
+        to analyze a 60Hz rendering pipelines.
+
+        A PNG of the generated plots is generated and saved in the same folder
+        where the trace is.
+
+        :param task: the task to report latencies for
+        :type task: int or list(str)
+
+        :param tag: a string to add to the plot title
+        :type tag: str
+
+        :param threshold_ms: the minimum acceptable [ms] value to report
+                             graphically in the generated plots
+        :type threshold_ms: int or float
+
+        :param bins: number of bins to be used for the runtime's histogram
+        :type bins: int
+
+        :returns: a DataFrame with statistics on ploted activation intervals
+        """
+
+        if not self._trace.hasEvents('sched_switch'):
+            self._log.warning('Event [sched_switch] not found, '
+                              'plot DISABLED!')
+            return
+        if not self._trace.hasEvents('sched_wakeup'):
+            self._log.warning('Event [sched_wakeup] not found, '
+                              'plot DISABLED!')
+            return
+
+        # Get task data
+        td = self._getTaskData(task)
+        if not td:
+            return None
+
+        # Load activation data
+        wkp_df = self._dfg_activations_df(td.pid)
+        if wkp_df is None:
+            return None
+        self._log.info('Found: %5d activations for [%s]',
+                       len(wkp_df), td.label)
+
+        # Disregard data above two time the specified threshold
+        y_max = (2 * threshold_ms) / 1000.
+        len_tot = len(wkp_df)
+        wkp_df = wkp_df[wkp_df.activation_interval <= y_max]
+        len_plt = len(wkp_df)
+        if len_plt < len_tot:
+            len_dif = len_tot - len_plt
+            len_pct = 100. * len_dif / len_tot
+            self._log.warning('Discarding {} activation intervals (above 2 x threshold_ms, '
+                              '{:.1f}% of the overall activations)'\
+                              .format(len_dif, len_pct))
+        ymax = 1.1 * wkp_df.activation_interval.max()
+
+        # Build the series for the CDF
+        cdf = self._getCDF(wkp_df.activation_interval, (threshold_ms / 1000.))
+        self._log.info('%.1f %% samples below %d [ms] threshold',
+                       100. * cdf.below, threshold_ms)
+
+        # Setup plots
+        gs = gridspec.GridSpec(2, 2, height_ratios=[2,1], width_ratios=[1,1])
+        plt.figure(figsize=(16, 8))
+
+        plot_title = "[{}]: activaton intervals (@ wakeup time)".format(td.label)
+        if tag:
+            plot_title = "{} [{}]".format(plot_title, tag)
+        plot_title = "{}, threshold @ {} [ms]".format(plot_title, threshold_ms)
+
+        # Activations intervals over time
+        axes = plt.subplot(gs[0,0:2])
+        axes.set_title(plot_title)
+        wkp_df.plot(style='g+', logy=False, ax=axes)
+
+        axes.axhline(threshold_ms / 1000., linestyle='--', color='g')
+        self._trace.analysis.status.plotOverutilized(axes)
+        axes.legend(loc='lower center', ncol=2)
+        axes.set_xlim(self._trace.x_min, self._trace.x_max)
+
+        # Cumulative distribution of all activations intervals
+        axes = plt.subplot(gs[1,0])
+        cdf.df.plot(ax=axes, legend=False, xlim=(0,None),
+                    title='Activations CDF ({:.1f}% within {} [ms] threshold)'\
+                          .format(100. * cdf.below, threshold_ms))
+        axes.axvspan(0, threshold_ms / 1000., facecolor='g', alpha=0.5);
+        axes.axhline(y=cdf.below, linewidth=1, color='r', linestyle='--')
+
+        # Histogram of all activations intervals
+        axes = plt.subplot(gs[1,1])
+        wkp_df.plot(kind='hist', bins=bins, ax=axes,
+                        xlim=(0,ymax), legend=False,
+                        title='Activation intervals histogram ({} bins, {} [ms] green threshold)'\
+                        .format(bins, threshold_ms));
+        axes.axvspan(0, threshold_ms / 1000., facecolor='g', alpha=0.5);
+
+        # Save generated plots into datadir
+        task_name = re.sub('[\ :/]', '_', td.label)
+        figname = '{}/{}task_activations_{}_{}.png'\
+                  .format(self._trace.plots_dir, self._trace.plots_prefix,
+                          td.pid, task_name)
+        pl.savefig(figname, bbox_inches='tight')
+
+        # Return statistics
+        stats_df = wkp_df.describe(percentiles=[0.95, 0.99])
+        label = '{:.1f}%'.format(100. * cdf.below)
+        stats = { label : cdf.threshold }
+        return stats_df.append(pd.DataFrame(
+            stats.values(), columns=['activation_interval'], index=stats.keys()))
 
 
 ###############################################################################
