@@ -32,6 +32,8 @@ from trappy.utils import listify
 # Tuple representing all IDs data of a Task
 TaskData = namedtuple('TaskData', ['pid', 'names', 'label'])
 
+CDF = namedtuple('CDF', ['df', 'threshold', 'above', 'below'])
+
 class LatencyAnalysis(AnalysisModule):
     """
     Support for plotting Latency Analysis data
@@ -213,13 +215,16 @@ class LatencyAnalysis(AnalysisModule):
         ymax = 1.1 * df.latency.max()
         self._log.info('Total: %5d latency events', len(df))
 
-        df = pd.DataFrame(sorted(df.latency), columns=['latency'])
+        # Build the series for the CDF
+        cdf = self._getCDF(df.latency, (threshold_ms / 1000.))
+        self._log.info('%.1f %% samples below %d [ms] threshold',
+                       100. * cdf.below, threshold_ms)
 
         # Setup plots
         gs = gridspec.GridSpec(2, 2, height_ratios=[2,1], width_ratios=[1,1])
         plt.figure(figsize=(16, 8))
 
-        plot_title = "Task [{}] latencies".format(kind.upper())
+        plot_title = "[{}]: {} latencies".format(td.label, kind.upper())
         if tag:
             plot_title = "{} [{}]".format(plot_title, tag)
         plot_title = "{}, threshold @ {} [ms]".format(plot_title, threshold_ms)
@@ -239,13 +244,13 @@ class LatencyAnalysis(AnalysisModule):
         self._trace.analysis.status.plotOverutilized(axes)
         axes.legend(loc='lower center', ncol=2)
 
-        # Cumulative distribution of all latencies
+        # Cumulative distribution of latencies samples
         axes = plt.subplot(gs[1,0])
-        df.latency.plot(ax=axes, logy=True, legend=False,
-                        title='Latencies cumulative distribution [{}]'\
-                              .format(td.label))
-        axes.axhline(y=threshold_ms / 1000., linewidth=2,
-                     color='r', linestyle='--')
+        cdf.df.plot(ax=axes, legend=False, xlim=(0,None),
+                    title='Latencies CDF ({:.1f}% within {} [ms] threshold)'\
+                          .format(100. * cdf.below, threshold_ms))
+        axes.axvspan(0, threshold_ms / 1000., facecolor='g', alpha=0.5);
+        axes.axhline(y=cdf.below, linewidth=1, color='r', linestyle='--')
 
         # Histogram of all latencies
         axes = plt.subplot(gs[1,1])
@@ -263,7 +268,12 @@ class LatencyAnalysis(AnalysisModule):
         pl.savefig(figname, bbox_inches='tight')
 
         # Return statistics
-        return df.describe(percentiles=[0.95, 0.99])
+        stats_df = df.describe(percentiles=[0.95, 0.99])
+        label = '{:.1f}%'.format(100. * cdf.below)
+        stats = { label : cdf.threshold }
+        return stats_df.append(pd.DataFrame(
+            stats.values(), columns=['latency'], index=stats.keys()))
+
 
     def plotLatencyBands(self, task, axes=None):
         """
@@ -407,5 +417,26 @@ class LatencyAnalysis(AnalysisModule):
         else:
             res = '|'.join(res)
         return res
+
+
+    def _getCDF(self, data, threshold):
+        """
+        Build the "Cumulative Distribution Function" (CDF) for the given data
+        """
+
+        # Build the series of sorted values
+        ser = data.sort_values()
+        if len(ser) < 1000:
+            # Append again the last (and largest) value.
+            # This step is important especially for small sample sizes
+            # in order to get an unbiased CDF
+            ser = ser.append(pd.Series(ser.iloc[-1]))
+        df = pd.Series(np.linspace(0., 1., len(ser)), index=ser)
+
+        # Compute percentage of samples above/below the specified threshold
+        below = float(max(df[:threshold]))
+        above = 1 - below
+        return CDF(df, threshold, above, below)
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
