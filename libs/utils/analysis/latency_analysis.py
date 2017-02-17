@@ -215,6 +215,66 @@ class LatencyAnalysis(AnalysisModule):
         wkp_df = wkp_df[['activation_interval']].shift(-1)
         return wkp_df
 
+    @memoized
+    def _dfg_runtimes_df(self, task):
+        """
+        DataFrame of task's runtime each time the task blocks
+
+        The returned DataFrame index is the time, in seconds, `task` completed
+        an activation (i.e. sleep or exit)
+        The DataFrame has just one column:
+        - running_time: the time the task spent RUNNING since its last wakeup
+
+        :param task: the task to report runtimes for
+        :type task: int or str
+        """
+        # Select all wakeup events
+        run_df = self._dfg_latency_df(task)
+
+        # Filter function to add up RUNNING intervals of each activation
+        def cr(row):
+            if row['curr_state'] in ['S']:
+                return cr.runtime
+            if row['curr_state'] in ['W']:
+                if cr.spurious_wkp:
+                        cr.runtime += row['t_delta']
+                        cr.spurious_wkp = False
+                        return cr.runtime
+                cr.runtime = 0
+                return cr.runtime
+            if row['curr_state'] != 'A':
+                return cr.runtime
+            if row['next_state'] in ['R', 'R+', 'S', 'x', 'D']:
+                cr.runtime += row['t_delta']
+                return cr.runtime
+            # This is required to capture strange trace sequences where
+            # a switch_in event is follower by a wakeup_event.
+            # This sequence is not expected, but we found it in some traces.
+            # Possible reasons could be:
+            # - misplaced sched_wakeup events
+            # - trace buffer artifacts
+            # TO BE BETTER investigated in kernel space.
+            # For the time being, we account this interval as RUNNING time,
+            # which is what kernelshark does.
+            if row['next_state'] in ['W']:
+                cr.runtime += row['t_delta']
+                cr.spurious_wkp = True
+                return cr.runtime
+            if row['next_state'] in ['n']:
+                return cr.runtime
+            self._log.warning("Unexpected next state: %s @ %f",
+                              row['next_state'], row['t_start'])
+            return 0
+        # cr's static variables intialization
+        cr.runtime = 0
+        cr.spurious_wkp = False
+
+        # Add up RUNNING intervals of each activation
+        run_df['running_time'] = run_df.apply(cr, axis=1)
+        # Return RUNTIME computed for each activation,
+        # each time the task blocks or terminate
+        run_df = run_df[run_df.next_state.isin(['S', 'x'])][['running_time']]
+        return run_df
 
 ###############################################################################
 # Plotting Methods
@@ -545,6 +605,137 @@ class LatencyAnalysis(AnalysisModule):
         stats = { label : cdf.threshold }
         return stats_df.append(pd.DataFrame(
             stats.values(), columns=['activation_interval'], index=stats.keys()))
+
+
+    def plotRuntimes(self, task, tag=None, threshold_ms=8, bins=64):
+        """
+        Plots "running times" for the specified task
+
+        A "running time" is the sum of all the time intervals a task executed
+        in between a wakeup and the next sleep (or exit).
+        A set of plots is generated to report:
+        - Running times at block time: every time a task blocks a
+          point is plotted to represent the cumulative time the task has be
+          running since its last wakeup
+        - Running time cumulative function: reports the cumulative
+          function of the running times.
+        - Running times histogram: reports a 64 bins histogram of
+          the running times.
+
+        All plots are parameterized based on the value of threshold_ms, which
+        can be used to filter running times bigger than 2 times this value.
+        Such a threshold is useful to filter out from the plots outliers thus
+        focusing the analysis in the most critical periodicity under analysis.
+        The number and percentage of discarded samples is reported in output.
+        A default threshold of 16 [ms] is used, which is useful for example to
+        analyze a 60Hz rendering pipelines.
+
+        A PNG of the generated plots is generated and saved in the same folder
+        where the trace is.
+
+        :param task: the task to report latencies for
+        :type task: int or list(str)
+
+        :param tag: a string to add to the plot title
+        :type tag: str
+
+        :param threshold_ms: the minimum acceptable [ms] value to report
+                             graphically in the generated plots
+        :type threshold_ms: int or float
+
+        :param bins: number of bins to be used for the runtime's histogram
+        :type bins: int
+
+        :returns: a DataFrame with statistics on ploted running times
+        """
+
+        if not self._trace.hasEvents('sched_switch'):
+            self._log.warning('Event [sched_switch] not found, '
+                              'plot DISABLED!')
+            return
+        if not self._trace.hasEvents('sched_wakeup'):
+            self._log.warning('Event [sched_wakeup] not found, '
+                              'plot DISABLED!')
+            return
+
+        # Get task data
+        td = self._getTaskData(task)
+        if not td:
+            return None
+
+        # Load runtime data
+        run_df = self._dfg_runtimes_df(td.pid)
+        if run_df is None:
+            return None
+        self._log.info('Found: %5d activations for [%s]',
+                       len(run_df), td.label)
+
+        # Disregard data above two time the specified threshold
+        y_max = (2 * threshold_ms) / 1000.
+        len_tot = len(run_df)
+        run_df = run_df[run_df.running_time <= y_max]
+        len_plt = len(run_df)
+        if len_plt < len_tot:
+            len_dif = len_tot - len_plt
+            len_pct = 100. * len_dif / len_tot
+            self._log.warning('Discarding {} running times (above 2 x threshold_ms, '
+                              '{:.1f}% of the overall activations)'\
+                              .format(len_dif, len_pct))
+        ymax = 1.1 * run_df.running_time.max()
+
+        # Build the series for the CDF
+        cdf = self._getCDF(run_df.running_time, (threshold_ms / 1000.))
+        self._log.info('%.1f %% samples below %d [ms] threshold',
+                       100. * cdf.below, threshold_ms)
+
+        # Setup plots
+        gs = gridspec.GridSpec(2, 2, height_ratios=[2,1], width_ratios=[1,1])
+        plt.figure(figsize=(16, 8))
+
+        plot_title = "[{}]: running times (@ block time)".format(td.label)
+        if tag:
+            plot_title = "{} [{}]".format(plot_title, tag)
+        plot_title = "{}, threshold @ {} [ms]".format(plot_title, threshold_ms)
+
+        # Running time over time
+        axes = plt.subplot(gs[0,0:2])
+        axes.set_title(plot_title)
+        run_df.plot(style='g+', logy=False, ax=axes)
+
+        axes.axhline(threshold_ms / 1000., linestyle='--', color='g')
+        self._trace.analysis.status.plotOverutilized(axes)
+        axes.legend(loc='lower center', ncol=2)
+        axes.set_xlim(self._trace.x_min, self._trace.x_max)
+
+        # Cumulative distribution of all running times
+        axes = plt.subplot(gs[1,0])
+        cdf.df.plot(ax=axes, legend=False, xlim=(0,None),
+                    title='Runtime CDF ({:.1f}% within {} [ms] threshold)'\
+                          .format(100. * cdf.below, threshold_ms))
+        axes.axvspan(0, threshold_ms / 1000., facecolor='g', alpha=0.5);
+        axes.axhline(y=cdf.below, linewidth=1, color='r', linestyle='--')
+
+        # Histogram of all running times
+        axes = plt.subplot(gs[1,1])
+        run_df.plot(kind='hist', bins=bins, ax=axes,
+                        xlim=(0,ymax), legend=False,
+                        title='Latency histogram ({} bins, {} [ms] green threshold)'\
+                        .format(bins, threshold_ms));
+        axes.axvspan(0, threshold_ms / 1000., facecolor='g', alpha=0.5);
+
+        # Save generated plots into datadir
+        task_name = re.sub('[\ :/]', '_', td.label)
+        figname = '{}/{}task_runtimes_{}_{}.png'\
+                  .format(self._trace.plots_dir, self._trace.plots_prefix,
+                          td.pid, task_name)
+        pl.savefig(figname, bbox_inches='tight')
+
+        # Return statistics
+        stats_df = run_df.describe(percentiles=[0.95, 0.99])
+        label = '{:.1f}%'.format(100. * cdf.below)
+        stats = { label : cdf.threshold }
+        return stats_df.append(pd.DataFrame(
+            stats.values(), columns=['running_time'], index=stats.keys()))
 
 
 ###############################################################################
