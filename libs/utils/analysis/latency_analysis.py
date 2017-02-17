@@ -51,6 +51,27 @@ class LatencyAnalysis(AnalysisModule):
 
     @memoized
     def _dfg_latency_df(self, task):
+        """
+        DataFrame of task's wakeup/suspend events
+
+        The returned DataFrame index is the time, in seconds, an event related
+        to `task` happened.
+        The DataFrame has these columns:
+        - target_cpu: the CPU where the task has been scheduled
+                      reported only for wakeup events
+        - curr_state: the current task state:
+            A letter which corresponds to the standard events reported by the
+            prev_state field of a sched_switch event.
+            Only exception is 'A', which is used to represent active tasks,
+            i.e. tasks RUNNING on a CPU
+        - next_state: the next status for the task
+        - t_start: the time when the current status started, it matches Time
+        - t_delta: the interval of time after witch the task will switch to the
+                   next_state
+
+        :param task: the task to report wakeup latencies for
+        :type task: int or str
+        """
 
         if not self._trace.hasEvents('sched_wakeup'):
             self._log.warning('Events [sched_wakeup] not found, '
@@ -128,6 +149,17 @@ class LatencyAnalysis(AnalysisModule):
 
     # Select Wakeup latency
     def _dfg_latency_wakeup_df(self, task):
+        """
+        DataFrame of task's wakeup latencies
+
+        The returned DataFrame index is the time, in seconds, `task` waken-up.
+        The DataFrame has just one column:
+        - wakeup_latency: the time the task waited before getting a CPU
+
+        :param task: the task to report wakeup latencies for
+        :type task: int or str
+        """
+
         task_latency_df = self._dfg_latency_df(task)
         if task_latency_df is None:
             return None
@@ -139,6 +171,17 @@ class LatencyAnalysis(AnalysisModule):
 
     # Select Wakeup latency
     def _dfg_latency_preemption_df(self, task):
+        """
+        DataFrame of task's preemption latencies
+
+        The returned DataFrame index is the time, in seconds, `task` has been
+        preempted.
+        The DataFrame has just one column:
+        - preemption_latency: the time the task waited before getting again a CPU
+
+        :param task: the task to report wakeup latencies for
+        :type task: int or str
+        """
         task_latency_df = self._dfg_latency_df(task)
         if task_latency_df is None:
             return None
@@ -153,12 +196,12 @@ class LatencyAnalysis(AnalysisModule):
 # Plotting Methods
 ###############################################################################
 
-    def plotLatency(self, task, kind='all', tag=None, threshold_ms=1):
+    def plotLatency(self, task, kind='all', tag=None, threshold_ms=1, bins=64):
         """
         Generate a set of plots to report the WAKEUP and PREEMPT latencies the
         specified task has been subject to. A WAKEUP latencies is the time from
         when a task becomes RUNNABLE till the first time it gets a CPU.
-        A PREEMPT latencies is the time from when a RUNNABLE task is suspended
+        A PREEMPT latencies is the time from when a RUNNING task is suspended
         because of the CPU is assigned to another task till when the task
         enters the CPU again.
 
@@ -174,6 +217,11 @@ class LatencyAnalysis(AnalysisModule):
         :param threshold_ms: the minimum acceptable [ms] value to report
                              graphically in the generated plots
         :type threshold_ms: int or float
+
+        :param bins: number of bins to be used for the runtime's histogram
+        :type bins: int
+
+        :returns: a DataFrame with statistics on ploted latencies
         """
 
         if not self._trace.hasEvents('sched_switch'):
@@ -255,10 +303,10 @@ class LatencyAnalysis(AnalysisModule):
 
         # Histogram of all latencies
         axes = plt.subplot(gs[1,1])
-        df.latency.plot(kind='hist', bins=64, ax=axes,
+        df.latency.plot(kind='hist', bins=bins, ax=axes,
                         xlim=(0,ymax), legend=False,
-                        title='Latency histogram (64 bins, {} [ms] green threshold)'\
-                        .format(threshold_ms));
+                        title='Latency histogram ({} bins, {} [ms] green threshold)'\
+                        .format(bins, threshold_ms));
         axes.axvspan(0, threshold_ms / 1000., facecolor='g', alpha=0.5);
 
         # Save generated plots into datadir
