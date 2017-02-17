@@ -26,6 +26,9 @@ ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'mUnrestrictedScreen=\(\d+,\d+\)'
                                              r'\s+(?P<width>\d+)x(?P<height>\d+)')
 DEFAULT_SHELL_PROMPT = re.compile(r'^.*(shell|root)@.*:/\S* [#$] ',
                                   re.MULTILINE)
+KVERSION_REGEX =re.compile(
+    r'(?P<version>\d+)(\.(?P<major>\d+)(\.(?P<minor>\d+)(-(rc)?(?P<rc>\d+))?)?)?(.*-g(?P<sha1>[0-9a-fA-F]{7,}))?'
+)
 
 
 class Target(object):
@@ -1198,6 +1201,19 @@ class KernelVersion(object):
         else:
             self.release = version_string
             self.version = ''
+
+        self.version_number = None
+        self.major = None
+        self.minor = None
+        self.sha1 = None
+        self.rc = None
+        match = KVERSION_REGEX.match(version_string)
+        if match:
+            self.version_number = match.group('version')
+            self.major = match.group('major')
+            self.minor = match.group('minor')
+            self.sha1 = match.group('sha1')
+            self.rc = match.group('rc')
 
     def __str__(self):
         return '{} {}'.format(self.release, self.version)
