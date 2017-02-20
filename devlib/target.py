@@ -1189,7 +1189,29 @@ class Cpuinfo(object):
 
 
 class KernelVersion(object):
+    """
+    Class representing the version of a target kernel
 
+    Not expected to work for very old (pre-3.0) kernel version numbers.
+
+    :ivar release: Version number/revision string. Typical output of
+                   ``uname -r``
+    :type release: str
+    :ivar version: Extra version info (aside from ``release``) reported by
+                   ``uname``
+    :type version: str
+    :ivar version_number: Main version number (e.g. 3 for Linux 3.18)
+    :type version_number: int
+    :ivar major: Major version number (e.g. 18 for Linux 3.18)
+    :type major: int
+    :ivar minor: Minor version number for stable kernels (e.g. 9 for 4.9.9). May
+                 be None
+    :type minor: int
+    :ivar rc: Release candidate number (e.g. 3 for Linux 4.9-rc3). May be None.
+    :type rc: int
+    :ivar sha1: Kernel git revision hash, if available (otherwise None)
+    :type sha1: str
+    """
     def __init__(self, version_string):
         if ' #' in version_string:
             release, version = version_string.split(' #')
