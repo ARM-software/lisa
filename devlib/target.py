@@ -1211,6 +1211,10 @@ class KernelVersion(object):
     :type rc: int
     :ivar sha1: Kernel git revision hash, if available (otherwise None)
     :type sha1: str
+
+    :ivar parts: Tuple of version number components. Can be used for
+                 lexicographically comparing kernel versions.
+    :type parts: tuple(int)
     """
     def __init__(self, version_string):
         if ' #' in version_string:
@@ -1240,6 +1244,8 @@ class KernelVersion(object):
                 self.rc = int(groups['rc'])
             if groups['sha1'] is not None:
                 self.sha1 = match.group('sha1')
+
+        self.parts = (self.version_number, self.major, self.minor)
 
     def __str__(self):
         return '{} {}'.format(self.release, self.version)
