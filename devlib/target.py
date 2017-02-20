@@ -27,7 +27,7 @@ ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'mUnrestrictedScreen=\(\d+,\d+\)'
 DEFAULT_SHELL_PROMPT = re.compile(r'^.*(shell|root)@.*:/\S* [#$] ',
                                   re.MULTILINE)
 KVERSION_REGEX =re.compile(
-    r'(?P<version>\d+)(\.(?P<major>\d+)(\.(?P<minor>\d+)(-(rc)?(?P<rc>\d+))?)?)?(.*-g(?P<sha1>[0-9a-fA-F]{7,}))?'
+    r'(?P<version>\d+)(\.(?P<major>\d+)(\.(?P<minor>\d+)(-rc(?P<rc>\d+))?)?)?(.*-g(?P<sha1>[0-9a-fA-F]{7,}))?'
 )
 
 
