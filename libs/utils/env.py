@@ -54,39 +54,105 @@ class ShareState(object):
         self.__dict__ = self.__shared_state
 
 class TestEnv(ShareState):
+    """
+    Represents the environment configuring LISA, the target, and the test setup
+
+    The test environment is defined by:
+
+    - a target configuration (target_conf) defining which HW platform we
+      want to use to run the experiments
+    - a test configuration (test_conf) defining which SW setups we need on
+      that HW target
+    - a folder to collect the experiments results, which can be specified
+      using the test_conf::results_dir option and is by default wiped from
+      all the previous contents (if wipe=True)
+
+    :param target_conf:
+        Configuration defining the target to run experiments on. May be
+
+            - A dict defining the values directly
+            - A path to a JSON file containing the configuration
+            - ``None``, in which case $LISA_HOME/target.config is used.
+
+        You need to provide the information needed to connect to the
+        target. For SSH targets that means "host", "username" and
+        either "password" or "keyfile". All other fields are optional if
+        the relevant features aren't needed. Has the following keys:
+
+        **host**
+            Target IP or MAC address for SSH access
+        **username**
+            For SSH access
+        **keyfile**
+            Path to SSH key (alternative to password)
+        **password**
+            SSH password (alternative to keyfile)
+        **device**
+            Target Android device ID if using ADB
+        **port**
+            Port for Android connection default port is 5555
+        **ANDROID_HOME**
+            Path to Android SDK. Defaults to ``$ANDROID_HOME`` from the
+            environment.
+        **rtapp-calib**
+            Calibration values for RT-App. If unspecified, LISA will
+            calibrate RT-App on the target. A message will be logged with
+            a value that can be copied here to avoid having to re-run
+            calibration on subsequent tests.
+        **tftp**
+            Directory path containing kernels and DTB images for the
+            target. LISA does *not* manage this TFTP server, it must be
+            provided externally. Optional.
+
+    :param test_conf: Configuration of software for target experiments. Takes
+                      the same form as target_conf. Fields are:
+
+        **modules**
+            Devlib modules to be enabled. Default is []
+        **exclude_modules**
+            Devlib modules to be disabled. Default is [].
+        **tools**
+            List of tools (available under ./tools/$ARCH/) to install on
+            the target. Names, not paths (e.g. ['ftrace']). Default is [].
+        **ping_time**, **reboot_time**
+            Override parameters to :meth:`reboot` method
+        **__features__**
+            List of test environment features to enable. Options are:
+
+            "no-kernel"
+                do not deploy kernel/dtb images
+            "no-reboot"
+                do not force reboot the target at each configuration change
+            "debug"
+                enable debugging messages
+
+        **ftrace**
+            Configuration for ftrace. Dictionary with keys:
+
+            events
+                events to enable.
+            functions
+                functions to enable in the function tracer. Optional.
+            buffsize
+                Size of buffer. Default is 10240.
+
+        **results_dir**
+            location of results of the experiments
+
+    :param wipe: set true to cleanup all previous content from the output
+                 folder
+    :type wipe: bool
+
+    :param force_new: Create a new TestEnv object even if there is one available
+                      for this session.  By default, TestEnv only creates one
+                      object per session, use this to override this behaviour.
+    :type force_new: bool
+    """
 
     _initialized = False
 
     def __init__(self, target_conf=None, test_conf=None, wipe=True,
                  force_new=False):
-        """
-        Initialize the LISA test environment.
-
-        The test environment is defined by:
-        - a target configuration (target_conf) defining which HW platform we
-        want to use to run the experiments
-        - a test configuration (test_conf) defining which SW setups we need on
-        that HW target
-        - a folder to collect the experiments results, which can be specified
-        using the test_conf::results_dir option and is by default wiped from
-        all the previous contents (if wipe=True)
-
-        :param target_conf: the HW target we want to use
-        :type target_conf: dict
-
-        :param test_conf: the SW setup of the HW target in use
-        :type test_conf: dict
-
-        :param wipe: set true to cleanup all previous content from the output
-        folder
-        :type wipe: bool
-
-        :param force_new: Create a new TestEnv object even if there is
-        one available for this session.  By default, TestEnv only
-        creates one object per session, use this to override this
-        behaviour.
-        :type force_new: bool
-        """
         super(TestEnv, self).__init__()
 
         if self._initialized and not force_new:
@@ -218,12 +284,8 @@ class TestEnv(ShareState):
         """
         Load the target configuration from the specified file.
 
-        The configuration file path must be relative to the test suite
-        installation root folder.
-
-        :param filepath: A string representing the path of the target
-        configuration file. This path must be relative to the root folder of
-        the test suite.
+        :param filepath: Path of the target configuration file. Relative to the
+                         root folder of the test suite.
         :type filepath: str
 
         """
@@ -471,7 +533,8 @@ class TestEnv(ShareState):
 
     def install_tools(self, tools):
         """
-        Install tools additional to those specified in the test config
+        Install tools additional to those specified in the test config 'tools'
+        field
 
         :param tools: The list of names of tools to install
         :type tools: list(str)
@@ -691,6 +754,15 @@ class TestEnv(ShareState):
         return self._calib
 
     def resolv_host(self, host=None):
+        """
+        Resolve a host name or IP address to a MAC address
+
+        .. TODO Is my networking terminology correct here?
+
+        :param host: IP address or host name to resolve. If None, use 'host'
+                    value from target_config.
+        :type host: str
+        """
         if host is None:
             host = self.conf['host']
 
@@ -758,6 +830,14 @@ class TestEnv(ShareState):
         return (macaddr, ipaddr)
 
     def reboot(self, reboot_time=120, ping_time=15):
+        """
+        Reboot target.
+
+        :param boot_time: Time to wait for the target to become available after
+                          reboot before declaring failure.
+        :param ping_time: Period between attempts to ping the target while
+                          waiting for reboot.
+        """
         # Send remote target a reboot command
         if self._feature('no-reboot'):
             self._log.warning('Reboot disabled by conf features')
@@ -811,6 +891,16 @@ class TestEnv(ShareState):
         self._init_energy(force)
 
     def install_kernel(self, tc, reboot=False):
+        """
+        Deploy kernel and DTB via TFTP, optionally rebooting
+
+        :param tc: Dicionary containing optional keys 'kernel' and 'dtb'. Values
+                   are paths to the binaries to deploy.
+        :type tc: dict
+
+        :param reboot: Reboot thet target after deployment
+        :type reboot: bool
+        """
 
         # Default initialize the kernel/dtb settings
         tc.setdefault('kernel', None)
@@ -859,6 +949,9 @@ class TestEnv(ShareState):
 
 
     def tftp_deploy(self, src):
+        """
+        .. TODO
+        """
 
         tftp = self.conf['tftp']
 
