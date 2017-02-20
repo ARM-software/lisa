@@ -1209,11 +1209,15 @@ class KernelVersion(object):
         self.rc = None
         match = KVERSION_REGEX.match(version_string)
         if match:
-            self.version_number = match.group('version')
-            self.major = match.group('major')
-            self.minor = match.group('minor')
-            self.sha1 = match.group('sha1')
-            self.rc = match.group('rc')
+            groups = match.groupdict()
+            self.version_number = int(groups['version'])
+            self.major = int(groups['major'])
+            if groups['minor'] is not None:
+                self.minor = int(groups['minor'])
+            if groups['rc'] is not None:
+                self.rc = int(groups['rc'])
+            if groups['sha1'] is not None:
+                self.sha1 = match.group('sha1')
 
     def __str__(self):
         return '{} {}'.format(self.release, self.version)
