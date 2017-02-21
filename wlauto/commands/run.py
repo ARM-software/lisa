@@ -90,6 +90,7 @@ class RunCommand(Command):
         parser = AgendaParser()
         if os.path.isfile(args.agenda):
             parser.load_from_path(config, args.agenda)
+            shutil.copy(args.agenda, output.raw_config_dir)
         else:
             try:
                 pluginloader.get_plugin_class(args.agenda, kind='workload')

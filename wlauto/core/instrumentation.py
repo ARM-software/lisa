@@ -380,9 +380,9 @@ class Instrument(Plugin):
     """
     kind = "instrument"
 
-    def __init__(self, device, **kwargs):
+    def __init__(self, target, **kwargs):
         super(Instrument, self).__init__(**kwargs)
-        self.device = device
+        self.target = target
         self.is_enabled = True
         self.is_broken = False
 

@@ -95,6 +95,8 @@ class AgendaParser(object):
             self._process_global_workloads(state, global_workloads, wkl_ids)
             self._process_sections(state, sections, sect_ids, wkl_ids)
 
+            state.agenda = source
+
         except (ConfigError, SerializerSyntaxError) as e:
             raise ConfigError('Error in "{}":\n\t{}'.format(source, str(e)))
 
@@ -156,7 +158,7 @@ class AgendaParser(object):
                                                    state.jobs_config)
                 workloads.append(workload)
 
-            section = _construct_valid_entry(section, seen_section_ids, 
+            section = _construct_valid_entry(section, seen_sect_ids, 
                                              "s", state.jobs_config)
             state.jobs_config.add_section(section, workloads)
 

@@ -48,7 +48,7 @@ class ResourceResolver(object):
 
         """
 
-        for rescls in self.config.ext_loader.list_resource_getters():
+        for rescls in pluginloader.list_resource_getters():
             getter = self.config.get_plugin(name=rescls.name, kind="resource_getter", resolver=self)
             getter.register()
 

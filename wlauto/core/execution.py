@@ -73,6 +73,19 @@ REBOOT_DELAY = 3
 
 
 class ExecutionContext(object):
+
+
+    def __init__(self, cm, tm, output):
+        self.logger = logging.getLogger('ExecContext')
+        self.cm = cm
+        self.tm = tm
+        self.output = output
+        self.logger.debug('Loading resource discoverers')
+        self.resolver = ResourceResolver(cm)
+        self.resolver.load()
+
+
+class OldExecutionContext(object):
     """
     Provides a context for instrumentation. Keeps track of things like
     current workload and iteration.
@@ -214,8 +227,8 @@ def _check_artifact_path(path, rootpath):
     return full_path
 
 
-
 class FakeTargetManager(object):
+    # TODO: this is a FAKE
 
     def __init__(self, name, config):
         self.device_name = name
@@ -286,9 +299,17 @@ class Executor(object):
         target_manager = init_target_manager(config.run_config)
         output.write_target_info(target_manager.get_target_info())
 
-        self.logger.info('Generationg jobs')
-        job_specs = config_manager.jobs_config.generate_job_specs(target_manager)
-        output.write_job_specs(job_specs)
+        self.logger.info('Initializing execution conetext')
+        context = ExecutionContext(config_manager, target_manager, output)
+
+        self.logger.info('Generating jobs')
+        config_manager.generate_jobs(context)
+        output.write_job_specs(config_manager.job_specs)
+
+        self.logger.info('Installing instrumentation')
+        for instrument in config_manager.get_instruments(target_manager.target):
+            instrumentation.install(instrument)
+        instrumentation.validate()
 
     def old_exec(self, agenda, selectors={}):
         self.config.set_agenda(agenda, selectors)
@@ -396,6 +417,12 @@ class Executor(object):
         signal.disconnect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
 
+class Runner(object):
+    """
+    
+    """
+
+
 class RunnerJob(object):
     """
     Represents a single execution of a ``RunnerJobDescription``. There will be one created for each iteration
@@ -410,7 +437,7 @@ class RunnerJob(object):
         self.result = IterationResult(self.spec)
 
 
-class Runner(object):
+class OldRunner(object):
     """
     This class is responsible for actually performing a workload automation
     run. The main responsibility of this class is to emit appropriate signals

@@ -207,8 +207,8 @@ class ExecutionTimeInstrument(Instrument):
 
     priority = 15
 
-    def __init__(self, device, **kwargs):
-        super(ExecutionTimeInstrument, self).__init__(device, **kwargs)
+    def __init__(self, target, **kwargs):
+        super(ExecutionTimeInstrument, self).__init__(target, **kwargs)
         self.start_time = None
         self.end_time = None
 

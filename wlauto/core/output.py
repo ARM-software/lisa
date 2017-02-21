@@ -93,6 +93,10 @@ class RunOutput(object):
     def jobsfile(self):
         return os.path.join(self.metadir, 'jobs.json')
 
+    @property
+    def raw_config_dir(self):
+        return os.path.join(self.metadir, 'raw_config')
+
     def __init__(self, path):
         self.basepath = path
         self.info = None

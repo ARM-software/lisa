@@ -557,6 +557,8 @@ class PluginLoader(object):
     def update(self, packages=None, paths=None, ignore_paths=None):
         """ Load plugins from the specified paths/packages
         without clearing or reloading existing plugin. """
+        msg = 'Updating from: packages={} paths={}'
+        self.logger.debug(msg.format(packages, paths))
         if packages:
             self.packages.extend(packages)
             self._discover_from_packages(packages)
@@ -572,6 +574,7 @@ class PluginLoader(object):
 
     def reload(self):
         """ Clear all discovered items and re-run the discovery. """
+        self.logger.debug('Reloading')
         self.clear()
         self._discover_from_packages(self.packages)
         self._discover_from_paths(self.paths, self.ignore_paths)
@@ -591,7 +594,8 @@ class PluginLoader(object):
             raise ValueError('Unknown plugin type: {}'.format(kind))
         store = self.kind_map[kind]
         if name not in store:
-            raise NotFoundError('plugins {} is not {} {}.'.format(name, get_article(kind), kind))
+            msg = 'plugins {} is not {} {}.'
+            raise NotFoundError(msg.format(name, get_article(kind), kind))
         return store[name]
 
     def get_plugin(self, name=None, kind=None, *args, **kwargs):

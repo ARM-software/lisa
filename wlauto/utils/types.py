@@ -404,6 +404,7 @@ class toggle_set(set):
     def to_pod(self):
         return list(self.values())
 
+
 class ID(str):
 
     def merge_with(self, other):

@@ -123,6 +123,11 @@ class PluginCache(object):
 
         return config
 
+    def get_plugin(self, name, kind=None, *args, **kwargs):
+        config = self.get_plugin_config(name)
+        kwargs = dict(config.items() + kwargs.items())
+        return self.loader.get_plugin(name, kind=kind, *args, **kwargs)
+
     @memoized
     def get_plugin_parameters(self, name):
         params = self.loader.get_plugin_class(name).parameters

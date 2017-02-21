@@ -541,10 +541,9 @@ class Configuration(object):
 
     def to_pod(self):
         pod = {}
-        for cfg_point in self.configuration.itervalues():
+        for cfg_point in self.config_points:
             value = getattr(self, cfg_point.name, None)
-            if value is not None:
-                pod[cfg_point.name] = _to_pod(cfg_point, value)
+            pod[cfg_point.name] = _to_pod(cfg_point, value)
         return pod
 
 
@@ -848,6 +847,16 @@ class JobSpec(Configuration):
         instance['id'] = job_id
         return instance
 
+    @property
+    def section_id(self):
+        if self.id is not None:
+            self.id.rsplit('-', 1)[0]
+
+    @property
+    def workload_id(self):
+        if self.id is not None:
+            self.id.rsplit('-', 1)[-1]
+
     def __init__(self):
         super(JobSpec, self).__init__()
         self.to_merge = defaultdict(OrderedDict)
@@ -999,7 +1008,6 @@ class JobGenerator(object):
                 self.update_enabled_instruments(job_spec.instrumentation.values())
                 specs.append(job_spec)
         return specs
-
 
 
 def create_job_spec(workload_entry, sections, target_manager, plugin_cache,
