@@ -18,6 +18,7 @@ from wa.utils.serializer import json
 
 
 from devlib import LocalLinuxTarget, LinuxTarget, AndroidTarget
+from devlib.utils.types import identifier
 # from wa.target.manager import AndroidTargetManager, LinuxTargetManager
 # from wa.framework.plugin import Plugin, Parameter
 
@@ -64,9 +65,9 @@ class TargetManager(object):
         # Determine platform and target based on passed name
         self._parse_name()
         # Create target
-        self._getTarget()
+        self._get_target()
         # Create an assistant to perform target specific configuration
-        self._getAssistant()
+        self._get_assistant()
 
         ### HERE FOR TESTING, WILL BE CALLED EXTERNALLY ###
         # Connect to device and retrieve details.
@@ -118,9 +119,8 @@ class TargetManager(object):
 
     def _parse_name(self):
         # Try and get platform and target
-        if '-' in self.name:
-            self.platform_name, self.target_name = self.name.split('-', 1)
-        elif '_' in self.name:
+        self.name = identifier(self.name.replace('-', '_'))
+        if '_' in self.name:
             self.platform_name, self.target_name = self.name.split('_', 1)
         elif self.name in self.DEVICE_MAPPING:
             self.platform_name = self.DEVICE_MAPPING[self.name]['platform_name']
