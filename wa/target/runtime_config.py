@@ -46,11 +46,9 @@ class RuntimeConfig(Plugin):
 
 
 class HotplugRuntimeConfig(RuntimeConfig):
-##### NOTE: Currently if initialized with cores hotplugged, this will fail trying to hotplug back in
+##### NOTE: Currently if initialized with cores hotplugged, this will fail when trying to hotplug back in
     @property
     def supported_parameters(self):
-        # params = ['cores'.format(c) for c in self.target.core_names]
-        # params = ['{}_cores'.format(c) for c in self.target.core_names]
         params = ['cores']
         return params
 
@@ -136,12 +134,6 @@ class CpufreqRuntimeConfig(RuntimeConfig):
 
     @property
     def supported_parameters(self):
-        # params = ['{}_frequency'.format(c) for c in self.core_names]
-        # params.extend(['{}_max_frequency'.format(c) for c in self.core_names])
-        # params.extend(['{}_min_frequency'.format(c) for c in self.core_names])
-        # params.extend(['{}_governor'.format(c) for c in self.core_names])
-        # params.extend(['{}_governor_tunables'.format(c) for c in self.core_names])
-
         params = ['frequency']
         params.extend(['max_frequency'])
         params.extend(['min_frequency'])
@@ -258,10 +250,6 @@ class CpufreqRuntimeConfig(RuntimeConfig):
             if governor_tunables and not governor:
                 raise TargetError('{}: {} governor tunables cannot be provided without a governor'.format(cpu, governor))
 
-            # Should check if governor is set to userspace if frequencies are being set?
-            # Save a list of available frequencies on the device and check to see if matches?
-
-
     def configure_frequency(self, cpu, freq=None, min_freq=None, max_freq=None):
         if cpu not in self.target.list_online_cpus():
             message = 'Cannot configure frequencies for {} as no CPUs are online.'
@@ -276,12 +264,12 @@ class CpufreqRuntimeConfig(RuntimeConfig):
             # If 'userspace' governor is not available 'spoof' functionality
             if not self.supports_userspace:
                 min_freq = max_freq = freq
-            else: ##############################-- Probably shouldn't do this.
+            # else:  # Find better alternative for this.  
                 # Set min/max frequency if required
-                if not min_freq:
-                    min_freq = self.target.cpufreq.get_min_frequency(cpu)
-                if not max_freq:
-                    max_freq = self.target.cpufreq.get_max_frequency(cpu)
+                # if not min_freq:
+                #     min_freq = self.target.cpufreq.get_min_frequency(cpu)
+                # if not max_freq:
+                #     max_freq = self.target.cpufreq.get_max_frequency(cpu)
 
             if freq < current_freq:
                 self.target.cpufreq.set_min_frequency(cpu, min_freq)
@@ -313,38 +301,6 @@ class CpufreqRuntimeConfig(RuntimeConfig):
                 raise TargetError(message.format(cpu, max_freq, current_min_freq))
             self.target.cpufreq.set_min_frequency(cpu, min_freq)
 
-
-
-        # if freq:
-        #     if not min_freq:
-        #         min_freq = self.target.cpufreq.get_min_frequency(cpu)
-        #         min_freq = freq
-        #     if not max_freq:
-        #         max_freq = self.target.cpufreq.get_max_frequency(cpu)
-        #         max_freq = freq
-        #     self.target.cpufreq.set_min_frequency(cpu, min_freq)
-        #     self.target.cpufreq.set_frequency(cpu, freq)
-        #     self.target.cpufreq.set_max_frequency(cpu, max_freq)
-    #     #     return
-    #     min_freq_set = False
-    #     if max_freq:
-    #         current_min_freq = self.target.cpufreq.get_min_frequency(cpu)
-    #         if max_freq < current_min_freq:
-    #             if min_freq:
-    #                 self.target.cpufreq.set_min_frequency(cpu, min_freq)
-    #                 self.target.cpufreq.set_max_frequency(cpu, max_freq)
-    #                 min_freq_set = True
-    #             else:
-    #                 message = '{}: Cannot set max_frequency ({}) below current min frequency ({}).'
-    #                 raise TargetError(message.format(core, max_freq, current_min_freq))
-    #         else:
-    #             self.target.cpufreq.set_max_frequency(cpu, max_freq)
-    #     if min_freq and not min_freq_set:
-    #         current_max_freq = max_freq or self.target.cpufreq.get_max_frequency(cpu)
-    #         if min_freq > current_max_freq:
-    #             message = '{}: Cannot set min_frequency ({}) below current max frequency ({}).'
-    #             raise TargetError(message.format(core, max_freq, current_min_freq))
-    #         self.target.cpufreq.set_min_frequency(cpu, min_freq)
 
     def configure_governor(self, cpu, governor, governor_tunables=None):
         if cpu not in self.target.list_online_cpus():
@@ -383,10 +339,6 @@ class CpuidleRuntimeConfig(RuntimeConfig):
 
         prefix, _ = split_parameter_name(name, self.supported_parameters)
         cpus = uniqueDomainCpusFromPrefix(prefix, self.target)
-        # core, _ = name.split('_', 1)
-        # if core not in self.core_names:
-        #     message = 'Unexpected core name "{}"; must be in {}'
-        #     raise ConfigError(message.format(core, self.core_names))
 
         for cpu in cpus:
             if values in self.aliases:
@@ -432,29 +384,9 @@ class CpuidleRuntimeConfig(RuntimeConfig):
         else:
             self.target.cpuidle.enable(state, cpu)
 
-
-# def cpusFromPrefix(name, target, params):
-#     prefix = ''
-#     print prefix
-#     for param in params:
-#         if len(name.split(param)) > 1:
-#             print name
-#             print param
-#             print name.split(param)
-#             prefix, _ = name.split(param)
-#             prefix = prefix.replace('_', '')
-#             break
-
-
-
-
-
-
-
-
 # TO BE MOVED TO UTILS FILE
 
-
+import re
 # Function to return the cpu prefix without the trailing underscore if
 # present from a given list of parameters, and its matching parameter
 def split_parameter_name(name, params):
@@ -465,8 +397,7 @@ def split_parameter_name(name, params):
     message = 'Cannot split {}, must in the form [core_]parameter'
     raise ConfigError(message.format(name))
 
-import re
-def cpusFromPrefix(prefix, target):   ##### DECIDE WHETHER TO INCLUDE OFFLINE CPUS?   ####
+def cpusFromPrefix(prefix, target):
 
     # Deal with big little substitution
     if prefix.lower() == 'big':
