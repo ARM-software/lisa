@@ -1,0 +1,98 @@
+           CPU0       CPU1       CPU2       CPU3       CPU4       CPU5       CPU6       CPU7       
+ 65:          0          0          0          0          0          0          0          0       GIC  dma-pl330.2
+ 66:          0          0          0          0          0          0          0          0       GIC  dma-pl330.0
+ 67:          0          0          0          0          0          0          0          0       GIC  dma-pl330.1
+ 74:          0          0          0          0          0          0          0          0       GIC  s3c2410-wdt
+ 85:          2          0          0          0          0          0          0          0       GIC  exynos4210-uart
+ 89:        368          0          0          0          0          0          0          0       GIC  s3c2440-i2c.1
+ 90:          0          0          0          0          0          0          0          0       GIC  s3c2440-i2c.2
+ 92:       1294          0          0          0          0          0          0          0       GIC  exynos5-hs-i2c.0
+ 95:        831          0          0          0          0          0          0          0       GIC  exynos5-hs-i2c.3
+103:          1          0          0          0          0          0          0          0       GIC  ehci_hcd:usb1, ohci_hcd:usb2
+104:       7304          0          0          0          0          0          0          0       GIC  xhci_hcd:usb3, exynos-ss-udc.0
+105:          0          0          0          0          0          0          0          0       GIC  xhci_hcd:usb5
+106:          0          0          0          0          0          0          0          0       GIC  mali.0
+107:      16429          0          0          0          0          0          0          0       GIC  dw-mci
+108:          1          0          0          0          0          0          0          0       GIC  dw-mci
+109:          0          0          0          0          0          0          0          0       GIC  dw-mci
+114:      28074          0          0          0          0          0          0          0       GIC  mipi-dsi
+117:          0          0          0          0          0          0          0          0       GIC  exynos-gsc
+118:          0          0          0          0          0          0          0          0       GIC  exynos-gsc
+121:          0          0          0          0          0          0          0          0       GIC  exynos5-jpeg-hx
+123:          7          0          0          0          0          0          0          0       GIC  s5p-fimg2d
+126:          0          0          0          0          0          0          0          0       GIC  s5p-mixer
+127:          0          0          0          0          0          0          0          0       GIC  hdmi-int
+128:          0          0          0          0          0          0          0          0       GIC  s5p-mfc-v6
+142:          0          0          0          0          0          0          0          0       GIC  dma-pl330.3
+146:          0          0          0          0          0          0          0          0       GIC  s5p-tvout-cec
+149:       1035          0          0          0          0          0          0          0       GIC  mali.0
+152:      26439          0          0          0          0          0          0          0       GIC  mct_tick0
+153:          0       2891          0          0          0          0          0          0       GIC  mct_tick1
+154:          0          0       3969          0          0          0          0          0       GIC  mct_tick2
+155:          0          0          0       2385          0          0          0          0       GIC  mct_tick3
+160:          0          0          0          0       8038          0          0          0       GIC  mct_tick4
+161:          0          0          0          0          0       8474          0          0       GIC  mct_tick5
+162:          0          0          0          0          0          0       7842          0       GIC  mct_tick6
+163:          0          0          0          0          0          0          0       7827       GIC  mct_tick7
+200:          0          0          0          0          0          0          0          0       GIC  exynos5-jpeg-hx
+201:          0          0          0          0          0          0          0          0       GIC  exynos-sysmmu.29
+218:          0          0          0          0          0          0          0          0       GIC  exynos-sysmmu.25
+220:          0          0          0          0          0          0          0          0       GIC  exynos-sysmmu.27
+224:          0          0          0          0          0          0          0          0       GIC  exynos-sysmmu.19
+251:        320          0          0          0          0          0          0          0       GIC  mali.0
+252:          0          0          0          0          0          0          0          0       GIC  exynos5-scaler
+253:          0          0          0          0          0          0          0          0       GIC  exynos5-scaler
+254:          0          0          0          0          0          0          0          0       GIC  exynos5-scaler
+272:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.5
+274:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.6
+280:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.11
+282:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.30
+284:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.12
+286:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.17
+288:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.4
+290:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.20
+294:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.9
+296:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.9
+298:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.9
+300:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.9
+302:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.16
+306:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.0
+316:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.2
+325:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.0
+332:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.16
+340:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.16
+342:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.9
+344:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.16
+405:        327          0          0          0          0          0          0          0  combiner  s3c_fb
+409:          0          0          0          0          0          0          0          0  combiner  mcuctl
+414:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.28
+434:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.22
+436:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.23
+438:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.26
+443:         12          0          0          0          0          0          0          0  combiner  mct_comp_irq
+446:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.21
+449:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.13
+453:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.15
+474:          0          0          0          0          0          0          0          0  combiner  exynos-sysmmu.24
+512:          0          0          0          0          0          0          0          0  exynos-eint  gpio-keys: KEY_POWER
+518:          0          0          0          0          0          0          0          0  exynos-eint  drd_switch_vbus
+524:          0          0          0          0          0          0          0          0  exynos-eint  gpio-keys: KEY_HOMEPAGE
+526:          1          0          0          0          0          0          0          0  exynos-eint  HOST_DETECT
+527:          1          0          0          0          0          0          0          0  exynos-eint  drd_switch_id
+531:          1          0          0          0          0          0          0          0  exynos-eint  drd_switch_vbus
+532:          1          0          0          0          0          0          0          0  exynos-eint  drd_switch_id
+537:          3          0          0          0          0          0          0          0  exynos-eint  mxt540e_ts
+538:          0          0          0          0          0          0          0          0  exynos-eint  sec-pmic-irq
+543:          1          0          0          0          0          0          0          0  exynos-eint  hdmi-ext
+544:          0          0          0          0          0          0          0          0  s5p_gpioint  gpio-keys: KEY_VOLUMEDOWN
+545:          0          0          0          0          0          0          0          0  s5p_gpioint  gpio-keys: KEY_VOLUMEUP
+546:          0          0          0          0          0          0          0          0  s5p_gpioint  gpio-keys: KEY_MENU
+547:          0          0          0          0          0          0          0          0  s5p_gpioint  gpio-keys: KEY_BACK
+655:          0          0          0          0          0          0          0          0  sec-pmic  rtc-alarm0
+IPI0:          0          0          0          0          0          0          0          0  Timer broadcast interrupts
+IPI1:       8823       7185       4642       5652       2370       2069       1452       1351  Rescheduling interrupts
+IPI2:          4          7          8          6          8          7          8          8  Function call interrupts
+IPI3:          1          0          0          0          0          0          0          0  Single function call interrupts
+IPI4:          0          0          0          0          0          0          0          0  CPU stop interrupts
+IPI5:          0          0          0          0          0          0          0          0  CPU backtrace
+Err:          0
