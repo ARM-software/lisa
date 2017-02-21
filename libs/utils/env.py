@@ -31,6 +31,7 @@ from wlgen import RTA
 from energy import EnergyMeter
 from conf import JsonConf
 
+from devlib import TargetError
 from devlib.utils.misc import memoized
 from trappy.stats.Topology import Topology
 
@@ -644,8 +645,13 @@ class TestEnv(ShareState):
             # Try loading frequencies using the cpufreq module
             for cluster_id in self.platform['clusters']:
                 core_id = self.platform['clusters'][cluster_id][0]
-                self.platform['freqs'][cluster_id] = \
-                    self.target.cpufreq.list_frequencies(core_id)
+                try:
+                    self.platform['freqs'][cluster_id] = \
+                        self.target.cpufreq.list_frequencies(core_id)
+                except TargetError:
+                    # Intel plataforms do not expose the list of OPPs,
+                    # thus let's just keep this list empty initialized.
+                    self.platform['freqs'][cluster_id] = []
         else:
             self._log.warning('Unable to identify cluster frequencies')
 
