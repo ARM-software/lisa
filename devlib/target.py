@@ -27,7 +27,7 @@ ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'mUnrestrictedScreen=\(\d+,\d+\)'
 DEFAULT_SHELL_PROMPT = re.compile(r'^.*(shell|root)@.*:/\S* [#$] ',
                                   re.MULTILINE)
 KVERSION_REGEX =re.compile(
-    r'(?P<version>\d+)(\.(?P<major>\d+)(\.(?P<minor>\d+)(-(rc)?(?P<rc>\d+))?)?)?(.*-g(?P<sha1>[0-9a-fA-F]{7,}))?'
+    r'(?P<version>\d+)(\.(?P<major>\d+)(\.(?P<minor>\d+)(-rc(?P<rc>\d+))?)?)?(.*-g(?P<sha1>[0-9a-fA-F]{7,}))?'
 )
 
 
@@ -1189,7 +1189,33 @@ class Cpuinfo(object):
 
 
 class KernelVersion(object):
+    """
+    Class representing the version of a target kernel
 
+    Not expected to work for very old (pre-3.0) kernel version numbers.
+
+    :ivar release: Version number/revision string. Typical output of
+                   ``uname -r``
+    :type release: str
+    :ivar version: Extra version info (aside from ``release``) reported by
+                   ``uname``
+    :type version: str
+    :ivar version_number: Main version number (e.g. 3 for Linux 3.18)
+    :type version_number: int
+    :ivar major: Major version number (e.g. 18 for Linux 3.18)
+    :type major: int
+    :ivar minor: Minor version number for stable kernels (e.g. 9 for 4.9.9). May
+                 be None
+    :type minor: int
+    :ivar rc: Release candidate number (e.g. 3 for Linux 4.9-rc3). May be None.
+    :type rc: int
+    :ivar sha1: Kernel git revision hash, if available (otherwise None)
+    :type sha1: str
+
+    :ivar parts: Tuple of version number components. Can be used for
+                 lexicographically comparing kernel versions.
+    :type parts: tuple(int)
+    """
     def __init__(self, version_string):
         if ' #' in version_string:
             release, version = version_string.split(' #')
@@ -1209,11 +1235,17 @@ class KernelVersion(object):
         self.rc = None
         match = KVERSION_REGEX.match(version_string)
         if match:
-            self.version_number = match.group('version')
-            self.major = match.group('major')
-            self.minor = match.group('minor')
-            self.sha1 = match.group('sha1')
-            self.rc = match.group('rc')
+            groups = match.groupdict()
+            self.version_number = int(groups['version'])
+            self.major = int(groups['major'])
+            if groups['minor'] is not None:
+                self.minor = int(groups['minor'])
+            if groups['rc'] is not None:
+                self.rc = int(groups['rc'])
+            if groups['sha1'] is not None:
+                self.sha1 = match.group('sha1')
+
+        self.parts = (self.version_number, self.major, self.minor)
 
     def __str__(self):
         return '{} {}'.format(self.release, self.version)
