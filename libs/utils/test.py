@@ -192,16 +192,18 @@ class LisaTest(unittest.TestCase):
 
         return end_times
 
-    # To instantiate unittest.TestCase you need to provide a test method name,
-    # the default being 'runTest'. If this method doesn't exist then an error is
-    # raised. This method isn't needed when running via nosetests, which detects
-    # test methods via its own mechanism. However it can be useful to
-    # instantiate test objects directly by hand in notebooks, even if you have
-    # no intention of using the test assertions. So define an empty default
-    # runTest method.
-    def runTest(self, *args, **kwargs):
+    def _dummy_method(self):
         pass
 
+    # In the Python unittest framework you instantiate TestCase objects passing
+    # the name of a test method that is going to be run to make assertions. We
+    # run our tests using nosetests, which automatically discovers these
+    # methods. However we also want to be able to instantiate LisaTest objects
+    # in notebooks without the inconvenience of having to provide a methodName,
+    # since we won't need any assertions. So we'll override __init__ with a
+    # default dummy test method that does nothing.
+    def __init__(self, methodName='_dummy_method', *args, **kwargs):
+        super(LisaTest, self).__init__(methodName, *args, **kwargs)
 
 @wrapt.decorator
 def experiment_test(wrapped_test, instance, args, kwargs):
