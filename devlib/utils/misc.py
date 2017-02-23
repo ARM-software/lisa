@@ -186,6 +186,7 @@ def walk_modules(path):
         except Exception as e:
             he = HostError('Could not load {}: {}'.format(path, str(e)))
             he.module = path
+            he.exc_info = sys.exc_info()
             he.orig_exc = e
             raise he
 
