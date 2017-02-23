@@ -31,7 +31,7 @@ class CpusAnalysis(AnalysisModule):
     Support for CPUs Signals Analysis
 
     :param trace: input Trace object
-    :type trace: :mod:`libs.utils.Trace`
+    :type trace: :class:`Trace`
     """
 
     def __init__(self, trace):
