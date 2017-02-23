@@ -19,7 +19,12 @@ sudo: required
 language: python
 install:
   # Use IPython 5.x because 6.0+ only supports Python 3.3
-  - pip install --upgrade "ipython<6.0.0" Cython trappy bart-py devlib psutil wrapt jupyter matplotlib
+  - pip install --upgrade "ipython<6.0.0" Cython trappy bart-py devlib psutil
+    wrapt jupyter matplotlib sphinx
 script:
   - cd $TRAVIS_BUILD_DIR
-  - source init_env && lisa-test tests/lisa/
+  - source init_env
+  - lisa-test tests/lisa/
+  # -W is like -Werror.
+  # Ideally we should use -n too, which is like -Wall, but we have too many errors for that.
+  - cd doc/ && sphinx-build -W -b html . _build/html
