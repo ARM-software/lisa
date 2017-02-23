@@ -192,6 +192,9 @@ def walk_modules(path):
 
     root_mod = __try_import(path)
     mods = [root_mod]
+    if not hasattr(root_mod, '__path__'):
+        # root is a module not a package -- nothing to walk
+        return mods
     for _, name, ispkg in pkgutil.iter_modules(root_mod.__path__):
         submod_path = '.'.join([path, name])
         if ispkg:
