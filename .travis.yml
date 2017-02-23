@@ -18,7 +18,7 @@
 sudo: required
 language: python
 install:
-  - pip install --upgrade Cython trappy bart-py devlib psutil wrapt ipython jupyter
+  - pip install --upgrade Cython trappy bart-py devlib psutil wrapt ipython jupyter matplotlib
 script:
   - cd $TRAVIS_BUILD_DIR
   - source init_env && lisa-test tests/lisa/
