@@ -1040,9 +1040,9 @@ class AndroidTarget(Target):
     def adb_reboot_bootloader(self, timeout=30):
         adb_command(self.adb_name, 'reboot-bootloader', timeout)
 
-    def adb_root(self, enable=True):
+    def adb_root(self, enable=True, force=False):
         if enable:
-            if self._connected_as_root:
+            if self._connected_as_root and not force:
                 return
             adb_command(self.adb_name, 'root', timeout=30)
             self._connected_as_root = True
