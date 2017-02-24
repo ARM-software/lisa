@@ -243,6 +243,7 @@ class LatencyAnalysis(AnalysisModule):
         axes.axhline(threshold_ms / 1000., linestyle='--', color='g')
         self._trace.analysis.status.plotOverutilized(axes)
         axes.legend(loc='lower center', ncol=2)
+        axes.set_xlim(self._trace.x_min, self._trace.x_max)
 
         # Cumulative distribution of latencies samples
         axes = plt.subplot(gs[1,0])
@@ -331,6 +332,7 @@ class LatencyAnalysis(AnalysisModule):
             for (start, duration) in bands:
                 end = start + duration
                 axes.axvspan(start, end, facecolor='r', alpha=0.1)
+                axes.set_xlim(self._trace.x_min, self._trace.x_max)
         except: pass
 
         # Draw PREEMPTION latencies
@@ -339,6 +341,7 @@ class LatencyAnalysis(AnalysisModule):
             for (start, duration) in bands:
                 end = start + duration
                 axes.axvspan(start, end, facecolor='b', alpha=0.1)
+                axes.set_xlim(self._trace.x_min, self._trace.x_max)
         except: pass
 
 
