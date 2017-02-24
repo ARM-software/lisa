@@ -28,7 +28,7 @@ from perf_analysis import PerfAnalysis
 
 from report import Report
 
-import android
-
 from analysis_register import AnalysisRegister
 from analysis_module import AnalysisModule
+
+import android

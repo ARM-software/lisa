@@ -19,8 +19,10 @@ import re
 import os
 import logging
 
-from android import Screen, Workload, System
 from time import sleep
+
+from android import Screen, System
+from android.workload import Workload
 
 
 class YouTube(Workload):
@@ -37,10 +39,15 @@ class YouTube(Workload):
         self._log = logging.getLogger('YouTube')
         self._log.debug('Workload created')
 
-    def run(self, exp_dir, video_url, video_duration_s, collect=''):
+        # Set of output data reported by Jankbench
+        self.db_file = None
 
-        # Initialize energy meter results
-        nrg_report = None
+    def run(self, out_dir, collect,
+            video_url, video_duration_s):
+
+        # Keep track of mandatory parameters
+        self.out_dir = out_dir
+        self.collect = collect
 
         # Unlock device screen (assume no password required)
         System.menu(self.target)
@@ -63,21 +70,15 @@ class YouTube(Workload):
         # Allow the activity to start
         sleep(1)
 
-        # Start energy collection
-        if 'energy' in collect and self.te.emeter:
-            self.te.emeter.reset()
-
         # Wait until the end of the video
+        self.tracingStart()
         self._log.info('Play video for %d [s]', video_duration_s)
         sleep(video_duration_s)
-
-        # Stop energy collection
-        if 'energy' in collect and self.te.emeter:
-            nrg_report = self.te.emeter.report(exp_dir)
+        self.tracingStop()
 
         # Get frame stats
-        db_file = os.path.join(exp_dir, "framestats.txt")
-        System.gfxinfo_get(self.target, self.package, db_file)
+        self.db_file = os.path.join(out_dir, "framestats.txt")
+        System.gfxinfo_get(self.target, self.package, self.db_file)
 
         # Close the app without clearing the local data to
         # avoid the dialog to select the account at next start
@@ -88,7 +89,5 @@ class YouTube(Workload):
 
         # Switch back to screen auto rotation
         Screen.set_orientation(self.target, auto=True)
-
-        return db_file, nrg_report
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

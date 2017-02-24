@@ -20,8 +20,10 @@ import os
 import logging
 
 from subprocess import Popen, PIPE
-from android import Screen, System, Workload
 from time import sleep
+
+from android import Screen, System
+from android.workload import Workload
 
 
 class UiBench(Workload):
@@ -55,11 +57,16 @@ class UiBench(Workload):
         self._log = logging.getLogger('UiBench')
         self._log.debug('Workload created')
 
-    def run(self, exp_dir, test_name, duration_s, collect=''):
+        # Set of output data reported by UiBench
+        self.db_file = None
+
+    def run(self, out_dir, collect,
+            test_name, duration_s):
         activity = '.' + test_name + 'Activity'
 
-        # Initialize energy meter results
-        nrg_report = None
+        # Keep track of mandatory parameters
+        self.out_dir = out_dir
+        self.collect = collect
 
         # Press Back button to be sure we run the video from the start
         System.menu(self.target)
@@ -108,8 +115,7 @@ class UiBench(Workload):
             # Benchmark start trigger
             match = UIBENCH_BENCHMARK_START_RE.search(message)
             if match:
-                if 'energy' in collect and self.te.emeter:
-                    self.te.emeter.reset()
+                self.tracingStart()
                 self._log.debug("Benchmark started!")
                 break
 
@@ -117,14 +123,13 @@ class UiBench(Workload):
         self._log.info('Benchmark [%s] started, waiting %d [s]',
                      activity, duration_s)
         sleep(duration_s)
-        self._log.debug("Benchmark done!")
 
-        if 'energy' in collect and self.te.emeter:
-            nrg_report = self.te.emeter.report(exp_dir)
+        self._log.debug("Benchmark done!")
+        self.tracingStop()
 
         # Get frame stats
-        db_file = os.path.join(exp_dir, "framestats.txt")
-        System.gfxinfo_get(self.target, self.package, db_file)
+        self.db_file = os.path.join(out_dir, "framestats.txt")
+        System.gfxinfo_get(self.target, self.package, self.db_file)
 
         # Close and clear application
         System.force_stop(self.target, self.package, clear=True)
@@ -135,7 +140,5 @@ class UiBench(Workload):
         # Switch back to original settings
         Screen.set_orientation(self.target, auto=True)
         System.set_airplane_mode(self.target, on=False)
-
-        return db_file, nrg_report
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

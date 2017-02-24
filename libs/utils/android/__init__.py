@@ -20,3 +20,24 @@
 from screen import Screen
 from system import System
 from workload import Workload
+from benchmark import LisaBenchmark
+
+# Initialization of Android Workloads
+import os
+import sys
+
+from glob import glob
+from importlib import import_module
+
+# Add workloads dir to system path
+workloads_dir = os.path.dirname(os.path.abspath(__file__))
+workloads_dir = os.path.join(workloads_dir, 'workloads')
+sys.path.insert(0, workloads_dir)
+
+for filepath in glob(os.path.join(workloads_dir, '*.py')):
+    filename = os.path.splitext(os.path.basename(filepath))[0]
+    # Ignore __init__ files
+    if filename.startswith('__'):
+        continue
+    # Import workload module
+    import_module(filename)
