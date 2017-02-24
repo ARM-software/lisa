@@ -129,4 +129,11 @@ class Screen(object):
         Screen.set_dim(target)
         Screen.set_timeout(target)
 
+    @staticmethod
+    def get_screen_density(target):
+        """
+        Get screen density of the device.
+        """
+        return target.execute('getprop ro.sf.lcd_density')
+
 # vim :set tabstop=4 shiftwidth=4 expandtab
