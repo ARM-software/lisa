@@ -229,3 +229,67 @@ class FreqInvarianceTest(_LoadTrackingBase):
         this test does the same as test_task_util_avg but for load_avg.
         """
         return self._test_signal(experiment, tasks, 'load_avg')
+
+class CpuInvarianceTest(_LoadTrackingBase):
+    """
+    Goal
+    ====
+    Basic check for CPU invariant load and utilization tracking
+
+    Detailed Description
+    ====================
+    This test runs the same workload on one CPU of each type in the system. The
+    trace is then examined to estimate an expected mean value for util_avg for
+    each CPU's workload. The util_avg value is extracted from scheduler trace
+    events and its mean is compared with the expected value (ignoring the first
+    300ms so that the signal can stabilize). The test fails if the observed mean
+    is beyond a certain error margin from the expected one. load_avg is then
+    similarly compared with the expected util_avg mean, under the assumption
+    that load_avg should equal util_avg when system load is light.
+
+    Expected Behaviour
+    ==================
+    Load tracking signals are scaled so that the workload results in roughly the
+    same util & load values regardless of compute power of the CPU
+    used. Moreover, assuming that the extraneous system load is negligible, the
+    load signal is similar to the utilization signal.
+    """
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        # Run the 10% workload on one CPU in each capacity group
+        wloads = {}
+        for group in test_env.nrg_model.cpu_groups:
+            cpu = group[0]
+            wloads['cie_cpu{}'.format(cpu)] = cls.get_wload(cpu)
+
+        conf = {
+            'tag' : 'cie_conf',
+            'flags' : ['ftrace', 'freeze_userspace'],
+            'cpufreq' : {'governor' : 'performance'},
+        }
+
+        return {
+            'wloads': wloads,
+            'confs': [conf],
+        }
+
+    def _test_signal(self, experiment, tasks, signal_name):
+        [task] = tasks
+        exp_util = self.get_expected_util_avg(experiment)
+        signal_mean = self.get_signal_mean(experiment, signal_name)
+
+        error_margin = exp_util * (ERROR_MARGIN_PCT / 100.)
+        [cpu] = experiment.wload.cpus
+
+        msg = 'Saw {} around {}, expected {} on cpu {}'.format(
+            signal_name, signal_mean, exp_util, cpu)
+        self.assertAlmostEqual(signal_mean, exp_util, delta=error_margin,
+                               msg=msg)
+
+    @experiment_test
+    def test_task_util_avg(self, experiment, tasks):
+        """
+        Test that the mean of the util_avg signal matched the expected value
+        """
+        return self._test_signal(experiment, tasks, 'util_avg')
