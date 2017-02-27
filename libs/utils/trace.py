@@ -820,7 +820,8 @@ class Trace(object):
         :param cpu: CPU ID
         :type cpu: int
 
-        :returns: :mod:`pandas.Series`
+        :returns: A :mod:`pandas.Series` or ``None`` if the trace contains no
+                  "cpu_idle" events
         """
         if not self.hasEvents('cpu_idle'):
             self._log.warning('Events [cpu_idle] not found, '
@@ -859,7 +860,8 @@ class Trace(object):
         :param cluster: list of CPU IDs belonging to a cluster
         :type cluster: list(int)
 
-        :returns: :mod:`pandas.Series`
+        :returns: A :mod:`pandas.Series` or ``None`` if the trace contains no
+                  "cpu_idle" events
         """
         if not self.hasEvents('cpu_idle'):
             self._log.warning('Events [cpu_idle] not found, '
