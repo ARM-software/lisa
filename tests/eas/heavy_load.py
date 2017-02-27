@@ -79,6 +79,10 @@ class HeavyLoadTest(LisaTest):
         active_proportions = []
         for cpu, _ in enumerate(self.target.core_names):
             cpu_active = trace.getCPUActiveSignal(cpu)
+            if cpu_active is None:
+                raise RuntimeError(
+                    "Couldn't get CPU-active signal. "
+                    "Is the 'cpu_idle' ftrace event enabled in the kernel?")
 
             # Add extra events to cpu_active signal so that it matches the
             # window exactly
