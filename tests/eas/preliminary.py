@@ -212,4 +212,42 @@ class TestSchedutilTunables(BasicCheckTest):
             'Responsiveness will be affected.'.format(
                 self.MAX_DOWN_RATE_LIMIT_US, down_limit_fail_cpus))
 
-======= end
+class TestSchedDomainFlags(BasicCheckTest):
+    """Test requirements of sched_domain flags"""
+
+    # See include/linux/sched.h in an EAS kernel
+    SD_SHARE_CAP_STATES = 0x8000
+
+    def setUp(self):
+        if not self.target.file_exists('/proc/sys/kernel/sched_domain/'):
+            raise SkipTest('sched_domain info not exposed in procfs. '
+                           'Enable CONFIG_SCHED_DEBUG in target kernel')
+
+    def iter_cpu_sd_flags(self, cpu):
+        """
+        Get the flags for a given CPU's sched_domains
+
+        :param cpu: Logical CPU number whose sched_domains' flags we want
+        :returns: Iterator over the flags, as an int, of each of that CPU's
+                  domains, highest-level (i.e. typically "DIE") first.
+        """
+        base_path = '/proc/sys/kernel/sched_domain/cpu{}/'.format(cpu)
+        for domain in sorted(self.target.list_directory(base_path), reverse=True):
+            flags_path = self.target.path.join(base_path, domain, 'flags')
+            yield self.target.read_int(flags_path)
+
+    def test_share_cap_states(self):
+        """
+        Check that some domain exists with SD_SHARE_CAP_STATES set
+
+        EAS silently does nothing if this flag is not set at any level (see
+        use of sd_scs percpu variable in scheduler code).
+        """
+        cpu0_flags = []
+        for flags in self.iter_cpu_sd_flags(0):
+            if flags & self.SD_SHARE_CAP_STATES:
+                return
+            cpu0_flags.append(flags)
+        flags_str = ', '.join([hex(f) for f in cpu0_flags])
+        raise AssertionError('No sched_domain with SD_SHARE_CAP_STATES flag. '
+                             'flags: {}'.format(flags_str))
