@@ -27,11 +27,21 @@ from devlib.utils.ssh import AndroidGem5Connection, LinuxGem5Connection
 
 class Gem5SimulationPlatform(Platform):
 
-    def __init__(self, name, host_output_dir, gem5_bin, gem5_args, gem5_virtio,
+    def __init__(self, name,
+                 host_output_dir,
+                 gem5_bin,
+                 gem5_args,
+                 gem5_virtio,
+                 core_names=None,
+                 core_clusters=None,
+                 big_core=None,
+                 model=None,
+                 modules=None,
                  gem5_telnet_port=None):
 
         # First call the parent class
-        super(Gem5SimulationPlatform, self).__init__(name=name)
+        super(Gem5SimulationPlatform, self).__init__(name, core_names, core_cluster,
+                                                     big_core, model, module)
 
         # Start setting up the gem5 parameters/directories
         # The gem5 subprocess
