@@ -102,7 +102,7 @@ class TestKernelConfig(BasicCheckTest):
                      if not kernel_config.is_enabled(c)]
 
         if len(fail_list):
-            message = 'Mising kernel configs: ' + ', '.join(fail_list)
+            message = 'Missing kernel configs: ' + ', '.join(fail_list)
             self.assertTrue(len(fail_list) == 0, msg=message)
 
 class TestWorkThroughput(BasicCheckTest):
