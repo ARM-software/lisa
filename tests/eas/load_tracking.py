@@ -28,31 +28,8 @@ UTIL_AVG_CONVERGENCE_TIME = 0.3
 # Allowed margin between expected and observed util_avg value
 ERROR_MARGIN_PCT = 15
 
-class FreqInvarianceTest(LisaTest):
-    """
-    Goal
-    ====
-    Basic check for frequency invariant load tracking
-
-    Detailed Description
-    ====================
-    This test runs the same workload on the most capable CPU on the system at a
-    cross section of available frequencies. The trace is then examined to find
-    the average activation length of the workload, which is combined with the
-    known period to estimate an expected mean value for util_avg for each
-    frequency. The util_avg value is extracted from scheduler trace events and
-    its mean is compared with the expected value (ignoring the first 300ms so
-    that the signal can stabilize). The test fails if the observed mean is
-    beyond a certain error margin from the expected one. load_avg is then
-    similarly compared with the expected util_avg mean, under the assumption
-    that load_avg should equal util_avg when system load is light.
-
-    Expected Behaviour
-    ==================
-    Load tracking signals are scaled so that the workload results in roughly the
-    same util & load values regardless of frequency.
-    """
-
+class _LoadTrackingBase(LisaTest):
+    """Base class for shared functionality of load tracking tests"""
     test_conf = {
         'tools'    : [ 'rt-app' ],
         'ftrace' : {
@@ -69,17 +46,15 @@ class FreqInvarianceTest(LisaTest):
 
     @classmethod
     def setUpClass(cls, *args, **kwargs):
-        super(FreqInvarianceTest, cls).runExperiments(*args, **kwargs)
+        super(_LoadTrackingBase, cls).runExperiments(*args, **kwargs)
 
     @classmethod
-    def _getExperimentsConf(cls, test_env):
-        # Run on one of the CPUs with highest capacity
-        cpu = test_env.nrg_model.biggest_cpus[0]
-
-        # 10% periodic RTApp workload:
-        wloads = {
-            'fie_10pct' : {
-                'type' : 'rt-app',
+    def get_wload(cls, cpu):
+        """
+        Get a specification for a 10% rt-app workload, pinned to the given CPU
+        """
+        return {
+            'type' : 'rt-app',
                 'conf' : {
                     'class' : 'periodic',
                     'params' : {
@@ -88,54 +63,35 @@ class FreqInvarianceTest(LisaTest):
                         'period_ms': 16,
                     },
                     'tasks' : 1,
-                    'prefix' : 'fie_test',
+                    'prefix' : 'lt_test',
                     'cpus' : [cpu]
                 },
-            },
-        }
-
-        # Create a set of confs with different frequencies
-        # We'll run the 10% workload under each conf (i.e. at each frequency)
-        confs = []
-
-        all_freqs = test_env.target.cpufreq.list_frequencies(cpu)
-        # If we have loads of frequencies just test a cross-section so it
-        # doesn't take all day
-        cls.freqs = all_freqs[::len(all_freqs)/8 + 1]
-        for freq in cls.freqs:
-            confs.append({
-                'tag' : 'freq_{}'.format(freq),
-                'flags' : ['ftrace', 'freeze_userspace'],
-                'cpufreq' : {
-                    'freqs' : {cpu: freq},
-                    'governor' : 'userspace',
-                },
-            })
-
-        return {
-            'wloads': wloads,
-            'confs': confs,
-        }
+            }
 
     def get_expected_util_avg(self, experiment):
         """
         Examine trace to figure out an expected mean for util_avg
 
-        Assumes an RT-App workload with a single task with a single phase,
-        running on a CPU with the highest max capacity in the system
-
-        This takes into account the frequency the workload was run at, but
-        doesn't use the kernel's data for compute capacities at each frequency,
-        instead it assumes that these values scale linearly.
+        Assumes an RT-App workload with a single task with a single phase
         """
+        # Find duty cycle of the experiment's workload task
         [task] = experiment.wload.tasks.keys()
         sched_assert = self.get_sched_assert(experiment, task)
-
-        [freq] = experiment.conf['cpufreq']['freqs'].values()
-        freq_scaling_factor = float(freq) / max(self.freqs)
         duty_cycle_pct = sched_assert.getDutyCycle(self.get_window(experiment))
 
-        return UTIL_SCALE * (duty_cycle_pct / 100.) * freq_scaling_factor
+        # Find the capacity of the CPU the workload was run on
+        [cpu] = experiment.wload.cpus
+        cpufreq = experiment.conf['cpufreq']
+        if cpufreq['governor'] == 'userspace':
+            freq = cpufreq['freqs'][cpu]
+        else:
+            assert cpufreq['governor'] == 'performance'
+            freq = None
+        cpu_capacity = self.te.nrg_model.get_cpu_capacity(cpu, freq)
+
+        scaling_factor = float(cpu_capacity) / self.te.nrg_model.capacity_scale
+
+        return UTIL_SCALE * (duty_cycle_pct / 100.) * scaling_factor
 
     def get_sched_task_signals(self, experiment, signals):
         """
@@ -184,6 +140,63 @@ class FreqInvarianceTest(LisaTest):
         signal = self.get_sched_task_signals(experiment, [signal])[signal]
         signal = select_window(signal, window)
         return area_under_curve(signal) / (window[1] - window[0])
+
+class FreqInvarianceTest(_LoadTrackingBase):
+    """
+    Goal
+    ====
+    Basic check for frequency invariant load tracking
+
+    Detailed Description
+    ====================
+    This test runs the same workload on the most capable CPU on the system at a
+    cross section of available frequencies. The trace is then examined to find
+    the average activation length of the workload, which is combined with the
+    known period to estimate an expected mean value for util_avg for each
+    frequency. The util_avg value is extracted from scheduler trace events and
+    its mean is compared with the expected value (ignoring the first 300ms so
+    that the signal can stabilize). The test fails if the observed mean is
+    beyond a certain error margin from the expected one. load_avg is then
+    similarly compared with the expected util_avg mean, under the assumption
+    that load_avg should equal util_avg when system load is light.
+
+    Expected Behaviour
+    ==================
+    Load tracking signals are scaled so that the workload results in roughly the
+    same util & load values regardless of frequency.
+    """
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        # Run on one of the CPUs with highest capacity
+        cpu = test_env.nrg_model.biggest_cpus[0]
+
+        wloads = {
+            'fie_10pct' : cls.get_wload(cpu)
+        }
+
+        # Create a set of confs with different frequencies
+        # We'll run the 10% workload under each conf (i.e. at each frequency)
+        confs = []
+
+        all_freqs = test_env.target.cpufreq.list_frequencies(cpu)
+        # If we have loads of frequencies just test a cross-section so it
+        # doesn't take all day
+        cls.freqs = all_freqs[::len(all_freqs)/8 + 1]
+        for freq in cls.freqs:
+            confs.append({
+                'tag' : 'freq_{}'.format(freq),
+                'flags' : ['ftrace', 'freeze_userspace'],
+                'cpufreq' : {
+                    'freqs' : {cpu: freq},
+                    'governor' : 'userspace',
+                },
+            })
+
+        return {
+            'wloads': wloads,
+            'confs': confs,
+        }
 
     def _test_signal(self, experiment, tasks, signal_name):
         [task] = tasks
