@@ -68,7 +68,7 @@ class LatencyAnalysis(AnalysisModule):
         sw_df = self._dfg_trace_event('sched_switch')
 
         # Filter Task's WAKEUP events
-        task_wakeup = wk_df[wk_df.pid == td.pid][['success', 'target_cpu', 'pid']]
+        task_wakeup = wk_df[wk_df.pid == td.pid][['target_cpu', 'pid']]
 
         # Filter Task's START events
         task_events = (sw_df.prev_pid == td.pid) | (sw_df.next_pid == td.pid)
@@ -378,7 +378,7 @@ class LatencyAnalysis(AnalysisModule):
             # State already converted to symbol
             return state
 
-        # Tasks STATE flags (Linux 4.8)
+        # Tasks STATE flags (Linux 3.18)
         TASK_STATES = {
               0: "R", # TASK_RUNNING
               1: "S", # TASK_INTERRUPTIBLE
@@ -392,9 +392,15 @@ class LatencyAnalysis(AnalysisModule):
             256: "W", # TASK_WAKING
             512: "P", # TASK_PARKED
            1024: "N", # TASK_NOLOAD
-           2048: "n", # TASK_NEW
         }
-        TASK_MAX_STATE = 4096
+        kver = self._trace.platform['kernel']['parts']
+        if kver is None:
+            kver = (3, 18)
+        self._log.info('Parsing sched_switch states assuming kernel v%d.%d',
+                       kver[0], kver[1])
+        if kver >= (4, 8):
+            TASK_STATES[2048] = "n" # TASK_NEW
+        TASK_MAX_STATE = 2 * max(TASK_STATES)
 
         res = "R"
         if state & (TASK_MAX_STATE - 1) != 0:
