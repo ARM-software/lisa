@@ -40,8 +40,8 @@ class Gem5SimulationPlatform(Platform):
                  gem5_telnet_port=None):
 
         # First call the parent class
-        super(Gem5SimulationPlatform, self).__init__(name, core_names, core_cluster,
-                                                     big_core, model, module)
+        super(Gem5SimulationPlatform, self).__init__(name, core_names, core_clusters,
+                                                     big_core, model, modules)
 
         # Start setting up the gem5 parameters/directories
         # The gem5 subprocess
