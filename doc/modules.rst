@@ -11,7 +11,7 @@ hotplug
 -------
 
 Kernel ``hotplug`` subsystem allows offlining ("removing") cores from the
-system, and onlining them back int. The ``devlib`` module exposes a simple
+system, and onlining them back in. The ``devlib`` module exposes a simple
 interface to this subsystem
 
 .. code:: python
@@ -37,10 +37,10 @@ policies (governors). The ``devlib`` module exposes the following interface
 
 .. note:: On ARM big.LITTLE systems, all cores on a cluster (usually all cores
           of the same type) are in the same frequency domain, so setting
-          ``cpufreq`` state on one core on a cluter will affect all cores on
+          ``cpufreq`` state on one core on a cluster will affect all cores on
           that cluster. Because of this, some devices only expose cpufreq sysfs
           interface (which is what is used by the ``devlib`` module) on the
-          first cpu in a cluster. So to keep your scripts proable, always use
+          first cpu in a cluster. So to keep your scripts portable, always use
           the fist (online) CPU in a cluster to set ``cpufreq`` state.
 
 .. method:: target.cpufreq.list_governors(cpu)
@@ -73,14 +73,14 @@ policies (governors). The ``devlib`` module exposes the following interface
    :param cpu: The cpu; could be a numeric or the corresponding string (e.g.
         ``1`` or ``"cpu1"``).
    :param governor: The name of the governor. This must be one of the governors 
-                supported by the CPU (as retrunted by ``list_governors()``.
+                supported by the CPU (as returned by ``list_governors()``.
 
    Keyword arguments may be used to specify governor tunable values.
 
 
 .. method:: target.cpufreq.get_governor_tunables(cpu)
 
-   Return a dict with the values of the specfied CPU's current governor.
+   Return a dict with the values of the specified CPU's current governor.
 
    :param cpu: The cpu; could be a numeric or the corresponding string (e.g.
        ``1`` or ``"cpu1"``).
@@ -94,7 +94,7 @@ policies (governors). The ``devlib`` module exposes the following interface
 
    Keyword arguments should be used to specify tunable values.
 
-.. method:: target.cpufreq.list_frequencie(cpu)
+.. method:: target.cpufreq.list_frequencies(cpu)
 
    List DVFS frequencies supported by the specified CPU. Returns a list of ints.
 
@@ -106,8 +106,8 @@ policies (governors). The ``devlib`` module exposes the following interface
             target.cpufreq.set_min_frequency(cpu, frequency[, exact=True])
             target.cpufreq.set_max_frequency(cpu, frequency[, exact=True])
 
-   Get and set min and max frequencies on the specfied CPU. "set" functions are
-   avialable with all governors other than ``userspace``.
+   Get and set min and max frequencies on the specified CPU. "set" functions are
+   available with all governors other than ``userspace``.
 
    :param cpu: The cpu; could be a numeric or the corresponding string (e.g.
        ``1`` or ``"cpu1"``).
@@ -128,11 +128,11 @@ cpuidle
 
 ``cpufreq`` is the kernel subsystem for managing CPU low power (idle) states.
 
-.. method:: taget.cpuidle.get_driver()
+.. method:: target.cpuidle.get_driver()
 
    Return the name current cpuidle driver.
 
-.. method:: taget.cpuidle.get_governor()
+.. method:: target.cpuidle.get_governor()
 
    Return the name current cpuidle governor (policy).
 
@@ -211,9 +211,9 @@ Additionally, a module must implement a static (or class) method :func:`probe`:
     This method takes a :class:`Target` instance and returns ``True`` if this
     module is supported by that target, or ``False`` otherwise.
 
-    .. note:: If the moudule ``stage`` is ``"early"``, this method cannot assume
+    .. note:: If the module ``stage`` is ``"early"``, this method cannot assume
               that a connection has been established (i.e. it can only access
-              attrubutes of the Target that do not rely on a connection).
+              attributes of the Target that do not rely on a connection).
 
 Installation and invocation
 ***************************
@@ -273,7 +273,7 @@ HardResetModule
     Must be implemented by derived classes.
     
     Implements hard reset for a target devices. The equivalent of physically
-    power cycling the device.  This may be used by client code in situatians
+    power cycling the device.  This may be used by client code in situations
     where the target becomes unresponsive and/or a regular reboot is not
     possible.
 
@@ -289,7 +289,7 @@ BootModule
 
     Must be implemented by derived classes.
 
-    Implements a boot proceedure. This takes the device from (hard or soft)
+    Implements a boot procedure. This takes the device from (hard or soft)
     reset to a booted state where the device is ready to accept connections. For
     a lot of commercial devices the process is entirely automatic, however some
     devices (e.g. development boards), my require additional steps, such as
@@ -297,9 +297,9 @@ BootModule
 
 .. method:: Bootmodule.update(\*\*kwargs)
 
-    Update the boot settings. Some boot sequencies allow specifying settings
+    Update the boot settings. Some boot sequences allow specifying settings
     that will be utilized during boot (e.g. linux kernel boot command line). The
-    default implmentation will set each setting in ``kwargs`` as an attribute of
+    default implementation will set each setting in ``kwargs`` as an attribute of
     the boot module (or update the existing attribute).
 
 
@@ -318,7 +318,7 @@ FlashModule
 
     :param image_bundle: A compressed bundle of image files with any associated
                          metadata. The format of the bundle is specific to a
-                         particular implmentation.
+                         particular implementation.
     :param images: A dict mapping image names/identifiers to the path on the
                    host file system of the corresponding image file. If both
                    this and ``image_bundle`` are specified, individual images
@@ -339,7 +339,7 @@ into :func:`register_module` method once it is defined.
 .. note:: If you're wiring a module to be included as part of ``devlib`` code
           base, you can place the file with the module class under
           ``devlib/modules/`` in the source and it will be automatically
-          enumarated. There is no need to explicitly register it in that case.
+          enumerated. There is no need to explicitly register it in that case.
 
 The code snippet below illustrates an implementation of a hard reset function
 for an "Acme" device.
