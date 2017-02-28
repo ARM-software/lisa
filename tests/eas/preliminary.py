@@ -216,6 +216,7 @@ class TestSchedDomainFlags(BasicCheckTest):
     """Test requirements of sched_domain flags"""
 
     # See include/linux/sched.h in an EAS kernel
+    SD_ASYM_CPUCAPACITY = 0x0040
     SD_SHARE_CAP_STATES = 0x8000
 
     def setUp(self):
@@ -251,3 +252,64 @@ class TestSchedDomainFlags(BasicCheckTest):
         flags_str = ', '.join([hex(f) for f in cpu0_flags])
         raise AssertionError('No sched_domain with SD_SHARE_CAP_STATES flag. '
                              'flags: {}'.format(flags_str))
+
+    def _get_cpu_cap_path(self, cpu):
+        return '/sys/devices/system/cpu/cpu{}/cpu_capacity'.format(cpu)
+
+    def read_cpu_caps(self):
+        """Get all the CPUs' capacities from sysfs as a list of ints"""
+        return [self.target.read_int(self._get_cpu_cap_path(cpu))
+                for cpu in range(self.target.number_of_cpus)]
+
+    def write_cpu_caps(self, caps):
+        """Write all the CPUs' capacites to sysfs from a list of ints"""
+        for cpu, cap in enumerate(caps):
+            self.target.write_value(self._get_cpu_cap_path(cpu), cap)
+
+    def _test_asym_cpucapacity(self, caps, expect_asym):
+        top_sd_flags = self.iter_cpu_sd_flags(0).next()
+        if expect_asym:
+            self.assertTrue(
+                top_sd_flags & self.SD_ASYM_CPUCAPACITY,
+                'SD_ASYM_CPUCAPACITY not set on highest sched_domain. '
+                'cpu_capacity values: {}'.format(caps))
+        else:
+            self.assertFalse(
+                top_sd_flags & self.SD_ASYM_CPUCAPACITY,
+                'SD_ASYM_CPUCAPACITY set unexpectedly on highest sched_domain. '
+                'cpu_capacity values: {}'.format(caps))
+
+    def test_asym_cpucapacity(self):
+        """
+        Check that the SD_ASYM_CPUCAPACITY flag gets set when it should
+
+        SD_ASYM_CPUCAPACITY should be set at least on the root domain when a
+        system is asymmetric.
+
+        - Test that it is set appropriately for the current
+          cpu_capacity values
+        - Invert the apparent symmetry of the system by modifying the
+          cpu_capacity sysfs files, and check the flag is inverted.
+        - Finally, revert to the old cpu_capacity values and check the flag
+          returns to its old value.
+        """
+        old_caps = self.read_cpu_caps()
+        old_caps_asym = any(c != old_caps[0] for c in old_caps[1:])
+
+        self._test_asym_cpucapacity(old_caps, old_caps_asym)
+
+        if old_caps_asym:
+            # Make the (currently asymmetrical) system look symmetrical
+            test_caps = [1024 for _ in range(self.target.number_of_cpus)]
+        else:
+            # Make the (currently symmetrical) system look asymmetrical
+            test_caps = range(self.target.number_of_cpus)
+
+        # Use a try..finally so that we leave the cpu_capacity files as we found
+        # them, even if the test fails (i.e. we raise an AssertionError).
+        try:
+            self.write_cpu_caps(test_caps)
+            self._test_asym_cpucapacity(old_caps, not old_caps_asym)
+        finally:
+            self.write_cpu_caps(old_caps)
+            self._test_asym_cpucapacity(old_caps, old_caps_asym)
