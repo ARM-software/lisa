@@ -269,6 +269,7 @@ class Target(object):
             timeout = max(timeout - reset_delay, 10)
         if self.has('boot'):
             self.boot()  # pylint: disable=no-member
+        self._connected_as_root = None
         if connect:
             self.connect(timeout=timeout)
 
@@ -359,6 +360,7 @@ class Target(object):
         except (TargetError, TimeoutError, subprocess.CalledProcessError):
             # on some targets "reboot" doesn't return gracefully
             pass
+        self._connected_as_root = None
 
     def check_responsive(self):
         try:
@@ -841,6 +843,7 @@ class AndroidTarget(Target):
         except (TargetError, TimeoutError, subprocess.CalledProcessError):
             # on some targets "reboot" doesn't return gracefully
             pass
+        self._connected_as_root = None
 
     def connect(self, timeout=10, check_boot_completed=True):  # pylint: disable=arguments-differ
         start = time.time()
