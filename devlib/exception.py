@@ -15,7 +15,7 @@
 
 
 class DevlibError(Exception):
-    """Base class for all Workload Automation exceptions."""
+    """Base class for all Devlib exceptions."""
     pass
 
 
