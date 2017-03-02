@@ -1,0 +1,23 @@
+config:
+       instrumentation: [trace-cmd]
+       result_processors: [summary_csv]
+       trace_events: ['sched_switch','sched_wakeup','sched_wakeup_new','sched_contrib_scale_f','sched_load_avg_cpu','sched_load_avg_task','sched_tune_config','sched_tune_tasks_update','sched_tune_boostgroup_update','sched_tune_filter','sched_boost_cpu','sched_boost_task','sched_energy_diff','cpu_frequency','cpu_capacity','cpu_idle']
+       trace_buffer_size: 80000
+#        ipynb_exporter:
+#                notebook_template: /home/lubaoquan/ipa-tunning/parse_ipa_results.ipynb
+#                convert_to_html: True
+#                show_html: True
+global:
+    iterations: 1
+#   runtime_params:
+#       sysfile_values:
+#           /dev/stune/foreground/schedtune.prefer_idle: 1
+#           /dev/stune/foreground/schedtune.boost: 0
+#           /dev/stune/top-app/schedtune.prefer_idle: 1
+#           /dev/stune/top-app/schedtune.boost: 10
+
+workloads:
+        - name: antutu
+          params:
+               version: '6.0.1'
+               check_apk: False
