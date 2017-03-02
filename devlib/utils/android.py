@@ -177,7 +177,12 @@ class AdbConnection(object):
     # versions of the ls tool in Android pre-v7.
     def _setup_ls(self):
         command = "shell '(ls -1); echo \"\n$?\"'"
-        output = adb_command(self.device, command, timeout=self.timeout)
+        try:
+            output = adb_command(self.device, command, timeout=self.timeout)
+        except subprocess.CalledProcessError as e:
+            raise HostError(
+                'Failed to set up ls command on Android device. Output:\n'
+                + e.output)
         lines = output.splitlines()
         retval = lines[-1].strip()
         if int(retval) == 0:
