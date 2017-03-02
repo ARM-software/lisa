@@ -19,7 +19,7 @@ from test import LisaTest, experiment_test
 
 WORKLOAD_DURATION_S = 5
 
-REQUIRED_CPU_ACTIVE_TIME_PCT = 99
+REQUIRED_CPU_ACTIVE_TIME_PCT = 95
 
 class HeavyLoadTest(LisaTest):
     """
