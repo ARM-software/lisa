@@ -69,8 +69,28 @@ class Jankbench(Workload):
         # Set of output data reported by Jankbench
         self.db_file = None
 
-    def run(self, out_dir, collect,
-            test_name, iterations):
+    def run(self, out_dir, test_name, iterations, collect):
+        """
+        Run Jankbench workload for a number of iterations.
+        Returns a collection of results.
+
+        :param out_dir: Path to experiment directory on the host
+                        where to store results.
+        :type out_dir: str
+
+        :param test_name: Name of the test to run
+        :type test_name: str
+
+        :param iterations: Number of iterations for the named test
+        :type iterations: int
+
+        :param collect: Specifies what to collect. Possible values:
+            - 'energy'
+            - 'systrace'
+            - 'ftrace'
+            - any combination of the above as a single space-separated string.
+        :type collect: list(str)
+        """
 
         # Keep track of mandatory parameters
         self.out_dir = out_dir
@@ -92,11 +112,14 @@ class Jankbench(Workload):
         # Set airplane mode
         System.set_airplane_mode(self._target, on=True)
 
+        # Set min brightness
+        Screen.set_brightness(self._target, auto=False, percent=0)
+
         # Force screen in PORTRAIT mode
         Screen.set_orientation(self._target, portrait=True)
 
         # Clear logcat
-        os.system(self._adb('logcat -c'));
+        self._target.clear_logcat()
 
         self._log.debug('Start Jank Benchmark [%d:%s]', test_id, test_name)
         test_cmd = 'am start -n "com.android.benchmark/.app.RunLocalBenchmarksActivity" '\
@@ -147,7 +170,7 @@ class Jankbench(Workload):
                                int(match.group('count_bad')),
                                int(match.group('count_junk')))
 
-        # get results
+        # Get results
         self.db_file = os.path.join(out_dir, JANKBENCH_DB_NAME)
         self._target.pull(JANKBENCH_DB_PATH + JANKBENCH_DB_NAME, self.db_file)
 
@@ -157,7 +180,13 @@ class Jankbench(Workload):
         System.home(self._target)
 
         # Reset initial setup
+        # Set orientation back to auto
         Screen.set_orientation(self._target, auto=True)
+
+        # Turn off airplane mode
         System.set_airplane_mode(self._target, on=False)
+
+        # Set brightness back to auto
+        Screen.set_brightness(self._target, auto=True)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
