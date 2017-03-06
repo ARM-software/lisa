@@ -1,23 +1,33 @@
 import os
 
-from wa.framework.configuration import settings
-from wa.framework.exception import ConfigError
-from wa.utils.misc import ensure_directory_exists
+from wlauto.core.configuration import settings
 
-
-class HostRunConfig(object):
+def init_user_directory(overwrite_existing=False):  # pylint: disable=R0914
     """
-    Host-side configuration for a run.
+    Initialise a fresh user directory. 
     """
+    if os.path.exists(settings.user_directory):
+        if not overwrite_existing:
+            raise RuntimeError('Environment {} already exists.'.format(settings.user_directory))
+        shutil.rmtree(settings.user_directory)
 
-    def __init__(self, output_directory, 
-                 run_info_directory=None,
-                 run_config_directory=None):
-        self.output_directory = output_directory
-        self.run_info_directory = run_info_directory or os.path.join(self.output_directory, '_info')
-        self.run_config_directory = run_config_directory or os.path.join(self.output_directory, '_config')
+    os.makedirs(settings.user_directory)
+    os.makedirs(settings.dependencies_directory)
+    os.makedirs(settings.plugins_directory)
 
-    def initialize(self):
-        ensure_directory_exists(self.output_directory)
-        ensure_directory_exists(self.run_info_directory)
-        ensure_directory_exists(self.run_config_directory)
+    # TODO: generate default config.yaml here
+
+    if os.getenv('USER') == 'root':
+        # If running with sudo on POSIX, change the ownership to the real user.
+        real_user = os.getenv('SUDO_USER')
+        if real_user:
+            import pwd  # done here as module won't import on win32
+            user_entry = pwd.getpwnam(real_user)
+            uid, gid = user_entry.pw_uid, user_entry.pw_gid
+            os.chown(settings.user_directory, uid, gid)
+            # why, oh why isn't there a recusive=True option for os.chown?
+            for root, dirs, files in os.walk(settings.user_directory):
+                for d in dirs:
+                    os.chown(os.path.join(root, d), uid, gid)
+                for f in files: 
+                    os.chown(os.path.join(root, f), uid, gid)

@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from wa.utils.misc import get_traceback, TimeoutError  # NOQA pylint: disable=W0611
+from devlib.exception import (DevlibError, HostError, TimeoutError,
+                              TargetError, TargetNotRespondingError)
+
+from wa.utils.misc import get_traceback
 
 
 class WAError(Exception):
@@ -32,11 +35,6 @@ class ValidationError(WAError):
 
 class WorkloadError(WAError):
     """General Workload error."""
-    pass
-
-
-class HostError(WAError):
-    """Problem with the host on which WA is running."""
     pass
 
 
@@ -113,7 +111,8 @@ class PluginLoaderError(WAError):
             if isinstance(orig, WAError):
                 reason = 'because of:\n{}: {}'.format(orig_name, orig)
             else:
-                reason = 'because of:\n{}\n{}: {}'.format(get_traceback(self.exc_info), orig_name, orig)
+                text = 'because of:\n{}\n{}: {}'
+                reason = text.format(get_traceback(self.exc_info), orig_name, orig)
             return '\n'.join([self.message, reason])
         else:
             return self.message
@@ -121,10 +120,12 @@ class PluginLoaderError(WAError):
 
 class WorkerThreadError(WAError):
     """
-    This should get raised  in the main thread if a non-WAError-derived exception occurs on
-    a worker/background thread. If a WAError-derived exception is raised in the worker, then
-    it that exception should be re-raised on the main thread directly -- the main point of this is
-    to preserve the backtrace in the output, and backtrace doesn't get output for WAErrors.
+    This should get raised  in the main thread if a non-WAError-derived
+    exception occurs on a worker/background thread. If a WAError-derived
+    exception is raised in the worker, then it that exception should be
+    re-raised on the main thread directly -- the main point of this is to
+    preserve the backtrace in the output, and backtrace doesn't get output for
+    WAErrors.
 
     """
 
@@ -133,7 +134,8 @@ class WorkerThreadError(WAError):
         self.exc_info = exc_info
         orig = self.exc_info[1]
         orig_name = type(orig).__name__
-        message = 'Exception of type {} occured on thread {}:\n'.format(orig_name, thread)
-        message += '{}\n{}: {}'.format(get_traceback(self.exc_info), orig_name, orig)
+        text = 'Exception of type {} occured on thread {}:\n{}\n{}: {}'
+        message = text.format(orig_name, thread, get_traceback(self.exc_info), 
+                              orig_name, orig)
         super(WorkerThreadError, self).__init__(message)
 

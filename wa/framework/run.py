@@ -26,7 +26,7 @@ from wa.framework.exception import JobError
 from wa.utils import counter
 from wa.utils.serializer import json
 from wa.utils.misc import ensure_directory_exists as _d
-from wa.utils.types import TreeNode, caseless_string
+from wa.utils.types import caseless_string
 
 
 

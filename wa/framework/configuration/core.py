@@ -1,28 +1,163 @@
-import os
-import logging
-from glob import glob
-from copy import copy
-from itertools import chain
+#    Copyright 2014-2016 ARM Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-from wa.framework import pluginloader
-from wa.framework.exception import ConfigError
-from wa.utils.types import integer, boolean, identifier, list_of_strings, list_of
-from wa.utils.misc import isiterable, get_article
-from wa.utils.serializer import read_pod, yaml
+import os
+import re
+from copy import copy
+from collections import OrderedDict, defaultdict
+
+from wa.framework.exception import ConfigError, NotFoundError
+from wa.framework.configuration.tree import SectionNode
+from wa.utils.misc import (get_article, merge_config_values)
+from wa.utils.types import (identifier, integer, boolean,
+                                list_of_strings, toggle_set,
+                                obj_dict)
+from wa.utils.serializer import is_pod
+
+# Mapping for kind conversion; see docs for convert_types below
+KIND_MAP = {
+    int: integer,
+    bool: boolean,
+    dict: OrderedDict,
+}
+
+ITERATION_STATUS = [
+    'NOT_STARTED',
+    'RUNNING',
+
+    'OK',
+    'NONCRITICAL',
+    'PARTIAL',
+    'FAILED',
+    'ABORTED',
+    'SKIPPED',
+]
+
+##########################
+### CONFIG POINT TYPES ###
+##########################
+
+
+class RebootPolicy(object):
+    """
+    Represents the reboot policy for the execution -- at what points the device
+    should be rebooted. This, in turn, is controlled by the policy value that is
+    passed in on construction and would typically be read from the user's settings.
+    Valid policy values are:
+
+    :never: The device will never be rebooted.
+    :as_needed: Only reboot the device if it becomes unresponsive, or needs to be flashed, etc.
+    :initial: The device will be rebooted when the execution first starts, just before
+              executing the first workload spec.
+    :each_spec: The device will be rebooted before running a new workload spec.
+    :each_iteration: The device will be rebooted before each new iteration.
+
+    """
+
+    valid_policies = ['never', 'as_needed', 'initial', 'each_spec', 'each_iteration']
+
+    def __init__(self, policy):
+        policy = policy.strip().lower().replace(' ', '_')
+        if policy not in self.valid_policies:
+            message = 'Invalid reboot policy {}; must be one of {}'.format(policy, ', '.join(self.valid_policies))
+            raise ConfigError(message)
+        self.policy = policy
+
+    @property
+    def can_reboot(self):
+        return self.policy != 'never'
+
+    @property
+    def perform_initial_boot(self):
+        return self.policy not in ['never', 'as_needed']
+
+    @property
+    def reboot_on_each_spec(self):
+        return self.policy in ['each_spec', 'each_iteration']
+
+    @property
+    def reboot_on_each_iteration(self):
+        return self.policy == 'each_iteration'
+
+    def __str__(self):
+        return self.policy
+
+    __repr__ = __str__
+
+    def __cmp__(self, other):
+        if isinstance(other, RebootPolicy):
+            return cmp(self.policy, other.policy)
+        else:
+            return cmp(self.policy, other)
+
+    def to_pod(self):
+        return self.policy
+
+    @staticmethod
+    def from_pod(pod):
+        return RebootPolicy(pod)
+
+
+class status_list(list):
+
+    def append(self, item):
+        list.append(self, str(item).upper())
+
+
+class LoggingConfig(dict):
+
+    defaults = {
+        'file_format': '%(asctime)s %(levelname)-8s %(name)s: %(message)s',
+        'verbose_format': '%(asctime)s %(levelname)-8s %(name)s: %(message)s',
+        'regular_format': '%(levelname)-8s %(message)s',
+        'color': True,
+    }
+
+    def __init__(self, config=None):
+        dict.__init__(self)
+        if isinstance(config, dict):
+            config = {identifier(k.lower()): v for k, v in config.iteritems()}
+            self['regular_format'] = config.pop('regular_format', self.defaults['regular_format'])
+            self['verbose_format'] = config.pop('verbose_format', self.defaults['verbose_format'])
+            self['file_format'] = config.pop('file_format', self.defaults['file_format'])
+            self['color'] = config.pop('colour_enabled', self.defaults['color'])  # legacy
+            self['color'] = config.pop('color', self.defaults['color'])
+            if config:
+                message = 'Unexpected logging configuation parameters: {}'
+                raise ValueError(message.format(bad_vals=', '.join(config.keys())))
+        elif config is None:
+            for k, v in self.defaults.iteritems():
+                self[k] = v
+        else:
+            raise ValueError(config)
+
+
+def get_type_name(kind):
+    typename = str(kind)
+    if '\'' in typename:
+        typename = typename.split('\'')[1]
+    elif typename.startswith('<function'):
+        typename = typename.split()[1]
+    return typename
 
 
 class ConfigurationPoint(object):
     """
-    This defines a gneric configuration point for workload automation. This is
+    This defines a generic configuration point for workload automation. This is
     used to handle global settings, plugin parameters, etc.
 
     """
-
-    # Mapping for kind conversion; see docs for convert_types below
-    kind_map = {
-        int: integer,
-        bool: boolean,
-    }
 
     def __init__(self, name,
                  kind=None,
@@ -34,12 +169,12 @@ class ConfigurationPoint(object):
                  constraint=None,
                  merge=False,
                  aliases=None,
-                 convert_types=True):
+                 global_alias=None):
         """
         Create a new Parameter object.
 
         :param name: The name of the parameter. This will become an instance
-                     member of the extension object to which the parameter is
+                     member of the plugin object to which the parameter is
                      applied, so it must be a valid python  identifier. This
                      is the only mandatory parameter.
         :param kind: The type of parameter this is. This must be a callable
@@ -49,11 +184,11 @@ class ConfigurationPoint(object):
                      ``int``, ``bool``, etc. -- can be used here. This
                      defaults to ``str`` if not specified.
         :param mandatory: If set to ``True``, then a non-``None`` value for
-                          this parameter *must* be provided on extension
+                          this parameter *must* be provided on plugin
                           object construction, otherwise ``ConfigError``
                           will be raised.
         :param default: The default value for this parameter. If no value
-                        is specified on extension construction, this value
+                        is specified on plugin construction, this value
                         will be used instead. (Note: if this is specified
                         and is not ``None``, then ``mandatory`` parameter
                         will be ignored).
@@ -78,26 +213,24 @@ class ConfigurationPoint(object):
                       the new value. If this is set to ``True`` then the two
                       values will be merged instead. The rules by which the
                       values are merged will be determined by the types of
-                      the existing and new values -- see 
+                      the existing and new values -- see
                       ``merge_config_values`` documentation for details.
         :param aliases: Alternative names for the same configuration point.
                         These are largely for backwards compatibility.
-        :param convert_types: If ``True`` (the default), will automatically
-                              convert ``kind`` values from native Python
-                              types to WA equivalents. This allows more
-                              ituitive interprestation of parameter values,
-                              e.g. the string ``"false"`` being interpreted
-                              as ``False`` when specifed as the value for
-                              a boolean Parameter.
-
+        :param global_alias: An alias for this parameter that can be specified at
+                            the global level. A global_alias can map onto many
+                            ConfigurationPoints.
         """
         self.name = identifier(name)
+        if kind in KIND_MAP:
+            kind = KIND_MAP[kind]
         if kind is not None and not callable(kind):
             raise ValueError('Kind must be callable.')
-        if convert_types and kind in self.kind_map:
-            kind = self.kind_map[kind]
         self.kind = kind
         self.mandatory = mandatory
+        if not is_pod(default):
+            msg = "The default for '{}' must be a Plain Old Data type, but it is of type '{}' instead."
+            raise TypeError(msg.format(self.name, type(default)))
         self.default = default
         self.override = override
         self.allowed_values = allowed_values
@@ -109,531 +242,796 @@ class ConfigurationPoint(object):
         self.constraint = constraint
         self.merge = merge
         self.aliases = aliases or []
+        self.global_alias = global_alias
+
+        if self.default is not None:
+            try:
+                self.validate_value("init", self.default)
+            except ConfigError:
+                raise ValueError('Default value "{}" is not valid'.format(self.default))
 
     def match(self, name):
-        if name == self.name:
+        if name == self.name or name in self.aliases:
             return True
-        elif name in self.aliases:
+        elif name == self.global_alias:
             return True
         return False
 
-    def set_value(self, obj, value=None):
+    def set_value(self, obj, value=None, check_mandatory=True):
         if value is None:
             if self.default is not None:
                 value = self.default
-            elif self.mandatory:
-                msg = 'No values specified for mandatory parameter {} in {}'
+            elif check_mandatory and self.mandatory:
+                msg = 'No values specified for mandatory parameter "{}" in {}'
                 raise ConfigError(msg.format(self.name, obj.name))
         else:
             try:
                 value = self.kind(value)
             except (ValueError, TypeError):
-                typename = self.get_type_name()
+                typename = get_type_name(self.kind)
                 msg = 'Bad value "{}" for {}; must be {} {}'
                 article = get_article(typename)
                 raise ConfigError(msg.format(value, self.name, article, typename))
+        if value is not None:
+            self.validate_value(obj.name, value)
         if self.merge and hasattr(obj, self.name):
             value = merge_config_values(getattr(obj, self.name), value)
         setattr(obj, self.name, value)
 
     def validate(self, obj):
         value = getattr(obj, self.name, None)
-        self.validate_value(value)
-
-    def validate_value(self,obj, value):
         if value is not None:
-            if self.allowed_values:
-                self._validate_allowed_values(obj, value)
-            if self.constraint:
-                self._validate_constraint(obj, value)
+            self.validate_value(obj.name, value)
         else:
             if self.mandatory:
-                msg = 'No value specified for mandatory parameter {} in {}.'
+                msg = 'No value specified for mandatory parameter "{}" in {}.'
                 raise ConfigError(msg.format(self.name, obj.name))
 
-    def get_type_name(self):
-        typename = str(self.kind)
-        if '\'' in typename:
-            typename = typename.split('\'')[1]
-        elif typename.startswith('<function'):
-            typename = typename.split()[1]
-        return typename
+    def validate_value(self, name, value):
+        if self.allowed_values:
+            self.validate_allowed_values(name, value)
+        if self.constraint:
+            self.validate_constraint(name, value)
 
-    def _validate_allowed_values(self, obj, value):
+    def validate_allowed_values(self, name, value):
         if 'list' in str(self.kind):
             for v in value:
                 if v not in self.allowed_values:
                     msg = 'Invalid value {} for {} in {}; must be in {}'
-                    raise ConfigError(msg.format(v, self.name, obj.name, self.allowed_values))
+                    raise ConfigError(msg.format(v, self.name, name, self.allowed_values))
         else:
             if value not in self.allowed_values:
                 msg = 'Invalid value {} for {} in {}; must be in {}'
-                raise ConfigError(msg.format(value, self.name, obj.name, self.allowed_values))
+                raise ConfigError(msg.format(value, self.name, name, self.allowed_values))
 
-    def _validate_constraint(self, obj, value):
-        msg_vals = {'value': value, 'param': self.name, 'extension': obj.name}
+    def validate_constraint(self, name, value):
+        msg_vals = {'value': value, 'param': self.name, 'plugin': name}
         if isinstance(self.constraint, tuple) and len(self.constraint) == 2:
             constraint, msg = self.constraint  # pylint: disable=unpacking-non-sequence
         elif callable(self.constraint):
             constraint = self.constraint
-            msg = '"{value}" failed constraint validation for {param} in {extension}.'
+            msg = '"{value}" failed constraint validation for "{param}" in "{plugin}".'
         else:
-            raise ValueError('Invalid constraint for {}: must be callable or a 2-tuple'.format(self.name))
+            raise ValueError('Invalid constraint for "{}": must be callable or a 2-tuple'.format(self.name))
         if not constraint(value):
             raise ConfigError(value, msg.format(**msg_vals))
 
     def __repr__(self):
         d = copy(self.__dict__)
         del d['description']
-        return 'ConfPoint({})'.format(d)
+        return 'ConfigurationPoint({})'.format(d)
 
     __str__ = __repr__
 
 
-class ConfigurationPointCollection(object):
+class RuntimeParameter(object):
 
-    def __init__(self):
-        self._configs = []
-        self._config_map = {}
+    def __init__(self, name,
+                 kind=None,
+                 description=None,
+                 merge=False):
 
-    def get(self, name, default=None):
-        return self._config_map.get(name, default)
+        self.name = re.compile(name)
+        if kind is not None:
+            if kind in KIND_MAP:
+                kind = KIND_MAP[kind]
+            if not callable(kind):
+                raise ValueError('Kind must be callable.')
+        else:
+            kind = str
+        self.kind = kind
+        self.description = description
+        self.merge = merge
 
-    def add(self, point):
-        if not isinstance(point, ConfigurationPoint):
-            raise ValueError('Mustbe a ConfigurationPoint, got {}'.format(point.__class__))
-        existing = self.get(point.name)
-        if existing:
-            if point.override:
-                new_point = copy(existing)
-                for a, v in point.__dict__.iteritems():
-                    if v is not None:
-                        setattr(new_point, a, v)
-                self.remove(existing)
-                point = new_point
-            else:
-                raise ValueError('Duplicate ConfigurationPoint "{}"'.format(point.name))
-        self._add(point)
+    def validate_kind(self, value, name):
+        try:
+            value = self.kind(value)
+        except (ValueError, TypeError):
+            typename = get_type_name(self.kind)
+            msg = 'Bad value "{}" for {}; must be {} {}'
+            article = get_article(typename)
+            raise ConfigError(msg.format(value, name, article, typename))
 
-    def remove(self, point):
-        self._configs.remove(point)
-        del self._config_map[point.name]
-        for alias in point.aliases:
-            del self._config_map[alias]
+    def match(self, name):
+        if self.name.match(name):
+            return True
+        return False
 
-    append = add
+    def update_value(self, name, new_value, source, dest):
+        self.validate_kind(new_value, name)
 
-    def _add(self, point):
-        self._configs.append(point)
-        self._config_map[point.name] = point
-        for alias in point.aliases:
-            if alias in self._config_map:
-                message = 'Clashing alias "{}" between "{}" and "{}"'
-                raise ValueError(message.format(alias, point.name,
-                                                self._config_map[alias].name))
+        if name in dest:
+            old_value, sources = dest[name]
+        else:
+            old_value = None
+            sources = {}
+        sources[source] = new_value
 
-    def __str__(self):
-        str(self._configs)
+        if self.merge:
+            new_value = merge_config_values(old_value, new_value)
 
-    __repr__ = __str__
+        dest[name] = (new_value, sources)
 
-    def __iadd__(self, other):
-        for p in other:
-            self.add(p)
-        return self
 
-    def __iter__(self):
-        return iter(self._configs)
+class RuntimeParameterManager(object):
 
-    def __contains__(self, p):
-        if isinstance(p, basestring):
-            return p in self._config_map
-        return p.name in self._config_map
+    runtime_parameters = []
 
-    def __getitem__(self, i):
-        if isinstance(i, int):
-            return self._configs[i]
-        return self._config_map[i]
+    def __init__(self, target_manager):
+        self.state = {}
+        self.target_manager = target_manager
 
-    def __len__(self):
-        return len(self._configs)
+    def get_initial_state(self):
+        """
+        Should be used to load the starting state from the device. This state
+        should be updated if any changes are made to the device, and they are successful.
+        """
+        pass
 
-    
-class LoggingConfig(dict):
+    def match(self, name):
+        for rtp in self.runtime_parameters:
+            if rtp.match(name):
+                return True
+        return False
 
-    defaults = {
-        'file_format': '%(asctime)s %(levelname)-8s %(name)s: %(message)s',
-        'verbose_format': '%(asctime)s %(levelname)-8s %(name)s: %(message)s',
-        'regular_format': '%(levelname)-8s %(message)s',
-        'color': True,
+    def update_value(self, name, value, source, dest):
+        for rtp in self.runtime_parameters:
+            if rtp.match(name):
+                rtp.update_value(name, value, source, dest)
+                break
+        else:
+            msg = 'Unknown runtime parameter "{}"'
+            raise ConfigError(msg.format(name))
+
+    def static_validation(self, params):
+        """
+        Validate values that do not require a active device connection.
+        This method should also pop all runtime parameters meant for this manager
+        from params, even if they are not beign statically validated.
+        """
+        pass
+
+    def dynamic_validation(self, params):
+        """
+        Validate values that require an active device connection
+        """
+        pass
+
+    def commit(self):
+        """
+        All values have been validated, this will now actually set values
+        """
+        pass
+
+################################
+### RuntimeParameterManagers ###
+################################
+
+
+class CpuFreqParameters(object):
+
+    runtime_parameters = {
+        "cores": RuntimeParameter("(.+)_cores"),
+        "min_frequency": RuntimeParameter("(.+)_min_frequency", kind=int),
+        "max_frequency": RuntimeParameter("(.+)_max_frequency", kind=int),
+        "frequency": RuntimeParameter("(.+)_frequency", kind=int),
+        "governor": RuntimeParameter("(.+)_governor"),
+        "governor_tunables": RuntimeParameter("(.+)_governor_tunables"),
     }
 
-    def __init__(self, config=None):
-        if isinstance(config, dict):
-            config = {identifier(k.lower()): v for k, v in config.iteritems()}
-            self['regular_format'] = config.pop('regular_format', self.defaults['regular_format'])
-            self['verbose_format'] = config.pop('verbose_format', self.defaults['verbose_format'])
-            self['file_format'] = config.pop('file_format', self.defaults['file_format'])
-            self['color'] = config.pop('colour_enabled', self.defaults['color'])  # legacy
-            self['color'] = config.pop('color', self.defaults['color'])
-            if config:
-                message = 'Unexpected logging configuation parameters: {}'
-                raise ValueError(message.format(bad_vals=', '.join(config.keys())))
-        elif config is None:
-            for k, v in self.defaults.iteritems():
-                self[k] = v
-        else:
-            raise ValueError(config)
+    def __init__(self, target):
+        super(CpuFreqParameters, self).__init__(target)
+        self.core_names = set(target.core_names)
 
+    def match(self, name):
+        for param in self.runtime_parameters.itervalues():
+            if param.match(name):
+                return True
+        return False
 
-__WA_CONFIGURATION = [
-    ConfigurationPoint(
-        'user_directory',
-        description="""
-        Path to the user directory. This is the location WA will look for
-        user configuration, additional plugins and plugin dependencies.
-        """,
-        kind=str,
-        default=os.path.join(os.path.expanduser('~'), '.workload_automation'),
-    ),
-    ConfigurationPoint(
-        'plugin_packages',
-        kind=list_of_strings,
-        default=[
-            'wa.commands',
-            'wa.workloads',
-#            'wa.instruments',
-#            'wa.processors',
-#            'wa.targets',
-            'wa.framework.actor',
-            'wa.framework.target',
-            'wa.framework.resource',
-            'wa.framework.execution',
-        ],
-        description="""
-        List of packages that will be scanned for WA plugins.
-        """,
-    ),
-    ConfigurationPoint(
-        'plugin_paths',
-        kind=list_of_strings,
-        default=[
-            'workloads',
-            'instruments',
-            'targets',
-            'processors',
-
-            # Legacy
-            'devices',
-            'result_processors',
-        ],
-        description="""
-        List of paths that will be scanned for WA plugins.
-        """,
-    ),
-    ConfigurationPoint(
-        'plugin_ignore_paths',
-        kind=list_of_strings,
-        default=[],
-        description="""
-        List of (sub)paths that will be ignored when scanning 
-        ``plugin_paths`` for WA plugins.
-        """,
-    ),
-    ConfigurationPoint(
-        'filer_mount_point',
-        description="""
-        The local mount point for the filer hosting WA assets.
-        """,
-    ),
-    ConfigurationPoint(
-        'logging',
-        kind=LoggingConfig,
-        description="""
-        WA logging configuration. This should be a dict with a subset
-        of the following keys::
-
-        :normal_format: Logging format used for console output
-        :verbose_format: Logging format used for verbose console output 
-        :file_format: Logging format used for run.log
-        :color: If ``True`` (the default), console logging output will
-                contain bash color escape codes. Set this to ``False`` if
-                console output will be piped somewhere that does not know
-                how to handle those.
-        """,
-    ),
-    ConfigurationPoint(
-        'verbosity',
-        kind=int,
-        default=0,
-        description="""
-        Verbosity of console output.
-        """,
-    ),
-]
-
-WA_CONFIGURATION = {cp.name: cp for cp in __WA_CONFIGURATION}
-
-ENVIRONMENT_VARIABLES = {
-    'WA_USER_DIRECTORY': WA_CONFIGURATION['user_directory'],
-    'WA_PLUGIN_PATHS': WA_CONFIGURATION['plugin_paths'],
-    'WA_EXTENSION_PATHS': WA_CONFIGURATION['plugin_paths'],  # extension_paths (legacy)
-}
-
-
-class WAConfiguration(object):
-    """
-    This is configuration for Workload Automation framework as a whole. This
-    does not track configuration for WA runs. Rather, this tracks "meta" 
-    configuration, such as various locations WA looks for things, logging
-    configuration etc.
-
-    """
-
-    basename = 'config'
-
-    def __init__(self):
-        self.user_directory = ''
-        self.dependencies_directory = 'dependencies'
-        self.plugin_packages = []
-        self.plugin_paths = []
-        self.plugin_ignore_paths = []
-        self.logging = {}
-        self._logger = logging.getLogger('settings')
-        for confpoint in WA_CONFIGURATION.itervalues():
-            confpoint.set_value(self)
-
-    def load_environment(self):
-        for name, confpoint in ENVIRONMENT_VARIABLES.iteritems():
-            value = os.getenv(name)
-            if value:
-                confpoint.set_value(self, value)
-        self._expand_paths()
-
-    def load_config_file(self, path):
-        self.load(read_pod(path))
-
-    def load_user_config(self):
-        globpath = os.path.join(self.user_directory, '{}.*'.format(self.basename))
-        for path in glob(globpath):
-            ext = os.path.splitext(path)[1].lower()
-            if ext in ['.pyc', '.pyo']:
+    def update_value(self, name, value, source):
+        for param in self.runtime_parameters.iteritems():
+            core_name_match = param.name.match(name)
+            if not core_name_match:
                 continue
-            self.load_config_file(path)
 
-    def load(self, config):
-        for name, value in config.iteritems():
-            if name in WA_CONFIGURATION:
-                confpoint = WA_CONFIGURATION[name]
-                confpoint.set_value(self, value)
-        self._expand_paths()
+            core_name = core_name_match.groups()[0]
+            if core_name not in self.core_names:
+                msg = '"{}" in {} is not a valid core name, must be in: {}'
+                raise ConfigError(msg.format(core_name, name, ", ".join(self.core_names)))
 
-    def set(self, name, value):
-        if name not in WA_CONFIGURATION:
-            raise ConfigError('Unknown WA configuration "{}"'.format(name))
-        WA_CONFIGURATION[name].set_value(value)
+            param.update_value(name, value, source)
+            break
+        else:
+            RuntimeError('"{}" does not belong to CpuFreqParameters'.format(name))
 
-    def initialize_user_directory(self, overwrite=False):
-        """
-        Initialize a fresh user environment creating the workload automation.
+    def _get_merged_value(self, core, param_name):
+        return self.runtime_parameters[param_name].merged_values["{}_{}".format(core, param_name)]
 
-        """
-        if os.path.exists(self.user_directory):
-            if not overwrite:
-                raise ConfigError('Environment {} already exists.'.format(self.user_directory))
-            shutil.rmtree(self.user_directory)
+    def _cross_validate(self, core):
+        min_freq = self._get_merged_value(core, "min_frequency")
+        max_frequency = self._get_merged_value(core, "max_frequency")
+        if max_frequency < min_freq:
+            msg = "{core}_max_frequency must be larger than {core}_min_frequency"
+            raise ConfigError(msg.format(core=core))
+        frequency = self._get_merged_value(core, "frequency")
+        if not min_freq < frequency < max_frequency:
+            msg = "{core}_frequency must be between {core}_min_frequency and {core}_max_frequency"
+            raise ConfigError(msg.format(core=core))
+        #TODO: more checks
 
-        self._expand_paths()
-        os.makedirs(self.dependencies_directory)
-        for path in self.plugin_paths:
-            os.makedirs(path)
+    def commit_to_device(self, target):
+        pass
+        # TODO: Write values to device is correct order ect
 
-        with open(os.path.join(self.user_directory, 'config.yaml'), 'w') as wfh:
-            yaml.dump(self.to_pod())
+#####################
+### Configuration ###
+#####################
 
-        if os.getenv('USER') == 'root':
-            # If running with sudo on POSIX, change the ownership to the real user.
-            real_user = os.getenv('SUDO_USER')
-            if real_user:
-                import pwd  # done here as module won't import on win32
-                user_entry = pwd.getpwnam(real_user)
-                uid, gid = user_entry.pw_uid, user_entry.pw_gid
-                os.chown(self.user_directory, uid, gid)
-                # why, oh why isn't there a recusive=True option for os.chown?
-                for root, dirs, files in os.walk(self.user_directory):
-                    for d in dirs:
-                        os.chown(os.path.join(root, d), uid, gid)
-                    for f in files:
-                        os.chown(os.path.join(root, f), uid, gid)
 
-    @staticmethod
-    def from_pod(pod):
-        instance = WAConfiguration()
-        instance.load(pod)
+def _to_pod(cfg_point, value):
+    if is_pod(value):
+        return value
+    if hasattr(cfg_point.kind, 'to_pod'):
+        return value.to_pod()
+    msg = '{} value "{}" is not serializable'
+    raise ValueError(msg.format(cfg_point.name, value))
+
+
+class Configuration(object):
+
+    config_points = []
+    name = ''
+
+    # The below line must be added to all subclasses
+    configuration = {cp.name: cp for cp in config_points}
+
+    @classmethod
+    def from_pod(cls, pod):
+        instance = cls()
+        for cfg_point in cls.config_points:
+            if name in pod:
+                value = pod.pop(name)
+                if hasattr(cfg_point.kind, 'from_pod'):
+                    value = cfg_point.kind.from_pod(value)
+                cfg_point.set_value(instance, value)
+        if pod:
+            msg = 'Invalid entry(ies) for "{}": "{}"'
+            raise ValueError(msg.format(cls.name, '", "'.join(pod.keys())))
         return instance
 
+    def __init__(self):
+        for confpoint in self.config_points:
+            confpoint.set_value(self, check_mandatory=False)
+
+    def set(self, name, value, check_mandatory=True):
+        if name not in self.configuration:
+            raise ConfigError('Unknown {} configuration "{}"'.format(self.name, 
+                                                                     name))
+        self.configuration[name].set_value(self, value, 
+                                           check_mandatory=check_mandatory)
+
+    def update_config(self, values, check_mandatory=True):
+        for k, v in values.iteritems():
+            self.set(k, v, check_mandatory=check_mandatory)
+
+    def validate(self):
+        for cfg_point in self.config_points:
+            cfg_point.validate(self)
+
     def to_pod(self):
-        return dict(
-            user_directory=self.user_directory,
-            plugin_packages=self.plugin_packages,
-            plugin_paths=self.plugin_paths,
-            plugin_ignore_paths=self.plugin_ignore_paths,
-            logging=self.logging,
-        )
-
-    def _expand_paths(self):
-        self.dependencies_directory = os.path.join(self.user_directory, 
-                                                   self.dependencies_directory)
-        expanded = []
-        for path in self.plugin_paths:
-            path = os.path.expanduser(path)
-            path = os.path.expandvars(path)
-            expanded.append(os.path.join(self.user_directory, path))
-        self.plugin_paths = expanded
-        expanded = []
-        for path in self.plugin_ignore_paths:
-            path = os.path.expanduser(path)
-            path = os.path.expandvars(path)
-            exanded.append(os.path.join(self.user_directory, path))
-        self.pluing_ignore_paths = expanded
+        pod = {}
+        for cfg_point in self.config_points:
+            value = getattr(self, cfg_point.name, None)
+            pod[cfg_point.name] = _to_pod(cfg_point, value)
+        return pod
 
 
-class PluginConfiguration(object):
-    """ Maintains a mapping of plugin_name --> plugin_config. """
+# This configuration for the core WA framework
+class MetaConfiguration(Configuration):
 
-    def __init__(self, loader=pluginloader):
-        self.loader = loader
-        self.config = {}
+    name = "Meta Configuration"
 
-    def update(self, name, config):
-        if not hasattr(config, 'get'):
-            raise ValueError('config must be a dict-like object got: {}'.format(config))
-        name, alias_config = self.loader.resolve_alias(name)
-        existing_config = self.config.get(name)
-        if existing_config is None:
-            existing_config = alias_config
+    plugin_packages = [
+        'wa.commands',
+        'wa.workloads',
+        #'wa.instrumentation',
+        #'wa.result_processors',
+        #'wa.managers',
+        'wa.framework.target.descriptor',
+        'wa.framework.resource_getters',
+    ]
 
-        new_config = config or {}
-        plugin_cls = self.loader.get_plugin_class(name)
+    config_points = [
+        ConfigurationPoint(
+            'user_directory',
+            description="""
+            Path to the user directory. This is the location WA will look for
+            user configuration, additional plugins and plugin dependencies.
+            """,
+            kind=str,
+            default=os.path.join(os.path.expanduser('~'), '.workload_automation'),
+        ),
+        ConfigurationPoint(
+            'assets_repository',
+            description="""
+            The local mount point for the filer hosting WA assets.
+            """,
+        ),
+        ConfigurationPoint(
+            'logging',
+            kind=LoggingConfig,
+            default=LoggingConfig.defaults,
+            description="""
+            WA logging configuration. This should be a dict with a subset
+            of the following keys::
 
+            :normal_format: Logging format used for console output
+            :verbose_format: Logging format used for verbose console output
+            :file_format: Logging format used for run.log
+            :color: If ``True`` (the default), console logging output will
+                    contain bash color escape codes. Set this to ``False`` if
+                    console output will be piped somewhere that does not know
+                    how to handle those.
+            """,
+        ),
+        ConfigurationPoint(
+            'verbosity',
+            kind=int,
+            default=0,
+            description="""
+            Verbosity of console output.
+            """,
+        ),
+        ConfigurationPoint(  # TODO: Needs some format for dates etc/ comes from cfg
+            'default_output_directory',
+            default="wa_output",
+            description="""
+            The default output directory that will be created if not
+            specified when invoking a run.
+            """,
+        ),
+    ]
+    configuration = {cp.name: cp for cp in config_points}
 
+    @property
+    def dependencies_directory(self):
+        return os.path.join(self.user_directory, 'dependencies')
 
-def merge_config_values(base, other):
-    """
-    This is used to merge two objects, typically when setting the value of a
-    ``ConfigurationPoint``. First, both objects are categorized into
+    @property
+    def plugins_directory(self):
+        return os.path.join(self.user_directory, 'plugins')
 
-        c: A scalar value. Basically, most objects. These values
-           are treated as atomic, and not mergeable.
-        s: A sequence. Anything iterable that is not a dict or
-           a string (strings are considered scalars).
-        m: A key-value mapping. ``dict`` and its derivatives.
-        n: ``None``.
-        o: A mergeable object; this is an object that implements both
-          ``merge_with`` and ``merge_into`` methods.
+    @property
+    def user_config_file(self):
+        return os.path.join(self.user_directory, 'config.yaml')
 
-    The merge rules based on the two categories are then as follows:
-
-        (c1, c2) --> c2
-        (s1, s2) --> s1 . s2
-        (m1, m2) --> m1 . m2
-        (c, s) --> [c] . s
-        (s, c) --> s . [c]
-        (s, m) --> s . [m]
-        (m, s) --> [m] . s
-        (m, c) --> ERROR
-        (c, m) --> ERROR
-        (o, X) --> o.merge_with(X)
-        (X, o) --> o.merge_into(X)
-        (X, n) --> X
-        (n, X) --> X
-
-    where:
-
-        '.'  means concatenation (for maps, contcationation of (k, v) streams
-             then converted back into a map). If the types of the two objects
-             differ, the type of ``other`` is used for the result.
-        'X'  means "any category"
-        '[]' used to indicate a literal sequence (not necessarily a ``list``).
-             when this is concatenated with an actual sequence, that sequencies
-             type is used.
-
-    notes:
-
-        - When a mapping is combined with a sequence, that mapping is
-          treated as a scalar value.
-        - When combining two mergeable objects, they're combined using
-          ``o1.merge_with(o2)`` (_not_ using o2.merge_into(o1)).
-        - Combining anything with ``None`` yields that value, irrespective
-          of the order. So a ``None`` value is eqivalent to the corresponding
-          item being omitted.
-        - When both values are scalars, merging is equivalent to overwriting.
-        - There is no recursion (e.g. if map values are lists, they will not
-          be merged; ``other`` will overwrite ``base`` values). If complicated
-          merging semantics (such as recursion) are required, they should be
-          implemented within custom mergeable types (i.e. those that implement
-          ``merge_with`` and ``merge_into``).
-
-    While this can be used as a generic "combine any two arbitrary objects" 
-    function, the semantics have been selected specifically for merging
-    configuration point values.
-
-    """
-    cat_base = categorize(base)
-    cat_other = categorize(other)
-
-    if cat_base == 'n':
-        return other
-    elif cat_other == 'n':
-        return base
-
-    if cat_base == 'o':
-        return base.merge_with(other)
-    elif cat_other == 'o':
-        return other.merge_into(base)
-
-    if cat_base == 'm':
-        if cat_other == 's':
-            return merge_sequencies([base], other)
-        elif cat_other == 'm':
-            return merge_maps(base, other)
-        else:
-            message = 'merge error ({}, {}): "{}" and "{}"'
-            raise ValueError(message.format(cat_base, cat_other, base, other))
-    elif cat_base == 's':
-        if cat_other == 's':
-            return merge_sequencies(base, other)
-        else:
-            return merge_sequencies(base, [other])
-    else:  # cat_base == 'c'
-        if cat_other == 's':
-            return merge_sequencies([base], other)
-        elif cat_other == 'm':
-            message = 'merge error ({}, {}): "{}" and "{}"'
-            raise ValueError(message.format(cat_base, cat_other, base, other))
-        else:
-            return other
+    def __init__(self, environ):
+        super(MetaConfiguration, self).__init__()
+        user_directory = environ.pop('WA_USER_DIRECTORY', '')
+        if user_directory:
+            self.set('user_directory', user_directory)
 
 
-def merge_sequencies(s1, s2):
-    return type(s2)(chain(s1, s2))
+# This is generic top-level configuration for WA runs.
+class RunConfiguration(Configuration):
+
+    name = "Run Configuration"
+
+    # Metadata is separated out because it is not loaded into the auto generated config file
+    meta_data = [
+        ConfigurationPoint('run_name', kind=str,
+                           description='''
+                           A string that labels the WA run that is being performed. This would typically
+                           be set in the ``config`` section of an agenda (see
+                           :ref:`configuration in an agenda <configuration_in_agenda>`) rather than in the config file.
+
+                           .. _old-style format strings: http://docs.python.org/2/library/stdtypes.html#string-formatting-operations
+                           .. _log record attributes: http://docs.python.org/2/library/logging.html#logrecord-attributes
+                           '''),
+        ConfigurationPoint('project', kind=str,
+                           description='''
+                           A string naming the project for which data is being collected. This may be
+                           useful, e.g. when uploading data to a shared database that is populated from
+                           multiple projects.
+                           '''),
+        ConfigurationPoint('project_stage', kind=dict,
+                           description='''
+                           A dict or a string that allows adding additional identifier. This is may be
+                           useful for long-running projects.
+                           '''),
+    ]
+    config_points = [
+        ConfigurationPoint('execution_order', kind=str, default='by_iteration',
+                           allowed_values=['by_iteration', 'by_spec', 'by_section', 'random'],
+                           description='''
+                           Defines the order in which the agenda spec will be executed. At the moment,
+                           the following execution orders are supported:
+
+                           ``"by_iteration"``
+                             The first iteration of each workload spec is executed one after the other,
+                             so all workloads are executed before proceeding on to the second iteration.
+                             E.g. A1 B1 C1 A2 C2 A3. This is the default if no order is explicitly specified.
+
+                             In case of multiple sections, this will spread them out, such that specs
+                             from the same section are further part. E.g. given sections X and Y, global
+                             specs A and B, and two iterations, this will run ::
+
+                                             X.A1, Y.A1, X.B1, Y.B1, X.A2, Y.A2, X.B2, Y.B2
+
+                           ``"by_section"``
+                             Same  as ``"by_iteration"``, however this will group specs from the same
+                             section together, so given sections X and Y, global specs A and B, and two iterations,
+                             this will run ::
+
+                                     X.A1, X.B1, Y.A1, Y.B1, X.A2, X.B2, Y.A2, Y.B2
+
+                           ``"by_spec"``
+                             All iterations of the first spec are executed before moving on to the next
+                             spec. E.g. A1 A2 A3 B1 C1 C2 This may also be specified as ``"classic"``,
+                             as this was the way workloads were executed in earlier versions of WA.
+
+                           ``"random"``
+                             Execution order is entirely random.
+                           '''),
+        ConfigurationPoint('reboot_policy', kind=RebootPolicy, default='as_needed',
+                           allowed_values=RebootPolicy.valid_policies,
+                           description='''
+                           This defines when during execution of a run the Device will be rebooted. The
+                           possible values are:
+
+                           ``"never"``
+                              The device will never be rebooted.
+                           ``"initial"``
+                              The device will be rebooted when the execution first starts, just before
+                              executing the first workload spec.
+                           ``"each_spec"``
+                              The device will be rebooted before running a new workload spec.
+                              Note: this acts the same as each_iteration when execution order is set to by_iteration
+                           ``"each_iteration"``
+                              The device will be rebooted before each new iteration.
+                           '''),
+        ConfigurationPoint('device', kind=str, mandatory=True,
+                           description='''
+                           This setting defines what specific Device subclass will be used to interact
+                           the connected device. Obviously, this must match your setup.
+                           '''),
+        ConfigurationPoint('retry_on_status', kind=status_list,
+                           default=['FAILED', 'PARTIAL'],
+                           allowed_values=ITERATION_STATUS,
+                           description='''
+                           This is list of statuses on which a job will be cosidered to have failed and
+                           will be automatically retried up to ``max_retries`` times. This defaults to
+                           ``["FAILED", "PARTIAL"]`` if not set. Possible values are:
+
+                           ``"OK"``
+                           This iteration has completed and no errors have been detected
+
+                           ``"PARTIAL"``
+                           One or more instruments have failed (the iteration may still be running).
+
+                           ``"FAILED"``
+                           The workload itself has failed.
+
+                           ``"ABORTED"``
+                           The user interupted the workload
+                           '''),
+        ConfigurationPoint('max_retries', kind=int, default=3,
+                           description='''
+                           The maximum number of times failed jobs will be retried before giving up. If
+                           not set, this will default to ``3``.
+
+                           .. note:: this number does not include the original attempt
+                           '''),
+    ]
+    configuration = {cp.name: cp for cp in config_points + meta_data}
+
+    def __init__(self):
+        super(RunConfiguration, self).__init__()
+        for confpoint in self.meta_data:
+            confpoint.set_value(self, check_mandatory=False)
+        self.device_config = None
+
+    def merge_device_config(self, plugin_cache):
+        """
+        Merges global device config and validates that it is correct for the
+        selected device.
+        """
+        # pylint: disable=no-member
+        if self.device is None:
+            msg = 'Attemting to merge device config with unspecified device'
+            raise RuntimeError(msg)
+        self.device_config = plugin_cache.get_plugin_config(self.device,
+                                                            generic_name="device_config")
+
+    def to_pod(self):
+        pod = super(RunConfiguration, self).to_pod()
+        pod['device_config'] = dict(self.device_config or {})
+        return pod
+
+    @classmethod
+    def from_pod(cls, pod):
+        meta_pod = {}
+        for cfg_point in cls.meta_data:
+            meta_pod[cfg_point.name] = pod.pop(cfg_point.name, None)
+
+        instance = super(RunConfiguration, cls).from_pod(pod)
+        for cfg_point in cls.meta_data:
+            cfg_point.set_value(instance, meta_pod[cfg_point.name])
+
+        return instance
 
 
-def merge_maps(m1, m2):
-    return type(m2)(chain(m1.iteritems(), m2.iteritems()))
+class JobSpec(Configuration):
+
+    name = "Job Spec"
+
+    config_points = [
+        ConfigurationPoint('iterations', kind=int, default=1,
+                           description='''
+                           How many times to repeat this workload spec
+                           '''),
+        ConfigurationPoint('workload_name', kind=str, mandatory=True,
+                           aliases=["name"],
+                           description='''
+                           The name of the workload to run.
+                           '''),
+        ConfigurationPoint('workload_parameters', kind=obj_dict,
+                           aliases=["params", "workload_params"],
+                           description='''
+                           Parameter to be passed to the workload
+                           '''),
+        ConfigurationPoint('runtime_parameters', kind=obj_dict,
+                           aliases=["runtime_params"],
+                           description='''
+                           Runtime parameters to be set prior to running
+                           the workload.
+                           '''),
+        ConfigurationPoint('boot_parameters', kind=obj_dict,
+                           aliases=["boot_params"],
+                           description='''
+                           Parameters to be used when rebooting the target
+                           prior to running the workload.
+                           '''),
+        ConfigurationPoint('label', kind=str,
+                           description='''
+                           Similar to IDs but do not have the uniqueness restriction.
+                           If specified, labels will be used by some result
+                           processes instead of (or in addition to) the workload
+                           name. For example, the csv result processor will put
+                           the label in the "workload" column of the CSV file.
+                           '''),
+        ConfigurationPoint('instrumentation', kind=toggle_set, merge=True,
+                           aliases=["instruments"],
+                           description='''
+                           The instruments to enable (or disabled using a ~)
+                           during this workload spec.
+                           '''),
+        ConfigurationPoint('flash', kind=dict, merge=True,
+                           description='''
+
+                           '''),
+        ConfigurationPoint('classifiers', kind=dict, merge=True,
+                           description='''
+                           Classifiers allow you to tag metrics from this workload
+                           spec to help in post processing them. Theses are often
+                           used to help identify what runtime_parameters were used
+                           for results when post processing.
+                           '''),
+    ]
+    configuration = {cp.name: cp for cp in config_points}
+
+    @classmethod
+    def from_pod(cls, pod):
+        job_id = pod.pop('id')
+        instance = super(JobSpec, cls).from_pod(pod)
+        instance['id'] = job_id
+        return instance
+
+    @property
+    def section_id(self):
+        if self.id is not None:
+            self.id.rsplit('-', 1)[0]
+
+    @property
+    def workload_id(self):
+        if self.id is not None:
+            self.id.rsplit('-', 1)[-1]
+
+    def __init__(self):
+        super(JobSpec, self).__init__()
+        self.to_merge = defaultdict(OrderedDict)
+        self._sources = []
+        self.id = None
+
+    def to_pod(self):
+        pod = super(JobSpec, self).to_pod()
+        pod['id'] = self.id
+        return pod
+
+    def update_config(self, source, check_mandatory=True):
+        self._sources.append(source)
+        values = source.config
+        for k, v in values.iteritems():
+            if k == "id":
+                continue
+            elif k.endswith('_parameters'):
+                if v:
+                    self.to_merge[k][source] = copy(v)
+            else:
+                try:
+                    self.set(k, v, check_mandatory=check_mandatory)
+                except ConfigError as e:
+                    msg = 'Error in {}:\n\t{}'
+                    raise ConfigError(msg.format(source.name, e.message))
+
+    def merge_workload_parameters(self, plugin_cache):
+        # merge global generic and specific config
+        workload_params = plugin_cache.get_plugin_config(self.workload_name,
+                                                         generic_name="workload_parameters")
+
+        cfg_points = plugin_cache.get_plugin_parameters(self.workload_name)
+        for source in self._sources:
+            config = self.to_merge["workload_parameters"].get(source)
+            if config is None:
+                continue
+
+            for name, cfg_point in cfg_points.iteritems():
+                if name in config:
+                    value = config.pop(name)
+                    cfg_point.set_value(workload_params, value, 
+                                        check_mandatory=False)
+            if config:
+                msg = 'conflicting entry(ies) for "{}" in {}: "{}"'
+                msg = msg.format(self.workload_name, source.name,
+                                    '", "'.join(workload_params[source]))
+
+        self.workload_parameters = workload_params
+
+    def merge_runtime_parameters(self, plugin_cache, target_manager):
+
+        # Order global runtime parameters
+        runtime_parameters = OrderedDict()
+        try:
+            global_runtime_params = plugin_cache.get_plugin_config("runtime_parameters")
+        except NotFoundError:
+            global_runtime_params = {}
+        for source in plugin_cache.sources:
+            runtime_parameters[source] = global_runtime_params[source]
+
+        # Add runtime parameters from JobSpec
+        for source, values in self.to_merge['runtime_parameters'].iteritems():
+            runtime_parameters[source] = values
+
+        # Merge
+        self.runtime_parameters = target_manager.merge_runtime_parameters(runtime_parameters)
+
+    def finalize(self):
+        self.id = "-".join([source.config['id'] for source in self._sources[1:]])  # ignore first id, "global"
 
 
-def categorize(v):
-    if hasattr(v, 'merge_with') and hasattr(v, 'merge_into'):
-        return 'o'
-    elif hasattr(v, 'iteritems'):
-        return 'm'
-    elif isiterable(v):
-        return 's'
-    elif v is None:
-        return 'n'
-    else:
-        return 'c'
+# This is used to construct the list of Jobs WA will run
+class JobGenerator(object):
+
+    name = "Jobs Configuration"
+
+    @property
+    def enabled_instruments(self):
+        self._read_enabled_instruments = True
+        return self._enabled_instruments
+
+    def __init__(self, plugin_cache):
+        self.plugin_cache = plugin_cache
+        self.ids_to_run = []
+        self.sections = []
+        self.workloads = []
+        self._enabled_instruments = set()
+        self._read_enabled_instruments = False
+        self.disabled_instruments = []
+
+        self.job_spec_template = obj_dict(not_in_dict=['name'])
+        self.job_spec_template.name = "globally specified job spec configuration"
+        self.job_spec_template.id = "global"
+        # Load defaults
+        for cfg_point in JobSpec.configuration.itervalues():
+            cfg_point.set_value(self.job_spec_template, check_mandatory=False)
+
+        self.root_node = SectionNode(self.job_spec_template)
+
+    def set_global_value(self, name, value):
+        JobSpec.configuration[name].set_value(self.job_spec_template, value,
+                                              check_mandatory=False)
+        if name == "instrumentation":
+            self.update_enabled_instruments(value)
+
+    def add_section(self, section, workloads):
+        new_node = self.root_node.add_section(section)
+        for workload in workloads:
+            new_node.add_workload(workload)
+
+    def add_workload(self, workload):
+        self.root_node.add_workload(workload)
+
+    def disable_instruments(self, instruments):
+        #TODO: Validate
+        self.disabled_instruments = ["~{}".format(i) for i in instruments]
+
+    def update_enabled_instruments(self, value):
+        if self._read_enabled_instruments:
+            msg = "'enabled_instruments' cannot be updated after it has been accessed"
+            raise RuntimeError(msg)
+        self._enabled_instruments.update(value)
+
+    def only_run_ids(self, ids):
+        if isinstance(ids, str):
+            ids = [ids]
+        self.ids_to_run = ids
+
+    def generate_job_specs(self, target_manager):
+        specs = []
+        for leaf in self.root_node.leaves():
+            workload_entries = leaf.workload_entries
+            sections = [leaf]
+            for ancestor in leaf.ancestors():
+                workload_entries = ancestor.workload_entries + workload_entries
+                sections.insert(0, ancestor)
+
+            for workload_entry in workload_entries:
+                job_spec = create_job_spec(workload_entry, sections, 
+                                           target_manager, self.plugin_cache,
+                                           self.disabled_instruments)
+                if self.ids_to_run:
+                    for job_id in self.ids_to_run:
+                        if job_id in job_spec.id:
+                            break
+                    else:
+                        continue
+                self.update_enabled_instruments(job_spec.instrumentation.values())
+                specs.append(job_spec)
+        return specs
 
 
-settings = WAConfiguration()
+def create_job_spec(workload_entry, sections, target_manager, plugin_cache,
+                    disabled_instruments):
+    job_spec = JobSpec()
+
+    # PHASE 2.1: Merge general job spec configuration
+    for section in sections:
+        job_spec.update_config(section, check_mandatory=False)
+    job_spec.update_config(workload_entry, check_mandatory=False)
+
+    # PHASE 2.2: Merge global, section and workload entry "workload_parameters"
+    job_spec.merge_workload_parameters(plugin_cache)
+
+    # TODO: PHASE 2.3: Validate device runtime/boot paramerers
+    job_spec.merge_runtime_parameters(plugin_cache, target_manager)
+    target_manager.validate_runtime_parameters(job_spec.runtime_parameters)
+
+    # PHASE 2.4: Disable globally disabled instrumentation
+    job_spec.set("instrumentation", disabled_instruments)
+    job_spec.finalize()
+
+    return job_spec
+
+
+settings = MetaConfiguration(os.environ)

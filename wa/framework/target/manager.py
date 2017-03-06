@@ -6,28 +6,31 @@ import time
 import shutil
 import sys
 
-from wa.framework.plugin import Parameter
 from wa.framework import signal
 from wa.framework.exception import WorkerThreadError, ConfigError
-from wa.target.info import TargetInfo
-from wa.target.runtime_config import (SysfileValuesRuntimeConfig,
-                                      HotplugRuntimeConfig,
-                                      CpufreqRuntimeConfig,
-                                      CpuidleRuntimeConfig)
+from wa.framework.plugin import Parameter
+from wa.framework.target.info import TargetInfo
+from wa.framework.target.runtime_config import (SysfileValuesRuntimeConfig,
+                                                HotplugRuntimeConfig,
+                                                CpufreqRuntimeConfig,
+                                                CpuidleRuntimeConfig)
+from wa.utils.misc import isiterable
 from wa.utils.serializer import json
 
 
 from devlib import LocalLinuxTarget, LinuxTarget, AndroidTarget
 from devlib.utils.types import identifier
 # from wa.target.manager import AndroidTargetManager, LinuxTargetManager
-# from wa.framework.plugin import Plugin, Parameter
 
 
 class TargetManager(object):
+
     name = 'target-manager'
 
     description = """
-    Instanciated the required target and performs configuration and validation of the device.
+    Instanciated the required target and performs configuration and validation
+    of the device.
+
     """
 
     parameters = [

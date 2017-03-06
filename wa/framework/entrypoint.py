@@ -12,72 +12,100 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
+
+
 import sys
 import argparse
 import logging
+import os
 import subprocess
-
-from wa.framework import pluginloader, log
-from wa.framework.configuration import settings
-from wa.framework.exception import WAError
-from wa.utils.doc import format_body
-from wa.utils.misc import init_argument_parser
-
-
 import warnings
+
+from wa.framework import pluginloader
+from wa.framework.command import init_argument_parser
+from wa.framework.configuration import settings
+from wa.framework.configuration.execution import ConfigManager
+from wa.framework.host import init_user_directory
+from wa.framework.exception import WAError, DevlibError, ConfigError
+from wa.utils import log
+from wa.utils.doc import format_body
+from wa.utils.misc import get_traceback
+
 warnings.filterwarnings(action='ignore', category=UserWarning, module='zope')
 
 
-logger = logging.getLogger('wa')
-
-
-def init_settings():
-    settings.load_environment()
-    if not os.path.isdir(settings.user_directory):
-        settings.initialize_user_directory()
-    settings.load_user_config()
-
-
-def get_argument_parser():
-    description = ("Execute automated workloads on a remote device and process "
-                    "the resulting output.\n\nUse \"wa <subcommand> -h\" to see "
-                    "help for individual subcommands.")
-    parser = argparse.ArgumentParser(description=format_body(description, 80),
-                                        prog='wa',
-                                        formatter_class=argparse.RawDescriptionHelpFormatter,
-                                        )
-    init_argument_parser(parser)
-    return parser
+logger = logging.getLogger('command_line')
 
 
 def load_commands(subparsers):
     commands = {}
     for command in pluginloader.list_commands():
-        commands[command.name] = pluginloader.get_command(command.name, subparsers=subparsers)
+        commands[command.name] = pluginloader.get_command(command.name, 
+                                                          subparsers=subparsers)
     return commands
 
 
 def main():
+    if not os.path.exists(settings.user_directory):
+        init_user_directory()
+
     try:
-        log.init()
-        init_settings()
-        parser = get_argument_parser()
-        commands = load_commands(parser.add_subparsers(dest='command'))  # each command will add its own subparser
+
+        description = ("Execute automated workloads on a remote device and process "
+                       "the resulting output.\n\nUse \"wa <subcommand> -h\" to see "
+                       "help for individual subcommands.")
+        parser = argparse.ArgumentParser(description=format_body(description, 80),
+                                         prog='wa',
+                                         formatter_class=argparse.RawDescriptionHelpFormatter,
+                                         )
+        init_argument_parser(parser)
+
+        # load_commands will trigger plugin enumeration, and we want logging
+        # to be enabled for that, which requires the verbosity setting; however
+        # full argument parse cannot be complted until the commands are loaded; so
+        # parse just the base args for know so we can get verbosity.
+        args, _ = parser.parse_known_args()
+        settings.set("verbosity", args.verbose)
+        log.init(settings.verbosity)
+
+        # each command will add its own subparser
+        commands = load_commands(parser.add_subparsers(dest='command'))  
         args = parser.parse_args()
-        settings.set('verbosity', args.verbose)
-        if args.config:
-            settings.load_config_file(args.config)
-        log.set_level(settings.verbosity)
+
+        config = ConfigManager()
+        config.load_config_file(settings.user_config_file)
+        for config_file in args.config:
+            if not os.path.exists(config_file):
+                raise ConfigError("Config file {} not found".format(config_file))
+            config.load_config_file(config_file)
+
         command = commands[args.command]
-        sys.exit(command.execute(args))
+        sys.exit(command.execute(config, args))
+
     except KeyboardInterrupt:
         logging.info('Got CTRL-C. Aborting.')
+        sys.exit(3)
+    except (WAError, DevlibError) as e:
+        logging.critical(e)
         sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        tb = get_traceback()
+        logging.critical(tb)
+        command = e.cmd
+        if e.args:
+            command = '{} {}'.format(command, ' '.join(e.args))
+        message = 'Command \'{}\' returned non-zero exit status {}\nOUTPUT:\n{}\n'
+        logging.critical(message.format(command, e.returncode, e.output))
+        sys.exit(2)
+    except SyntaxError as e:
+        tb = get_traceback()
+        logging.critical(tb)
+        message = 'Syntax Error in {}, line {}, offset {}:'
+        logging.critical(message.format(e.filename, e.lineno, e.offset))
+        logging.critical('\t{}'.format(e.msg))
+        sys.exit(2)
     except Exception as e:  # pylint: disable=broad-except
-        log_error(e, logger, critical=True)
-        if isinstance(e, WAError):
-            sys.exit(2)
-        else:
-            sys.exit(3)
-
+        tb = get_traceback()
+        logging.critical(tb)
+        logging.critical('{}({})'.format(e.__class__.__name__, e))
+        sys.exit(2)

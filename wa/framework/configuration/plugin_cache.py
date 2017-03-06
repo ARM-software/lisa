@@ -14,11 +14,14 @@
 
 from copy import copy
 from collections import defaultdict
+from itertools import chain
 
-from wlauto.core import pluginloader
-from wlauto.exceptions import ConfigError
-from wlauto.utils.types import obj_dict
 from devlib.utils.misc import memoized
+
+from wa.framework import pluginloader
+from wa.framework.exception import ConfigError
+from wa.framework.target.descriptor import get_target_descriptions
+from wa.utils.types import obj_dict
 
 GENERIC_CONFIGS = ["device_config", "workload_parameters",
                    "boot_parameters", "runtime_parameters"]
@@ -38,6 +41,7 @@ class PluginCache(object):
         self.sources = []
         self.plugin_configs = defaultdict(lambda: defaultdict(dict))
         self.global_alias_values = defaultdict(dict)
+        self.targets = {td.name: td for td in get_target_descriptions()}
 
         # Generate a mapping of what global aliases belong to
         self._global_alias_map = defaultdict(dict)
@@ -95,31 +99,22 @@ class PluginCache(object):
         config = obj_dict(not_in_dict=['name'])
         config.name = plugin_name
 
-        # Load plugin defaults
-        cfg_points = self.get_plugin_parameters(plugin_name)
-        for cfg_point in cfg_points.itervalues():
-            cfg_point.set_value(config, check_mandatory=False)
+        if plugin_name not in GENERIC_CONFIGS:
+            self._set_plugin_defaults(plugin_name, config)
+            self._set_from_global_aliases(plugin_name, config)
 
-        # Merge global aliases
-        for alias, param in self._global_alias_map[plugin_name].iteritems():
-            if alias in self.global_alias_values:
-                for source in self.sources:
-                    if source not in self.global_alias_values[alias]:
-                        continue
-                    val = self.global_alias_values[alias][source]
-                    param.set_value(config, value=val)
-
-        # Merge user config
-        # Perform a simple merge with the order of sources representing priority
         if generic_name is None:
+            # Perform a simple merge with the order of sources representing
+            # priority
             plugin_config = self.plugin_configs[plugin_name]
             for source in self.sources:
                 if source not in plugin_config:
                     continue
                 for name, value in plugin_config[source].iteritems():
                     cfg_points[name].set_value(config, value=value)
-        # A more complicated merge that involves priority of sources and specificity
         else:
+            # A more complicated merge that involves priority of sources and
+            # specificity
             self._merge_using_priority_specificity(plugin_name, generic_name, config)
 
         return config
@@ -131,15 +126,37 @@ class PluginCache(object):
 
     @memoized
     def get_plugin_parameters(self, name):
+        if name in self.targets:
+            return self._get_target_params(name)
         params = self.loader.get_plugin_class(name).parameters
         return {param.name: param for param in params}
+
+    def _set_plugin_defaults(self, plugin_name, config):
+        cfg_points = self.get_plugin_parameters(plugin_name)
+        for cfg_point in cfg_points.itervalues():
+            cfg_point.set_value(config, check_mandatory=False)
+
+    def _set_from_global_aliases(self, plugin_name, config):
+        for alias, param in self._global_alias_map[plugin_name].iteritems():
+            if alias in self.global_alias_values:
+                for source in self.sources:
+                    if source not in self.global_alias_values[alias]:
+                        continue
+                    val = self.global_alias_values[alias][source]
+                    param.set_value(config, value=val)
+
+    def _get_target_params(self, name):
+        td = self.targets[name]
+        params = {p.name: p for p in chain(td.target_params, td.platform_params)}
+        #params['connection_settings'] = {p.name: p for p in td.conn_params}
+        return params
 
     # pylint: disable=too-many-nested-blocks, too-many-branches
     def _merge_using_priority_specificity(self, specific_name, 
                                           generic_name, final_config):
         """
         WA configuration can come from various sources of increasing priority,
-        as well as being specified in a generic and specific manner (e.g.
+        as well as being specified in a generic and specific manner (e.g
         ``device_config`` and ``nexus10`` respectivly). WA has two rules for
         the priority of configuration:
 

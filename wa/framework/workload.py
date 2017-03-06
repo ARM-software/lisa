@@ -32,9 +32,10 @@ class Workload(TargetedPlugin):
 
     def init_resources(self, context):
         """
-        This method may be used to perform early resource discovery and initialization. This is invoked
-        during the initial loading stage and before the device is ready, so cannot be used for any
-        device-dependent initialization. This method is invoked before the workload instance is
+        This method may be used to perform early resource discovery and
+        initialization. This is invoked during the initial loading stage and
+        before the device is ready, so cannot be used for any device-dependent
+        initialization. This method is invoked before the workload instance is
         validated.
 
         """
@@ -59,7 +60,10 @@ class Workload(TargetedPlugin):
         pass
 
     def run(self, context):
-        """Execute the workload. This is the method that performs the actual "work" of the"""
+        """
+        Execute the workload. This is the method that performs the actual
+        "work" of the.
+        """
         pass
 
     def update_result(self, context):
@@ -83,7 +87,8 @@ class Workload(TargetedPlugin):
 
 class UiAutomatorGUI(object):
 
-    def __init__(self, target, package='', klass='UiAutomation', method='runUiAutoamtion'):
+    def __init__(self, target, package='', klass='UiAutomation',
+                 method='runUiAutoamtion'):
         self.target = target
         self.uiauto_package = package
         self.uiauto_class = klass
