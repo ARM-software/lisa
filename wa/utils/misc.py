@@ -43,11 +43,12 @@ from distutils.spawn import find_executable
 import yaml
 from dateutil import tz
 
+from devlib.exception import TargetError
 from devlib.utils.misc import (ABI_MAP, check_output, walk_modules,
                                ensure_directory_exists, ensure_file_directory_exists,
                                normalize, convert_new_lines, get_cpu_mask, unique,
                                escape_quotes, escape_single_quotes, escape_double_quotes,
-                               isiterable, getch, as_relative, ranges_to_list,
+                               isiterable, getch, as_relative, ranges_to_list, memoized,
                                list_to_ranges, list_to_mask, mask_to_list, which)
 
 check_output_logger = logging.getLogger('check_output')
@@ -598,3 +599,76 @@ def get_object_name(obj):
     elif hasattr(obj, '__class__'):
         return obj.__class__.__name__
     return None
+
+
+def resolve_cpus(name, target):
+    """
+    Returns a list of cpu numbers that corresponds to a passed name.
+    Allowed formats are:
+        - 'big'
+        - 'little'
+        - '<core_name> e.g. 'A15'
+        - 'cpuX'
+        - 'all' - returns all cpus
+        - '' - Empty name will also return all cpus
+    """
+    cpu_list = range(target.number_of_cpus)
+
+    # Support for passing cpu no directly
+    if isinstance(name, int):
+        cpu = name
+        if cpu not in cpu_list:
+            message = 'CPU{} is not available, must be in {}'
+            raise ValueError(message.format(cpu, cpu_list))
+        return [cpu]
+
+    # Apply to all cpus
+    if not name or name.lower() == 'all':
+        return cpu_list
+    # Deal with big.little substitution
+    elif name.lower() == 'big':
+        name = target.big_core
+        if not name:
+            raise ValueError('big core name could not be retrieved')
+    elif name.lower() == 'little':
+        name = target.little_core
+        if not name:
+            raise ValueError('little core name could not be retrieved')
+
+    # Return all cores with specified name
+    if name in target.core_names:
+        return target.core_cpus(name)
+
+    # Check if core number has been supplied.
+    else:
+        core_no = re.match('cpu([0-9]+)', name, re.IGNORECASE)
+        if core_no:
+            cpu = int(core_no.group(1))
+            if cpu not in cpu_list:
+                message = 'CPU{} is not available, must be in {}'
+                raise ValueError(message.format(cpu, cpu_list))
+            return [cpu]
+        else:
+            msg = 'Unexpected core name "{}"'
+            raise ValueError(msg.format(name))
+
+@memoized
+def resolve_unique_domain_cpus(name, target):
+    """
+    Same as `resolve_cpus` above but only returns only the first cpu
+    in each of the different frequency domains. Requires cpufreq.
+    """
+    cpus = resolve_cpus(name, target)
+    if not target.has('cpufreq'):
+        msg = 'Device does not appear to support cpufreq; ' \
+              'Cannot obtain cpu domain information'
+        raise TargetError(msg)
+
+    unique_cpus = []
+    domain_cpus = []
+    for cpu in cpus:
+        if cpu not in domain_cpus:
+            domain_cpus = target.cpufreq.get_domain_cpus(cpu)
+        if domain_cpus[0] not in unique_cpus:
+            unique_cpus.append(domain_cpus[0])
+    return unique_cpus

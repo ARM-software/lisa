@@ -55,6 +55,7 @@ class Job(object):
 
     def configure_target(self, context):
         self.logger.info('Configuring target for job {}'.format(self.id))
+        context.tm.commit_runtime_parameters(self.spec.runtime_parameters)
 
     def setup(self, context):
         self.logger.info('Setting up job {}'.format(self.id))
@@ -83,4 +84,3 @@ class Job(object):
         self.logger.info('Finalizing job {}'.format(self.id))
         with signal.wrap('WORKLOAD_FINALIZED', self, context):
             self.workload.finalize(context)
-
