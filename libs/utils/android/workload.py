@@ -127,12 +127,12 @@ class Workload(object):
             self._te.ftrace.get_trace(self.trace_file)
         # Stop Systrace (mutually exclusive with ftrace)
         elif 'systrace' in self.collect:
-            if not self.systrace_output:
+            if not self._systrace_output:
                 self._log.warning('Systrace is not running!')
             else:
                 self._log.info('Waiting systrace report [%s]...',
                                  self.trace_file)
-                self.systrace_output.wait()
+                self._systrace_output.wait()
         # Dump a platform description
         self._te.platform_dump(self.out_dir)
 
