@@ -32,7 +32,6 @@ class ConfigParser(object):
 
     def load(self, state, raw, source, wrap_exceptions=True):  # pylint: disable=too-many-branches
         try:
-            state.plugin_cache.add_source(source)
             if 'run_name' in raw:
                 msg = '"run_name" can only be specified in the config '\
                       'section of an agenda'
