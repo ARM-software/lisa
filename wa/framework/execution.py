@@ -57,6 +57,7 @@ from wa.framework.exception import (WAError, ConfigError, TimeoutError,
 from wa.framework.plugin import Artifact
 from wa.framework.resource import ResourceResolver
 from wa.framework.target.info import TargetInfo
+from wa.framework.target.manager import TargetManager
 from wa.utils.misc import (ensure_directory_exists as _d, 
                            get_traceback, format_duration)
 from wa.utils.serializer import json
@@ -228,30 +229,6 @@ def _check_artifact_path(path, rootpath):
     return full_path
 
 
-class FakeTargetManager(object):
-    # TODO: this is a FAKE
-
-    def __init__(self, name, config):
-        self.device_name = name
-        self.device_config = config
-
-        from devlib import LocalLinuxTarget
-        self.target = LocalLinuxTarget({'unrooted': True})
-        
-    def get_target_info(self):
-        return TargetInfo(self.target)
-
-    def validate_runtime_parameters(self, params):
-        pass
-
-    def merge_runtime_parameters(self, params):
-        pass
-
-
-def init_target_manager(config):
-    return FakeTargetManager(config.device, config.device_config)
-
-
 class Executor(object):
     """
     The ``Executor``'s job is to set up the execution context and pass to a
@@ -297,7 +274,8 @@ class Executor(object):
         output.write_config(config)
 
         self.logger.info('Connecting to target')
-        target_manager = init_target_manager(config.run_config)
+        target_manager = TargetManager(config.run_config.device,
+                                       config.run_config.device_config)
         output.write_target_info(target_manager.get_target_info())
 
         self.logger.info('Initializing execution conetext')

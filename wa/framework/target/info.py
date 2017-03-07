@@ -1,6 +1,7 @@
 from devlib import AndroidTarget
 from devlib.exception import TargetError
 from devlib.target import KernelConfig, KernelVersion, Cpuinfo
+from devlib.utils.android import AndroidProperties
 
 
 class TargetInfo(object):
@@ -21,8 +22,9 @@ class TargetInfo(object):
 
         if pod["target"] == "AndroidTarget":
             instance.screen_resolution = pod['screen_resolution']
-            instance.prop = pod['prop']
-            instance.prop = pod['android_id']
+            instance.prop = AndroidProperties('')
+            instance.prop._properties = pod['prop']
+            instance.android_id = pod['android_id']
 
         return instance
 
@@ -72,7 +74,7 @@ class TargetInfo(object):
 
         if self.target == "AndroidTarget":
             pod['screen_resolution'] = self.screen_resolution
-            pod['prop'] = self.prop
+            pod['prop'] = self.prop._properties
             pod['android_id'] = self.android_id
 
         return pod

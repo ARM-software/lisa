@@ -638,7 +638,8 @@ class RunConfiguration(Configuration):
 
     name = "Run Configuration"
 
-    # Metadata is separated out because it is not loaded into the auto generated config file
+    # Metadata is separated out because it is not loaded into the auto
+    # generated config file
     meta_data = [
         ConfigurationPoint('run_name', kind=str,
                            description='''
@@ -917,7 +918,8 @@ class JobSpec(Configuration):
         except NotFoundError:
             global_runtime_params = {}
         for source in plugin_cache.sources:
-            runtime_parameters[source] = global_runtime_params[source]
+            if source in global_runtime_params:
+                runtime_parameters[source] = global_runtime_params[source]
 
         # Add runtime parameters from JobSpec
         for source, values in self.to_merge['runtime_parameters'].iteritems():
