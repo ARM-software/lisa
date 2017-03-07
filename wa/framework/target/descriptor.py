@@ -8,7 +8,7 @@ from wa.framework import pluginloader
 from wa.framework.exception import PluginLoaderError
 from wa.framework.plugin import Plugin, Parameter
 from wa.utils.types import list_of_strings, list_of_ints
-
+from wa.utils.misc import isiterable
 
 def get_target_descriptions(loader=pluginloader):
     targets = {}
@@ -18,7 +18,7 @@ def get_target_descriptions(loader=pluginloader):
             if desc.name in targets:
                 msg = 'Duplicate target "{}" returned by {} and {}'
                 prev_dtor = targets[desc.name].source
-                raise PluginLoaderError(msg.format(dsc.name, prev_dtor.name,
+                raise PluginLoaderError(msg.format(desc.name, prev_dtor.name,
                                                    descriptor.name))
             targets[desc.name] = desc
     return targets.values()
@@ -290,4 +290,3 @@ class DefaultTargetDescriptor(TargetDescriptor):
                 raise ValueError('Unexpected default "{}"'.format(name))
             param_map[name].default = value
         return cls, param_map.values()
-
