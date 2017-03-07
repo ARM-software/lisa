@@ -62,10 +62,7 @@ class TargetManager(object):
 
         self._init_target()
         self._init_assistant()
-
         self.runtime_configs = [cls(self.target) for cls in self.runtime_config_cls]
-        with signal.wrap('TARGET_CONNECT'):
-            self.target.connect()
 
     def finalize(self):
         # self.logger.info('Disconnecting from the device')
@@ -108,7 +105,9 @@ class TargetManager(object):
         if self.target_name not in target_map:
             raise ValueError('Unknown Target: {}'.format(self.target_name))
         tdesc = target_map[self.target_name]
-        self.target = instantiate_target(tdesc, self.parameters)
+        self.target = instantiate_target(tdesc, self.parameters, connect=False)
+        with signal.wrap('TARGET_CONNECT'):
+            self.target.connect()
         self.target.setup()
 
     def _init_assistant(self):

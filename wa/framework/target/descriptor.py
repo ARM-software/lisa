@@ -24,7 +24,7 @@ def get_target_descriptions(loader=pluginloader):
     return targets.values()
 
 
-def instantiate_target(tdesc, params):
+def instantiate_target(tdesc, params, connect=None):
     target_params = {p.name: p for p in tdesc.target_params}
     platform_params = {p.name: p for p in tdesc.platform_params}
     conn_params = {p.name: p for p in tdesc.conn_params}
@@ -47,6 +47,8 @@ def instantiate_target(tdesc, params):
         tp['connection_settings'] = cp
     if tdesc.connection:
         tp['conn_cls'] = tdesc.connection
+    if connect is not None:
+        tp['connect'] = connect
 
     return tdesc.target(**tp)
 
