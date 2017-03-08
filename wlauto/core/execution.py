@@ -36,28 +36,31 @@ following actors:
             allow instrumentation to do its stuff.
 
 """
-import os
-import uuid
 import logging
-import subprocess
+import os
 import random
+import subprocess
+import uuid
+from collections import Counter, defaultdict, OrderedDict
+from contextlib import contextmanager
 from copy import copy
 from datetime import datetime
-from contextlib import contextmanager
-from collections import Counter, defaultdict, OrderedDict
 from itertools import izip_longest
 
 import wlauto.core.signal as signal
 from wlauto.core import instrumentation
-from wlauto.core.configuration import settings
-from wlauto.core.plugin import Artifact
 from wlauto.core import pluginloader
+from wlauto.core.configuration import settings
+from wlauto.core.device_manager import TargetInfo
+from wlauto.core.plugin import Artifact
 from wlauto.core.resolver import ResourceResolver
 from wlauto.core.result import ResultManager, IterationResult, RunResult
 from wlauto.exceptions import (WAError, ConfigError, TimeoutError, InstrumentError,
                                DeviceError, DeviceNotRespondingError)
-from wlauto.utils.misc import ensure_directory_exists as _d, get_traceback, format_duration
+from wlauto.utils.misc import (ensure_directory_exists as _d, 
+                               get_traceback, format_duration)
 from wlauto.utils.serializer import json
+
 
 # The maximum number of reboot attempts for an iteration.
 MAX_REBOOT_ATTEMPTS = 3
@@ -69,33 +72,20 @@ MAX_REBOOT_ATTEMPTS = 3
 REBOOT_DELAY = 3
 
 
-class RunInfo(object):
-    """
-    Information about the current run, such as its unique ID, run
-    time, etc.
-
-    """
-
-    def __init__(self, config):
-        self.config = config
-        self.uuid = uuid.uuid4()
-        self.start_time = None
-        self.end_time = None
-        self.duration = None
-        self.project = config.project
-        self.project_stage = config.project_stage
-        self.run_name = config.run_name or "{}_{}".format(os.path.split(config.output_directory)[1],
-                                                          datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S"))
-        self.notes = None
-        self.device_properties = {}
-
-    def to_dict(self):
-        d = copy(self.__dict__)
-        d['uuid'] = str(self.uuid)
-        return d
-    #TODO: pod
-
 class ExecutionContext(object):
+
+
+    def __init__(self, cm, tm, output):
+        self.logger = logging.getLogger('ExecContext')
+        self.cm = cm
+        self.tm = tm
+        self.output = output
+        self.logger.debug('Loading resource discoverers')
+        self.resolver = ResourceResolver(cm)
+        self.resolver.load()
+
+
+class OldExecutionContext(object):
     """
     Provides a context for instrumentation. Keeps track of things like
     current workload and iteration.
@@ -237,55 +227,91 @@ def _check_artifact_path(path, rootpath):
     return full_path
 
 
+class FakeTargetManager(object):
+    # TODO: this is a FAKE
+
+    def __init__(self, name, config):
+        self.device_name = name
+        self.device_config = config
+
+        from devlib import LocalLinuxTarget
+        self.target = LocalLinuxTarget({'unrooted': True})
+        
+    def get_target_info(self):
+        return TargetInfo(self.target)
+
+    def validate_runtime_parameters(self, params):
+        pass
+
+    def merge_runtime_parameters(self, params):
+        pass
+
+
+def init_target_manager(config):
+    return FakeTargetManager(config.device, config.device_config)
+
+
 class Executor(object):
     """
-    The ``Executor``'s job is to set up the execution context and pass to a ``Runner``
-    along with a loaded run specification. Once the ``Runner`` has done its thing,
-    the ``Executor`` performs some final reporint before returning.
+    The ``Executor``'s job is to set up the execution context and pass to a
+    ``Runner`` along with a loaded run specification. Once the ``Runner`` has
+    done its thing, the ``Executor`` performs some final reporint before
+    returning.
 
-    The initial context set up involves combining configuration from various sources,
-    loading of requided workloads, loading and installation of instruments and result
-    processors, etc. Static validation of the combined configuration is also performed.
+    The initial context set up involves combining configuration from various
+    sources, loading of requided workloads, loading and installation of
+    instruments and result processors, etc. Static validation of the combined
+    configuration is also performed.
 
     """
     # pylint: disable=R0915
 
-    def __init__(self, config):
+    def __init__(self):
         self.logger = logging.getLogger('Executor')
         self.error_logged = False
         self.warning_logged = False
-        self.config = config
         pluginloader = None
         self.device_manager = None
         self.device = None
         self.context = None
 
-    def execute(self, agenda, selectors=None):  # NOQA
+    def execute(self, config_manager, output):
         """
-        Execute the run specified by an agenda. Optionally, selectors may be used to only
-        selecute a subset of the specified agenda.
+        Execute the run specified by an agenda. Optionally, selectors may be
+        used to only selecute a subset of the specified agenda.
 
         Params::
 
-            :agenda: an ``Agenda`` instance to be executed.
-            :selectors: A dict mapping selector name to the coresponding values.
-
-        **Selectors**
-
-        Currently, the following seectors are supported:
-
-        ids
-            The value must be a sequence of workload specfication IDs to be executed. Note
-            that if sections are specified inthe agenda, the workload specifacation ID will
-            be a combination of the section and workload IDs.
+            :state: a ``ConfigManager`` containing processed configuraiton
+            :output: an initialized ``RunOutput`` that will be used to
+                     store the results.
 
         """
         signal.connect(self._error_signalled_callback, signal.ERROR_LOGGED)
         signal.connect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
-        self.logger.info('Initializing')
+        self.logger.info('Initializing run')
+        self.logger.debug('Finalizing run configuration.')
+        config = config_manager.finalize()
+        output.write_config(config)
 
-        self.logger.debug('Loading run configuration.')
+        self.logger.info('Connecting to target')
+        target_manager = init_target_manager(config.run_config)
+        output.write_target_info(target_manager.get_target_info())
+
+        self.logger.info('Initializing execution conetext')
+        context = ExecutionContext(config_manager, target_manager, output)
+
+        self.logger.info('Generating jobs')
+        config_manager.generate_jobs(context)
+        output.write_job_specs(config_manager.job_specs)
+
+        self.logger.info('Installing instrumentation')
+        for instrument in config_manager.get_instruments(target_manager.target):
+            instrumentation.install(instrument)
+        instrumentation.validate()
+
+    def old_exec(self, agenda, selectors={}):
         self.config.set_agenda(agenda, selectors)
         self.config.finalize()
         config_outfile = os.path.join(self.config.meta_directory, 'run_config.json')
@@ -295,7 +321,8 @@ class Executor(object):
         self.logger.debug('Initialising device configuration.')
         if not self.config.device:
             raise ConfigError('Make sure a device is specified in the config.')
-        self.device_manager = pluginloader.get_manager(self.config.device, **self.config.device_config)
+        self.device_manager = pluginloader.get_manager(self.config.device, 
+                                                       **self.config.device_config)
         self.device_manager.validate()
         self.device = self.device_manager.target
 
@@ -390,6 +417,12 @@ class Executor(object):
         signal.disconnect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
 
+class Runner(object):
+    """
+    
+    """
+
+
 class RunnerJob(object):
     """
     Represents a single execution of a ``RunnerJobDescription``. There will be one created for each iteration
@@ -404,7 +437,7 @@ class RunnerJob(object):
         self.result = IterationResult(self.spec)
 
 
-class Runner(object):
+class OldRunner(object):
     """
     This class is responsible for actually performing a workload automation
     run. The main responsibility of this class is to emit appropriate signals

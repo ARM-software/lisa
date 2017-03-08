@@ -6,11 +6,11 @@ import sys
 import uuid
 from copy import copy
 
-from wa.framework.configuration.core import JobSpec
-from wa.framework.configuration.manager import ConfigManager
-from wa.framework.target.info import TargetInfo
-from wa.utils.misc import touch
-from wa.utils.serializer import write_pod, read_pod
+from wlauto.core.configuration.configuration import JobSpec
+from wlauto.core.configuration.manager import ConfigManager
+from wlauto.core.device_manager import TargetInfo
+from wlauto.utils.misc import touch
+from wlauto.utils.serializer import write_pod, read_pod
 
 
 logger = logging.getLogger('output')

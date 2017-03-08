@@ -1,11 +1,12 @@
 import random
 from itertools import izip_longest, groupby, chain
 
-from wa.framework import pluginloader
-from wa.framework.configuration.core import (MetaConfiguration, RunConfiguration,
-                                             JobGenerator, settings)
-from wa.framework.configuration.parsers import ConfigParser
-from wa.framework.configuration.plugin_cache import PluginCache
+from wlauto.core import pluginloader
+from wlauto.core.configuration.configuration import (MetaConfiguration,
+                                                     RunConfiguration,
+                                                     JobGenerator, settings)
+from wlauto.core.configuration.parsers import ConfigParser
+from wlauto.core.configuration.plugin_cache import PluginCache
 
 
 class CombinedConfig(object):
@@ -24,16 +25,6 @@ class CombinedConfig(object):
     def to_pod(self):
         return {'settings': self.settings.to_pod(),
                 'run_config': self.run_config.to_pod()}
-
-
-class JobStatus:
-    PENDING = 0
-    RUNNING = 1
-    OK = 2
-    FAILED = 3
-    PARTIAL = 4
-    ABORTED = 5
-    PASSED = 6
 
 
 class Job(object):

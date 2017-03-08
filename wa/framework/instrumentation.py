@@ -102,11 +102,11 @@ import logging
 import inspect
 from collections import OrderedDict
 
-import wlauto.core.signal as signal
-from wlauto.core.plugin import Plugin
-from wlauto.exceptions import WAError, DeviceNotRespondingError, TimeoutError
-from wlauto.utils.misc import get_traceback, isiterable
-from wlauto.utils.types import identifier
+import wa.framework.signal as signal
+from wa.framework.plugin import Plugin
+from wa.framework.exception import WAError, TargetNotRespondingError, TimeoutError
+from wa.utils.misc import get_traceback, isiterable
+from wa.utils.types import identifier
 
 
 logger = logging.getLogger('instrumentation')
@@ -120,55 +120,55 @@ logger = logging.getLogger('instrumentation')
 SIGNAL_MAP = OrderedDict([
     # Below are "aliases" for some of the more common signals to allow
     # instrumentation to have similar structure to workloads
-    ('initialize', signal.RUN_INIT),
-    ('setup', signal.SUCCESSFUL_WORKLOAD_SETUP),
-    ('start', signal.BEFORE_WORKLOAD_EXECUTION),
-    ('stop', signal.AFTER_WORKLOAD_EXECUTION),
-    ('process_workload_result', signal.SUCCESSFUL_WORKLOAD_RESULT_UPDATE),
-    ('update_result', signal.AFTER_WORKLOAD_RESULT_UPDATE),
-    ('teardown', signal.AFTER_WORKLOAD_TEARDOWN),
-    ('finalize', signal.RUN_FIN),
+    ('initialize', signal.SUCCESSFUL_RUN_INIT),
+    # ('setup', signal.SUCCESSFUL_WORKLOAD_SETUP),
+    # ('start', signal.BEFORE_WORKLOAD_EXECUTION),
+    # ('stop', signal.AFTER_WORKLOAD_EXECUTION),
+    # ('process_workload_result', signal.SUCCESSFUL_WORKLOAD_RESULT_UPDATE),
+    # ('update_result', signal.AFTER_WORKLOAD_RESULT_UPDATE),
+    # ('teardown', signal.AFTER_WORKLOAD_TEARDOWN),
+    # ('finalize', signal.RUN_FIN),
 
-    ('on_run_start', signal.RUN_START),
-    ('on_run_end', signal.RUN_END),
-    ('on_workload_spec_start', signal.WORKLOAD_SPEC_START),
-    ('on_workload_spec_end', signal.WORKLOAD_SPEC_END),
-    ('on_iteration_start', signal.ITERATION_START),
-    ('on_iteration_end', signal.ITERATION_END),
+    # ('on_run_start', signal.RUN_START),
+    # ('on_run_end', signal.RUN_END),
+    # ('on_workload_spec_start', signal.WORKLOAD_SPEC_START),
+    # ('on_workload_spec_end', signal.WORKLOAD_SPEC_END),
+    # ('on_iteration_start', signal.ITERATION_START),
+    # ('on_iteration_end', signal.ITERATION_END),
 
-    ('before_initial_boot', signal.BEFORE_INITIAL_BOOT),
-    ('on_successful_initial_boot', signal.SUCCESSFUL_INITIAL_BOOT),
-    ('after_initial_boot', signal.AFTER_INITIAL_BOOT),
-    ('before_first_iteration_boot', signal.BEFORE_FIRST_ITERATION_BOOT),
-    ('on_successful_first_iteration_boot', signal.SUCCESSFUL_FIRST_ITERATION_BOOT),
-    ('after_first_iteration_boot', signal.AFTER_FIRST_ITERATION_BOOT),
-    ('before_boot', signal.BEFORE_BOOT),
-    ('on_successful_boot', signal.SUCCESSFUL_BOOT),
-    ('after_boot', signal.AFTER_BOOT),
+    # ('before_initial_boot', signal.BEFORE_INITIAL_BOOT),
+    # ('on_successful_initial_boot', signal.SUCCESSFUL_INITIAL_BOOT),
+    # ('after_initial_boot', signal.AFTER_INITIAL_BOOT),
+    # ('before_first_iteration_boot', signal.BEFORE_FIRST_ITERATION_BOOT),
+    # ('on_successful_first_iteration_boot', signal.SUCCESSFUL_FIRST_ITERATION_BOOT),
+    # ('after_first_iteration_boot', signal.AFTER_FIRST_ITERATION_BOOT),
+    # ('before_boot', signal.BEFORE_BOOT),
+    # ('on_successful_boot', signal.SUCCESSFUL_BOOT),
+    # ('after_boot', signal.AFTER_BOOT),
 
-    ('on_spec_init', signal.SPEC_INIT),
-    ('on_run_init', signal.RUN_INIT),
-    ('on_iteration_init', signal.ITERATION_INIT),
+    # ('on_spec_init', signal.SPEC_INIT),
+    # ('on_run_init', signal.RUN_INIT),
+    # ('on_iteration_init', signal.ITERATION_INIT),
 
-    ('before_workload_setup', signal.BEFORE_WORKLOAD_SETUP),
-    ('on_successful_workload_setup', signal.SUCCESSFUL_WORKLOAD_SETUP),
-    ('after_workload_setup', signal.AFTER_WORKLOAD_SETUP),
-    ('before_workload_execution', signal.BEFORE_WORKLOAD_EXECUTION),
-    ('on_successful_workload_execution', signal.SUCCESSFUL_WORKLOAD_EXECUTION),
-    ('after_workload_execution', signal.AFTER_WORKLOAD_EXECUTION),
-    ('before_workload_result_update', signal.BEFORE_WORKLOAD_RESULT_UPDATE),
-    ('on_successful_workload_result_update', signal.SUCCESSFUL_WORKLOAD_RESULT_UPDATE),
-    ('after_workload_result_update', signal.AFTER_WORKLOAD_RESULT_UPDATE),
-    ('before_workload_teardown', signal.BEFORE_WORKLOAD_TEARDOWN),
-    ('on_successful_workload_teardown', signal.SUCCESSFUL_WORKLOAD_TEARDOWN),
-    ('after_workload_teardown', signal.AFTER_WORKLOAD_TEARDOWN),
+    # ('before_workload_setup', signal.BEFORE_WORKLOAD_SETUP),
+    # ('on_successful_workload_setup', signal.SUCCESSFUL_WORKLOAD_SETUP),
+    # ('after_workload_setup', signal.AFTER_WORKLOAD_SETUP),
+    # ('before_workload_execution', signal.BEFORE_WORKLOAD_EXECUTION),
+    # ('on_successful_workload_execution', signal.SUCCESSFUL_WORKLOAD_EXECUTION),
+    # ('after_workload_execution', signal.AFTER_WORKLOAD_EXECUTION),
+    # ('before_workload_result_update', signal.BEFORE_WORKLOAD_RESULT_UPDATE),
+    # ('on_successful_workload_result_update', signal.SUCCESSFUL_WORKLOAD_RESULT_UPDATE),
+    # ('after_workload_result_update', signal.AFTER_WORKLOAD_RESULT_UPDATE),
+    # ('before_workload_teardown', signal.BEFORE_WORKLOAD_TEARDOWN),
+    # ('on_successful_workload_teardown', signal.SUCCESSFUL_WORKLOAD_TEARDOWN),
+    # ('after_workload_teardown', signal.AFTER_WORKLOAD_TEARDOWN),
 
-    ('before_overall_results_processing', signal.BEFORE_OVERALL_RESULTS_PROCESSING),
-    ('on_successful_overall_results_processing', signal.SUCCESSFUL_OVERALL_RESULTS_PROCESSING),
-    ('after_overall_results_processing', signal.AFTER_OVERALL_RESULTS_PROCESSING),
+    # ('before_overall_results_processing', signal.BEFORE_OVERALL_RESULTS_PROCESSING),
+    # ('on_successful_overall_results_processing', signal.SUCCESSFUL_OVERALL_RESULTS_PROCESSING),
+    # ('after_overall_results_processing', signal.AFTER_OVERALL_RESULTS_PROCESSING),
 
-    ('on_error', signal.ERROR_LOGGED),
-    ('on_warning', signal.WARNING_LOGGED),
+    # ('on_error', signal.ERROR_LOGGED),
+    # ('on_warning', signal.WARNING_LOGGED),
 ])
 
 PRIORITY_MAP = OrderedDict([
@@ -238,7 +238,7 @@ class ManagedCallback(object):
         if self.instrument.is_enabled:
             try:
                 self.callback(context)
-            except (KeyboardInterrupt, DeviceNotRespondingError, TimeoutError):  # pylint: disable=W0703
+            except (KeyboardInterrupt, TargetNotRespondingError, TimeoutError):  # pylint: disable=W0703
                 raise
             except Exception as e:  # pylint: disable=W0703
                 logger.error('Error in insturment {}'.format(self.instrument.name))

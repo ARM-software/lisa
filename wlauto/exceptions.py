@@ -14,7 +14,9 @@
 #
 
 
-from wlauto.utils.misc import get_traceback, TimeoutError  # NOQA pylint: disable=W0611
+from wlauto.utils.misc import get_traceback
+
+from devlib.exception import DevlibError, HostError, TargetError, TimeoutError
 
 
 class WAError(Exception):

@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 from wlauto.core.configuration.configuration import (settings,
-                                                     WAConfiguration,
                                                      RunConfiguration,
                                                      JobGenerator,
                                                      ConfigurationPoint)

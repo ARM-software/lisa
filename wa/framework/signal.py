@@ -45,11 +45,14 @@ class Signal(object):
             :param name: name is the identifier of the Signal object. Signal instances with
                         the same name refer to the same execution stage/stage.
             :param invert_priority: boolean parameter that determines whether multiple
-                                    callbacks for the same signal should be ordered with
-                                    ascending or descending priorities. Typically this flag
-                                    should be set to True if the Signal is triggered AFTER an
-                                    a state/stage has been reached. That way callbacks with high
-                                    priorities will be called right after the event has occured.
+                                    callbacks for the same signal should be
+                                    ordered with ascending or descending
+                                    priorities. Typically this flag should be
+                                    set to True if the Signal is triggered
+                                    AFTER an a state/stage has been reached.
+                                    That way callbacks with high priorities
+                                    will be called right after the event has
+                                    occured.
         """
         self.name = name
         self.description = description
@@ -94,6 +97,10 @@ WARNING_LOGGED = Signal('warning-logged')
 # even if there is an error, so you cannot assume in the handler that the
 # device has booted successfully. In most cases, you should instead use the
 # non-paired signals below.
+BEFORE_RUN_INIT = Signal('before-run-init', invert_priority=True)
+SUCCESSFUL_RUN_INIT = Signal('successful-run-init')
+AFTER_RUN_INIT = Signal('after-run-init')
+
 BEFORE_FLASHING = Signal('before-flashing', invert_priority=True)
 SUCCESSFUL_FLASHING = Signal('successful-flashing')
 AFTER_FLASHING = Signal('after-flashing')

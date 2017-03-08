@@ -21,15 +21,15 @@ import os
 import subprocess
 import warnings
 
-from wlauto.core.configuration import settings
 from wlauto.core import pluginloader
 from wlauto.core.command import init_argument_parser
-from wlauto.exceptions import WAError, ConfigError
-from wlauto.utils.misc import get_traceback
-from wlauto.utils.log import init_logging
+from wlauto.core.configuration import settings
+from wlauto.core.configuration.manager import ConfigManager
+from wlauto.core.host import init_user_directory
+from wlauto.exceptions import WAError, DevlibError, ConfigError
 from wlauto.utils.doc import format_body
-
-from devlib import DevlibError
+from wlauto.utils.log import init_logging
+from wlauto.utils.misc import get_traceback
 
 warnings.filterwarnings(action='ignore', category=UserWarning, module='zope')
 
@@ -40,12 +40,19 @@ logger = logging.getLogger('command_line')
 def load_commands(subparsers):
     commands = {}
     for command in pluginloader.list_commands():
-        commands[command.name] = pluginloader.get_command(command.name, subparsers=subparsers)
+        commands[command.name] = pluginloader.get_command(command.name, 
+                                                          subparsers=subparsers)
     return commands
 
 
 def main():
+    config = ConfigManager()
+
+    if not os.path.exists(settings.user_directory):
+        init_user_directory()
+
     try:
+
         description = ("Execute automated workloads on a remote device and process "
                        "the resulting output.\n\nUse \"wa <subcommand> -h\" to see "
                        "help for individual subcommands.")
@@ -54,22 +61,23 @@ def main():
                                          formatter_class=argparse.RawDescriptionHelpFormatter,
                                          )
         init_argument_parser(parser)
-        commands = load_commands(parser.add_subparsers(dest='command'))  # each command will add its own subparser
+        # each command will add its own subparser
+        commands = load_commands(parser.add_subparsers(dest='command'))  
+
         args = parser.parse_args()
 
-        #TODO: Set this stuff properly, i.e dont use settings (if possible)
-        #settings.set("verbosity", args.verbose)
-        #settings.load_user_config()
-        #settings.debug = args.debug
+        settings.set("verbosity", args.verbose)
 
-        for config in args.config:
-            if not os.path.exists(config):
-                raise ConfigError("Config file {} not found".format(config))
+        config.load_config_file(settings.user_config_file)
+        for config_file in args.config:
+            if not os.path.exists(config_file):
+                raise ConfigError("Config file {} not found".format(config_file))
+            config.load_config_file(config_file)
 
         init_logging(settings.verbosity)
 
         command = commands[args.command]
-        sys.exit(command.execute(args))
+        sys.exit(command.execute(config, args))
 
     except KeyboardInterrupt:
         logging.info('Got CTRL-C. Aborting.')

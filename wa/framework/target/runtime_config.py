@@ -15,8 +15,6 @@ class RuntimeConfig(Plugin):
     parameters = [
     ]
 
-# class RuntimeConfig(object):
-
     @property
     def supported_parameters(self):
         raise NotImplementedError()
@@ -25,8 +23,8 @@ class RuntimeConfig(Plugin):
     def core_names(self):
         return unique(self.target.core_names)
 
-    def __init__(self, target):
-        super(RuntimeConfig, self).__init__()
+    def __init__(self, target, **kwargs):
+        super(RuntimeConfig, self).__init__(**kwargs)
         self.target = target
 
     def initialize(self, context):
@@ -47,6 +45,9 @@ class RuntimeConfig(Plugin):
 
 class HotplugRuntimeConfig(RuntimeConfig):
 ##### NOTE: Currently if initialized with cores hotplugged, this will fail when trying to hotplug back in
+
+    name = 'rt-hotplug'
+
     @property
     def supported_parameters(self):
         params = ['cores']
@@ -93,6 +94,8 @@ class HotplugRuntimeConfig(RuntimeConfig):
 
 class SysfileValuesRuntimeConfig(RuntimeConfig):
 
+    name = 'rt-sysfiles'
+
     @property
     def supported_parameters(self):
         return ['sysfile_values']
@@ -132,6 +135,8 @@ class SysfileValuesRuntimeConfig(RuntimeConfig):
 
 class CpufreqRuntimeConfig(RuntimeConfig):
 
+    name = 'rt-cpufreq'
+
     @property
     def supported_parameters(self):
         params = ['frequency']
@@ -151,9 +156,14 @@ class CpufreqRuntimeConfig(RuntimeConfig):
         self.min_supported_freq = {}
         self.max_supported_freq = {}
 
-        for cpu in self.target.list_online_cpus():
-            self.supported_freqs[cpu] = self.target.cpufreq.list_frequencies(cpu) or []
-            self.supported_govenors[cpu] = self.target.cpufreq.list_governors(cpu) or []
+        if self.target.has('cpufreq'):
+            for cpu in self.target.list_online_cpus():
+                freqs = self.target.cpufreq.list_frequencies(cpu) or []
+                self.supported_freqs[cpu] = freqs
+                govs = self.target.cpufreq.list_governors(cpu) or []
+                self.supported_govenors[cpu] = govs
+        else:
+            self.logger.debug('Target does not support cpufreq')
 
     def add(self, name, value):
         if not self.target.has('cpufreq'):
@@ -319,6 +329,8 @@ class CpufreqRuntimeConfig(RuntimeConfig):
 
 class CpuidleRuntimeConfig(RuntimeConfig):
 
+    name = 'rt-cpuidle'
+
     @property
     def supported_parameters(self):
         params = ['idle_states']
@@ -330,12 +342,15 @@ class CpuidleRuntimeConfig(RuntimeConfig):
         self.aliases = ['ENABLE_ALL', 'DISABLE_ALL']
         self.available_states = {}
 
-        for cpu in self.target.list_online_cpus():
-            self.available_states[cpu] = self.target.cpuidle.get_states(cpu) or []
+        if self.target.has('cpuidle'):
+            for cpu in self.target.list_online_cpus():
+                self.available_states[cpu] = self.target.cpuidle.get_states(cpu) or []
+        else:
+            self.logger.debug('Target does not support cpuidle.')
 
     def add(self, name, values):
-        if not self.target.has('cpufreq'):
-            raise TargetError('Target does not support cpufreq.')
+        if not self.target.has('cpuidle'):
+            raise TargetError('Target does not support cpuidle.')
 
         prefix, _ = split_parameter_name(name, self.supported_parameters)
         cpus = uniqueDomainCpusFromPrefix(prefix, self.target)

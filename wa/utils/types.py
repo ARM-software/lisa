@@ -15,75 +15,27 @@
 
 
 """
-Routines for doing various type conversions. These usually embody some higher-level
-semantics than are present in standard Python types (e.g. ``boolean`` will convert the
-string ``"false"`` to ``False``, where as non-empty strings are usually considered to be
-``True``).
+Routines for doing various type conversions. These usually embody some
+higher-level semantics than are present in standard Python types (e.g.
+``boolean`` will convert the string ``"false"`` to ``False``, where as
+non-empty strings are usually considered to be ``True``).
 
-A lot of these are intened to stpecify type conversions declaratively in place like
-``Parameter``'s ``kind`` argument. These are basically "hacks" around the fact that Python
-is not the best language to use for configuration.
+A lot of these are intened to stpecify type conversions declaratively in place
+like ``Parameter``'s ``kind`` argument. These are basically "hacks" around the
+fact that Python is not the best language to use for configuration.
 
 """
 import os
 import re
 import math
 import shlex
-import numbers
 from bisect import insort
-from collections import defaultdict
+from collections import defaultdict, MutableMapping
+from copy import copy
+
+from devlib.utils.types import identifier, boolean, integer, numeric, caseless_string
 
 from wa.utils.misc import isiterable, to_identifier
-
-
-def identifier(text):
-    """Converts text to a valid Python identifier by replacing all
-    whitespace and punctuation."""
-    return to_identifier(text)
-
-
-def boolean(value):
-    """
-    Returns bool represented by the value. This is different from
-    calling the builtin bool() in that it will interpret string representations.
-    e.g. boolean('0') and boolean('false') will both yield False.
-
-    """
-    false_strings = ['', '0', 'n', 'no']
-    if isinstance(value, basestring):
-        value = value.lower()
-        if value in false_strings or 'false'.startswith(value):
-            return False
-    return bool(value)
-
-
-def integer(value):
-    """Handles conversions for string respresentations of binary, octal and hex."""
-    if isinstance(value, basestring):
-        return int(value, 0)
-    else:
-        return int(value)
-
-
-def numeric(value):
-    """
-    Returns the value as number (int if possible, or float otherwise), or
-    raises ``ValueError`` if the specified ``value`` does not have a straight
-    forward numeric conversion.
-
-    """
-    if isinstance(value, int):
-        return value
-    try:
-        fvalue = float(value)
-    except ValueError:
-        raise ValueError('Not numeric: {}'.format(value))
-    if not math.isnan(fvalue) and not math.isinf(fvalue):
-        ivalue = int(fvalue)
-        # yeah, yeah, I know. Whatever. This is best-effort.
-        if ivalue == fvalue:
-            return ivalue
-    return fvalue
 
 
 def list_of_strs(value):
@@ -142,7 +94,6 @@ def list_of(type_):
     """Generates a "list of" callable for the specified type. The callable
     attempts to convert all elements in the passed value to the specifed
     ``type_``, raising ``ValueError`` on error."""
-
     def __init__(self, values):
         list.__init__(self, map(type_, values))
 
@@ -204,7 +155,6 @@ def list_or(type_):
     list_type = list_of(type_)
 
     class list_or_type(list_type):
-
         def __init__(self, value):
             # pylint: disable=non-parent-init-called,super-init-not-called
             if isiterable(value):
@@ -220,6 +170,7 @@ list_or_bool = list_or(boolean)
 
 
 regex_type = type(re.compile(''))
+none_type = type(None)
 
 
 def regex(value):
@@ -234,28 +185,25 @@ def regex(value):
         return re.compile(value)
 
 
-class caseless_string(str):
+__counters = defaultdict(int)
+
+
+def reset_counter(name=None):
+    __counters[name] = 0
+
+
+def counter(name=None):
     """
-    Just like built-in Python string except case-insensitive on comparisons. However, the
-    case is preserved otherwise.
+    An auto incremeting value (kind of like an AUTO INCREMENT field in SQL).
+    Optionally, the name of the counter to be used is specified (each counter
+    increments separately).
+
+    Counts start at 1, not 0.
 
     """
-
-    def __eq__(self, other):
-        if isinstance(other, basestring):
-            other = other.lower()
-        return self.lower() == other
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __cmp__(self, other):
-        if isinstance(basestring, other):
-            other = other.lower()
-        return cmp(self.lower(), other)
-
-    def format(self, *args, **kwargs):
-        return caseless_string(super(caseless_string, self).format(*args, **kwargs))
+    __counters[name] += 1
+    value = __counters[name]
+    return value
 
 
 class arguments(list):
@@ -375,7 +323,8 @@ class prioritylist(object):
             raise ValueError('Invalid index {}'.format(index))
         current_global_offset = 0
         priority_counts = {priority: count for (priority, count) in
-                           zip(self.priorities, [len(self.elements[p]) for p in self.priorities])}
+                           zip(self.priorities, [len(self.elements[p]) 
+                                                 for p in self.priorities])}
         for priority in self.priorities:
             if not index_range:
                 break
@@ -395,103 +344,134 @@ class prioritylist(object):
         return self.size
 
 
-class TreeNode(object):
+class toggle_set(set):
+    """
+    A list that contains items to enable or disable something.
 
-    @property
-    def is_root(self):
-        return self.parent is None
-    
-    @property
-    def is_leaf(self):
-        return not self.children
+    A prefix of ``~`` is used to denote disabling something, for example
+    the list ['apples', '~oranges', 'cherries'] enables both ``apples``
+    and ``cherries`` but disables ``oranges``.
+    """
 
-    @property
-    def parent(self):
-        return self._parent
+    @staticmethod
+    def from_pod(pod):
+        return toggle_set(pod)
 
-    @parent.setter
-    def parent(self, parent):
-        if self._parent:
-            self._parent.remove_child(self)
-        self._parent = parent
-        if self._parent:
-            self._parent.add_child(self)
+    @staticmethod
+    def merge(source, dest):
+        for item in source:
+            if item not in dest:
+                #Disable previously enabled item
+                if item.startswith('~') and item[1:] in dest:
+                    dest.remove(item[1:])
+                #Enable previously disabled item
+                if not item.startswith('~') and ('~' + item) in dest:
+                    dest.remove('~' + item)
+                dest.add(item)
+        return dest
 
-    @property
-    def children(self):
-        return [c for c in self._children]
+    def merge_with(self, other):
+        new_self = copy(self)
+        return toggle_set.merge(other, new_self)
 
-    def __init__(self):
-        self._parent = None
-        self._children = []
+    def merge_into(self, other):
+        other = copy(other)
+        return toggle_set.merge(self, other)
 
-    def add_child(self, node):
-        if node == self:
-            raise ValueError('A node cannot be its own child.')
-        if node in self._children:
-            return
-        for ancestor in self.iter_ancestors():
-            if ancestor == node:
-                raise ValueError('Can\'t add {} as a child, as it already an ancestor')
-        if node.parent and node.parent != self:
-            raise ValueError('Cannot add {}, as it already has a parent.'.format(node))
-        self._children.append(node)
-        node._parent = self
+    def values(self):
+        """
+        returns a list of enabled items.
+        """
+        return set([item for item in self if not item.startswith('~')])
 
-    def remove_child(self, node):
-        if node not in self._children:
-            message = 'Cannot remove: {} is not a child of {}'
-            raise ValueError(message.format(node, self))
-        self._children.remove(node)
-        node._parent = None
+    def conflicts_with(self, other):
+        """
+        Checks if any items in ``other`` conflict with items already in this list.
 
-    def iter_ancestors(self, after=None, upto=None):
-        if upto == self:
-            return
-        ancestor = self
-        if after:
-            while ancestor != after:
-                ancestor = ancestor.parent
-        while ancestor and ancestor != upto:
-            yield ancestor
-            ancestor = ancestor.parent
+        Args:
+            other (list): The list to be checked against
 
-    def iter_descendants(self):
-        for child in self.children:
-            yield child
-            for grandchild in child.iter_descendants():
-                yield grandchild
+        Returns:
+            A list of items in ``other`` that conflict with items in this list
+        """
+        conflicts = []
+        for item in other:
+            if item.startswith('~') and item[1:] in self:
+                conflicts.append(item)
+            if not item.startswith('~') and ('~' + item) in self:
+                conflicts.append(item)
+        return conflicts
 
-    def iter_leaves(self):
-        for descendant in self.iter_descendants():
-            if descendant.is_leaf:
-                yield descendant
+    def to_pod(self):
+        return list(self.values())
 
-    def get_common_ancestor(self, other):
-        if self.has_ancestor(other):
-            return other
-        if other.has_ancestor(self):
-            return self
-        for my_ancestor in self.iter_ancestors():
-            for other_ancestor in other.iter_ancestors():
-                if my_ancestor == other_ancestor:
-                    return my_ancestor
 
-    def get_root(self):
-        node = self
-        while not node.is_root:
-            node = node.parent
-        return node
+class ID(str):
 
-    def has_ancestor(self, other):
-        for ancestor in self.iter_ancestors():
-            if other == ancestor:
-                return True
-        return False
+    def merge_with(self, other):
+        return '_'.join(self, other)
 
-    def has_descendant(self, other):
-        for descendant in self.iter_descendants():
-            if other == descendant:
-                return True
-        return False
+    def merge_into(self, other):
+        return '_'.join(other, self)
 
+
+class obj_dict(MutableMapping):
+    """
+    An object that behaves like a dict but each dict entry can also be accesed
+    as an attribute.
+
+    :param not_in_dict: A list of keys that can only be accessed as attributes
+
+    """
+
+    @staticmethod
+    def from_pod(pod):
+        return obj_dict(pod)
+
+    def __init__(self, values=None, not_in_dict=None):
+        self.__dict__['dict'] = dict(values or {})
+        self.__dict__['not_in_dict'] = not_in_dict if not_in_dict is not None else []
+
+    def to_pod(self):
+        return self.__dict__['dict']
+
+    def __getitem__(self, key):
+        if key in self.not_in_dict:
+            msg = '"{}" is in the list keys that can only be accessed as attributes'
+            raise KeyError(msg.format(key))
+        return self.__dict__['dict'][key]
+
+    def __setitem__(self, key, value):
+        self.__dict__['dict'][key] = value
+
+    def __delitem__(self, key):
+        del self.__dict__['dict'][key]
+
+    def __len__(self):
+        return sum(1 for _ in self)
+
+    def __iter__(self):
+        for key in self.__dict__['dict']:
+            if key not in self.__dict__['not_in_dict']:
+                yield key
+
+    def __repr__(self):
+        return repr(dict(self))
+
+    def __str__(self):
+        return str(dict(self))
+
+    def __setattr__(self, name, value):
+        self.__dict__['dict'][name] = value
+
+    def __delattr__(self, name):
+        if name in self:
+            del self.__dict__['dict'][name]
+        else:
+            raise AttributeError("No such attribute: " + name)
+
+    def __getattr__(self, name):
+        if name in self.__dict__['dict']:
+            return self.__dict__['dict'][name]
+        else:
+            raise AttributeError("No such attribute: " + name)

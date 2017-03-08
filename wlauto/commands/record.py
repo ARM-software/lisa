@@ -78,7 +78,7 @@ class RecordCommand(Command):
             args.suffix += "."
 
     # pylint: disable=W0201
-    def execute(self, args):
+    def execute(self, state, args):
         self.validate_args(args)
         self.logger.info("Connecting to device...")
 

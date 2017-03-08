@@ -14,11 +14,14 @@
 
 from copy import copy
 from collections import defaultdict
+from itertools import chain
 
-from wlauto.core import pluginloader
-from wlauto.exceptions import ConfigError
-from wlauto.utils.types import obj_dict
 from devlib.utils.misc import memoized
+
+from wa.framework import pluginloader
+from wa.framework.exception import ConfigError
+from wa.framework.target.descriptor import get_target_descriptions
+from wa.utils.types import obj_dict
 
 GENERIC_CONFIGS = ["device_config", "workload_parameters",
                    "boot_parameters", "runtime_parameters"]
@@ -38,6 +41,7 @@ class PluginCache(object):
         self.sources = []
         self.plugin_configs = defaultdict(lambda: defaultdict(dict))
         self.global_alias_values = defaultdict(dict)
+        self.targets = {td.name: td for td in get_target_descriptions()}
 
         # Generate a mapping of what global aliases belong to
         self._global_alias_map = defaultdict(dict)
@@ -95,31 +99,22 @@ class PluginCache(object):
         config = obj_dict(not_in_dict=['name'])
         config.name = plugin_name
 
-        # Load plugin defaults
-        cfg_points = self.get_plugin_parameters(plugin_name)
-        for cfg_point in cfg_points.itervalues():
-            cfg_point.set_value(config, check_mandatory=False)
+        if plugin_name not in GENERIC_CONFIGS:
+            self._set_plugin_defaults(plugin_name, config)
+            self._set_from_global_aliases(plugin_name, config)
 
-        # Merge global aliases
-        for alias, param in self._global_alias_map[plugin_name].iteritems():
-            if alias in self.global_alias_values:
-                for source in self.sources:
-                    if source not in self.global_alias_values[alias]:
-                        continue
-                    val = self.global_alias_values[alias][source]
-                    param.set_value(config, value=val)
-
-        # Merge user config
-        # Perform a simple merge with the order of sources representing priority
         if generic_name is None:
+            # Perform a simple merge with the order of sources representing
+            # priority
             plugin_config = self.plugin_configs[plugin_name]
             for source in self.sources:
                 if source not in plugin_config:
                     continue
                 for name, value in plugin_config[source].iteritems():
                     cfg_points[name].set_value(config, value=value)
-        # A more complicated merge that involves priority of sources and specificity
         else:
+            # A more complicated merge that involves priority of sources and
+            # specificity
             self._merge_using_priority_specificity(plugin_name, generic_name, config)
 
         return config
@@ -131,15 +126,37 @@ class PluginCache(object):
 
     @memoized
     def get_plugin_parameters(self, name):
+        if name in self.targets:
+            return self._get_target_params(name)
         params = self.loader.get_plugin_class(name).parameters
         return {param.name: param for param in params}
+
+    def _set_plugin_defaults(self, plugin_name, config):
+        cfg_points = self.get_plugin_parameters(plugin_name)
+        for cfg_point in cfg_points.itervalues():
+            cfg_point.set_value(config, check_mandatory=False)
+
+    def _set_from_global_aliases(self, plugin_name, config):
+        for alias, param in self._global_alias_map[plugin_name].iteritems():
+            if alias in self.global_alias_values:
+                for source in self.sources:
+                    if source not in self.global_alias_values[alias]:
+                        continue
+                    val = self.global_alias_values[alias][source]
+                    param.set_value(config, value=val)
+
+    def _get_target_params(self, name):
+        td = self.targets[name]
+        params = {p.name: p for p in chain(td.target_params, td.platform_params)}
+        #params['connection_settings'] = {p.name: p for p in td.conn_params}
+        return params
 
     # pylint: disable=too-many-nested-blocks, too-many-branches
     def _merge_using_priority_specificity(self, specific_name, 
                                           generic_name, final_config):
         """
         WA configuration can come from various sources of increasing priority,
-        as well as being specified in a generic and specific manner (e.g.
+        as well as being specified in a generic and specific manner (e.g
         ``device_config`` and ``nexus10`` respectivly). WA has two rules for
         the priority of configuration:
 
@@ -164,47 +181,74 @@ class PluginCache(object):
         :rtype: A fully merged and validated configuration in the form of a
                 obj_dict.
         """
-        generic_config = copy(self.plugin_configs[generic_name])
-        specific_config = copy(self.plugin_configs[specific_name])
-        cfg_points = self.get_plugin_parameters(specific_name)
+        ms = MergeState()
+        ms.generic_name = generic_name
+        ms.specific_name = specific_name
+        ms.generic_config = copy(self.plugin_configs[generic_name])
+        ms.specific_config = copy(self.plugin_configs[specific_name])
+        ms.cfg_points = self.get_plugin_parameters(specific_name)
         sources = self.sources
-        seen_specific_config = defaultdict(list)
 
         # set_value uses the 'name' attribute of the passed object in it error
         # messages, to ensure these messages make sense the name will have to be
         # changed several times during this function.
         final_config.name = specific_name
 
-        # pylint: disable=too-many-nested-blocks
         for source in sources:
             try:
-                if source in generic_config:
-                    final_config.name = generic_name
-                    for name, cfg_point in cfg_points.iteritems():
-                        if name in generic_config[source]:
-                            if name in seen_specific_config:
-                                msg = ('"{generic_name}" configuration "{config_name}" has already been '
-                                       'specified more specifically for {specific_name} in:\n\t\t{sources}')
-                                msg = msg.format(generic_name=generic_name,
-                                                 config_name=name,
-                                                 specific_name=specific_name,
-                                                 sources=", ".join(seen_specific_config[name]))
-                                raise ConfigError(msg)
-                            value = generic_config[source][name]
-                            cfg_point.set_value(final_config, value, check_mandatory=False)
-
-                if source in specific_config:
-                    final_config.name = specific_name
-                    for name, cfg_point in cfg_points.iteritems():
-                        if name in specific_config[source]:
-                            seen_specific_config[name].append(str(source))
-                            value = specific_config[source][name]
-                            cfg_point.set_value(final_config, value, check_mandatory=False)
-
+                update_config_from_source(final_config, source, ms)
             except ConfigError as e:
                 raise ConfigError('Error in "{}":\n\t{}'.format(source, str(e)))
 
         # Validate final configuration
         final_config.name = specific_name
-        for cfg_point in cfg_points.itervalues():
+        for cfg_point in ms.cfg_points.itervalues():
             cfg_point.validate(final_config)
+
+
+class MergeState(object):
+
+    def __init__(self):
+        self.generic_name = None
+        self.specific_name = None
+        self.generic_config = None
+        self.specific_config = None
+        self.cfg_points = None
+        self.seen_specific_config = defaultdict(list)
+
+
+def update_config_from_source(final_config, source, state):
+    if source in state.generic_config:
+        final_config.name = state.generic_name
+        for name, cfg_point in state.cfg_points.iteritems():
+            if name in state.generic_config[source]:
+                if name in state.seen_specific_config:
+                    msg = ('"{generic_name}" configuration "{config_name}" has '
+                            'already been specified more specifically for '
+                            '{specific_name} in:\n\t\t{sources}')
+                    seen_sources = state.seen_specific_config[name]
+                    msg = msg.format(generic_name=generic_name,
+                                        config_name=name,
+                                        specific_name=specific_name,
+                                        sources=", ".join(seen_sources))
+                    raise ConfigError(msg)
+                value = state.generic_config[source].pop(name)
+                cfg_point.set_value(final_config, value, check_mandatory=False)
+
+        if state.generic_config[source]:
+            msg = 'Unexected values for {}: {}'
+            raise ConfigError(msg.format(state.generic_name,
+                                         state.generic_config[source]))
+
+    if source in state.specific_config:
+        final_config.name = state.specific_name
+        for name, cfg_point in state.cfg_points.iteritems():
+            if name in state.specific_config[source]:
+                seen_state.specific_config[name].append(str(source))
+                value = state.specific_config[source].pop(name)
+                cfg_point.set_value(final_config, value, check_mandatory=False)
+
+        if state.specific_config[source]:
+            msg = 'Unexected values for {}: {}'
+            raise ConfigError(msg.format(state.specific_name,
+                                         state.specific_config[source]))

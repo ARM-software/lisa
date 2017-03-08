@@ -18,7 +18,7 @@
 import os
 import re
 
-from wa import Workload, Parameter, ConfigError, runmethod
+from wa import Workload, Parameter, ConfigError
 
 
 this_dir = os.path.dirname(__file__)
@@ -62,7 +62,6 @@ class Dhrystone(Workload):
                   description='The processes spawned by sysbench will be pinned to cores as specified by this parameter'),
     ]
 
-    @runmethod
     def initialize(self, context):
         host_exe = os.path.join(this_dir, 'dhrystone')
         Dhrystone.target_exe = self.target.install(host_exe)
@@ -118,7 +117,6 @@ class Dhrystone(Workload):
         context.add_metric('total DMIPS', total_dmips)
         context.add_metric('total score', total_score)
 
-    @runmethod
     def finalize(self, context):
         self.target.uninstall('dhrystone')
 

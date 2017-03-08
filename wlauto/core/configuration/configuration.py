@@ -17,7 +17,7 @@ import re
 from copy import copy
 from collections import OrderedDict, defaultdict
 
-from wlauto.exceptions import ConfigError
+from wlauto.exceptions import ConfigError, NotFoundError
 from wlauto.utils.misc import (get_article, merge_config_values)
 from wlauto.utils.types import (identifier, integer, boolean,
                                 list_of_strings, toggle_set,
@@ -489,57 +489,78 @@ class CpuFreqParameters(object):
 #####################
 
 
+def _to_pod(cfg_point, value):
+    if is_pod(value):
+        return value
+    if hasattr(cfg_point.kind, 'to_pod'):
+        return value.to_pod()
+    msg = '{} value "{}" is not serializable'
+    raise ValueError(msg.format(cfg_point.name, value))
+
+
 class Configuration(object):
 
     config_points = []
-    name = ""
+    name = ''
+
     # The below line must be added to all subclasses
     configuration = {cp.name: cp for cp in config_points}
 
+    @classmethod
+    def from_pod(cls, pod):
+        instance = cls()
+        for cfg_point in cls.config_points:
+            if name in pod:
+                value = pod.pop(name)
+                if hasattr(cfg_point.kind, 'from_pod'):
+                    value = cfg_point.kind.from_pod(value)
+                cfg_point.set_value(instance, value)
+        if pod:
+            msg = 'Invalid entry(ies) for "{}": "{}"'
+            raise ValueError(msg.format(cls.name, '", "'.join(pod.keys())))
+        return instance
+
     def __init__(self):
-        # Load default values for configuration points
-        for confpoint in self.configuration.itervalues():
+        for confpoint in self.config_points:
             confpoint.set_value(self, check_mandatory=False)
 
     def set(self, name, value, check_mandatory=True):
         if name not in self.configuration:
-            raise ConfigError('Unknown {} configuration "{}"'.format(self.name, name))
-        self.configuration[name].set_value(self, value, check_mandatory=check_mandatory)
+            raise ConfigError('Unknown {} configuration "{}"'.format(self.name, 
+                                                                     name))
+        self.configuration[name].set_value(self, value, 
+                                           check_mandatory=check_mandatory)
 
     def update_config(self, values, check_mandatory=True):
         for k, v in values.iteritems():
             self.set(k, v, check_mandatory=check_mandatory)
 
     def validate(self):
-        for cfg_point in self.configuration.itervalues():
+        for cfg_point in self.config_points:
             cfg_point.validate(self)
 
     def to_pod(self):
         pod = {}
-        for cfg_point_name in self.configuration.iterkeys():
-            value = getattr(self, cfg_point_name, None)
-            if value is not None:
-                pod[cfg_point_name] = value
+        for cfg_point in self.config_points:
+            value = getattr(self, cfg_point.name, None)
+            pod[cfg_point.name] = _to_pod(cfg_point, value)
         return pod
-
-    @classmethod
-    # pylint: disable=unused-argument
-    def from_pod(cls, pod, plugin_cache):
-        instance = cls()
-        for name, cfg_point in cls.configuration.iteritems():
-            if name in pod:
-                cfg_point.set_value(instance, pod.pop(name))
-        if pod:
-            msg = 'Invalid entry(ies) for "{}": "{}"'
-            raise ConfigError(msg.format(cls.name, '", "'.join(pod.keys())))
-        instance.validate()
-        return instance
 
 
 # This configuration for the core WA framework
-class WAConfiguration(Configuration):
+class MetaConfiguration(Configuration):
 
-    name = "WA Configuration"
+    name = "Meta Configuration"
+
+    plugin_packages = [
+        'wlauto.commands',
+        'wlauto.workloads',
+        'wlauto.instrumentation',
+        'wlauto.result_processors',
+        'wlauto.managers',
+        'wlauto.resource_getters',
+    ]
+
     config_points = [
         ConfigurationPoint(
             'user_directory',
@@ -549,48 +570,6 @@ class WAConfiguration(Configuration):
             """,
             kind=str,
             default=os.path.join(os.path.expanduser('~'), '.workload_automation'),
-        ),
-        ConfigurationPoint(
-            'plugin_packages',
-            kind=list_of_strings,
-            default=[
-                'wlauto.commands',
-                'wlauto.workloads',
-                'wlauto.instrumentation',
-                'wlauto.result_processors',
-                'wlauto.managers',
-                'wlauto.resource_getters',
-            ],
-            description="""
-            List of packages that will be scanned for WA plugins.
-            """,
-        ),
-        ConfigurationPoint(
-            'plugin_paths',
-            kind=list_of_strings,
-            default=[
-                'workloads',
-                'instruments',
-                'targets',
-                'processors',
-
-                # Legacy
-                'managers',
-                'result_processors',
-            ],
-            description="""
-            List of paths that will be scanned for WA plugins.
-            """,
-            merge=True
-        ),
-        ConfigurationPoint(
-            'plugin_ignore_paths',
-            kind=list_of_strings,
-            default=[],
-            description="""
-            List of (sub)paths that will be ignored when scanning
-            ``plugin_paths`` for WA plugins.
-            """,
         ),
         ConfigurationPoint(
             'assets_repository',
@@ -623,7 +602,7 @@ class WAConfiguration(Configuration):
             Verbosity of console output.
             """,
         ),
-        ConfigurationPoint(  # TODO: Needs some format for dates ect/ comes from cfg
+        ConfigurationPoint(  # TODO: Needs some format for dates etc/ comes from cfg
             'default_output_directory',
             default="wa_output",
             description="""
@@ -636,7 +615,21 @@ class WAConfiguration(Configuration):
 
     @property
     def dependencies_directory(self):
-        return "{}/dependencies/".format(self.user_directory)
+        return os.path.join(self.user_directory, 'dependencies')
+
+    @property
+    def plugins_directory(self):
+        return os.path.join(self.user_directory, 'plugins')
+
+    @property
+    def user_config_file(self):
+        return os.path.join(self.user_directory, 'config.yaml')
+
+    def __init__(self, environ):
+        super(MetaConfiguration, self).__init__()
+        user_directory = environ.pop('WA_USER_DIRECTORY', '')
+        if user_directory:
+            self.set('user_directory', user_directory)
 
 
 # This is generic top-level configuration for WA runs.
@@ -754,6 +747,8 @@ class RunConfiguration(Configuration):
 
     def __init__(self):
         super(RunConfiguration, self).__init__()
+        for confpoint in self.meta_data:
+            confpoint.set_value(self, check_mandatory=False)
         self.device_config = None
 
     def merge_device_config(self, plugin_cache):
@@ -762,39 +757,30 @@ class RunConfiguration(Configuration):
         selected device.
         """
         # pylint: disable=no-member
-        self.device_config = plugin_cache.get_plugin_config(self.device_config,
+        if self.device is None:
+            msg = 'Attemting to merge device config with unspecified device'
+            raise RuntimeError(msg)
+        self.device_config = plugin_cache.get_plugin_config(self.device,
                                                             generic_name="device_config")
 
     def to_pod(self):
         pod = super(RunConfiguration, self).to_pod()
-        pod['device_config'] = self.device_config
+        pod['device_config'] = dict(self.device_config or {})
         return pod
 
-    # pylint: disable=no-member
     @classmethod
-    def from_pod(cls, pod, plugin_cache):
-        try:
-            device_config = obj_dict(values=pod.pop("device_config"), not_in_dict=['name'])
-        except KeyError as e:
-            msg = 'No value specified for mandatory parameter "{}".'
-            raise ConfigError(msg.format(e.args[0]))
+    def from_pod(cls, pod):
+        meta_pod = {}
+        for cfg_point in cls.meta_data:
+            meta_pod[cfg_point.name] = pod.pop(cfg_point.name, None)
 
-        instance = super(RunConfiguration, cls).from_pod(pod, plugin_cache)
+        instance = super(RunConfiguration, cls).from_pod(pod)
+        for cfg_point in cls.meta_data:
+            cfg_point.set_value(instance, meta_pod[cfg_point.name])
 
-        device_config.name = "device_config"
-        cfg_points = plugin_cache.get_plugin_parameters(instance.device)
-        for entry_name in device_config.iterkeys():
-            if entry_name not in cfg_points.iterkeys():
-                msg = 'Invalid entry "{}" for device "{}".'
-                raise ConfigError(msg.format(entry_name, instance.device, cls.name))
-            else:
-                cfg_points[entry_name].validate(device_config)
-
-        instance.device_config = device_config
         return instance
 
 
-# This is the configuration for WA jobs
 class JobSpec(Configuration):
 
     name = "Job Spec"
@@ -808,6 +794,23 @@ class JobSpec(Configuration):
                            aliases=["name"],
                            description='''
                            The name of the workload to run.
+                           '''),
+        ConfigurationPoint('workload_parameters', kind=obj_dict,
+                           aliases=["params", "workload_params"],
+                           description='''
+                           Parameter to be passed to the workload
+                           '''),
+        ConfigurationPoint('runtime_parameters', kind=obj_dict,
+                           aliases=["runtime_params"],
+                           description='''
+                           Runtime parameters to be set prior to running
+                           the workload.
+                           '''),
+        ConfigurationPoint('boot_parameters', kind=obj_dict,
+                           aliases=["boot_params"],
+                           description='''
+                           Parameters to be used when rebooting the target
+                           prior to running the workload.
                            '''),
         ConfigurationPoint('label', kind=str,
                            description='''
@@ -837,14 +840,33 @@ class JobSpec(Configuration):
     ]
     configuration = {cp.name: cp for cp in config_points}
 
+    @classmethod
+    def from_pod(cls, pod):
+        job_id = pod.pop('id')
+        instance = super(JobSpec, cls).from_pod(pod)
+        instance['id'] = job_id
+        return instance
+
+    @property
+    def section_id(self):
+        if self.id is not None:
+            self.id.rsplit('-', 1)[0]
+
+    @property
+    def workload_id(self):
+        if self.id is not None:
+            self.id.rsplit('-', 1)[-1]
+
     def __init__(self):
         super(JobSpec, self).__init__()
         self.to_merge = defaultdict(OrderedDict)
         self._sources = []
         self.id = None
-        self.workload_parameters = None
-        self.runtime_parameters = None
-        self.boot_parameters = None
+
+    def to_pod(self):
+        pod = super(JobSpec, self).to_pod()
+        pod['id'] = self.id
+        return pod
 
     def update_config(self, source, check_mandatory=True):
         self._sources.append(source)
@@ -852,7 +874,7 @@ class JobSpec(Configuration):
         for k, v in values.iteritems():
             if k == "id":
                 continue
-            elif k in ["workload_parameters", "runtime_parameters", "boot_parameters"]:
+            elif k.endswith('_parameters'):
                 if v:
                     self.to_merge[k][source] = copy(v)
             else:
@@ -862,27 +884,26 @@ class JobSpec(Configuration):
                     msg = 'Error in {}:\n\t{}'
                     raise ConfigError(msg.format(source.name, e.message))
 
-    # pylint: disable=no-member
-    # Only call after the rest of the JobSpec is merged
     def merge_workload_parameters(self, plugin_cache):
         # merge global generic and specific config
         workload_params = plugin_cache.get_plugin_config(self.workload_name,
                                                          generic_name="workload_parameters")
 
-        # Merge entry "workload_parameters"
-        # TODO: Wrap in - "error in [agenda path]"
         cfg_points = plugin_cache.get_plugin_parameters(self.workload_name)
         for source in self._sources:
-            if source in self.to_merge["workload_params"]:
-                config = self.to_merge["workload_params"][source]
-                for name, cfg_point in cfg_points.iteritems():
-                    if name in config:
-                        value = config.pop(name)
-                        cfg_point.set_value(workload_params, value, check_mandatory=False)
-                if config:
-                    msg = 'conflicting entry(ies) for "{}" in {}: "{}"'
-                    msg = msg.format(self.workload_name, source.name,
-                                     '", "'.join(workload_params[source]))
+            config = self.to_merge["workload_parameters"].get(source)
+            if config is None:
+                continue
+
+            for name, cfg_point in cfg_points.iteritems():
+                if name in config:
+                    value = config.pop(name)
+                    cfg_point.set_value(workload_params, value, 
+                                        check_mandatory=False)
+            if config:
+                msg = 'conflicting entry(ies) for "{}" in {}: "{}"'
+                msg = msg.format(self.workload_name, source.name,
+                                    '", "'.join(workload_params[source]))
 
         self.workload_parameters = workload_params
 
@@ -890,7 +911,10 @@ class JobSpec(Configuration):
 
         # Order global runtime parameters
         runtime_parameters = OrderedDict()
-        global_runtime_params = plugin_cache.get_plugin_config("runtime_parameters")
+        try:
+            global_runtime_params = plugin_cache.get_plugin_config("runtime_parameters")
+        except NotFoundError:
+            global_runtime_params = {}
         for source in plugin_cache.sources:
             runtime_parameters[source] = global_runtime_params[source]
 
@@ -904,27 +928,6 @@ class JobSpec(Configuration):
     def finalize(self):
         self.id = "-".join([source.config['id'] for source in self._sources[1:]])  # ignore first id, "global"
 
-    def to_pod(self):
-        pod = super(JobSpec, self).to_pod()
-        pod['workload_parameters'] = self.workload_parameters
-        pod['runtime_parameters'] = self.runtime_parameters
-        pod['boot_parameters'] = self.boot_parameters
-        return pod
-
-    @classmethod
-    def from_pod(cls, pod, plugin_cache):
-        try:
-            workload_parameters = pod['workload_parameters']
-            runtime_parameters = pod['runtime_parameters']
-            boot_parameters = pod['boot_parameters']
-        except KeyError as e:
-            msg = 'No value specified for mandatory parameter "{}}".'
-            raise ConfigError(msg.format(e.args[0]))
-
-        instance = super(JobSpec, cls).from_pod(pod, plugin_cache)
-
-        # TODO: validate parameters and construct the rest of the instance
-
 
 # This is used to construct the list of Jobs WA will run
 class JobGenerator(object):
@@ -935,12 +938,6 @@ class JobGenerator(object):
     def enabled_instruments(self):
         self._read_enabled_instruments = True
         return self._enabled_instruments
-
-    def update_enabled_instruments(self, value):
-        if self._read_enabled_instruments:
-            msg = "'enabled_instruments' cannot be updated after it has been accessed"
-            raise RuntimeError(msg)
-        self._enabled_instruments.update(value)
 
     def __init__(self, plugin_cache):
         self.plugin_cache = plugin_cache
@@ -978,55 +975,62 @@ class JobGenerator(object):
         #TODO: Validate
         self.disabled_instruments = ["~{}".format(i) for i in instruments]
 
+    def update_enabled_instruments(self, value):
+        if self._read_enabled_instruments:
+            msg = "'enabled_instruments' cannot be updated after it has been accessed"
+            raise RuntimeError(msg)
+        self._enabled_instruments.update(value)
+
     def only_run_ids(self, ids):
         if isinstance(ids, str):
             ids = [ids]
         self.ids_to_run = ids
 
     def generate_job_specs(self, target_manager):
-
+        specs = []
         for leaf in self.root_node.leaves():
-            # PHASE 1: Gather workload and section entries for this leaf
             workload_entries = leaf.workload_entries
             sections = [leaf]
             for ancestor in leaf.ancestors():
                 workload_entries = ancestor.workload_entries + workload_entries
                 sections.insert(0, ancestor)
 
-            # PHASE 2: Create job specs for this leaf
             for workload_entry in workload_entries:
-                job_spec = JobSpec()  # Loads defaults
-
-                # PHASE 2.1: Merge general job spec configuration
-                for section in sections:
-                    job_spec.update_config(section, check_mandatory=False)
-                job_spec.update_config(workload_entry, check_mandatory=False)
-
-                # PHASE 2.2: Merge global, section and workload entry "workload_parameters"
-                job_spec.merge_workload_parameters(self.plugin_cache)
-                target_manager.static_runtime_parameter_validation(job_spec.runtime_parameters)
-
-                # TODO: PHASE 2.3: Validate device runtime/boot paramerers
-                job_spec.merge_runtime_parameters(self.plugin_cache, target_manager)
-                target_manager.validate_runtime_parameters(job_spec.runtime_parameters)
-
-                # PHASE 2.4: Disable globally disabled instrumentation
-                job_spec.set("instrumentation", self.disabled_instruments)
-                job_spec.finalize()
-
-                # PHASE 2.5: Skip job_spec if part of it's ID is not in self.ids_to_run
+                job_spec = create_job_spec(workload_entry, sections, 
+                                           target_manager, self.plugin_cache,
+                                           self.disabled_instruments)
                 if self.ids_to_run:
                     for job_id in self.ids_to_run:
                         if job_id in job_spec.id:
-                            #TODO: logging
                             break
                     else:
                         continue
-
-                # PHASE 2.6: Update list of instruments that need to be setup
-                # pylint: disable=no-member
                 self.update_enabled_instruments(job_spec.instrumentation.values())
+                specs.append(job_spec)
+        return specs
 
-                yield job_spec
 
-settings = WAConfiguration()
+def create_job_spec(workload_entry, sections, target_manager, plugin_cache,
+                    disabled_instruments):
+    job_spec = JobSpec()
+
+    # PHASE 2.1: Merge general job spec configuration
+    for section in sections:
+        job_spec.update_config(section, check_mandatory=False)
+    job_spec.update_config(workload_entry, check_mandatory=False)
+
+    # PHASE 2.2: Merge global, section and workload entry "workload_parameters"
+    job_spec.merge_workload_parameters(plugin_cache)
+
+    # TODO: PHASE 2.3: Validate device runtime/boot paramerers
+    job_spec.merge_runtime_parameters(plugin_cache, target_manager)
+    target_manager.validate_runtime_parameters(job_spec.runtime_parameters)
+
+    # PHASE 2.4: Disable globally disabled instrumentation
+    job_spec.set("instrumentation", disabled_instruments)
+    job_spec.finalize()
+
+    return job_spec
+
+
+settings = MetaConfiguration(os.environ)

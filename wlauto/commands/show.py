@@ -40,7 +40,7 @@ class ShowCommand(Command):
                                  help='''The name of the plugin for which information will
                                          be shown.''')
 
-    def execute(self, args):
+    def execute(self, state, args):
         # pylint: disable=unpacking-non-sequence
         plugin = pluginloader.get_plugin_class(args.name)
         out = StringIO()

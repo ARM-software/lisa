@@ -24,9 +24,9 @@ except ImportError:
     from distutils.core import setup
 
 
-wlauto_dir = os.path.join(os.path.dirname(__file__), 'wlauto')
+wlauto_dir = os.path.join(os.path.dirname(__file__), 'wa')
 
-sys.path.insert(0, os.path.join(wlauto_dir, 'core'))
+sys.path.insert(0, os.path.join(wlauto_dir, 'framework'))
 from version import get_wa_version
 
 # happends if falling back to distutils
@@ -78,7 +78,7 @@ params = dict(
         'pyYAML',  # YAML-formatted agenda parsing
         'requests',  # Fetch assets over HTTP
         'devlib',  # Interacting with devices
-        'louie'  # Handles signal callbacks
+        'louie'  # callbacks dispatch
     ],
     extras_require={
         'other': ['jinja2', 'pandas>=0.13.1'],

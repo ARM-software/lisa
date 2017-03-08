@@ -1,13 +1,13 @@
 """
 This module contains wrappers for Python serialization modules for
 common formats that make it easier to serialize/deserialize WA
-Plain Old Data structures (serilizable WA classes implement 
-``to_pod()``/``from_pod()`` methods for converting between POD 
+Plain Old Data structures (serilizable WA classes implement
+``to_pod()``/``from_pod()`` methods for converting between POD
 structures and Python class instances).
 
 The modifications to standard serilization procedures are:
 
-    - mappings are deserialized as ``OrderedDict``\ 's are than standard
+    - mappings are deserialized as ``OrderedDict``\ 's rather than standard
       Python ``dict``\ 's. This allows for cleaner syntax in certain parts
       of WA configuration (e.g. values to be written to files can be specified
       as a dict, and they will be written in the order specified in the config).
@@ -16,7 +16,7 @@ The modifications to standard serilization procedures are:
       in the POD config.
 
 This module exports the "wrapped" versions of serialization libraries,
-and this should be imported and used instead of importing the libraries 
+and this should be imported and used instead of importing the libraries
 directly. i.e. ::
 
     from wa.utils.serializer import yaml
@@ -27,7 +27,7 @@ instead of ::
     import yaml
     pod = yaml.load(fh)
 
-It's also possible to suse the serializer directly::
+It's also possible to use the serializer directly::
 
     from wa.utils import serializer
     pod = serializer.load(fh)
@@ -35,13 +35,14 @@ It's also possible to suse the serializer directly::
 This can also be used to ``dump()`` POD structures. By default,
 ``dump()`` will produce JSON, but ``fmt`` parameter may be used to
 specify an alternative format (``yaml`` or ``python``). ``load()`` will
-use the file extension to guess the format, but ``fmt`` may also be used
+use the file plugin to guess the format, but ``fmt`` may also be used
 to specify it explicitly.
 
 """
+# pylint: disable=unused-argument
+
 import os
 import re
-import sys
 import json as _json
 from collections import OrderedDict
 from datetime import datetime
@@ -50,8 +51,8 @@ import yaml as _yaml
 import dateutil.parser
 
 from wa.framework.exception import SerializerSyntaxError
-from wa.utils.types import regex_type
 from wa.utils.misc import isiterable
+from wa.utils.types import regex_type, none_type
 
 
 __all__ = [
@@ -60,16 +61,29 @@ __all__ = [
     'read_pod',
     'dump',
     'load',
+    'is_pod',
+    'POD_TYPES',
 ]
 
-
+POD_TYPES = [
+    list,
+    tuple,
+    dict,
+    set,
+    str,
+    unicode,
+    int,
+    float,
+    bool,
+    datetime,
+    regex_type,
+    none_type,
+]
 
 class WAJSONEncoder(_json.JSONEncoder):
 
-    def default(self, obj):
-        if hasattr(obj, 'to_pod'):
-            return obj.to_pod()
-        elif isinstance(obj, regex_type):
+    def default(self, obj):  # pylint: disable=method-hidden
+        if isinstance(obj, regex_type):
             return 'REGEX:{}:{}'.format(obj.flags, obj.pattern)
         elif isinstance(obj, datetime):
             return 'DATET:{}'.format(obj.isoformat())
@@ -79,8 +93,8 @@ class WAJSONEncoder(_json.JSONEncoder):
 
 class WAJSONDecoder(_json.JSONDecoder):
 
-    def decode(self, s):
-        d = _json.JSONDecoder.decode(self, s)
+    def decode(self, s, **kwargs):
+        d = _json.JSONDecoder.decode(self, s, **kwargs)
 
         def try_parse_object(v):
             if isinstance(v, basestring) and v.startswith('REGEX:'):
@@ -111,7 +125,6 @@ class json(object):
     @staticmethod
     def dump(o, wfh, indent=4, *args, **kwargs):
         return _json.dump(o, wfh, cls=WAJSONEncoder, indent=indent, *args, **kwargs)
-
 
     @staticmethod
     def load(fh, *args, **kwargs):
@@ -176,7 +189,7 @@ class yaml(object):
         except _yaml.YAMLError as e:
             lineno = None
             if hasattr(e, 'problem_mark'):
-                lineno = e.problem_mark.line
+                lineno = e.problem_mark.line  # pylint: disable=no-member
             raise SerializerSyntaxError(e.message, lineno)
 
     loads = load
@@ -196,7 +209,7 @@ class python(object):
     def loads(s, *args, **kwargs):
         pod = {}
         try:
-            exec s in pod
+            exec s in pod  # pylint: disable=exec-used
         except SyntaxError as e:
             raise SerializerSyntaxError(e.message, e.lineno)
         for k in pod.keys():
@@ -209,20 +222,29 @@ def read_pod(source, fmt=None):
     if isinstance(source, basestring):
         with open(source) as fh:
             return _read_pod(fh, fmt)
-    elif hasattr(source, 'read') and (hasattr(sourc, 'name') or fmt):
+    elif hasattr(source, 'read') and (hasattr(source, 'name') or fmt):
         return _read_pod(source, fmt)
     else:
         message = 'source must be a path or an open file handle; got {}'
         raise ValueError(message.format(type(source)))
 
+def write_pod(pod, dest, fmt=None):
+    if isinstance(dest, basestring):
+        with open(dest, 'w') as wfh:
+            return _write_pod(pod, wfh, fmt)
+    elif hasattr(dest, 'write') and (hasattr(dest, 'name') or fmt):
+        return _write_pod(pod, dest, fmt)
+    else:
+        message = 'dest must be a path or an open file handle; got {}'
+        raise ValueError(message.format(type(dest)))
+
 
 def dump(o, wfh, fmt='json', *args, **kwargs):
-    serializer = {
-                'yaml': yaml,
-                'json': json,
-                'python': python,
-                'py': python,
-            }.get(fmt)
+    serializer = {'yaml': yaml,
+                  'json': json,
+                  'python': python,
+                  'py': python,
+                  }.get(fmt)
     if serializer is None:
         raise ValueError('Unknown serialization format: "{}"'.format(fmt))
     serializer.dump(o, wfh, *args, **kwargs)
@@ -242,4 +264,20 @@ def _read_pod(fh, fmt=None):
     elif fmt == 'py':
         return python.load(fh)
     else:
-        raise ValueError('Unknown format "{}": {}'.format(fmt, path))
+        raise ValueError('Unknown format "{}": {}'.format(fmt, getattr(fh, 'name', '<none>')))
+
+def _write_pod(pod, wfh, fmt=None):
+    if fmt is None:
+        fmt = os.path.splitext(wfh.name)[1].lower().strip('.')
+    if fmt == 'yaml':
+        return yaml.dump(pod, wfh)
+    elif fmt == 'json':
+        return json.dump(pod, wfh)
+    elif fmt == 'py':
+        raise ValueError('Serializing to Python is not supported')
+    else:
+        raise ValueError('Unknown format "{}": {}'.format(fmt, getattr(wfh, 'name', '<none>')))
+
+def is_pod(obj):
+    return type(obj) in POD_TYPES
+

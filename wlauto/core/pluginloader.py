@@ -38,8 +38,7 @@ class __LoaderWrapper(object):
         from wlauto.core.plugin import PluginLoader
         from wlauto.core.configuration import settings
         self._loader = PluginLoader(settings.plugin_packages,
-                                    settings.plugin_paths,
-                                    settings.plugin_ignore_paths)
+                                    [settings.plugins_directory], [])
 
     def update(self, packages=None, paths=None, ignore_paths=None):
         if not self._loader:

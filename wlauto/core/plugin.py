@@ -25,12 +25,13 @@ from collections import OrderedDict, defaultdict
 from itertools import chain
 from copy import copy
 
-from wlauto.exceptions import NotFoundError, LoaderError, ValidationError, ConfigError
+from wlauto.exceptions import NotFoundError, LoaderError, ValidationError, ConfigError, HostError
 from wlauto.utils.misc import (ensure_directory_exists as _d,
                                walk_modules, load_class, merge_dicts_simple, get_article)
 from wlauto.core.configuration import settings
 from wlauto.utils.types import identifier, boolean
 from wlauto.core.configuration.configuration import ConfigurationPoint as Parameter
+
 
 MODNAME_TRANS = string.maketrans(':/\\.', '____')
 
@@ -556,6 +557,8 @@ class PluginLoader(object):
     def update(self, packages=None, paths=None, ignore_paths=None):
         """ Load plugins from the specified paths/packages
         without clearing or reloading existing plugin. """
+        msg = 'Updating from: packages={} paths={}'
+        self.logger.debug(msg.format(packages, paths))
         if packages:
             self.packages.extend(packages)
             self._discover_from_packages(packages)
@@ -571,6 +574,7 @@ class PluginLoader(object):
 
     def reload(self):
         """ Clear all discovered items and re-run the discovery. """
+        self.logger.debug('Reloading')
         self.clear()
         self._discover_from_packages(self.packages)
         self._discover_from_paths(self.paths, self.ignore_paths)
@@ -590,7 +594,8 @@ class PluginLoader(object):
             raise ValueError('Unknown plugin type: {}'.format(kind))
         store = self.kind_map[kind]
         if name not in store:
-            raise NotFoundError('plugins {} is not {} {}.'.format(name, get_article(kind), kind))
+            msg = 'plugins {} is not {} {}.'
+            raise NotFoundError(msg.format(name, get_article(kind), kind))
         return store[name]
 
     def get_plugin(self, name=None, kind=None, *args, **kwargs):
@@ -697,10 +702,9 @@ class PluginLoader(object):
             for package in packages:
                 for module in walk_modules(package):
                     self._discover_in_module(module)
-        except ImportError as e:
-            source = getattr(e, 'path', package)
+        except HostError as e:
             message = 'Problem loading plugins from {}: {}'
-            raise LoaderError(message.format(source, e.message))
+            raise LoaderError(message.format(e.module, str(e.orig_exc)))
 
     def _discover_from_paths(self, paths, ignore_paths):
         paths = paths or []

@@ -492,7 +492,7 @@ def merge_config_values(base, other):
            are treated as atomic, and not mergeable.
         s: A sequence. Anything iterable that is not a dict or
            a string (strings are considered scalars).
-        m: A key-value mapping. ``dict`` and it's derivatives.
+        m: A key-value mapping. ``dict`` and its derivatives.
         n: ``None``.
         o: A mergeable object; this is an object that implements both
           ``merge_with`` and ``merge_into`` methods.
@@ -593,3 +593,8 @@ def merge_dicts_simple(base, other):
     for key, value in (base or {}).iteritems():
         result[key] = merge_config_values(result.get(key), value)
     return result
+
+
+def touch(path):
+    with open(path, 'w'):
+        pass
