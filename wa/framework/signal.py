@@ -27,7 +27,7 @@ from louie import dispatcher
 from wa.utils.types import prioritylist
 
 
-logger = logging.getLogger('dispatcher')
+logger = logging.getLogger('signal')
 
 
 class Signal(object):
@@ -100,6 +100,27 @@ WARNING_LOGGED = Signal('warning-logged')
 BEFORE_RUN_INIT = Signal('before-run-init', invert_priority=True)
 SUCCESSFUL_RUN_INIT = Signal('successful-run-init')
 AFTER_RUN_INIT = Signal('after-run-init')
+
+BEFORE_JOB_TARGET_CONFIG = Signal('before-job-target-config', invert_priority=True)
+SUCCESSFUL_JOB_TARGET_CONFIG = Signal('successful-job-target-config')
+AFTER_JOB_TARGET_CONFIG = Signal('after-job-target-config')
+
+BEFORE_JOB_SETUP = Signal('before-job-setup', invert_priority=True)
+SUCCESSFUL_JOB_SETUP = Signal('successful-job-setup')
+AFTER_JOB_SETUP = Signal('after-job-setup')
+
+BEFORE_JOB_EXECUTION = Signal('before-job-execution', invert_priority=True)
+SUCCESSFUL_JOB_EXECUTION = Signal('successful-job-execution')
+AFTER_JOB_EXECUTION = Signal('after-job-execution')
+
+BEFORE_JOB_OUTPUT_PROCESSED = Signal('before-job-output-processed',
+                                     invert_priority=True)
+SUCCESSFUL_JOB_OUTPUT_PROCESSED = Signal('successful-job-output-processed')
+AFTER_JOB_OUTPUT_PROCESSED = Signal('after-job-output-processed')
+
+BEFORE_JOB_TEARDOWN = Signal('before-job-teardown', invert_priority=True)
+SUCCESSFUL_JOB_TEARDOWN = Signal('successful-job-teardown')
+AFTER_JOB_TEARDOWN = Signal('after-job-teardown')
 
 BEFORE_FLASHING = Signal('before-flashing', invert_priority=True)
 SUCCESSFUL_FLASHING = Signal('successful-flashing')
@@ -250,6 +271,7 @@ def send(signal, sender=dispatcher.Anonymous, *args, **kwargs):
         The rest of the parameters will be passed on as aruments to the handler.
 
     """
+    logger.debug('Sending {} from {}'.format(signal, sender))
     return dispatcher.send(signal, sender, *args, **kwargs)
 
 
@@ -266,6 +288,7 @@ def safe_send(signal, sender=dispatcher.Anonymous,
     to just ``[KeyboardInterrupt]``).
     """
     try:
+        logger.debug('Safe-sending {} from {}'.format(signal, sender))
         send(singnal, sender, *args, **kwargs)
     except Exception as e:
         if any(isinstance(e, p) for p in propagate):
@@ -292,3 +315,17 @@ def wrap(signal_name, sender=dispatcher.Anonymous, safe=False, *args, **kwargs):
     finally:
         send_func(after_signal, sender, *args, **kwargs)
 
+
+def wrapped(signal_name, sender=dispatcher.Anonymous, safe=False):
+    """A decorator for wrapping function in signal dispatch."""
+    @wrapt.decorator
+    def signal_wrapped(wrapped, instance, args, kwargs):
+        func_id = repr(wrapped)
+
+        def signal_wrapper(*args, **kwargs):
+            with wrap(signal_name, sender, safe):
+                return wrapped(*args, **kwargs)
+
+        return signal_wrapper(*args, **kwargs)
+
+    return signal_wrapped

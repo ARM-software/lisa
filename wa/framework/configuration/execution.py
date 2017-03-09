@@ -1,4 +1,5 @@
 import random
+import logging
 from itertools import izip_longest, groupby, chain
 
 from wa.framework import pluginloader
@@ -6,6 +7,8 @@ from wa.framework.configuration.core import (MetaConfiguration, RunConfiguration
                                              JobGenerator, settings)
 from wa.framework.configuration.parsers import ConfigParser
 from wa.framework.configuration.plugin_cache import PluginCache
+from wa.framework.exception import NotFoundError
+from wa.utils.types import enum
 
 
 class CombinedConfig(object):
@@ -26,33 +29,54 @@ class CombinedConfig(object):
                 'run_config': self.run_config.to_pod()}
 
 
-class JobStatus:
-    PENDING = 0
-    RUNNING = 1
-    OK = 2
-    FAILED = 3
-    PARTIAL = 4
-    ABORTED = 5
-    PASSED = 6
-
+JobStatus = enum(['NEW', 'LOADED', 'PENDING', 'RUNNING', 
+                  'OK', 'FAILED', 'PARTIAL', 'ABORTED', 'SKIPPED'])
 
 class Job(object):
 
+    @property
+    def id(self):
+        return self.spec.id
+
     def __init__(self, spec, iteration, context):
+        self.logger = logging.getLogger('job')
         self.spec = spec
         self.iteration = iteration
         self.context = context
-        self.status = 'new'
+        self.status = JobStatus.NEW
         self.workload = None
         self.output = None
 
     def load(self, target, loader=pluginloader):
+        self.logger.debug('Loading job {}'.format(self.id))
         self.workload = loader.get_workload(self.spec.workload_name,
                                             target,
                                             **self.spec.workload_parameters)
         self.workload.init_resources(self.context)
         self.workload.validate()
+        self.status = JobStatus.LOADED
 
+    def initialize(self, context):
+        self.logger.info('Initializing job {}'.format(self.id))
+        self.status = JobStatus.PENDING
+
+    def configure_target(self, context):
+        self.logger.info('Configuring target for job {}'.format(self.id))
+
+    def setup(self, context):
+        self.logger.info('Setting up job {}'.format(self.id))
+
+    def run(self, context):
+        self.logger.info('Running job {}'.format(self.id))
+
+    def process_output(self, context):
+        self.looger.info('Processing output for job {}'.format(self.id))
+
+    def teardown(self, context):
+        self.logger.info('Tearing down job {}'.format(self.id))
+
+    def finalize(self, context):
+        self.logger.info('Finalizing job {}'.format(self.id))
 
 class ConfigManager(object):
     """
@@ -108,8 +132,12 @@ class ConfigManager(object):
     def get_instruments(self, target):
         instruments = []
         for name in self.enabled_instruments:
-            instruments.append(self.get_plugin(name, kind='instrument', 
-                                               target=target))
+            try:
+                instruments.append(self.get_plugin(name, kind='instrument', 
+                                                target=target))
+            except NotFoundError:
+                msg = 'Instrument "{}" not found'
+                raise NotFoundError(msg.format(name))
         return instruments
 
     def finalize(self):

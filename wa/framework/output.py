@@ -5,6 +5,7 @@ import string
 import sys
 import uuid
 from copy import copy
+from datetime import timedelta
 
 from wlauto.core.configuration.configuration import JobSpec
 from wlauto.core.configuration.manager import ConfigManager
@@ -25,10 +26,13 @@ class RunInfo(object):
     @staticmethod
     def from_pod(pod):
         uid = pod.pop('uuid')
+        duration = pod.pop('duration')
         if uid is not None:
             uid = uuid.UUID(uid)
         instance = RunInfo(**pod)
         instance.uuid = uid
+        instance.duration = duration if duration is None else\
+                            timedelta(seconds=duration)
         return instance
 
     def __init__(self, run_name=None, project=None, project_stage=None,
@@ -44,6 +48,10 @@ class RunInfo(object):
     def to_pod(self):
         d = copy(self.__dict__)
         d['uuid'] = str(self.uuid)
+        if self.duration is None:
+            d['duration'] = self.duration
+        else:
+            d['duration'] = self.duration.total_seconds()
         return d
 
 

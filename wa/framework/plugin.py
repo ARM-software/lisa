@@ -406,7 +406,7 @@ class Plugin(object):
         return self.__class__.__name__
 
     def __init__(self, **kwargs):
-        self.logger = logging.getLogger(self._classname)
+        self.logger = logging.getLogger(self.name)
         self._modules = []
         self.capabilities = getattr(self.__class__, 'capabilities', [])
         for param in self.parameters:

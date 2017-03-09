@@ -102,7 +102,7 @@ import logging
 import inspect
 from collections import OrderedDict
 
-import wa.framework.signal as signal
+from wa.framework import signal
 from wa.framework.plugin import Plugin
 from wa.framework.exception import WAError, TargetNotRespondingError, TimeoutError
 from wa.utils.misc import get_traceback, isiterable

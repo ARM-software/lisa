@@ -61,7 +61,7 @@ scripts = [os.path.join('scripts', s) for s in os.listdir('scripts')]
 
 params = dict(
     name='wlauto',
-    description='A framework for automating workload execution and measurment collection on ARM devices.',
+    description='A framework for automating workload execution and measurement collection on ARM devices.',
     version=get_wa_version(),
     packages=packages,
     package_data=data_files,
@@ -72,13 +72,14 @@ params = dict(
     maintainer_email='workload-automation@arm.com',
     install_requires=[
         'python-dateutil',  # converting between UTC and local time.
-        'pexpect>=3.3',  # Send/recieve to/from device
+        'pexpect>=3.3',  # Send/receive to/from device
         'pyserial',  # Serial port interface
         'colorama',  # Printing with colors
         'pyYAML',  # YAML-formatted agenda parsing
         'requests',  # Fetch assets over HTTP
         'devlib',  # Interacting with devices
-        'louie'  # callbacks dispatch
+        'louie',  # callbacks dispatch
+        'wrapt',  # better decorators 
     ],
     extras_require={
         'other': ['jinja2', 'pandas>=0.13.1'],

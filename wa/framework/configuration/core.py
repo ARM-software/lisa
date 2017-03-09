@@ -555,7 +555,7 @@ class MetaConfiguration(Configuration):
     plugin_packages = [
         'wa.commands',
         'wa.workloads',
-        #'wa.instrumentation',
+        'wa.instrumentation',
         #'wa.result_processors',
         #'wa.managers',
         'wa.framework.target.descriptor',
