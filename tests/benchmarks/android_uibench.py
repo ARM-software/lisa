@@ -162,21 +162,26 @@ governors = [
 ]
 
 tests = [
-    'TrivialAnimation',
-    'BitmapUpload',
-    'DialogList',
-    'EditTextType',
-    'FullscreenOverdraw',
-    'GlTextureView',
-    'InflatingList',
-    'Invalidate',
-    'ShadowGrid',
-    'TextCacheHighHitrate',
-    'TextCacheLowHitrate',
-    'Transition',
-    'TransitionDetails',
-    'TrivialList',
-    'TrivialRecyclerView',
+# General
+    'DialogListActivity',
+    'FullscreenOverdrawActivity',
+    'GlTextureViewActivity',
+    'InvalidateActivity',
+    'TrivialAnimationActivity',
+    'TrivialListActivity',
+    'TrivialRecyclerViewActivity',
+# Inflation
+    'InflatingListActivity',
+# Rendering
+    'BitmapUploadActivity',
+    'ShadowGridActivity',
+# Text
+    'EditTextTypeActivity',
+    'TextCacheHighHitrateActivity',
+    'TextCacheLowHitrateActivity',
+# Transitions
+    'ActivityTransition',
+    'ActivityTransitionDetails',
 ]
 
 # Reboot device only the first time
