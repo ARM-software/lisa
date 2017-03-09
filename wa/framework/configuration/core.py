@@ -20,9 +20,8 @@ from collections import OrderedDict, defaultdict
 from wa.framework.exception import ConfigError, NotFoundError
 from wa.framework.configuration.tree import SectionNode
 from wa.utils.misc import (get_article, merge_config_values)
-from wa.utils.types import (identifier, integer, boolean,
-                                list_of_strings, toggle_set,
-                                obj_dict)
+from wa.utils.types import (identifier, integer, boolean, list_of_strings, 
+                            list_of, toggle_set, obj_dict, enum)
 from wa.utils.serializer import is_pod
 
 # Mapping for kind conversion; see docs for convert_types below
@@ -32,17 +31,9 @@ KIND_MAP = {
     dict: OrderedDict,
 }
 
-ITERATION_STATUS = [
-    'NOT_STARTED',
-    'RUNNING',
+JobStatus = enum(['NEW', 'LOADED', 'PENDING', 'RUNNING', 
+                  'OK', 'FAILED', 'PARTIAL', 'ABORTED', 'SKIPPED'])
 
-    'OK',
-    'NONCRITICAL',
-    'PARTIAL',
-    'FAILED',
-    'ABORTED',
-    'SKIPPED',
-]
 
 ##########################
 ### CONFIG POINT TYPES ###
@@ -716,9 +707,9 @@ class RunConfiguration(Configuration):
                            This setting defines what specific Device subclass will be used to interact
                            the connected device. Obviously, this must match your setup.
                            '''),
-        ConfigurationPoint('retry_on_status', kind=status_list,
+        ConfigurationPoint('retry_on_status', kind=list_of(JobStatus),
                            default=['FAILED', 'PARTIAL'],
-                           allowed_values=ITERATION_STATUS,
+                           allowed_values=JobStatus.values,
                            description='''
                            This is list of statuses on which a job will be cosidered to have failed and
                            will be automatically retried up to ``max_retries`` times. This defaults to
@@ -736,10 +727,10 @@ class RunConfiguration(Configuration):
                            ``"ABORTED"``
                            The user interupted the workload
                            '''),
-        ConfigurationPoint('max_retries', kind=int, default=3,
+        ConfigurationPoint('max_retries', kind=int, default=2,
                            description='''
                            The maximum number of times failed jobs will be retried before giving up. If
-                           not set, this will default to ``3``.
+                           not set.
 
                            .. note:: this number does not include the original attempt
                            '''),

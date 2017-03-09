@@ -504,12 +504,16 @@ class level(object):
     def __eq__(self, other):
         if isinstance(other, level):
             return self.value == other.value
+        elif isinstance(other, basestring):
+            return self.name == other
         else:
             return self.value == other
 
     def __ne__(self, other):
         if isinstance(other, level):
             return self.value != other.value
+        elif isinstance(other, basestring):
+            return self.name != other
         else:
             return self.value != other
 
@@ -524,21 +528,39 @@ def enum(args, start=0):
     ::
         MyEnum = enum(['A', 'B', 'C'])
 
-    is equivalent of::
+    is roughly equivalent of::
 
         class MyEnum(object):
             A = 0
             B = 1
             C = 2
 
+    however it also implement some specialized behaviors for comparisons and
+    instantiation.
+
     """
 
     class Enum(object):
-        pass
 
+        def __new__(cls, name):
+            for attr_name in dir(cls):
+                if attr_name.startswith('__'):
+                    continue
+
+                attr = getattr(cls, attr_name)
+                if name == attr:
+                    return attr
+
+            raise ValueError('Invalid enum value: {}'.format(repr(name)))
+
+    levels = []
     for i, v in enumerate(args, start):
         name = string.upper(identifier(v))
-        setattr(Enum, name, level(v, i))
+        lv = level(v, i)
+        setattr(Enum, name, lv)
+        levels.append(lv)
+
+    setattr(Enum, 'values', levels)
 
     return Enum
 

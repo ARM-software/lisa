@@ -147,6 +147,11 @@ class ExecutionContext(object):
         self.completed_jobs.append(self.current_job)
         self.current_job = None
 
+    def move_failed(self, job):
+        attempt = job.retries + 1
+        failed_name = '{}-attempt{:02}'.format(job.output_name, attempt)
+        self.output.move_failed(job.output_name, failed_name)
+
 
 class OldExecutionContext(object):
     """
@@ -439,8 +444,28 @@ class Runner(object):
     def run_next_job(self, context):
         job = context.start_job()
         self.logger.info('Running job {}'.format(job.id))
+
+        try:
+            log.indent()
+            self.do_run_job(job, context)
+        except KeyboardInterrupt:
+            job.status = JobStatus.ABORTED
+            raise
+        except Exception as e:
+            job.status = JobStatus.FAILED
+            if not getattr(e, 'logged', None):
+                log.log_error(e, self.logger)
+                e.logged = True
+        finally:
+            self.logger.info('Completing job {}'.format(job.id))
+            self.send(signal.JOB_COMPLETED)
+            context.end_job()
+
+            log.dedent()
+            self.check_job(job)
+
+    def do_run_job(self, job, context):
         job.status = JobStatus.RUNNING
-        log.indent()
         self.send(signal.JOB_STARTED)
 
         with signal.wrap('JOB_TARGET_CONFIG', self):
@@ -455,7 +480,7 @@ class Runner(object):
 
             try:
                 with signal.wrap('JOB_OUTPUT_PROCESSED', self):
-                    job.run(context)
+                    job.process_output(context)
             except Exception:
                 job.status = JobStatus.PARTIAL
                 raise
@@ -474,10 +499,22 @@ class Runner(object):
             with signal.wrap('JOB_TEARDOWN', self):
                 job.teardown(context)
 
-        log.dedent()
-        self.logger.info('Completing job {}'.format(job.id))
-        self.send(signal.JOB_COMPLETED)
-        context.end_job()
+    def check_job(self, job):
+        rc = self.context.cm.run_config
+        if job.status in rc.retry_on_status:
+            if job.retries < rc.max_retries:
+                msg = 'Job {} iteration {} complted with status {}. retrying...'
+                self.logger.error(msg.format(job.id, job.status, job.iteration))
+                self.context.move_failed(job)
+                job.retries += 1
+                job.status = JobStatus.PENDING
+                self.context.job_queue.insert(0, job)
+            else:
+                msg = 'Job {} iteration {} completed with status {}. '\
+                      'Max retries exceeded.'
+                self.logger.error(msg.format(job.id, job.status, job.iteration))
+        else:  # status not in retry_on_status
+            self.logger.info('Job completed with status {}'.format(job.status))
         
     def send(self, s):
         signal.send(s, self, self.context)

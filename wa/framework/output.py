@@ -7,11 +7,11 @@ import uuid
 from copy import copy
 from datetime import timedelta
 
-from wlauto.core.configuration.configuration import JobSpec
-from wlauto.core.configuration.manager import ConfigManager
-from wlauto.core.device_manager import TargetInfo
-from wlauto.utils.misc import touch
-from wlauto.utils.serializer import write_pod, read_pod
+from wa.framework.configuration.core import JobSpec
+from wa.framework.configuration.manager import ConfigManager
+from wa.framework.target.info import TargetInfo
+from wa.utils.misc import touch, ensure_directory_exists
+from wa.utils.serializer import write_pod, read_pod
 
 
 logger = logging.getLogger('output')
@@ -105,6 +105,11 @@ class RunOutput(object):
     def raw_config_dir(self):
         return os.path.join(self.metadir, 'raw_config')
 
+    @property
+    def failed_dir(self):
+        path = os.path.join(self.basepath, '__failed')
+        return ensure_directory_exists(path)
+
     def __init__(self, path):
         self.basepath = path
         self.info = None
@@ -151,6 +156,15 @@ class RunOutput(object):
             return None
         pod = read_pod(self.jobsfile)
         return [JobSpec.from_pod(jp) for jp in pod['jobs']]
+
+    def move_failed(self, name, failed_name):
+        path = os.path.join(self.basepath, name)
+        failed_path = os.path.join(self.failed_dir, failed_name)
+        if not os.path.exists(path):
+            raise ValueError('Path {} does not exist'.format(path))
+        if os.path.exists(failed_path):
+            raise ValueError('Path {} already exists'.format(failed_path))
+        shutil.move(path, failed_path)
 
 
 def init_wa_output(path, wa_state, force=False):
