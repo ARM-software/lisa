@@ -104,6 +104,11 @@ class ExecutionContext(object):
             return True
         return self.current_job.spec.id != self.next_job.spec.id
 
+    @property
+    def output_directory(self):
+        if self.current_job:
+            return os.path.join(self.output.basepath, self.current_job.output_name)
+        return self.output.basepath
 
     def __init__(self, cm, tm, output):
         self.logger = logging.getLogger('context')
@@ -133,6 +138,7 @@ class ExecutionContext(object):
         if not self.job_queue:
             raise RuntimeError('No jobs to run')
         self.current_job = self.job_queue.pop(0)
+        os.makedirs(self.output_directory)
         return self.current_job
 
     def end_job(self):

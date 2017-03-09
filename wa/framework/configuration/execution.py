@@ -38,6 +38,10 @@ class Job(object):
     def id(self):
         return self.spec.id
 
+    @property
+    def output_name(self):
+        return '{}-{}-{}'.format(self.id, self.spec.label, self.iteration)
+
     def __init__(self, spec, iteration, context):
         self.logger = logging.getLogger('job')
         self.spec = spec

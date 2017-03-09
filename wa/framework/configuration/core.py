@@ -927,7 +927,11 @@ class JobSpec(Configuration):
         self.runtime_parameters = target_manager.merge_runtime_parameters(runtime_parameters)
 
     def finalize(self):
-        self.id = "-".join([source.config['id'] for source in self._sources[1:]])  # ignore first id, "global"
+        self.id = "-".join([source.config['id']
+                            for source in self._sources[1:]])  # ignore first id, "global"
+        if self.label is None:
+            self.label = self.workload_name
+
 
 
 # This is used to construct the list of Jobs WA will run
