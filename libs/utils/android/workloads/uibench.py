@@ -20,7 +20,7 @@ import os
 import logging
 
 from subprocess import Popen, PIPE
-from time import sleep
+from time import time, sleep
 
 from android import Screen, System, Workload
 
@@ -58,7 +58,7 @@ class UiBench(Workload):
         # Set of output data reported by UiBench
         self.db_file = None
 
-    def run(self, out_dir, test_name, duration_s, collect=''):
+    def run(self, out_dir, test_name, duration_s, collect='', action=''):
         """
         Run single UiBench workload.
 
@@ -77,6 +77,12 @@ class UiBench(Workload):
             - 'ftrace'
             - any combination of the above
         :type collect: list(str)
+
+        :param action: Perform user interactions during the test. Possible values:
+            - 'vswipe'
+            - 'tap'
+            - any combination of the above in execution order
+        :type action: list(str)
         """
 
         activity = '.' + test_name
@@ -142,7 +148,17 @@ class UiBench(Workload):
         # Run the workload for the required time
         self._log.info('Benchmark [%s] started, waiting %d [s]',
                      activity, duration_s)
-        sleep(duration_s)
+
+        start = time()
+
+        if action:
+            # Format actions as a list if it is just a single string item
+            actions = [action] if isinstance(action, basestring) else action
+            for a in actions:
+                self._perform_action(a)
+
+        while (time() - start) < duration_s:
+            sleep(1)
 
         self._log.debug("Benchmark done!")
         self.tracingStop()
@@ -161,5 +177,16 @@ class UiBench(Workload):
         Screen.set_orientation(self._target, auto=True)
         System.set_airplane_mode(self._target, on=False)
         Screen.set_brightness(self._target, auto=True)
+
+    def _perform_action(self, action, delay_s=0):
+        if action == 'vswipe':
+            # Action: A fast Swipe Up/Scroll Down
+            System.vswipe(self._target, 20, 80, 50)
+
+        if action == 'tap':
+            # Action: Tap in the centre of the screen
+            System.tap(self._target, 50, 50)
+
+        sleep(delay_s)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
