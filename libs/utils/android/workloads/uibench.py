@@ -34,21 +34,21 @@ class UiBench(Workload):
 
     # Supported activities list, obtained via:
     # adb shell dumpsys package | grep -i uibench | grep Activity
-    test_BitmapUpload = 'BitmapUpload'
-    test_DialogList = 'DialogList'
-    test_EditTextType = 'EditTextType'
-    test_FullscreenOverdraw = 'FullscreenOverdraw'
-    test_GlTextureView = 'GlTextureView'
-    test_InflatingList = 'InflatingList'
-    test_Invalidate = 'Invalidate'
-    test_ShadowGrid = 'ShadowGrid'
-    test_TextCacheHighHitrate = 'TextCacheHighHitrate'
-    test_TextCacheLowHitrate = 'TextCacheLowHitrate'
-    test_Transition = 'Transition'
-    test_TransitionDetails = 'TransitionDetails'
-    test_TrivialAnimation = 'TrivialAnimation'
-    test_TrivialList = 'TrivialList'
-    test_TrivialRecyclerView = 'TrivialRecyclerView'
+    test_BitmapUpload = 'BitmapUploadActivity'
+    test_DialogList = 'DialogListActivity'
+    test_EditTextType = 'EditTextTypeActivity'
+    test_FullscreenOverdraw = 'FullscreenOverdrawActivity'
+    test_GlTextureView = 'GlTextureViewActivity'
+    test_InflatingList = 'InflatingListActivity'
+    test_Invalidate = 'InvalidateActivity'
+    test_ShadowGrid = 'ShadowGridActivity'
+    test_TextCacheHighHitrate = 'TextCacheHighHitrateActivity'
+    test_TextCacheLowHitrate = 'TextCacheLowHitrateActivity'
+    test_Transition = 'ActivityTransition'
+    test_TransitionDetails = 'ActivityTransitionDetails'
+    test_TrivialAnimation = 'TrivialAnimationActivity'
+    test_TrivialList = 'TrivialListActivity'
+    test_TrivialRecyclerView = 'TrivialRecyclerViewActivity'
 
     def __init__(self, test_env):
         super(UiBench, self).__init__(test_env)
@@ -79,7 +79,7 @@ class UiBench(Workload):
         :type collect: list(str)
         """
 
-        activity = '.' + test_name + 'Activity'
+        activity = '.' + test_name
 
         # Keep track of mandatory parameters
         self.out_dir = out_dir
