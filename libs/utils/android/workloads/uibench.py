@@ -20,7 +20,7 @@ import os
 import logging
 
 from subprocess import Popen, PIPE
-from time import sleep
+from time import time, sleep
 
 from android import Screen, System, Workload
 
@@ -34,21 +34,33 @@ class UiBench(Workload):
 
     # Supported activities list, obtained via:
     # adb shell dumpsys package | grep -i uibench | grep Activity
-    test_BitmapUpload = 'BitmapUploadActivity'
-    test_DialogList = 'DialogListActivity'
-    test_EditTextType = 'EditTextTypeActivity'
-    test_FullscreenOverdraw = 'FullscreenOverdrawActivity'
-    test_GlTextureView = 'GlTextureViewActivity'
-    test_InflatingList = 'InflatingListActivity'
-    test_Invalidate = 'InvalidateActivity'
-    test_ShadowGrid = 'ShadowGridActivity'
-    test_TextCacheHighHitrate = 'TextCacheHighHitrateActivity'
-    test_TextCacheLowHitrate = 'TextCacheLowHitrateActivity'
-    test_Transition = 'ActivityTransition'
-    test_TransitionDetails = 'ActivityTransitionDetails'
-    test_TrivialAnimation = 'TrivialAnimationActivity'
-    test_TrivialList = 'TrivialListActivity'
-    test_TrivialRecyclerView = 'TrivialRecyclerViewActivity'
+    #
+    # test_actions is a dictonary of standard actions to perform for each activity in uibench
+    # Possible actions are as follows, or None if no action is to be performed:
+    #  - 'vswipe'
+    #  - 'tap'
+    #  - A list with any combination of the above, in execution order
+    test_actions = {
+        # General
+        'DialogListActivity':           'vswipe',
+        'FullscreenOverdrawActivity':   None,
+        'GlTextureViewActivity':        None,
+        'InvalidateActivity':           None,
+        'TrivialAnimationActivity':     None,
+        'TrivialListActivity':          'vswipe',
+        'TrivialRecyclerViewActivity':  'vswipe',
+        # Inflation
+        'InflatingListActivity':        'vswipe',
+        # Rendering
+        'BitmapUploadActivity':         None,
+        'ShadowGridActivity':           ['tap', 'vswipe'],
+        # Text
+        'EditTextTypeActivity':         None,
+        'TextCacheHighHitrateActivity': 'vswipe',
+        'TextCacheLowHitrateActivity':  'vswipe',
+        # Transitions
+        'ActivityTransition':           ['tap', 'tap'],
+    }
 
     def __init__(self, test_env):
         super(UiBench, self).__init__(test_env)
@@ -58,7 +70,7 @@ class UiBench(Workload):
         # Set of output data reported by UiBench
         self.db_file = None
 
-    def run(self, out_dir, test_name, duration_s, collect=''):
+    def run(self, out_dir, test_name, duration_s, collect='', actions='default'):
         """
         Run single UiBench workload.
 
@@ -77,9 +89,27 @@ class UiBench(Workload):
             - 'ftrace'
             - any combination of the above
         :type collect: list(str)
+
+        :param actions: Specifies what actions to perform. Possible values:
+            - None      : Perform no action
+            - 'default' : Use the predefined default actions from the `test_actions` dict
+            - 'vswipe'  : Perform a vertical swipe
+            - 'tap'     : Perform a centre tap
+            - A list with any combination of vswipe and tap, in execution order
+        :type actions: list(str)
         """
 
         activity = '.' + test_name
+
+        # If default, get the default actions from test_actions
+        # If this is an undefined test, no action will be the default
+        if actions == 'default':
+            actions = None
+            if test_name in self.test_actions:
+                actions = self.test_actions[test_name]
+        # Format actions as a list if it is just a single string item,
+        # or an empty list if it is None
+        actions = [actions] if isinstance(actions, basestring) else actions if actions else []
 
         # Keep track of mandatory parameters
         self.out_dir = out_dir
@@ -141,7 +171,14 @@ class UiBench(Workload):
         # Run the workload for the required time
         self._log.info('Benchmark [%s] started, waiting %d [s]',
                      activity, duration_s)
-        sleep(duration_s)
+
+        start = time()
+
+        for action in actions:
+            self._perform_action(action)
+
+        while (time() - start) < duration_s:
+            sleep(1)
 
         self._log.debug("Benchmark done!")
         self.tracingStop()
@@ -160,5 +197,17 @@ class UiBench(Workload):
         Screen.set_orientation(self._target, auto=True)
         System.set_airplane_mode(self._target, on=False)
         Screen.set_brightness(self._target, auto=True)
+
+    def _perform_action(self, action, delay_s=1.0):
+        # Delay before performing action
+        sleep(delay_s)
+
+        if action == 'vswipe':
+            # Action: A fast Swipe Up/Scroll Down
+            System.vswipe(self._target, 20, 80, 50)
+
+        if action == 'tap':
+            # Action: Tap in the centre of the screen
+            System.tap(self._target, 50, 50)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
