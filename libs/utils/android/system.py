@@ -30,7 +30,7 @@ class System(object):
     """
 
     @staticmethod
-    def systrace_start(target, trace_file, time,
+    def systrace_start(target, trace_file, time=None,
                        events=['gfx', 'view', 'sched', 'freq', 'idle']):
 
         log = logging.getLogger('System')
@@ -46,10 +46,13 @@ class System(object):
                             target.CATAPULT_HOME)
                 return None
 
-        #  Format the command according to the specified time and events
-        systrace_pattern = "{} -e {} -o {} {} -t {}"
+        #  Format the command according to the specified arguments
+        systrace_pattern = "{} -e {} -o {} {}"
         trace_cmd = systrace_pattern.format(systrace_path, target.conf['device'],
-                                            trace_file, " ".join(events), time)
+                                            trace_file, " ".join(events))
+        if time is not None:
+            trace_cmd += " -t {}".format(time)
+
         log.info('SysTrace: %s', trace_cmd)
 
         # Actually spawn systrace

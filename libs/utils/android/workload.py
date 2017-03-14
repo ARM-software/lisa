@@ -101,12 +101,7 @@ class Workload(object):
             self.trace_file = os.path.join(self.out_dir, 'trace.html')
             # Get the systrace time
             match = re.search(r'systrace_([0-9]+)', self.collect)
-            if match:
-                self._trace_time = match.group(1)
-            else:
-                # TODO: must implement a CTRL+C based systrace stopping
-                self._log.warning("Systrace time NOT defined, tracing for 10[s]")
-                self._trace_time = 10
+            self._trace_time = match.group(1) if match else None
             self._log.info('Systrace START')
             self._systrace_output = System.systrace_start(
                 self._te, self.trace_file, self._trace_time)
@@ -132,6 +127,9 @@ class Workload(object):
             else:
                 self._log.info('Waiting systrace report [%s]...',
                                  self.trace_file)
+                if self._trace_time is None:
+                    # Systrace expects <enter>
+                    self._systrace_output.sendline('')
                 self._systrace_output.wait()
         # Dump a platform description
         self._te.platform_dump(self.out_dir)
