@@ -84,6 +84,11 @@ class UiBench(Workload):
         # Keep track of mandatory parameters
         self.out_dir = out_dir
         self.collect = collect
+        # For systrace collection, the duration is expected to be part of `collect` parameter
+        # This is because systrace capturing currently doesnt support CTRL+C stopping
+        # so tracingStop() call just waits instead.
+        if collect == 'systrace':
+            self.collect = 'systrace_' + str(duration_s)
 
         # Press Back button to be sure we run the video from the start
         System.menu(self._target)
