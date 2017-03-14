@@ -224,8 +224,8 @@ def _pop_aliased(d, names, entry_id):
     name_count = sum(1 for n in names if n in d)
     if name_count > 1:
         names_list = ', '.join(names)
-        msg = 'Inivalid workload entry "{}": at moust one of ({}}) must be specified.'
-        raise ConfigError(msg.format(workload_entry['id'], names_list))
+        msg = 'Invalid workload entry "{}": at most one of ({}}) must be specified.'
+        raise ConfigError(msg.format(entry_id, names_list))
     for name in names:
         if name in d:
             return d.pop(name)
