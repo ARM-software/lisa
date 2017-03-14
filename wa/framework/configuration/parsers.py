@@ -155,7 +155,7 @@ class AgendaParser(object):
         for section in sections:
             workloads = []
             for workload_entry in section.pop("workloads", []):
-                workload = _process_workload_entry(workload_entry, seen_workload_ids,
+                workload = _process_workload_entry(workload_entry, seen_wkl_ids,
                                                    state.jobs_config)
                 workloads.append(workload)
 
