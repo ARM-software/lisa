@@ -4,7 +4,7 @@
 #
 CROSS_COMPILE?=aarch64-linux-gnu-
 CC=$(CROSS_COMPILE)gcc
-CFLAGS='-Wl,-static -Wl,-lc'
+CFLAGS=-static -lc
 
 readenergy: readenergy.c
 	$(CC) $(CFLAGS) readenergy.c -o readenergy
