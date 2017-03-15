@@ -15,10 +15,10 @@
 
 import os
 
-from wlauto.exceptions import ConfigError
-from wlauto.utils.serializer import read_pod, SerializerSyntaxError
-from wlauto.utils.types import toggle_set, counter
-from wlauto.core.configuration.configuration import JobSpec
+from wa.framework.configuration.core import JobSpec
+from wa.framework.exception import ConfigError
+from wa.utils.serializer import json, read_pod, SerializerSyntaxError
+from wa.utils.types import toggle_set, counter
 
 
 ###############
@@ -44,19 +44,19 @@ class ConfigParser(object):
 
             # Get WA core configuration
             for cfg_point in state.settings.configuration.itervalues():
-                value = get_aliased_param(cfg_point, raw)
+                value = pop_aliased_param(cfg_point, raw)
                 if value is not None:
                     state.settings.set(cfg_point.name, value)
 
             # Get run specific configuration
             for cfg_point in state.run_config.configuration.itervalues():
-                value = get_aliased_param(cfg_point, raw)
+                value = pop_aliased_param(cfg_point, raw)
                 if value is not None:
                     state.run_config.set(cfg_point.name, value)
 
             # Get global job spec configuration
             for cfg_point in JobSpec.configuration.itervalues():
-                value = get_aliased_param(cfg_point, raw)
+                value = pop_aliased_param(cfg_point, raw)
                 if value is not None:
                     state.jobs_config.set_global_value(cfg_point.name, value)
 
@@ -158,6 +158,13 @@ class AgendaParser(object):
                                                    state.jobs_config)
                 workloads.append(workload)
 
+            if 'params' in section:
+                if 'runtime_params' in section:
+                    msg = 'both "params" and "runtime_params" specified in a '\
+                          'section: "{}"'
+                    raise ConfigError(msg.format(json.dumps(section, indent=None)))
+                section['runtime_params'] = section.pop('params')
+
             section = _construct_valid_entry(section, seen_sect_ids, 
                                              "s", state.jobs_config)
             state.jobs_config.add_section(section, workloads)
@@ -167,7 +174,7 @@ class AgendaParser(object):
 ### Helper functions ###
 ########################
 
-def get_aliased_param(cfg_point, d, default=None, pop=True):
+def pop_aliased_param(cfg_point, d, default=None):
     """
     Given a ConfigurationPoint and a dict, this function will search the dict for
     the ConfigurationPoint's name/aliases. If more than one is found it will raise
@@ -180,10 +187,7 @@ def get_aliased_param(cfg_point, d, default=None, pop=True):
     if len(alias_map) > 1:
         raise ConfigError(DUPLICATE_ENTRY_ERROR.format(aliases))
     elif alias_map:
-        if pop:
-            return d.pop(alias_map[0])
-        else:
-            return d[alias_map[0]]
+        return d.pop(alias_map[0])
     else:
         return default
 
@@ -203,7 +207,7 @@ def _load_file(filepath, error_name):
 
 def merge_result_processors_instruments(raw):
     instr_config = JobSpec.configuration['instrumentation']
-    instruments = toggle_set(get_aliased_param(instr_config, raw, default=[]))
+    instruments = toggle_set(pop_aliased_param(instr_config, raw, default=[]))
     result_processors = toggle_set(raw.pop('result_processors', []))
     if instruments and result_processors:
         conflicts = instruments.conflicts_with(result_processors)
@@ -246,25 +250,11 @@ def _construct_valid_entry(raw, seen_ids, prefix, jobs_config):
 
     # Validate all workload_entry
     for name, cfg_point in JobSpec.configuration.iteritems():
-        value = get_aliased_param(cfg_point, raw)
+        value = pop_aliased_param(cfg_point, raw)
         if value is not None:
             value = cfg_point.kind(value)
             cfg_point.validate_value(name, value)
             workload_entry[name] = value
-
-    wk_id = workload_entry['id']
-    param_names = ['workload_params', 'workload_parameters']
-    if prefix == 'wk':
-        param_names +=  ['params', 'parameters']
-    workload_entry["workload_parameters"] = _pop_aliased(raw, param_names, wk_id)
-
-    param_names = ['runtime_parameters', 'runtime_params']
-    if prefix == 's':
-        param_names +=  ['params', 'parameters']
-    workload_entry["runtime_parameters"] = _pop_aliased(raw, param_names, wk_id)
-
-    param_names = ['boot_parameters', 'boot_params']
-    workload_entry["boot_parameters"] = _pop_aliased(raw, param_names, wk_id)
 
     if "instrumentation" in workload_entry:
         jobs_config.update_enabled_instruments(workload_entry["instrumentation"])

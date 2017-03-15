@@ -127,6 +127,10 @@ class json(object):
         return _json.dump(o, wfh, cls=WAJSONEncoder, indent=indent, *args, **kwargs)
 
     @staticmethod
+    def dumps(o, indent=4, *args, **kwargs):
+        return _json.dumps(o, cls=WAJSONEncoder, indent=indent, *args, **kwargs)
+
+    @staticmethod
     def load(fh, *args, **kwargs):
         try:
             return _json.load(fh, cls=WAJSONDecoder, object_pairs_hook=OrderedDict, *args, **kwargs)
