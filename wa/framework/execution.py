@@ -58,6 +58,7 @@ from wa.framework.plugin import Artifact
 from wa.framework.resource import ResourceResolver
 from wa.framework.target.info import TargetInfo
 from wa.framework.target.manager import TargetManager
+from wa.utils import log
 from wa.utils.misc import (ensure_directory_exists as _d, 
                            get_traceback, format_duration)
 from wa.utils.serializer import json
@@ -75,15 +76,81 @@ REBOOT_DELAY = 3
 
 class ExecutionContext(object):
 
+    @property
+    def previous_job(self):
+        if not self.job_queue:
+            return None
+        return self.job_queue[0]
+
+    @property
+    def next_job(self):
+        if not self.completed_jobs:
+            return None
+        return self.completed_jobs[-1]
+
+    @property
+    def spec_changed(self):
+        if self.previous_job is None and self.current_job is not None:  # Start of run
+            return True
+        if self.previous_job is not None and self.current_job is None:  # End of run
+            return True
+        return self.current_job.spec.id != self.previous_job.spec.id
+
+    @property
+    def spec_will_change(self):
+        if self.current_job is None and self.next_job is not None:  # Start of run
+            return True
+        if self.current_job is not None and self.next_job is None:  # End of run
+            return True
+        return self.current_job.spec.id != self.next_job.spec.id
+
+    @property
+    def output_directory(self):
+        if self.current_job:
+            return os.path.join(self.output.basepath, self.current_job.output_name)
+        return self.output.basepath
 
     def __init__(self, cm, tm, output):
-        self.logger = logging.getLogger('ExecContext')
+        self.logger = logging.getLogger('context')
         self.cm = cm
         self.tm = tm
         self.output = output
         self.logger.debug('Loading resource discoverers')
         self.resolver = ResourceResolver(cm)
         self.resolver.load()
+        self.job_queue = None
+        self.completed_jobs = None
+        self.current_job = None
+
+    def start_run(self):
+        self.output.info.start_time = datetime.now()
+        self.output.write_info()
+        self.job_queue = copy(self.cm.jobs)
+        self.completed_jobs = []
+
+    def end_run(self):
+        self.output.info.end_time = datetime.now()
+        self.output.info.duration = self.output.info.end_time -\
+                                    self.output.info.start_time
+        self.output.write_info()
+
+    def start_job(self):
+        if not self.job_queue:
+            raise RuntimeError('No jobs to run')
+        self.current_job = self.job_queue.pop(0)
+        os.makedirs(self.output_directory)
+        return self.current_job
+
+    def end_job(self):
+        if not self.current_job:
+            raise RuntimeError('No jobs in progress')
+        self.completed_jobs.append(self.current_job)
+        self.current_job = None
+
+    def move_failed(self, job):
+        attempt = job.retries + 1
+        failed_name = '{}-attempt{:02}'.format(job.output_name, attempt)
+        self.output.move_failed(job.output_name, failed_name)
 
 
 class OldExecutionContext(object):
@@ -148,22 +215,6 @@ class OldExecutionContext(object):
         self.job_iteration_counts = defaultdict(int)
         self.aborted = False
         self.runner = None
-        if config.agenda.filepath:
-            self.run_artifacts.append(Artifact('agenda',
-                                               os.path.join(self.host_working_directory,
-                                                            os.path.basename(config.agenda.filepath)),
-                                               'meta',
-                                               mandatory=True,
-                                               description='Agenda for this run.'))
-        for i, filepath in enumerate(settings.config_paths, 1):
-            name = 'config_{}'.format(i)
-            path = os.path.join(self.host_working_directory,
-                                name + os.path.splitext(filepath)[1])
-            self.run_artifacts.append(Artifact(name,
-                                               path,
-                                               kind='meta',
-                                               mandatory=True,
-                                               description='Config file used for the run.'))
 
     def initialize(self):
         if not os.path.isdir(self.run_output_directory):
@@ -245,7 +296,7 @@ class Executor(object):
     # pylint: disable=R0915
 
     def __init__(self):
-        self.logger = logging.getLogger('Executor')
+        self.logger = logging.getLogger('executor')
         self.error_logged = False
         self.warning_logged = False
         pluginloader = None
@@ -289,6 +340,11 @@ class Executor(object):
         for instrument in config_manager.get_instruments(target_manager.target):
             instrumentation.install(instrument)
         instrumentation.validate()
+
+        self.logger.info('Starting run')
+        runner = Runner(context)
+        runner.run()
+
 
 
     def execute_postamble(self):
@@ -347,6 +403,124 @@ class Runner(object):
     """
     
     """
+
+    def __init__(self, context):
+        self.logger = logging.getLogger('runner')
+        self.context = context
+        self.output = self.context.output
+        self.config = self.context.cm
+
+    def run(self):
+        self.send(signal.RUN_STARTED)
+        try:
+            self.initialize_run()
+            self.send(signal.RUN_INITIALIZED)
+
+            while self.context.job_queue:
+                with signal.wrap('JOB_EXECUTION', self):
+                    self.run_next_job(self.context)
+        except Exception as e:
+            if (not getattr(e, 'logged', None) and
+                    not isinstance(e, KeyboardInterrupt)):
+                log.log_error(e, self.logger)
+                e.logged = True
+            raise e
+        finally:
+            self.finalize_run()
+            self.send(signal.RUN_COMPLETED)
+
+    def initialize_run(self):
+        self.logger.info('Initializing run')
+        self.context.start_run()
+        log.indent()
+        for job in self.context.job_queue:
+            job.initialize(self.context)
+        log.dedent()
+
+    def finalize_run(self):
+        self.logger.info('Finalizing run')
+        self.context.end_run()
+
+    def run_next_job(self, context):
+        job = context.start_job()
+        self.logger.info('Running job {}'.format(job.id))
+
+        try:
+            log.indent()
+            self.do_run_job(job, context)
+        except KeyboardInterrupt:
+            job.status = JobStatus.ABORTED
+            raise
+        except Exception as e:
+            job.status = JobStatus.FAILED
+            if not getattr(e, 'logged', None):
+                log.log_error(e, self.logger)
+                e.logged = True
+        finally:
+            self.logger.info('Completing job {}'.format(job.id))
+            self.send(signal.JOB_COMPLETED)
+            context.end_job()
+
+            log.dedent()
+            self.check_job(job)
+
+    def do_run_job(self, job, context):
+        job.status = JobStatus.RUNNING
+        self.send(signal.JOB_STARTED)
+
+        with signal.wrap('JOB_TARGET_CONFIG', self):
+            job.configure_target(context)
+
+        with signal.wrap('JOB_SETUP', self):
+            job.setup(context)
+        
+        try:
+            with signal.wrap('JOB_EXECUTION', self):
+                job.run(context)
+
+            try:
+                with signal.wrap('JOB_OUTPUT_PROCESSED', self):
+                    job.process_output(context)
+            except Exception:
+                job.status = JobStatus.PARTIAL
+                raise
+        except KeyboardInterrupt:
+            job.status = JobStatus.ABORTED
+            raise
+        except Exception as e:
+            job.status = JobStatus.FAILED
+            if not getattr(e, 'logged', None):
+                log.log_error(e, self.logger)
+                e.logged = True
+            raise e
+        finally:
+            # If setup was successfully completed, teardown must
+            # run even if the job failed
+            with signal.wrap('JOB_TEARDOWN', self):
+                job.teardown(context)
+
+    def check_job(self, job):
+        rc = self.context.cm.run_config
+        if job.status in rc.retry_on_status:
+            if job.retries < rc.max_retries:
+                msg = 'Job {} iteration {} complted with status {}. retrying...'
+                self.logger.error(msg.format(job.id, job.status, job.iteration))
+                self.context.move_failed(job)
+                job.retries += 1
+                job.status = JobStatus.PENDING
+                self.context.job_queue.insert(0, job)
+            else:
+                msg = 'Job {} iteration {} completed with status {}. '\
+                      'Max retries exceeded.'
+                self.logger.error(msg.format(job.id, job.status, job.iteration))
+        else:  # status not in retry_on_status
+            self.logger.info('Job completed with status {}'.format(job.status))
+        
+    def send(self, s):
+        signal.send(s, self, self.context)
+
+    def __str__(self):
+        return 'runner'
 
 
 class RunnerJob(object):

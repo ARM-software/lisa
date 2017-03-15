@@ -1,11 +1,15 @@
 import random
+import logging
 from itertools import izip_longest, groupby, chain
 
 from wa.framework import pluginloader
 from wa.framework.configuration.core import (MetaConfiguration, RunConfiguration,
-                                             JobGenerator, settings)
+                                             JobGenerator, JobStatus, settings)
 from wa.framework.configuration.parsers import ConfigParser
 from wa.framework.configuration.plugin_cache import PluginCache
+from wa.framework.exception import NotFoundError
+from wa.framework.job import Job
+from wa.utils.types import enum
 
 
 class CombinedConfig(object):
@@ -24,34 +28,6 @@ class CombinedConfig(object):
     def to_pod(self):
         return {'settings': self.settings.to_pod(),
                 'run_config': self.run_config.to_pod()}
-
-
-class JobStatus:
-    PENDING = 0
-    RUNNING = 1
-    OK = 2
-    FAILED = 3
-    PARTIAL = 4
-    ABORTED = 5
-    PASSED = 6
-
-
-class Job(object):
-
-    def __init__(self, spec, iteration, context):
-        self.spec = spec
-        self.iteration = iteration
-        self.context = context
-        self.status = 'new'
-        self.workload = None
-        self.output = None
-
-    def load(self, target, loader=pluginloader):
-        self.workload = loader.get_workload(self.spec.workload_name,
-                                            target,
-                                            **self.spec.workload_parameters)
-        self.workload.init_resources(self.context)
-        self.workload.validate()
 
 
 class ConfigManager(object):
@@ -108,8 +84,12 @@ class ConfigManager(object):
     def get_instruments(self, target):
         instruments = []
         for name in self.enabled_instruments:
-            instruments.append(self.get_plugin(name, kind='instrument', 
-                                               target=target))
+            try:
+                instruments.append(self.get_plugin(name, kind='instrument', 
+                                                target=target))
+            except NotFoundError:
+                msg = 'Instrument "{}" not found'
+                raise NotFoundError(msg.format(name))
         return instruments
 
     def finalize(self):

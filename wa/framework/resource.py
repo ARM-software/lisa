@@ -286,7 +286,7 @@ class ResourceResolver(object):
     """
 
     def __init__(self, config):
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = logging.getLogger('resolver')
         self.getters = defaultdict(prioritylist)
         self.config = config
 

@@ -85,27 +85,7 @@ def main():
     except KeyboardInterrupt:
         logging.info('Got CTRL-C. Aborting.')
         sys.exit(3)
-    except (WAError, DevlibError) as e:
-        logging.critical(e)
-        sys.exit(1)
-    except subprocess.CalledProcessError as e:
-        tb = get_traceback()
-        logging.critical(tb)
-        command = e.cmd
-        if e.args:
-            command = '{} {}'.format(command, ' '.join(e.args))
-        message = 'Command \'{}\' returned non-zero exit status {}\nOUTPUT:\n{}\n'
-        logging.critical(message.format(command, e.returncode, e.output))
-        sys.exit(2)
-    except SyntaxError as e:
-        tb = get_traceback()
-        logging.critical(tb)
-        message = 'Syntax Error in {}, line {}, offset {}:'
-        logging.critical(message.format(e.filename, e.lineno, e.offset))
-        logging.critical('\t{}'.format(e.msg))
-        sys.exit(2)
     except Exception as e:  # pylint: disable=broad-except
-        tb = get_traceback()
-        logging.critical(tb)
-        logging.critical('{}({})'.format(e.__class__.__name__, e))
+        if not getattr(e, 'logged', None):
+            log.log_error(e, logger)
         sys.exit(2)

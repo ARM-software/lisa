@@ -181,74 +181,47 @@ class PluginCache(object):
         :rtype: A fully merged and validated configuration in the form of a
                 obj_dict.
         """
-        ms = MergeState()
-        ms.generic_name = generic_name
-        ms.specific_name = specific_name
-        ms.generic_config = copy(self.plugin_configs[generic_name])
-        ms.specific_config = copy(self.plugin_configs[specific_name])
-        ms.cfg_points = self.get_plugin_parameters(specific_name)
+        generic_config = copy(self.plugin_configs[generic_name])
+        specific_config = copy(self.plugin_configs[specific_name])
+        cfg_points = self.get_plugin_parameters(specific_name)
         sources = self.sources
+        seen_specific_config = defaultdict(list)
 
         # set_value uses the 'name' attribute of the passed object in it error
         # messages, to ensure these messages make sense the name will have to be
         # changed several times during this function.
         final_config.name = specific_name
 
+        # pylint: disable=too-many-nested-blocks
         for source in sources:
             try:
-                update_config_from_source(final_config, source, ms)
+                if source in generic_config:
+                    final_config.name = generic_name
+                    for name, cfg_point in cfg_points.iteritems():
+                        if name in generic_config[source]:
+                            if name in seen_specific_config:
+                                msg = ('"{generic_name}" configuration "{config_name}" has already been '
+                                       'specified more specifically for {specific_name} in:\n\t\t{sources}')
+                                msg = msg.format(generic_name=generic_name,
+                                                 config_name=name,
+                                                 specific_name=specific_name,
+                                                 sources=", ".join(seen_specific_config[name]))
+                                raise ConfigError(msg)
+                            value = generic_config[source][name]
+                            cfg_point.set_value(final_config, value, check_mandatory=False)
+
+                if source in specific_config:
+                    final_config.name = specific_name
+                    for name, cfg_point in cfg_points.iteritems():
+                        if name in specific_config[source]:
+                            seen_specific_config[name].append(str(source))
+                            value = specific_config[source][name]
+                            cfg_point.set_value(final_config, value, check_mandatory=False)
+
             except ConfigError as e:
                 raise ConfigError('Error in "{}":\n\t{}'.format(source, str(e)))
 
         # Validate final configuration
         final_config.name = specific_name
-        for cfg_point in ms.cfg_points.itervalues():
+        for cfg_point in cfg_points.itervalues():
             cfg_point.validate(final_config)
-
-
-class MergeState(object):
-
-    def __init__(self):
-        self.generic_name = None
-        self.specific_name = None
-        self.generic_config = None
-        self.specific_config = None
-        self.cfg_points = None
-        self.seen_specific_config = defaultdict(list)
-
-
-def update_config_from_source(final_config, source, state):
-    if source in state.generic_config:
-        final_config.name = state.generic_name
-        for name, cfg_point in state.cfg_points.iteritems():
-            if name in state.generic_config[source]:
-                if name in state.seen_specific_config:
-                    msg = ('"{generic_name}" configuration "{config_name}" has '
-                            'already been specified more specifically for '
-                            '{specific_name} in:\n\t\t{sources}')
-                    seen_sources = state.seen_specific_config[name]
-                    msg = msg.format(generic_name=generic_name,
-                                        config_name=name,
-                                        specific_name=specific_name,
-                                        sources=", ".join(seen_sources))
-                    raise ConfigError(msg)
-                value = state.generic_config[source].pop(name)
-                cfg_point.set_value(final_config, value, check_mandatory=False)
-
-        if state.generic_config[source]:
-            msg = 'Unexected values for {}: {}'
-            raise ConfigError(msg.format(state.generic_name,
-                                         state.generic_config[source]))
-
-    if source in state.specific_config:
-        final_config.name = state.specific_name
-        for name, cfg_point in state.cfg_points.iteritems():
-            if name in state.specific_config[source]:
-                seen_state.specific_config[name].append(str(source))
-                value = state.specific_config[source].pop(name)
-                cfg_point.set_value(final_config, value, check_mandatory=False)
-
-        if state.specific_config[source]:
-            msg = 'Unexected values for {}: {}'
-            raise ConfigError(msg.format(state.specific_name,
-                                         state.specific_config[source]))

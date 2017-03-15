@@ -20,9 +20,8 @@ from collections import OrderedDict, defaultdict
 from wa.framework.exception import ConfigError, NotFoundError
 from wa.framework.configuration.tree import SectionNode
 from wa.utils.misc import (get_article, merge_config_values)
-from wa.utils.types import (identifier, integer, boolean,
-                                list_of_strings, toggle_set,
-                                obj_dict)
+from wa.utils.types import (identifier, integer, boolean, list_of_strings, 
+                            list_of, toggle_set, obj_dict, enum)
 from wa.utils.serializer import is_pod
 
 # Mapping for kind conversion; see docs for convert_types below
@@ -32,17 +31,9 @@ KIND_MAP = {
     dict: OrderedDict,
 }
 
-ITERATION_STATUS = [
-    'NOT_STARTED',
-    'RUNNING',
+JobStatus = enum(['NEW', 'LOADED', 'PENDING', 'RUNNING', 
+                  'OK', 'FAILED', 'PARTIAL', 'ABORTED', 'SKIPPED'])
 
-    'OK',
-    'NONCRITICAL',
-    'PARTIAL',
-    'FAILED',
-    'ABORTED',
-    'SKIPPED',
-]
 
 ##########################
 ### CONFIG POINT TYPES ###
@@ -555,7 +546,7 @@ class MetaConfiguration(Configuration):
     plugin_packages = [
         'wa.commands',
         'wa.workloads',
-        #'wa.instrumentation',
+        'wa.instrumentation',
         #'wa.result_processors',
         #'wa.managers',
         'wa.framework.target.descriptor',
@@ -638,8 +629,7 @@ class RunConfiguration(Configuration):
 
     name = "Run Configuration"
 
-    # Metadata is separated out because it is not loaded into the auto
-    # generated config file
+    # Metadata is separated out because it is not loaded into the auto generated config file
     meta_data = [
         ConfigurationPoint('run_name', kind=str,
                            description='''
@@ -717,9 +707,9 @@ class RunConfiguration(Configuration):
                            This setting defines what specific Device subclass will be used to interact
                            the connected device. Obviously, this must match your setup.
                            '''),
-        ConfigurationPoint('retry_on_status', kind=status_list,
+        ConfigurationPoint('retry_on_status', kind=list_of(JobStatus),
                            default=['FAILED', 'PARTIAL'],
-                           allowed_values=ITERATION_STATUS,
+                           allowed_values=JobStatus.values,
                            description='''
                            This is list of statuses on which a job will be cosidered to have failed and
                            will be automatically retried up to ``max_retries`` times. This defaults to
@@ -737,10 +727,10 @@ class RunConfiguration(Configuration):
                            ``"ABORTED"``
                            The user interupted the workload
                            '''),
-        ConfigurationPoint('max_retries', kind=int, default=3,
+        ConfigurationPoint('max_retries', kind=int, default=2,
                            description='''
                            The maximum number of times failed jobs will be retried before giving up. If
-                           not set, this will default to ``3``.
+                           not set.
 
                            .. note:: this number does not include the original attempt
                            '''),
@@ -918,8 +908,7 @@ class JobSpec(Configuration):
         except NotFoundError:
             global_runtime_params = {}
         for source in plugin_cache.sources:
-            if source in global_runtime_params:
-                runtime_parameters[source] = global_runtime_params[source]
+            runtime_parameters[source] = global_runtime_params[source]
 
         # Add runtime parameters from JobSpec
         for source, values in self.to_merge['runtime_parameters'].iteritems():
@@ -929,7 +918,11 @@ class JobSpec(Configuration):
         self.runtime_parameters = target_manager.merge_runtime_parameters(runtime_parameters)
 
     def finalize(self):
-        self.id = "-".join([source.config['id'] for source in self._sources[1:]])  # ignore first id, "global"
+        self.id = "-".join([source.config['id']
+                            for source in self._sources[1:]])  # ignore first id, "global"
+        if self.label is None:
+            self.label = self.workload_name
+
 
 
 # This is used to construct the list of Jobs WA will run

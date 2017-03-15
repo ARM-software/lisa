@@ -22,6 +22,8 @@ import subprocess
 
 import colorama
 
+from devlib import DevlibError
+
 from wa.framework import signal
 from wa.framework.exception import WAError
 from wa.utils.misc import get_traceback
@@ -78,7 +80,7 @@ def set_level(level):
 
 
 def add_file(filepath, level=logging.DEBUG,
-             fmt='%(asctime)s %(levelname)-8s %(name)s: %(message)-10.10s'):
+             fmt='%(asctime)s %(levelname)-8s %(name)10.10s: %(message)s'):
     root_logger = logging.getLogger()
     file_handler = logging.FileHandler(filepath)
     file_handler.setLevel(level)
@@ -142,7 +144,7 @@ def log_error(e, logger, critical=False):
 
     if isinstance(e, KeyboardInterrupt):
         log_func('Got CTRL-C. Aborting.')
-    elif isinstance(e, WAError):
+    elif isinstance(e, WAError) or isinstance(e, DevlibError):
         log_func(e)
     elif isinstance(e, subprocess.CalledProcessError):
         tb = get_traceback()

@@ -5,11 +5,12 @@ import string
 import sys
 import uuid
 from copy import copy
+from datetime import timedelta
 
 from wa.framework.configuration.core import JobSpec
 from wa.framework.configuration.manager import ConfigManager
 from wa.framework.target.info import TargetInfo
-from wa.utils.misc import touch
+from wa.utils.misc import touch, ensure_directory_exists
 from wa.utils.serializer import write_pod, read_pod
 
 
@@ -25,10 +26,13 @@ class RunInfo(object):
     @staticmethod
     def from_pod(pod):
         uid = pod.pop('uuid')
+        duration = pod.pop('duration')
         if uid is not None:
             uid = uuid.UUID(uid)
         instance = RunInfo(**pod)
         instance.uuid = uid
+        instance.duration = duration if duration is None else\
+                            timedelta(seconds=duration)
         return instance
 
     def __init__(self, run_name=None, project=None, project_stage=None,
@@ -44,6 +48,10 @@ class RunInfo(object):
     def to_pod(self):
         d = copy(self.__dict__)
         d['uuid'] = str(self.uuid)
+        if self.duration is None:
+            d['duration'] = self.duration
+        else:
+            d['duration'] = self.duration.total_seconds()
         return d
 
 
@@ -97,6 +105,11 @@ class RunOutput(object):
     def raw_config_dir(self):
         return os.path.join(self.metadir, 'raw_config')
 
+    @property
+    def failed_dir(self):
+        path = os.path.join(self.basepath, '__failed')
+        return ensure_directory_exists(path)
+
     def __init__(self, path):
         self.basepath = path
         self.info = None
@@ -143,6 +156,15 @@ class RunOutput(object):
             return None
         pod = read_pod(self.jobsfile)
         return [JobSpec.from_pod(jp) for jp in pod['jobs']]
+
+    def move_failed(self, name, failed_name):
+        path = os.path.join(self.basepath, name)
+        failed_path = os.path.join(self.failed_dir, failed_name)
+        if not os.path.exists(path):
+            raise ValueError('Path {} does not exist'.format(path))
+        if os.path.exists(failed_path):
+            raise ValueError('Path {} already exists'.format(failed_path))
+        shutil.move(path, failed_path)
 
 
 def init_wa_output(path, wa_state, force=False):

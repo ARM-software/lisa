@@ -29,6 +29,7 @@ import os
 import re
 import math
 import shlex
+import string
 from bisect import insort
 from collections import defaultdict, MutableMapping
 from copy import copy
@@ -475,3 +476,91 @@ class obj_dict(MutableMapping):
             return self.__dict__['dict'][name]
         else:
             raise AttributeError("No such attribute: " + name)
+
+
+class level(object):
+    """
+    A level has a name and behaves like a string when printed,
+    however it also has a numeric value which is used in comparisons.
+
+    """
+
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return '{}({})'.format(self.name, self.value)
+
+    def __cmp__(self, other):
+        if isinstance(other, level):
+            return cmp(self.value, other.value)
+        else:
+            return cmp(self.value, other)
+
+    def __eq__(self, other):
+        if isinstance(other, level):
+            return self.value == other.value
+        elif isinstance(other, basestring):
+            return self.name == other
+        else:
+            return self.value == other
+
+    def __ne__(self, other):
+        if isinstance(other, level):
+            return self.value != other.value
+        elif isinstance(other, basestring):
+            return self.name != other
+        else:
+            return self.value != other
+
+
+def enum(args, start=0):
+    """
+    Creates a class with attributes named by the first argument.
+    Each attribute is a ``level`` so they behave is integers in comparisons.
+    The value of the first attribute is specified by the second argument
+    (``0`` if not specified).
+
+    ::
+        MyEnum = enum(['A', 'B', 'C'])
+
+    is roughly equivalent of::
+
+        class MyEnum(object):
+            A = 0
+            B = 1
+            C = 2
+
+    however it also implement some specialized behaviors for comparisons and
+    instantiation.
+
+    """
+
+    class Enum(object):
+
+        def __new__(cls, name):
+            for attr_name in dir(cls):
+                if attr_name.startswith('__'):
+                    continue
+
+                attr = getattr(cls, attr_name)
+                if name == attr:
+                    return attr
+
+            raise ValueError('Invalid enum value: {}'.format(repr(name)))
+
+    levels = []
+    for i, v in enumerate(args, start):
+        name = string.upper(identifier(v))
+        lv = level(v, i)
+        setattr(Enum, name, lv)
+        levels.append(lv)
+
+    setattr(Enum, 'values', levels)
+
+    return Enum
+
