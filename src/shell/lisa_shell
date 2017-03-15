@@ -245,6 +245,16 @@ echo
 echo
 }
 
+function lisa-check-submods {
+local missing=0
+if [ ! -f ./libs/devlib/setup.py ] ||
+   [ ! -f ./libs/bart/setup.py ] ||
+   [ ! -f ./libs/trappy/setup.py ]; then
+	echo "One or more submodules missing, updating";
+	lisa-update submodules
+fi
+}
+
 ################################################################################
 # LISA Tests utility functions
 ################################################################################
@@ -350,6 +360,8 @@ cat <<EOF
 Type "lisa-help" for on-line help on available commands
 
 EOF
+
+lisa-check-submods
 
 # Setup default SHELL text color
 echo -e "$LISASHELL_DEFAULT"
