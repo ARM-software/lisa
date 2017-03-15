@@ -9,6 +9,8 @@ import sys
 from wa.framework import signal
 from wa.framework.exception import WorkerThreadError, ConfigError
 from wa.framework.plugin import Parameter
+from wa.framework.target.descriptor import (get_target_descriptions,
+                                            instantiate_target)
 from wa.framework.target.info import TargetInfo
 from wa.framework.target.runtime_config import (SysfileValuesRuntimeConfig,
                                                 HotplugRuntimeConfig,
@@ -41,54 +43,26 @@ class TargetManager(object):
                   """),
     ]
 
-    DEVICE_MAPPING = {'test' : {'platform_name':'generic',
-                               'target_name': 'android'},
-                      'other':  {'platform_name':'test',
-                                'target_name': 'linux'},
-                      }
-
     runtime_config_cls = [
-                            # order matters
-                            SysfileValuesRuntimeConfig,
-                            HotplugRuntimeConfig,
-                            CpufreqRuntimeConfig,
-                            CpuidleRuntimeConfig,
-                          ]
+        # order matters
+        SysfileValuesRuntimeConfig,
+        HotplugRuntimeConfig,
+        CpufreqRuntimeConfig,
+        CpuidleRuntimeConfig,
+    ]
 
     def __init__(self, name, parameters):
-        self.name = name
+        self.target_name = name
         self.target = None
         self.assistant = None
-        self.target_name = None
         self.platform_name = None
         self.parameters = parameters
         self.disconnect = parameters.get('disconnect')
         self.info = TargetInfo()
 
-        # Determine platform and target based on passed name
-        self._parse_name()
-        # Create target
-        self._get_target()
-        # Create an assistant to perform target specific configuration
-        self._get_assistant()
-
-        ### HERE FOR TESTING, WILL BE CALLED EXTERNALLY ###
-        # Connect to device and retrieve details.
-        # self.initialize()
-        # self.add_parameters()
-        # self.validate_parameters()
-        # self.set_parameters()
-
-    def initialize(self):
+        self._init_target()
+        self._init_assistant()
         self.runtime_configs = [cls(self.target) for cls in self.runtime_config_cls]
-        # if self.parameters:
-        # self.logger.info('Connecting to the device')
-        with signal.wrap('TARGET_CONNECT'):
-            self.target.connect()
-            # self.info.load(self.target)
-            # info_file = os.path.join(self.context.info_directory, 'target.json')
-            # with open(info_file, 'w') as wfh:
-            #     json.dump(self.info.to_pod(), wfh)
 
     def finalize(self):
         # self.logger.info('Disconnecting from the device')
@@ -108,9 +82,15 @@ class TargetManager(object):
                 if any(parameter in name for parameter in cfg.supported_parameters):
                     cfg.add(name, self.parameters.pop(name))
 
-    def validate_parameters(self):
+    def get_target_info(self):
+        return TargetInfo(self.target)
+
+    def validate_runtime_parameters(self, params):
         for cfg in self.runtime_configs:
             cfg.validate()
+
+    def merge_runtime_parameters(self, params):
+        pass
 
     def set_parameters(self):
         for cfg in self.runtime_configs:
@@ -120,47 +100,25 @@ class TargetManager(object):
         for cfg in self.runtime_configs:
             cfg.clear()
 
-    def _parse_name(self):
-        # Try and get platform and target
-        self.name = identifier(self.name.replace('-', '_'))
-        if '_' in self.name:
-            self.platform_name, self.target_name = self.name.split('_', 1)
-        elif self.name in self.DEVICE_MAPPING:
-            self.platform_name = self.DEVICE_MAPPING[self.name]['platform_name']
-            self.target_name = self.DEVICE_MAPPING[self.name]['target_name']
-        else:
-            raise ConfigError('Unknown Device Specified {}'.format(self.name))
+    def _init_target(self):
+        target_map = {td.name: td for td in get_target_descriptions()}
+        if self.target_name not in target_map:
+            raise ValueError('Unknown Target: {}'.format(self.target_name))
+        tdesc = target_map[self.target_name]
+        self.target = instantiate_target(tdesc, self.parameters, connect=False)
+        with signal.wrap('TARGET_CONNECT'):
+            self.target.connect()
+        self.target.setup()
 
-    def _get_target(self):
-        # Create a corresponding target and target-assistant
-        if self.target_name == 'android':
-            self.target = AndroidTarget()
-        elif self.target_name == 'linux':
-            self.target = LinuxTarget()  # pylint: disable=redefined-variable-type
-        elif self.target_name == 'localLinux':
-            self.target = LocalLinuxTarget()
-        else:
-            raise ConfigError('Unknown Target Specified {}'.format(self.target_name))
-
-    def _get_assistant(self):
-        # Create a corresponding target and target-assistant to help with platformy stuff?
-        if self.target_name == 'android':
+    def _init_assistant(self):
+        # Create a corresponding target and target-assistant to help with
+        # platformy stuff?
+        if self.target.os == 'android':
             self.assistant = AndroidAssistant(self.target)
-        elif self.target_name in ['linux', 'localLinux']:
+        elif self.target.os == 'linux':
             self.assistant = LinuxAssistant(self.target)  # pylint: disable=redefined-variable-type
         else:
-            raise ConfigError('Unknown Target Specified {}'.format(self.target_name))
-
-    # def validate_runtime_parameters(self, parameters):
-    #     for  name, value in parameters.iteritems():
-    #         self.add_parameter(name, value)
-    #     self.validate_parameters()
-
-    # def set_runtime_parameters(self, parameters):
-    #     # self.clear()
-    #     for  name, value in parameters.iteritems():
-    #         self.add_parameter(name, value)
-    #     self.set_parameters()
+            raise ValueError('Unknown Target OS: {}'.format(self.target.os))
 
 
 class LinuxAssistant(object):

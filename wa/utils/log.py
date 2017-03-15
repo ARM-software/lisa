@@ -80,7 +80,7 @@ def set_level(level):
 
 
 def add_file(filepath, level=logging.DEBUG,
-             fmt='%(asctime)s %(levelname)-8s %(name)10.10s: %(message)s'):
+             fmt='%(asctime)s %(levelname)-8s %(name)s: %(message)-10.10s'):
     root_logger = logging.getLogger()
     file_handler = logging.FileHandler(filepath)
     file_handler.setLevel(level)

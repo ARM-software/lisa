@@ -24,6 +24,35 @@ def get_target_descriptions(loader=pluginloader):
     return targets.values()
 
 
+def instantiate_target(tdesc, params, connect=None):
+    target_params = {p.name: p for p in tdesc.target_params}
+    platform_params = {p.name: p for p in tdesc.platform_params}
+    conn_params = {p.name: p for p in tdesc.conn_params}
+
+    tp, pp, cp = {}, {}, {}
+
+    for name, value in params.iteritems():
+        if name in target_params:
+            tp[name] = value
+        elif name in platform_params:
+            pp[name] = value
+        elif name in conn_params:
+            cp[name] = value
+        else:
+            msg = 'Unexpected parameter for {}: {}'
+            raise ValueError(msg.format(tdesc.name, name))
+
+    tp['platform'] = (tdesc.platform or Platform)(**pp)
+    if cp:
+        tp['connection_settings'] = cp
+    if tdesc.connection:
+        tp['conn_cls'] = tdesc.connection
+    if connect is not None:
+        tp['connect'] = connect
+
+    return tdesc.target(**tp)
+
+
 class TargetDescription(object):
 
     def __init__(self, name, source, description=None, target=None, platform=None, 
@@ -85,6 +114,18 @@ COMMON_TARGET_PARAMS = [
 
               Please see ``devlab`` documentation for information on the available
               modules.
+              '''),
+    Parameter('load_default_modules', kind=bool, default=True,
+              description='''
+              A number of modules (e.g. for working with the cpufreq subsystem) are
+              loaded by default when a Target is instantiated. Setting this to
+              ``True`` would suppress that, ensuring that only the base Target
+              interface is initialized.
+
+              You may want to set this if there is a problem with one or more default
+              modules on your platform (e.g. your device is unrooted and cpufreq is
+              not accessible to unprivileged users), or if Target initialization is
+              taking too long for your platform.
               '''),
 ]
 
