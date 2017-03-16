@@ -9,6 +9,7 @@ from wa.framework.configuration.parsers import ConfigParser
 from wa.framework.configuration.plugin_cache import PluginCache
 from wa.framework.exception import NotFoundError
 from wa.framework.job import Job
+from wa.framework.run import JobState
 from wa.utils.types import enum
 
 
@@ -106,6 +107,7 @@ class ConfigManager(object):
             job = Job(spec, i, context)
             job.load(context.tm.target)
             self._jobs.append(job)
+            context.run_state.add_job(job)
         self._jobs_generated = True
 
 

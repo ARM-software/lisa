@@ -232,6 +232,7 @@ def read_pod(source, fmt=None):
         message = 'source must be a path or an open file handle; got {}'
         raise ValueError(message.format(type(source)))
 
+
 def write_pod(pod, dest, fmt=None):
     if isinstance(dest, basestring):
         with open(dest, 'w') as wfh:

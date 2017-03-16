@@ -90,14 +90,18 @@ class Dhrystone(Workload):
         outfile = os.path.join(context.output_directory, 'dhrystone.output')
         with open(outfile, 'w') as wfh:
             wfh.write(self.output)
+        context.add_artifact('dhrystone-output', outfile, 'raw', "dhrystone's stdout")
+
         score_count = 0
         dmips_count = 0
         total_score = 0
         total_dmips = 0
+
         for line in self.output.split('\n'):
             match = self.time_regex.search(line)
             if match:
-                context.add_metric('time', float(match.group('time')), 'seconds', lower_is_better=True)
+                context.add_metric('time', float(match.group('time')), 'seconds',
+                                   lower_is_better=True)
             else:
                 match = self.bm_regex.search(line)
                 if match:
@@ -114,6 +118,7 @@ class Dhrystone(Workload):
                         context.add_metric(metric, value)
                         dmips_count += 1
                         total_dmips += value
+
         context.add_metric('total DMIPS', total_dmips)
         context.add_metric('total score', total_score)
 

@@ -11,8 +11,12 @@ class Job(object):
         return self.spec.id
 
     @property
-    def output_name(self):
-        return '{}-{}-{}'.format(self.id, self.spec.label, self.iteration)
+    def label(self):
+        return self.spec.label
+
+    @property
+    def classifiers(self):
+        return self.spec.classifiers
 
     def __init__(self, spec, iteration, context):
         self.logger = logging.getLogger('job')
@@ -31,27 +35,33 @@ class Job(object):
                                             **self.spec.workload_parameters)
         self.workload.init_resources(self.context)
         self.workload.validate()
-        self.status = JobStatus.LOADED
 
     def initialize(self, context):
         self.logger.info('Initializing job {}'.format(self.id))
+        self.workload.initialize(context)
         self.status = JobStatus.PENDING
+        context.update_job_state(self)
 
     def configure_target(self, context):
         self.logger.info('Configuring target for job {}'.format(self.id))
 
     def setup(self, context):
         self.logger.info('Setting up job {}'.format(self.id))
+        self.workload.setup(context)
 
     def run(self, context):
         self.logger.info('Running job {}'.format(self.id))
+        self.workload.run(context)
 
     def process_output(self, context):
         self.logger.info('Processing output for job {}'.format(self.id))
+        self.workload.update_result(context)
 
     def teardown(self, context):
         self.logger.info('Tearing down job {}'.format(self.id))
+        self.workload.teardown(context)
 
     def finalize(self, context):
         self.logger.info('Finalizing job {}'.format(self.id))
+        self.workload.finalize(context)
 

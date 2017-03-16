@@ -24,6 +24,7 @@ from wa.utils.types import (identifier, integer, boolean, list_of_strings,
                             list_of, toggle_set, obj_dict, enum)
 from wa.utils.serializer import is_pod
 
+
 # Mapping for kind conversion; see docs for convert_types below
 KIND_MAP = {
     int: integer,
@@ -31,7 +32,10 @@ KIND_MAP = {
     dict: OrderedDict,
 }
 
-JobStatus = enum(['NEW', 'LOADED', 'PENDING', 'RUNNING', 
+RunStatus = enum(['NEW', 'STARTED', 'CONNECTED', 'INITIALIZED', 'RUNNING',
+                  'COMPLETED', 'OK', 'FAILED', 'PARTIAL', 'ABORTED'])
+
+JobStatus = enum(['NEW', 'PENDING', 'RUNNING',
                   'OK', 'FAILED', 'PARTIAL', 'ABORTED', 'SKIPPED'])
 
 

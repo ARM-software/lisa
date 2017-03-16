@@ -49,17 +49,18 @@ from itertools import izip_longest
 
 import wa.framework.signal as signal
 from wa.framework import instrumentation, pluginloader
-from wa.framework.configuration.core import settings
-from wa.framework.configuration.execution import JobStatus
+from wa.framework.configuration.core import settings, RunStatus, JobStatus
 from wa.framework.exception import (WAError, ConfigError, TimeoutError,
                                     InstrumentError, TargetError,
                                     TargetNotRespondingError)
+from wa.framework.output import init_job_output
 from wa.framework.plugin import Artifact
 from wa.framework.resource import ResourceResolver
+from wa.framework.run import RunState
 from wa.framework.target.info import TargetInfo
 from wa.framework.target.manager import TargetManager
 from wa.utils import log
-from wa.utils.misc import (ensure_directory_exists as _d, 
+from wa.utils.misc import (ensure_directory_exists as _d, merge_config_values,
                            get_traceback, format_duration)
 from wa.utils.serializer import json
 
@@ -105,16 +106,26 @@ class ExecutionContext(object):
         return self.current_job.spec.id != self.next_job.spec.id
 
     @property
-    def output_directory(self):
+    def job_output(self):
         if self.current_job:
-            return os.path.join(self.output.basepath, self.current_job.output_name)
+            return self.current_job.output
+
+    @property
+    def output(self):
+        if self.current_job:
+            return self.job_output
+        return self.run_output
+
+    @property
+    def output_directory(self):
         return self.output.basepath
 
     def __init__(self, cm, tm, output):
         self.logger = logging.getLogger('context')
         self.cm = cm
         self.tm = tm
-        self.output = output
+        self.run_output = output
+        self.run_state = output.state
         self.logger.debug('Loading resource discoverers')
         self.resolver = ResourceResolver(cm)
         self.resolver.load()
@@ -127,31 +138,56 @@ class ExecutionContext(object):
         self.output.write_info()
         self.job_queue = copy(self.cm.jobs)
         self.completed_jobs = []
+        self.run_state.status = RunStatus.STARTED
+        self.output.write_state()
 
     def end_run(self):
         self.output.info.end_time = datetime.now()
         self.output.info.duration = self.output.info.end_time -\
                                     self.output.info.start_time
         self.output.write_info()
+        self.output.write_state()
+        self.output.write_result()
 
     def start_job(self):
         if not self.job_queue:
             raise RuntimeError('No jobs to run')
         self.current_job = self.job_queue.pop(0)
-        os.makedirs(self.output_directory)
+        self.current_job.output = init_job_output(self.run_output, self.current_job)
+        self.update_job_state(self.current_job)
         return self.current_job
 
     def end_job(self):
         if not self.current_job:
             raise RuntimeError('No jobs in progress')
         self.completed_jobs.append(self.current_job)
+        self.update_job_state(self.current_job)
+        self.output.write_result()
         self.current_job = None
 
     def move_failed(self, job):
-        attempt = job.retries + 1
-        failed_name = '{}-attempt{:02}'.format(job.output_name, attempt)
-        self.output.move_failed(job.output_name, failed_name)
+        self.run_output.move_failed(job.output)
 
+    def update_job_state(self, job):
+        self.run_state.update_job(job)
+        self.run_output.write_state()
+
+    def write_state(self):
+        self.run_output.write_state()
+
+    def add_metric(self, name, value, units=None, lower_is_better=False,
+                   classifiers=None):
+        if self.current_job:
+            classifiers = merge_config_values(self.current_job.classifiers,
+                                              classifiers)
+        self.output.add_metric(name, value, units, lower_is_better, classifiers)
+
+    def add_artifact(self, name, path, kind, description=None, classifiers=None):
+        self.output.add_artifact(name, path, kind, description, classifiers)
+
+    def add_run_artifact(self, name, path, kind, description=None,
+                         classifiers=None):
+        self.run_output.add_artifact(name, path, kind, description, classifiers)
 
 class OldExecutionContext(object):
     """
@@ -335,6 +371,7 @@ class Executor(object):
         self.logger.info('Generating jobs')
         config_manager.generate_jobs(context)
         output.write_job_specs(config_manager.job_specs)
+        output.write_state()
 
         self.logger.info('Installing instrumentation')
         for instrument in config_manager.get_instruments(target_manager.target):
@@ -344,8 +381,6 @@ class Executor(object):
         self.logger.info('Starting run')
         runner = Runner(context)
         runner.run()
-
-
 
     def execute_postamble(self):
         """
@@ -373,22 +408,6 @@ class Executor(object):
         elif self.warning_logged:
             self.logger.warn('There were warnings during execution.')
             self.logger.warn('Please see {}'.format(self.config.log_file))
-
-    def _get_runner(self, result_manager):
-        if not self.config.execution_order or self.config.execution_order == 'by_iteration':
-            if self.config.reboot_policy == 'each_spec':
-                self.logger.info('each_spec reboot policy with the default by_iteration execution order is '
-                                 'equivalent to each_iteration policy.')
-            runnercls = ByIterationRunner
-        elif self.config.execution_order in ['classic', 'by_spec']:
-            runnercls = BySpecRunner
-        elif self.config.execution_order == 'by_section':
-            runnercls = BySectionRunner
-        elif self.config.execution_order == 'random':
-            runnercls = RandomRunner
-        else:
-            raise ConfigError('Unexpected execution order: {}'.format(self.config.execution_order))
-        return runnercls(self.device_manager, self.context, result_manager)
 
     def _error_signalled_callback(self):
         self.error_logged = True
@@ -436,6 +455,7 @@ class Runner(object):
         for job in self.context.job_queue:
             job.initialize(self.context)
         log.dedent()
+        self.context.write_state()
 
     def finalize_run(self):
         self.logger.info('Finalizing run')
@@ -448,6 +468,7 @@ class Runner(object):
         try:
             log.indent()
             self.do_run_job(job, context)
+            job.status = JobStatus.OK
         except KeyboardInterrupt:
             job.status = JobStatus.ABORTED
             raise
@@ -503,12 +524,13 @@ class Runner(object):
         rc = self.context.cm.run_config
         if job.status in rc.retry_on_status:
             if job.retries < rc.max_retries:
-                msg = 'Job {} iteration {} complted with status {}. retrying...'
+                msg = 'Job {} iteration {} completed with status {}. retrying...'
                 self.logger.error(msg.format(job.id, job.status, job.iteration))
                 self.context.move_failed(job)
                 job.retries += 1
                 job.status = JobStatus.PENDING
                 self.context.job_queue.insert(0, job)
+                self.context.write_state()
             else:
                 msg = 'Job {} iteration {} completed with status {}. '\
                       'Max retries exceeded.'
