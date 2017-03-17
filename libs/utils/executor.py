@@ -188,6 +188,7 @@ class Executor():
         # Initialize globals
         self._default_cgroup = None
         self._cgroup = None
+        self._old_selinux_mode = None
 
         # Setup logging
         self._log = logging.getLogger('Executor')
@@ -328,24 +329,30 @@ class Executor():
         self._log.debug('Setup RT-App run folder [%s]...', self.te.run_dir)
         self.target.execute('[ -d {0} ] || mkdir {0}'\
                 .format(self.te.run_dir))
-        self.target.execute(
+
+        if self.target.is_rooted:
+            self.target.execute(
                 'grep schedtest /proc/mounts || '\
                 '  mount -t tmpfs -o size=1024m {} {}'\
                 .format('schedtest', self.te.run_dir),
                 as_root=True)
-        # tmpfs mounts have an SELinux context with "tmpfs" as the type (while
-        # other files we create have "shell_data_file"). That prevents non-root
-        # users from creating files in tmpfs mounts. For now, just put SELinux
-        # in permissive mode to get around that.
-        try:
-            # First, save the old SELinux mode
-            self._old_selinux_mode = self.target.execute('getenforce')
-        except TargetError:
-            # Probably the target doesn't have SELinux. No problem.
-            self._old_selinux_mode = None
+
+            # tmpfs mounts have an SELinux context with "tmpfs" as the type
+            # (while other files we create have "shell_data_file"). That
+            # prevents non-root users from creating files in tmpfs mounts. For
+            # now, just put SELinux in permissive mode to get around that.
+            try:
+                # First, save the old SELinux mode
+                self._old_selinux_mode = self.target.execute('getenforce')
+            except TargetError:
+                # Probably the target doesn't have SELinux. No problem.
+                pass
+            else:
+
+                self._log.warning('Setting target SELinux in permissive mode')
+                self.target.execute('setenforce 0', as_root=True)
         else:
-            self._log.warning('Setting target SELinux in permissive mode')
-            self.target.execute('setenforce 0', as_root=True)
+            self._log.warning('Not mounting tempfs because no root')
 
     def _setup_cpufreq(self, tc):
         if 'cpufreq' not in tc:
