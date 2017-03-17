@@ -212,7 +212,6 @@ class Executor(object):
         pluginloader = None
         self.device_manager = None
         self.device = None
-        self.context = None
 
     def execute(self, config_manager, output):
         """
@@ -256,35 +255,31 @@ class Executor(object):
         runner = Runner(context)
         signal.send(signal.RUN_STARTED, self)
         runner.run()
-        #TODO: postamble goes here.
+        self.execute_postamble(context, output)
         signal.send(signal.RUN_COMPLETED, self)
 
-    def execute_postamble(self):
-        """
-        This happens after the run has completed. The overall results of the run are
-        summarised to the user.
-
-        """
-        result = self.context.run_result
-        counter = Counter()
-        for ir in result.iteration_results:
-            counter[ir.status] += 1
+    def execute_postamble(self, context, output):
         self.logger.info('Done.')
-        self.logger.info('Run duration: {}'.format(format_duration(self.context.run_info.duration)))
-        status_summary = 'Ran a total of {} iterations: '.format(sum(self.context.job_iteration_counts.values()))
+        duration = format_duration(output.info.duration)
+        self.logger.info('Run duration: {}'.format(duration))
+        num_ran = context.run_state.num_completed_jobs
+        status_summary = 'Ran a total of {} iterations: '.format(num_ran)
+
+        counter = context.run_state.get_status_counts()
         parts = []
-        for status in JobStatus.values:
+        for status in reversed(JobStatus.values):
             if status in counter:
                 parts.append('{} {}'.format(counter[status], status))
         self.logger.info(status_summary + ', '.join(parts))
-        self.logger.info('Results can be found in {}'.format(self.config.output_directory))
+
+        self.logger.info('Results can be found in {}'.format(output.basepath))
 
         if self.error_logged:
             self.logger.warn('There were errors during execution.')
-            self.logger.warn('Please see {}'.format(self.config.log_file))
+            self.logger.warn('Please see {}'.format(output.logfile))
         elif self.warning_logged:
             self.logger.warn('There were warnings during execution.')
-            self.logger.warn('Please see {}'.format(self.config.log_file))
+            self.logger.warn('Please see {}'.format(output.logfile))
 
     def _error_signalled_callback(self):
         self.error_logged = True

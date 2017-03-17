@@ -14,11 +14,11 @@
 #
 import uuid
 import logging
+from collections import OrderedDict, Counter
 from copy import copy
 from datetime import datetime, timedelta
-from collections import OrderedDict
 
-from wa.framework.configuration.core import RunStatus
+from wa.framework.configuration.core import RunStatus, JobStatus
 
 
 class RunInfo(object):
@@ -73,6 +73,11 @@ class RunState(object):
         instance.jobs = OrderedDict(((js.id, js.iteration), js) for js in jss)
         return instance
 
+    @property
+    def num_completed_jobs(self):
+        return sum(1 for js in self.jobs.itervalues()
+                   if js.status > JobStatus.SKIPPED)
+
     def __init__(self):
         self.jobs = OrderedDict()
         self.status = RunStatus.NEW
@@ -86,6 +91,12 @@ class RunState(object):
         state = self.jobs[(job.id, job.iteration)]
         state.status = job.status
         state.timestamp = datetime.now()
+
+    def get_status_counts(self):
+        counter = Counter()
+        for job_state in self.jobs.itervalues():
+            counter[job_state.status] += 1
+        return counter
 
     def to_pod(self):
         return OrderedDict(

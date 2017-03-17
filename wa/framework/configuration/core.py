@@ -33,10 +33,10 @@ KIND_MAP = {
 }
 
 RunStatus = enum(['NEW', 'STARTED', 'CONNECTED', 'INITIALIZED', 'RUNNING',
-                  'COMPLETED', 'OK', 'FAILED', 'PARTIAL', 'ABORTED'])
+                  'ABORTED', 'FAILED', 'PARTIAL', 'OK'])
 
 JobStatus = enum(['NEW', 'PENDING', 'RUNNING',
-                  'OK', 'FAILED', 'PARTIAL', 'ABORTED', 'SKIPPED'])
+                  'SKIPPED', 'ABORTED', 'FAILED', 'PARTIAL', 'OK'])
 
 
 ##########################
