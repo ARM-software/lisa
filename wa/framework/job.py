@@ -29,7 +29,7 @@ class Job(object):
         self.retries = 0
 
     def load(self, target, loader=pluginloader):
-        self.logger.debug('Loading job {}'.format(self.id))
+        self.logger.info('Loading job {}'.format(self.id))
         self.workload = loader.get_workload(self.spec.workload_name,
                                             target,
                                             **self.spec.workload_parameters)
