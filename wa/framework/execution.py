@@ -141,6 +141,14 @@ class ExecutionContext(object):
         self.run_state.update_job(job)
         self.run_output.write_state()
 
+    def skip_remaining_jobs(self):
+        while self.job_queue:
+            job = self.job_queue.pop(0)
+            job.status = JobStatus.SKIPPED
+            self.run_state.update_job(job)
+            self.completed_jobs.append(job)
+        self.write_state()
+
     def write_state(self):
         self.run_output.write_state()
 
@@ -276,8 +284,11 @@ class Runner(object):
             self.send(signal.RUN_INITIALIZED)
 
             while self.context.job_queue:
-                with signal.wrap('JOB_EXECUTION', self):
-                    self.run_next_job(self.context)
+                try:
+                    with signal.wrap('JOB_EXECUTION', self):
+                        self.run_next_job(self.context)
+                except KeyboardInterrupt:
+                    self.context.skip_remaining_jobs()
         except Exception as e:
             if (not getattr(e, 'logged', None) and
                     not isinstance(e, KeyboardInterrupt)):
@@ -347,6 +358,7 @@ class Runner(object):
                 raise
         except KeyboardInterrupt:
             job.status = JobStatus.ABORTED
+            self.logger.info('Got CTRL-C. Aborting.')
             raise
         except Exception as e:
             job.status = JobStatus.FAILED
