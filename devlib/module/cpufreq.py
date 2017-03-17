@@ -334,9 +334,8 @@ class CpufreqModule(Module):
 
         :param cpus: The list of CPU for which the governor is to be set.
         """
-        online_cpus = self.target.list_online_cpus()
-        for cpu in online_cpus:
-            self.set_governor(cpu, governor, kwargs)
+        for cpu in cpus:
+            self.set_governor(cpu, governor, **kwargs)
 
     def set_frequency_for_cpus(self, cpus, freq, exact=False):
         """
@@ -345,8 +344,7 @@ class CpufreqModule(Module):
 
         :param cpus: The list of CPU for which the frequency has to be set.
         """
-        online_cpus = self.target.list_online_cpus()
-        for cpu in online_cpus:
+        for cpu in cpus:
             self.set_frequency(cpu, freq, exact)
 
     def set_all_frequencies(self, freq):
