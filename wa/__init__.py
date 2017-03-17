@@ -7,6 +7,7 @@ from wa.framework.exception import (ResultProcessorError, ResourceError,
 from wa.framework.exception import (WAError, NotFoundError, ValidationError,
                                     WorkloadError)
 from wa.framework.exception import WorkerThreadError, PluginLoaderError
-from wa.framework.instrumentation import Instrument
+from wa.framework.instrumentation import (Instrument, very_slow, slow, normal, fast,
+                                          very_fast)
 from wa.framework.plugin import Plugin, Parameter
 from wa.framework.workload import Workload

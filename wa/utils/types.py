@@ -520,7 +520,7 @@ class level(object):
             return self.value != other
 
 
-def enum(args, start=0):
+def enum(args, start=0, step=1):
     """
     Creates a class with attributes named by the first argument.
     Each attribute is a ``level`` so they behave is integers in comparisons.
@@ -556,11 +556,13 @@ def enum(args, start=0):
             raise ValueError('Invalid enum value: {}'.format(repr(name)))
 
     levels = []
-    for i, v in enumerate(args, start):
+    n = start
+    for v in args:
         name = caseless_string(identifier(v))
-        lv = level(v, i)
+        lv = level(v, n)
         setattr(Enum, name, lv)
         levels.append(lv)
+        n += step
 
     setattr(Enum, 'values', levels)
 

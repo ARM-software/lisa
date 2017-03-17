@@ -1,6 +1,6 @@
 import logging
 
-from wa.framework import pluginloader
+from wa.framework import pluginloader, signal
 from wa.framework.configuration.core import JobStatus
 
 
@@ -38,7 +38,8 @@ class Job(object):
 
     def initialize(self, context):
         self.logger.info('Initializing job {}'.format(self.id))
-        self.workload.initialize(context)
+        with signal.wrap('WORKLOAD_INITIALIZED', self, context):
+            self.workload.initialize(context)
         self.status = JobStatus.PENDING
         context.update_job_state(self)
 
@@ -47,21 +48,26 @@ class Job(object):
 
     def setup(self, context):
         self.logger.info('Setting up job {}'.format(self.id))
-        self.workload.setup(context)
+        with signal.wrap('WORKLOAD_SETUP', self, context):
+            self.workload.setup(context)
 
     def run(self, context):
         self.logger.info('Running job {}'.format(self.id))
-        self.workload.run(context)
+        with signal.wrap('WORKLOAD_EXECUTION', self, context):
+            self.workload.run(context)
 
     def process_output(self, context):
         self.logger.info('Processing output for job {}'.format(self.id))
-        self.workload.update_result(context)
+        with signal.wrap('WORKLOAD_RESULT_UPDATE', self, context):
+            self.workload.update_result(context)
 
     def teardown(self, context):
         self.logger.info('Tearing down job {}'.format(self.id))
-        self.workload.teardown(context)
+        with signal.wrap('WORKLOAD_TEARDOWN', self, context):
+            self.workload.teardown(context)
 
     def finalize(self, context):
         self.logger.info('Finalizing job {}'.format(self.id))
-        self.workload.finalize(context)
+        with signal.wrap('WORKLOAD_FINALIZED', self, context):
+            self.workload.finalize(context)
 

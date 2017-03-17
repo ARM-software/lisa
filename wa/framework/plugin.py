@@ -279,7 +279,6 @@ class PluginMeta(type):
         mcs._propagate_attributes(bases, attrs, clsname)
         cls = type.__new__(mcs, clsname, bases, attrs)
         mcs._setup_aliases(cls)
-        mcs._implement_virtual(cls, bases)
         return cls
 
     @classmethod
@@ -323,48 +322,6 @@ class PluginMeta(type):
                 alias.validate(cls)
                 alias.plugin_name = cls.name
                 cls.aliases.add(alias)
-
-    @classmethod
-    def _implement_virtual(mcs, cls, bases):
-        """
-        This implements automatic method propagation to the bases, so
-        that you don't have to do something like
-
-            super(cls, self).vmname()
-
-        This also ensures that the methods that have beend identified as
-        "globally virtual" are executed exactly once per WA execution, even if
-        invoked through instances of different subclasses
-
-        """
-        methods = {}
-        called_globals = set()
-        for vmname in mcs.virtual_methods:
-            clsmethod = getattr(cls, vmname, None)
-            if clsmethod:
-                basemethods = [getattr(b, vmname) for b in bases 
-                               if hasattr(b, vmname)]
-                methods[vmname] = [bm for bm in basemethods if bm != clsmethod]
-                methods[vmname].append(clsmethod)
-
-                def generate_method_wrapper(vname):  # pylint: disable=unused-argument
-                    # this creates a closure with the method name so that it
-                    # does not need to be passed to the wrapper as an argument,
-                    # leaving the wrapper to accept exactly the same set of
-                    # arguments as the method it is wrapping.
-                    name__ = vmname  # pylint: disable=cell-var-from-loop
-
-                    def wrapper(self, *args, **kwargs):
-                        for dm in methods[name__]:
-                            if name__ in mcs.global_virtuals:
-                                if dm not in called_globals:
-                                    dm(self, *args, **kwargs)
-                                    called_globals.add(dm)
-                            else:
-                                dm(self, *args, **kwargs)
-                    return wrapper
-
-                setattr(cls, vmname, generate_method_wrapper(vmname))
 
 
 class Plugin(object):
@@ -443,12 +400,6 @@ class Plugin(object):
             raise ValidationError('Name not set for {}'.format(self._classname))
         for param in self.parameters:
             param.validate(self)
-
-    def initialize(self, context):
-        pass
-
-    def finalize(self, context):
-        pass
 
     def check_artifacts(self, context, level):
         """

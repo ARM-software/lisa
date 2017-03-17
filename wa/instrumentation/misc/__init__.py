@@ -37,7 +37,7 @@ from devlib.exception import TargetError
 
 from devlib.utils.android import ApkInfo
 
-from wa import Instrument, Parameter
+from wa import Instrument, Parameter, very_fast
 from wa.framework import signal
 from wa.framework.exception import ConfigError
 from wa.utils.misc import diff_tokens, write_table, check_output, as_relative
@@ -206,26 +206,22 @@ class ExecutionTimeInstrument(Instrument):
 
     """
 
-    priority = 15
-
     def __init__(self, target, **kwargs):
         super(ExecutionTimeInstrument, self).__init__(target, **kwargs)
         self.start_time = None
         self.end_time = None
 
-    def on_run_start(self, context):
-        signal.connect(self.get_start_time, signal.BEFORE_WORKLOAD_EXECUTION, priority=self.priority)
-        signal.connect(self.get_stop_time, signal.AFTER_WORKLOAD_EXECUTION, priority=self.priority)
-
-    def get_start_time(self, context):
+    @very_fast
+    def start(self, context):
         self.start_time = time.time()
 
-    def get_stop_time(self, context):
+    @very_fast
+    def stop(self, context):
         self.end_time = time.time()
 
     def update_result(self, context):
         execution_time = self.end_time - self.start_time
-        context.result.add_metric('execution_time', execution_time, 'seconds')
+        context.add_metric('execution_time', execution_time, 'seconds')
 
 
 class ApkVersion(Instrument):
