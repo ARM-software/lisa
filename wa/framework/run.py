@@ -81,7 +81,7 @@ class RunState(object):
     def __init__(self):
         self.jobs = OrderedDict()
         self.status = Status.NEW
-        self.timestamp = datetime.now()
+        self.timestamp = datetime.utcnow()
 
     def add_job(self, job):
         job_state = JobState(job.id, job.label, job.iteration, job.status)
@@ -90,7 +90,7 @@ class RunState(object):
     def update_job(self, job):
         state = self.jobs[(job.id, job.iteration)]
         state.status = job.status
-        state.timestamp = datetime.now()
+        state.timestamp = datetime.utcnow()
 
     def get_status_counts(self):
         counter = Counter()
@@ -126,7 +126,7 @@ class JobState(object):
         self.iteration = iteration
         self.status = status
         self.retries = 0
-        self.timestamp = datetime.now()
+        self.timestamp = datetime.utcnow()
 
     def to_pod(self):
         return OrderedDict(

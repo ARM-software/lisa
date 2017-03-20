@@ -107,7 +107,7 @@ class ExecutionContext(object):
         self.failed_jobs = 0
 
     def start_run(self):
-        self.output.info.start_time = datetime.now()
+        self.output.info.start_time = datetime.utcnow()
         self.output.write_info()
         self.job_queue = copy(self.cm.jobs)
         self.completed_jobs = []
@@ -125,7 +125,7 @@ class ExecutionContext(object):
             status = Status.FAILED
         self.run_state.status = status
         self.output.status = status
-        self.output.info.end_time = datetime.now()
+        self.output.info.end_time = datetime.utcnow()
         self.output.info.duration = self.output.info.end_time -\
                                     self.output.info.start_time
         self.output.write_info()
