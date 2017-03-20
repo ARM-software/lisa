@@ -4,7 +4,7 @@ from itertools import izip_longest, groupby, chain
 
 from wa.framework import pluginloader
 from wa.framework.configuration.core import (MetaConfiguration, RunConfiguration,
-                                             JobGenerator, JobStatus, settings)
+                                             JobGenerator, Status, settings)
 from wa.framework.configuration.parsers import ConfigParser
 from wa.framework.configuration.plugin_cache import PluginCache
 from wa.framework.exception import NotFoundError
@@ -88,11 +88,22 @@ class ConfigManager(object):
         for name in self.enabled_instruments:
             try:
                 instruments.append(self.get_plugin(name, kind='instrument', 
-                                                target=target))
+                                                   target=target))
             except NotFoundError:
                 msg = 'Instrument "{}" not found'
                 raise NotFoundError(msg.format(name))
         return instruments
+
+    def get_processors(self):
+        processors = []
+        for name in self.run_config.result_processors:
+            try:
+                proc = self.plugin_cache.get_plugin(name, kind='result_processor')
+            except NotFoundError:
+                msg = 'Result processor "{}" not found'
+                raise NotFoundError(msg.format(name))
+            processors.append(proc)
+        return processors
 
     def finalize(self):
         if not self.agenda:

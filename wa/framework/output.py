@@ -5,10 +5,11 @@ import string
 import sys
 import uuid
 from copy import copy
-from datetime import timedelta
+from datetime import datetime, timedelta
 
-from wa.framework.configuration.core import JobSpec, RunStatus
-from wa.framework.configuration.manager import ConfigManager
+from wa.framework.configuration.core import JobSpec, Status
+from wa.framework.configuration.execution import ConfigManager
+from wa.framework.exception import HostError
 from wa.framework.run import RunState, RunInfo
 from wa.framework.target.info import TargetInfo
 from wa.utils.misc import touch, ensure_directory_exists
@@ -21,13 +22,37 @@ logger = logging.getLogger('output')
 
 class Output(object):
 
+    kind = None
+
     @property
     def resultfile(self):
         return os.path.join(self.basepath, 'result.json')
 
+    @property
+    def event_summary(self):
+        num_events = len(self.events)
+        if num_events:
+            lines = self.events[0].message.split('\n')
+            message = '({} event(s)): {}'
+            if num_events > 1 or len(lines) > 1:
+                message += '[...]'
+            return message.format(num_events, lines[0])
+        return ''
+
+    @property
+    def status(self):
+        if self.result is None:
+            return None
+        return self.result.status
+
+    @status.setter
+    def status(self, value):
+        self.result.status =  value
+
     def __init__(self, path):
         self.basepath = path
         self.result = None
+        self.events = []
 
     def reload(self):
         pod = read_pod(self.resultfile)
@@ -36,11 +61,16 @@ class Output(object):
     def write_result(self):
         write_pod(self.result.to_pod(), self.resultfile)
 
+    def get_path(self, subpath):
+        return os.path.join(self.basepath, subpath.strip(os.sep))
+
     def add_metric(self, name, value, units=None, lower_is_better=False,
                    classifiers=None):
         self.result.add_metric(name, value, units, lower_is_better, classifiers)
 
     def add_artifact(self, name, path, kind, description=None, classifiers=None):
+        if not os.path.exists(path):
+            path = self.get_path(path)
         if not os.path.exists(path):
             msg = 'Attempting to add non-existing artifact: {}'
             raise HostError(msg.format(path))
@@ -51,8 +81,13 @@ class Output(object):
 
         self.result.add_artifact(name, path, kind, description, classifiers)
 
+    def add_event(self, message):
+        self.result.add_event(message)
+
 
 class RunOutput(Output):
+
+    kind = 'run'
 
     @property
     def logfile(self):
@@ -96,7 +131,7 @@ class RunOutput(Output):
         self.info = None
         self.state = None
         self.result = None
-        self.jobs = None
+        self.jobs = []
         if (not os.path.isfile(self.statefile) or
                 not os.path.isfile(self.infofile)):
             msg = '"{}" does not exist or is not a valid WA output directory.'
@@ -155,8 +190,10 @@ class RunOutput(Output):
 
 class JobOutput(Output):
 
+    kind = 'job'
+
     def __init__(self, path, id, label, iteration, retry):
-        self.basepath = path
+        super(JobOutput, self).__init__(path)
         self.id = id
         self.label = label
         self.iteration = iteration
@@ -170,13 +207,17 @@ class Result(object):
     @staticmethod
     def from_pod(pod):
         instance = Result()
+        instance.status = Status(pod['status'])
         instance.metrics = [Metric.from_pod(m) for m in pod['metrics']]
         instance.artifacts = [Artifact.from_pod(a) for a in pod['artifacts']]
+        instance.events = [Event.from_pod(e) for e in pod['events']]
         return instance
 
     def __init__(self):
+        self.status = Status.NEW
         self.metrics = []
         self.artifacts = []
+        self.events = []
 
     def add_metric(self, name, value, units=None, lower_is_better=False,
                    classifiers=None):
@@ -190,10 +231,15 @@ class Result(object):
         logger.debug('Adding artifact: {}'.format(artifact))
         self.artifacts.append(artifact)
 
+    def add_event(self, message):
+        self.events.append(Event(message))
+
     def to_pod(self):
         return dict(
+            status=str(self.status),
             metrics=[m.to_pod() for m in self.metrics],
             artifacts=[a.to_pod() for a in self.artifacts],
+            events=[e.to_pod() for e in self.events],
         )
 
 
@@ -349,6 +395,43 @@ class Metric(object):
             return '<{}>'.format(text)
 
 
+class Event(object):
+    """
+    An event that occured during a run.
+
+    """
+
+    __slots__ = ['timestamp', 'message']
+
+    @staticmethod
+    def from_pod(pod):
+        instance = Event(pod['message'])
+        instance.timestamp = pod['timestamp']
+        return instance
+
+    @property
+    def summary(self):
+        lines = self.message.split('\n')
+        result = lines[0]
+        if len(lines) > 1:
+            result += '[...]'
+        return result
+
+    def __init__(self, message):
+        self.timestamp = datetime.utcnow()
+        self.message = message
+
+    def to_pod(self):
+        return dict(
+            timestamp=self.timestamp,
+            message=self.message,
+        )
+
+    def __str__(self):
+        return '[{}] {}'.format(self.timestamp, self.message)
+
+    __repr__ = __str__
+
 
 def init_run_output(path, wa_state, force=False):
     if os.path.exists(path):
@@ -382,7 +465,10 @@ def init_job_output(run_output, job):
     path = os.path.join(run_output.basepath, output_name)
     ensure_directory_exists(path)
     write_pod(Result().to_pod(), os.path.join(path, 'result.json'))
-    return JobOutput(path, job.id, job.iteration, job.label, job.retries)
+    job_output = JobOutput(path, job.id, job.iteration, job.label, job.retries)
+    job_output.status = job.status
+    run_output.jobs.append(job_output)
+    return job_output
 
 
 def _save_raw_config(meta_dir, state):

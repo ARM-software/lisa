@@ -28,12 +28,13 @@ from itertools import izip_longest
 
 import wa.framework.signal as signal
 from wa.framework import instrumentation, pluginloader
-from wa.framework.configuration.core import settings, RunStatus, JobStatus
+from wa.framework.configuration.core import settings, Status
 from wa.framework.exception import (WAError, ConfigError, TimeoutError,
                                     InstrumentError, TargetError,
                                     TargetNotRespondingError)
 from wa.framework.output import init_job_output
 from wa.framework.plugin import Artifact
+from wa.framework.processor import ProcessorManager
 from wa.framework.resource import ResourceResolver
 from wa.framework.run import RunState
 from wa.framework.target.info import TargetInfo
@@ -95,22 +96,35 @@ class ExecutionContext(object):
         self.tm = tm
         self.run_output = output
         self.run_state = output.state
+        self.target_info = self.tm.get_target_info()
         self.logger.debug('Loading resource discoverers')
         self.resolver = ResourceResolver(cm)
         self.resolver.load()
         self.job_queue = None
         self.completed_jobs = None
         self.current_job = None
+        self.successful_jobs = 0
+        self.failed_jobs = 0
 
     def start_run(self):
         self.output.info.start_time = datetime.now()
         self.output.write_info()
         self.job_queue = copy(self.cm.jobs)
         self.completed_jobs = []
-        self.run_state.status = RunStatus.STARTED
+        self.run_state.status = Status.STARTED
+        self.output.status = Status.STARTED
         self.output.write_state()
 
     def end_run(self):
+        if self.successful_jobs:
+            if self.failed_jobs:
+                status = Satus.PARTIAL
+            else:
+                status = Status.OK
+        else:
+            status = Status.FAILED
+        self.run_state.status = status
+        self.output.status = status
         self.output.info.end_time = datetime.now()
         self.output.info.duration = self.output.info.end_time -\
                                     self.output.info.start_time
@@ -144,7 +158,7 @@ class ExecutionContext(object):
     def skip_remaining_jobs(self):
         while self.job_queue:
             job = self.job_queue.pop(0)
-            job.status = JobStatus.SKIPPED
+            job.status = Status.SKIPPED
             self.run_state.update_job(job)
             self.completed_jobs.append(job)
         self.write_state()
@@ -165,6 +179,9 @@ class ExecutionContext(object):
     def add_run_artifact(self, name, path, kind, description=None,
                          classifiers=None):
         self.run_output.add_artifact(name, path, kind, description, classifiers)
+
+    def add_event(self, message):
+        self.output.add_event(message)
 
 
 class Executor(object):
@@ -228,8 +245,14 @@ class Executor(object):
             instrumentation.install(instrument)
         instrumentation.validate()
 
+        self.logger.info('Installing result processors')
+        pm = ProcessorManager()
+        for proc in config_manager.get_processors():
+            pm.install(proc)
+        pm.validate()
+
         self.logger.info('Starting run')
-        runner = Runner(context)
+        runner = Runner(context, pm)
         signal.send(signal.RUN_STARTED, self)
         runner.run()
         self.execute_postamble(context, output)
@@ -244,7 +267,7 @@ class Executor(object):
 
         counter = context.run_state.get_status_counts()
         parts = []
-        for status in reversed(JobStatus.values):
+        for status in reversed(Status.values):
             if status in counter:
                 parts.append('{} {}'.format(counter[status], status))
         self.logger.info(status_summary + ', '.join(parts))
@@ -272,9 +295,10 @@ class Runner(object):
     
     """
 
-    def __init__(self, context):
+    def __init__(self, context, pm):
         self.logger = logging.getLogger('runner')
         self.context = context
+        self.pm = pm
         self.output = self.context.output
         self.config = self.context.cm
 
@@ -290,6 +314,7 @@ class Runner(object):
                 except KeyboardInterrupt:
                     self.context.skip_remaining_jobs()
         except Exception as e:
+            self.context.add_event(e.message)
             if (not getattr(e, 'logged', None) and
                     not isinstance(e, KeyboardInterrupt)):
                 log.log_error(e, self.logger)
@@ -302,6 +327,7 @@ class Runner(object):
     def initialize_run(self):
         self.logger.info('Initializing run')
         self.context.start_run()
+        self.pm.initialize()
         log.indent()
         for job in self.context.job_queue:
             job.initialize(self.context)
@@ -311,6 +337,9 @@ class Runner(object):
     def finalize_run(self):
         self.logger.info('Finalizing run')
         self.context.end_run()
+        self.pm.process_run_output(self.context)
+        self.pm.export_run_output(self.context)
+        self.pm.finalize()
 
     def run_next_job(self, context):
         job = context.start_job()
@@ -319,12 +348,13 @@ class Runner(object):
         try:
             log.indent()
             self.do_run_job(job, context)
-            job.status = JobStatus.OK
+            job.status = Status.OK
         except KeyboardInterrupt:
-            job.status = JobStatus.ABORTED
+            job.status = Status.ABORTED
             raise
         except Exception as e:
-            job.status = JobStatus.FAILED
+            job.status = Status.FAILED
+            context.add_event(e.message)
             if not getattr(e, 'logged', None):
                 log.log_error(e, self.logger)
                 e.logged = True
@@ -337,7 +367,7 @@ class Runner(object):
             self.check_job(job)
 
     def do_run_job(self, job, context):
-        job.status = JobStatus.RUNNING
+        job.status = Status.RUNNING
         self.send(signal.JOB_STARTED)
 
         with signal.wrap('JOB_TARGET_CONFIG', self):
@@ -353,15 +383,18 @@ class Runner(object):
             try:
                 with signal.wrap('JOB_OUTPUT_PROCESSED', self):
                     job.process_output(context)
+                self.pm.process_job_output(context)
+                self.pm.export_job_output(context)
             except Exception:
-                job.status = JobStatus.PARTIAL
+                job.status = Status.PARTIAL
                 raise
+
         except KeyboardInterrupt:
-            job.status = JobStatus.ABORTED
+            job.status = Status.ABORTED
             self.logger.info('Got CTRL-C. Aborting.')
             raise
         except Exception as e:
-            job.status = JobStatus.FAILED
+            job.status = Status.FAILED
             if not getattr(e, 'logged', None):
                 log.log_error(e, self.logger)
                 e.logged = True
@@ -380,15 +413,17 @@ class Runner(object):
                 self.logger.error(msg.format(job.id, job.status, job.iteration))
                 self.context.move_failed(job)
                 job.retries += 1
-                job.status = JobStatus.PENDING
+                job.status = Status.PENDING
                 self.context.job_queue.insert(0, job)
                 self.context.write_state()
             else:
                 msg = 'Job {} iteration {} completed with status {}. '\
                       'Max retries exceeded.'
                 self.logger.error(msg.format(job.id, job.status, job.iteration))
+                self.context.failed_jobs += 1
         else:  # status not in retry_on_status
             self.logger.info('Job completed with status {}'.format(job.status))
+            self.context.successful_jobs += 1
         
     def send(self, s):
         signal.send(s, self, self.context)
