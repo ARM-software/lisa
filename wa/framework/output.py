@@ -7,71 +7,52 @@ import uuid
 from copy import copy
 from datetime import timedelta
 
-from wa.framework.configuration.core import JobSpec
+from wa.framework.configuration.core import JobSpec, RunStatus
 from wa.framework.configuration.manager import ConfigManager
+from wa.framework.run import RunState, RunInfo
 from wa.framework.target.info import TargetInfo
 from wa.utils.misc import touch, ensure_directory_exists
 from wa.utils.serializer import write_pod, read_pod
+from wa.utils.types import enum, numeric
 
 
 logger = logging.getLogger('output')
 
 
-class RunInfo(object):
-    """
-    Information about the current run, such as its unique ID, run
-    time, etc.
+class Output(object):
 
-    """
-    @staticmethod
-    def from_pod(pod):
-        uid = pod.pop('uuid')
-        duration = pod.pop('duration')
-        if uid is not None:
-            uid = uuid.UUID(uid)
-        instance = RunInfo(**pod)
-        instance.uuid = uid
-        instance.duration = duration if duration is None else\
-                            timedelta(seconds=duration)
-        return instance
+    @property
+    def resultfile(self):
+        return os.path.join(self.basepath, 'result.json')
 
-    def __init__(self, run_name=None, project=None, project_stage=None,
-                 start_time=None, end_time=None, duration=None):
-        self.uuid = uuid.uuid4()
-        self.run_name = None
-        self.project = None
-        self.project_stage = None
-        self.start_time = None
-        self.end_time = None
-        self.duration = None
+    def __init__(self, path):
+        self.basepath = path
+        self.result = None
 
-    def to_pod(self):
-        d = copy(self.__dict__)
-        d['uuid'] = str(self.uuid)
-        if self.duration is None:
-            d['duration'] = self.duration
-        else:
-            d['duration'] = self.duration.total_seconds()
-        return d
+    def reload(self):
+        pod = read_pod(self.resultfile)
+        self.result = Result.from_pod(pod)
+
+    def write_result(self):
+        write_pod(self.result.to_pod(), self.resultfile)
+
+    def add_metric(self, name, value, units=None, lower_is_better=False,
+                   classifiers=None):
+        self.result.add_metric(name, value, units, lower_is_better, classifiers)
+
+    def add_artifact(self, name, path, kind, description=None, classifiers=None):
+        if not os.path.exists(path):
+            msg = 'Attempting to add non-existing artifact: {}'
+            raise HostError(msg.format(path))
+        path = os.path.relpath(path, self.basepath)
+
+        if isinstance(kind, basestring):
+            kind = ArtifactType(kind)
+
+        self.result.add_artifact(name, path, kind, description, classifiers)
 
 
-class RunState(object):
-    """
-    Represents the state of a WA run.
-
-    """
-    @staticmethod
-    def from_pod(pod):
-        return RunState()
-
-    def __init__(self):
-        pass
-
-    def to_pod(self):
-        return {}
-
-
-class RunOutput(object):
+class RunOutput(Output):
 
     @property
     def logfile(self):
@@ -111,9 +92,11 @@ class RunOutput(object):
         return ensure_directory_exists(path)
 
     def __init__(self, path):
-        self.basepath = path
+        super(RunOutput, self).__init__(path)
         self.info = None
         self.state = None
+        self.result = None
+        self.jobs = None
         if (not os.path.isfile(self.statefile) or
                 not os.path.isfile(self.infofile)):
             msg = '"{}" does not exist or is not a valid WA output directory.'
@@ -121,8 +104,10 @@ class RunOutput(object):
         self.reload()
 
     def reload(self):
+        super(RunOutput, self).reload()
         self.info = RunInfo.from_pod(read_pod(self.infofile))
         self.state = RunState.from_pod(read_pod(self.statefile))
+        # TODO: propulate the jobs from info in the state
 
     def write_info(self):
         write_pod(self.info.to_pod(), self.infofile)
@@ -157,17 +142,215 @@ class RunOutput(object):
         pod = read_pod(self.jobsfile)
         return [JobSpec.from_pod(jp) for jp in pod['jobs']]
 
-    def move_failed(self, name, failed_name):
-        path = os.path.join(self.basepath, name)
+    def move_failed(self, job_output):
+        name = os.path.basename(job_output.basepath)
+        attempt = job_output.retry + 1
+        failed_name = '{}-attempt{:02}'.format(name, attempt)
         failed_path = os.path.join(self.failed_dir, failed_name)
-        if not os.path.exists(path):
-            raise ValueError('Path {} does not exist'.format(path))
         if os.path.exists(failed_path):
             raise ValueError('Path {} already exists'.format(failed_path))
-        shutil.move(path, failed_path)
+        shutil.move(job_output.basepath, failed_path)
+        job_output.basepath = failed_path
 
 
-def init_wa_output(path, wa_state, force=False):
+class JobOutput(Output):
+
+    def __init__(self, path, id, label, iteration, retry):
+        self.basepath = path
+        self.id = id
+        self.label = label
+        self.iteration = iteration
+        self.retry = retry
+        self.result = None
+        self.reload()
+
+
+class Result(object):
+
+    @staticmethod
+    def from_pod(pod):
+        instance = Result()
+        instance.metrics = [Metric.from_pod(m) for m in pod['metrics']]
+        instance.artifacts = [Artifact.from_pod(a) for a in pod['artifacts']]
+        return instance
+
+    def __init__(self):
+        self.metrics = []
+        self.artifacts = []
+
+    def add_metric(self, name, value, units=None, lower_is_better=False,
+                   classifiers=None):
+        metric = Metric(name, value, units, lower_is_better, classifiers)
+        logger.debug('Adding metric: {}'.format(metric))
+        self.metrics.append(metric)
+
+    def add_artifact(self, name, path, kind, description=None, classifiers=None):
+        artifact = Artifact(name, path, kind, description=description,
+                            classifiers=classifiers)
+        logger.debug('Adding artifact: {}'.format(artifact))
+        self.artifacts.append(artifact)
+
+    def to_pod(self):
+        return dict(
+            metrics=[m.to_pod() for m in self.metrics],
+            artifacts=[a.to_pod() for a in self.artifacts],
+        )
+
+
+ArtifactType = enum(['log', 'meta', 'data', 'export', 'raw'])
+
+
+class Artifact(object):
+    """
+    This is an artifact generated during execution/post-processing of a
+    workload.  Unlike metrics, this represents an actual artifact, such as a
+    file, generated.  This may be "result", such as trace, or it could be "meta
+    data" such as logs.  These are distinguished using the ``kind`` attribute,
+    which also helps WA decide how it should be handled. Currently supported
+    kinds are:
+
+        :log: A log file. Not part of "results" as such but contains 
+              information about the run/workload execution that be useful for
+              diagnostics/meta analysis.
+        :meta: A file containing metadata. This is not part of "results", but
+               contains information that may be necessary to reproduce the
+               results (contrast with ``log`` artifacts which are *not*
+               necessary).
+        :data: This file contains new data, not available otherwise and should
+               be considered part of the "results" generated by WA. Most traces
+               would fall into this category.
+        :export: Exported version of results or some other artifact. This
+                 signifies that this artifact does not contain any new data
+                 that is not available elsewhere and that it may be safely
+                 discarded without losing information.
+        :raw: Signifies that this is a raw dump/log that is normally processed
+              to extract useful information and is then discarded. In a sense,
+              it is the opposite of ``export``, but in general may also be
+              discarded.
+
+              .. note:: whether a file is marked as ``log``/``data`` or ``raw``
+                        depends on how important it is to preserve this file,
+                        e.g. when archiving, vs how much space it takes up.
+                        Unlike ``export`` artifacts which are (almost) always
+                        ignored by other exporters as that would never result
+                        in data loss, ``raw`` files *may* be processed by
+                        exporters if they decided that the risk of losing
+                        potentially (though unlikely) useful data is greater
+                        than the time/space cost of handling the artifact (e.g.
+                        a database uploader may choose to ignore ``raw``
+                        artifacts, where as a network filer archiver may choose
+                        to archive them).
+
+        .. note: The kind parameter is intended to represent the logical
+                 function of a particular artifact, not it's intended means of
+                 processing -- this is left entirely up to the result
+                 processors.
+
+    """
+
+    @staticmethod
+    def from_pod(pod):
+        pod['kind'] = ArtifactType(pod['kind'])
+        return Artifact(**pod)
+
+    def __init__(self, name, path, kind, description=None, classifiers=None):
+        """"
+        :param name: Name that uniquely identifies this artifact.
+        :param path: The *relative* path of the artifact. Depending on the
+                     ``level`` must be either relative to the run or iteration
+                     output directory.  Note: this path *must* be delimited
+                     using ``/`` irrespective of the
+                     operating system.
+        :param kind: The type of the artifact this is (e.g. log file, result,
+                     etc.) this will be used a hit to result processors. This
+                     must be one of ``'log'``, ``'meta'``, ``'data'``,
+                     ``'export'``, ``'raw'``.
+        :param description: A free-form description of what this artifact is.
+        :param classifiers: A set of key-value pairs to further classify this
+                            metric beyond current iteration (e.g. this can be
+                            used to identify sub-tests).
+
+        """
+        self.name = name
+        self.path = path.replace('/', os.sep) if path is not None else path
+        try:
+            self.kind = ArtifactType(kind)
+        except ValueError:
+            msg = 'Invalid Artifact kind: {}; must be in {}'
+            raise ValueError(msg.format(kind, self.valid_kinds))
+        self.description = description
+        self.classifiers = classifiers or {}
+
+    def to_pod(self):
+        pod = copy(self.__dict__)
+        pod['kind'] = str(self.kind)
+        return pod
+
+    def __str__(self):
+        return self.path
+
+    def __repr__(self):
+        return '{} ({}): {}'.format(self.name, self.kind, self.path)
+
+
+class Metric(object):
+    """
+    This is a single metric collected from executing a workload.
+
+    :param name: the name of the metric. Uniquely identifies the metric
+                 within the results.
+    :param value: The numerical value of the metric for this execution of a
+                  workload. This can be either an int or a float.
+    :param units: Units for the collected value. Can be None if the value
+                  has no units (e.g. it's a count or a standardised score).
+    :param lower_is_better: Boolean flag indicating where lower values are
+                            better than higher ones. Defaults to False.
+    :param classifiers: A set of key-value pairs to further classify this
+                        metric beyond current iteration (e.g. this can be used
+                        to identify sub-tests).
+
+    """
+
+    __slots__ = ['name', 'value', 'units', 'lower_is_better', 'classifiers']
+
+    @staticmethod
+    def from_pod(pod):
+        return Metric(**pod)
+
+    def __init__(self, name, value, units=None, lower_is_better=False,
+                 classifiers=None):
+        self.name = name
+        self.value = numeric(value)
+        self.units = units
+        self.lower_is_better = lower_is_better
+        self.classifiers = classifiers or {}
+
+    def to_pod(self):
+        return dict(
+            name=self.name,
+            value=self.value,
+            units=self.units,
+            lower_is_better=self.lower_is_better,
+            classifiers=self.classifiers,
+        )
+
+    def __str__(self):
+        result = '{}: {}'.format(self.name, self.value)
+        if self.units:
+            result += ' ' + self.units
+        result += ' ({})'.format('-' if self.lower_is_better else '+')
+        return result
+
+    def __repr__(self):
+        text = self.__str__()
+        if self.classifiers:
+            return '<{} {}>'.format(text, self.classifiers)
+        else:
+            return '<{}>'.format(text)
+
+
+
+def init_run_output(path, wa_state, force=False):
     if os.path.exists(path):
         if force:
             logger.info('Removing existing output directory.')
@@ -188,11 +371,18 @@ def init_wa_output(path, wa_state, force=False):
             project_stage=wa_state.run_config.project_stage,
            )
     write_pod(info.to_pod(), os.path.join(meta_dir, 'run_info.json'))
-    
-    with open(os.path.join(path, '.run_state.json'), 'w') as wfh:
-        wfh.write('{}')
+    write_pod(RunState().to_pod(), os.path.join(path, '.run_state.json'))
+    write_pod(Result().to_pod(), os.path.join(path, 'result.json'))
 
     return RunOutput(path)
+
+
+def init_job_output(run_output, job):
+    output_name = '{}-{}-{}'.format(job.id, job.spec.label, job.iteration)
+    path = os.path.join(run_output.basepath, output_name)
+    ensure_directory_exists(path)
+    write_pod(Result().to_pod(), os.path.join(path, 'result.json'))
+    return JobOutput(path, job.id, job.iteration, job.label, job.retries)
 
 
 def _save_raw_config(meta_dir, state):
@@ -206,5 +396,3 @@ def _save_raw_config(meta_dir, state):
         dest_path = os.path.join(raw_config_dir, 'cfg{}-{}'.format(i, basename))
         shutil.copy(source, dest_path)
                                      
-                                     
-

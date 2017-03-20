@@ -78,9 +78,10 @@ def list_of_bools(value, interpret_strings=True):
     """
     Value must be iterable. All elements will be converted to ``bool``\ s.
 
-    .. note:: By default, ``boolean()`` conversion function will be used, which means that
-              strings like ``"0"`` or ``"false"`` will be interpreted as ``False``. If this
-              is undesirable, set ``interpret_strings`` to ``False``.
+    .. note:: By default, ``boolean()`` conversion function will be used, which
+              means that strings like ``"0"`` or ``"false"`` will be
+              interpreted as ``False``. If this is undesirable, set
+              ``interpret_strings`` to ``False``.
 
     """
     if not isiterable(value):
@@ -133,8 +134,8 @@ def list_or_string(value):
 
 def list_or_caseless_string(value):
     """
-    Converts the value into a list of ``caseless_string``'s. If the value is not iterable
-    a one-element list with stringified value will be returned.
+    Converts the value into a list of ``caseless_string``'s. If the value is
+    not iterable a one-element list with stringified value will be returned.
 
     """
     if isinstance(value, basestring):
@@ -148,9 +149,10 @@ def list_or_caseless_string(value):
 
 def list_or(type_):
     """
-    Generator for "list or" types. These take either a single value or a list values
-    and return a list of the specfied ``type_`` performing the conversion on the value
-    (if a single value is specified) or each of the elemented of the specified list.
+    Generator for "list or" types. These take either a single value or a list
+    values and return a list of the specfied ``type_`` performing the
+    conversion on the value (if a single value is specified) or each of the
+    elemented of the specified list.
 
     """
     list_type = list_of(type_)
@@ -176,8 +178,8 @@ none_type = type(None)
 
 def regex(value):
     """
-    Regular expression. If value is a string, it will be complied with no flags. If you
-    want to specify flags, value must be precompiled.
+    Regular expression. If value is a string, it will be complied with no
+    flags. If you want to specify flags, value must be precompiled.
 
     """
     if isinstance(value, regex_type):
@@ -480,13 +482,13 @@ class obj_dict(MutableMapping):
 
 class level(object):
     """
-    A level has a name and behaves like a string when printed,
-    however it also has a numeric value which is used in comparisons.
+    A level has a name and behaves like a string when printed, however it also
+    has a numeric value which is used in ordering comparisons.
 
     """
 
     def __init__(self, name, value):
-        self.name = name
+        self.name = caseless_string(name)
         self.value = value
 
     def __str__(self):
@@ -518,7 +520,7 @@ class level(object):
             return self.value != other
 
 
-def enum(args, start=0):
+def enum(args, start=0, step=1):
     """
     Creates a class with attributes named by the first argument.
     Each attribute is a ``level`` so they behave is integers in comparisons.
@@ -554,11 +556,13 @@ def enum(args, start=0):
             raise ValueError('Invalid enum value: {}'.format(repr(name)))
 
     levels = []
-    for i, v in enumerate(args, start):
-        name = string.upper(identifier(v))
-        lv = level(v, i)
+    n = start
+    for v in args:
+        name = caseless_string(identifier(v))
+        lv = level(v, n)
         setattr(Enum, name, lv)
         levels.append(lv)
+        n += step
 
     setattr(Enum, 'values', levels)
 

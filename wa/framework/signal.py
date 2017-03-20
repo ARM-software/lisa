@@ -22,6 +22,7 @@ that has prioritization added to handler invocation.
 import logging
 from contextlib import contextmanager
 
+import wrapt
 from louie import dispatcher
 
 from wa.utils.types import prioritylist
@@ -67,21 +68,26 @@ class Signal(object):
         return id(self.name)
 
 
+# Signals associated with run-related events
 RUN_STARTED = Signal('run-started', 'sent at the beginning of the run')
 RUN_INITIALIZED = Signal('run-initialized', 'set after the run has been initialized')
 RUN_ABORTED = Signal('run-aborted', 'set when the run has been aborted due to a keyboard interrupt')
 RUN_FAILED = Signal('run-failed', 'set if the run has failed to complete all jobs.' )
-RUN_COMPLETED = Signal('run-completed', 'set upon completion of the run (regardless of whether or not it has failed')
 RUN_FINALIZED = Signal('run-finalized', 'set after the run has been finalized')
+RUN_COMPLETED = Signal('run-completed', 'set upon completion of the run (regardless of whether or not it has failed')
 
+
+# Signals associated with job-related events
 JOB_STARTED = Signal('job-started', 'set when a a new job has been started')
 JOB_ABORTED = Signal('job-aborted',
                      description='''
                      sent if a job has been aborted due to a keyboard interrupt. 
 
-                     .. note:: While the status of every job that has not had a chance to run
-                               due to being interrupted will be set to "ABORTED", this signal will
-                               only be sent for the job that was actually running at the time.
+                     .. note:: While the status of every job that has not had a
+                               chance to run due to being interrupted will be
+                               set to "ABORTED", this signal will only be sent
+                               for the job that was actually running at the
+                               time.
 
                      ''')
 JOB_FAILED = Signal('job-failed', description='set if the job has failed')
@@ -89,6 +95,34 @@ JOB_RESTARTED = Signal('job-restarted')
 JOB_COMPLETED = Signal('job-completed')
 JOB_FINALIZED = Signal('job-finalized')
 
+
+# Signals associated with particular stages of workload execution
+BEFORE_WORKLOAD_INITIALIZED = Signal('before-workload-initialized', invert_priority=True)
+SUCCESSFUL_WORKLOAD_INITIALIZED = Signal('successful-workload-initialized')
+AFTER_WORKLOAD_INITIALIZED = Signal('after-workload-initialized')
+
+BEFORE_WORKLOAD_SETUP = Signal('before-workload-setup', invert_priority=True)
+SUCCESSFUL_WORKLOAD_SETUP = Signal('successful-workload-setup')
+AFTER_WORKLOAD_SETUP = Signal('after-workload-setup')
+
+BEFORE_WORKLOAD_EXECUTION = Signal('before-workload-execution', invert_priority=True)
+SUCCESSFUL_WORKLOAD_EXECUTION = Signal('successful-workload-execution')
+AFTER_WORKLOAD_EXECUTION = Signal('after-workload-execution')
+
+BEFORE_WORKLOAD_RESULT_UPDATE = Signal('before-workload-result-update', invert_priority=True)
+SUCCESSFUL_WORKLOAD_RESULT_UPDATE = Signal('successful-workload-result-update')
+AFTER_WORKLOAD_RESULT_UPDATE = Signal('after-workload-result-update')
+
+BEFORE_WORKLOAD_TEARDOWN = Signal('before-workload-teardown', invert_priority=True)
+SUCCESSFUL_WORKLOAD_TEARDOWN = Signal('successful-workload-teardown')
+AFTER_WORKLOAD_TEARDOWN = Signal('after-workload-teardown')
+
+BEFORE_WORKLOAD_FINALIZED = Signal('before-workload-finalized', invert_priority=True)
+SUCCESSFUL_WORKLOAD_FINALIZED = Signal('successful-workload-finalized')
+AFTER_WORKLOAD_FINALIZED = Signal('after-workload-finalized')
+
+
+# Signals indicating exceptional conditions
 ERROR_LOGGED = Signal('error-logged')
 WARNING_LOGGED = Signal('warning-logged')
 
@@ -138,26 +172,6 @@ BEFORE_TARGET_DISCONNECT = Signal('before-target-disconnect', invert_priority=Tr
 SUCCESSFUL_TARGET_DISCONNECT = Signal('successful-target-disconnect')
 AFTER_TARGET_DISCONNECT = Signal('after-target-disconnect')
 
-BEFORE_WORKLOAD_SETUP = Signal(
-    'before-workload-setup', invert_priority=True)
-SUCCESSFUL_WORKLOAD_SETUP = Signal('successful-workload-setup')
-AFTER_WORKLOAD_SETUP = Signal('after-workload-setup')
-
-BEFORE_WORKLOAD_EXECUTION = Signal(
-    'before-workload-execution', invert_priority=True)
-SUCCESSFUL_WORKLOAD_EXECUTION = Signal('successful-workload-execution')
-AFTER_WORKLOAD_EXECUTION = Signal('after-workload-execution')
-
-BEFORE_WORKLOAD_RESULT_UPDATE = Signal(
-    'before-workload-result-update', invert_priority=True)
-SUCCESSFUL_WORKLOAD_RESULT_UPDATE = Signal(
-    'successful-workload-result-update')
-AFTER_WORKLOAD_RESULT_UPDATE = Signal('after-workload-result-update')
-
-BEFORE_WORKLOAD_TEARDOWN = Signal(
-    'before-workload-teardown', invert_priority=True)
-SUCCESSFUL_WORKLOAD_TEARDOWN = Signal('successful-workload-teardown')
-AFTER_WORKLOAD_TEARDOWN = Signal('after-workload-teardown')
 
 BEFORE_OVERALL_RESULTS_PROCESSING = Signal(
     'before-overall-results-process', invert_priority=True)
@@ -289,7 +303,7 @@ def safe_send(signal, sender=dispatcher.Anonymous,
     """
     try:
         logger.debug('Safe-sending {} from {}'.format(signal, sender))
-        send(singnal, sender, *args, **kwargs)
+        send(signal, sender, *args, **kwargs)
     except Exception as e:
         if any(isinstance(e, p) for p in propagate):
             raise e
@@ -297,9 +311,10 @@ def safe_send(signal, sender=dispatcher.Anonymous,
 
 
 @contextmanager
-def wrap(signal_name, sender=dispatcher.Anonymous, safe=False, *args, **kwargs):
+def wrap(signal_name, sender=dispatcher.Anonymous,*args, **kwargs):
     """Wraps the suite in before/after signals, ensuring
     that after signal is always sent."""
+    safe = kwargs.pop('safe', False)
     signal_name = signal_name.upper().replace('-', '_')
     send_func = safe_send if safe else send
     try:

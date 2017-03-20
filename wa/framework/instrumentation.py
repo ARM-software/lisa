@@ -105,8 +105,9 @@ from collections import OrderedDict
 from wa.framework import signal
 from wa.framework.plugin import Plugin
 from wa.framework.exception import WAError, TargetNotRespondingError, TimeoutError
+from wa.utils.log import log_error
 from wa.utils.misc import get_traceback, isiterable
-from wa.utils.types import identifier
+from wa.utils.types import identifier, enum, level
 
 
 logger = logging.getLogger('instrumentation')
@@ -120,14 +121,14 @@ logger = logging.getLogger('instrumentation')
 SIGNAL_MAP = OrderedDict([
     # Below are "aliases" for some of the more common signals to allow
     # instrumentation to have similar structure to workloads
-    ('initialize', signal.SUCCESSFUL_RUN_INIT),
-    # ('setup', signal.SUCCESSFUL_WORKLOAD_SETUP),
-    # ('start', signal.BEFORE_WORKLOAD_EXECUTION),
-    # ('stop', signal.AFTER_WORKLOAD_EXECUTION),
-    # ('process_workload_result', signal.SUCCESSFUL_WORKLOAD_RESULT_UPDATE),
-    # ('update_result', signal.AFTER_WORKLOAD_RESULT_UPDATE),
-    # ('teardown', signal.AFTER_WORKLOAD_TEARDOWN),
-    # ('finalize', signal.RUN_FIN),
+    ('initialize', signal.RUN_INITIALIZED),
+    ('setup', signal.BEFORE_WORKLOAD_SETUP),
+    ('start', signal.BEFORE_WORKLOAD_EXECUTION),
+    ('stop', signal.AFTER_WORKLOAD_EXECUTION),
+    ('process_workload_result', signal.SUCCESSFUL_WORKLOAD_RESULT_UPDATE),
+    ('update_result', signal.AFTER_WORKLOAD_RESULT_UPDATE),
+    ('teardown', signal.AFTER_WORKLOAD_TEARDOWN),
+    ('finalize', signal.RUN_FINALIZED),
 
     # ('on_run_start', signal.RUN_START),
     # ('on_run_end', signal.RUN_END),
@@ -171,13 +172,37 @@ SIGNAL_MAP = OrderedDict([
     # ('on_warning', signal.WARNING_LOGGED),
 ])
 
-PRIORITY_MAP = OrderedDict([
-    ('very_fast_', 20),
-    ('fast_', 10),
-    ('normal_', 0),
-    ('slow_', -10),
-    ('very_slow_', -20),
-])
+
+Priority = enum(['very_slow', 'slow', 'normal', 'fast', 'very_fast'], -20, 10)
+
+
+def get_priority(func):
+    return getattr(getattr(func, 'im_func', func),
+                   'priority', Priority.normal)
+
+
+def priority(priority):
+    def decorate(func):
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        wrapper.func_name = func.func_name
+        if priority in Priority.values:
+            wrapper.priority = Priority(priority)
+        else:
+            if not isinstance(priority, int):
+                msg = 'Invalid priorty "{}"; must be an int or one of {}'
+                raise ValueError(msg.format(priority, Priority.values))
+            wrapper.priority = level('custom', priority)
+        return wrapper
+    return decorate
+
+
+very_slow = priority(Priority.very_slow)
+slow = priority(Priority.slow)
+normal = priority(Priority.normal)
+fast = priority(Priority.fast)
+very_fast = priority(Priority.very_fast)
+
 
 installed = []
 
@@ -244,18 +269,7 @@ class ManagedCallback(object):
                 logger.error('Error in insturment {}'.format(self.instrument.name))
                 global failures_detected  # pylint: disable=W0603
                 failures_detected = True
-                if isinstance(e, WAError):
-                    logger.error(e)
-                else:
-                    tb = get_traceback()
-                    logger.error(tb)
-                    logger.error('{}({})'.format(e.__class__.__name__, e))
-                if not context.current_iteration:
-                    # Error occureed outside of an iteration (most likely
-                    # during intial setup or teardown). Since this would affect
-                    # the rest of the run, mark the instument as broken so that
-                    # it doesn't get re-enabled for subsequent iterations.
-                    self.instrument.is_broken = True
+                log_error(e, logger)
                 disable(self.instrument)
 
 
@@ -274,34 +288,38 @@ def install(instrument):
 
     """
     logger.debug('Installing instrument %s.', instrument)
-    if is_installed(instrument):
-        raise ValueError('Instrument {} is already installed.'.format(instrument.name))
-    for attr_name in dir(instrument):
-        priority = 0
-        stripped_attr_name = attr_name
-        for key, value in PRIORITY_MAP.iteritems():
-            if attr_name.startswith(key):
-                stripped_attr_name = attr_name[len(key):]
-                priority = value
-                break
-        if stripped_attr_name in SIGNAL_MAP:
-            attr = getattr(instrument, attr_name)
-            if not callable(attr):
-                raise ValueError('Attribute {} not callable in {}.'.format(attr_name, instrument))
-            argspec = inspect.getargspec(attr)
-            arg_num = len(argspec.args)
-            # Instrument callbacks will be passed exactly two arguments: self
-            # (the instrument instance to which the callback is bound) and
-            # context. However, we also allow callbacks to capture the context
-            # in variable arguments (declared as "*args" in the definition).
-            if arg_num > 2 or (arg_num < 2 and argspec.varargs is None):
-                message = '{} must take exactly 2 positional arguments; {} given.'
-                raise ValueError(message.format(attr_name, arg_num))
 
-            logger.debug('\tConnecting %s to %s', attr.__name__, SIGNAL_MAP[stripped_attr_name])
-            mc = ManagedCallback(instrument, attr)
-            _callbacks.append(mc)
-            signal.connect(mc, SIGNAL_MAP[stripped_attr_name], priority=priority)
+    if is_installed(instrument):
+        msg = 'Instrument {} is already installed.'
+        raise ValueError(msg.format(instrument.name))
+
+    for attr_name in dir(instrument):
+        if attr_name not in SIGNAL_MAP:
+            continue
+
+        attr = getattr(instrument, attr_name)
+
+        if not callable(attr):
+            msg = 'Attribute {} not callable in {}.'
+            raise ValueError(msg.format(attr_name, instrument))
+        argspec = inspect.getargspec(attr)
+        arg_num = len(argspec.args)
+        # Instrument callbacks will be passed exactly two arguments: self
+        # (the instrument instance to which the callback is bound) and
+        # context. However, we also allow callbacks to capture the context
+        # in variable arguments (declared as "*args" in the definition).
+        if arg_num > 2 or (arg_num < 2 and argspec.varargs is None):
+            message = '{} must take exactly 2 positional arguments; {} given.'
+            raise ValueError(message.format(attr_name, arg_num))
+
+        priority = get_priority(attr)
+        logger.debug('\tConnecting %s to %s with priority %s(%d)', attr.__name__, 
+                     SIGNAL_MAP[attr_name], priority.name, priority.value)
+
+        mc = ManagedCallback(instrument, attr)
+        _callbacks.append(mc)
+        signal.connect(mc, SIGNAL_MAP[attr_name], priority=priority.value)
+
     installed.append(instrument)
 
 
@@ -385,15 +403,3 @@ class Instrument(Plugin):
         self.target = target
         self.is_enabled = True
         self.is_broken = False
-
-    def initialize(self, context):
-        pass
-
-    def finalize(self, context):
-        pass
-
-    def __str__(self):
-        return self.name
-
-    def __repr__(self):
-        return 'Instrument({})'.format(self.name)

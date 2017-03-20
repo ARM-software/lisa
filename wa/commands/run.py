@@ -24,7 +24,7 @@ from wa.framework import pluginloader
 from wa.framework.configuration import RunConfiguration
 from wa.framework.configuration.parsers import AgendaParser, ConfigParser
 from wa.framework.execution import Executor
-from wa.framework.output import init_wa_output
+from wa.framework.output import init_run_output
 from wa.framework.version import get_wa_version
 from wa.framework.exception import NotFoundError, ConfigError
 from wa.utils import log
@@ -123,7 +123,7 @@ class RunCommand(Command):
             output_directory = settings.default_output_directory
         self.logger.debug('Using output directory: {}'.format(output_directory))
         try:
-            return init_wa_output(output_directory, config, args.force)
+            return init_run_output(output_directory, config, args.force)
         except RuntimeError as e:
             if  'path exists' in str(e):
                 msg = 'Output directory "{}" exists.\nPlease specify another '\

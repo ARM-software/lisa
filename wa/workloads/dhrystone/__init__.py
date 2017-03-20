@@ -47,19 +47,31 @@ class Dhrystone(Workload):
 
     parameters = [
         Parameter('duration', kind=int, default=0,
-                  description='The duration, in seconds, for which dhrystone will be executed. '
-                              'Either this or ``mloops`` should be specified but not both.'),
+                  description='''
+                  The duration, in seconds, for which dhrystone will be
+                  executed. Either this or ``mloops`` should be specified but
+                  not both.
+                  '''),
         Parameter('mloops', kind=int, default=0,
-                  description='Millions of loops to run. Either this or ``duration`` should be '
-                              'specified, but not both. If neither is specified, this will default '
-                              'to ``{}``'.format(default_mloops)),
+                  description='''
+                  Millions of loops to run. Either this or ``duration`` should
+                  be specified, but not both. If neither is specified, this
+                  will default ' to ``{}``
+                  '''.format(default_mloops)),
         Parameter('threads', kind=int, default=4,
-                  description='The number of separate dhrystone "threads" that will be forked.'),
+                  description='''
+                  The number of separate dhrystone "threads" that will be forked.
+                  '''),
         Parameter('delay', kind=int, default=0,
-                  description=('The delay, in seconds, between kicking off of dhrystone '
-                               'threads (if ``threads`` > 1).')),
+                  description=('''
+                  The delay, in seconds, between kicking off of dhrystone
+                  threads (if ``threads`` > 1).
+                  ''')),
         Parameter('taskset_mask', kind=int, default=0,
-                  description='The processes spawned by sysbench will be pinned to cores as specified by this parameter'),
+                  description='''
+                  The processes spawned by dhrystone will be pinned to cores as
+                  specified by this parameter.
+                  '''),
     ]
 
     def initialize(self, context):
@@ -67,7 +79,10 @@ class Dhrystone(Workload):
         Dhrystone.target_exe = self.target.install(host_exe)
 
     def setup(self, context):
-        execution_mode = '-l {}'.format(self.mloops) if self.mloops else '-r {}'.format(self.duration)
+        if self.mloops:
+            execution_mode = '-l {}'.format(self.mloops) 
+        else: 
+            execution_mode = '-r {}'.format(self.duration)
         if self.taskset_mask:
             taskset_string = 'busybox taskset 0x{:x} '.format(self.taskset_mask)
         else:
@@ -76,12 +91,18 @@ class Dhrystone(Workload):
                                                     self.target_exe,
                                                     execution_mode,
                                                     self.threads, self.delay)
-        self.timeout = self.duration and self.duration + self.delay * self.threads + 10 or 300
+        if self.duration:
+            self.timeout = self.duration + self.delay * self.threads + 10
+        else:
+            self.timeout = 300
+
         self.target.killall('dhrystone')
 
     def run(self, context):
         try:
-            self.output = self.target.execute(self.command, timeout=self.timeout, check_exit_code=False)
+            self.output = self.target.execute(self.command, 
+                                              timeout=self.timeout, 
+                                              check_exit_code=False)
         except KeyboardInterrupt:
             self.target.killall('dhrystone')
             raise
@@ -90,14 +111,18 @@ class Dhrystone(Workload):
         outfile = os.path.join(context.output_directory, 'dhrystone.output')
         with open(outfile, 'w') as wfh:
             wfh.write(self.output)
+        context.add_artifact('dhrystone-output', outfile, 'raw', "dhrystone's stdout")
+
         score_count = 0
         dmips_count = 0
         total_score = 0
         total_dmips = 0
+
         for line in self.output.split('\n'):
             match = self.time_regex.search(line)
             if match:
-                context.add_metric('time', float(match.group('time')), 'seconds', lower_is_better=True)
+                context.add_metric('time', float(match.group('time')), 'seconds',
+                                   lower_is_better=True)
             else:
                 match = self.bm_regex.search(line)
                 if match:
@@ -114,6 +139,7 @@ class Dhrystone(Workload):
                         context.add_metric(metric, value)
                         dmips_count += 1
                         total_dmips += value
+
         context.add_metric('total DMIPS', total_dmips)
         context.add_metric('total score', total_score)
 
@@ -122,7 +148,9 @@ class Dhrystone(Workload):
 
     def validate(self):
         if self.mloops and self.duration:  # pylint: disable=E0203
-            raise ConfigError('mloops and duration cannot be both specified at the same time for dhrystone.')
+            msg = 'mloops and duration cannot be both specified at the '\
+                  'same time for dhrystone.'
+            raise ConfigError(msg)
         if not self.mloops and not self.duration:  # pylint: disable=E0203
             self.mloops = self.default_mloops
 
