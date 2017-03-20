@@ -69,7 +69,7 @@ class Dhrystone(Workload):
                   ''')),
         Parameter('taskset_mask', kind=int, default=0,
                   description='''
-                  The processes spawned by sysbench will be pinned to cores as
+                  The processes spawned by dhrystone will be pinned to cores as
                   specified by this parameter.
                   '''),
     ]
