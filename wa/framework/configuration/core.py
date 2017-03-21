@@ -267,7 +267,7 @@ class ConfigurationPoint(object):
                 article = get_article(typename)
                 raise ConfigError(msg.format(value, self.name, article, typename))
         if value is not None:
-            self.validate_value(obj.name, value)
+            self.validate_value(self.name, value)
         if self.merge and hasattr(obj, self.name):
             value = merge_config_values(getattr(obj, self.name), value)
         setattr(obj, self.name, value)
