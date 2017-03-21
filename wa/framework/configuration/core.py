@@ -548,11 +548,11 @@ class MetaConfiguration(Configuration):
 
     plugin_packages = [
         'wa.commands',
-        'wa.workloads',
+        'wa.framework.getters',
+        'wa.framework.target.descriptor',
         'wa.instrumentation',
         'wa.processors',
-        'wa.framework.target.descriptor',
-        'wa.framework.resource_getters',
+        'wa.workloads',
     ]
 
     config_points = [

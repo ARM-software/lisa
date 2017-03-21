@@ -95,6 +95,9 @@ class PluginCache(object):
     def is_global_alias(self, name):
         return name in self._list_of_global_aliases
 
+    def list_plugins(self, kind=None):
+        return self.loader.list_plugins(kind)
+
     def get_plugin_config(self, plugin_name, generic_name=None):
         config = obj_dict(not_in_dict=['name'])
         config.name = plugin_name

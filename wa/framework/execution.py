@@ -98,7 +98,7 @@ class ExecutionContext(object):
         self.run_state = output.state
         self.target_info = self.tm.get_target_info()
         self.logger.debug('Loading resource discoverers')
-        self.resolver = ResourceResolver(cm)
+        self.resolver = ResourceResolver(cm.plugin_cache)
         self.resolver.load()
         self.job_queue = None
         self.completed_jobs = None
