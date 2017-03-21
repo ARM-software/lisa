@@ -195,6 +195,10 @@ class HWMon(EnergyMeter):
         # Reformat data for output generation
         clusters_nrg = {}
         for channel in self._channels:
+            if channel not in nrg:
+                raise RuntimeError('hwmon channel "{}" not available. '
+                                   'Selected channels: {}'.format(
+                                       channel, nrg.keys()))
             label = self._channels[channel]
             nrg_total = nrg[label]['total']
             self._log.debug('Energy [%16s]: %.6f', label, nrg_total)
