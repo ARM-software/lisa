@@ -24,11 +24,20 @@ from bart.common.Utils import area_under_curve
 
 from energy_model import EnergyModelCapacityError
 from perf_analysis import PerfAnalysis
-from test import experiment_test
+from test import LisaTest, experiment_test
 from trace import Trace
-from . import _EasTest, energy_aware_conf, WORKLOAD_PERIOD_MS
 
-class _EnergyModelTest(_EasTest):
+energy_aware_conf = {
+    "tag" : "energy_aware",
+    "flags" : ["ftrace", "freeze_userspace"],
+    "sched_features" : "ENERGY_AWARE",
+}
+
+WORKLOAD_PERIOD_MS =  10
+SET_IS_BIG_LITTLE = True
+SET_INITIAL_TASK_UTIL = True
+
+class _EnergyModelTest(LisaTest):
     """
     "Abstract" base class for generic EAS tests using the EnergyModel class
 
@@ -37,6 +46,26 @@ class _EnergyModelTest(_EasTest):
     provided for making assertions about behaviour, most importantly the _test*
     methods which make assertions in a generic way.
     """
+
+    test_conf = {
+        "ftrace" : {
+            "events" : [
+                "sched_overutilized",
+                "sched_energy_diff",
+                "sched_load_avg_task",
+                "sched_load_avg_cpu",
+                "sched_migrate_task",
+                "sched_switch"
+            ],
+        },
+        "modules": ["cgroups"],
+        "cpufreq" : {
+            "governor" : "sched",
+        },
+    }
+
+    # Set to true to run a test only on heterogeneous systems
+    skip_on_smp = False
 
     negative_slack_allowed_pct = 15
     """Percentage of RT-App task activations with negative slack allowed"""
@@ -48,11 +77,35 @@ class _EnergyModelTest(_EasTest):
     """
 
     @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        super(_EnergyModelTest, cls).runExperiments(*args, **kwargs)
+
+    @classmethod
     def _getExperimentsConf(cls, *args, **kwargs):
+        if cls.skip_on_smp and not test_env.nrg_model.is_heterogeneous:
+            raise SkipTest('Test not required on symmetric systems')
+
         return {
             'wloads' : cls.workloads,
             'confs' : [energy_aware_conf]
         }
+
+    @classmethod
+    def _experimentsInit(cls, *args, **kwargs):
+        super(_EnergyModelTest, cls)._experimentsInit(*args, **kwargs)
+
+        if SET_IS_BIG_LITTLE:
+            # This flag doesn't exist on mainline-integration kernels, so
+            # don't worry if the file isn't present (hence verify=False)
+            cls.target.write_value(
+                "/proc/sys/kernel/sched_is_big_little", 1, verify=False)
+
+        if SET_INITIAL_TASK_UTIL:
+            # This flag doesn't exist on all kernels, so don't worry if the file
+            # isn't present (hence verify=False)
+            cls.target.write_value(
+                "/proc/sys/kernel/sched_initial_task_util", 1024, verify=False)
+
 
     def get_task_utils_df(self, experiment):
         """
