@@ -128,7 +128,7 @@ class LoggingConfig(dict):
             self['color'] = config.pop('colour_enabled', self.defaults['color'])  # legacy
             self['color'] = config.pop('color', self.defaults['color'])
             if config:
-                message = 'Unexpected logging configuation parameters: {}'
+                message = 'Unexpected logging configuration parameters: {}'
                 raise ValueError(message.format(bad_vals=', '.join(config.keys())))
         elif config is None:
             for k, v in self.defaults.iteritems():
@@ -267,7 +267,7 @@ class ConfigurationPoint(object):
                 article = get_article(typename)
                 raise ConfigError(msg.format(value, self.name, article, typename))
         if value is not None:
-            self.validate_value(obj.name, value)
+            self.validate_value(self.name, value)
         if self.merge and hasattr(obj, self.name):
             value = merge_config_values(getattr(obj, self.name), value)
         setattr(obj, self.name, value)
@@ -401,7 +401,7 @@ class RuntimeParameterManager(object):
         """
         Validate values that do not require a active device connection.
         This method should also pop all runtime parameters meant for this manager
-        from params, even if they are not beign statically validated.
+        from params, even if they are not being statically validated.
         """
         pass
 
@@ -743,7 +743,7 @@ class RunConfiguration(Configuration):
             default=['FAILED', 'PARTIAL'],
             allowed_values=Status.values[Status.RUNNING.value:],
             description='''
-            This is list of statuses on which a job will be cosidered to have
+            This is list of statuses on which a job will be considered to have
             failed and will be automatically retried up to ``max_retries``
             times. This defaults to ``["FAILED", "PARTIAL"]`` if not set.
             Possible values are::
@@ -758,7 +758,7 @@ class RunConfiguration(Configuration):
             The workload itself has failed.
 
             ``"ABORTED"``
-            The user interupted the workload
+            The user interrupted the workload
             ''',
         ),
         ConfigurationPoint(
@@ -799,7 +799,7 @@ class RunConfiguration(Configuration):
         """
         # pylint: disable=no-member
         if self.device is None:
-            msg = 'Attemting to merge device config with unspecified device'
+            msg = 'Attempting to merge device config with unspecified device'
             raise RuntimeError(msg)
         self.device_config = plugin_cache.get_plugin_config(self.device,
                                                             generic_name="device_config")
@@ -1068,7 +1068,7 @@ def create_job_spec(workload_entry, sections, target_manager, plugin_cache,
     # PHASE 2.2: Merge global, section and workload entry "workload_parameters"
     job_spec.merge_workload_parameters(plugin_cache)
 
-    # TODO: PHASE 2.3: Validate device runtime/boot paramerers
+    # TODO: PHASE 2.3: Validate device runtime/boot parameters
     job_spec.merge_runtime_parameters(plugin_cache, target_manager)
     target_manager.validate_runtime_parameters(job_spec.runtime_parameters)
 
