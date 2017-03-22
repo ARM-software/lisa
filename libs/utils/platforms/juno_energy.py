@@ -94,15 +94,15 @@ juno_energy = EnergyModel(
     root_node=EnergyModelRoot(
         children=[
             EnergyModelNode(
-                name="cluster_a57",
-                active_states=a57_cluster_active_states,
-                idle_states=a57_cluster_idle_states,
-                children=[a57_cpu_node(c) for c in a57s]),
-            EnergyModelNode(
                 name="cluster_a53",
                 active_states=a53_cluster_active_states,
                 idle_states=a53_cluster_idle_states,
-                children=[a53_cpu_node(c) for c in a53s])]),
+                children=[a53_cpu_node(c) for c in a53s]),
+            EnergyModelNode(
+                name="cluster_a57",
+                active_states=a57_cluster_active_states,
+                idle_states=a57_cluster_idle_states,
+                children=[a57_cpu_node(c) for c in a57s])]),
     root_power_domain=PowerDomain(idle_states=[], children=[
         PowerDomain(
             idle_states=["cluster-sleep-0"],
