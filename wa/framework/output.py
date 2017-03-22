@@ -161,7 +161,7 @@ class RunOutput(Output):
     def write_target_info(self, ti):
         write_pod(ti.to_pod(), self.targetfile)
 
-    def read_config(self):
+    def read_target_config(self):
         if not os.path.isfile(self.targetfile):
             return None
         return TargetInfo.from_pod(read_pod(self.targetfile))

@@ -118,7 +118,7 @@ class ExecutionContext(object):
     def end_run(self):
         if self.successful_jobs:
             if self.failed_jobs:
-                status = Satus.PARTIAL
+                status = Status.PARTIAL
             else:
                 status = Status.OK
         else:
