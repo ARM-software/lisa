@@ -74,7 +74,7 @@ a57_cpu_active_states = OrderedDict([
     (625000,  ActiveState(capacity=579,   power=251)),
     (800000,  ActiveState(capacity=744,   power=359)),
     (950000,  ActiveState(capacity=883,   power=479)),
-    (1100000, ActiveState(capacity=1024,  power=616)),
+    (1100000, ActiveState(capacity=1023,  power=616)),
 ])
 
 a57_cpu_idle_states = OrderedDict([
