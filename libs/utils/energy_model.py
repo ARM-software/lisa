@@ -15,17 +15,43 @@
 # limitations under the License.
 #
 
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from itertools import product
 import logging
 import operator
+import re
 
 import pandas as pd
 import numpy as np
 
-from devlib.utils.misc import memoized
+from devlib.utils.misc import memoized, mask_to_list
+from devlib import TargetError
 
 """Classes for modeling and estimating energy usage of CPU systems"""
+
+def read_multiple_oneline_files(target, glob_patterns):
+    """
+    Quickly read many single-line files that match a glob pattern
+
+    Finds all the files that match any of the glob patterns and, assuming that
+    they each contain exactly 1 line of text, read them all at once. When the
+    target or connection is slow this saves a lot of time when reading a large
+    number of files.
+
+    :param target: devlib target object to read from
+    :param glob_pattern: Unix glob pattern matching the files to read
+    :returns: A dictionary mapping matched paths to the values read. ``{}`` if
+              no paths matched the globs.
+    """
+    try:
+        paths = target.execute('find ' + ' '.join(glob_patterns)).split()
+    except TargetError:
+        return {}
+
+    cmd = 'cat ' + ' '.join(glob_patterns)
+    contents = target.execute(cmd).splitlines()
+
+    return dict(zip(paths, contents))
 
 class EnergyModelCapacityError(Exception):
     """Used by :meth:`EnergyModel.get_optimal_placements`"""
@@ -664,3 +690,172 @@ class EnergyModel(object):
 
         self._log.debug('%14s - Done', 'EnergyModel')
         return ret
+
+    @classmethod
+    def _find_core_groups(cls, target):
+        """
+        Read the core_siblings masks for each CPU from sysfs
+
+        :param target: Devlib Target object to read masks from
+        :returns: A list of tuples of ints, representing the partition of core
+                  siblings
+        """
+        cpus = range(target.number_of_cpus)
+
+        topology_base = '/sys/devices/system/cpu/'
+
+        # We only care about core_siblings, but let's check *_siblings, so we
+        # can throw an error if a CPU's thread_siblings isn't just itself, or if
+        # there's a topology level we don't understand.
+
+        # Since we might have to read a lot of files, read everything we need in
+        # one go to avoid taking too long.
+        mask_glob = topology_base + 'cpu**/topology/*_siblings'
+        file_values = read_multiple_oneline_files(target, [mask_glob])
+
+        regex = re.compile(
+            topology_base + r'cpu([0-9]+)/topology/([a-z]+)_siblings')
+
+        ret = set()
+
+        for path, mask_str in file_values.iteritems():
+            match = regex.match(path)
+            cpu = int(match.groups()[0])
+            level = match.groups()[1]
+            # mask_to_list returns the values in descending order, so we'll sort
+            # them ascending. This isn't strictly necessary but it's nicer.
+            siblings = tuple(sorted(mask_to_list(int(mask_str, 16))))
+
+            if level == 'thread':
+                if siblings != (cpu,):
+                    # SMT systems aren't supported
+                    raise RuntimeError('CPU{} thread_siblings is {}. '
+                                       'expected {}'.format(cpu, siblings, [cpu]))
+                continue
+            if level != 'core':
+                # The only other levels we should expect to find are 'book' and
+                # 'shelf', which are not used by architectures we support.
+                raise RuntimeError(
+                    'Unrecognised topology level "{}"'.format(level))
+
+            ret.add(siblings)
+
+        # Sort core groups so that the lowest-numbered cores are first
+        # Again, not strictly necessary, just more pleasant.
+        return sorted(ret, key=lambda x: x[0])
+
+    @classmethod
+    def from_target(cls, target):
+        """
+        Create an EnergyModel by reading a target filesystem
+
+        This uses the sysctl added by EAS pathces to exposes the cap_states and
+        idle_states fields for each sched_group. This feature depends on
+        CONFIG_SCHED_DEBUG, and is not upstream in mainline Linux (as of v4.11),
+        so this method is only tested with Android kernels.
+
+        The kernel doesn't have an power domain data, so this method assumes
+        that all CPUs are totally independent wrt. idle states - the EnergyModel
+        constructed won't be aware of the topological dependencies for entering
+        "cluster" idle states.
+
+        Assumes the energy model has two-levels (plus the root) - a level for
+        CPUs and a level for 'clusters'.
+
+        :param target: Devlib target object to read filesystem from. Must have
+                       cpufreq and cpuidle modules enabled.
+        :returns: Constructed EnergyModel object based on the parameters
+                  reported by the target.
+        """
+        if 'cpufreq' not in target.modules:
+            raise TargetError('Requires cpufreq devlib module. Please ensure '
+                               '"cpufreq" is listed in your target/test modules')
+        if 'cpuidle' not in target.modules:
+            raise TargetError('Requires cpuidle devlib module. Please ensure '
+                               '"cpuidle" is listed in your target/test modules')
+
+        def sge_path(cpu, domain, group, field):
+            f = '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}'
+            return f.format(cpu, domain, group, field)
+
+        # Read all the files we might need in one go, otherwise this will take
+        # ages.
+        sge_globs = [sge_path('**', '**', '**', 'cap_states'),
+                     sge_path('**', '**', '**', 'idle_states')]
+        sge_file_values = read_multiple_oneline_files(target, sge_globs)
+
+        if not sge_file_values:
+            raise TargetError('Energy Model not exposed in sysfs. '
+                              'Check CONFIG_SCHED_DEBUG is enabled.')
+
+        # These functions read the cap_states and idle_states vectors for the
+        # first sched_group in the sched_domain for a given CPU at a given
+        # level. That first group will include the given CPU. So
+        # read_active_states(0, 0) will give the CPU-level active_states for
+        # CPU0 and read_active_states(0, 1) will give the "cluster"-level
+        # active_states for the "cluster" that contains CPU0.
+
+        def read_active_states(cpu, domain_level):
+            cap_states_path = sge_path(cpu, domain_level, 0, 'cap_states')
+            cap_states_strs = sge_file_values[cap_states_path].split()
+            # cap_states lists the capacity of each state followed by its power,
+            # in increasing order. The `zip` call does this:
+            #   [c0, p0, c1, p1, c2, p2] -> [(c0, p0), (c1, p1), (c2, p2)]
+            cap_states = [ActiveState(capacity=int(c), power=int(p))
+                          for c, p in zip(cap_states_strs[0::2],
+                                          cap_states_strs[1::2])]
+            freqs = target.cpufreq.list_frequencies(cpu)
+            return OrderedDict(zip(sorted(freqs), cap_states))
+
+        def read_idle_states(cpu, domain_level):
+            idle_states_path = sge_path(cpu, domain_level, 0, 'idle_states')
+            idle_states_strs = sge_file_values[idle_states_path].split()
+            # get_states should return the state names in increasing depth order
+            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            # idle_states is a list of power values in increasing order of
+            # idle-depth/decreasing order of power.
+            return OrderedDict(zip(names, [int(p) for p in idle_states_strs]))
+
+        # Read the CPU-level data from sched_domain level 0
+        cpus = range(target.number_of_cpus)
+        cpu_nodes = []
+        for cpu in cpus:
+            node = EnergyModelNode(
+                cpu=cpu,
+                active_states=read_active_states(cpu, 0),
+                idle_states=read_idle_states(cpu, 0))
+            cpu_nodes.append(node)
+
+        # Read the "cluster" level data from sched_domain level 1
+        core_group_nodes = []
+        for core_group in cls._find_core_groups(target):
+            node=EnergyModelNode(
+                children=[cpu_nodes[c] for c in core_group],
+                active_states=read_active_states(core_group[0], 1),
+                idle_states=read_idle_states(core_group[0], 1))
+            core_group_nodes.append(node)
+
+        root = EnergyModelRoot(children=core_group_nodes)
+
+        # Use cpufreq to figure out the frequency domains
+        freq_domains = []
+        remaining_cpus = set(cpus)
+        while remaining_cpus:
+            cpu = next(iter(remaining_cpus))
+            dom = target.cpufreq.get_domain_cpus(cpu)
+            freq_domains.append(dom)
+            remaining_cpus = remaining_cpus.difference(dom)
+
+        # We don't have a way to read the power domains from sysfs (the kernel
+        # isn't even aware of them) so we'll just have to assume each CPU is its
+        # own power domain and all idle states are independent of each other.
+        cpu_pds = []
+        for cpu in cpus:
+            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            cpu_pds.append(PowerDomain(cpu=cpu, idle_states=names))
+
+        root_pd=PowerDomain(children=cpu_pds, idle_states=[])
+
+        return cls(root_node=root,
+                   root_power_domain=root_pd,
+                   freq_domains=freq_domains)
