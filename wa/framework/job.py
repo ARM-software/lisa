@@ -1,7 +1,7 @@
 import logging
 
 from wa.framework import pluginloader, signal
-from wa.framework.configuration.core import JobStatus
+from wa.framework.configuration.core import Status
 
 
 class Job(object):
@@ -18,15 +18,25 @@ class Job(object):
     def classifiers(self):
         return self.spec.classifiers
 
+    @property
+    def status(self):
+        return self._status
+
+    @status.setter
+    def status(self, value):
+        self._status = value
+        if self.output:
+            self.output.status = value
+
     def __init__(self, spec, iteration, context):
         self.logger = logging.getLogger('job')
         self.spec = spec
         self.iteration = iteration
         self.context = context
-        self.status = JobStatus.NEW
         self.workload = None
         self.output = None
         self.retries = 0
+        self._status = Status.NEW
 
     def load(self, target, loader=pluginloader):
         self.logger.info('Loading job {}'.format(self.id))
@@ -40,7 +50,7 @@ class Job(object):
         self.logger.info('Initializing job {}'.format(self.id))
         with signal.wrap('WORKLOAD_INITIALIZED', self, context):
             self.workload.initialize(context)
-        self.status = JobStatus.PENDING
+        self.status = Status.PENDING
         context.update_job_state(self)
 
     def configure_target(self, context):

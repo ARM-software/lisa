@@ -13,11 +13,5 @@
 # limitations under the License.
 #
 
-
-ndk-build
-if [[ -f libs/armeabi/dhrystone ]]; then
-	echo "Dhrystone binary updated."
-	cp libs/armeabi/dhrystone ..
-	rm -rf libs
-	rm -rf obj
-fi
+dhrystone: dhrystone.c
+	$(CROSS_COMPILE)gcc -O3 -static dhrystone.c -o dhrystone

@@ -18,7 +18,7 @@ from collections import OrderedDict, Counter
 from copy import copy
 from datetime import datetime, timedelta
 
-from wa.framework.configuration.core import RunStatus, JobStatus
+from wa.framework.configuration.core import Status
 
 
 class RunInfo(object):
@@ -67,7 +67,7 @@ class RunState(object):
     @staticmethod
     def from_pod(pod):
         instance = RunState()
-        instance.status = RunStatus(pod['status'])
+        instance.status = Status(pod['status'])
         instance.timestamp = pod['timestamp']
         jss = [JobState.from_pod(j) for j in pod['jobs']]
         instance.jobs = OrderedDict(((js.id, js.iteration), js) for js in jss)
@@ -76,12 +76,12 @@ class RunState(object):
     @property
     def num_completed_jobs(self):
         return sum(1 for js in self.jobs.itervalues()
-                   if js.status > JobStatus.SKIPPED)
+                   if js.status > Status.SKIPPED)
 
     def __init__(self):
         self.jobs = OrderedDict()
-        self.status = RunStatus.NEW
-        self.timestamp = datetime.now()
+        self.status = Status.NEW
+        self.timestamp = datetime.utcnow()
 
     def add_job(self, job):
         job_state = JobState(job.id, job.label, job.iteration, job.status)
@@ -90,7 +90,7 @@ class RunState(object):
     def update_job(self, job):
         state = self.jobs[(job.id, job.iteration)]
         state.status = job.status
-        state.timestamp = datetime.now()
+        state.timestamp = datetime.utcnow()
 
     def get_status_counts(self):
         counter = Counter()
@@ -110,7 +110,7 @@ class JobState(object):
 
     @staticmethod
     def from_pod(pod):
-        instance = JobState(pod['id'], pod['label'], JobStatus(pod['status']))
+        instance = JobState(pod['id'], pod['label'], Status(pod['status']))
         instance.retries = pod['retries']
         instance.iteration = pod['iteration']
         instance.timestamp = pod['timestamp']
@@ -126,7 +126,7 @@ class JobState(object):
         self.iteration = iteration
         self.status = status
         self.retries = 0
-        self.timestamp = datetime.now()
+        self.timestamp = datetime.utcnow()
 
     def to_pod(self):
         return OrderedDict(

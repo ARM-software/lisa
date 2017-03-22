@@ -583,3 +583,18 @@ def merge_dicts_simple(base, other):
 def touch(path):
     with open(path, 'w'):
         pass
+
+
+def get_object_name(obj):
+    if hasattr(obj, 'name'):
+        return obj.name
+    elif hasattr(obj, 'im_func'):
+        return '{}.{}'.format(get_object_name(obj.im_class),
+                              obj.im_func.func_name)
+    elif hasattr(obj, 'func_name'):
+        return obj.func_name
+    elif hasattr(obj, '__name__'):
+        return obj.__name__
+    elif hasattr(obj, '__class__'):
+        return obj.__class__.__name__
+    return None

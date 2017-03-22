@@ -12,52 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
-import sys
 import glob
-import shutil
 import inspect
 import logging
+import os
+import re
+import shutil
+import sys
 from collections import defaultdict
+
+from devlib.utils.android import ApkInfo
 
 from wa.framework import pluginloader
 from wa.framework.plugin import Plugin, Parameter
 from wa.framework.exception import ResourceError
 from wa.framework.configuration import settings
-from wa.utils.misc import ensure_directory_exists as _d
-from wa.utils.types import boolean
-from wa.utils.types import prioritylist
+from wa.utils import log
+from wa.utils.misc import ensure_directory_exists as _d, get_object_name
+from wa.utils.types import boolean, prioritylist, enum
 
 
-class GetterPriority(object):
-    """
-    Enumerates standard ResourceGetter priorities. In general, getters should
-    register under one of these, rather than specifying other priority values.
 
-
-    :cached: The cached version of the resource. Look here first. This
-    priority also implies
-             that the resource at this location is a "cache" and is not
-             the only version of the resource, so it may be cleared without
-             losing access to the resource.
-    :preferred: Take this resource in favour of the environment resource.
-    :environment: Found somewhere under ~/.workload_automation/ or equivalent,
-                  or from environment variables, external configuration
-                  files, etc.  These will override resource supplied with
-                  the package.
-    :external_package: Resource provided by another package.  :package:
-                       Resource provided with the package.  :remote:
-                       Resource will be downloaded from a remote location
-                       (such as an HTTP server or a samba share). Try this
-                       only if no other getter was successful.
-
-    """
-    cached = 20
-    preferred = 10
-    environment = 0
-    external_package = -5
-    package = -10
-    remote = -20
+SourcePriority = enum(['package', 'remote', 'lan', 'external_package', 'local',
+                       'perferred'], start=0, step=10)
 
 
 class __NullOwner(object):
@@ -77,6 +54,7 @@ class __NullOwner(object):
 
 NO_ONE = __NullOwner()
 
+
 class Resource(object):
     """
     Represents a resource that needs to be resolved. This can be pretty much
@@ -88,95 +66,105 @@ class Resource(object):
 
     """
 
-    name = None
+    kind = None
 
-    def __init__(self, owner):
+    def __init__(self, owner=NO_ONE):
         self.owner = owner
 
-    def delete(self, instance):
-        """
-        Delete an instance of this resource type. This must be implemented
-        by the concrete subclasses based on what the resource looks like,
-        e.g. deleting a file or a directory tree, or removing an entry from
-        a database.
-
-        :note: Implementation should *not* contain any logic for deciding
-               whether or not a resource should be deleted, only the actual
-               deletion. The assumption is that if this method is invoked,
-               then the decision has already been made.
-
-        """
+    def match(self, path):
         raise NotImplementedError()
 
     def __str__(self):
         return '<{}\'s {}>'.format(self.owner, self.name)
 
 
-class FileResource(Resource):
-    """
-    Base class for all resources that are a regular file in the
-    file system.
+class File(Resource):
 
-    """
-
-    def delete(self, instance):
-        os.remove(instance)
-
-
-class File(FileResource):
-
-    name = 'file'
-
-    def __init__(self, owner, path, url=None):
-        super(File, self).__init__(owner)
-        self.path = path
-        self.url = url
-
-    def __str__(self):
-        return '<{}\'s {} {}>'.format(self.owner, self.name, self.path or self.url)
-
-
-class PluginAsset(File):
-
-    name = 'plugin_asset'
+    kind = 'file'
 
     def __init__(self, owner, path):
-        super(PluginAsset, self).__init__(owner, os.path.join(owner.name, path))
+        super(File, self).__init__(owner)
+        self.path = path
 
-
-class Executable(FileResource):
-
-    name = 'executable'
-
-    def __init__(self, owner, platform, filename):
-        super(Executable, self).__init__(owner)
-        self.platform = platform
-        self.filename = filename
+    def match(self, path):
+        return self.path == path
 
     def __str__(self):
-        return '<{}\'s {} {}>'.format(self.owner, self.platform, self.filename)
+        return '<{}\'s {} {}>'.format(self.owner, self.kind, self.path)
 
-class ReventFile(FileResource):
 
-    name = 'revent'
+class Executable(Resource):
 
-    def __init__(self, owner, stage):
+    kind = 'executable'
+
+    def __init__(self, owner, abi, filename):
+        super(Executable, self).__init__(owner)
+        self.abi = abi
+        self.filename = filename
+
+    def match(self, path):
+        return self.filename == os.path.basename(path)
+
+    def __str__(self):
+        return '<{}\'s {} {}>'.format(self.owner, self.abi, self.filename)
+
+
+class ReventFile(Resource):
+
+    kind = 'revent'
+
+    def __init__(self, owner, stage, target):
         super(ReventFile, self).__init__(owner)
         self.stage = stage
+        self.target = target
+
+    def match(self, path):
+        filename = os.path.basename(path)
+        parts = filename.split('.')
+        if len(parts) > 2:
+            target, stage = parts[:2]
+            return target == self.target and stage == self.stage
+        else:
+            stage = parts[0]
+            return stage == self.stage
 
 
-class JarFile(FileResource):
+class JarFile(Resource):
 
-    name = 'jar'
+    kind = 'jar'
+
+    def match(self, path):
+        # An owner always  has at most one jar file, so
+        # always match
+        return True
 
 
-class ApkFile(FileResource):
+class ApkFile(Resource):
 
-    name = 'apk'
+    kind = 'apk'
 
-    def __init__(self, owner, version):
+    def __init__(self, owner, variant=None, version=None):
         super(ApkFile, self).__init__(owner)
+        self.variant = variant
         self.version = version
+
+    def match(self, path):
+        name_matches = True
+        version_matches = True
+        if self.version is not None:
+            version_matches = apk_version_matches(path, self.version)
+        if self.variant is not None:
+            name_matches = file_name_matches(path, self.variant)
+        return name_matches and version_matches:
+
+    def __str__(self):
+        text = '<{}\'s apk'.format(self.owner)
+        if self.variant:
+            text += ' {}'.format(self.variant)
+        if self.version:
+            text += ' {}'.format(self.version)
+        text += '>'
+        return text
 
 
 class ResourceGetter(Plugin):
@@ -192,10 +180,6 @@ class ResourceGetter(Plugin):
 
     :name: Name that uniquely identifies this getter. Must be set by any
            concrete subclass.
-    :resource_type: Identifies resource type(s) that this getter can
-                    handle. This must be either a string (for a single type)
-                    or a list of strings for multiple resource types. This
-                    must be set by any concrete subclass.
     :priority: Priority with which this getter will be invoked. This should
                be one of the standard priorities specified in
                ``GetterPriority`` enumeration. If not set, this will default
@@ -205,74 +189,12 @@ class ResourceGetter(Plugin):
 
     name = None
     kind = 'resource_getter'
-    resource_type = None
-    priority = GetterPriority.environment
 
-    def __init__(self, resolver, **kwargs):
-        super(ResourceGetter, self).__init__(**kwargs)
-        self.resolver = resolver
-
-    def register(self):
-        """
-        Registers with a resource resolver. Concrete implementations must
-        override this to invoke ``self.resolver.register()`` method to register
-        ``self`` for specific resource types.
-
-        """
-        if self.resource_type is None:
-            message = 'No resource type specified for {}'
-            raise ValueError(message.format(self.name))
-        elif isinstance(self.resource_type, list):
-            for rt in self.resource_type:
-                self.resolver.register(self, rt, self.priority)
-        else:
-            self.resolver.register(self, self.resource_type, self.priority)
-
-    def unregister(self):
-        """Unregister from a resource resolver."""
-        if self.resource_type is None:
-            message = 'No resource type specified for {}'
-            raise ValueError(message.format(self.name))
-        elif isinstance(self.resource_type, list):
-            for rt in self.resource_type:
-                self.resolver.unregister(self, rt)
-        else:
-            self.resolver.unregister(self, self.resource_type)
-
-    def get(self, resource, **kwargs):
-        """
-        This will get invoked by the resolver when attempting to resolve a
-        resource, passing in the resource to be resolved as the first
-        parameter. Any additional parameters would be specific to a particular
-        resource type.
-
-        This method will only be invoked for resource types that the getter has
-        registered for.
-
-        :param resource: an instance of :class:`wlauto.core.resource.Resource`.
-
-        :returns: Implementations of this method must return either the
-                  discovered resource or ``None`` if the resource could not
-                  be discovered.
-
-        """
+    def register(self, resolver):
         raise NotImplementedError()
 
-    def delete(self, resource, *args, **kwargs):
-        """
-        Delete the resource if it is discovered. All arguments are passed to a
-        call to``self.get()``. If that call returns a resource, it is deleted.
-
-        :returns: ``True`` if the specified resource has been discovered
-                  and deleted, and ``False`` otherwise.
-
-        """
-        discovered = self.get(resource, *args, **kwargs)
-        if discovered:
-            resource.delete(discovered)
-            return True
-        else:
-            return False
+    def initialize(self):
+        pass
 
     def __str__(self):
         return '<ResourceGetter {}>'.format(self.name)
@@ -285,23 +207,31 @@ class ResourceResolver(object):
 
     """
 
-    def __init__(self, config):
+    def __init__(self, loader=pluginloader):
+        self.loader = loader
         self.logger = logging.getLogger('resolver')
-        self.getters = defaultdict(prioritylist)
-        self.config = config
+        self.getters = []
+        self.sources = prioritylist()
 
     def load(self):
-        """
-        Discover getters under the specified source. The source could
-        be either a python package/module or a path.
+        for gettercls in self.loader.list_plugins('resource_getter'):
+            self.logger.debug('Loading getter {}'.format(gettercls.name))
+            getter = self.loader.get_plugin(name=gettercls.name, 
+                                            kind="resource_getter")
+            log.indent()
+            try:
+                getter.initialize()
+                getter.register(self)
+            finally:
+                log.dedent()
+            self.getters.append(getter)
 
-        """
+    def register(self, source, priority=SourcePriority.local):
+        msg = 'Registering "{}" with priority "{}"'
+        self.logger.debug(msg.format(get_object_name(source), priority))
+        self.sources.add(source, priority)
 
-        for rescls in pluginloader.list_resource_getters():
-            getter = self.config.get_plugin(name=rescls.name, kind="resource_getter", resolver=self)
-            getter.register()
-
-    def get(self, resource, strict=True, *args, **kwargs):
+    def get(self, resource, strict=True):
         """
         Uses registered getters to attempt to discover a resource of the specified
         kind and matching the specified criteria. Returns path to the resource that
@@ -311,11 +241,13 @@ class ResourceResolver(object):
 
         """
         self.logger.debug('Resolving {}'.format(resource))
-        for getter in self.getters[resource.name]:
-            self.logger.debug('Trying {}'.format(getter))
-            result = getter.get(resource, *args, **kwargs)
+        for source in self.sources:
+            source_name = get_object_name(source)
+            self.logger.debug('Trying {}'.format(source_name))
+            result = source(resource)
             if result is not None:
-                self.logger.debug('Resource {} found using {}:'.format(resource, getter))
+                msg = 'Resource {} found using {}:'
+                self.logger.debug(msg.format(resource, source_name))
                 self.logger.debug('\t{}'.format(result))
                 return result
         if strict:
@@ -323,61 +255,19 @@ class ResourceResolver(object):
         self.logger.debug('Resource {} not found.'.format(resource))
         return None
 
-    def register(self, getter, kind, priority=0):
-        """
-        Register the specified resource getter as being able to discover a resource
-        of the specified kind with the specified priority.
 
-        This method would typically be invoked by a getter inside its __init__.
-        The idea being that getters register themselves for resources they know
-        they can discover.
-
-        *priorities*
-
-        getters that are registered with the highest priority will be invoked first. If
-        multiple getters are registered under the same priority, they will be invoked
-        in the order they were registered (i.e. in the order they were discovered). This is
-        essentially non-deterministic.
-
-        Generally getters that are more likely to find a resource, or would find a
-        "better" version of the resource should register with higher (positive) priorities.
-        Fall-back getters that should only be invoked if a resource is not found by usual
-        means should register with lower (negative) priorities.
-
-        """
-        self.logger.debug('Registering {} for {} resources'.format(getter.name, kind))
-        self.getters[kind].add(getter, priority)
-
-    def unregister(self, getter, kind):
-        """
-        Unregister a getter that has been registered earlier.
-
-        """
-        self.logger.debug('Unregistering {}'.format(getter.name))
-        try:
-            self.getters[kind].remove(getter)
-        except ValueError:
-            raise ValueError('Resource getter {} is not installed.'.format(getter.name))
-
-# Utility functions
-
-def get_from_location_by_extension(resource, location, extension, version=None):
-    found_files = glob.glob(os.path.join(location, '*.{}'.format(extension)))
-    if version:
-        found_files = [ff for ff in found_files 
-                       if version.lower() in os.path.basename(ff).lower()]
-    if len(found_files) == 1:
-        return found_files[0]
-    elif not found_files:
-        return None
-    else:
-        raise ResourceError('More than one .{} found in {} for {}.'.format(extension,
-                                                                           location,
-                                                                           resource.owner.name))
+def apk_version_matches(path, version):
+    info = ApkInfo(path)
+    if info.version_name == version or info.version_code == version:
+        return True
+    return False
 
 
-def _get_owner_path(resource):
-    if resource.owner is NO_ONE:
-        return os.path.join(os.path.dirname(__base_filepath), 'common')
-    else:
-        return os.path.dirname(sys.modules[resource.owner.__module__].__file__)
+def file_name_matches(path, pattern):
+    filename = os.path.basename(path)
+    if pattern in filename:
+        return True
+    if re.search(pattern, filename):
+        return True
+    return False
+

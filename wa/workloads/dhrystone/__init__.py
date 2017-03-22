@@ -18,10 +18,7 @@
 import os
 import re
 
-from wa import Workload, Parameter, ConfigError
-
-
-this_dir = os.path.dirname(__file__)
+from wa import Workload, Parameter, ConfigError, Executable
 
 
 class Dhrystone(Workload):
@@ -75,7 +72,8 @@ class Dhrystone(Workload):
     ]
 
     def initialize(self, context):
-        host_exe = os.path.join(this_dir, 'dhrystone')
+        resource = Executable(self, self.target.abi, 'dhrystone')
+        host_exe = context.resolver.get(resource)
         Dhrystone.target_exe = self.target.install(host_exe)
 
     def setup(self, context):

@@ -22,7 +22,7 @@ from wa.utils.serializer import json
 
 from devlib import LocalLinuxTarget, LinuxTarget, AndroidTarget
 from devlib.utils.types import identifier
-# from wa.target.manager import AndroidTargetManager, LinuxTargetManager
+from devlib.utils.misc import memoized
 
 
 class TargetManager(object):
@@ -52,6 +52,7 @@ class TargetManager(object):
     ]
 
     def __init__(self, name, parameters):
+        self.logger = logging.getLogger('tm')
         self.target_name = name
         self.target = None
         self.assistant = None
@@ -82,6 +83,7 @@ class TargetManager(object):
                 if any(parameter in name for parameter in cfg.supported_parameters):
                     cfg.add(name, self.parameters.pop(name))
 
+    @memoized
     def get_target_info(self):
         return TargetInfo(self.target)
 
@@ -108,6 +110,7 @@ class TargetManager(object):
         self.target = instantiate_target(tdesc, self.parameters, connect=False)
         with signal.wrap('TARGET_CONNECT'):
             self.target.connect()
+        self.logger.info('Setting up target')
         self.target.setup()
 
     def _init_assistant(self):
