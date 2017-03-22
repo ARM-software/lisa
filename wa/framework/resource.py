@@ -155,7 +155,7 @@ class ApkFile(Resource):
             version_matches = apk_version_matches(path, self.version)
         if self.variant is not None:
             name_matches = file_name_matches(path, self.variant)
-        return name_matches and version_matches:
+        return name_matches and version_matches
 
     def __str__(self):
         text = '<{}\'s apk'.format(self.owner)
