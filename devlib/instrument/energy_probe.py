@@ -82,6 +82,13 @@ class EnergyProbeInstrument(Instrument):
                                         shell=True)
 
     def stop(self):
+        self.process.poll()
+        if self.process.returncode is not None:
+            stdout, stderr = self.process.communicate()
+            raise HostError(
+                'Energy Probe: Caiman exited unexpectedly with exit code {}.\n'
+                'stdout:\n{}\nstderr:\n{}'.format(self.process.returncode,
+                                                  stdout, stderr))
         os.killpg(self.process.pid, signal.SIGTERM)
 
     def get_data(self, outfile):  # pylint: disable=R0914
