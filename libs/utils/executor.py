@@ -340,12 +340,14 @@ class Executor():
         try:
             # First, save the old SELinux mode
             self._old_selinux_mode = self.target.execute('getenforce')
-        except TargetError:
-            # Probably the target doesn't have SELinux. No problem.
-            self._old_selinux_mode = None
-        else:
             self._log.warning('Setting target SELinux in permissive mode')
             self.target.execute('setenforce 0', as_root=True)
+        except TargetError:
+            # Probably the target doesn't have SELinux, or there are no
+            # contexts set up. No problem.
+            self._log.warning("Couldn't set SELinux in permissive mode. "
+                                "This is probably fine.")
+            self._old_selinux_mode = None
 
     def _setup_cpufreq(self, tc):
         if 'cpufreq' not in tc:
