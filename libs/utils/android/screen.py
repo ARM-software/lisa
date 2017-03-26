@@ -16,6 +16,7 @@
 #
 
 import logging
+from system import System
 
 class Screen(object):
     """
@@ -135,5 +136,21 @@ class Screen(object):
         Get screen density of the device.
         """
         return target.execute('getprop ro.sf.lcd_density')
+
+    @staticmethod
+    def set_screen(target, on=True):
+        log = logging.getLogger('Screen')
+        if not on:
+            log.info('Setting screen OFF')
+            System.sleep(target)
+            return
+        log.info('Setting screen ON')
+        System.wakeup(target)
+
+    @staticmethod
+    def unlock(target):
+       Screen.set_screen(target, on=True)
+       System.menu(target)
+       System.home(target)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
