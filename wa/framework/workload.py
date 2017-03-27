@@ -66,10 +66,16 @@ class Workload(TargetedPlugin):
         """
         pass
 
-    def update_result(self, context):
+    def extract_results(self, context):
         """
-        Update the result within the specified execution context with the
-        metrics form this workload iteration.
+        Extract results on the target
+        """
+        pass
+
+    def update_output(self, context):
+        """
+        Update the output within the specified execution context with the
+        metrics and artifacts form this workload iteration.
 
         """
         pass

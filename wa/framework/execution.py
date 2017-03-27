@@ -138,15 +138,20 @@ class ExecutionContext(object):
         self.current_job = self.job_queue.pop(0)
         self.current_job.output = init_job_output(self.run_output, self.current_job)
         self.update_job_state(self.current_job)
+        self.tm.start()
         return self.current_job
 
     def end_job(self):
         if not self.current_job:
             raise RuntimeError('No jobs in progress')
+        self.tm.stop()
         self.completed_jobs.append(self.current_job)
         self.update_job_state(self.current_job)
         self.output.write_result()
         self.current_job = None
+
+    def extract_results(self):
+        self.tm.extract_results(self)
 
     def move_failed(self, job):
         self.run_output.move_failed(job.output)
