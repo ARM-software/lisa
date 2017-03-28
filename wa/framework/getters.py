@@ -52,7 +52,7 @@ def get_by_extension(path, ext):
 
     found = []
     for entry in os.listdir(path):
-        entry_ext = os.path.splitext(entry)
+        entry_ext = os.path.splitext(entry)[1]
         if entry_ext == ext:
             found.append(os.path.join(path, entry))
     return found
@@ -112,7 +112,8 @@ class UserDirectory(ResourceGetter):
 
     def get(self, resource):
         basepath = settings.dependencies_directory
-        return get_from_location(basepath, resource)
+        directory = _d(os.path.join(basepath, resource.owner.name))
+        return get_from_location(directory, resource)
 
 
 class Http(ResourceGetter):
@@ -318,7 +319,9 @@ class Filer(ResourceGetter):
             result = get_from_location(local_path, resource)
             if result:
                 return result
-        if remote_path:
+        if not os.path.exists(local_path):
+            return None
+        if os.path.exists(remote_path):
             # Didn't find it cached locally; now check the remoted
             result = get_from_location(remote_path, resource)
             if not result:
