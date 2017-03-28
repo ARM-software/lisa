@@ -202,6 +202,8 @@ class PowerDomain(_CpuTree):
     :type cpus: tuple(int)
     """
     def __init__(self, idle_states, cpu=None, children=None):
+        if idle_states is None:
+            raise ValueError('idle_states cannot be None (but may be empty)')
         super(PowerDomain, self).__init__(cpu, children)
         self.idle_states = idle_states
 
