@@ -192,8 +192,11 @@ class PowerDomain(_CpuTree):
                         not store power data - these names are used as keys into
                         the ``idle_states`` field of :class:`EnergyModelNode`
                         objects.
+    :type idle_states: list(str)
     :param cpu: The CPU this node represents. If provided, this is a leaf node.
+    :type cpu:  int
     :param children: Non-empty list of child :class:`PowerDomain` objects
+    :type children:  list(PowerDomain)
 
     :ivar cpus: CPUs contained in this node. Includes those of child nodes.
     :type cpus: tuple(int)
