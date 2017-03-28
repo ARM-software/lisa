@@ -64,9 +64,6 @@ class _EnergyModelTest(LisaTest):
         },
     }
 
-    # Set to true to run a test only on heterogeneous systems
-    skip_on_smp = False
-
     negative_slack_allowed_pct = 15
     """Percentage of RT-App task activations with negative slack allowed"""
 
@@ -82,9 +79,6 @@ class _EnergyModelTest(LisaTest):
 
     @classmethod
     def _getExperimentsConf(cls, *args, **kwargs):
-        if cls.skip_on_smp and not test_env.nrg_model.is_heterogeneous:
-            raise SkipTest('Test not required on symmetric systems')
-
         return {
             'wloads' : cls.workloads,
             'confs' : [energy_aware_conf]
