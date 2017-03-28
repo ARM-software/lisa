@@ -84,6 +84,13 @@ class Output(object):
     def add_event(self, message):
         self.result.add_event(message)
 
+    def get_artifact(self, name):
+        return self.result.get_artifact(name)
+
+    def get_artifact_path(self, name):
+        artifact = self.get_artifact(name)
+        return self.get_path(artifact.path)
+
 
 class RunOutput(Output):
 
@@ -233,6 +240,12 @@ class Result(object):
 
     def add_event(self, message):
         self.events.append(Event(message))
+
+    def get_artifact(self, name):
+        for artifact in self.artifacts:
+            if artifact.name == name:
+                return artifact
+        raise HostError('Artifact "{}" not found'.format(name))
 
     def to_pod(self):
         return dict(

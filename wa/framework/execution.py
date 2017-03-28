@@ -30,7 +30,7 @@ import wa.framework.signal as signal
 from wa.framework import instrumentation, pluginloader
 from wa.framework.configuration.core import settings, Status
 from wa.framework.exception import (WAError, ConfigError, TimeoutError,
-                                    InstrumentError, TargetError,
+                                    InstrumentError, TargetError, HostError,
                                     TargetNotRespondingError)
 from wa.framework.output import init_job_output
 from wa.framework.plugin import Artifact
@@ -177,6 +177,22 @@ class ExecutionContext(object):
             classifiers = merge_config_values(self.current_job.classifiers,
                                               classifiers)
         self.output.add_metric(name, value, units, lower_is_better, classifiers)
+
+    def get_artifact(self, name):
+        try:
+            return self.output.get_artifact(name)
+        except HostError:
+            if not self.current_job:
+                raise
+            return self.run_output.get_artifact(name)
+
+    def get_artifact_path(self, name):
+        try:
+            return self.output.get_artifact_path(name)
+        except HostError:
+            if not self.current_job:
+                raise
+            return self.run_output.get_artifact_path(name)
 
     def add_artifact(self, name, path, kind, description=None, classifiers=None):
         self.output.add_artifact(name, path, kind, description, classifiers)

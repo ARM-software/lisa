@@ -75,7 +75,7 @@ class Resource(object):
         raise NotImplementedError()
 
     def __str__(self):
-        return '<{}\'s {}>'.format(self.owner, self.name)
+        return '<{}\'s {}>'.format(self.owner, self.kind)
 
 
 class File(Resource):
