@@ -465,7 +465,7 @@ def init_job_output(run_output, job):
     path = os.path.join(run_output.basepath, output_name)
     ensure_directory_exists(path)
     write_pod(Result().to_pod(), os.path.join(path, 'result.json'))
-    job_output = JobOutput(path, job.id, job.iteration, job.label, job.retries)
+    job_output = JobOutput(path, job.id, job.label, job.iteration, job.retries)
     job_output.status = job.status
     run_output.jobs.append(job_output)
     return job_output
