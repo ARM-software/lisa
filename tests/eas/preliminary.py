@@ -164,3 +164,13 @@ class TestWorkThroughput(BasicCheckTest):
         msg='Work done did not scale with CPU Freq on CPUs: {}'\
             .format(failed_cpus)
         self.assertFalse(len(failed_cpus), msg=msg)
+
+class TestEnergyModelPresent(BasicCheckTest):
+    def test_energy_model_present(self):
+        """Test that we can see the energy model in sysctl"""
+        if not self.target.file_exists(
+                '/proc/sys/kernel/sched_domain/cpu0/domain0/group0/energy/'):
+            raise AssertionError(
+                'No energy model visible in procfs. Possible causes: \n'
+                '- Kernel built without (CONFIG_SCHED_DEBUG && CONFIG_SYSCTL)\n'
+                '- No energy model in kernel')
