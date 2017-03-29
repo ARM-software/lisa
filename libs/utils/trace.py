@@ -635,7 +635,10 @@ class Trace(object):
 
         df = self._dfg_trace_event('sched_energy_diff')
 
-        translations = {'nrg_d': 'nrg_diff', 'utl_d': 'usage_delta'}
+        translations = {'nrg_d' : 'nrg_diff',
+                        'utl_d' : 'usage_delta',
+                        'payoff' : 'nrg_payoff'
+        }
         df.rename(columns=translations, inplace=True)
 
         df['nrg_diff_pct'] = SCHED_LOAD_SCALE * df.nrg_diff / power_max
