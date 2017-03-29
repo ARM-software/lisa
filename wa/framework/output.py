@@ -84,6 +84,13 @@ class Output(object):
     def add_event(self, message):
         self.result.add_event(message)
 
+    def get_artifact(self, name):
+        return self.result.get_artifact(name)
+
+    def get_artifact_path(self, name):
+        artifact = self.get_artifact(name)
+        return self.get_path(artifact.path)
+
 
 class RunOutput(Output):
 
@@ -233,6 +240,12 @@ class Result(object):
 
     def add_event(self, message):
         self.events.append(Event(message))
+
+    def get_artifact(self, name):
+        for artifact in self.artifacts:
+            if artifact.name == name:
+                return artifact
+        raise HostError('Artifact "{}" not found'.format(name))
 
     def to_pod(self):
         return dict(
@@ -465,7 +478,7 @@ def init_job_output(run_output, job):
     path = os.path.join(run_output.basepath, output_name)
     ensure_directory_exists(path)
     write_pod(Result().to_pod(), os.path.join(path, 'result.json'))
-    job_output = JobOutput(path, job.id, job.iteration, job.label, job.retries)
+    job_output = JobOutput(path, job.id, job.label, job.iteration, job.retries)
     job_output.status = job.status
     run_output.jobs.append(job_output)
     return job_output

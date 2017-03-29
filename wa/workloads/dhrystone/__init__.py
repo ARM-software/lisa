@@ -105,12 +105,13 @@ class Dhrystone(Workload):
             self.target.killall('dhrystone')
             raise
 
-    def update_result(self, context):
+    def extract_results(self, context):
         outfile = os.path.join(context.output_directory, 'dhrystone.output')
         with open(outfile, 'w') as wfh:
             wfh.write(self.output)
         context.add_artifact('dhrystone-output', outfile, 'raw', "dhrystone's stdout")
 
+    def update_output(self, context):
         score_count = 0
         dmips_count = 0
         total_score = 0

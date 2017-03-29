@@ -97,7 +97,8 @@ JOB_FINALIZED = Signal('job-finalized')
 
 
 # Signals associated with particular stages of workload execution
-BEFORE_WORKLOAD_INITIALIZED = Signal('before-workload-initialized', invert_priority=True)
+BEFORE_WORKLOAD_INITIALIZED = Signal('before-workload-initialized',
+                                     invert_priority=True)
 SUCCESSFUL_WORKLOAD_INITIALIZED = Signal('successful-workload-initialized')
 AFTER_WORKLOAD_INITIALIZED = Signal('after-workload-initialized')
 
@@ -109,9 +110,15 @@ BEFORE_WORKLOAD_EXECUTION = Signal('before-workload-execution', invert_priority=
 SUCCESSFUL_WORKLOAD_EXECUTION = Signal('successful-workload-execution')
 AFTER_WORKLOAD_EXECUTION = Signal('after-workload-execution')
 
-BEFORE_WORKLOAD_RESULT_UPDATE = Signal('before-workload-result-update', invert_priority=True)
-SUCCESSFUL_WORKLOAD_RESULT_UPDATE = Signal('successful-workload-result-update')
-AFTER_WORKLOAD_RESULT_UPDATE = Signal('after-workload-result-update')
+BEFORE_WORKLOAD_RESULT_EXTRACTION = Signal('before-workload-result-exptracton',
+                                       invert_priority=True)
+SUCCESSFUL_WORKLOAD_RESULT_EXTRACTION = Signal('successful-workload-result-exptracton')
+AFTER_WORKLOAD_RESULT_EXTRACTION = Signal('after-workload-result-exptracton')
+
+BEFORE_WORKLOAD_OUTPUT_UPDATE = Signal('before-workload-output-update',
+                                       invert_priority=True)
+SUCCESSFUL_WORKLOAD_OUTPUT_UPDATE = Signal('successful-workload-output-update')
+AFTER_WORKLOAD_OUTPUT_UPDATE = Signal('after-workload-output-update')
 
 BEFORE_WORKLOAD_TEARDOWN = Signal('before-workload-teardown', invert_priority=True)
 SUCCESSFUL_WORKLOAD_TEARDOWN = Signal('successful-workload-teardown')

@@ -7,6 +7,7 @@ from devlib import (LinuxTarget, AndroidTarget, LocalLinuxTarget,
 from wa.framework import pluginloader
 from wa.framework.exception import PluginLoaderError
 from wa.framework.plugin import Plugin, Parameter
+from wa.framework.target.assistant import LinuxAssistant, AndroidAssistant
 from wa.utils.types import list_of_strings, list_of_ints
 from wa.utils.misc import isiterable
 
@@ -28,6 +29,7 @@ def instantiate_target(tdesc, params, connect=None):
     target_params = {p.name: p for p in tdesc.target_params}
     platform_params = {p.name: p for p in tdesc.platform_params}
     conn_params = {p.name: p for p in tdesc.conn_params}
+    assistant_params = {p.name: p for p in tdesc.assistant_params}
 
     tp, pp, cp = {}, {}, {}
 
@@ -38,6 +40,8 @@ def instantiate_target(tdesc, params, connect=None):
             pp[name] = value
         elif name in conn_params:
             cp[name] = value
+        elif name in assistant_params:
+            pass
         else:
             msg = 'Unexpected parameter for {}: {}'
             raise ValueError(msg.format(tdesc.name, name))
@@ -53,17 +57,27 @@ def instantiate_target(tdesc, params, connect=None):
     return tdesc.target(**tp)
 
 
+def instantiate_assistant(tdesc, params, target):
+    assistant_params = {}
+    for param in tdesc.assistant_params:
+        if param.name in params:
+            assistant_params[param.name] = params[param.name]
+    return tdesc.assistant(target, **assistant_params)
+
+
 class TargetDescription(object):
 
     def __init__(self, name, source, description=None, target=None, platform=None, 
-                 conn=None, target_params=None, platform_params=None,
-                 conn_params=None):
+                 conn=None, assistant=None, target_params=None, platform_params=None,
+                 conn_params=None, assistant_params=None):
         self.name = name
         self.source = source
         self.description = description
         self.target = target
         self.platform = platform
         self.connection = conn
+        self.assistant = assistant
+        self.assistant_params = assistant_params
         self._set('target_params', target_params)
         self._set('platform_params', platform_params)
         self._set('conn_params', conn_params)
@@ -218,7 +232,7 @@ GEM5_PLATFORM_PARAMS = [
               '''),
 ]
 
-# name --> (target_class, params_list, defaults)
+# name --> (target_class, params_list, defaults, assistant_class)
 TARGETS = {
     'linux': (LinuxTarget, COMMON_TARGET_PARAMS, None),
     'android': (AndroidTarget, COMMON_TARGET_PARAMS +
@@ -228,6 +242,13 @@ TARGETS = {
                            '''),
                 ], None),
     'local': (LocalLinuxTarget, COMMON_TARGET_PARAMS, None),
+}
+
+# name --> assistant
+ASSISTANTS = {
+    'linux': LinuxAssistant,
+    'android': AndroidAssistant,
+    'local': LinuxAssistant,
 }
 
 # name --> (platform_class, params_list, defaults)
@@ -267,6 +288,7 @@ class DefaultTargetDescriptor(TargetDescriptor):
         result = []
         for target_name, target_tuple in TARGETS.iteritems():
             target, target_params = self._get_item(target_tuple)
+            assistant = ASSISTANTS[target_name]
             for platform_name, platform_tuple in PLATFORMS.iteritems():
                 platform, platform_params = self._get_item(platform_tuple)
 
@@ -274,8 +296,10 @@ class DefaultTargetDescriptor(TargetDescriptor):
                 td = TargetDescription(name, self)
                 td.target = target
                 td.platform = platform
+                td.assistant = assistant
                 td.target_params = target_params
                 td.platform_params = platform_params
+                td.assistant_params = assistant.parameters
                 result.append(td)
         return result
 
