@@ -259,13 +259,18 @@ class TasksAnalysis(AnalysisModule):
                 # Third plot: tasks's load
                 {'load_sum', 'util_sum', 'period_contrib'}
         ]
-        for signals_to_plot in plots_signals:
+        hr = []
+        ysize = 0
+        for plot_id, signals_to_plot in enumerate(plots_signals):
             signals_to_plot = signals_to_plot.intersection(signals)
             if len(signals_to_plot):
                 plots_count = plots_count + 1
+                # Use bigger size only for the first plot
+                hr.append(3 if plot_id == 0 else 1)
+                ysize = ysize + (8 if plot_id else 4)
 
         # Grid
-        gs = gridspec.GridSpec(plots_count, 1, height_ratios=[2, 1, 1])
+        gs = gridspec.GridSpec(plots_count, 1, height_ratios=hr)
         gs.update(wspace=0.1, hspace=0.1)
 
         # Build list of all PIDs for each task_name to plot
@@ -290,7 +295,7 @@ class TasksAnalysis(AnalysisModule):
             plot_id = 0
 
             # For each task create a figure with plots_count plots
-            plt.figure(figsize=(16, 2*6+3))
+            plt.figure(figsize=(16, ysize))
             plt.suptitle('Task Signals',
                          y=.94, fontsize=16, horizontalalignment='center')
 
