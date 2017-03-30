@@ -656,10 +656,11 @@ class TasksAnalysis(AnalysisModule):
                 'LITTLE capacity tip/max: %d/%d, big capacity tip/max: %d/%d',
                 tip_lcap, max_lcap, tip_bcap, max_bcap
             )
-            axes.axhline(tip_lcap, color='g', linestyle='--', linewidth=1)
-            axes.axhline(max_lcap, color='g', linestyle='-', linewidth=2)
-            axes.axhline(tip_bcap, color='r', linestyle='--', linewidth=1)
-            axes.axhline(max_bcap, color='r', linestyle='-', linewidth=2)
+            axes.axhline(tip_lcap, color='y', linestyle=':', linewidth=2)
+            axes.axhline(max_lcap, color='y', linestyle='--', linewidth=2)
+            axes.axhline(tip_bcap, color='r', linestyle=':', linewidth=2)
+            axes.axhline(max_bcap, color='r', linestyle='--', linewidth=2)
+
 
         axes.set_ylim(0, 1100)
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
