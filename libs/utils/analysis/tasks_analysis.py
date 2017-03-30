@@ -279,6 +279,8 @@ class TasksAnalysis(AnalysisModule):
             pids_to_plot.extend(self._trace.getTaskByName(task))
 
         for tid in pids_to_plot:
+            savefig = False
+
             task_name = self._trace.getTaskByPid(tid)
             if len(task_name) == 1:
                 task_name = task_name[0]
@@ -302,6 +304,7 @@ class TasksAnalysis(AnalysisModule):
                 plot_id = plot_id + 1
                 is_last = (plot_id == plots_count)
                 self._plotTaskSignals(axes, tid, signals, is_last)
+                savefig = True
 
             # Plot CPUs residency
             signals_to_plot = {'residencies'}
@@ -317,6 +320,7 @@ class TasksAnalysis(AnalysisModule):
                 if 'sched_overutilized' in signals:
                     signals_to_plot.append('sched_overutilized')
                 self._plotTaskResidencies(axes, tid, signals_to_plot, is_last)
+                savefig = True
 
             # Plot PELT signals
             signals_to_plot = {'load_sum', 'util_sum', 'period_contrib'}
@@ -329,6 +333,11 @@ class TasksAnalysis(AnalysisModule):
                 if 'sched_overutilized' in signals:
                     signals_to_plot.append('sched_overutilized')
                 self._plotTaskPelt(axes, tid, signals_to_plot)
+                savefig = True
+
+            if not savefig:
+                self._log.warning('Nothing to plot for %s', task_name)
+                continue
 
             # Save generated plots into datadir
             if isinstance(task_name, list):
