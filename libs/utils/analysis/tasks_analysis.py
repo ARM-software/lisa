@@ -200,6 +200,13 @@ class TasksAnalysis(AnalysisModule):
         Tasks PELT signals:
                 load_sum, util_sum, period_contrib, sched_overutilized
 
+        At least one of the previous signals must be specified to get a valid
+        plot.
+
+        Addidional custom signals can be specified and they will be represented
+        in the "Task signals plots" if they represent valid keys of the task
+        load/utilization trace event (e.g. sched_load_avg_task).
+
         Note:
             sched_overutilized: enable the plotting of overutilization bands on
                                 top of each subplot
@@ -294,9 +301,7 @@ class TasksAnalysis(AnalysisModule):
                                .format(tid, task_name))
                 plot_id = plot_id + 1
                 is_last = (plot_id == plots_count)
-                if 'sched_overutilized' in signals:
-                    signals_to_plot.append('sched_overutilized')
-                self._plotTaskSignals(axes, tid, signals_to_plot, is_last)
+                self._plotTaskSignals(axes, tid, signals, is_last)
 
             # Plot CPUs residency
             signals_to_plot = {'residencies'}
@@ -628,10 +633,12 @@ class TasksAnalysis(AnalysisModule):
         util_df = self._dfg_trace_event('sched_load_avg_task')
 
         # Plot load and util
-        signals_to_plot = list({'load_avg', 'util_avg'}.intersection(signals))
-        if len(signals_to_plot):
-            data = util_df[util_df.pid == tid][signals_to_plot]
-            data.plot(ax=axes, drawstyle='steps-post')
+        signals_to_plot = set(signals).difference({'boosted_util'})
+        for signal in signals_to_plot:
+            if signal not in util_df.columns:
+                continue
+            data = util_df[util_df.pid == tid][signal]
+            data.plot(ax=axes, drawstyle='steps-post', legend=True)
 
         # Plot boost utilization if available
         if 'boosted_util' in signals and \
@@ -660,7 +667,6 @@ class TasksAnalysis(AnalysisModule):
             axes.axhline(max_lcap, color='y', linestyle='--', linewidth=2)
             axes.axhline(tip_bcap, color='r', linestyle=':', linewidth=2)
             axes.axhline(max_bcap, color='r', linestyle='--', linewidth=2)
-
 
         axes.set_ylim(0, 1100)
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
