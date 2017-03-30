@@ -131,11 +131,22 @@ class CapacityCappingTest(unittest.TestCase):
         wload.run(out_dir=cls.env.res_dir, background=True)
         time.sleep(phase_duration)
 
-        cls.env.target.write_value(max_freq_path, min_frequency)
-        time.sleep(phase_duration)
+        # Writing values on the target can take a non-negligible amount of time.
+        # To prevent this from shifting the transitions between
+        # constrained/unconstrained phases, measure this write latency and
+        # reduce our sleep time by that amount.
+        def write_and_sleep(max_freq):
+            time_before = time.time()
+            cls.env.target.write_value(max_freq_path, max_freq)
+            write_latency = time.time() - time_before
+            if (write_latency > phase_duration):
+                raise ValueError(
+                    "Latency of Target.write_value greater than phase duration! "
+                    "Increase WORKLOAD_DURATION_S or speed up target connection")
+            time.sleep(phase_duration - write_latency)
 
-        cls.env.target.write_value(max_freq_path, max_frequency)
-        time.sleep(phase_duration)
+        write_and_sleep(min_frequency)
+        write_and_sleep(max_frequency)
 
         cls.env.ftrace.stop()
         cls.env.ftrace.get_trace(cls.trace_file)
