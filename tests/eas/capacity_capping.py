@@ -95,6 +95,8 @@ class CapacityCappingTest(unittest.TestCase):
         trace = trappy.FTrace(cls.trace_file)
         cls.sa = SchedMultiAssert(trace, cls.env.topology,
                                   execnames=cls.params.keys())
+        times = cls.sa.getStartTime()
+        cls.wload_start_time = min(t["starttime"] for t in times.itervalues())
 
     @classmethod
     def populate_params(cls):
@@ -157,7 +159,8 @@ class CapacityCappingTest(unittest.TestCase):
         """All busy threads run in the beginning in big cpus"""
 
         phase_duration = WORKLOAD_DURATION_S / 3.
-        unconstrained_window = (0, phase_duration)
+        unconstrained_window = (self.wload_start_time,
+                                self.wload_start_time + phase_duration)
         self.check_residencies(self.env.target.bl.bigs, "big",
                                unconstrained_window, "unconstrained")
 
@@ -165,21 +168,23 @@ class CapacityCappingTest(unittest.TestCase):
         """Busy threads migrate to little in the thermally constrained phase"""
 
         phase_duration = WORKLOAD_DURATION_S / 3.
-        migration_window = (phase_duration, phase_duration + MIGRATION_WINDOW)
+        mig_start = self.wload_start_time + phase_duration
+        mig_end = mig_start + MIGRATION_WINDOW
         num_tasks = len(self.params)
 
         msg = "One or more of the busy threads didn't migrate to a little cpu between {} and {}" \
-              .format(migration_window[0], migration_window[1])
+              .format(mig_start, mig_end)
         self.assertTrue(self.sa.assertSwitch("cluster", self.env.target.bl.bigs,
                                              self.env.target.bl.littles,
-                                             window=migration_window,
+                                             window=(mig_start, mig_end),
                                              rank=num_tasks),
                         msg=msg)
 
         # The tasks must have migrated by the end of the
         # migration_window and they should not move until the end of
         # the phase.
-        constrained_window = (migration_window[1], 2 * phase_duration)
+        constrained_window = (mig_end,
+                              self.wload_start_time + (2 * phase_duration))
         self.check_residencies(self.env.target.bl.littles, "little",
                                constrained_window, "thermally constrained")
 
@@ -190,21 +195,21 @@ class CapacityCappingTest(unittest.TestCase):
         return to the big cpus"""
 
         phase_duration = WORKLOAD_DURATION_S / 3.
-        migration_window = (2 * phase_duration,
-                            2 * phase_duration + MIGRATION_WINDOW)
+        mig_start = self.wload_start_time + 2 * phase_duration
+        mig_end = mig_start + MIGRATION_WINDOW
         num_tasks = len(self.params)
 
         msg = "One of the busy threads didn't return to a big cpu"
         self.assertTrue(self.sa.assertSwitch("cluster",
                                              self.env.target.bl.littles,
                                              self.env.target.bl.bigs,
-                                             window=migration_window,
+                                             window=(mig_start, mig_end),
                                              rank=num_tasks),
                         msg=msg)
 
         # The tasks must have migrated by the end of the
         # migration_window and they should continue to run on bigs
         # until the end of the run.
-        last_phase = (migration_window[1], WORKLOAD_DURATION_S)
+        last_phase = (mig_end, self.wload_start_time + WORKLOAD_DURATION_S)
         self.check_residencies(self.env.target.bl.bigs, "big",
                                last_phase, "unconstrained")
