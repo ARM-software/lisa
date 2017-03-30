@@ -894,7 +894,7 @@ class AndroidTarget(Target):
         # so we try the new version, and if it fails we use the old version.
         self.ls_command = 'ls -1'
         try:
-            self.execute('ls -1 /', as_root=False)
+            self.execute('ls -1 {}'.format(self.working_directory), as_root=False)
         except TargetError:
             self.ls_command = 'ls'
 
