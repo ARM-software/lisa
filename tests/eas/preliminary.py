@@ -174,3 +174,42 @@ class TestEnergyModelPresent(BasicCheckTest):
                 'No energy model visible in procfs. Possible causes: \n'
                 '- Kernel built without (CONFIG_SCHED_DEBUG && CONFIG_SYSCTL)\n'
                 '- No energy model in kernel')
+
+class TestSchedutilTunables(BasicCheckTest):
+    MAX_UP_RATE_LIMIT_US = 20 * 1e3
+    MAX_DOWN_RATE_LIMIT_US = 20 * 1e3
+
+    def test_rate_limit_not_too_high(self):
+        """Test that the schedutil ratelimiting is not too harsh"""
+        governors = self.target.cpufreq.list_governors(0)
+        if 'schedutil' not in governors:
+            raise SkipTest('schedutil not present on target')
+        self.target.cpufreq.set_all_governors('schedutil')
+
+        cpus = set(range(self.target.number_of_cpus))
+        up_limit_fail_cpus = []
+        down_limit_fail_cpus = []
+        while cpus:
+            cpu = iter(cpus).next()
+            domain = tuple(self.target.cpufreq.get_domain_cpus(cpu))
+
+            tunables = self.target.cpufreq.get_governor_tunables(cpu)
+            if int(tunables['up_rate_limit_us']) > self.MAX_UP_RATE_LIMIT_US:
+                up_limit_fail_cpus += domain
+            if int(tunables['down_rate_limit_us']) > self.MAX_DOWN_RATE_LIMIT_US:
+                down_limit_fail_cpus += domain
+
+            cpus = cpus.difference(domain)
+
+        self.assertTrue(
+            up_limit_fail_cpus == [],
+            'schedutil up_rate_limit_us greater than {} on CPUs {}. '
+            'Responsiveness will be affected.'.format(
+                self.MAX_UP_RATE_LIMIT_US, up_limit_fail_cpus))
+        self.assertTrue(
+            down_limit_fail_cpus == [],
+            'schedutil down_rate_limit_us greater than {} on CPUs {}. '
+            'Responsiveness will be affected.'.format(
+                self.MAX_DOWN_RATE_LIMIT_US, down_limit_fail_cpus))
+
+======= end
