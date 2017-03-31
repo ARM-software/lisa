@@ -27,11 +27,12 @@ import unittest
 
 import devlib
 from devlib.utils.misc import memoized
-from devlib import Platform
+from devlib import Platform, TargetError
 from trappy.stats.Topology import Topology
 
 from wlgen import RTA
 from energy import EnergyMeter
+from energy_model import EnergyModel
 from conf import JsonConf
 from platforms.juno_energy import juno_energy
 from platforms.hikey_energy import hikey_energy
@@ -404,6 +405,7 @@ class TestEnv(ShareState):
         ########################################################################
 
         # Setup board default if not specified by configuration
+        self.nrg_model = None
         platform = None
         self.__modules = []
         if 'board' not in self.conf:
@@ -544,6 +546,13 @@ class TestEnv(ShareState):
                                 'disable module from configuration')
                 raise RuntimeError('Failed to initialized [{}] module, '
                         'update your kernel or test configurations'.format(module))
+
+        if not self.nrg_model:
+            try:
+                self._log.info('Attempting to read energy model from target')
+                self.nrg_model = EnergyModel.from_target(self.target)
+            except (TargetError, RuntimeError) as e:
+                self._log.error("Couldn't read target energy model: %s", e)
 
     def install_tools(self, tools):
         """

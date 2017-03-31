@@ -22,10 +22,12 @@ import pandas as pd
 
 from bart.common.Utils import area_under_curve
 
-from energy_model import EnergyModelCapacityError
+from energy_model import EnergyModel, EnergyModelCapacityError
 from perf_analysis import PerfAnalysis
 from test import LisaTest, experiment_test
 from trace import Trace
+from . import _EasTest, energy_aware_conf, WORKLOAD_PERIOD_MS
+from unittest import SkipTest
 
 energy_aware_conf = {
     "tag" : "energy_aware",
@@ -78,7 +80,16 @@ class _EnergyModelTest(LisaTest):
         super(_EnergyModelTest, cls).runExperiments(*args, **kwargs)
 
     @classmethod
-    def _getExperimentsConf(cls, *args, **kwargs):
+    def _getExperimentsConf(cls, test_env):
+        if not test_env.nrg_model:
+            try:
+                test_env.nrg_model = EnergyModel.from_target(test_env.target)
+            except Exception as e:
+                raise SkipTest(
+                    'This test requires an EnergyModel for the platform. '
+                    'Either provide one manually or ensure it can be read '
+                    'from the filesystem: {}'.format(e))
+
         return {
             'wloads' : cls.workloads,
             'confs' : [energy_aware_conf]

@@ -35,7 +35,7 @@ cluster_idle_states = OrderedDict([
 
 cpu_active_states = OrderedDict([
     ( 208000,  ActiveState(capacity=178,  power=69)),
-    ( 432000,  ActiveState(capacity=369,  power=125)),
+    ( 432000,  ActiveState(capacity=369,  power=124)),
     ( 729000,  ActiveState(capacity=622,  power=224)),
     ( 960000,  ActiveState(capacity=819,  power=367)),
     (1200000, ActiveState(capacity=1024, power=670))
