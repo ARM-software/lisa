@@ -29,11 +29,6 @@ from trace import Trace
 from . import _EasTest, energy_aware_conf, WORKLOAD_PERIOD_MS
 from unittest import SkipTest
 
-energy_aware_conf = {
-    "tag" : "energy_aware",
-    "flags" : ["ftrace", "freeze_userspace"],
-    "sched_features" : "ENERGY_AWARE",
-}
 
 WORKLOAD_PERIOD_MS =  10
 SET_IS_BIG_LITTLE = True
@@ -57,13 +52,13 @@ class _EnergyModelTest(LisaTest):
                 "sched_load_avg_task",
                 "sched_load_avg_cpu",
                 "sched_migrate_task",
-                "sched_switch"
+                "sched_switch",
+                "cpu_frequency",
+                "cpu_idle",
+                "cpu_capacity",
             ],
         },
         "modules": ["cgroups"],
-        "cpufreq" : {
-            "governor" : "sched",
-        },
     }
 
     negative_slack_allowed_pct = 15
@@ -90,9 +85,22 @@ class _EnergyModelTest(LisaTest):
                     'Either provide one manually or ensure it can be read '
                     'from the filesystem: {}'.format(e))
 
+        conf = {
+            'tag' : 'energy_aware',
+            'flags' : ['ftrace', 'freeze_userspace'],
+            'sched_features' : 'ENERGY_AWARE',
+        }
+
+        if 'cpufreq' in test_env.target.modules:
+            available_govs = test_env.target.cpufreq.list_governors(0)
+            if 'schedutil' in available_govs:
+                conf['cpufreq'] = {'governor' : 'schedutil'}
+            elif 'sched' in available_govs:
+                conf['cpufreq'] = {'governor' : 'sched'}
+
         return {
             'wloads' : cls.workloads,
-            'confs' : [energy_aware_conf]
+            'confs' : [conf],
         }
 
     @classmethod
