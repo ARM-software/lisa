@@ -575,7 +575,7 @@ def merge_maps(m1, m2):
 
 def merge_dicts_simple(base, other):
     result = base.copy()
-    for key, value in (base or {}).iteritems():
+    for key, value in (other or {}).iteritems():
         result[key] = merge_config_values(result.get(key), value)
     return result
 
