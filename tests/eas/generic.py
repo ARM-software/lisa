@@ -26,7 +26,6 @@ from energy_model import EnergyModel, EnergyModelCapacityError
 from perf_analysis import PerfAnalysis
 from test import LisaTest, experiment_test
 from trace import Trace
-from . import _EasTest, energy_aware_conf, WORKLOAD_PERIOD_MS
 from unittest import SkipTest
 
 
