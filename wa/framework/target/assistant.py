@@ -8,6 +8,7 @@ import time
 
 from wa import Parameter
 from wa.framework.exception import WorkerThreadError
+from wa.utils.misc import touch
 
 
 class LinuxAssistant(object):
@@ -121,8 +122,7 @@ class LogcatPoller(threading.Thread):
         self.logger.debug('clearing logcat buffer')
         with self.lock:
             self.target.clear_logcat()
-            with open(self.buffer_file, 'w') as _:  # NOQA
-                pass
+            touch(self.buffer_file)
 
     def write_log(self, outfile):
         with self.lock:
@@ -130,8 +130,7 @@ class LogcatPoller(threading.Thread):
             if os.path.isfile(self.buffer_file):
                 shutil.copy(self.buffer_file, outfile)
             else:  # there was no logcat trace at this time
-                with open(outfile, 'w') as _:  # NOQA
-                    pass
+                touch(outfile)
 
     def close(self):
         self.logger.debug('closing poller')

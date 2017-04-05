@@ -1,23 +1,36 @@
+import logging
 from collections import defaultdict, OrderedDict
 
-from wa.framework.plugin import Plugin
 from wa.framework.exception import ConfigError
+from wa.framework.plugin import Plugin, Parameter
+from wa.utils.misc import resolve_cpus, resolve_unique_domain_cpus
+from wa.utils.types import caseless_string
 
 from devlib.exception import TargetError
 from devlib.utils.misc import unique
 from devlib.utils.types import integer
+
+logger = logging.getLogger('RuntimeConfig')
+
+
+class RuntimeParameter(Parameter):
+    def __init__(self, name, setter, setter_params, **kwargs):
+        super(RuntimeParameter, self).__init__(name, **kwargs)
+        self.setter = setter
+        self.setter_params = setter_params
+
+    def set(self, obj, value):
+        self.validate_value(self.name, value)
+        self.setter(obj, value, **self.setter_params)
 
 
 class RuntimeConfig(Plugin):
 
     kind = 'runtime-config'
 
-    parameters = [
-    ]
-
     @property
     def supported_parameters(self):
-        raise NotImplementedError()
+        return self._runtime_params.values()
 
     @property
     def core_names(self):
@@ -26,17 +39,26 @@ class RuntimeConfig(Plugin):
     def __init__(self, target, **kwargs):
         super(RuntimeConfig, self).__init__(**kwargs)
         self.target = target
+        self._target_checked = False
+        self._runtime_params = {}
+        self.initialize()
 
-    def initialize(self, context):
-        pass
-
-    def add(self, name, value):
+    def initialize(self):
         raise NotImplementedError()
 
-    def validate(self):
-        return True
+    def commit(self):
+        raise NotImplementedError()
 
-    def set(self):
+    def set_runtime_parameter(self, name, value):
+        if not self._target_checked:
+            self.check_target()
+            self._target_checked = True
+        self._runtime_params[name].set(self, value)
+
+    def validate_parameters(self):
+        raise NotImplementedError()
+
+    def check_target(self):
         raise NotImplementedError()
 
     def clear(self):
@@ -44,255 +66,529 @@ class RuntimeConfig(Plugin):
 
 
 class HotplugRuntimeConfig(RuntimeConfig):
-##### NOTE: Currently if initialized with cores hotplugged, this will fail when trying to hotplug back in
+    '''
+    NOTE: Currently will fail if trying to hotplug back a core that
+    was hotplugged out when the devlib target was created.
+    '''
 
     name = 'rt-hotplug'
 
-    @property
-    def supported_parameters(self):
-        params = ['cores']
-        return params
+    @staticmethod
+    def set_num_cores(obj, value, core):
+        cpus = resolve_cpus(core, obj.target)
+        max_cores = len(cpus)
+        value = integer(value)
+        if value > max_cores:
+            msg = 'Cannot set number of {}\'s to {}; max is {}'
+            raise ValueError(msg.format(core, value, max_cores))
+
+        msg = 'CPU{} Hotplugging already configured'
+        # Set cpus to be enabled
+        for cpu in cpus[:value]:
+            if cpu in obj.num_cores:
+                raise ConfigError(msg.format(cpu))
+            obj.num_cores[cpu] = True
+        # Set the remaining cpus to be disabled.
+        for cpu in cpus[value:]:
+            if cpu in obj.num_cores:
+                raise ConfigError(msg.format(cpu))
+            obj.num_cores[cpu] = False
 
     def __init__(self, target):
-        super(HotplugRuntimeConfig, self).__init__(target)
         self.num_cores = defaultdict(dict)
+        super(HotplugRuntimeConfig, self).__init__(target)
 
-    def add(self, name, value):
+    def initialize(self):
         if not self.target.has('hotplug'):
-            raise TargetError('Target does not support hotplug.')
-        core, _ = split_parameter_name(name, self.supported_parameters)
+            return
+        param_name = 'num_cores'
+        self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=int,
+                                 constraint=lambda x:
+                                         0 < x <= self.target.number_of_cpus,
+                                 description="""
+                                 The number of cpu cores to be online
+                                 """,
+                                 setter=self.set_num_cores,
+                                 setter_params={'core': None})
 
-        # cpus = cpusFromPrefix(core, self.target)
-        # core = name.split('_')[0]
-        value = integer(value)
-        if core not in self.core_names:
-            raise ValueError(name)
-        max_cores = self.core_count(core)
-        if value > max_cores:
-            message = 'Cannot set number of {}\'s to {}; max is {}'
-            raise ValueError(message.format(core, value, max_cores))
-        self.num_cores[core] = value
-        if all(v == 0 for v in self.num_cores.values()):
-            raise ValueError('Cannot set number of all cores to 0')
+        for name in unique(self.target.platform.core_names):
+            param_name = 'num_{}_cores'.format(name)
+            self._runtime_params[param_name] = \
+                    RuntimeParameter(param_name, kind=int,
+                                     constraint=lambda x, name=name:
+                                             0 < x <= len(self.target.core_cpus(name)),
+                                     description="""
+                                     The number of {} cores to be online
+                                     """.format(name),
+                                     setter=self.set_num_cores,
+                                     setter_params={'core': name})
 
-    def set(self):
-        for c, n in reversed(sorted(self.num_cores.iteritems(),
-                                    key=lambda x: x[1])):
-            self.set_num_online_cpus(c, n)
+        for cpu_no in range(self.target.number_of_cpus):
+            param_name = 'cpu{}_online'.format(cpu_no)
+            self._runtime_params[param_name] = \
+                    RuntimeParameter(param_name, kind=bool,
+                                     description="""
+                                     Specify whether cpu{} should be online
+                                     """.format(cpu_no),
+                                     setter=self.set_num_cores,
+                                     setter_params={'core': cpu_no})
+
+        if self.target.has('bl'):
+            for cluster in ['big', 'little']:
+                param_name = 'num_{}_cores'.format(cluster)
+                self._runtime_params[param_name] = \
+                        RuntimeParameter(param_name, kind=int,
+                                         constraint=lambda x, cluster=cluster:
+                                                   0 < x <= len(resolve_cpus(cluster), self.target),
+                                         description="""
+                                         The number of cores on the {} cluster to be online
+                                         """.format(cluster),
+                                         setter=self.set_num_cores,
+                                         setter_params={'core': cluster})
+
+    def check_target(self):
+        if not self.target.has('hotplug'):
+            raise TargetError('Target does not appear to support hotplug')
+
+    def validate_parameters(self):
+        if len(self.num_cores) == self.target.number_of_cpus:
+            if all(v is False for v in self.num_cores.values()):
+                raise ValueError('Cannot set number of all cores to 0')
+
+    def commit(self):
+        '''Online all CPUs required in order before then off-lining'''
+        num_cores = sorted(self.num_cores.iteritems())
+        for cpu, online in num_cores:
+            if online:
+                self.target.hotplug.online(cpu)
+        for cpu, online in reversed(num_cores):
+            if not online:
+                self.target.hotplug.offline(cpu)
 
     def clear(self):
         self.num_cores = defaultdict(dict)
-
-    def set_num_online_cpus(self, core, number):
-        indexes = [i for i, c in enumerate(self.target.core_names) if c == core]
-        self.target.hotplug.online(*indexes[:number])
-        self.target.hotplug.offline(*indexes[number:])
-
-    def core_count(self, core):
-        return sum(1 for c in self.target.core_names if c == core)
 
 
 class SysfileValuesRuntimeConfig(RuntimeConfig):
 
     name = 'rt-sysfiles'
 
-    @property
-    def supported_parameters(self):
-        return ['sysfile_values']
+    #pylint: disable=unused-argument
+    @staticmethod
+    def set_sysfile(obj, value, core):
+        for path, value in value.iteritems():
+            verify = True
+            if path.endswith('!'):
+                verify = False
+                path = path[:-1]
+
+            if path in obj.sysfile_values:
+                msg = 'Syspath "{}:{}" already specified with a value of "{}"'
+                raise ConfigError(msg.foramt(path, value, obj.sysfile_values[path][0]))
+
+            obj.sysfile_values[path] = (value, verify)
 
     def __init__(self, target):
-        super(SysfileValuesRuntimeConfig, self).__init__(target)
         self.sysfile_values = OrderedDict()
+        super(SysfileValuesRuntimeConfig, self).__init__(target)
 
-    def add(self, name, value):
-        for f, v in value.iteritems():
-            if f.endswith('+'):
-                f = f[:-1]
-            elif f.endswith('+!'):
-                f = f[:-2] + '!'
-            else:
-                if f.endswith('!'):
-                    self._check_exists(f[:-1])
-                else:
-                    self._check_exists(f)
-            self.sysfile_values[f] = v
+    def initialize(self):
+        self._runtime_params['sysfile_values'] = \
+            RuntimeParameter('sysfile_values', kind=dict, merge=True,
+                              setter=self.set_sysfile,
+                              setter_params={'core': None},
+                              description="""
+                              Sysfile path to be set
+                              """)
 
-    def set(self):
-        for f, v in self.sysfile_values.iteritems():
-            verify = True
-            if f.endswith('!'):
-                verify = False
-                f = f[:-1]
-            self.target.write_value(f, v, verify=verify)
+    def check_target(self):
+        return True
+
+    def validate_parameters(self):
+        return
+
+    def commit(self):
+        for path, (value, verify) in self.sysfile_values.iteritems():
+            self.target.write_value(path, value, verify=verify)
 
     def clear(self):
         self.sysfile_values = OrderedDict()
 
-    def _check_exists(self, path):
+    def check_exists(self, path):
         if not self.target.file_exists(path):
             raise ConfigError('Sysfile "{}" does not exist.'.format(path))
 
+
+class FreqValue(object):
+
+    def __init__(self, values):
+        if values is None:
+            self.values = values
+        else:
+            self.values = sorted(values)
+
+    def __call__(self, value):
+        '''
+        `self.values` can be `None` if the device's supported values could not be retrieved
+        for some reason e.g. the cluster was offline, in this case we assume
+        the user values will be available and allow any integer values.
+        '''
+        if self.values is None:
+            if isinstance(value, int):
+                return value
+            else:
+                msg = 'CPU frequency values could not be retrieved, cannot resolve "{}"'
+                raise TargetError(msg.format(value))
+        elif isinstance(value, int) and value in self.values:
+            return value
+        elif isinstance(value, basestring):
+            value = caseless_string(value)
+            if value == 'max':
+                return self.values[-1]
+            elif value == 'min':
+                return self.values[0]
+
+        msg = 'Invalid frequency value: {}; Must be in {}'
+        raise ValueError(msg.format(value, self.values))
+
+    def __str__(self):
+        return 'valid frequency value: {}'.format(self.values)
 
 class CpufreqRuntimeConfig(RuntimeConfig):
 
     name = 'rt-cpufreq'
 
-    @property
-    def supported_parameters(self):
-        params = ['frequency']
-        params.extend(['max_frequency'])
-        params.extend(['min_frequency'])
-        params.extend(['governor'])
-        params.extend(['governor_tunables'])
+    @staticmethod
+    def set_frequency(obj, value, core):
+        obj.set_param(obj, value, core, 'frequency')
 
-        return params
+    @staticmethod
+    def set_max_frequency(obj, value, core):
+        obj.set_param(obj, value, core, 'max_frequency')
+
+    @staticmethod
+    def set_min_frequency(obj, value, core):
+        obj.set_param(obj, value, core, 'min_frequency')
+
+    @staticmethod
+    def set_governor(obj, value, core):
+        obj.set_param(obj, value, core, 'governor')
+
+    @staticmethod
+    def set_governor_tunables(obj, value, core):
+        obj.set_param(obj, value, core, 'governor_tunables')
+
+    @staticmethod
+    def set_param(obj, value, core, parameter):
+        '''Method to store passed parameter if it is not already specified for that cpu'''
+        cpus = resolve_unique_domain_cpus(core, obj.target)
+        for cpu in cpus:
+            if parameter in obj.config[cpu]:
+                msg = 'Cannot set "{}" for core "{}"; Parameter for CPU{} has already been set'
+                raise ConfigError(msg.format(parameter, core, cpu))
+            obj.config[cpu][parameter] = value
 
     def __init__(self, target):
+        self.config = defaultdict(dict)
+        self.supported_cpu_freqs = {}
+        self.supported_cpu_governors = {}
         super(CpufreqRuntimeConfig, self).__init__(target)
-        self.config = defaultdict(dict)
-        self.supports_userspace = None
-        self.supported_freqs = {}
-        self.supported_govenors = {}
-        self.min_supported_freq = {}
-        self.max_supported_freq = {}
 
-        if self.target.has('cpufreq'):
-            for cpu in self.target.list_online_cpus():
-                freqs = self.target.cpufreq.list_frequencies(cpu) or []
-                self.supported_freqs[cpu] = freqs
-                govs = self.target.cpufreq.list_governors(cpu) or []
-                self.supported_govenors[cpu] = govs
-        else:
-            self.logger.debug('Target does not support cpufreq')
-
-    def add(self, name, value):
+    def initialize(self):
         if not self.target.has('cpufreq'):
-            raise TargetError('Target does not support cpufreq.')
+            return
 
-        prefix, parameter = split_parameter_name(name, self.supported_parameters)
-        # Get list of valid cpus for a given prefix.
-        cpus = uniqueDomainCpusFromPrefix(prefix, self.target)
+        self._retrive_cpufreq_info()
+        common_freqs, common_gov = self._get_common_values()
 
-        for cpu in cpus:
-            # if cpu not in self.target.list_online_cpus():
-            #     message = 'Unexpected core name "{}"; must be in {}'
-            #     raise ConfigError(message.format(core, self.core_names))
-            # try:
-            #     cpu = self.target.list_online_cpus(core)[0]
-            # except IndexError:
-            #     message = 'Cannot retrieve frequencies for {} as no CPUs are online.'
-            #     raise TargetError(message.format(core))
-            if parameter.endswith('frequency'):
-                try:
-                    value = integer(value)
-                except ValueError:
-                    if value.upper() == 'MAX':
-                        value = self.supported_freqs[cpu][-1]
-                    elif value.upper() == 'MIN':
-                        value = self.supported_freqs[cpu][0]
-                    else:
-                        msg = 'Invalid value {} specified for {}'
-                        raise ConfigError(msg.format(value, parameter))
-            self.config[cpu][parameter] = value
+        # Add common parameters if available.
+        if common_freqs:
+            freq_val = FreqValue(common_freqs)
+            param_name = 'frequency'
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=freq_val,
+                          setter=self.set_frequency,
+                          setter_params={'core': None},
+                          description="""
+                          The desired frequency for all cores
+                          """)
+            param_name = 'max_frequency'
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=freq_val,
+                          setter=self.set_max_frequency,
+                          setter_params={'core': None},
+                          description="""
+                          The maximum frequency for all cores
+                          """)
+            param_name = 'min_frequency'
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=freq_val,
+                          setter=self.set_min_frequency,
+                          setter_params={'core': None},
+                          description="""
+                          The minimum frequency for all cores
+                          """)
 
-    def set(self):
-        for cpu in self.config:
-            config = self.config[cpu]
-            if config.get('governor'):
-                self.configure_governor(cpu,
-                                        config.get('governor'),
-                                        config.get('governor_tunables'))
-            self.configure_frequency(cpu,
-                                     config.get('frequency'),
-                                     config.get('min_frequency'),
-                                     config.get('max_frequency'))
+        if common_gov:
+            param_name = 'governor'
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=str,
+                          allowed_values=common_gov,
+                          setter=self.set_governor,
+                          setter_params={'core': None},
+                          description="""
+                          The governor to be set for all cores
+                          """)
+        param_name = 'governor_tunables'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=dict,
+                           merge=True,
+                           setter=self.set_governor_tunables,
+                           setter_params={'core': None},
+                           description="""
+                           The governor tunables to be set for all cores
+                           """)
 
-    def clear(self):
-        self.config = defaultdict(dict)
+        # Add core name parameters
+        for name in unique(self.target.platform.core_names):
+            cpu = resolve_unique_domain_cpus(name, self.target)[0]
+            freq_val = FreqValue(self.supported_cpu_freqs.get(cpu))
+            avail_govs = self.supported_cpu_governors.get(cpu)
 
-    def validate(self):
+            param_name = '{}_frequency'.format(name)
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=freq_val,
+                          setter=self.set_frequency,
+                          setter_params={'core': name},
+                          description="""
+                          The desired frequency for the {} cores
+                          """.format(name))
+            param_name = '{}_max_frequency'.format(name)
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=freq_val,
+                          setter=self.set_max_frequency,
+                          setter_params={'core': name},
+                          description="""
+                          The maximum frequency for the {} cores
+                          """.format(name))
+            param_name = '{}_min_frequency'.format(name)
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=freq_val,
+                          setter=self.set_min_frequency,
+                          setter_params={'core': name},
+                          description="""
+                          The minimum frequency for the {} cores
+                          """.format(name))
+            param_name = '{}_governor'.format(name)
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=str,
+                          allowed_values=avail_govs,
+                          setter=self.set_governor,
+                          setter_params={'core': name},
+                          description="""
+                          The governor to be set for the {} cores
+                          """.format(name))
+            param_name = '{}_gov_tunables'.format(name)
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=dict,
+                          setter=self.set_governor_tunables,
+                          setter_params={'core': name},
+                          merge=True,
+                          description="""
+                          The governor tunables to be set for the {} cores
+                          """.format(name))
+
+        # Add cpuX parameters.
+        for cpu_no in range(self.target.number_of_cpus):
+            freq_val = FreqValue(self.supported_cpu_freqs.get(cpu_no))
+            avail_govs = self.supported_cpu_governors.get(cpu_no)
+
+            param_name = 'cpu{}_frequency'.format(cpu_no)
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=freq_val,
+                          setter=self.set_frequency,
+                          setter_params={'core': cpu_no},
+                          description="""
+                          The desired frequency for cpu{}
+                          """.format(cpu_no))
+            param_name = 'cpu{}_max_frequency'.format(cpu_no)
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=freq_val,
+                          setter=self.set_max_frequency,
+                          setter_params={'core': cpu_no},
+                          description="""
+                          The maximum frequency for cpu{}
+                          """.format(cpu_no))
+            param_name = 'cpu{}_min_frequency'.format(cpu_no)
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=freq_val,
+                          setter=self.set_min_frequency,
+                          setter_params={'core': cpu_no},
+                          description="""
+                          The minimum frequency for cpu{}
+                          """.format(cpu_no))
+            param_name = 'cpu{}_governor'.format(cpu_no)
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=str,
+                          allowed_values=avail_govs,
+                          setter=self.set_governor,
+                          setter_params={'core': cpu_no},
+                          description="""
+                          The governor to be set for cpu{}
+                          """.format(cpu_no))
+            param_name = 'cpu{}_gov_tunables'.format(cpu_no)
+            self._runtime_params[param_name] = \
+                RuntimeParameter(param_name, kind=dict,
+                          setter=self.set_governor_tunables,
+                          setter_params={'core': cpu_no},
+                          merge=True,
+                          description="""
+                          The governor tunables to be set for cpu{}
+                          """.format(cpu_no))
+
+        # Add big.little cores if present on device.
+        if self.target.has('bl'):
+            for cluster in ['big', 'little']:
+                cpu = resolve_unique_domain_cpus(cluster, self.target)[0]
+                freq_val = FreqValue(self.smentupported_cpu_freqs.get(cpu))
+                avail_govs = self.supported_cpu_governors.get(cpu)
+                param_name = '{}_frequency'.format(cluster)
+
+                self._runtime_params[param_name] = \
+                    RuntimeParameter(param_name, kind=freq_val,
+                              setter=self.set_frequency,
+                              setter_params={'core': cluster},
+                              description="""
+                              The desired frequency for the {} cluster
+                              """.format(cluster)),
+                param_name = '{}_max_frequency'.format(cluster)
+                self._runtime_params[param_name] = \
+                    RuntimeParameter(param_name, kind=freq_val,
+                              setter=self.set_max_frequency,
+                              setter_params={'core': cluster},
+                              description="""
+                              The maximum frequency for the {} cluster
+                              """.format(cluster)),
+                param_name = '{}_min_frequency'.format(cluster)
+                self._runtime_params[param_name] = \
+                    RuntimeParameter(param_name, kind=freq_val,
+                              setter=self.set_min_frequency,
+                              setter_params={'core': cluster},
+                              description="""
+                              The minimum frequency for the {} cluster
+                              """.format(cluster)),
+                param_name = '{}_governor'.format(cluster)
+                self._runtime_params[param_name] = \
+                    RuntimeParameter(param_name, kind=str,
+                              allowed_values=avail_govs,
+                              setter=self.set_governor,
+                              setter_params={'core': cluster},
+                              description="""
+                              The governor to be set for the {} cores
+                              """.format(cluster)),
+                param_name = '{}_gov_tunables'.format(cluster)
+                self._runtime_params[param_name] = \
+                    RuntimeParameter(param_name, kind=dict,
+                              setter=self.set_governor_tunables,
+                              setter_params={'core': cluster},
+                              merge=True,
+                              description="""
+                              The governor tunables to be set for the {} cores
+                              """.format(cluster))
+
+    def check_target(self):
+        if not self.target.has('cpufreq'):
+            raise TargetError('Target does not appear to support cpufreq')
+
+    def validate_parameters(self):
+        '''Method to validate parameters against each other'''
         for cpu in self.config:
             if cpu not in self.target.list_online_cpus():
-                message = 'Cannot configure frequencies for {} as no CPUs are online.'
-                raise TargetError(message.format(cpu))
+                msg = 'Cannot configure frequencies for {} as no CPUs are online.'
+                raise TargetError(msg.format(cpu))
 
             config = self.config[cpu]
             minf = config.get('min_frequency')
             maxf = config.get('max_frequency')
             freq = config.get('frequency')
-            governor = config.get('governor')
-            governor_tunables = config.get('governor_tunables')
+
+            if freq and minf:
+                msg = 'CPU{}: Can\'t set both cpu frequency and minimum frequency'
+                raise ConfigError(msg.format(cpu))
+            if freq and maxf:
+                msg = 'CPU{}: Can\'t set both cpu frequency and maximum frequency'
+                raise ConfigError(msg.format(cpu))
 
             if maxf and minf > maxf:
-                message = '{}: min_frequency ({}) cannot be greater than max_frequency ({})'
-                raise ConfigError(message.format(cpu, minf, maxf))
+                msg = 'CPU{}: min_frequency "{}" cannot be greater than max_frequency "{}"'
+                raise ConfigError(msg.format(cpu, minf, maxf))
             if maxf and freq > maxf:
-                message = '{}: cpu frequency ({}) cannot be greater than max_frequency ({})'
-                raise ConfigError(message.format(cpu, freq, maxf))
-            if freq and minf > freq:
-                message = '{}: min_frequency ({}) cannot be greater than cpu frequency ({})'
-                raise ConfigError(message.format(cpu, minf, freq))
+                msg = 'CPU{}: cpu frequency "{}" cannot be greater than max_frequency "{}"'
+                raise ConfigError(msg.format(cpu, freq, maxf))
 
-            # Check that either userspace governor is available or min and max do not differ to frequency
-            if 'userspace' not in self.supported_govenors[cpu]:
-                self.supports_userspace = False
-                if minf and minf != freq:
-                    message = '{}: "userspace" governor not available, min frequency ({}) cannot be different to frequency {}'
-                    raise ConfigError(message.format(cpu, minf, freq))
-                if maxf and maxf != freq:
-                    message = '{}: "userspace" governor not available, max frequency ({}) cannot be different to frequency {}'
-                    raise ConfigError(message.format(cpu, maxf, freq))
-            else:
-                self.supports_userspace = True
+    def commit(self):
+        for cpu in self.config:
+            config = self.config[cpu]
+            self.configure_governor(cpu,
+                                    config.get('governor'),
+                                    config.get('governor_tunables'))
+            self.configure_frequency(cpu,
+                                     config.get('frequency'),
+                                     config.get('min_frequency'),
+                                     config.get('max_frequency'),
+                                     config.get('governor'))
 
-            # Check that specified values are available on the cpu
-            if minf and not minf in self.supported_freqs[cpu]:
-                msg = '{}: Minimum frequency {}Hz not available. Must be in {}'.format(cpu, minf, self.supported_freqs[cpu])
-                raise TargetError(msg)
-            if maxf and not maxf in self.supported_freqs[cpu]:
-                msg = '{}: Maximum frequency {}Hz not available. Must be in {}'.format(cpu, maxf, self.supported_freqs[cpu])
-                raise TargetError(msg)
-            if freq and not freq in self.supported_freqs[cpu]:
-                msg = '{}: Frequency {}Hz not available. Must be in {}'.format(cpu, freq, self.supported_freqs[cpu])
-                raise TargetError(msg)
-            if governor and governor not in self.supported_govenors[cpu]:
-                raise TargetError('{}: {} governor not available'.format(cpu, governor))
-            if governor_tunables and not governor:
-                raise TargetError('{}: {} governor tunables cannot be provided without a governor'.format(cpu, governor))
+    def clear(self):
+        self.config = defaultdict(dict)
 
-    def configure_frequency(self, cpu, freq=None, min_freq=None, max_freq=None):
+    def configure_governor(self, cpu, governor=None, gov_tunables=None):
+        if not governor and not gov_tunables:
+            return
         if cpu not in self.target.list_online_cpus():
-            message = 'Cannot configure frequencies for {} as no CPUs are online.'
-            raise TargetError(message.format(cpu))
+            msg = 'Cannot configure governor for {} as no CPUs are online.'
+            raise TargetError(msg.format(cpu))
+        if not governor:
+            governor = self.target.get_governor(cpu)
+        if not gov_tunables:
+            gov_tunables = {}
+        self.target.cpufreq.set_governor(cpu, governor, **gov_tunables)
 
+    def configure_frequency(self, cpu, freq=None, min_freq=None, max_freq=None, governor=None):
+        if freq and (min_freq or max_freq):
+            msg = 'Cannot specify both frequency and min/max frequency'
+            raise ConfigError(msg)
 
-        current_min_freq = self.target.cpufreq.get_min_frequency(cpu)
-        current_freq = self.target.cpufreq.get_frequency(cpu)
-        current_max_freq = self.target.cpufreq.get_max_frequency(cpu)
+        if cpu not in self.target.list_online_cpus():
+            msg = 'Cannot configure frequencies for CPU{} as no CPUs are online.'
+            raise TargetError(msg.format(cpu))
 
         if freq:
-            # If 'userspace' governor is not available 'spoof' functionality
-            if not self.supports_userspace:
-                min_freq = max_freq = freq
-            # else:  # Find better alternative for this.  
-                # Set min/max frequency if required
-                # if not min_freq:
-                #     min_freq = self.target.cpufreq.get_min_frequency(cpu)
-                # if not max_freq:
-                #     max_freq = self.target.cpufreq.get_max_frequency(cpu)
+            self._set_frequency(cpu, freq, governor)
+        else:
+            self._set_min_max_frequencies(cpu, min_freq, max_freq)
 
-            if freq < current_freq:
-                self.target.cpufreq.set_min_frequency(cpu, min_freq)
-                if self.supports_userspace:
-                    self.target.cpufreq.set_frequency(cpu, freq)
-                self.target.cpufreq.set_max_frequency(cpu, max_freq)
-            else:
-                self.target.cpufreq.set_max_frequency(cpu, max_freq)
-                if self.supports_userspace:
-                    self.target.cpufreq.set_frequency(cpu, freq)
-                self.target.cpufreq.set_min_frequency(cpu, min_freq)
-            return
+    def _set_frequency(self, cpu, freq, governor):
+        if not governor:
+            governor = self.target.cpufreq.get_governor(cpu)
+        has_userspace = governor == 'userspace'
 
+        # Sets all frequency to be to desired frequency
+        if freq < self.target.cpufreq.get_frequency(cpu):
+            self.target.cpufreq.set_min_frequency(cpu, freq)
+            if has_userspace:
+                self.target.cpufreq.set_frequency(cpu, freq)
+            self.target.cpufreq.set_max_frequency(cpu, freq)
+        else:
+            self.target.cpufreq.set_max_frequency(cpu, freq)
+            if has_userspace:
+                self.target.cpufreq.set_frequency(cpu, freq)
+            self.target.cpufreq.set_min_frequency(cpu, freq)
+
+    def _set_min_max_frequencies(self, cpu, min_freq, max_freq):
+        min_freq_set = False
+        current_min_freq = self.target.cpufreq.get_min_frequency(cpu)
+        current_max_freq = self.target.cpufreq.get_max_frequency(cpu)
         if max_freq:
             if max_freq < current_min_freq:
                 if min_freq:
@@ -300,170 +596,205 @@ class CpufreqRuntimeConfig(RuntimeConfig):
                     self.target.cpufreq.set_max_frequency(cpu, max_freq)
                     min_freq_set = True
                 else:
-                    message = '{}: Cannot set max_frequency ({}) below current min frequency ({}).'
-                    raise TargetError(message.format(cpu, max_freq, current_min_freq))
+                    msg = 'CPU {}: Cannot set max_frequency ({}) below current min frequency ({}).'
+                    raise ConfigError(msg.format(cpu, max_freq, current_min_freq))
             else:
                 self.target.cpufreq.set_max_frequency(cpu, max_freq)
         if min_freq and not min_freq_set:
             current_max_freq = max_freq or current_max_freq
             if min_freq > current_max_freq:
-                message = '{}: Cannot set min_frequency ({}) below current max frequency ({}).'
-                raise TargetError(message.format(cpu, max_freq, current_min_freq))
+                msg = 'CPU {}: Cannot set min_frequency ({}) above current max frequency ({}).'
+                raise ConfigError(msg.format(cpu, min_freq, current_max_freq))
             self.target.cpufreq.set_min_frequency(cpu, min_freq)
 
+    def _retrive_cpufreq_info(self):
+        '''
+        Tries to retrieve cpu freq information for all cpus on device.
+        For each cpu domain, only one cpu is queried for information and
+        duplicated across related cpus. This is to reduce calls to the target
+        and as long as one core per domain is online the remaining cpus information
+        can still be populated.
+        '''
+        for cluster_cpu in resolve_unique_domain_cpus('all', self.target):
+            domain_cpus = self.target.cpufreq.get_domain_cpus(cluster_cpu)
+            for cpu in domain_cpus:
+                if cpu in self.target.list_online_cpus():
+                    supported_cpu_freqs = self.target.cpufreq.list_frequencies(cpu)
+                    supported_cpu_governors = self.target.cpufreq.list_governors(cpu)
+                    break
+            else:
+                msg = 'CPUFreq information could not be retrieved for{};'\
+                      'Will not be validated against device.'
+                logger.debug(msg.format(' CPU{},'.format(cpu for cpu in domain_cpus)))
+                return
 
-    def configure_governor(self, cpu, governor, governor_tunables=None):
-        if cpu not in self.target.list_online_cpus():
-            message = 'Cannot configure governor for {} as no CPUs are online.'
-            raise TargetError(message.format(cpu))
+            for cpu in domain_cpus:
+                self.supported_cpu_freqs[cpu] = supported_cpu_freqs
+                self.supported_cpu_governors[cpu] = supported_cpu_governors
 
-        # for cpu in self.target.list_online_cpus(cpu): #All cpus or only online?
-        if governor not in self.supported_govenors[cpu]:
-            raise TargetError('{}: {} governor not available'.format(cpu, governor))
-        if governor_tunables:
-            self.target.cpufreq.set_governor(cpu, governor, **governor_tunables)
+    def _get_common_values(self):
+        ''' Find common values for frequency and governors across all cores'''
+        common_freqs = None
+        common_gov = None
+        initialized = False
+        for cpu in resolve_unique_domain_cpus('all', self.target):
+            if not initialized:
+                initialized = True
+                if self.supported_cpu_freqs.get(cpu):
+                    common_freqs = set(self.supported_cpu_freqs.get(cpu))
+                if self.supported_cpu_governors.get(cpu):
+                    common_gov = set(self.supported_cpu_governors.get(cpu))
+            else:
+                if self.supported_cpu_freqs.get(cpu):
+                    common_freqs = common_freqs.intersection(self.supported_cpu_freqs.get(cpu))
+                if self.supported_cpu_governors.get(cpu):
+                    common_gov = common_gov.intersection(self.supported_cpu_governors.get(cpu))
+
+        return common_freqs, common_gov
+
+class IdleStateValue(object):
+
+    def __init__(self, values):
+        if values is None:
+            self.values = values
         else:
-            self.target.cpufreq.set_governor(cpu, governor)
+            self.values = [(value.id, value.name, value.desc) for value in values]
 
+    def __call__(self, value):
+        if self.values is None:
+            return value
+
+        if isinstance(value, basestring):
+            value = caseless_string(value)
+            if value == 'all':
+                return [state[0] for state in self.values]
+            elif value == 'none':
+                return []
+            else:
+                return [self._get_state_ID(value)]
+
+        elif isinstance(value, list):
+            valid_states = []
+            for state in value:
+                valid_states.append(self._get_state_ID(state))
+            return valid_states
+        else:
+            raise ValueError('Invalid IdleState: "{}"'.format(value))
+
+    def _get_state_ID(self, value):
+        '''Checks passed state and converts to its ID'''
+        value = caseless_string(value)
+        for s_id, s_name, s_desc in self.values:
+            if value == s_id or value == s_name or value == s_desc:
+                return s_id
+        msg = 'Invalid IdleState: "{}"; Must be in {}'
+        raise ValueError(msg.format(value, self.values))
+
+    def __str__(self):
+        return 'valid idle state: "{}"'.format(self.values).replace('\'', '')
 
 
 class CpuidleRuntimeConfig(RuntimeConfig):
 
     name = 'rt-cpuidle'
 
-    @property
-    def supported_parameters(self):
-        params = ['idle_states']
-        return params
+    @staticmethod
+    def set_idle_state(obj, value, core):
+        cpus = resolve_cpus(core, obj.target)
+        for cpu in cpus:
+            obj.config[cpu] = []
+            for state in value:
+                obj.config[cpu].append(state)
 
     def __init__(self, target):
-        super(CpuidleRuntimeConfig, self).__init__(target)
         self.config = defaultdict(dict)
-        self.aliases = ['ENABLE_ALL', 'DISABLE_ALL']
-        self.available_states = {}
+        self.supported_idle_states = {}
+        super(CpuidleRuntimeConfig, self).__init__(target)
 
-        if self.target.has('cpuidle'):
-            for cpu in self.target.list_online_cpus():
-                self.available_states[cpu] = self.target.cpuidle.get_states(cpu) or []
-        else:
-            self.logger.debug('Target does not support cpuidle.')
-
-    def add(self, name, values):
+    def initialize(self):
         if not self.target.has('cpuidle'):
-            raise TargetError('Target does not support cpuidle.')
+            return
 
-        prefix, _ = split_parameter_name(name, self.supported_parameters)
-        cpus = uniqueDomainCpusFromPrefix(prefix, self.target)
+        self._retrieve_device_idle_info()
 
-        for cpu in cpus:
-            if values in self.aliases:
-                self.config[cpu] = [values]
-            else:
-                self.config[cpu] = values
+        common_idle_states = self._get_common_idle_values()
+        idle_state_val = IdleStateValue(common_idle_states)
 
-    def validate(self):
-        for cpu in self.config:
-            if cpu not in self.target.list_online_cpus():
-                message = 'Cannot configure idle states for {} as no CPUs are online.'
-                raise TargetError(message.format(cpu))
-            for state in self.config[cpu]:
-                state = state[1:] if state.startswith('~') else state
-                # self.available_states.extend(self.aliases)
-                if state not in self.available_states[cpu] + self.aliases:
-                    message = 'Unexpected idle state "{}"; must be in {}'
-                    raise ConfigError(message.format(state, self.available_states))
+        if common_idle_states:
+            param_name = 'idle_states'
+            self._runtime_params[param_name] = \
+                    RuntimeParameter(param_name, kind=idle_state_val,
+                                     setter=self.set_idle_state,
+                                     setter_params={'core': None},
+                                     description="""
+                                     The idle states to be set for all cores
+                                     """)
+
+        for name in unique(self.target.platform.core_names):
+            cpu = resolve_cpus(name, self.target)[0]
+            idle_state_val = IdleStateValue(self.supported_idle_states.get(cpu))
+            param_name = '{}_idle_states'.format(name)
+            self._runtime_params[param_name] = \
+                    RuntimeParameter(param_name, kind=idle_state_val,
+                                     setter=self.set_idle_state,
+                                     setter_params={'core': name},
+                                     description="""
+                                     The idle states to be set for {} cores
+                                     """.format(name))
+
+        for cpu_no in range(self.target.number_of_cpus):
+            idle_state_val = IdleStateValue(self.supported_idle_states.get(cpu_no))
+            param_name = 'cpu{}_idle_states'.format(cpu_no)
+            self._runtime_params[param_name] = \
+                    RuntimeParameter(param_name, kind=idle_state_val,
+                                     setter=self.set_idle_state,
+                                     setter_params={'core': cpu_no},
+                                     description="""
+                                     The idle states to be set for cpu{}
+                                     """.format(cpu_no))
+
+        if self.target.has('bl'):
+            for cluster in ['big', 'little']:
+                cpu = resolve_cpus(cluster, self.target)[0]
+                idle_state_val = IdleStateValue(self.supported_idle_states.get(cpu))
+                param_name = '{}_idle_states'.format(cluster)
+                self._runtime_params[param_name] = \
+                        RuntimeParameter(param_name, kind=idle_state_val,
+                                         setter=self.set_idle_state,
+                                         setter_params={'core': cluster},
+                                         description="""
+                                         The idle states to be set for the {} cores
+                                         """.format(cluster))
+
+    def check_target(self):
+        if not self.target.has('cpuidle'):
+            raise TargetError('Target does not appear to support cpuidle')
+
+    def validate_parameters(self):
+        return
 
     def clear(self):
         self.config = defaultdict(dict)
 
-    def set(self):
+    def commit(self):
         for cpu in self.config:
-            for state in self.config[cpu]:
-                self.configure_idle_state(state, cpu)
+            idle_states = set(state.id for state in self.supported_idle_states.get(cpu, []))
+            enabled = self.config[cpu]
+            disabled = idle_states.difference(enabled)
+            for state in enabled:
+                self.target.cpuidle.enable(state, cpu)
+            for state in disabled:
+                self.target.cpuidle.disable(state, cpu)
 
-    def configure_idle_state(self, state, cpu=None):
-        if cpu is not None:
-            if cpu not in self.target.list_online_cpus():
-                message = 'Cannot configure idle state for {} as no CPUs are online {}.'
-                raise TargetError(message.format(self.target.core_names[cpu], self.target.list_online_cpus()))
-        else:
-            cpu = 0
+    def _retrieve_device_idle_info(self):
+        for cpu in range(self.target.number_of_cpus):
+            self.supported_idle_states[cpu] = self.target.cpuidle.get_states(cpu)
 
-        # Check for aliases
-        if state == 'ENABLE_ALL':
-            self.target.cpuidle.enable_all(cpu)
-        elif state == 'DISABLE_ALL':
-            self.target.cpuidle.disable_all(cpu)
-        elif state.startswith('~'):
-            self.target.cpuidle.disable(state[1:], cpu)
-        else:
-            self.target.cpuidle.enable(state, cpu)
-
-# TO BE MOVED TO UTILS FILE
-
-import re
-# Function to return the cpu prefix without the trailing underscore if
-# present from a given list of parameters, and its matching parameter
-def split_parameter_name(name, params):
-    for param in sorted(params, key=len)[::-1]: # Try matching longest parameter first
-        if len(name.split(param)) > 1:
-            prefix, _ = name.split(param)
-            return prefix[:-1], param
-    message = 'Cannot split {}, must in the form [core_]parameter'
-    raise ConfigError(message.format(name))
-
-def cpusFromPrefix(prefix, target):
-
-    # Deal with big little substitution
-    if prefix.lower() == 'big':
-        prefix = target.big_core
-        if not prefix:
-            raise ConfigError('big core name could not be retrieved')
-    elif prefix.lower() == 'little':
-        prefix = target.little_core
-        if not prefix:
-            raise ConfigError('little core name could not be retrieved')
-
-    cpu_list = target.list_online_cpus() + target.list_offline_cpus()
-
-    # Apply to all cpus
-    if not prefix:
-        cpus = cpu_list
-
-    # Return all cores with specified name
-    elif prefix in target.core_names:
-        cpus = target.core_cpus(prefix)
-
-    # Check if core number has been supplied.
-    else:
-        # core_no = prefix[4]
-        core_no = re.match('cpu([0-9]+)', prefix, re.IGNORECASE)
-        if core_no:
-            cpus = [int(core_no.group(1))]
-            if cpus[0] not in cpu_list:
-                message = 'CPU{} is not available, must be in {}'
-                raise ConfigError(message.format(cpus[0], cpu_list))
-
-        else:
-            message = 'Unexpected core name "{}"'
-            raise ConfigError(message.format(prefix))
-    # Should this be applied for everything or just all cpus?
-    # Make sure not to include any cpus within the same frequency domain
-    # for cpu in cpus:
-    #     if cpu not in cpus: # Already removed
-    #         continue
-    #     cpus = [c for c in cpus if (c is cpu) or
-    #                 (c not in target.cpufreq.get_domain_cpus(cpu))]
-    # print 'Final results ' + str(cpus)
-    # return cpus
-    return cpus
-
-# Function to only return cpus list on different frequency domains.
-def uniqueDomainCpusFromPrefix(prefix, target):
-    cpus = cpusFromPrefix(prefix, target)
-    for cpu in cpus:
-        if cpu not in cpus: # Already removed
-            continue
-        cpus = [c for c in cpus if (c is cpu) or
-                    (c not in target.cpufreq.get_domain_cpus(cpu))]
-    return cpus
+    def _get_common_idle_values(self):
+        '''Find common values for cpu idle states across all cores'''
+        common_idle_states = []
+        for cpu in range(self.target.number_of_cpus):
+            for state in self.supported_idle_states.get(cpu):
+                if state.name not in common_idle_states:
+                    common_idle_states.append(state)
+        return common_idle_states
