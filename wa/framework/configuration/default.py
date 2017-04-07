@@ -1,7 +1,7 @@
-from wlauto.core.configuration.configuration import MetaConfiguration, RunConfiguration
-from wlauto.core.configuration.plugin_cache import PluginCache
-from wlauto.utils.serializer import yaml
-from wlauto.utils.doc import strip_inlined_text
+from wa.framework.configuration.core import MetaConfiguration, RunConfiguration
+from wa.framework.configuration.plugin_cache import PluginCache
+from wa.utils.serializer import yaml
+from wa.utils.doc import strip_inlined_text
 
 DEFAULT_INSTRUMENTS = ['execution_time',
                        'interrupts',

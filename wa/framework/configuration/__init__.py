@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from wlauto.core.configuration.configuration import (settings,
-                                                     RunConfiguration,
-                                                     JobGenerator,
-                                                     ConfigurationPoint)
-from wlauto.core.configuration.plugin_cache import PluginCache
+from wa.framework.configuration.core import (settings,
+                                             RunConfiguration,
+                                             JobGenerator,
+                                             ConfigurationPoint)

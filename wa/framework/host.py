@@ -1,6 +1,6 @@
 import os
 
-from wlauto.core.configuration import settings
+from wa.framework.configuration.core import settings
 
 def init_user_directory(overwrite_existing=False):  # pylint: disable=R0914
     """

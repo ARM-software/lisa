@@ -18,9 +18,11 @@ import sys
 
 
 from wa import Command, settings
-from wa.framework.configuration import RunConfiguration
+from wa.framework import pluginloader
+from wa.framework.agenda import Agenda
 from wa.framework.resource import Executable, NO_ONE, ResourceResolver
-from wa.utils.revent import ReventRecorder
+from wa.framework.configuration import RunConfiguration
+from wa.framework.workload import ApkUiautoWorkload
 
 
 class RecordCommand(Command):

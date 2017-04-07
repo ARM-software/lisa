@@ -54,7 +54,7 @@ from devlib.utils.misc import (ABI_MAP, check_output, walk_modules,
 check_output_logger = logging.getLogger('check_output')
 
 
-# Defined here rather than in wlauto.exceptions due to module load dependencies
+# Defined here rather than in wa.exceptions due to module load dependencies
 def diff_tokens(before_token, after_token):
     """
     Creates a diff of two tokens.

@@ -17,7 +17,8 @@ import os
 import time
 
 from wa.framework.plugin import TargetedPlugin
-from wa.framework.resource import ApkFile, JarFile, ReventFile, NO_ONE
+from wa.framework.resource import (ApkFile, JarFile, ReventFile, NO_ONE,
+                                   Executable)
 from wa.framework.exception import WorkloadError
 
 from devlib.utils.android import ApkInfo
