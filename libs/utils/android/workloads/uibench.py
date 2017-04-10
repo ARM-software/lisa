@@ -34,21 +34,33 @@ class UiBench(Workload):
 
     # Supported activities list, obtained via:
     # adb shell dumpsys package | grep -i uibench | grep Activity
-    test_BitmapUpload = 'BitmapUploadActivity'
-    test_DialogList = 'DialogListActivity'
-    test_EditTextType = 'EditTextTypeActivity'
-    test_FullscreenOverdraw = 'FullscreenOverdrawActivity'
-    test_GlTextureView = 'GlTextureViewActivity'
-    test_InflatingList = 'InflatingListActivity'
-    test_Invalidate = 'InvalidateActivity'
-    test_ShadowGrid = 'ShadowGridActivity'
-    test_TextCacheHighHitrate = 'TextCacheHighHitrateActivity'
-    test_TextCacheLowHitrate = 'TextCacheLowHitrateActivity'
-    test_Transition = 'ActivityTransition'
-    test_TransitionDetails = 'ActivityTransitionDetails'
-    test_TrivialAnimation = 'TrivialAnimationActivity'
-    test_TrivialList = 'TrivialListActivity'
-    test_TrivialRecyclerView = 'TrivialRecyclerViewActivity'
+    #
+    # test_actions is a dictonary of standard actions to perform for each activity in uibench
+    # Possible actions are as follows, or None if no action is to be performed:
+    #  - 'vswipe'
+    #  - 'tap'
+    #  - A list with any combination of the above, in execution order
+    test_actions = {
+        # General
+        'DialogListActivity':           'vswipe',
+        'FullscreenOverdrawActivity':   None,
+        'GlTextureViewActivity':        None,
+        'InvalidateActivity':           None,
+        'TrivialAnimationActivity':     None,
+        'TrivialListActivity':          'vswipe',
+        'TrivialRecyclerViewActivity':  'vswipe',
+        # Inflation
+        'InflatingListActivity':        'vswipe',
+        # Rendering
+        'BitmapUploadActivity':         None,
+        'ShadowGridActivity':           ['tap', 'vswipe'],
+        # Text
+        'EditTextTypeActivity':         None,
+        'TextCacheHighHitrateActivity': 'vswipe',
+        'TextCacheLowHitrateActivity':  'vswipe',
+        # Transitions
+        'ActivityTransition':           ['tap', 'tap'],
+    }
 
     def __init__(self, test_env):
         super(UiBench, self).__init__(test_env)
@@ -58,7 +70,7 @@ class UiBench(Workload):
         # Set of output data reported by UiBench
         self.db_file = None
 
-    def run(self, out_dir, test_name, duration_s, collect='', action=''):
+    def run(self, out_dir, test_name, duration_s, collect=''):
         """
         Run single UiBench workload.
 
@@ -77,15 +89,15 @@ class UiBench(Workload):
             - 'ftrace'
             - any combination of the above
         :type collect: list(str)
-
-        :param action: Perform user interactions during the test. Possible values:
-            - 'vswipe'
-            - 'tap'
-            - any combination of the above in execution order
-        :type action: list(str)
         """
 
         activity = '.' + test_name
+
+        action = None
+        if test_name in self.test_actions:
+            action = self.test_actions[test_name]
+            # Format actions as a list if it is just a single string item
+            action = [action] if isinstance(action, basestring) else action
 
         # Keep track of mandatory parameters
         self.out_dir = out_dir
@@ -152,9 +164,7 @@ class UiBench(Workload):
         start = time()
 
         if action:
-            # Format actions as a list if it is just a single string item
-            actions = [action] if isinstance(action, basestring) else action
-            for a in actions:
+            for a in action:
                 self._perform_action(a)
 
         while (time() - start) < duration_s:
@@ -178,7 +188,10 @@ class UiBench(Workload):
         System.set_airplane_mode(self._target, on=False)
         Screen.set_brightness(self._target, auto=True)
 
-    def _perform_action(self, action, delay_s=0):
+    def _perform_action(self, action, delay_s=1.0):
+        # Delay before performing action
+        sleep(delay_s)
+
         if action == 'vswipe':
             # Action: A fast Swipe Up/Scroll Down
             System.vswipe(self._target, 20, 80, 50)
@@ -186,7 +199,5 @@ class UiBench(Workload):
         if action == 'tap':
             # Action: Tap in the centre of the screen
             System.tap(self._target, 50, 50)
-
-        sleep(delay_s)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
