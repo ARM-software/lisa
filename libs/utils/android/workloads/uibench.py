@@ -58,7 +58,7 @@ class UiBench(Workload):
         # Set of output data reported by UiBench
         self.db_file = None
 
-    def run(self, out_dir, test_name, duration_s, collect=''):
+    def run(self, out_dir, test_name, duration_s, collect='', framestats=False):
         """
         Run single UiBench workload.
 
@@ -77,6 +77,9 @@ class UiBench(Workload):
             - 'ftrace'
             - any combination of the above
         :type collect: list(str)
+
+        :param framestats: poll gfxinfo framestats data
+        :type framestats: bool
         """
 
         activity = '.' + test_name
@@ -105,8 +108,15 @@ class UiBench(Workload):
         # Force screen in PORTRAIT mode
         Screen.set_orientation(self._target, portrait=True)
 
-        # Reset frame statistics
-        System.gfxinfo_reset(self._target, self.package)
+        # Output file used for gfxinfo
+        self.db_file = os.path.join(out_dir, "framestats.txt")
+
+        if framestats:
+            # Begin frame statistics polling
+            self.gfxinfoStart(self.db_file)
+        else:
+            # Reset frame statistics
+            System.gfxinfo_reset(self._target, self.package)
         sleep(1)
 
         # Clear logcat
@@ -147,9 +157,12 @@ class UiBench(Workload):
         self._log.debug("Benchmark done!")
         self.tracingStop()
 
-        # Get frame stats
-        self.db_file = os.path.join(out_dir, "framestats.txt")
-        System.gfxinfo_get(self._target, self.package, self.db_file)
+        if framestats:
+            # End frame statistics polling
+            self.gfxinfoStop()
+        else:
+            # Get frame stats
+            System.gfxinfo_get(self._target, self.package, self.db_file)
 
         # Close and clear application
         System.force_stop(self._target, self.package, clear=True)

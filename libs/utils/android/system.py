@@ -268,7 +268,7 @@ class System(object):
         target.execute('dumpsys gfxinfo {} reset'.format(apk_name))
 
     @staticmethod
-    def gfxinfo_get(target, apk_name, out_file):
+    def gfxinfo_get(target, apk_name, out_file, framestats=False):
         """
         Collect frame statistics for the given app.
 
@@ -280,9 +280,14 @@ class System(object):
 
         :param out_file: output file name
         :type out_file: str
+
+        :param framestats: collect framestats and *append* to out_file
+        :type framestats: bool
         """
-        adb_command(target.adb_name,
-                    GET_FRAMESTATS_CMD.format(apk_name, out_file))
+        cmd = GET_FRAMESTATS_CMD.format(apk_name, out_file)
+        if framestats:
+            cmd = cmd.replace('>', 'framestats >>')
+        adb_command(target.adb_name, cmd)
 
     @staticmethod
     def monkey(target, apk_name, event_count=1):
