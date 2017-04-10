@@ -210,7 +210,7 @@ class TestRTAComposition(RTABase):
 
 
 class TestRTACustom(RTABase):
-    def test_custom_smoke(self):
+    def _test_custom_smoke(self, calibration):
         """
         Test RTA custom workload
 
@@ -221,7 +221,7 @@ class TestRTACustom(RTABase):
 
         json_path = os.path.join(os.getenv('LISA_HOME'),
                                  'assets', 'mp3-short.json')
-        rtapp = RTA(self.target, name='test', calibration=self.calibration)
+        rtapp = RTA(self.target, name='test', calibration=calibration)
 
         # Configure this RTApp instance to:
         rtapp.conf(kind='custom', params=json_path, duration=5,
@@ -249,3 +249,11 @@ class TestRTACustom(RTABase):
 
             self.assert_output_file_exists('output.log')
             self.assert_output_file_exists('test_00.json')
+
+    def test_custom_smoke_calib(self):
+        """Test RTA custom workload (providing calibration)"""
+        self._test_custom_smoke(self.calibration)
+
+    def test_custom_smoke_no_calib(self):
+        """Test RTA custom workload (providing no calibration)"""
+        self._test_custom_smoke(None)
