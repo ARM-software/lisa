@@ -306,6 +306,11 @@ class RTA(Workload):
         ifile.close()
         ofile.close()
 
+        with open(self.json) as f:
+            conf = json.load(f)
+        for tid in conf['tasks']:
+            self.tasks[tid] = {'pid': -1}
+
         return self.json
 
     def _confProfile(self):
