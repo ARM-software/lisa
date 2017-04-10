@@ -185,15 +185,24 @@ fi
 PYDIR="$LISA_HOME/ipynb"
 LOGFILE="$PYDIR/server.log"
 PIDFILE="$PYDIR/server.pid"
+URLFILE="$PYDIR/server.url"
+
+# Generate server URL
+TOKEN=$(cat /dev/urandom | tr -dc 'a-fA-F0-9' | fold -w 48 | head -n 1)
+URL="http://$IPADDR:$PORT/?token=$TOKEN"
+
 # Check if an instance is already running
 if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
-	echo "Server already running, opening new window in browser"
-    xdg-open "http://$IPADDR:8888/"
+	echo "Server already running:"
+    echo "  " $(cat $URLFILE)
+    xdg-open $(cat $URLFILE)
 	return 1
 fi
+
 # Start the server bindeed to the specified interface
-echo 'Starting IPython Notebook server...'
-echo "  IP Address :  http://$IPADDR:$PORT/"
+echo
+echo 'Notebook server configuration:'
+echo '  URL        : ' $URL
 echo '  Folder     : ' $PYDIR
 echo '  Logfile    : ' $LOGFILE
 echo '  PYTHONPATH : '
@@ -201,8 +210,11 @@ echo -e "\t${PYTHONPATH//:/\\n\\t}"
 cd $PYDIR
 echo
 echo -n 'Notebook server task: '
-nohup ipython notebook --ip=$IPADDR --port=$PORT &>$LOGFILE &
+nohup ipython notebook --ip=$IPADDR --port=$PORT \
+                       --NotebookApp.token=$TOKEN \
+                       >$LOGFILE 2>&1 &
 echo $! >$PIDFILE
+echo $URL >$URLFILE
 cd - >/dev/null
 }
 
