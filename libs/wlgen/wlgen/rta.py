@@ -305,6 +305,12 @@ class RTA(Workload):
         self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
         ofile = open(self.json, 'w')
         ifile = open(rtapp_conf, 'r')
+
+        # Calibration can either be a string like "CPU1" or an integer, if the
+        # former we need to quote it.
+        if type(calibration) != int:
+            calibration = '"{}"'.format(calibration)
+
         replacements = {
             '__DURATION__' : str(self.duration),
             '__PVALUE__'   : str(calibration),
