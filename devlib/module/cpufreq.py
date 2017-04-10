@@ -152,10 +152,14 @@ class CpufreqModule(Module):
         valid_tunables = self.list_governor_tunables(cpu)
         for tunable, value in kwargs.iteritems():
             if tunable in valid_tunables:
+                path = '/sys/devices/system/cpu/{}/cpufreq/{}/{}'.format(cpu, governor, tunable)
                 try:
-                    path = '/sys/devices/system/cpu/{}/cpufreq/{}/{}'.format(cpu, governor, tunable)
                     self.target.write_value(path, value)
-                except TargetError:  # May be an older kernel
+                except TargetError:
+                    if self.target.file_exists(path):
+                        # File exists but we did something wrong
+                        raise
+                    # Expected file doesn't exist, try older sysfs layout.
                     path = '/sys/devices/system/cpu/cpufreq/{}/{}'.format(governor, tunable)
                     self.target.write_value(path, value)
             else:
