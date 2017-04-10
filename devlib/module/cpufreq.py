@@ -133,7 +133,7 @@ class CpufreqModule(Module):
         keyword arguments. Which tunables and values are valid depends on the
         governor.
 
-        :param cpu: The cpu for which the governor will be set. This must be the
+        :param cpu: The cpu for which the governor will be set. ``int`` or
                     full cpu name as it appears in sysfs, e.g. ``cpu0``.
         :param governor: The name of the governor. Must be all lower case.
 
