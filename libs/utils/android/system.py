@@ -35,26 +35,43 @@ class System(object):
     """
 
     @staticmethod
-    def systrace_start(target, trace_file, time=None,
+    def systrace_start(env, trace_file, time=None,
                        events=['gfx', 'view', 'sched', 'freq', 'idle']):
+        """
+        Start tracing using systrace
+
+        :param env: Target test environment
+        :type env: TestEnv
+
+        :param trace_file: Name of the trace output
+        :type trace_file: str
+
+        :param time: Tracing duration in seconds. If no value is passed,
+                     will keep tracing until tracingStop() is called.
+        :type time: int
+
+        :param events: Events to trace
+        :type events: str list
+        """
 
         log = logging.getLogger('System')
 
         # Check which systrace binary is available under CATAPULT_HOME
         for systrace in ['systrace.py', 'run_systrace.py']:
-                systrace_path = os.path.join(target.CATAPULT_HOME, 'systrace',
+                systrace_path = os.path.join(env.CATAPULT_HOME, 'systrace',
                                              'systrace', systrace)
                 if os.path.isfile(systrace_path):
                         break
         else:
                 log.warning("Systrace binary not available under CATAPULT_HOME: %s!",
-                            target.CATAPULT_HOME)
+                            env.CATAPULT_HOME)
                 return None
 
         #  Format the command according to the specified arguments
-        device = target.conf.get('device', '')
+        device = env.conf.get('device', '')
         if device:
             device = "-e {}".format(device)
+
         systrace_pattern = "{} {} -o {} {}"
         trace_cmd = systrace_pattern.format(systrace_path, device,
                                             trace_file, " ".join(events))
