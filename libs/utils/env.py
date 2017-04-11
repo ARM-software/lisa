@@ -551,7 +551,7 @@ class TestEnv(ShareState):
             try:
                 self._log.info('Attempting to read energy model from target')
                 self.nrg_model = EnergyModel.from_target(self.target)
-            except (TargetError, RuntimeError) as e:
+            except (TargetError, RuntimeError, ValueError) as e:
                 self._log.error("Couldn't read target energy model: %s", e)
 
     def install_tools(self, tools):
