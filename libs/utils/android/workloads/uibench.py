@@ -70,7 +70,7 @@ class UiBench(Workload):
         # Set of output data reported by UiBench
         self.db_file = None
 
-    def run(self, out_dir, test_name, duration_s, collect=''):
+    def run(self, out_dir, test_name, duration_s, collect='', actions='default'):
         """
         Run single UiBench workload.
 
@@ -89,15 +89,27 @@ class UiBench(Workload):
             - 'ftrace'
             - any combination of the above
         :type collect: list(str)
+
+        :param actions: Specifies what actions to perform. Possible values:
+            - None      : Perform no action
+            - 'default' : Use the predefined default actions from the `test_actions` dict
+            - 'vswipe'  : Perform a vertical swipe
+            - 'tap'     : Perform a centre tap
+            - A list with any combination of vswipe and tap, in execution order
+        :type actions: list(str)
         """
 
         activity = '.' + test_name
 
-        action = None
-        if test_name in self.test_actions:
-            action = self.test_actions[test_name]
-            # Format actions as a list if it is just a single string item
-            action = [action] if isinstance(action, basestring) else action
+        # If default, get the default actions from test_actions
+        # If this is an undefined test, no action will be the default
+        if actions == 'default':
+            actions = None
+            if test_name in self.test_actions:
+                actions = self.test_actions[test_name]
+        # Format actions as a list if it is just a single string item,
+        # or an empty list if it is None
+        actions = [actions] if isinstance(actions, basestring) else actions if actions else []
 
         # Keep track of mandatory parameters
         self.out_dir = out_dir
@@ -163,9 +175,8 @@ class UiBench(Workload):
 
         start = time()
 
-        if action:
-            for a in action:
-                self._perform_action(a)
+        for action in actions:
+            self._perform_action(action)
 
         while (time() - start) < duration_s:
             sleep(1)
