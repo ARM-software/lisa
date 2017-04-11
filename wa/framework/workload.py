@@ -65,7 +65,7 @@ class Workload(TargetedPlugin):
     def run(self, context):
         """
         Execute the workload. This is the method that performs the actual
-        "work" of the.
+        "work" of the workload.
         """
         pass
 
