@@ -33,6 +33,11 @@ def instantiate_target(tdesc, params, connect=None):
 
     tp, pp, cp = {}, {}, {}
 
+    for supported_params, new_params in (target_params, tp), (platform_params, pp), (conn_params, cp):
+        for name, value in supported_params.iteritems():
+            if value.default:
+                new_params[name] = value.default
+
     for name, value in params.iteritems():
         if name in target_params:
             tp[name] = value
@@ -62,6 +67,8 @@ def instantiate_assistant(tdesc, params, target):
     for param in tdesc.assistant_params:
         if param.name in params:
             assistant_params[param.name] = params[param.name]
+        elif param.default:
+            assistant_params[param.name] = param.default
     return tdesc.assistant(target, **assistant_params)
 
 
