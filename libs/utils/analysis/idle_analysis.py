@@ -191,9 +191,8 @@ class IdleAnalysis(AnalysisModule):
 
         # Split between big and LITTLE CPUs ordered from higher to lower ID
         _cpus.reverse()
-        big_cpus = [c for c in _cpus if c in self._platform['clusters']['big']]
-        little_cpus = [c for c in _cpus if c in
-                       self._platform['clusters']['little']]
+        big_cpus = [c for c in _cpus if c in self._big_cpus]
+        little_cpus = [c for c in _cpus if c in self._little_cpus]
         _cpus = big_cpus + little_cpus
 
         residencies = []
@@ -221,6 +220,9 @@ class IdleAnalysis(AnalysisModule):
         """
         if not self._trace.hasEvents('cpu_idle'):
             self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
+            return
+        if 'clusters' not in self._platform:
+            self._log.warning('No platform cluster info. Plot DISABLED!')
             return
 
         # Sanitize clusters

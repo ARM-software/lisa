@@ -27,7 +27,8 @@ class TestTrace(TestCase):
     traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
     events = [
         'sched_switch',
-        'sched_overutilized'
+        'sched_overutilized',
+        'cpu_idle',
     ]
 
     def __init__(self, *args, **kwargs):
@@ -127,6 +128,25 @@ class TestTrace(TestCase):
         expected_time = (events[1] - events[0]) + (trace_end - events[2])
 
         self.assertAlmostEqual(self.trace.overutilized_time, expected_time, places=6)
+
+    def test_plotCPUIdleStateResidency(self):
+        """
+        Test that plotCPUIdleStateResidency doesn't crash
+        """
+        in_data = """
+            foo-1  [000] 0.01: cpu_idle: state=0 cpu_id=0
+            foo-1  [000] 0.02: cpu_idle: state=-1 cpu_id=0
+            bar-2  [000] 0.03: cpu_idle: state=0 cpu_id=1
+            bar-2  [000] 0.04: cpu_idle: state=-1 cpu_id=1
+            baz-3  [000] 0.05: cpu_idle: state=0 cpu_id=2
+            baz-3  [000] 0.06: cpu_idle: state=-1 cpu_id=2
+            bam-4  [000] 0.07: cpu_idle: state=0 cpu_id=3
+            bam-4  [000] 0.08: cpu_idle: state=-1 cpu_id=3
+            child-5678  [002] 18765.018235: sched_switch: prev_comm=child prev_pid=5678 prev_prio=120 prev_state=1 next_comm=father next_pid=5678 next_prio=120
+        """
+        trace = self.make_trace(in_data)
+
+        trace.analysis.idle.plotCPUIdleStateResidency()
 
     def test_deriving_cpus_count(self):
         """Test that Trace derives cpus_count if it isn't provided"""
