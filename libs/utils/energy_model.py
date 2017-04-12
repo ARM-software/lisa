@@ -795,9 +795,16 @@ class EnergyModel(object):
         # CPU0 and read_active_states(0, 1) will give the "cluster"-level
         # active_states for the "cluster" that contains CPU0.
 
+        def read_sge_file(path):
+            try:
+                return sge_file_values[path]
+            except KeyError as e:
+                raise TargetError('No such file: {}'.format(e))
+
         def read_active_states(cpu, domain_level):
             cap_states_path = sge_path(cpu, domain_level, 0, 'cap_states')
-            cap_states_strs = sge_file_values[cap_states_path].split()
+            cap_states_strs = read_sge_file(cap_states_path).split()
+
             # cap_states lists the capacity of each state followed by its power,
             # in increasing order. The `zip` call does this:
             #   [c0, p0, c1, p1, c2, p2] -> [(c0, p0), (c1, p1), (c2, p2)]
@@ -809,7 +816,8 @@ class EnergyModel(object):
 
         def read_idle_states(cpu, domain_level):
             idle_states_path = sge_path(cpu, domain_level, 0, 'idle_states')
-            idle_states_strs = sge_file_values[idle_states_path].split()
+            idle_states_strs = read_sge_file(idle_states_path).split()
+
             # get_states should return the state names in increasing depth order
             names = [s.name for s in target.cpuidle.get_states(cpu)]
             # idle_states is a list of power values in increasing order of
