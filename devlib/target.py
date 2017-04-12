@@ -929,7 +929,7 @@ class AndroidTarget(Target):
         lines.next()  # header
         result = []
         for line in lines:
-            parts = line.split()
+            parts = line.split(None, 8)
             if parts:
                 result.append(PsEntry(*(parts[0:1] + map(int, parts[1:5]) + parts[5:])))
         if not kwargs:
