@@ -209,7 +209,7 @@ class Executor(object):
     """
     The ``Executor``'s job is to set up the execution context and pass to a
     ``Runner`` along with a loaded run specification. Once the ``Runner`` has
-    done its thing, the ``Executor`` performs some final reporint before
+    done its thing, the ``Executor`` performs some final reporting before
     returning.
 
     The initial context set up involves combining configuration from various
