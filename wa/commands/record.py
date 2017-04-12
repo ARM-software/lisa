@@ -208,6 +208,58 @@ class RecordCommand(Command):
 
         return output_path, file_name
 
+class ReplayCommand(Command):
+
+    name = 'replay'
+    description = '''
+    Replay a revent recording
+
+    Revent allows you to record raw inputs such as screen swipes or button presses.
+    See ``wa show record`` to see how to make an revent recording.
+    '''
+
+    def initialize(self, context):
+        self.parser.add_argument('recording', help='The name of the file to replay',
+                                 metavar='FILE')
+        self.parser.add_argument('-d', '--device', help='The name of the device')
+        self.parser.add_argument('-p', '--package', help='Package to launch before recording')
+        self.parser.add_argument('-C', '--clear', help='Clear app cache before launching it',
+                                 action="store_true")
+
+    # pylint: disable=W0201
+    def execute(self, state, args):
+        if args.device:
+            device = args.device
+            device_config = {}
+        else:
+            device = state.run_config.device
+            device_config = state.run_config.device_config or {}
+
+        target_manager = TargetManager(device, device_config)
+        self.target = target_manager.target
+        revent_file = self.target.path.join(self.target.working_directory,
+                                            os.path.split(args.revent)[1])
+
+        self.logger.info("Pushing file to target")
+        self.target.push(args.revent, self.target.working_directory)
+
+        revent_recorder = ReventRecorder(target_manager.target)
+        revent_recorder.deploy()
+
+        if args.clear:
+            self.target.execute('pm clear {}'.format(args.package))
+
+        if args.package:
+            self.logger.info('Starting {}'.format(args.package))
+            cmd = 'monkey -p {} -c android.intent.category.LAUNCHER 1'
+            self.target.execute(cmd.format(args.package))
+
+        self.logger.info("Starting replay")
+        revent_recorder.replay(revent_file)
+        self.logger.info("Finished replay")
+        revent_recorder.remove()
+
+
 # Used to satisfy the workload API
 class LightContext(object):
     def __init__(self, tm):
