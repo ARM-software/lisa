@@ -225,7 +225,7 @@ class Executor(object):
         self.error_logged = False
         self.warning_logged = False
         pluginloader = None
-        self.device_manager = None
+        self.target_manager = None
         self.device = None
 
     def execute(self, config_manager, output):
@@ -249,12 +249,12 @@ class Executor(object):
         output.write_config(config)
 
         self.logger.info('Connecting to target')
-        target_manager = TargetManager(config.run_config.device,
+        self.target_manager = TargetManager(config.run_config.device,
                                        config.run_config.device_config)
-        output.write_target_info(target_manager.get_target_info())
+        output.write_target_info(self.target_manager.get_target_info())
 
         self.logger.info('Initializing execution conetext')
-        context = ExecutionContext(config_manager, target_manager, output)
+        context = ExecutionContext(config_manager, self.target_manager, output)
 
         self.logger.info('Generating jobs')
         config_manager.generate_jobs(context)
@@ -262,7 +262,7 @@ class Executor(object):
         output.write_state()
 
         self.logger.info('Installing instrumentation')
-        for instrument in config_manager.get_instruments(target_manager.target):
+        for instrument in config_manager.get_instruments(self.target_manager.target):
             instrumentation.install(instrument)
         instrumentation.validate()
 
