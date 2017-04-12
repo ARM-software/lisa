@@ -80,7 +80,16 @@ def get_from_location(basepath, resource):
         path = os.path.join(basepath, 'bin', resource.abi, resource.filename)
         if os.path.exists(path):
             return path
-    elif resource.kind in ['apk', 'jar', 'revent']:
+    elif resource.kind == 'revent':
+        path = os.path.join(basepath, 'revent_files')
+        if os.path.exists(path):
+            files = get_by_extension(path, resource.kind)
+            found_resource = get_generic_resource(resource, files)
+            if found_resource:
+                return found_resource
+        files = get_by_extension(basepath, resource.kind)
+        return get_generic_resource(resource, files)
+    elif resource.kind in ['apk', 'jar']:
         files = get_by_extension(basepath, resource.kind)
         return get_generic_resource(resource, files)
 
