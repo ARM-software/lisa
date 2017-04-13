@@ -59,6 +59,9 @@ class LisaBenchmark(object):
     bm_collect = None
     """Override this with the set of data to collect during test exeution"""
 
+    bm_iterations = 1
+    """Override this with the desired number of iterations of the test"""
+
     def benchmarkInit(self):
         """
         Code executed before running the benchmark
@@ -106,6 +109,9 @@ class LisaBenchmark(object):
                 help='Set of metrics to collect, '
                      'e.g. "energy systrace_30" to sample energy and collect a 30s systrace, '
                      'if specified overrides test defaults')
+        parser.add_argument('--iterations', type=int,
+                default=1,
+                help='Number of iterations the same test has to be repeated for (default 1)')
 
         # Measurements settings
         parser.add_argument('--iio-channel-map', type=str,
@@ -132,6 +138,8 @@ class LisaBenchmark(object):
             self.bm_conf['results_dir'] = self.args.results_dir
         if self.args.collect:
             self.bm_collect = self.args.collect
+        if self.args.iterations:
+            self.bm_iterations = self.args.iterations
 
         # Override energy meter configuration
         if self.args.iio_channel_map:
@@ -203,9 +211,16 @@ class LisaBenchmark(object):
             raise
 
         self._log.info('=== Execution...')
-        self.wl.run(out_dir=self.out_dir,
-                    collect=self._getBmCollect(),
-                    **self.bm_params)
+        for iter_id in range(1, self.bm_iterations+1):
+            self._log.info('=== Iteration {}/{}...'.format(iter_id, self.bm_iterations))
+            out_dir = os.path.join(self.out_dir, "{:03d}".format(iter_id))
+            try:
+                os.makedirs(out_dir)
+            except: pass
+
+            self.wl.run(out_dir=out_dir,
+                        collect=self._getBmCollect(),
+                        **self.bm_params)
 
         self._log.info('=== Finalization...')
         self.benchmarkFinalize()
