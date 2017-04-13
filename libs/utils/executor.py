@@ -171,7 +171,7 @@ class Executor():
     critical_tasks = {
         'linux': ['init', 'systemd', 'sh', 'ssh'],
         'android': [
-            'sh', 'adbd', 'init',
+            'sh', 'adbd',
             'usb', 'transport',
             # We don't actually need this task but on Google Pixel it apparently
             # cannot be frozen, so the cgroup state gets stuck in FREEZING if we
