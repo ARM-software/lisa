@@ -15,6 +15,7 @@
 
 import textwrap
 
+from wa.framework.exception import CommandError
 from wa.framework.plugin import Plugin
 from wa.framework.version import get_wa_version
 from wa.utils.doc import format_body
@@ -30,7 +31,7 @@ def init_argument_parser(parser):
     return parser
 
 
-class Command(Plugin):
+class SubCommand(object):
     """
     Defines a Workload Automation command. This will be executed from the
     command line as ``wa <command> [args ...]``. This defines the name to be
@@ -39,15 +40,14 @@ class Command(Plugin):
     command line arguments.
 
     """
-    kind = "command"
     help = None
     usage = None
     description = None
     epilog = None
     formatter_class = None
 
-    def __init__(self, subparsers):
-        super(Command, self).__init__()
+    def __init__(self, logger, subparsers):
+        self.logger = logger
         self.group = subparsers
         desc = format_body(textwrap.dedent(self.description), 80)
         parser_params = dict(help=(self.help or self.description), usage=self.usage,
@@ -79,3 +79,46 @@ class Command(Plugin):
 
         """
         raise NotImplementedError()
+
+
+class Command(Plugin, SubCommand):
+    """
+    Defines a Workload Automation command. This will be executed from the
+    command line as ``wa <command> [args ...]``. This defines the name to be
+    used when invoking wa, the code that will actually be executed on
+    invocation and the argument parser to be used to parse the reset of the
+    command line arguments.
+
+    """
+    kind = "command"
+
+    def __init__(self, subparsers):
+        Plugin.__init__(self)
+        SubCommand.__init__(self, self.logger, subparsers)
+
+
+class ComplexCommand(Command):
+    """
+    A command that defines sub-commands.
+
+    """
+
+    subcmd_classes = []
+
+    def __init__(self, subparsers):
+        self.subcommands = []
+        super(ComplexCommand, self).__init__(subparsers)
+
+    def initialize(self, context):
+        subparsers = self.parser.add_subparsers(dest='what', metavar='SUBCMD')
+        for subcmd_cls in self.subcmd_classes:
+            subcmd = subcmd_cls(self.logger, subparsers)
+            self.subcommands.append(subcmd)
+
+    def execute(self, state, args):
+        for subcmd in self.subcommands:
+            if subcmd.name == args.what:
+                subcmd.execute(state, args)
+                break
+        else:
+            raise CommandError('Not a valid create parameter: {}'.format(args.name))
