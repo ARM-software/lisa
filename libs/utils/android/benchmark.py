@@ -62,6 +62,12 @@ class LisaBenchmark(object):
     bm_iterations = 1
     """Override this with the desired number of iterations of the test"""
 
+    bm_iterations_pause = 30
+    """
+    Override this with the desired amount of time (in seconds) to pause
+    for before each iteration
+    """
+
     def benchmarkInit(self):
         """
         Code executed before running the benchmark
@@ -112,6 +118,9 @@ class LisaBenchmark(object):
         parser.add_argument('--iterations', type=int,
                 default=1,
                 help='Number of iterations the same test has to be repeated for (default 1)')
+        parser.add_argument('--iterations-pause', type=int,
+                default=30,
+                help='Amount of time (in seconds) to pause for before each iteration (default 30s)')
 
         # Measurements settings
         parser.add_argument('--iio-channel-map', type=str,
@@ -140,6 +149,8 @@ class LisaBenchmark(object):
             self.bm_collect = self.args.collect
         if self.args.iterations:
             self.bm_iterations = self.args.iterations
+        if self.args.iterations_pause:
+            self.bm_iterations_pause = self.args.iterations_pause
 
         # Override energy meter configuration
         if self.args.iio_channel_map:
@@ -186,6 +197,14 @@ class LisaBenchmark(object):
             return ''
         return self.bm_collect
 
+    def _preRun(self):
+        """
+        Code executed before every iteration of the benchmark
+        """
+        self._log.info('Waiting {}[s] before executing iteration...'\
+                .format(self.bm_iterations_pause))
+        sleep(self.bm_iterations_pause)
+
     def __init__(self):
         """
         Set up logging and trigger running experiments
@@ -217,6 +236,8 @@ class LisaBenchmark(object):
             try:
                 os.makedirs(out_dir)
             except: pass
+
+            self._preRun()
 
             self.wl.run(out_dir=out_dir,
                         collect=self._getBmCollect(),
