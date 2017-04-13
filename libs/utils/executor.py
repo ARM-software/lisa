@@ -559,7 +559,8 @@ class Executor():
             rtapp = wlgen.RTA(self.target,
                         wl_idx, calibration = self.te.calibration())
             rtapp.conf(kind='profile', params=params, loadref=loadref,
-                    cpus=cpus, run_dir=self.te.run_dir)
+                       cpus=cpus, run_dir=self.te.run_dir,
+                       duration=conf['duration'])
             return rtapp
 
         if conf['class'] == 'periodic':
@@ -571,7 +572,8 @@ class Executor():
             rtapp = wlgen.RTA(self.target,
                         wl_idx, calibration = self.te.calibration())
             rtapp.conf(kind='profile', params=params, loadref=loadref,
-                    cpus=cpus, run_dir=self.te.run_dir)
+                       cpus=cpus, run_dir=self.te.run_dir,
+                       duration=conf['duration'])
             return rtapp
 
         if conf['class'] == 'custom':
