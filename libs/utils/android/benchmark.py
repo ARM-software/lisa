@@ -59,6 +59,9 @@ class LisaBenchmark(object):
     bm_collect = None
     """Override this with the set of data to collect during test exeution"""
 
+    bm_reboot = False
+    """Override this with True if a boot image was passed as command line parameter"""
+
     bm_iterations = 1
     """Override this with the desired number of iterations of the test"""
 
@@ -147,6 +150,8 @@ class LisaBenchmark(object):
             raise NotImplementedError(msg)
 
         # Override default configuration with command line parameters
+        if self.args.boot_image:
+            self.bm_reboot = True
         if self.args.android_device:
             self.bm_conf['device'] = self.args.android_device
         if self.args.android_home:
@@ -207,13 +212,22 @@ class LisaBenchmark(object):
             return ''
         return self.bm_collect
 
+    def _preInit(self):
+        """
+        Code executed before running the benchmark
+        """
+        # If iterations_reboot is True we are going to reboot before the
+        # first iteration anyway.
+        if self.bm_reboot and not self.bm_iterations_reboot:
+            self.reboot_target()
+
     def _preRun(self):
         """
         Code executed before every iteration of the benchmark
         """
         rebooted = False
 
-        if self.bm_iterations_reboot:
+        if self.bm_reboot and self.bm_iterations_reboot:
             rebooted = self.reboot_target()
 
         if not rebooted:
@@ -240,6 +254,7 @@ class LisaBenchmark(object):
         self.wl = self._getWorkload()
         self.out_dir=self.te.res_dir
         try:
+            self._preInit()
             self.benchmarkInit()
         except:
             self._log.warning('Benchmark initialization failed: execution aborted')
