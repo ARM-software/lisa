@@ -221,6 +221,8 @@ class LisaBenchmark(object):
         if self.bm_reboot and not self.bm_iterations_reboot:
             self.reboot_target()
 
+        self.iterations_count = 1
+
     def _preRun(self):
         """
         Code executed before every iteration of the benchmark
@@ -230,10 +232,12 @@ class LisaBenchmark(object):
         if self.bm_reboot and self.bm_iterations_reboot:
             rebooted = self.reboot_target()
 
-        if not rebooted:
-            self._log.info('Waiting {}[s] before executing iteration...'\
-                           .format(self.bm_iterations_pause))
+        if not rebooted and self.iterations_count > 1:
+            self._log.info('Waiting {}[s] before executing iteration {}...'\
+                           .format(self.bm_iterations_pause, self.iterations_count))
             sleep(self.bm_iterations_pause)
+
+        self.iterations_count += 1
 
     def __init__(self):
         """
