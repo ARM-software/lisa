@@ -68,6 +68,12 @@ class LisaBenchmark(object):
     for before each iteration
     """
 
+    bm_iterations_reboot = False
+    """
+    Override this with the desired behaviour: reboot or not reboot before
+    each iteration
+    """
+
     def benchmarkInit(self):
         """
         Code executed before running the benchmark
@@ -121,6 +127,8 @@ class LisaBenchmark(object):
         parser.add_argument('--iterations-pause', type=int,
                 default=30,
                 help='Amount of time (in seconds) to pause for before each iteration (default 30s)')
+        parser.add_argument('--iterations-reboot', action="store_true",
+                help='Reboot before each iteration (default False)')
 
         # Measurements settings
         parser.add_argument('--iio-channel-map', type=str,
@@ -151,6 +159,8 @@ class LisaBenchmark(object):
             self.bm_iterations = self.args.iterations
         if self.args.iterations_pause:
             self.bm_iterations_pause = self.args.iterations_pause
+        if self.args.iterations_reboot:
+            self.bm_iterations_reboot = True
 
         # Override energy meter configuration
         if self.args.iio_channel_map:
@@ -201,9 +211,15 @@ class LisaBenchmark(object):
         """
         Code executed before every iteration of the benchmark
         """
-        self._log.info('Waiting {}[s] before executing iteration...'\
-                .format(self.bm_iterations_pause))
-        sleep(self.bm_iterations_pause)
+        rebooted = False
+
+        if self.bm_iterations_reboot:
+            rebooted = self.reboot_target()
+
+        if not rebooted:
+            self._log.info('Waiting {}[s] before executing iteration...'\
+                           .format(self.bm_iterations_pause))
+            sleep(self.bm_iterations_pause)
 
     def __init__(self):
         """
@@ -283,6 +299,7 @@ class LisaBenchmark(object):
         method will reboot the target with the specified kernel and wait
         for the target to be up and running.
         """
+        rebooted = False
 
         # Reboot the device, if a boot_image has been specified
         if self.args.boot_image:
@@ -299,6 +316,7 @@ class LisaBenchmark(object):
             self._log.debug('Waiting {}[s] for boot to start...'\
                             .format(self.args.boot_timeout))
             sleep(self.args.boot_timeout)
+            rebooted = True
 
         else:
             self._log.warning('Device NOT rebooted, using current image')
@@ -321,5 +339,7 @@ class LisaBenchmark(object):
 
         # Wait for the system to complete the boot
         self._wait_for_logcat_idle()
+
+        return rebooted
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
