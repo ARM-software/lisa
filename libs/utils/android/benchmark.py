@@ -100,8 +100,8 @@ class LisaBenchmark(object):
                 default=None,
                 help='Path of the Android boot.img to be used')
         parser.add_argument('--boot-timeout', type=int,
-                default=20,
-                help='Timeout in [s] to wait after a reboot (default 20)')
+                default=60,
+                help='Timeout in [s] to wait after a reboot (default 60)')
 
         # Android settings
         parser.add_argument('--android-device', type=str,
