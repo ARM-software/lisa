@@ -67,8 +67,6 @@ class JankbenchTest(LisaBenchmark):
     def benchmarkInit(self):
         self.setupWorkload()
         self.setupGovernor()
-        if self.reboot:
-            self.reboot_target()
 
     def benchmarkFinalize(self):
         if self.delay_after_s:
@@ -77,8 +75,7 @@ class JankbenchTest(LisaBenchmark):
             sleep(self.delay_after_s)
 
     def __init__(self, governor, test, iterations,
-                 reboot=False, delay_after_s=0):
-        self.reboot = reboot
+                 delay_after_s=0):
         self.governor = governor
         self.test = test
         self.iterations = iterations
@@ -172,8 +169,6 @@ tests = [
     'edit_text'
 ]
 
-# Reboot device only the first time
-do_reboot = True
 tests_remaining = len(governors) * len(tests)
 tests_completed = 0
 for governor in governors:
@@ -182,12 +177,11 @@ for governor in governors:
         delay_after_s = 30 if tests_remaining else 0
         try:
             JankbenchTest(governor, test, iterations,
-                          do_reboot, delay_after_s)
+                          delay_after_s)
             tests_completed += 1
         except:
             # A test configuraion failed, continue with other tests
             pass
-        do_reboot = False
 
 # We want to collect data from at least one governor
 assert(tests_completed >= 1)
