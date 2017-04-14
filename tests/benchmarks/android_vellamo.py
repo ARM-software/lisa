@@ -67,16 +67,9 @@ class VellamoTest(LisaBenchmark):
         self.setupWorkload()
         self.setupGovernor()
 
-    def benchmarkFinalize(self):
-        if self.delay_after_s:
-            self._log.info("Waiting %d[s] before to continue...",
-                           self.delay_after_s)
-            sleep(self.delay_after_s)
-
-    def __init__(self, governor, test, delay_after_s=0):
+    def __init__(self, governor, test):
         self.governor = governor
         self.test = test
-        self.delay_after_s = delay_after_s
         super(VellamoTest, self).__init__()
 
     def setupWorkload(self):
@@ -166,9 +159,8 @@ tests_completed = 0
 for governor in governors:
     for test in tests:
         tests_remaining -= 1
-        delay_after_s = 30 if tests_remaining else 0
         try:
-            VellamoTest(governor, test, delay_after_s)
+            VellamoTest(governor, test)
             tests_completed += 1
         except:
             # A test configuraion failed, continue with other tests
