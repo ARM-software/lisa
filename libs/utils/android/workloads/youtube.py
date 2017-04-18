@@ -66,9 +66,10 @@ class YouTube(Workload):
         self.collect = collect
 
         # Unlock device screen (assume no password required)
-        System.menu(self._target)
-        # Press Back button to be sure we run the video from the start
-        System.back(self._target)
+        Screen.unlock(self._target)
+
+        # Stop youtube if already running
+        System.force_stop(self._target, self.package)
 
         # Use the monkey tool to start YouTube without playing any video.
         # This allows to subsequently set the screen orientation to LANDSCAPE

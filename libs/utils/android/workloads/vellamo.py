@@ -94,8 +94,7 @@ class Vellamo(Workload):
             sleep_time = 3.5
 
         # Unlock device screen (assume no password required)
-        System.menu(self._target)
-        System.back(self._target)
+        Screen.unlock(self._target)
 
         System.force_stop(self._target, self.package, clear=True)
 

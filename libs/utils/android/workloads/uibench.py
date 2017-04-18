@@ -85,9 +85,8 @@ class UiBench(Workload):
         self.out_dir = out_dir
         self.collect = collect
 
-        # Press Back button to be sure we run the video from the start
-        System.menu(self._target)
-        System.back(self._target)
+        # Unlock device screen (assume no password required)
+        Screen.unlock(self._target)
 
         # Close and clear application
         System.force_stop(self._target, self.package, clear=True)
