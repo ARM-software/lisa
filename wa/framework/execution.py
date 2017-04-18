@@ -361,6 +361,10 @@ class Runner(object):
         self.pm.process_run_output(self.context)
         self.pm.export_run_output(self.context)
         self.pm.finalize()
+        log.indent()
+        for job in self.context.completed_jobs:
+            job.finalize(self.context)
+        log.dedent()
 
     def run_next_job(self, context):
         job = context.start_job()
