@@ -31,7 +31,7 @@ import requests
 
 from devlib.utils.android import ApkInfo
 
-from wa import Parameter, settings, __file__ as __base_filepath
+from wa import Parameter, settings, __file__ as _base_filepath
 from wa.framework.resource import ResourceGetter, SourcePriority, NO_ONE 
 from wa.framework.exception import ResourceError
 from wa.utils.misc import (ensure_directory_exists as _d, 
@@ -96,7 +96,7 @@ class Package(ResourceGetter):
 
     def get(self, resource):
         if resource.owner == NO_ONE:
-            basepath = os.path.join(os.path.dirname(__base_filepath), 'assets')
+            basepath = os.path.join(os.path.dirname(_base_filepath), 'assets')
         else:
             modname = resource.owner.__module__
             basepath  = os.path.dirname(sys.modules[modname].__file__)
