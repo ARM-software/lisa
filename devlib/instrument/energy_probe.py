@@ -20,11 +20,6 @@ import tempfile
 import struct
 import subprocess
 
-try:
-    import pandas
-except ImportError:
-    pandas = None
-
 from devlib.instrument import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import HostError
 from devlib.utils.misc import which
@@ -50,9 +45,6 @@ class EnergyProbeInstrument(Instrument):
         if self.caiman is None:
             raise HostError('caiman must be installed on the host '
                             '(see https://github.com/ARM-software/caiman)')
-        if pandas is None:
-            self.logger.info("pandas package will significantly speed up this instrument")
-            self.logger.info("to install it try: pip install pandas")
         self.attributes_per_sample = 3
         self.bytes_per_sample = self.attributes_per_sample * 4
         self.attributes = ['power', 'voltage', 'current']
