@@ -26,6 +26,7 @@ from collections import namedtuple
 from subprocess import Popen, PIPE, STDOUT
 from time import sleep
 
+import pandas as pd
 
 # Default energy measurements for each board
 DEFAULT_ENERGY_METER = {
@@ -61,7 +62,6 @@ DEFAULT_ENERGY_METER = {
 
 }
 
-EnergyCounter = namedtuple('EnergyCounter', ['site', 'pwr_total' , 'pwr_samples', 'pwr_avg', 'time', 'nrg'])
 EnergyReport = namedtuple('EnergyReport', ['channels', 'report_file'])
 
 class EnergyMeter(object):
@@ -219,9 +219,6 @@ class AEP(EnergyMeter):
         # Energy channels
         self.channels = []
 
-        # Time (start and diff) for power measurment
-        self.time = {}
-
         # Configure channels for energy measurements
         self._log.info('AEP configuration')
         self._log.info('    %s', conf)
@@ -237,36 +234,6 @@ class AEP(EnergyMeter):
         self._log.info('   %s', str(self._aep.active_channels))
         self._log.debug('Results dir: %s', self._res_dir)
 
-    def _get_energy(self, samples, time, idx, site):
-        pwr_total = 0
-        pwr_samples = 0
-        for sample in samples:
-            pwr_total += sample[idx].value
-            pwr_samples += 1
-
-        pwr_avg = pwr_total / pwr_samples
-        nrg = pwr_avg * time
-
-        ec = EnergyCounter(site, pwr_total, pwr_samples, pwr_avg, time, nrg)
-        return ec
-
-    def _sample(self, csv_file):
-        if self._aep is None:
-            return
-
-        self.time['diff'] = time.time() - self.time['start']
-        self._aep.stop()
-
-        csv_data = self._aep.get_data(csv_file)
-        samples = csv_data.measurements()
-
-        # Calculate energy for each channel
-        for idx,channel in enumerate(csv_data.channels):
-            if channel.kind is not 'power':
-                continue
-            ec = self._get_energy(samples, self.time['diff'], idx, channel.site)
-            self.channels.append(ec)
-
     def reset(self):
         if self._aep is None:
             return
@@ -275,22 +242,29 @@ class AEP(EnergyMeter):
         self._log.debug('RESET: %s', self.channels)
 
         self._aep.start()
-        self.time['start'] = time.time()
 
     def report(self, out_dir, out_energy='energy.json', out_samples='samples.csv'):
-        if self._aep is None:
-            return
+        self._aep.stop()
 
-        # Retrieve energy consumption data
-        csv_file = '{}/{}'.format(out_dir, out_samples)
-        self._sample(csv_file)
+        csv_path = os.path.join(out_dir, out_samples)
+        self._aep.get_data(csv_path)
+        with open(csv_path) as f:
+            # Each column in the CSV will be headed with 'SITE_measure'
+            # (e.g. 'BAT_power'). Convert that to a list of ('SITE', 'measure')
+            # tuples, then pass that as the `names` parameter to read_csv to get
+            # a nested column index. None of devlib's standard measurement types
+            # have '_' in the name so this use of rsplit should be fine.
+            headers = f.readline().strip().split(',')
+            columns = [tuple(h.rsplit('_', 1)) for h in headers]
+            # Passing `names` means read_csv doesn't expect to find headers in
+            # the CSV (i.e. expects every line to hold data). This works because
+            # we have already consumed the first line of `f`.
+            df = pd.read_csv(f, names=columns)
 
-        # Reformat data for output generation
         channels_nrg = {}
-        for channel in self.channels:
-            self._log.debug('Energy [%16s]: %.6f',
-                            channel.site, channel.nrg)
-            channels_nrg[channel.site] = channel.nrg
+        for site, measure in df:
+            if measure == 'power':
+                channels_nrg[site] = df[site]['power'].sum()
 
         # Dump data as JSON file
         nrg_file = '{}/{}'.format(out_dir, out_energy)
