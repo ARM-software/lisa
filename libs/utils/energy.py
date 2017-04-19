@@ -26,7 +26,10 @@ from collections import namedtuple
 from subprocess import Popen, PIPE, STDOUT
 from time import sleep
 
+import numpy as np
 import pandas as pd
+
+from bart.common.Utils import area_under_curve
 
 # Default energy measurements for each board
 DEFAULT_ENERGY_METER = {
@@ -62,7 +65,8 @@ DEFAULT_ENERGY_METER = {
 
 }
 
-EnergyReport = namedtuple('EnergyReport', ['channels', 'report_file'])
+EnergyReport = namedtuple('EnergyReport',
+                          ['channels', 'report_file', 'data_frame'])
 
 class EnergyMeter(object):
 
@@ -209,7 +213,7 @@ class HWMon(EnergyMeter):
         with open(nrg_file, 'w') as ofile:
             json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
 
-        return EnergyReport(clusters_nrg, nrg_file)
+        return EnergyReport(clusters_nrg, nrg_file, None)
 
 class AEP(EnergyMeter):
 
@@ -238,19 +242,28 @@ class AEP(EnergyMeter):
         self._aep.stop()
 
         csv_path = os.path.join(out_dir, out_samples)
-        self._aep.get_data(csv_path)
+        csv_data = self._aep.get_data(csv_path)
         with open(csv_path) as f:
             # Each column in the CSV will be headed with 'SITE_measure'
             # (e.g. 'BAT_power'). Convert that to a list of ('SITE', 'measure')
             # tuples, then pass that as the `names` parameter to read_csv to get
             # a nested column index. None of devlib's standard measurement types
             # have '_' in the name so this use of rsplit should be fine.
+            exp_headers = [c.label for c in csv_data.channels]
             headers = f.readline().strip().split(',')
+            if set(headers) != set(exp_headers):
+                raise ValueError(
+                    'Unexpected headers in CSV from devlib instrument. '
+                    'Expected {}, found {}'.format(sorted(headers),
+                                                   sorted(exp_headers)))
             columns = [tuple(h.rsplit('_', 1)) for h in headers]
             # Passing `names` means read_csv doesn't expect to find headers in
             # the CSV (i.e. expects every line to hold data). This works because
             # we have already consumed the first line of `f`.
             df = pd.read_csv(f, names=columns)
+
+        sample_period = 1. / self._aep.sample_rate_hz
+        df.index = np.arange(0, sample_period * len(df), step=sample_period)
 
         if df.empty:
             raise RuntimeError('No energy data collected')
@@ -258,14 +271,14 @@ class AEP(EnergyMeter):
         channels_nrg = {}
         for site, measure in df:
             if measure == 'power':
-                channels_nrg[site] = df[site]['power'].sum()
+                channels_nrg[site] = area_under_curve(df[site]['power'])
 
         # Dump data as JSON file
         nrg_file = '{}/{}'.format(out_dir, out_energy)
         with open(nrg_file, 'w') as ofile:
             json.dump(channels_nrg, ofile, sort_keys=True, indent=4)
 
-        return EnergyReport(channels_nrg, nrg_file)
+        return EnergyReport(channels_nrg, nrg_file, df)
 
 
 _acme_install_instructions = '''
@@ -461,6 +474,6 @@ class ACME(EnergyMeter):
         with open(nrg_stats_file, 'w') as ofile:
             json.dump(channels_stats, ofile, sort_keys=True, indent=4)
 
-        return EnergyReport(channels_nrg, nrg_file)
+        return EnergyReport(channels_nrg, nrg_file, None)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
