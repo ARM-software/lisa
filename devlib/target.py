@@ -882,8 +882,6 @@ class AndroidTarget(Target):
             output = self.execute(command, timeout=1, as_root=as_root)
         except TimeoutError:
             pass
-        else:
-            raise ValueError('Background command exited before timeout; got "{}"'.format(output))
 
     def __setup_list_directory(self):
         # In at least Linaro Android 16.09 (which was their first Android 7 release) and maybe
