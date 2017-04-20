@@ -47,8 +47,12 @@ class System(object):
                 return None
 
         #  Format the command according to the specified arguments
-        systrace_pattern = "{} -e {} -o {} {}"
-        trace_cmd = systrace_pattern.format(systrace_path, target.conf['device'],
+        try:
+            device = "-e {}".format(target.conf['device'])
+        except:
+            device = ''
+        systrace_pattern = "{} {} -o {} {}"
+        trace_cmd = systrace_pattern.format(systrace_path, device,
                                             trace_file, " ".join(events))
         if time is not None:
             trace_cmd += " -t {}".format(time)
