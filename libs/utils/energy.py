@@ -258,6 +258,9 @@ class AEP(EnergyMeter):
             # we have already consumed the first line of `f`.
             df = pd.read_csv(f, names=columns)
 
+        if df.empty:
+            raise RuntimeError('No energy data collected')
+
         channels_nrg = {}
         for site, measure in df:
             if measure == 'power':
