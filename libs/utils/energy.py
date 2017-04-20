@@ -235,9 +235,6 @@ class AEP(EnergyMeter):
         self._log.debug('Results dir: %s', self._res_dir)
 
     def reset(self):
-        if self._aep is None:
-            return
-
         self.channels = []
         self._log.debug('RESET: %s', self.channels)
 
