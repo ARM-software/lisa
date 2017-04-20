@@ -18,7 +18,8 @@
 sudo: required
 language: python
 install:
-  - pip install --upgrade Cython trappy bart-py devlib psutil wrapt ipython jupyter matplotlib
+  # Use IPython 5.x because 6.0+ only supports Python 3.3
+  - pip install --upgrade "ipython<6.0.0" Cython trappy bart-py devlib psutil wrapt jupyter matplotlib
 script:
   - cd $TRAVIS_BUILD_DIR
   - source init_env && lisa-test tests/lisa/
