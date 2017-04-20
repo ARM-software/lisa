@@ -255,6 +255,26 @@ class System(object):
         target.execute('input keyevent KEYCODE_BACK')
 
     @staticmethod
+    def wakeup(target):
+        """
+        Wake up the system if its sleeping
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_WAKEUP')
+
+    @staticmethod
+    def sleep(target):
+        """
+        Make system sleep if its awake
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_SLEEP')
+
+    @staticmethod
     def gfxinfo_reset(target, apk_name):
         """
         Reset gfxinfo frame statistics for a given app.
