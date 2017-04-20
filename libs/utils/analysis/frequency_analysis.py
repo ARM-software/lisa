@@ -27,6 +27,7 @@ from devlib.utils.misc import memoized
 
 from analysis_module import AnalysisModule
 from trace import ResidencyTime, ResidencyData
+from bart.common.Utils import area_under_curve
 
 
 class FrequencyAnalysis(AnalysisModule):
@@ -217,6 +218,119 @@ class FrequencyAnalysis(AnalysisModule):
                        avg_bfreq/1e3)
 
         return (avg_lfreq/1e3, avg_bfreq/1e3)
+
+    def plotCPUFrequencies(self, cpus=None):
+        """
+        Plot frequency for the specified CPUs (or all if not specified).
+        If sched_overutilized events are available, the plots will also show the
+        intervals of time where the system was overutilized.
+
+        The generated plots are also saved as PNG images under the folder
+        specified by the `plots_dir` parameter of :class:`Trace`.
+
+        :param cpus: the list of CPUs to plot, if None it generate a plot
+                     for each available CPU
+        :type cpus: int or list(int)
+
+        :return: a dictionary of average frequency for each CPU.
+        """
+        if not self._trace.hasEvents('cpu_frequency'):
+            self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
+            return
+        df = self._dfg_trace_event('cpu_frequency')
+
+        if cpus is None:
+            # Generate plots only for available CPUs
+            cpus = range(df.cpu.max()+1)
+        else:
+            # Generate plots only specified CPUs
+            cpus = listify(cpus)
+
+        chained_assignment = pd.options.mode.chained_assignment
+        pd.options.mode.chained_assignment = None
+
+        freq = {}
+        for cpu_id in listify(cpus):
+            # Extract CPUs' frequencies and scale them to [MHz]
+            _df = df[df.cpu == cpu_id]
+            if _df.empty:
+                self._log.warning('No [cpu_frequency] events for CPU%d, '
+                                  'plot DISABLED!', cpu_id)
+                continue
+            _df['frequency'] = _df.frequency / 1e3
+
+            # Compute AVG frequency for this CPU
+            avg_freq = 0
+            if len(_df) > 1:
+                timespan = _df.index[-1] - _df.index[0]
+                avg_req = area_under_curve(_df['frequency']) / timespan
+
+            # Store DF for plotting
+            freq[cpu_id] = {
+                'df'  : _df,
+                'avg' : avg_freq,
+            }
+
+        pd.options.mode.chained_assignment = chained_assignment
+
+        plots_count = len(freq)
+        if not plots_count:
+            return
+
+        # Setup CPUs plots
+        fig, pltaxes = plt.subplots(len(freq), 1, figsize=(16, 4 * plots_count))
+
+        avg_freqs = {}
+        for plot_idx, cpu_id in enumerate(freq):
+
+            # CPU frequencies and average value
+            _df = freq[cpu_id]['df']
+            _avg = freq[cpu_id]['avg']
+
+            # Plot average frequency
+            try:
+                axes = pltaxes[plot_idx]
+            except TypeError:
+                axes = pltaxes
+            axes.set_title('CPU{:2d} Frequency'.format(cpu_id))
+            axes.axhline(_avg, color='r', linestyle='--', linewidth=2)
+
+            # Set plot limit based on CPU min/max frequencies
+            for cluster,cpus in self._platform['clusters'].iteritems():
+                if cpu_id not in cpus:
+                    continue
+                axes.set_ylim(
+                        (self._platform['freqs'][cluster][0] - 100000)/1e3,
+                        (self._platform['freqs'][cluster][-1] + 100000)/1e3
+                )
+                break
+
+            # Plot CPU frequency transitions
+            _df['frequency'].plot(style=['r-'], ax=axes,
+                                  drawstyle='steps-post', alpha=0.4)
+
+            # Plot overutilzied regions (if signal available)
+            self._trace.analysis.status.plotOverutilized(axes)
+
+            # Finalize plot
+            axes.set_xlim(self._trace.x_min, self._trace.x_max)
+            axes.set_ylabel('MHz')
+            axes.grid(True)
+            if plot_idx + 1 < plots_count:
+                axes.set_xticklabels([])
+                axes.set_xlabel('')
+
+            avg_freqs[cpu_id] = _avg/1e3
+            self._log.info('CPU%02d average frequency: %.3f GHz',
+                           cpu_id, avg_freqs[cpu_id])
+
+        # Save generated plots into datadir
+        figname = '{}/{}cpus_freqs.png'\
+                  .format(self._trace.plots_dir, self._trace.plots_prefix)
+        pl.savefig(figname, bbox_inches='tight')
+
+        return avg_freqs
+
 
     def plotCPUFrequencyResidency(self, cpus=None, pct=False, active=False):
         """
