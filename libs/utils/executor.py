@@ -243,10 +243,6 @@ class Executor():
         self._log.info('Results will be collected under:')
         self._log.info('      %s', self.te.res_dir)
 
-        if any(wl['type'] == 'rt-app'
-               for wl in self._experiments_conf['wloads'].values()):
-            self._log.info('rt-app workloads found, installing tool on target')
-            self.te.install_tools(['rt-app'])
 
     def run(self):
         self._print_section('Experiments execution')
@@ -641,7 +637,12 @@ class Executor():
 
         # Configure the test workload
         wlspec = self._experiments_conf['wloads'][wl_idx]
-        wload = self._wload_conf(wl_idx, wlspec)
+        if type(wlspec) == dict:
+            wload = self._wload_conf(wl_idx, wlspec)
+        else:
+            wload = wlspec
+
+        self.te.install_tools([wload.executor])
 
         # Keep track of platform configuration
         test_dir = '{}/{}:{}:{}'\

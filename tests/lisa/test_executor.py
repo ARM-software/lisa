@@ -22,6 +22,7 @@ from unittest import TestCase
 
 from env import TestEnv
 from executor import Executor
+from wlgen import RTA, Periodic
 
 class SetUpTarget(TestCase):
     @classmethod
@@ -67,6 +68,42 @@ class TestMagicSmoke(SetUpTarget):
                     },
                 },
             },
+        }
+
+        executor = Executor(self.te, experiments_conf)
+        executor.run()
+
+        self.assertTrue(
+            os.path.isdir(results_dir),
+            'Expected to find a directory at {}'.format(results_dir))
+
+        result_1_dir = os.path.join(results_dir, '1')
+        self.assertTrue(
+            os.path.isdir(result_1_dir),
+            'Expected to find a directory at {}'.format(result_1_dir))
+
+class TestDirectObject(SetUpTarget):
+    """Test that Executor can be configured directly using Workload objects"""
+    def test_files_created(self):
+        """Test that we can run experiments and get output files"""
+        conf_name = 'myconf'
+        wl_name = 'mywl'
+
+        results_dir = os.path.join(self.te.LISA_HOME, 'results', self.res_dir,
+                                   'rtapp:{}:{}'.format(conf_name, wl_name))
+        if os.path.isdir(results_dir):
+            shutil.rmtree(results_dir)
+
+        wload = RTA(self.te.target, wl_name)
+        wload.conf('profile', {'mytask': Periodic().get()})
+
+        experiments_conf = {
+            'confs': [{
+                'tag': conf_name
+            }],
+            "wloads" : {
+                wl_name : wload
+            }
         }
 
         executor = Executor(self.te, experiments_conf)
