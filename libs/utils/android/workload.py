@@ -134,4 +134,31 @@ class Workload(object):
         # Dump a platform description
         self._te.platform_dump(self.out_dir)
 
+    def traceShow(self):
+        """
+        Open the collected trace using the most appropriate native viewer.
+
+        The native viewer depends on the specified trace format:
+        - ftrace: open using kernelshark
+        - systrace: open using a browser
+
+        In both cases the native viewer is assumed to be available in the host
+        machine.
+        """
+
+        if 'ftrace' in self.collect:
+            os.popen("kernelshark {}".format(self.trace_file))
+            return
+
+        if 'systrace' in self.collect:
+            if os.name == 'posix':
+                os.popen("xdg-open {}".format(self.trace_file))
+            elif sys.platform.startswith('darwin'):
+                os.popen("open {}".format(self.trace_file))
+            elif os.name == 'nt':
+                os.startfile(self.trace_file)
+            return
+
+        self._log.warning('No trace collected since last run')
+
 # vim :set tabstop=4 shiftwidth=4 expandtab
