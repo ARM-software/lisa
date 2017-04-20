@@ -42,7 +42,8 @@ pip install --upgrade pip
 # Incantation to fix broken pip packages
 /usr/local/bin/pip install --upgrade packaging appdirs
 
-/usr/local/bin/pip install --upgrade Cython trappy bart-py devlib psutil wrapt ipython jupyter
+# Use IPython 5.x because 6.0+ only supports Python 3.3
+/usr/local/bin/pip install --upgrade "ipython<6.0.0" Cython trappy bart-py devlib psutil wrapt jupyter
 
 if [ "$install_android_sdk" == y ]; then
     apt-get -y install openjdk-7-jre openjdk-7-jdk
