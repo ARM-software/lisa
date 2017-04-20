@@ -56,6 +56,9 @@ class LisaTest(unittest.TestCase):
     experiments_conf = None
     """Override this with a dictionary or JSON path to configure the Executor"""
 
+    permitted_fail_pct = 0
+    """The percentage of iterations of each test that may be permitted to fail"""
+
     @classmethod
     def _getTestConf(cls):
         if cls.test_conf is None:
@@ -227,8 +230,19 @@ def experiment_test(wrapped_test, instance, args, kwargs):
             failures[test_key] = failures.get(test_key, []) + [msg]
 
     for fails in failures.itervalues():
-        raise AssertionError("{} failures from {} iteration(s):\n{}".format(
-            len(fails), instance.executor.iterations, '\n'.join(fails)))
+        iterations = instance.executor.iterations
+        fail_pct = 100. * len(fails) / iterations
+
+        msg = "{} failures from {} iteration(s):\n{}".format(
+            len(fails), iterations, '\n'.join(fails))
+        if fail_pct > instance.permitted_fail_pct:
+            raise AssertionError(msg)
+        else:
+            instance._log.warning(msg)
+            instance._log.warning(
+                'ALLOWING due to permitted_fail_pct={}'.format(
+                    instance.permitted_fail_pct))
+
 
 # Prevent nosetests from running experiment_test directly as a test case
 experiment_test.__test__ = False
