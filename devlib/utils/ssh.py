@@ -228,6 +228,9 @@ class SshConnection(object):
 
     def _execute_and_wait_for_prompt(self, command, timeout=None, as_root=False, strip_colors=True, log=True):
         self.conn.prompt(0.1)  # clear an existing prompt if there is one.
+        if self.username == 'root':
+            # As we're already root, there is no need to use sudo.
+            as_root = False
         if as_root:
             command = "sudo -- sh -c '{}'".format(escape_single_quotes(command))
             if log:
