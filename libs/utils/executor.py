@@ -166,6 +166,9 @@ class Executor():
             Number of iterations for each workload/conf combination. Default
             is 1.
     :type experiments_conf: dict
+
+    :ivar experiments: After calling `meth`:run:, the list of
+                       :class:`Experiment` s that were run
     """
 
     critical_tasks = {
