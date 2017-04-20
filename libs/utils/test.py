@@ -81,9 +81,9 @@ class LisaTest(unittest.TestCase):
         """
         Set up logging and trigger running experiments
         """
-        cls.logger = logging.getLogger('LisaTest')
+        cls._log = logging.getLogger('LisaTest')
 
-        cls.logger.info('Setup tests execution engine...')
+        cls._log.info('Setup tests execution engine...')
         test_env = TestEnv(test_conf=cls._getTestConf())
 
         experiments_conf = cls._getExperimentsConf(test_env)
@@ -100,7 +100,7 @@ class LisaTest(unittest.TestCase):
         # Execute pre-experiments code defined by the test
         cls._experimentsInit()
 
-        cls.logger.info('Experiments execution...')
+        cls._log.info('Experiments execution...')
         cls.executor.run()
 
         cls.experiments = cls.executor.experiments
