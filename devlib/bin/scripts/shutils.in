@@ -54,7 +54,7 @@ cpufreq_trace_all_frequencies() {
 cpuidle_wake_all_cpus() {
 	CPU_PATHS=/sys/devices/system/cpu/cpu[0-9]*
 	MASK=0x1; for F in $CPU_PATHS; do
-		$BUSYBOX taskset $MASK true
+		$BUSYBOX taskset $MASK true &
 		MASK=$($BUSYBOX printf '0x%x' $((MASK * 2)))
 	done
 }
