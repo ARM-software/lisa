@@ -99,6 +99,7 @@ class Base(object):
 
     """
     def __init__(self, parse_raw=False):
+        self.tracer = None
         self.data_frame = pd.DataFrame()
         self.data_array = []
         self.time_array = []
@@ -171,6 +172,25 @@ class Base(object):
         self.cpu_array.append(cpu)
         self.data_array.append(data)
 
+    def generate_data_dict(self, data_str):
+        data_dict = {}
+        prev_key = None
+        for field in data_str.split():
+            if "=" not in field:
+                # Concatenation is supported only for "string" values
+                if type(data_dict[prev_key]) is not str:
+                    continue
+                data_dict[prev_key] += ' ' + field
+                continue
+            (key, value) = field.split('=', 1)
+            try:
+                value = int(value)
+            except ValueError:
+                pass
+            data_dict[key] = value
+            prev_key = key
+        return data_dict
+
     def generate_parsed_data(self):
 
         # Get a rough idea of how much memory we have to play with
@@ -183,21 +203,7 @@ class Base(object):
         for (comm, pid, cpu, data_str) in zip(self.comm_array, self.pid_array,
                                               self.cpu_array, self.data_array):
             data_dict = {"__comm": comm, "__pid": pid, "__cpu": cpu}
-            prev_key = None
-            for field in data_str.split():
-                if "=" not in field:
-                    # Concatenation is supported only for "string" values
-                    if type(data_dict[prev_key]) is not str:
-                        continue
-                    data_dict[prev_key] += ' ' + field
-                    continue
-                (key, value) = field.split('=', 1)
-                try:
-                    value = int(value)
-                except ValueError:
-                    pass
-                data_dict[key] = value
-                prev_key = key
+            data_dict.update(self.generate_data_dict(data_str))
 
             # When running out of memory, Pandas has been observed to segfault
             # rather than throwing a proper Python error.
