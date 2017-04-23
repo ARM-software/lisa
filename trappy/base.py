@@ -174,9 +174,11 @@ class Base(object):
     def generate_parsed_data(self):
 
         # Get a rough idea of how much memory we have to play with
+        CHECK_MEM_COUNT = 10000
         kb_free = _get_free_memory_kb()
         starting_maxrss = getrusage(RUSAGE_SELF).ru_maxrss
         check_memory_usage = True
+        check_memory_count = 1
 
         for (comm, pid, cpu, data_str) in zip(self.comm_array, self.pid_array,
                                               self.cpu_array, self.data_array):
@@ -200,12 +202,16 @@ class Base(object):
             # When running out of memory, Pandas has been observed to segfault
             # rather than throwing a proper Python error.
             # Look at how much memory our process is using and warn if we seem
-            # to be getting close to the system's limit.
-            kb_used = (getrusage(RUSAGE_SELF).ru_maxrss - starting_maxrss)
-            if check_memory_usage and kb_free and kb_used > kb_free * 0.9:
-                warnings.warn("TRAPpy: Appear to be low on memory. "
-                              "If errors arise, try providing more RAM")
-                check_memory_usage = False
+            # to be getting close to the system's limit, check it only once
+            # in the beginning and then every CHECK_MEM_COUNT events
+            check_memory_count -= 1
+            if check_memory_usage and check_memory_count == 0:
+                kb_used = (getrusage(RUSAGE_SELF).ru_maxrss - starting_maxrss)
+                if kb_free and kb_used > kb_free * 0.9:
+                    warnings.warn("TRAPpy: Appear to be low on memory. "
+                                  "If errors arise, try providing more RAM")
+                    check_memory_usage = False
+                check_memory_count = CHECK_MEM_COUNT
 
             yield data_dict
 
