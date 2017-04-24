@@ -11,7 +11,9 @@ install:
   - pip install matplotlib
   - pip install Cython --install-option="--no-cython-compile"
   - pip install pandas
-  - pip install ipython[all]
+  # IPython 6.0.0 requires Python 3.3. Use an older version so we can keep using
+  # Python 2.7
+  - pip install "ipython[all]<6.0.0"
 env:
   - MPLBACKEND=agg
 script: nosetests
