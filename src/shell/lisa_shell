@@ -210,9 +210,14 @@ echo -e "\t${PYTHONPATH//:/\\n\\t}"
 cd $PYDIR
 echo
 echo -n 'Notebook server task: '
-nohup ipython notebook --ip=$IPADDR --port=$PORT \
-                       --NotebookApp.token=$TOKEN \
-                       >$LOGFILE 2>&1 &
+if which ipython >/dev/null; then
+    local cmd=ipython
+else
+    local cmd=jupyter
+fi
+nohup $cmd notebook --ip=$IPADDR --port=$PORT \
+                    --NotebookApp.token=$TOKEN \
+                    >$LOGFILE 2>&1 &
 echo $! >$PIDFILE
 echo $URL >$URLFILE
 cd - >/dev/null
