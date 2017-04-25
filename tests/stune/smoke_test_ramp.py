@@ -38,8 +38,8 @@ class STune(LisaTest):
 
     The test runs a ramp task that has increasing load as time passes.
     The load increases from 5% to 60% over 1 second.  It is run in
-    four different configurations: no boost, 15% boost, 30% boost and
-    60% boost.
+    seven different configurations: -15% boost, -30% boost,
+    -60% boost, no boost, 15% boost, 30% boost and 60% boost.
 
     Expected Behaviour
     ==================
@@ -50,7 +50,11 @@ class STune(LisaTest):
 
           (sched\_load\_scale - util) \\times boost
 
-    for all configurations
+    for configurations greater than zero
+
+          -((-util) \\times boost)
+
+    for configurations lesser than zero.
 
     """
 
@@ -95,7 +99,13 @@ class STune(LisaTest):
             analyzer = Analyzer(ftrace, analyzer_const,
                                 window=(after_first_period, None),
                                 filters={"comm": rta_task_name})
-            statement = "(((SCHED_LOAD_SCALE - sched_boost_task:util) * BOOST) // 100) == sched_boost_task:margin"
+            if boost == 0:
+                statement = "sched_boost_task:margin == 0"
+            elif boost > 0:
+                statement = "(((SCHED_LOAD_SCALE - sched_boost_task:util) * BOOST) // 100) == sched_boost_task:margin"
+            else:
+                statement = "-((-sched_boost_task:util * BOOST) // 100) == sched_boost_task:margin"
+
             error_msg = "task was not boosted to the expected margin: {:.2f}"\
                         .format(boost / 100.)
             self.assertTrue(analyzer.assertStatement(statement), msg=error_msg)
