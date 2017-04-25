@@ -1,5 +1,5 @@
 from wa.framework import pluginloader, log, signal
-from wa.framework.command import Command
+from wa.framework.command import Command, ComplexCommand, SubCommand
 from wa.framework.configuration import settings
 from wa.framework.configuration.core import Status
 from wa.framework.exception import HostError, JobError, InstrumentError, ConfigError

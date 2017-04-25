@@ -82,6 +82,14 @@ class TargetDescription(object):
         self._set('platform_params', platform_params)
         self._set('conn_params', conn_params)
 
+    def get_default_config(self):
+        param_attrs = ['target_params', 'platform_params', 'conn_params']
+        config = {}
+        for pattr in param_attrs:
+            for n, p in getattr(self, pattr).itervalues():
+                config[n] = p.default
+        return config
+
     def _set(self, attr, vals):
         if vals is None:
             vals = {}
