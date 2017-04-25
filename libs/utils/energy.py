@@ -162,22 +162,20 @@ class HWMon(EnergyMeter):
             return None
         samples = self._hwmon.take_measurement()
         for s in samples:
-            label = s.channel.label\
-                    .replace('_energy', '')\
-                    .replace(" ", "_")
+            site = s.channel.site
             value = s.value
 
-            if label not in self.readings:
-                self.readings[label] = {
+            if site not in self.readings:
+                self.readings[site] = {
                         'last'  : value,
                         'delta' : 0,
                         'total' : 0
                         }
                 continue
 
-            self.readings[label]['delta'] = value - self.readings[label]['last']
-            self.readings[label]['last']  = value
-            self.readings[label]['total'] += self.readings[label]['delta']
+            self.readings[site]['delta'] = value - self.readings[site]['last']
+            self.readings[site]['last']  = value
+            self.readings[site]['total'] += self.readings[site]['delta']
 
         self._log.debug('SAMPLE: %s', self.readings)
         return self.readings
@@ -186,9 +184,9 @@ class HWMon(EnergyMeter):
         if self._hwmon is None:
             return
         self.sample()
-        for label in self.readings:
-            self.readings[label]['delta'] = 0
-            self.readings[label]['total'] = 0
+        for site in self.readings:
+            self.readings[site]['delta'] = 0
+            self.readings[site]['total'] = 0
         self._log.debug('RESET: %s', self.readings)
 
     def report(self, out_dir, out_file='energy.json'):
@@ -198,14 +196,13 @@ class HWMon(EnergyMeter):
         nrg = self.sample()
         # Reformat data for output generation
         clusters_nrg = {}
-        for channel in self._channels:
-            label = self._channels[channel]
-            if label not in nrg:
+        for channel, site in self._channels.iteritems():
+            if site not in nrg:
                 raise RuntimeError('hwmon channel "{}" not available. '
                                    'Selected channels: {}'.format(
                                        channel, nrg.keys()))
-            nrg_total = nrg[label]['total']
-            self._log.debug('Energy [%16s]: %.6f', label, nrg_total)
+            nrg_total = nrg[site]['total']
+            self._log.debug('Energy [%16s]: %.6f', site, nrg_total)
             clusters_nrg[channel] = nrg_total
 
         # Dump data as JSON file
