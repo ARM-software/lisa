@@ -305,7 +305,7 @@ class System(object):
                     GET_FRAMESTATS_CMD.format(apk_name, out_file))
 
     @staticmethod
-    def monkey(target, apk_name, event_count=1):
+    def monkey(target, apk_name, event_count=1, check_exit_code=True, timeout=None):
         """
         Wrapper for adb monkey tool.
 
@@ -328,7 +328,11 @@ class System(object):
         :param event_count: number of events to generate
         :type event_count: int
         """
-        target.execute('monkey -p {} {}'.format(apk_name, event_count))
+        if timeout:
+            target.execute('timeout {} monkey -p {} {}'.format(timeout, apk_name, event_count),
+                           check_exit_code=check_exit_code)
+            return
+        target.execute('monkey -p {} {}'.format(apk_name, event_count), check_exit_code=check_exit_code)
 
     @staticmethod
     def list_packages(target, apk_filter=''):
