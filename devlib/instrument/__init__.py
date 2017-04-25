@@ -179,7 +179,7 @@ class Instrument(object):
     def get_channels(self, measure):
         if hasattr(measure, 'name'):
             measure = measure.name
-        return [c for c in self.channels if c.measure.name == measure]
+        return [c for c in self.list_channels() if c.kind == measure]
 
     def add_channel(self, site, measure, name=None, **attrs):
         if name is None:
