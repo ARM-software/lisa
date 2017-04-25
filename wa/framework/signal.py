@@ -231,7 +231,7 @@ def connect(handler, signal, sender=dispatcher.Any, priority=0):
 
                  .. note:: There is nothing that prevents instrumentation from sending their
                            own signals that are not part of the standard set. However the signal
-                           must always be an :class:`wlauto.core.signal.Signal` instance.
+                           must always be an :class:`wa.core.signal.Signal` instance.
 
         :sender: The handler will be invoked only for the signals emitted by this sender. By
                  default, this is set to :class:`louie.dispatcher.Any`, so the handler will
@@ -270,7 +270,7 @@ def disconnect(handler, signal, sender=dispatcher.Any):
 
         :handler: The callback to be disconnected.
         :signal: The signal the handler is to be disconnected form. It will
-                 be an :class:`wlauto.core.signal.Signal` instance.
+                 be an :class:`wa.core.signal.Signal` instance.
         :sender: If specified, the handler will only be disconnected from the signal
                 sent by this sender.
 
@@ -284,7 +284,7 @@ def send(signal, sender=dispatcher.Anonymous, *args, **kwargs):
 
     Paramters:
 
-        :signal: Signal to be sent. This must be an instance of :class:`wlauto.core.signal.Signal`
+        :signal: Signal to be sent. This must be an instance of :class:`wa.core.signal.Signal`
                  or its subclasses.
         :sender: The sender of the signal (typically, this would be ``self``). Some handlers may only
                  be subscribed to signals from a particular sender.

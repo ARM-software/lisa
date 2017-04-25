@@ -26,7 +26,7 @@ from itertools import chain
 from copy import copy
 
 from wa.framework.configuration.core import settings, ConfigurationPoint as Parameter
-from wa.framework.exception import (NotFoundError, PluginLoaderError,
+from wa.framework.exception import (NotFoundError, PluginLoaderError, TargetError,
                                     ValidationError, ConfigError, HostError)
 from wa.utils import log
 from wa.utils.misc import (ensure_directory_exists as _d, walk_modules, load_class, 
@@ -430,7 +430,7 @@ class Plugin(object):
 
             get_module(name, owner, **kwargs)
 
-        and returns an instance of :class:`wlauto.core.plugin.Module`. If the
+        and returns an instance of :class:`wa.core.plugin.Module`. If the
         module with the specified name is not found, the loader must raise an
         appropriate exception.
 
@@ -743,10 +743,10 @@ class PluginLoader(object):
                 self.logger.warning('Got: {}'.format(e))
             else:
                 msg = 'Failed to load {}'
-                raise LoaderError(msg.format(filepath), sys.exc_info())
+                raise PluginLoaderError(msg.format(filepath), sys.exc_info())
         except Exception as e:
             message = 'Problem loading plugins from {}: {}'
-            raise LoaderError(message.format(filepath, e))
+            raise PluginLoaderError(message.format(filepath, e))
 
     def _discover_in_module(self, module):  # NOQA pylint: disable=too-many-branches
         self.logger.debug('Checking module %s', module.__name__)

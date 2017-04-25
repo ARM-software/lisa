@@ -1,4 +1,4 @@
-#    Copyright 2013-2016 ARM Limited
+#    Copyright 2013-2015 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from wa.framework.configuration.core import (settings,
-                                             RunConfiguration,
-                                             JobGenerator,
-                                             ConfigurationPoint)
+
+
+from wa import ReventWorkload
+
+
+class AngryBirdsRio(ReventWorkload):
+
+    name = 'angrybirds_rio'
+    description = """
+    Angry Birds Rio game.
+
+    The sequel to the very popular Android 2D game.
+    """

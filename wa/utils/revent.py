@@ -16,9 +16,11 @@
 from __future__ import division
 import os
 import struct
+import signal
 from datetime import datetime
 from collections import namedtuple
 
+from wa.framework.resource import Executable, NO_ONE, ResourceResolver
 
 GENERAL_MODE = 0
 GAMEPAD_MODE = 1
@@ -249,3 +251,38 @@ class ReventRecording(object):
 
     def __del__(self):
         self.close()
+
+
+def get_revent_binary(abi):
+    resolver = ResourceResolver()
+    resolver.load()
+    resource = Executable(NO_ONE, abi, 'revent')
+    return resolver.get(resource)
+
+
+class ReventRecorder(object):
+
+    def __init__(self, target):
+        self.target = target
+        self.executable = self.target.get_installed('revent')
+
+    def deploy(self):
+        if not self.executable:
+            host_executable = get_revent_binary(self.target.abi)
+            self.executable = self.target.install(host_executable)
+
+    def remove(self):
+        if self.executable:
+            self.target.uninstall('revent')
+
+    def start_record(self, revent_file):
+        command = '{} record -s {}'.format(self.executable, revent_file)
+        self.target.kick_off(command, self.target.is_rooted)
+
+    def stop_record(self):
+        self.target.killall('revent', signal.SIGINT, as_root=self.target.is_rooted)
+
+    def replay(self, revent_file, timeout=None):
+        self.target.killall('revent')
+        command = "{} replay {}".format(self.executable, revent_file)
+        self.target.execute(command, timeout=timeout)

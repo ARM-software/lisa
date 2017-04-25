@@ -17,8 +17,11 @@ import os
 import time
 
 from wa.framework.plugin import TargetedPlugin
-from wa.framework.resource import ApkFile, JarFile, ReventFile, NO_ONE
+from wa.framework.resource import (ApkFile, JarFile, ReventFile, NO_ONE,
+                                   Executable, File)
 from wa.framework.exception import WorkloadError
+from wa.utils.revent import ReventRecorder
+from wa.utils.exec_control import once
 
 from devlib.utils.android import ApkInfo
 
@@ -64,7 +67,7 @@ class Workload(TargetedPlugin):
     def run(self, context):
         """
         Execute the workload. This is the method that performs the actual
-        "work" of the.
+        "work" of the workload.
         """
         pass
 
@@ -93,25 +96,29 @@ class Workload(TargetedPlugin):
         return '<Workload {}>'.format(self.name)
 
 
-class ApkUiautoWorkload(Workload):
-    
-    platform = 'android'
+class ApkUIWorkload(Workload):
+
+    # May be optionally overwritten by subclasses
+    # Times are in seconds
+    loading_time = 10
 
     def __init__(self, target, **kwargs):
-        super(ApkUiautoWorkload, self).__init__(target, **kwargs)
-        self.apk = ApkHander(self)
-        self.gui = UiAutomatorGUI(self)
+        super(ApkUIWorkload, self).__init__(target, **kwargs)
+        self.apk = None
+        self.gui = None
 
     def init_resources(self, context):
         self.apk.init_resources(context.resolver)
         self.gui.init_resources(context.resolver)
         self.gui.init_commands()
 
+    @once
     def initialize(self, context):
         self.gui.deploy()
 
     def setup(self, context):
         self.apk.setup(context)
+        time.sleep(self.loading_time)
         self.gui.setup()
 
     def run(self, context):
@@ -124,8 +131,38 @@ class ApkUiautoWorkload(Workload):
         self.gui.teardown()
         self.apk.teardown()
 
+    @once
     def finalize(self, context):
         self.gui.remove()
+
+
+class ApkUiautoWorkload(ApkUIWorkload):
+
+    platform = 'android'
+
+    def __init__(self, target, **kwargs):
+        super(ApkUiautoWorkload, self).__init__(target, **kwargs)
+        self.apk = ApkHander(self)
+        self.gui = UiAutomatorGUI(self)
+
+
+class ReventWorkload(ApkUIWorkload):
+
+    # May be optionally overwritten by subclasses
+    # Times are in seconds
+    setup_timeout = 5 * 60
+    run_timeout = 10 * 60
+    extract_results_timeout = 5 * 60
+    teardown_timeout = 5 * 60
+
+    def __init__(self, target, **kwargs):
+        super(ReventWorkload, self).__init__(target, **kwargs)
+        self.apk = ApkHander(self)
+        self.gui = ReventGUI(self, target,
+                             self.setup_timeout,
+                             self.run_timeout,
+                             self.extract_results_timeout,
+                             self.teardown_timeout)
 
 
 class UiAutomatorGUI(object):
@@ -208,57 +245,92 @@ class UiAutomatorGUI(object):
 
 class ReventGUI(object):
 
-    def __init__(self, workload, target, setup_timeout=5 * 60, run_timeout=10 * 60):
+    def __init__(self, workload, target, setup_timeout, run_timeout,
+                 extract_results_timeout, teardown_timeout):
         self.workload = workload
         self.target = target
         self.setup_timeout = setup_timeout
         self.run_timeout = run_timeout
+        self.extract_results_timeout = extract_results_timeout
+        self.teardown_timeout = teardown_timeout
+        self.revent_recorder = ReventRecorder(self.target)
         self.on_target_revent_binary = self.target.get_workpath('revent')
-        self.on_target_setup_revent = self.target.get_workpath('{}.setup.revent'.format(self.target.name))
-        self.on_target_run_revent = self.target.get_workpath('{}.run.revent'.format(self.target.name))
+        self.on_target_setup_revent = self.target.get_workpath('{}.setup.revent'.format(self.target.model))
+        self.on_target_run_revent = self.target.get_workpath('{}.run.revent'.format(self.target.model))
+        self.on_target_extract_results_revent = self.target.get_workpath('{}.extract_results.revent'.format(self.target.model))
+        self.on_target_teardown_revent = self.target.get_workpath('{}.teardown.revent'.format(self.target.model))
         self.logger = logging.getLogger('revent')
         self.revent_setup_file = None
         self.revent_run_file = None
+        self.revent_extract_results_file = None
+        self.revent_teardown_file = None
 
-    def init_resources(self, context):
-        self.revent_setup_file = context.resolver.get(ReventFile(self.workload, 'setup'))
-        self.revent_run_file = context.resolver.get(ReventFile(self.workload, 'run'))
+    def init_resources(self, resolver):
+        self.revent_setup_file = resolver.get(ReventFile(owner=self.workload,
+                                                         stage='setup',
+                                                         target=self.target.model),
+                                              strict=False)
+        self.revent_run_file = resolver.get(ReventFile(owner=self.workload,
+                                                       stage='run',
+                                                       target=self.target.model))
+        self.revent_extract_results_file = resolver.get(ReventFile(owner=self.workload,
+                                                                 stage='extract_results',
+                                                                 target=self.target.model),
+                                                        strict=False)
+        self.revent_teardown_file = resolver.get(resource=ReventFile(owner=self.workload,
+                                                            stage='teardown',
+                                                            target=self.target.model),
+                                                strict=False)
 
-    def setup(self, context):
-        self._check_revent_files(context)
-        self.target.killall('revent')
-        command = '{} replay {}'.format(self.on_target_revent_binary, self.on_target_setup_revent)
-        self.target.execute(command, timeout=self.setup_timeout)
+    def deploy(self):
+        self.revent_recorder.deploy()
 
-    def run(self, context):
-        command = '{} replay {}'.format(self.on_target_revent_binary, self.on_target_run_revent)
-        self.logger.debug('Replaying {}'.format(os.path.basename(self.on_target_run_revent)))
-        self.target.execute(command, timeout=self.run_timeout)
+    def setup(self):
+        self._check_revent_files()
+        self.revent_recorder.replay(self.on_target_setup_revent,
+                                    timeout=self.setup_timeout)
+
+    def run(self):
+        msg = 'Replaying {}'
+        self.logger.debug(msg.format(os.path.basename(self.on_target_run_revent)))
+        self.revent_recorder.replay(self.on_target_run_revent,
+                                    timeout=self.run_timeout)
         self.logger.debug('Replay completed.')
 
-    def teardown(self, context):
+    def extract_results(self):
+        if self.revent_extract_results_file:
+            self.revent_recorder.replay(self.on_target_extract_results_revent,
+                                        timeout=self.extract_results_timeout)
+
+    def teardown(self):
+        if self.revent_teardown_file:
+            self.revent_recorder.replay(self.on_target_teardown_revent,
+                                        timeout=self.teardown_timeout)
         self.target.remove(self.on_target_setup_revent)
         self.target.remove(self.on_target_run_revent)
+        self.target.remove(self.on_target_extract_results_revent)
+        self.target.remove(self.on_target_teardown_revent)
 
-    def _check_revent_files(self, context):
-        # check the revent binary
-        revent_binary = context.resolver.get(Executable(NO_ONE, self.target.abi, 'revent'))
-        if not os.path.isfile(revent_binary):
-            message = '{} does not exist. '.format(revent_binary)
-            message += 'Please build revent for your system and place it in that location'
-            raise WorkloadError(message)
-        if not self.revent_setup_file:
-            # pylint: disable=too-few-format-args
-            message = '{0}.setup.revent file does not exist, Please provide one for your target, {0}'
-            raise WorkloadError(message.format(self.target.name))
+    def remove(self):
+        self.revent_recorder.remove()
+
+    def init_commands(self):
+        pass
+
+    def _check_revent_files(self):
         if not self.revent_run_file:
             # pylint: disable=too-few-format-args
-            message = '{0}.run.revent file does not exist, Please provide one for your target, {0}'
-            raise WorkloadError(message.format(self.target.name))
+            message = '{0}.run.revent file does not exist, ' \
+                      'Please provide one for your target, {0}'
+            raise WorkloadError(message.format(self.target.model))
 
-        self.on_target_revent_binary = self.target.install(revent_binary)
         self.target.push(self.revent_run_file, self.on_target_run_revent)
-        self.target.push(self.revent_setup_file, self.on_target_setup_revent)
+        if self.revent_setup_file:
+            self.target.push(self.revent_setup_file, self.on_target_setup_revent)
+        if self.revent_extract_results_file:
+            self.target.push(self.revent_extract_results_file, self.on_target_extract_results_revent)
+        if self.revent_teardown_file:
+            self.target.push(self.revent_teardown_file, self.on_target_teardown_revent)
 
 
 class ApkHander(object):
@@ -280,10 +352,10 @@ class ApkHander(object):
         self.logcat_log = None
 
     def init_resources(self, resolver):
-        self.apk_file = resolver.get(ApkFile(self.owner, 
+        self.apk_file = resolver.get(ApkFile(self.owner,
                                              variant=self.variant,
-                                             version=self.version), 
-                                     strict=self.strict)
+                                             version=self.version),
+                                             strict=self.strict)
         self.apk_info = ApkInfo(self.apk_file)
 
     def setup(self, context):
@@ -332,7 +404,7 @@ class ApkHander(object):
 
     def start_activity(self):
         cmd = 'am start -W -n {}/{}'
-        output = self.target.execute(cmd.format(self.apk_info.package, 
+        output = self.target.execute(cmd.format(self.apk_info.package,
                                                 self.apk_info.activity))
         if 'Error:' in output:
             # this will dismiss any error dialogs
