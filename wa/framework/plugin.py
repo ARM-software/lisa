@@ -81,19 +81,10 @@ class AttributeCollection(object):
     __repr__ = __str__
 
     def _to_attrcls(self, p):
-        old_owner = getattr(p, "_owner", None)
-        if isinstance(p, basestring):
-            p = self._attrcls(p)
-        elif isinstance(p, tuple) or isinstance(p, list):
-            p = self._attrcls(*p)
-        elif isinstance(p, dict):
-            p = self._attrcls(**p)
-        elif not isinstance(p, self._attrcls):
-            raise ValueError('Invalid parameter value: {}'.format(p))
-        if (p.name in self._attrs and not p.override and
-                p.name != 'modules'):  # TODO: HACK due to "diamond dependecy" in workloads...
+        if not isinstance(p, self._attrcls):
+            raise ValueError('Invalid attribute value: {}; must be a {}'.format(p, self._attrcls))
+        if (p.name in self._attrs and not p.override):
             raise ValueError('Attribute {} has already been defined.'.format(p.name))
-        p._owner = old_owner
         return p
 
     def __iadd__(self, other):
@@ -269,7 +260,6 @@ class PluginMeta(type):
     to_propagate = [
         ('parameters', Parameter, AttributeCollection),
         ('artifacts', Artifact, AttributeCollection),
-        ('core_modules', str, ListCollection),
     ]
 
     virtual_methods = ['validate', 'initialize', 'finalize']
@@ -299,8 +289,10 @@ class PluginMeta(type):
             if prop_attr in attrs:
                 pattrs = attrs[prop_attr] or []
                 for pa in pattrs:
-                    if not isinstance(pa, basestring):
-                        pa._owner = clsname
+                    if not isinstance(pa, attr_cls):
+                        msg = 'Invalid value "{}" for attribute "{}"; must be a {}'
+                        raise ValueError(msg.format(pa, prop_attr, attr_cls))
+                    pa._owner = clsname
                 propagated += pattrs
                 should_propagate = True
             if should_propagate:
@@ -339,13 +331,7 @@ class Plugin(object):
 
     kind = None
     name = None
-    parameters = [
-        Parameter('modules', kind=list,
-                  description="""
-                  Lists the modules to be loaded by this plugin. A module is a 
-                  plug-in that further extends functionality of an plugin.
-                  """),
-    ]
+    parameters = []
     artifacts = []
     aliases = []
     core_modules = []
