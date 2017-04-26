@@ -84,13 +84,14 @@ class TargetDescription(object):
         self.platform = platform
         self.connection = conn
         self.assistant = assistant
-        self.assistant_params = assistant_params
         self._set('target_params', target_params)
         self._set('platform_params', platform_params)
         self._set('conn_params', conn_params)
+        self._set('assistant_params', assistant_params)
 
     def get_default_config(self):
-        param_attrs = ['target_params', 'platform_params', 'conn_params']
+        param_attrs = ['target_params', 'platform_params',
+                       'conn_params', 'assistant_params']
         config = {}
         for pattr in param_attrs:
             for n, p in getattr(self, pattr).itervalues():
