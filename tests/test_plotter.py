@@ -193,6 +193,16 @@ class TestPlotter(BaseTestThermal):
                                  "cpu_out_power:power"],
                             pivot="cpus")
 
+    def test_signals_invalid(self):
+        """Test that invalid signal defs result in a helpful errror"""
+        trace = trappy.FTrace()
+
+        with self.assertRaises(ValueError) as assertion:
+            l = trappy.LinePlot(trace, signals=["INVALID_SIGNAL_DEF"])
+        msg = str(assertion.exception)
+        self.assertIn("Invalid signal definition", msg)
+        self.assertIn("INVALID_SIGNAL_DEF", msg)
+
     def test_signals_colors(self):
         """Test signals with colors in LinePlot"""
 
