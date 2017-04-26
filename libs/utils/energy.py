@@ -216,9 +216,6 @@ class AEP(EnergyMeter):
     def __init__(self, target, conf, res_dir):
         super(AEP, self).__init__(target, res_dir)
 
-        # Energy channels
-        self.channels = []
-
         # Configure channels for energy measurements
         self._log.info('AEP configuration')
         self._log.info('    %s', conf)
@@ -235,9 +232,6 @@ class AEP(EnergyMeter):
         self._log.debug('Results dir: %s', self._res_dir)
 
     def reset(self):
-        self.channels = []
-        self._log.debug('RESET: %s', self.channels)
-
         self._aep.start()
 
     def report(self, out_dir, out_energy='energy.json', out_samples='samples.csv'):
