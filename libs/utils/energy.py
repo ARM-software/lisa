@@ -134,11 +134,31 @@ class HWMon(EnergyMeter):
         self._log.info('Scanning for HWMON channels, may take some time...')
         self._hwmon = devlib.HwmonInstrument(self._target)
 
-        # record the HWMon channels
-        self._channels = conf.get('channel_map', {
-            'LITTLE': self._target.little_core.upper(),
-            'big': self._target.big_core.upper()
-        })
+        # Decide which channels we'll collect data from.
+        # If the caller provided a channel_map, require that all the named
+        # channels exist.
+        # Otherwise, try using the big.LITTLE core names as channel names.
+        # If they don't match, just collect all available channels.
+
+        available_sites = [c.site for c in self._hwmon.get_channels('energy')]
+
+        self._channels = conf.get('channel_map')
+        if self._channels:
+            # If the user provides a channel_map then require it to be correct.
+            if not all (s in available_sites for s in self._channels.values()):
+                raise RuntimeError(
+                    "Found sites {} but channel_map contains {}".format(
+                        sorted(available_sites), sorted(channels.values())))
+        elif self._target.big_core:
+            bl_sites = [self._target.big_core.upper(),
+                        self._target.little_core.upper()]
+            if all(s in available_sites for s in bl_sites):
+                self._log.info('Using default big.LITTLE hwmon channels')
+                self._channels = dict(zip(['big', 'LITTLE'], bl_sites))
+
+        if not self._channels:
+            self._log.info('Using all hwmon energy channels')
+            self._channels = {site: site for site in available_sites}
 
         # Configure channels for energy measurements
         self._log.debug('Enabling channels %s', self._channels.values())
