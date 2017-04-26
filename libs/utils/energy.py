@@ -37,10 +37,6 @@ DEFAULT_ENERGY_METER = {
     # ARM TC2: by default use HWMON
     'tc2' : {
         'instrument' : 'hwmon',
-        'conf' : {
-            'sites' : [ 'A7 Jcore', 'A15 Jcore' ],
-            'kinds' : [ 'energy']
-        },
         'channel_map' : {
             'LITTLE' : 'A7 Jcore',
             'big' : 'A15 Jcore',
@@ -50,10 +46,6 @@ DEFAULT_ENERGY_METER = {
     # ARM Juno: by default use HWMON
     'juno' : {
         'instrument' : 'hwmon',
-        'conf' : {
-            'sites' : [ 'BOARDLITTLE', 'BOARDBIG' ],
-            'kinds' : [ 'energy' ]
-        },
         # if the channels do not contain a core name we can match to the
         # little/big cores on the board, use a channel_map section to
         # indicate which channel is which
@@ -142,20 +134,21 @@ class HWMon(EnergyMeter):
         self._log.info('Scanning for HWMON channels, may take some time...')
         self._hwmon = devlib.HwmonInstrument(self._target)
 
+        # record the HWMon channels
+        self._channels = conf.get('channel_map', {
+            'LITTLE': self._target.little_core.upper(),
+            'big': self._target.big_core.upper()
+        })
+
         # Configure channels for energy measurements
-        self._log.debug('Enabling channels %s', conf['conf'])
-        self._hwmon.reset(**conf['conf'])
+        self._log.debug('Enabling channels %s', self._channels.values())
+        self._hwmon.reset(kinds=['energy'], sites=self._channels.values())
 
         # Logging enabled channels
         self._log.info('Channels selected for energy sampling:')
         for channel in self._hwmon.active_channels:
             self._log.info('   %s', channel.label)
 
-        # record the HWMon channels
-        self._channels = conf.get('channel_map', {
-            'LITTLE': self._target.little_core.upper(),
-            'big': self._target.big_core.upper()
-        })
 
     def sample(self):
         if self._hwmon is None:
