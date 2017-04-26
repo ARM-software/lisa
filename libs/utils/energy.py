@@ -220,7 +220,7 @@ class AEP(EnergyMeter):
         self._log.info('AEP configuration')
         self._log.info('    %s', conf)
         self._aep = devlib.EnergyProbeInstrument(
-            self._target, labels=conf['channel_map'], **conf['conf'])
+            self._target, labels=conf.get('channel_map'), **conf['conf'])
 
         # Configure channels for energy measurements
         self._log.debug('Enabling channels')
