@@ -146,6 +146,12 @@ Instrument
    .. note:: This method is only implemented by :class:`Instrument`\ s that
              support ``CONTINUOUS`` measurment.
 
+.. attribute:: Instrument.sample_rate_hz
+
+   Sample rate of the instrument in Hz. Assumed to be the same for all channels.
+
+   .. note:: This attribute is only provided by :class:`Instrument`\ s that
+             support ``CONTINUOUS`` measurment.
 
 Instrument Channel
 ~~~~~~~~~~~~~~~~~~

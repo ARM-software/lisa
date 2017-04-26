@@ -236,6 +236,7 @@ class JunoEnergyInstrument(Instrument):
         for chan in self._channels:
             self.channels[chan.name] = chan
         self.on_target_file = self.target.tempfile('energy', '.csv')
+        self.sample_rate_hz = 10 # DEFAULT_PERIOD is 100[ms] in readenergy.c
         self.command = '{} -o {}'.format(self.binary, self.on_target_file)
         self.command2 = '{}'.format(self.binary)
 

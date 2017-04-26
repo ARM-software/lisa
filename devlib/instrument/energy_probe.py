@@ -51,6 +51,7 @@ class EnergyProbeInstrument(Instrument):
         self.command = None
         self.raw_output_directory = None
         self.process = None
+        self.sample_rate_hz = 10000 # Determined empirically
 
         for label in self.labels:
             for kind in self.attributes:

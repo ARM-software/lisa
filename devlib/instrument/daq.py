@@ -55,6 +55,7 @@ class DaqInstrument(Instrument):
                                                  resistor_values=resistor_values,
                                                  channel_map=channel_map,
                                                  labels=labels)
+        self.sample_rate_hz = sampling_rate
 
         for label in labels:
             for kind in ['power', 'voltage']:
