@@ -19,9 +19,9 @@ from unittest import TestCase
 
 from nose.tools import assert_equal, assert_raises
 
-from wlauto.utils.exec_control import (init_environment, reset_environment,
-                                              activate_environment, once,
-                                              once_per_class, once_per_instance)
+from wa.utils.exec_control import (init_environment, reset_environment,
+                                   activate_environment, once,
+                                   once_per_class, once_per_instance)
 
 class TestClass(object):
 
