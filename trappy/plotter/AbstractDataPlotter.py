@@ -76,6 +76,11 @@ class AbstractDataPlotter(object):
 
         match = re.match(r"(?P<event>[^:]+):(?P<column>[^:]+)(?P<color>:.+)?",
                          signal_def)
+        if not match:
+            raise ValueError(
+                'Invalid signal definition "{}". '
+                'Should have the form "trace_class:column" '
+                'e.g. "cpu_frequency:frequency"'.format(signal_def))
         event = match.group("event")
         column = match.group("column")
         color_match = match.group("color")
