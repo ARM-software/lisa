@@ -28,7 +28,7 @@ Android target.
     # a no-op, but is included here for completeness.
     In [4]: i.setup()
 
-    # Find out what the instrument is capable collecting from the 
+    # Find out what the instrument is capable collecting from the
     # target.
     In [5]: i.list_channels()
     Out[5]:
@@ -40,7 +40,7 @@ Android target.
     In [6]: i.reset(sites=['exynos-therm'])
 
     # HWMON instrument supports INSTANTANEOUS collection, so invoking
-    # take_measurement() will return a list of measurements take from 
+    # take_measurement() will return a list of measurements take from
     # each of the channels configured during reset()
     In [7]: i.take_measurement()
     Out[7]: [exynos-therm_temperature: 36.0 degrees]
@@ -68,7 +68,7 @@ Instrument
                 period of time via ``start()``, ``stop()``, and
                 ``get_data()`` methods.
 
-   .. note:: It's possible for one instrument to support more than a single 
+   .. note:: It's possible for one instrument to support more than a single
              mode.
 
 .. attribute:: Instrument.active_channels
@@ -133,9 +133,9 @@ Instrument
 
 .. method:: Instrument.get_data(outfile)
 
-   Write collected data into ``outfile``. Must be called after :func:`stop()`. 
+   Write collected data into ``outfile``. Must be called after :func:`stop()`.
    Data will be written in CSV format with a column for each channel and a row
-   for each sample. Column heading will be channel, labels in the form 
+   for each sample. Column heading will be channel, labels in the form
    ``<site>_<kind>`` (see :class:`InstrumentChannel`). The order of the coluns
    will be the same as the order of channels in ``Instrument.active_channels``.
 
@@ -146,6 +146,12 @@ Instrument
    .. note:: This method is only implemented by :class:`Instrument`\ s that
              support ``CONTINUOUS`` measurment.
 
+.. attribute:: Instrument.sample_rate_hz
+
+   Sample rate of the instrument in Hz. Assumed to be the same for all channels.
+
+   .. note:: This attribute is only provided by :class:`Instrument`\ s that
+             support ``CONTINUOUS`` measurment.
 
 Instrument Channel
 ~~~~~~~~~~~~~~~~~~

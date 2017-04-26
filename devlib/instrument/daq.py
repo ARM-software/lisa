@@ -27,7 +27,7 @@ class DaqInstrument(Instrument):
                  device_id='Dev1',
                  v_range=2.5,
                  dv_range=0.2,
-                 sampling_rate=10000,
+                 sample_rate_hz=10000,
                  channel_map=(0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23),
                  ):
         # pylint: disable=no-member
@@ -51,10 +51,11 @@ class DaqInstrument(Instrument):
         self.device_config = DeviceConfiguration(device_id=device_id,
                                                  v_range=v_range,
                                                  dv_range=dv_range,
-                                                 sampling_rate=sampling_rate,
+                                                 sampling_rate=sample_rate_hz,
                                                  resistor_values=resistor_values,
                                                  channel_map=channel_map,
                                                  labels=labels)
+        self.sample_rate_hz = sample_rate_hz
 
         for label in labels:
             for kind in ['power', 'voltage']:

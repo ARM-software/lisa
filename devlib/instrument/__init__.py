@@ -170,6 +170,7 @@ class Instrument(object):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.channels = collections.OrderedDict()
         self.active_channels = []
+        self.sample_rate_hz = None
 
     # channel management
 
