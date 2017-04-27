@@ -85,6 +85,37 @@ class System(object):
             log.warning('Failed to toggle airplane mode, permission denied.')
 
     @staticmethod
+    def _set_svc(target, cmd, on=True):
+        mode = 'enable' if on else 'disable'
+        try:
+            target.execute('svc {} {}'.format(cmd, mode), as_root=True)
+        except TargetError:
+            log = logging.getLogger('System')
+            log.warning('Failed to toggle {} mode, permission denied.'\
+                        .format(cmd))
+
+    @staticmethod
+    def set_mobile_data(target, on=True):
+        """
+        Set mobile data connectivity
+        """
+        System._set_svc(target, 'data', on)
+
+    @staticmethod
+    def set_wifi(target, on=True):
+        """
+        Set mobile data connectivity
+        """
+        System._set_svc(target, 'wifi', on)
+
+    @staticmethod
+    def set_nfc(target, on=True):
+        """
+        Set mobile data connectivity
+        """
+        System._set_svc(target, 'nfc', on)
+
+    @staticmethod
     def start_app(target, apk_name):
         """
         Start the main activity of the specified application
