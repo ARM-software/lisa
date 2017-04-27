@@ -23,7 +23,6 @@ class TestDevice(Plugin):
     kind = 'device'
 
     def __init__(self, *args, **kwargs):
-        self.modules = []
         self.boot_called = 0
         self.push_file_called = 0
         self.pull_file_called = 0

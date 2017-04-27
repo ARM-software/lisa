@@ -28,6 +28,7 @@ fact that Python is not the best language to use for configuration.
 import os
 import re
 import math
+import numbers
 import shlex
 import string
 from bisect import insort

@@ -44,14 +44,7 @@ class PluginLoaderTest(TestCase):
 
 
 
-class MyMeta(PluginMeta):
-
-    virtual_methods = ['validate', 'virtual1', 'virtual2']
-
-
 class MyBasePlugin(Plugin):
-
-    __metaclass__ = MyMeta
 
     name = 'base'
     kind = 'test'
@@ -165,43 +158,6 @@ class PluginMetaTest(TestCase):
             parameters = [
                 7,
             ]
-
-    def test_virtual_methods(self):
-        acid = MyAcidPlugin()
-        acid.virtual1()
-        assert_equal(acid.v1, 1)
-        assert_equal(acid.vv1, 1)
-        assert_equal(acid.v2, 0)
-        assert_equal(acid.vv2, 0)
-        assert_equal(acid.v3, 'acid')
-        acid.virtual2()
-        acid.virtual2()
-        assert_equal(acid.v1, 1)
-        assert_equal(acid.vv1, 1)
-        assert_equal(acid.v2, 2)
-        assert_equal(acid.vv2, 2)
-
-    def test_initialization(self):
-        class MyExt(Plugin):
-            name = 'myext'
-            kind = 'test'
-            values = {'a': 0}
-            def __init__(self, *args, **kwargs):
-                super(MyExt, self).__init__(*args, **kwargs)
-                self.instance_init = 0
-            def initialize(self, context):
-                self.values['a'] += 1
-
-        class MyChildExt(MyExt):
-            name = 'mychildext'
-            def initialize(self, context):
-                self.instance_init += 1
-
-        ext = MyChildExt()
-        ext.initialize(None)
-
-        assert_equal(MyExt.values['a'], 1)
-        assert_equal(ext.instance_init, 1)
 
 
 class ParametersTest(TestCase):

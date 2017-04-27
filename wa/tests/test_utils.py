@@ -20,7 +20,7 @@ from unittest import TestCase
 from nose.tools import raises, assert_equal, assert_not_equal, assert_in, assert_not_in
 from nose.tools import assert_true, assert_false
 
-from wa.utils.types import list_or_integer, list_or_bool, caseless_string, arguments, prioritylist, TreeNode
+from wa.utils.types import list_or_integer, list_or_bool, caseless_string, arguments, prioritylist
 
 
 class TestPriorityList(TestCase):
@@ -91,81 +91,3 @@ class TestPriorityList(TestCase):
         assert_equal(list(pl), ['a', 'b','y', 'x', 'm', 'n'])
         pl.add_after('z', 'm')
         assert_equal(list(pl), ['a', 'b', 'y', 'x', 'm', 'z', 'n'])
-
-
-class TestTreeNode(TestCase):
-
-    def test_addremove(self):
-        n1, n2, n3 = TreeNode(), TreeNode(), TreeNode()
-        n1.add_child(n2)
-        n3.parent = n2
-        assert_equal(n2.parent, n1)
-        assert_in(n3, n2.children)
-        n2.remove_child(n3)
-        assert_equal(n3.parent, None)
-        assert_not_in(n3, n2.children)
-        n1.add_child(n2)  # duplicat add
-        assert_equal(n1.children, [n2])
-
-    def test_ancestor_descendant(self):
-        n1, n2a, n2b, n3 = TreeNode(), TreeNode(), TreeNode(), TreeNode()
-        n1.add_child(n2a)
-        n1.add_child(n2b)
-        n2a.add_child(n3)
-        assert_equal(list(n3.iter_ancestors()), [n3, n2a, n1])
-        assert_equal(list(n1.iter_descendants()), [n2a, n3, n2b])
-        assert_true(n1.has_descendant(n3))
-        assert_true(n3.has_ancestor(n1))
-        assert_false(n3.has_ancestor(n2b))
-
-    def test_root(self):
-        n1, n2, n3 = TreeNode(), TreeNode(), TreeNode()
-        n1.add_child(n2)
-        n2.add_child(n3)
-        assert_true(n1.is_root)
-        assert_false(n2.is_root)
-        assert_equal(n3.get_root(), n1)
-
-    def test_common_ancestor(self):
-        n1, n2, n3a, n3b, n4, n5 = TreeNode(), TreeNode(), TreeNode(), TreeNode(), TreeNode(), TreeNode()
-        n1.add_child(n2)
-        n2.add_child(n3a)
-        n2.add_child(n3b)
-        n3b.add_child(n4)
-        n3a.add_child(n5)
-        assert_equal(n4.get_common_ancestor(n3a), n2)
-        assert_equal(n3a.get_common_ancestor(n4), n2)
-        assert_equal(n3b.get_common_ancestor(n4), n3b)
-        assert_equal(n4.get_common_ancestor(n3b), n3b)
-        assert_equal(n4.get_common_ancestor(n5), n2)
-
-    def test_iteration(self):
-        n1, n2, n3, n4, n5 = TreeNode(), TreeNode(), TreeNode(), TreeNode(), TreeNode()
-        n1.add_child(n2)
-        n2.add_child(n3)
-        n3.add_child(n4)
-        n4.add_child(n5)
-        ancestors = [a for a in n5.iter_ancestors(upto=n2)]
-        assert_equal(ancestors, [n5, n4, n3])
-        ancestors = [a for a in n5.iter_ancestors(after=n2)]
-        assert_equal(ancestors, [n2, n1])
-
-    @raises(ValueError)
-    def test_trivial_loop(self):
-        n1, n2, n3 = TreeNode(), TreeNode(), TreeNode()
-        n1.add_child(n2)
-        n2.add_child(n3)
-        n3.add_child(n1)
-
-    @raises(ValueError)
-    def test_tree_violation(self):
-        n1, n2a, n2b, n3 = TreeNode(), TreeNode(), TreeNode(), TreeNode()
-        n1.add_child(n2a)
-        n1.add_child(n2b)
-        n2a.add_child(n3)
-        n2b.add_child(n3)
-
-    @raises(ValueError)
-    def test_self_parent(self):
-        n = TreeNode()
-        n.add_child(n)
