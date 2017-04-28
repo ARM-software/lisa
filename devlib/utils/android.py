@@ -204,6 +204,8 @@ class AdbConnection(object):
         if timeout is None:
             timeout = self.timeout
         command = "push '{}' '{}'".format(source, dest)
+        if not os.path.exists(source):
+            raise HostError('No such file "{}"'.format(source))
         return adb_command(self.device, command, timeout=timeout)
 
     def pull(self, source, dest, timeout=None):
