@@ -1,4 +1,4 @@
-from wa.framework import pluginloader, log, signal
+from wa.framework import pluginloader, signal
 from wa.framework.command import Command, ComplexCommand, SubCommand
 from wa.framework.configuration import settings
 from wa.framework.configuration.core import Status
