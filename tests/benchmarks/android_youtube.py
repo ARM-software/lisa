@@ -66,22 +66,11 @@ class YouTubeTest(LisaBenchmark):
     def benchmarkInit(self):
         self.setupWorkload()
         self.setupGovernor()
-        if self.reboot:
-            self.reboot_target()
 
-    def benchmarkFinalize(self):
-        if self.delay_after_s:
-            self._log.info("Waiting %d[s] before to continue...",
-                           self.delay_after_s)
-            sleep(self.delay_after_s)
-
-    def __init__(self, governor, video_url, video_duration_s, reboot=False,
-                 delay_after_s=0):
-        self.reboot = reboot
+    def __init__(self, governor, video_url, video_duration_s):
         self.governor = governor
         self.video_url = video_url
         self.video_duration_s = video_duration_s
-        self.delay_after_s = delay_after_s
         super(YouTubeTest, self).__init__()
 
     def setupWorkload(self):
@@ -166,22 +155,17 @@ video_urls = [
     'https://youtu.be/XSGBVzeBUbk?t=45s',
 ]
 
-# Reboot device only the first time
-do_reboot = True
 tests_remaining = len(governors) * len(video_urls)
 tests_completed = 0
 for governor in governors:
     for url in video_urls:
         tests_remaining -= 1
-        delay_after_s = 30 if tests_remaining else 0
         try:
-            YouTubeTest(governor, url, video_duration_s,
-                          do_reboot, delay_after_s)
+            YouTubeTest(governor, url, video_duration_s)
             tests_completed += 1
         except:
             # A test configuraion failed, continue with other tests
             pass
-        do_reboot = False
 
 # We want to collect data from at least one governor
 assert(tests_completed >= 1)

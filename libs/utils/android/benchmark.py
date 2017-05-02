@@ -59,6 +59,24 @@ class LisaBenchmark(object):
     bm_collect = None
     """Override this with the set of data to collect during test exeution"""
 
+    bm_reboot = False
+    """Override this with True if a boot image was passed as command line parameter"""
+
+    bm_iterations = 1
+    """Override this with the desired number of iterations of the test"""
+
+    bm_iterations_pause = 30
+    """
+    Override this with the desired amount of time (in seconds) to pause
+    for before each iteration
+    """
+
+    bm_iterations_reboot = False
+    """
+    Override this with the desired behaviour: reboot or not reboot before
+    each iteration
+    """
+
     def benchmarkInit(self):
         """
         Code executed before running the benchmark
@@ -85,8 +103,8 @@ class LisaBenchmark(object):
                 default=None,
                 help='Path of the Android boot.img to be used')
         parser.add_argument('--boot-timeout', type=int,
-                default=20,
-                help='Timeout in [s] to wait after a reboot (default 20)')
+                default=60,
+                help='Timeout in [s] to wait after a reboot (default 60)')
 
         # Android settings
         parser.add_argument('--android-device', type=str,
@@ -106,6 +124,14 @@ class LisaBenchmark(object):
                 help='Set of metrics to collect, '
                      'e.g. "energy systrace_30" to sample energy and collect a 30s systrace, '
                      'if specified overrides test defaults')
+        parser.add_argument('--iterations', type=int,
+                default=1,
+                help='Number of iterations the same test has to be repeated for (default 1)')
+        parser.add_argument('--iterations-pause', type=int,
+                default=30,
+                help='Amount of time (in seconds) to pause for before each iteration (default 30s)')
+        parser.add_argument('--iterations-reboot', action="store_true",
+                help='Reboot before each iteration (default False)')
 
         # Measurements settings
         parser.add_argument('--iio-channel-map', type=str,
@@ -124,6 +150,8 @@ class LisaBenchmark(object):
             raise NotImplementedError(msg)
 
         # Override default configuration with command line parameters
+        if self.args.boot_image:
+            self.bm_reboot = True
         if self.args.android_device:
             self.bm_conf['device'] = self.args.android_device
         if self.args.android_home:
@@ -132,6 +160,12 @@ class LisaBenchmark(object):
             self.bm_conf['results_dir'] = self.args.results_dir
         if self.args.collect:
             self.bm_collect = self.args.collect
+        if self.args.iterations:
+            self.bm_iterations = self.args.iterations
+        if self.args.iterations_pause:
+            self.bm_iterations_pause = self.args.iterations_pause
+        if self.args.iterations_reboot:
+            self.bm_iterations_reboot = True
 
         # Override energy meter configuration
         if self.args.iio_channel_map:
@@ -178,6 +212,33 @@ class LisaBenchmark(object):
             return ''
         return self.bm_collect
 
+    def _preInit(self):
+        """
+        Code executed before running the benchmark
+        """
+        # If iterations_reboot is True we are going to reboot before the
+        # first iteration anyway.
+        if self.bm_reboot and not self.bm_iterations_reboot:
+            self.reboot_target()
+
+        self.iterations_count = 1
+
+    def _preRun(self):
+        """
+        Code executed before every iteration of the benchmark
+        """
+        rebooted = False
+
+        if self.bm_reboot and self.bm_iterations_reboot:
+            rebooted = self.reboot_target()
+
+        if not rebooted and self.iterations_count > 1:
+            self._log.info('Waiting {}[s] before executing iteration {}...'\
+                           .format(self.bm_iterations_pause, self.iterations_count))
+            sleep(self.bm_iterations_pause)
+
+        self.iterations_count += 1
+
     def __init__(self):
         """
         Set up logging and trigger running experiments
@@ -197,15 +258,25 @@ class LisaBenchmark(object):
         self.wl = self._getWorkload()
         self.out_dir=self.te.res_dir
         try:
+            self._preInit()
             self.benchmarkInit()
         except:
             self._log.warning('Benchmark initialization failed: execution aborted')
             raise
 
         self._log.info('=== Execution...')
-        self.wl.run(out_dir=self.out_dir,
-                    collect=self._getBmCollect(),
-                    **self.bm_params)
+        for iter_id in range(1, self.bm_iterations+1):
+            self._log.info('=== Iteration {}/{}...'.format(iter_id, self.bm_iterations))
+            out_dir = os.path.join(self.out_dir, "{:03d}".format(iter_id))
+            try:
+                os.makedirs(out_dir)
+            except: pass
+
+            self._preRun()
+
+            self.wl.run(out_dir=out_dir,
+                        collect=self._getBmCollect(),
+                        **self.bm_params)
 
         self._log.info('=== Finalization...')
         self.benchmarkFinalize()
@@ -247,6 +318,7 @@ class LisaBenchmark(object):
         method will reboot the target with the specified kernel and wait
         for the target to be up and running.
         """
+        rebooted = False
 
         # Reboot the device, if a boot_image has been specified
         if self.args.boot_image:
@@ -263,6 +335,7 @@ class LisaBenchmark(object):
             self._log.debug('Waiting {}[s] for boot to start...'\
                             .format(self.args.boot_timeout))
             sleep(self.args.boot_timeout)
+            rebooted = True
 
         else:
             self._log.warning('Device NOT rebooted, using current image')
@@ -285,5 +358,7 @@ class LisaBenchmark(object):
 
         # Wait for the system to complete the boot
         self._wait_for_logcat_idle()
+
+        return rebooted
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

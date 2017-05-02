@@ -66,20 +66,10 @@ class GeekbenchTest(LisaBenchmark):
     def benchmarkInit(self):
         self.setupWorkload()
         self.setupGovernor()
-        if self.reboot:
-            self.reboot_target()
 
-    def benchmarkFinalize(self):
-        if self.delay_after_s:
-            self._log.info("Waiting %d[s] before to continue...",
-                           self.delay_after_s)
-            sleep(self.delay_after_s)
-
-    def __init__(self, governor, test, reboot=False, delay_after_s=0):
-        self.reboot = reboot
+    def __init__(self, governor, test):
         self.governor = governor
         self.test = test
-        self.delay_after_s = delay_after_s
         super(GeekbenchTest, self).__init__()
 
     def setupWorkload(self):
@@ -161,21 +151,17 @@ tests = [
         'COMPUTE'
 ]
 
-# Reboot device only the first time
-do_reboot = True
 tests_remaining = len(governors) * len(tests)
 tests_completed = 0
 for governor in governors:
     for test in tests:
         tests_remaining -= 1
-        delay_after_s = 30 if tests_remaining else 0
         try:
-            GeekbenchTest(governor, test, do_reboot, delay_after_s)
+            GeekbenchTest(governor, test)
             tests_completed += 1
         except:
             # A test configuraion failed, continue with other tests
             pass
-        do_reboot = False
 
 # We want to collect data from at least one governor
 assert(tests_completed >= 1)
