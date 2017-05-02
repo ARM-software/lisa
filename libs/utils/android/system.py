@@ -31,7 +31,7 @@ class System(object):
 
     @staticmethod
     def systrace_start(target, trace_file, time=None,
-                       events=['gfx', 'view', 'sched', 'freq', 'idle']):
+                       events=['irq', 'sched'], bufsize=None):
 
         log = logging.getLogger('System')
 
@@ -52,6 +52,9 @@ class System(object):
                                             trace_file, " ".join(events))
         if time is not None:
             trace_cmd += " -t {}".format(time)
+
+        if bufsize is not None:
+            trace_cmd += " -b {}".format(bufsize)
 
         log.info('SysTrace: %s', trace_cmd)
 
