@@ -102,9 +102,8 @@ class Jankbench(Workload):
         except KeyError:
             raise ValueError('Jankbench test [%s] not supported', test_name)
 
-        # Make sure we exit the app if already open
-        System.menu(self._target)
-        System.back(self._target)
+        # Unlock device screen (assume no password required)
+        Screen.unlock(self._target)
 
         # Close and clear application
         System.force_stop(self._target, self.package, clear=True)

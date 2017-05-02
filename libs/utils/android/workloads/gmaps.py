@@ -70,9 +70,7 @@ class GMaps(Workload):
         # Set min brightness
         Screen.set_brightness(self._target, auto=False, percent=0)
         # Unlock device screen (assume no password required)
-        System.menu(self._target)
-        # Press Back button to be sure we run the video from the start
-        System.back(self._target)
+        Screen.unlock(self._target)
 
         # Use the monkey tool to start GMaps
         # This allows to subsequently set the screen orientation to LANDSCAPE
