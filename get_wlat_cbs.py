@@ -7,7 +7,8 @@ EventData = namedtuple('EventData', ['time', 'event', 'data'])
 LatData = namedtuple('LatData', ['pid', 'switch_data', 'wake_data', 'last_wake_data', 'running', 'wake_pend', 'latency'])
 
 # path_to_html = "/home/joelaf/repo/catapult/systrace/trace_sf-dispsync_rt_pull_fail_1504ms.html"
-path_to_html   = "/home/joelaf/Downloads/trace_sf_late_wakeup_ipi.html"
+# path_to_html   = "/home/joelaf/Downloads/trace_sf_late_wakeup_ipi.html"
+path_to_html = "/home/joelaf/repo/lisa/results/ChromeMonkey/trace.html"
 
 # Hash table of pid -> LatData named tuple
 latpids = {}
@@ -16,7 +17,7 @@ latpids = {}
 dpid = 21047
 debugg = False
 
-normalize = True   # Normalize with the base timestamp
+normalize = False   # Normalize with the base timestamp
 printrows = False   # Debug aid to print all switch and wake events in a time range
 
 switch_events = []
@@ -27,6 +28,8 @@ def switch_cb(time, data):
     event = "switch"
     prevpid = data['prev_pid']
     nextpid = data['next_pid']
+
+    # print str(time) + ": " + str(data)
 
     global basetime, switch_events
     basetime = time if (normalize and not basetime) else basetime
@@ -86,6 +89,9 @@ def wake_cb(time, data):
     e = EventData(time, event, data)
     wake_events.append(e)
 
+    if data["prio"] > 99:
+        return
+
     if debug: print "\nProcessing wake pid=" + str(pid) + " time=" + str(time)
     if  not latpids.has_key(pid):
         latpids[pid] = LatData(pid, switch_data=None, wake_data=None,
@@ -105,7 +111,7 @@ systrace_obj = trappy.SysTrace(name="systrace", path=path_to_html, \
         scope="sched", events=["sched_switch", "sched_wakeup", "sched_waking"],
         event_callbacks={ "sched_switch": switch_cb, "sched_wakeup": wake_cb,
                           "sched_waking": wake_cb },
-	build_df=False)
+	build_df=False, normalize_time=False)
 
 # Print the results: PID, latency, start, end, sort
 result = sorted(latpids.items(), key=lambda x: x[1].latency, reverse=True)
