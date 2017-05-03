@@ -420,6 +420,15 @@ class TestFTraceSched(utils_tests.SetupDirectory):
 
         self.assertEqual(trace.basetime, 0)
 
+    def test_ftrace_unique_but_no_fields(self):
+        """Test with a matching unique but no special fields"""
+        version_parser = trappy.register_dynamic_ftrace("Version", "version")
+
+        with self.assertRaises(ValueError):
+            trappy.FTrace(scope="custom")
+
+        trappy.unregister_dynamic_ftrace(version_parser)
+
     def test_ftrace_normalize_some_tracepoints(self):
         """Test that normalizing time works if not all the tracepoints are in the trace"""
 
