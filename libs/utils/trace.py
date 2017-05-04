@@ -51,10 +51,6 @@ class Trace(object):
     :param events: events to be parsed (everything in the trace by default)
     :type events: list(str)
 
-    :param tasks: filter data for the specified tasks only. If None (default),
-        use data for all tasks found in the trace.
-    :type tasks: list(str) or NoneType
-
     :param window: time window to consider when parsing the trace
     :type window: tuple(int, int)
 
@@ -74,7 +70,7 @@ class Trace(object):
     """
 
     def __init__(self, platform, data_dir, events,
-                 tasks=None, window=(0, None),
+                 window=(0, None),
                  normalize_time=True,
                  trace_format='FTrace',
                  plots_dir=None,
@@ -133,7 +129,7 @@ class Trace(object):
         self.plots_prefix = plots_prefix
 
         self.__registerTraceEvents(events)
-        self.__parseTrace(data_dir, tasks, window, normalize_time,
+        self.__parseTrace(data_dir, window, normalize_time,
                           trace_format)
         self.__computeTimeSpan()
 
@@ -206,16 +202,13 @@ class Trace(object):
         if 'cpu_frequency' in events:
             self.events.append('cpu_frequency_devlib')
 
-    def __parseTrace(self, path, tasks, window, normalize_time, trace_format):
+    def __parseTrace(self, path, window, normalize_time, trace_format):
         """
         Internal method in charge of performing the actual parsing of the
         trace.
 
         :param path: path to the trace folder (or trace file)
         :type path: str
-
-        :param tasks: filter data for the specified tasks only
-        :type tasks: list(str)
 
         :param window: time window to consider when parsing the trace
         :type window: tuple(int, int)
@@ -256,6 +249,9 @@ class Trace(object):
             raise ValueError('The trace does not contain useful events '
                              'nor function stats')
 
+        # Index PIDs and Task names
+        self.__loadTasksNames()
+
         # Setup internal data reference to interesting events/dataframes
 
         self._sanitize_SchedLoadAvgCpu()
@@ -266,8 +262,6 @@ class Trace(object):
         self._sanitize_SchedEnergyDiff()
         self._sanitize_SchedOverutilized()
         self._sanitize_CpuFrequency()
-
-        self.__loadTasksNames(tasks)
 
         # Compute plot window
         if not normalize_time:
@@ -294,26 +288,23 @@ class Trace(object):
         for evt in self.available_events:
             self._log.debug(' - %s', evt)
 
-    def __loadTasksNames(self, tasks):
+    def __loadTasksNames(self):
         """
         Try to load tasks names using one of the supported events.
-
-        :param tasks: list of task names. If None, load all tasks found.
-        :type tasks: list(str) or NoneType
         """
-        def load(tasks, event, name_key, pid_key):
+        def load(event, name_key, pid_key):
             df = self._dfg_trace_event(event)
-            if tasks is None:
-                tasks = df[name_key].unique()
-            self.getTasks(df, tasks, name_key=name_key, pid_key=pid_key)
             self._scanTasks(df, name_key=name_key, pid_key=pid_key)
 
         if 'sched_switch' in self.available_events:
-            load(tasks, 'sched_switch', 'next_comm', 'next_pid')
-        elif 'sched_load_avg_task' in self.available_events:
-            load(tasks, 'sched_load_avg_task', 'comm', 'pid')
-        else:
-            self._log.warning('Failed to load tasks names from trace events')
+            load('sched_switch', 'next_comm', 'next_pid')
+            return
+
+        if 'sched_load_avg_task' in self.available_events:
+            load('sched_load_avg_task', 'comm', 'pid')
+            return
+
+        self._log.warning('Failed to load tasks names from trace events')
 
     def hasEvents(self, dataset):
         """
