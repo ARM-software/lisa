@@ -183,18 +183,26 @@ class SshConnection(object):
 
     def execute(self, command, timeout=None, check_exit_code=True,
                 as_root=False, strip_colors=True): #pylint: disable=unused-argument
+        if command == '':
+            # Empty command is valid but the __devlib_ec stuff below will
+            # produce a syntax error with bash. Treat as a special case.
+            return ''
         try:
             with self.lock:
-                output = self._execute_and_wait_for_prompt(command, timeout, as_root, strip_colors)
+                _command = '({}); __devlib_ec=$?; echo; echo $__devlib_ec'.format(command)
+                raw_output = self._execute_and_wait_for_prompt(
+                    _command, timeout, as_root, strip_colors)
+                output, exit_code_text, _ = raw_output.rsplit('\r\n', 2)
                 if check_exit_code:
-                    exit_code_text = self._execute_and_wait_for_prompt('echo $?', strip_colors=strip_colors, log=False)
                     try:
-                        exit_code = int(exit_code_text.split()[0])
+                        exit_code = int(exit_code_text)
                         if exit_code:
                             message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
                             raise TargetError(message.format(exit_code, command, output))
                     except (ValueError, IndexError):
-                        logger.warning('Could not get exit code for "{}",\ngot: "{}"'.format(command, exit_code_text))
+                        logger.warning(
+                            'Could not get exit code for "{}",\ngot: "{}"'\
+                            .format(command, exit_code_text))
                 return output
         except EOF:
             raise TargetError('Connection lost.')
