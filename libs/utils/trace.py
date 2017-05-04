@@ -380,29 +380,54 @@ class Trace(object):
         """
         Get the PIDs of all tasks with the specified name.
 
+        The same PID can have different task names, mainly because once a task
+        is generated it inherits the parent name and then its name is updated
+        to represent what the task really is.
+
+        This API works under the assumption that a task name is updated at
+        most one time and it always considers the name a task had the last time
+        it has been scheduled for execution in the current trace.
+
         :param name: task name
         :type name: str
+
+        :return: a list of PID for tasks which name matches the required one,
+                 the last time they ran in the current trace
         """
         if name not in self._tasks_by_name.index:
             return []
-        if len(self._tasks_by_name.ix[name].values) > 1:
-            return list({task[0] for task in
-                         self._tasks_by_name.ix[name].values})
-        return [self._tasks_by_name.ix[name].values[0]]
+        pids = []
+        for pid in np.unique(self._tasks_by_name.ix[name].values):
+            # Consider only tasks which actually had the required name the last
+            # time they ran in the current trace
+            if self.getTaskByPid(pid) == name:
+                pids.append(pid)
+        return pids
 
     def getTaskByPid(self, pid):
         """
-        Get the names of all tasks with the specified PID.
+        Get the name of the task with the specified PID.
+
+        The same PID can have different task names, mainly because once a task
+        is generated it inherits the parent name and then its name is
+        updated to represent what the task really is.
+
+        This API works under the assumption that a task name is updated at
+        most one time and it always report the name the task had the last time
+        it has been scheduled for execution in the current trace.
 
         :param name: task PID
         :type name: int
+
+        :return: the name of the task which PID matches the required one,
+                 the last time they ran in the current trace
         """
         if pid not in self._tasks_by_pid.index:
-            return []
-        if len(self._tasks_by_pid.ix[pid].values) > 1:
-            return list({task[0] for task in
-                         self._tasks_by_pid.ix[pid].values})
-        return [self._tasks_by_pid.ix[pid].values[0]]
+            return None
+        name = self._tasks_by_pid.ix[pid].tail(1)['next_comm']
+        if type(name) == str:
+            return name
+        return name.values[0]
 
     def getTasks(self, dataframe=None,
                  task_names=None, name_key='comm', pid_key='pid'):
