@@ -34,7 +34,6 @@ class AnalysisModule(object):
 
         self._trace = trace
         self._platform = trace.platform
-        self._tasks = trace.tasks
         self._data_dir = trace.data_dir
 
         self._dfg_trace_event = trace._dfg_trace_event

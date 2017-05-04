@@ -98,9 +98,6 @@ class Trace(object):
         self.overutilized_time = 0
         self.overutilized_prc = 0
 
-        # The dictionary of tasks descriptors available in the dataset
-        self.tasks = {}
-
         # List of events required by user
         self.events = []
 
