@@ -16,7 +16,7 @@
 #
 # Parser for dumpsys gfxinfo output
 
-import ast
+import ast, re
 
 def get_value(token):
     try:
@@ -60,6 +60,15 @@ class GfxInfo(object):
             tokens = [t.strip() for t in tokens]
             tokens[0] = tokens[0].replace(' ', '_').lower()
 
+            # Parse janky_frames. Ex: "Janky frames: 44 (26.99%)"
+            if tokens[0] == 'janky_frames':
+                (frames, pc) = tokens[1].split(' ')
+                self.__properties["janky_frames"] = get_value(frames)
+                pc = re.sub('[\(\)\%]', '', pc)
+                self.__properties["janky_frames_pc"] = get_value(pc)
+                continue
+
+            # Regular parsing
             self.__properties[tokens[0]] = get_value(tokens[1])
 
     def __dir__(self):
