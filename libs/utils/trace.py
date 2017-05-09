@@ -411,58 +411,14 @@ class Trace(object):
         except KeyError:
             return None
 
-    def getTasks(self, dataframe=None,
-                 task_names=None, name_key='comm', pid_key='pid'):
+    def getTasks(self):
         """
-        Helper function to get PIDs of specified tasks.
+        Get a dictionary of all the tasks in the Trace.
 
-        This method can take a Pandas dataset in input to be used to fiter out
-        the PIDs of all the specified tasks. If a dataset is not provided,
-        previously filtered PIDs are returned.
-
-        If a list of task names is not provided, all tasks detected in the trace
-        will be used. The specified dataframe must provide at least two columns
-        reporting the task name and the task PID. The default values of this
-        colums could be specified using the provided parameters.
-
-        :param dataframe: A Pandas dataframe containing at least 'name_key' and
-            'pid_key' columns. If None, the all PIDs are returned.
-        :type dataframe: :mod:`pandas.DataFrame`
-
-        :param task_names: The list of tasks to get the PID of (default: all
-            tasks)
-        :type task_names: list(str)
-
-        :param name_key: The name of the dataframe columns containing task
-            names
-        :type name_key: str
-
-        :param pid_key: The name of the dataframe columns containing task PIDs
-        :type pid_key: str
+        :return: a dictionary which maps each PID to the corresponding task
+                 name
         """
-        if task_names is None:
-            task_names = self.tasks.keys()
-        if dataframe is None:
-            return {k: v for k, v in  self.tasks.iteritems() if k in task_names}
-        df = dataframe
-        self._log.debug('Lookup dataset for tasks...')
-        for tname in task_names:
-            self._log.debug('Lookup for task [%s]...', tname)
-            results = df[df[name_key] == tname][[name_key, pid_key]]
-            if len(results) == 0:
-                self._log.error('  task %16s NOT found', tname)
-                continue
-            (name, pid) = results.head(1).values[0]
-            if name != tname:
-                self._log.error('  task %16s NOT found', tname)
-                continue
-            if tname not in self.tasks:
-                self.tasks[tname] = {}
-            pids = list(results[pid_key].unique())
-            self.tasks[tname]['pid'] = pids
-            self._log.debug('  task %16s found, pid: %s',
-                            tname, self.tasks[tname]['pid'])
-        return self.tasks
+        return self._tasks_by_pid.TaskName.to_dict()
 
 
 ###############################################################################
