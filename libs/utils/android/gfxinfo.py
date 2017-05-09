@@ -67,7 +67,10 @@ class GfxInfo(object):
                 pc = re.sub('[\(\)\%]', '', pc)
                 self.__properties["janky_frames_pc"] = get_value(pc)
                 continue
-
+            # Parse 'nth_percentile: <int>ms' into nth_percentile_ms=<int>
+            if tokens[1].endswith('ms'):
+                tokens[0] = tokens[0] + '_ms'
+                tokens[1] = tokens[1][:-2]
             # Regular parsing
             self.__properties[tokens[0]] = get_value(tokens[1])
 
