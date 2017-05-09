@@ -361,8 +361,11 @@ class Trace(object):
         :type pid_key: str
         """
         df = df[[name_key, pid_key]]
-        self._tasks_by_name = df.set_index(name_key)
-        self._tasks_by_pid = df.set_index(pid_key)
+        self._tasks_by_pid = (df.drop_duplicates(subset=pid_key, keep='last')
+                .rename(columns={
+                    pid_key : 'PID',
+                    name_key : 'TaskName'})
+                .set_index('PID').sort_index())
 
     def getTaskByName(self, name):
         """
@@ -382,15 +385,8 @@ class Trace(object):
         :return: a list of PID for tasks which name matches the required one,
                  the last time they ran in the current trace
         """
-        if name not in self._tasks_by_name.index:
-            return []
-        pids = []
-        for pid in np.unique(self._tasks_by_name.ix[name].values):
-            # Consider only tasks which actually had the required name the last
-            # time they ran in the current trace
-            if self.getTaskByPid(pid) == name:
-                pids.append(pid)
-        return pids
+        return (self._tasks_by_pid[self._tasks_by_pid.TaskName == name]
+                    .index.tolist())
 
     def getTaskByPid(self, pid):
         """
@@ -410,12 +406,10 @@ class Trace(object):
         :return: the name of the task which PID matches the required one,
                  the last time they ran in the current trace
         """
-        if pid not in self._tasks_by_pid.index:
+        try:
+            return self._tasks_by_pid.ix[pid].values[0]
+        except KeyError:
             return None
-        name = self._tasks_by_pid.ix[pid].tail(1)['next_comm']
-        if type(name) == str:
-            return name
-        return name.values[0]
 
     def getTasks(self, dataframe=None,
                  task_names=None, name_key='comm', pid_key='pid'):
