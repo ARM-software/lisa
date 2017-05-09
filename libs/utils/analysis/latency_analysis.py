@@ -109,6 +109,8 @@ class LatencyAnalysis(AnalysisModule):
         task_switches_df.rename(columns={'prev_state' : 'curr_state'}, inplace=True)
 
         # Fill in Running status
+        # We've just set curr_state (a.k.a prev_state) to nan where td.pid was
+        # switching in, so set the state to 'A' ("active") in those places.
         task_switches_df.curr_state = task_switches_df.curr_state.fillna(value='A')
 
         # Join Wakeup and SchedSwitch events
