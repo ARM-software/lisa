@@ -37,10 +37,6 @@ DEFAULT_ENERGY_METER = {
     # ARM TC2: by default use HWMON
     'tc2' : {
         'instrument' : 'hwmon',
-        'conf' : {
-            'sites' : [ 'A7 Jcore', 'A15 Jcore' ],
-            'kinds' : [ 'energy']
-        },
         'channel_map' : {
             'LITTLE' : 'A7 Jcore',
             'big' : 'A15 Jcore',
@@ -50,10 +46,6 @@ DEFAULT_ENERGY_METER = {
     # ARM Juno: by default use HWMON
     'juno' : {
         'instrument' : 'hwmon',
-        'conf' : {
-            'sites' : [ 'BOARDLITTLE', 'BOARDBIG' ],
-            'kinds' : [ 'energy' ]
-        },
         # if the channels do not contain a core name we can match to the
         # little/big cores on the board, use a channel_map section to
         # indicate which channel is which
@@ -142,42 +134,61 @@ class HWMon(EnergyMeter):
         self._log.info('Scanning for HWMON channels, may take some time...')
         self._hwmon = devlib.HwmonInstrument(self._target)
 
+        # Decide which channels we'll collect data from.
+        # If the caller provided a channel_map, require that all the named
+        # channels exist.
+        # Otherwise, try using the big.LITTLE core names as channel names.
+        # If they don't match, just collect all available channels.
+
+        available_sites = [c.site for c in self._hwmon.get_channels('energy')]
+
+        self._channels = conf.get('channel_map')
+        if self._channels:
+            # If the user provides a channel_map then require it to be correct.
+            if not all (s in available_sites for s in self._channels.values()):
+                raise RuntimeError(
+                    "Found sites {} but channel_map contains {}".format(
+                        sorted(available_sites), sorted(channels.values())))
+        elif self._target.big_core:
+            bl_sites = [self._target.big_core.upper(),
+                        self._target.little_core.upper()]
+            if all(s in available_sites for s in bl_sites):
+                self._log.info('Using default big.LITTLE hwmon channels')
+                self._channels = dict(zip(['big', 'LITTLE'], bl_sites))
+
+        if not self._channels:
+            self._log.info('Using all hwmon energy channels')
+            self._channels = {site: site for site in available_sites}
+
         # Configure channels for energy measurements
-        self._log.debug('Enabling channels %s', conf['conf'])
-        self._hwmon.reset(**conf['conf'])
+        self._log.debug('Enabling channels %s', self._channels.values())
+        self._hwmon.reset(kinds=['energy'], sites=self._channels.values())
 
         # Logging enabled channels
         self._log.info('Channels selected for energy sampling:')
         for channel in self._hwmon.active_channels:
             self._log.info('   %s', channel.label)
 
-        # record the HWMon channels
-        self._channels = conf.get('channel_map', {
-            'LITTLE': self._target.little_core.upper(),
-            'big': self._target.big_core.upper()
-        })
 
     def sample(self):
         if self._hwmon is None:
             return None
         samples = self._hwmon.take_measurement()
         for s in samples:
-            label = s.channel.label\
-                    .replace('_energy', '')\
-                    .replace(" ", "_")
+            site = s.channel.site
             value = s.value
 
-            if label not in self.readings:
-                self.readings[label] = {
+            if site not in self.readings:
+                self.readings[site] = {
                         'last'  : value,
                         'delta' : 0,
                         'total' : 0
                         }
                 continue
 
-            self.readings[label]['delta'] = value - self.readings[label]['last']
-            self.readings[label]['last']  = value
-            self.readings[label]['total'] += self.readings[label]['delta']
+            self.readings[site]['delta'] = value - self.readings[site]['last']
+            self.readings[site]['last']  = value
+            self.readings[site]['total'] += self.readings[site]['delta']
 
         self._log.debug('SAMPLE: %s', self.readings)
         return self.readings
@@ -186,9 +197,9 @@ class HWMon(EnergyMeter):
         if self._hwmon is None:
             return
         self.sample()
-        for label in self.readings:
-            self.readings[label]['delta'] = 0
-            self.readings[label]['total'] = 0
+        for site in self.readings:
+            self.readings[site]['delta'] = 0
+            self.readings[site]['total'] = 0
         self._log.debug('RESET: %s', self.readings)
 
     def report(self, out_dir, out_file='energy.json'):
@@ -198,14 +209,13 @@ class HWMon(EnergyMeter):
         nrg = self.sample()
         # Reformat data for output generation
         clusters_nrg = {}
-        for channel in self._channels:
-            label = self._channels[channel]
-            if label not in nrg:
+        for channel, site in self._channels.iteritems():
+            if site not in nrg:
                 raise RuntimeError('hwmon channel "{}" not available. '
                                    'Selected channels: {}'.format(
                                        channel, nrg.keys()))
-            nrg_total = nrg[label]['total']
-            self._log.debug('Energy [%16s]: %.6f', label, nrg_total)
+            nrg_total = nrg[site]['total']
+            self._log.debug('Energy [%16s]: %.6f', site, nrg_total)
             clusters_nrg[channel] = nrg_total
 
         # Dump data as JSON file
