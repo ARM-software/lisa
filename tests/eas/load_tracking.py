@@ -38,6 +38,7 @@ class _LoadTrackingBase(LisaTest):
                 'sched_load_avg_task',
                 'sched_load_avg_cpu',
                 'sched_pelt_se',
+                'sched_load_se'
             ],
         },
         # cgroups required by freeze_userspace flag
@@ -115,8 +116,14 @@ class _LoadTrackingBase(LisaTest):
         # should be unified but for now we'll just check for both types of
         # event.
         # TODO: Add support for this parsing in Trappy and/or tasks_analysis
+        signal_fields = signals
         if 'sched_load_avg_task' in trace.available_events:
             event = 'sched_load_avg_task'
+        elif 'sched_load_se' in trace.available_events:
+            event = 'sched_load_se'
+            # sched_load_se uses 'util' and 'load' instead of 'util_avg' and
+            # 'load_avg'
+            signal_fields = [s.replace('_avg', '') for s in signals]
         elif 'sched_pelt_se' in trace.available_events:
             event = 'sched_pelt_se'
         else:
@@ -124,8 +131,9 @@ class _LoadTrackingBase(LisaTest):
                              'Does the kernel support them?')
 
         df = getattr(trace.ftrace, event).data_frame
-        signals = df[df['comm'] == task][signals]
-        return select_window(signals, self.get_window(experiment))
+        df = df[df['comm'] == task][signal_fields]
+        df = select_window(df, self.get_window(experiment))
+        return df.rename(columns=dict(zip(signal_fields, signals)))
 
     def get_signal_mean(self, experiment, signal,
                         ignore_first_s=UTIL_AVG_CONVERGENCE_TIME):
