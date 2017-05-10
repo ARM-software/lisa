@@ -107,6 +107,8 @@ class EnergyMeter(object):
             EnergyMeter._meter = HWMon(target, emeter, res_dir)
         elif emeter['instrument'] == 'aep':
             EnergyMeter._meter = AEP(target, emeter, res_dir)
+        elif emeter['instrument'] == 'monsoon':
+            EnergyMeter._meter = Monsoon(target, emeter, res_dir)
         elif emeter['instrument'] == 'acme':
             EnergyMeter._meter = ACME(target, emeter, res_dir)
 
@@ -282,6 +284,17 @@ class AEP(_DevlibContinuousEnergyMeter):
         self._log.info('Channels selected for energy sampling:')
         self._log.info('   %s', str(self._instrument.active_channels))
         self._log.debug('Results dir: %s', self._res_dir)
+
+class Monsoon(_DevlibContinuousEnergyMeter):
+    """
+    Monsoon Solutions energy monitor
+    """
+
+    def __init__(self, target, conf, res_dir):
+        super(Monsoon, self).__init__(target, res_dir)
+
+        self._instrument = devlib.MonsoonInstrument(self._target, **conf['conf'])
+        self._instrument.reset()
 
 _acme_install_instructions = '''
 
