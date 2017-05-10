@@ -26,7 +26,7 @@ import time
 import unittest
 
 import devlib
-from devlib.utils.misc import memoized
+from devlib.utils.misc import memoized, which
 from devlib import Platform, TargetError
 from trappy.stats.Topology import Topology
 
@@ -240,14 +240,6 @@ class TestEnv(ShareState):
         if '__features__' not in self.conf:
             self.conf['__features__'] = []
 
-        self._init()
-
-        # Initialize FTrace events collection
-        self._init_ftrace(True)
-
-        # Initialize RT-App calibration values
-        self.calibration()
-
         # Initialize local results folder
         # test configuration overrides target one
         self.res_dir = (self.test_conf.get('results_dir') or
@@ -271,6 +263,14 @@ class TestEnv(ShareState):
         if os.path.islink(res_lnk):
             os.remove(res_lnk)
         os.symlink(self.res_dir, res_lnk)
+
+        self._init()
+
+        # Initialize FTrace events collection
+        self._init_ftrace(True)
+
+        # Initialize RT-App calibration values
+        self.calibration()
 
         # Initialize energy probe instrument
         self._init_energy(True)
@@ -439,6 +439,12 @@ class TestEnv(ShareState):
             self.__modules = ['bl', 'cpufreq']
             platform = Platform(model='pixel')
 
+        # Initialize gem5 platform
+        elif self.conf['board'].upper() == 'GEM5':
+            self.nrg_model = None
+            self.__modules=['cpufreq']
+            platform = self._init_target_gem5()
+
         elif self.conf['board'] != 'UNKNOWN':
             # Initilize from platform descriptor (if available)
             board = self._load_board(self.conf['board'])
@@ -553,6 +559,46 @@ class TestEnv(ShareState):
                 self.nrg_model = EnergyModel.from_target(self.target)
             except (TargetError, RuntimeError, ValueError) as e:
                 self._log.error("Couldn't read target energy model: %s", e)
+
+    def _init_target_gem5(self):
+        system = self.conf['gem5']['system']
+        simulator = self.conf['gem5']['simulator']
+
+        # Get gem5 binary arguments
+        args = simulator.get('args', [])
+        args.append('--listener-mode=on')
+
+        # Get platform description
+        args.append(system['platform']['description'])
+
+        # Get platform arguments
+        args += system['platform'].get('args', [])
+        args += ['--kernel {}'.format(system['kernel']),
+                 '--dtb {}'.format(system['dtb']),
+                 '--disk-image {}'.format(system['disk'])]
+
+        # Gather all arguments
+        args = ' '.join(args)
+
+        diod_path = which('diod')
+        if diod_path is None:
+            raise RuntimeError('Failed to find "diod" on your host machine, '
+                               'check your installation or your PATH variable')
+
+        # Setup virtio
+        # Brackets are there to let the output dir be created automatically
+        virtio_args = '--which-diod={} --workload-automation-vio={{}}'.format(diod_path)
+
+        # Merge all arguments
+        platform = devlib.platform.gem5.Gem5SimulationPlatform(
+            name = 'gem5',
+            gem5_bin = simulator['bin'],
+            gem5_args = args,
+            gem5_virtio = virtio_args,
+            host_output_dir = self.res_dir,
+        )
+
+        return platform
 
     def install_tools(self, tools):
         """
