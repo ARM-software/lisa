@@ -258,24 +258,29 @@ class Instrument(object):
         pass
 
     def reset(self, sites=None, kinds=None, channels=None):
+        self.active_channels = []
         if kinds is None and sites is None and channels is None:
             self.active_channels = sorted(self.channels.values(), key=lambda x: x.label)
-        else:
-            if isinstance(sites, basestring):
-                sites = [sites]
-            if isinstance(kinds, basestring):
-                kinds = [kinds]
-            self.active_channels = []
-            for chan_name in (channels or []):
+        elif channels is not None:
+            if sites is not None or kinds is not None:
+                raise ValueError(
+                    'sites and kinds should not be set if channels is set')
+            for chan_name in channels:
                 try:
                     self.active_channels.append(self.channels[chan_name])
                 except KeyError:
                     msg = 'Unexpected channel "{}"; must be in {}'
                     raise ValueError(msg.format(chan_name, self.channels.keys()))
-            for chan in self.channels.values():
-                if (kinds is None or chan.kind in kinds) and \
-                   (sites is None or chan.site in sites):
-                    self.active_channels.append(chan)
+        else:
+            if isinstance(sites, basestring):
+                sites = [sites]
+            if isinstance(kinds, basestring):
+                kinds = [kinds]
+            else:
+                for chan in self.channels.values():
+                    if (kinds is None or chan.kind in kinds) and \
+                       (sites is None or chan.site in sites):
+                        self.active_channels.append(chan)
 
     # instantaneous
 
