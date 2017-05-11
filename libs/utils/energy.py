@@ -99,6 +99,8 @@ class EnergyMeter(object):
             EnergyMeter._meter = HWMon(target, emeter, res_dir)
         elif emeter['instrument'] == 'aep':
             EnergyMeter._meter = AEP(target, emeter, res_dir)
+        elif emeter['instrument'] == 'monsoon':
+            EnergyMeter._meter = Monsoon(target, emeter, res_dir)
         elif emeter['instrument'] == 'acme':
             EnergyMeter._meter = ACME(target, emeter, res_dir)
 
@@ -225,34 +227,17 @@ class HWMon(EnergyMeter):
 
         return EnergyReport(clusters_nrg, nrg_file, None)
 
-class AEP(EnergyMeter):
-
-    def __init__(self, target, conf, res_dir):
-        super(AEP, self).__init__(target, res_dir)
-
-        # Configure channels for energy measurements
-        self._log.info('AEP configuration')
-        self._log.info('    %s', conf)
-        self._aep = devlib.EnergyProbeInstrument(
-            self._target, labels=conf.get('channel_map'), **conf['conf'])
-
-        # Configure channels for energy measurements
-        self._log.debug('Enabling channels')
-        self._aep.reset()
-
-        # Logging enabled channels
-        self._log.info('Channels selected for energy sampling:')
-        self._log.info('   %s', str(self._aep.active_channels))
-        self._log.debug('Results dir: %s', self._res_dir)
+class _DevlibContinuousEnergyMeter(EnergyMeter):
+    """Common functionality for devlib Instruments in CONTINUOUS mode"""
 
     def reset(self):
-        self._aep.start()
+        self._instrument.start()
 
     def report(self, out_dir, out_energy='energy.json', out_samples='samples.csv'):
-        self._aep.stop()
+        self._instrument.stop()
 
         csv_path = os.path.join(out_dir, out_samples)
-        csv_data = self._aep.get_data(csv_path)
+        csv_data = self._instrument.get_data(csv_path)
         with open(csv_path) as f:
             # Each column in the CSV will be headed with 'SITE_measure'
             # (e.g. 'BAT_power'). Convert that to a list of ('SITE', 'measure')
@@ -272,7 +257,7 @@ class AEP(EnergyMeter):
             # we have already consumed the first line of `f`.
             df = pd.read_csv(f, names=columns)
 
-        sample_period = 1. / self._aep.sample_rate_hz
+        sample_period = 1. / self._instrument.sample_rate_hz
         df.index = np.arange(0, sample_period * len(df), step=sample_period)
 
         if df.empty:
@@ -290,6 +275,36 @@ class AEP(EnergyMeter):
 
         return EnergyReport(channels_nrg, nrg_file, df)
 
+class AEP(_DevlibContinuousEnergyMeter):
+
+    def __init__(self, target, conf, res_dir):
+        super(AEP, self).__init__(target, res_dir)
+
+        # Configure channels for energy measurements
+        self._log.info('AEP configuration')
+        self._log.info('    %s', conf)
+        self._instrument = devlib.EnergyProbeInstrument(
+            self._target, labels=conf.get('channel_map'), **conf['conf'])
+
+        # Configure channels for energy measurements
+        self._log.debug('Enabling channels')
+        self._instrument.reset()
+
+        # Logging enabled channels
+        self._log.info('Channels selected for energy sampling:')
+        self._log.info('   %s', str(self._instrument.active_channels))
+        self._log.debug('Results dir: %s', self._res_dir)
+
+class Monsoon(_DevlibContinuousEnergyMeter):
+    """
+    Monsoon Solutions energy monitor
+    """
+
+    def __init__(self, target, conf, res_dir):
+        super(Monsoon, self).__init__(target, res_dir)
+
+        self._instrument = devlib.MonsoonInstrument(self._target, **conf['conf'])
+        self._instrument.reset()
 
 _acme_install_instructions = '''
 
