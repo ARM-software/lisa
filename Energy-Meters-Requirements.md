@@ -211,3 +211,35 @@ target_conf = {
 ```
 
 The ACME Cape 8 probe slots numbered 1 to 8. `iio:device<n>` is the n-th discovered probe and they are discovered in ascending order. For example, if you have 2 probes attached to PROBE2 and PROBE7, then PROBE2 will be `iio:device0` and PROBE7 will be `iio:device1`.
+
+## Monsoon Power Monitor
+
+The `Monsoon` energy meter allows collecting data from Monsoon Solutions Inc's Power Monitor.
+
+#### Setup
+
+This meter depends on the monsoon.py script from AOSP. To set this up, download that script from [here](https://android.googlesource.com/platform/cts/+/master/tools/utils/monsoon.py) and run `pip install gflags pyserial`.
+
+The Power Monitor acts as a power supply as well as an energy meter. LISA doesn't currently automate setting this up. You'll need to manually run these commands:
+
+```
+monsoon.py --current <desired current>
+monsoon.py --voltage <desired voltage>
+monsoon.py --usbpassthrough on
+```
+
+#### LISA Target Configuration
+
+The target configuration for this instrument is:
+
+```python
+target_conf = {
+    "emeter" : {
+        "instrument" : "monsoon",
+        "conf" : {
+            # Path to monsoon.py. If it's in your $PATH, this is not required
+            'monsoon_bin' : '<PATH_TO_monsoon.py>/monsoon.py',
+        },
+    },
+}
+```
