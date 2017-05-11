@@ -468,7 +468,9 @@ class Gem5Connection(TelnetConnection):
         # First check if the connection is set up to interact with gem5
         self._check_ready()
 
-        output = self._gem5_shell(command, as_root=as_root)
+        output = self._gem5_shell(command,
+                                  check_exit_code=check_exit_code,
+                                  as_root=as_root)
         if strip_colors:
             output = strip_bash_colors(output)
         return output
