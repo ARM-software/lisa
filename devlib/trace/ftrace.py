@@ -203,7 +203,8 @@ class FtraceCollector(TraceCollector):
     def get_trace(self, outfile):
         if os.path.isdir(outfile):
             outfile = os.path.join(outfile, os.path.basename(self.target_output_file))
-        self.target.execute('{} extract -o {}'.format(self.target_binary, self.target_output_file),
+        self.target.execute('{0} extract -o {1}; chmod 666 {1}'.format(self.target_binary,
+                                                                       self.target_output_file),
                             timeout=TIMEOUT, as_root=True)
 
         # The size of trace.dat will depend on how long trace-cmd was running.
