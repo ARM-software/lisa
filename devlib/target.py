@@ -283,10 +283,6 @@ class Target(object):
 
     # execution
 
-    def _execute_util(self, command, timeout=None, check_exit_code=True, as_root=False):
-        command = '{} {}'.format(self.shutils, command)
-        return self.conn.execute(command, timeout, check_exit_code, as_root)
-
     def execute(self, command, timeout=None, check_exit_code=True, as_root=False):
         return self.conn.execute(command, timeout, check_exit_code, as_root)
 
@@ -557,6 +553,10 @@ class Target(object):
             raise ValueError('Unknown compression format: {}'.format(ext))
 
     # internal methods
+
+    def _execute_util(self, command, timeout=None, check_exit_code=True, as_root=False):
+        command = '{} {}'.format(self.shutils, command)
+        return self.conn.execute(command, timeout, check_exit_code, as_root)
 
     def _extract_archive(self, path, cmd, dest=None):
         cmd = '{} ' + cmd  # busybox
