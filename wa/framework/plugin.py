@@ -252,18 +252,12 @@ class PluginMeta(type):
     The assumption is that the values of the attributes specified in the class
     are iterable; if that is not met, Bad Things (tm) will happen.
 
-    This also provides virtual method implementation, similar to those in
-    C-derived OO languages, and alias specifications.
-
     """
 
     to_propagate = [
         ('parameters', Parameter, AttributeCollection),
         ('artifacts', Artifact, AttributeCollection),
     ]
-
-    virtual_methods = ['validate', 'initialize', 'finalize']
-    global_virtuals = ['initialize', 'finalize']
 
     def __new__(mcs, clsname, bases, attrs):
         mcs._propagate_attributes(bases, attrs, clsname)

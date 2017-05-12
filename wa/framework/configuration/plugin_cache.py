@@ -110,6 +110,7 @@ class PluginCache(object):
             # Perform a simple merge with the order of sources representing
             # priority
             plugin_config = self.plugin_configs[plugin_name]
+            cfg_points = self.get_plugin_parameters(plugin_name)
             for source in self.sources:
                 if source not in plugin_config:
                     continue
