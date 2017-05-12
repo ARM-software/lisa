@@ -552,6 +552,10 @@ class Target(object):
         else:
             raise ValueError('Unknown compression format: {}'.format(ext))
 
+    def sleep(self, duration):
+        timeout = duration + 10
+        self.execute('sleep {}'.format(duration), timeout=timeout)
+
     # internal methods
 
     def _execute_util(self, command, timeout=None, check_exit_code=True, as_root=False):
@@ -1066,6 +1070,13 @@ class AndroidTarget(Target):
     def ensure_screen_is_on(self):
         if not self.is_screen_on():
             self.execute('input keyevent 26')
+
+    def ensure_screen_is_off(self):
+        if self.is_screen_on():
+            self.execute('input keyevent 26')
+
+    def homescreen(self):
+        self.execute('am start -a android.intent.action.MAIN -c android.intent.category.HOME')
 
     def _resolve_paths(self):
         if self.working_directory is None:
