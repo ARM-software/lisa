@@ -189,7 +189,7 @@ class AdbConnection(object):
             self.ls_command = 'ls -1'
         else:
             self.ls_command = 'ls'
-        logger.info("ls command is set to {}".format(self.ls_command))
+        logger.debug("ls command is set to {}".format(self.ls_command))
 
     def __init__(self, device=None, timeout=None, platform=None):
         self.timeout = timeout if timeout is not None else self.default_timeout
