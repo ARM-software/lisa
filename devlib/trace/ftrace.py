@@ -60,6 +60,7 @@ class FtraceCollector(TraceCollector):
                  autoview=False,
                  no_install=False,
                  strict=False,
+                 report_on_target=False,
                  ):
         super(FtraceCollector, self).__init__(target)
         self.events = events if events is not None else DEFAULT_EVENTS
@@ -70,7 +71,10 @@ class FtraceCollector(TraceCollector):
         self.automark = automark
         self.autoreport = autoreport
         self.autoview = autoview
-        self.target_output_file = os.path.join(self.target.working_directory, OUTPUT_TRACE_FILE)
+        self.report_on_target = report_on_target
+        self.target_output_file = target.path.join(self.target.working_directory, OUTPUT_TRACE_FILE)
+        text_file_name = target.path.splitext(OUTPUT_TRACE_FILE)[0] + '.txt'
+        self.target_text_file = target.path.join(self.target.working_directory, text_file_name)
         self.target_binary = None
         self.host_binary = None
         self.start_time = None
@@ -93,7 +97,7 @@ class FtraceCollector(TraceCollector):
 
         if not self.target.is_rooted:
             raise TargetError('trace-cmd instrument cannot be used on an unrooted device.')
-        if self.autoreport and self.host_binary is None:
+        if self.autoreport and not self.report_on_target and self.host_binary is None:
             raise HostError('trace-cmd binary must be installed on the host if autoreport=True.')
         if self.autoview and self.kernelshark is None:
             raise HostError('kernelshark binary must be installed on the host if autoview=True.')
@@ -217,7 +221,12 @@ class FtraceCollector(TraceCollector):
         else:
             if self.autoreport:
                 textfile = os.path.splitext(outfile)[0] + '.txt'
-                self.report(outfile, textfile)
+                if self.report_on_target:
+                    self.generate_report_on_target()
+                    self.target.pull(self.target_text_file,
+                                     textfile, timeout=pull_timeout)
+                else:
+                    self.report(outfile, textfile)
             if self.autoview:
                 self.view(outfile)
 
@@ -286,6 +295,12 @@ class FtraceCollector(TraceCollector):
                 self.logger.warning('Could not generate trace.txt.')
         except OSError:
             raise HostError('Could not find trace-cmd. Please make sure it is installed and is in PATH.')
+
+    def generate_report_on_target(self):
+        command = '{} report {} > {}'.format(self.target_binary,
+                                             self.target_output_file,
+                                             self.target_text_file)
+        self.target.execute(command, timeout=TIMEOUT)
 
     def view(self, binfile):
         check_output('{} {}'.format(self.kernelshark, binfile), shell=True)
