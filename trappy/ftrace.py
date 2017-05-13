@@ -25,6 +25,9 @@ import pandas as pd
 from trappy.bare_trace import BareTrace
 from trappy.utils import listify
 
+class FTraceParseError(Exception):
+    pass
+
 def _plot_freq_hists(allfreqs, what, axis, title):
     """Helper function for plot_freq_hists
 
@@ -181,11 +184,13 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                     trace_class = cls
                     break
             else:
-                raise ValueError("No unique in {}".format(line))
+                raise FTraceParseError("No unique word in '{}'".format(line))
 
             line = line[:-1]
 
             special_fields_match = special_fields_regexp.match(line)
+            if not special_fields_match:
+                raise FTraceParseError("Couldn't match special fields in '{}'".format(line))
             comm = special_fields_match.group('comm')
             pid = int(special_fields_match.group('pid'))
             cpu = int(special_fields_match.group('cpu'))
@@ -262,8 +267,13 @@ is part of the trace.
         if len(cls_for_unique_word) == 0:
             return
 
-        with open(trace_file) as fin:
-            self.__populate_data(fin, cls_for_unique_word, window, abs_window)
+        try:
+            with open(trace_file) as fin:
+                self.__populate_data(
+                    fin, cls_for_unique_word, window, abs_window)
+        except FTraceParseError as e:
+            raise ValueError('Failed to parse ftrace file {}:\n{}'.format(
+                trace_file, str(e)))
 
     # TODO: Move thermal specific functionality
 
