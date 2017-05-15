@@ -63,8 +63,7 @@ class IdleWorkload(Workload):
 
     def setup(self, context):
         if self.target.os == 'android':
-            if self.screen_off:
-                self.old_screen_state = self.target.is_screen_on()
+            self.old_screen_state = self.target.is_screen_on()
             self.target.ensure_screen_is_on()
             self.target.homescreen()
             if self.screen_off:
@@ -89,3 +88,5 @@ class IdleWorkload(Workload):
                 self.target.sleep(1)
         if self.screen_off and self.old_screen_state:
             self.target.ensure_screen_is_on()
+        elif not self.screen_off and not self.old_screen_state:
+            self.target.ensure_screen_is_off()
