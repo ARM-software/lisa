@@ -19,6 +19,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+import trappy
+from trappy.ftrace import GenericFTrace
 
 TESTS_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
 
@@ -36,6 +38,7 @@ class SetupDirectory(unittest.TestCase):
     def __init__(self, files_to_copy, *args, **kwargs):
         self.files_to_copy = files_to_copy
         super(SetupDirectory, self).__init__(*args, **kwargs)
+        GenericFTrace.disable_cache = True
 
     def setUp(self):
         self.previous_dir = os.getcwd()
