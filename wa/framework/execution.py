@@ -253,7 +253,7 @@ class Executor(object):
                                        config.run_config.device_config)
         output.write_target_info(self.target_manager.get_target_info())
 
-        self.logger.info('Initializing execution conetext')
+        self.logger.info('Initializing execution context')
         context = ExecutionContext(config_manager, self.target_manager, output)
 
         self.logger.info('Generating jobs')
