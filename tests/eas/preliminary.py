@@ -297,7 +297,7 @@ class TestSchedDomainFlags(BasicCheckTest):
         """
         Check that the SD_ASYM_CPUCAPACITY flag gets set when it should
 
-        SD_ASYM_CPUCAPACITY should be set at least on the root domain when a
+        SD_ASYM_CPUCAPACITY should be set at least on the highest domain when a
         system is asymmetric.
 
         - Test that it is set appropriately for the current
