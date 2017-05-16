@@ -364,6 +364,7 @@ EOF
 echo -e "\t${PYTHONPATH//:/\\n\\t}"
 
 if [ "x$DEVMODE" == "x1" ]; then
+lisa-check-submods
 cat <<EOF
 Submodules :
 EOF
@@ -376,8 +377,6 @@ cat <<EOF
 Type "lisa-help" for on-line help on available commands
 
 EOF
-
-lisa-check-submods
 
 # Setup default SHELL text color
 echo -e "$LISASHELL_DEFAULT"
