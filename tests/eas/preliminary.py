@@ -190,8 +190,7 @@ class TestEnergyModelPresent(BasicCheckTest):
                 '- No energy model in kernel')
 
 class TestSchedutilTunables(BasicCheckTest):
-    MAX_UP_RATE_LIMIT_US = 20 * 1e3
-    MAX_DOWN_RATE_LIMIT_US = 20 * 1e3
+    MAX_RATE_LIMIT_US = 20 * 1e3
 
     def test_rate_limit_not_too_high(self):
         """Test that the schedutil ratelimiting is not too harsh"""
@@ -201,30 +200,25 @@ class TestSchedutilTunables(BasicCheckTest):
         self.target.cpufreq.set_all_governors('schedutil')
 
         cpus = set(range(self.target.number_of_cpus))
-        up_limit_fail_cpus = []
-        down_limit_fail_cpus = []
+        fail_cpus = []
+
         while cpus:
             cpu = iter(cpus).next()
             domain = tuple(self.target.cpufreq.get_domain_cpus(cpu))
 
             tunables = self.target.cpufreq.get_governor_tunables(cpu)
-            if int(tunables['up_rate_limit_us']) > self.MAX_UP_RATE_LIMIT_US:
-                up_limit_fail_cpus += domain
-            if int(tunables['down_rate_limit_us']) > self.MAX_DOWN_RATE_LIMIT_US:
-                down_limit_fail_cpus += domain
+            for name, value in tunables.iteritems():
+                if name.endswith('rate_limit_us'):
+                    if int(value) > self.MAX_RATE_LIMIT_US:
+                        fail_cpus += domain
 
             cpus = cpus.difference(domain)
 
         self.assertTrue(
-            up_limit_fail_cpus == [],
-            'schedutil up_rate_limit_us greater than {} on CPUs {}. '
+            fail_cpus == [],
+            'schedutil rate limit greater than {}us on CPUs {}. '
             'Responsiveness will be affected.'.format(
-                self.MAX_UP_RATE_LIMIT_US, up_limit_fail_cpus))
-        self.assertTrue(
-            down_limit_fail_cpus == [],
-            'schedutil down_rate_limit_us greater than {} on CPUs {}. '
-            'Responsiveness will be affected.'.format(
-                self.MAX_DOWN_RATE_LIMIT_US, down_limit_fail_cpus))
+                self.MAX_RATE_LIMIT_US, fail_cpus))
 
 class TestSchedDomainFlags(BasicCheckTest):
     """Test requirements of sched_domain flags"""
