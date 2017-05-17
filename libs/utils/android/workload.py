@@ -18,6 +18,7 @@
 import logging
 import os
 import re
+import threading
 
 from . import System
 
@@ -42,6 +43,9 @@ class Workload(object):
         # Set of data reported in output of each run
         self.trace_file = None
         self.nrg_report = None
+
+        # Thread used for gfxinfo polling
+        self.gfxinfo_thread = None
 
     def _adb(self, cmd):
         return 'adb -s {} {}'.format(self._target.adb_name, cmd)
@@ -133,5 +137,30 @@ class Workload(object):
                 self._systrace_output.wait()
         # Dump a platform description
         self._te.platform_dump(self.out_dir)
+
+    def gfxinfoStart(self, out_file, timer=2.0):
+        # Reset gfxinfo
+        System.gfxinfo_reset(self._target, self.package)
+        # Remove existing file if it exists as we will be appending
+        if os.path.isfile(out_file):
+            os.remove(out_file)
+        # Create a timer thread to run _gfxinfoPoll every `timer` seconds
+        # Mark it as a daemon so it can run in the background independently
+        self.gfxinfo_thread = threading.Timer(timer, self._gfxinfoPoll, (out_file, timer))
+        self.gfxinfo_thread.daemon = True
+        self.gfxinfo_thread.start()
+
+    def gfxinfoStop(self):
+        # If the timer thread instance exists, issue a cancel command and remove the instance
+        if self.gfxinfo_thread:
+            self.gfxinfo_thread.cancel()
+            self.gfxinfo_thread = None
+
+    def _gfxinfoPoll(self, out_file, timer):
+        # Run gfxinfo with the framestats parameter, appending to the `out_file`
+        System.gfxinfo_get(self._target, self.package, out_file, framestats=True)
+        if self.gfxinfo_thread:
+            # If the timer thread instance exists, re-run the timer thread again
+            threading.Timer(timer, self._gfxinfoPoll, (out_file, timer)).start()
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
