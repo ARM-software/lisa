@@ -275,6 +275,26 @@ class System(object):
         target.execute('input keyevent KEYCODE_SLEEP')
 
     @staticmethod
+    def volume(target, times=1, direction='down'):
+        """
+        Increase or decrease volume
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param times: number of times to perform operation
+        :type times: int
+
+        :param direction: which direction to increase (up/down)
+        :type direction: str
+        """
+        for i in range(times):
+            if direction == 'up':
+                target.execute('input keyevent KEYCODE_VOLUME_UP')
+            elif direction == 'down':
+                target.execute('input keyevent KEYCODE_VOLUME_DOWN')
+
+    @staticmethod
     def gfxinfo_reset(target, apk_name):
         """
         Reset gfxinfo frame statistics for a given app.
