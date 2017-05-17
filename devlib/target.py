@@ -4,6 +4,7 @@ import time
 import logging
 import posixpath
 import subprocess
+import tarfile
 import tempfile
 import threading
 from collections import namedtuple
@@ -280,6 +281,33 @@ class Target(object):
 
     def pull(self, source, dest, timeout=None):
         return self.conn.pull(source, dest, timeout=timeout)
+
+    def get_directory(self, source_dir, dest):
+        """ Pull a directory from the device, after compressing dir """
+        # Create all file names
+        tar_file_name = source_dir.lstrip(self.path.sep).replace(self.path.sep, '.')
+        # Host location of dir
+        outdir = os.path.join(dest, tar_file_name)
+        # Host location of archive
+        tar_file_name  = '{}.tar'.format(tar_file_name)
+        tempfile = os.path.join(dest, tar_file_name)
+
+        # Does the folder exist?
+        self.execute('ls -la {}'.format(source_dir))
+        # Try compressing the folder
+        try:
+            self.execute('{} tar -cvf {} {}'.format(self.busybox, tar_file_name,
+                                                     source_dir))
+        except TargetError:
+            self.logger.debug('Failed to run tar command on target! ' \
+                              'Not pulling directory {}'.format(source_dir))
+        # Pull the file
+        os.mkdir(outdir)
+        self.pull(tar_file_name, tempfile )
+        # Decompress
+        f = tarfile.open(tempfile, 'r')
+        f.extractall(outdir)
+        os.remove(tempfile)
 
     # execution
 
