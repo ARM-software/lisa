@@ -442,11 +442,14 @@ class Gem5Connection(TelnetConnection):
         filename = os.path.basename(source)
 
         logger.debug("pull_file {} {}".format(source, filename))
+        # writefile needs the file to be copied to be in the current working
+        # directory so if needed, copy to the working directory
         # We don't check the exit code here because it is non-zero if the source
         # and destination are the same. The ls below will cause an error if the
         # file was not where we expected it to be.
-        if os.path.dirname(source) != os.getcwd():
-            self._gem5_shell("cat '{}' > '{}'".format(source, filename))
+        if os.path.isabs(source):
+            if os.path.dirname(source) != self.execute('pwd',check_exit_code=False):
+                self._gem5_shell("cat '{}' > '{}'".format(source, filename))
         self._gem5_shell("sync")
         self._gem5_shell("ls -la {}".format(filename))
         logger.debug('Finished the copy in the simulator')
