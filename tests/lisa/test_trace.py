@@ -29,6 +29,8 @@ class TestTrace(TestCase):
         'sched_switch',
         'sched_overutilized',
         'cpu_idle',
+        'sched_load_avg_task',
+        'sched_load_se'
     ]
 
     def __init__(self, *args, **kwargs):
@@ -42,14 +44,30 @@ class TestTrace(TestCase):
         self.trace = Trace(self.platform, self.trace_path, self.events)
 
     def make_trace(self, in_data):
+        """
+        Get a trace from an embedded string of textual trace data
+        """
         with open(self.test_trace, "w") as fout:
             fout.write(in_data)
 
         return Trace(self.platform, self.test_trace, self.events,
                      normalize_time=False)
 
-    def _get_platform(self):
-        with open(os.path.join(self.traces_dir, 'platform.json')) as f:
+    def get_trace(self, trace_name):
+        """
+        Get a trace from a separate provided trace file
+        """
+        dir = os.path.join(self.traces_dir, trace_name)
+
+        trace_path = os.path.join(dir, 'trace.dat')
+        return Trace(self._get_platform(trace_name), trace_path, self.events)
+
+    def _get_platform(self, trace_name=None):
+        trace_dir = self.traces_dir
+        if trace_name:
+            trace_dir = os.path.join(trace_dir, trace_name)
+
+        with open(os.path.join(trace_dir, 'platform.json')) as f:
             return json.load(f)
 
     def test_getTaskByName(self):
@@ -191,6 +209,42 @@ class TestTrace(TestCase):
         self.assertListEqual(df.index.tolist(), [519.022643])
         self.assertListEqual(df.cpu.tolist(), [2])
 
+    def _test_tasks_dfs(self, trace_name):
+        """Helper for smoke testing _dfg methods in tasks_analysis"""
+        trace = self.get_trace(trace_name)
+
+        lt_df = trace.data_frame.task_load_events()
+        columns = ['comm', 'pid', 'load_avg', 'util_avg', 'cpu']
+        if trace.has_big_little:
+            columns += ['cluster']
+            if 'nrg_model' in trace.platform:
+                columns += ['min_cluster_cap']
+        for column in columns:
+            msg = 'Task signals parsed from {} missing {} column'.format(
+                trace.data_dir, column)
+            self.assertIn(column, lt_df, msg=msg)
+
+        if trace.has_big_little:
+            df = trace.data_frame.top_big_tasks(min_samples=1)
+            for column in ['samples', 'comm']:
+                msg = 'Big tasks parsed from {} missing {} column'.format(
+                    trace.data_dir, column)
+                self.assertIn(column, df, msg=msg)
+
+        # Pick an arbitrary PID to try plotting signals for.
+        pid = lt_df['pid'].unique()[0]
+        # Call plotTasks - although we won't check the results we can just check
+        # that things aren't totally borken.
+        trace.analysis.tasks.plotTasks(tasks=[pid])
+
+    def test_sched_load_signals(self):
+        """Test parsing sched_load_se events from EAS upstream integration"""
+        self._test_tasks_dfs('sched_load')
+
+    def test_sched_load_avg_signals(self):
+        """Test parsing sched_load_avg_task events from EAS1.2"""
+        self._test_tasks_dfs('sched_load_avg')
+
 class TestTraceNoClusterData(TestTrace):
     """
     Test Trace without cluster data
@@ -198,8 +252,8 @@ class TestTraceNoClusterData(TestTrace):
     Inherits from TestTrace, so all the tests are run again but with
     no cluster info the platform dict.
     """
-    def _get_platform(self):
-        platform = super(TestTraceNoClusterData, self)._get_platform()
+    def _get_platform(self, trace_name=None):
+        platform = super(TestTraceNoClusterData, self)._get_platform(trace_name)
         del platform['clusters']
         return platform
 
@@ -210,5 +264,5 @@ class TestTraceNoPlatform(TestTrace):
     Inherits from TestTrace, so all the tests are run again but with
     platform=None
     """
-    def _get_platform(self):
+    def _get_platform(self, trace_name=None):
         return None

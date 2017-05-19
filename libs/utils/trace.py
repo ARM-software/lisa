@@ -514,24 +514,6 @@ class Trace(object):
             df.rename(columns={'runnable_avg_sum': 'load_sum'}, inplace=True)
             df.rename(columns={'running_avg_sum': 'util_sum'}, inplace=True)
 
-        if not self.has_big_little:
-            return
-
-        df['cluster'] = np.select(
-                [df.cpu.isin(self.platform['clusters']['little'])],
-                ['LITTLE'], 'big')
-
-        if 'nrg_model' not in self.platform:
-            return
-
-        # Add a column which represents the max capacity of the smallest
-        # clustre which can accomodate the task utilization
-        little_cap = self.platform['nrg_model']['little']['cpu']['cap_max']
-        big_cap = self.platform['nrg_model']['big']['cpu']['cap_max']
-        df['min_cluster_cap'] = df.util_avg.map(
-            lambda util_avg: big_cap if util_avg > little_cap else little_cap
-        )
-
     def _sanitize_SchedBoostCpu(self):
         """
         Add a boosted utilization signal as the sum of utilization and margin.
