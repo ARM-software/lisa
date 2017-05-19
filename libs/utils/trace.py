@@ -252,7 +252,6 @@ class Trace(object):
         # Setup internal data reference to interesting events/dataframes
 
         self._sanitize_SchedLoadAvgCpu()
-        self._sanitize_SchedLoadAvgTask()
         self._sanitize_SchedCpuCapacity()
         self._sanitize_SchedBoostCpu()
         self._sanitize_SchedBoostTask()
@@ -518,30 +517,6 @@ class Trace(object):
         if 'utilization' in df:
             df.rename(columns={'utilization': 'util_avg'}, inplace=True)
             df.rename(columns={'load': 'load_avg'}, inplace=True)
-
-    def _sanitize_SchedLoadAvgTask(self):
-        """
-        If necessary, rename certain signal names from v5.0 to v5.1 format.
-        """
-        if not self.hasEvents('sched_load_avg_task'):
-            return
-        df = self._dfg_trace_event('sched_load_avg_task')
-        if 'utilization' in df:
-            df.rename(columns={'utilization': 'util_avg'}, inplace=True)
-            df.rename(columns={'load': 'load_avg'}, inplace=True)
-            df.rename(columns={'avg_period': 'period_contrib'}, inplace=True)
-            df.rename(columns={'runnable_avg_sum': 'load_sum'}, inplace=True)
-            df.rename(columns={'running_avg_sum': 'util_sum'}, inplace=True)
-        df['cluster'] = np.select(
-                [df.cpu.isin(self.platform['clusters']['little'])],
-                ['LITTLE'], 'big')
-        # Add a column which represents the max capacity of the smallest
-        # clustre which can accomodate the task utilization
-        little_cap = self.platform['nrg_model']['little']['cpu']['cap_max']
-        big_cap = self.platform['nrg_model']['big']['cpu']['cap_max']
-        df['min_cluster_cap'] = df.util_avg.map(
-            lambda util_avg: big_cap if util_avg > little_cap else little_cap
-        )
 
     def _sanitize_SchedBoostCpu(self):
         """

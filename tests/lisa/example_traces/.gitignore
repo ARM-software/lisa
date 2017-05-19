@@ -1,0 +1,4 @@
+# Text versions of traces, created by Trappy
+*.txt
+# Plot images creating by testing plotters
+*.png

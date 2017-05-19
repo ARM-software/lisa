@@ -21,24 +21,26 @@ from unittest import TestCase
 
 from trace import Trace
 
-class TestTrace(TestCase):
-    """Smoke tests for LISA's Trace class"""
 
-    traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
-    events = [
-        'sched_switch',
-    ]
+class TraceBase(TestCase):
+    """Base class for tests for Trace class"""
+
+    events = ['sched_switch', 'sched_load_se', 'sched_load_avg_task']
 
     def __init__(self, *args, **kwargs):
-        super(TestTrace, self).__init__(*args, **kwargs)
+        super(TraceBase, self).__init__(*args, **kwargs)
 
         self.test_trace = os.path.join(self.traces_dir, 'test_trace.txt')
 
         with open(os.path.join(self.traces_dir, 'platform.json')) as f:
             self.platform = json.load(f)
 
-        trace_path = os.path.join(self.traces_dir, 'trace.txt')
-        self.trace = Trace(self.platform, trace_path, self.events)
+        self.trace = Trace(self.platform, self.traces_dir, self.events)
+
+class TestTrace(TraceBase):
+    """Smoke tests for LISA's Trace class"""
+
+    traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
 
     def test_getTaskByName(self):
         """TestTrace: getTaskByName() returns the list of PIDs for all tasks with the specified name"""
@@ -78,3 +80,46 @@ class TestTrace(TestCase):
         self.assertEqual(trace.getTaskByName('father'), [1234])
 
         os.remove(self.test_trace)
+
+
+class TaskSignalsBase(TraceBase):
+    """Test getting scheduler task signals from traces"""
+
+    def _test_tasks_dfs(self):
+        """Helper for smoke testing _dfg methods in tasks_analysis"""
+        df = self.trace.data_frame.task_load_events()
+        for column in ['comm', 'pid', 'load_avg', 'util_avg', 'cluster', 'cpu']:
+            msg = 'Task signals parsed from {} missing {} column'.format(
+                self.trace.data_dir, column)
+            self.assertIn(column, df, msg=msg)
+
+        df = self.trace.data_frame.top_big_tasks(min_samples=1)
+        for column in ['samples', 'comm']:
+            msg = 'Big tasks parsed from {} missing {} column'.format(
+                self.trace.data_dir, column)
+            self.assertIn(column, df, msg=msg)
+
+        # Pick an arbitrary PID to try plotting signals for.
+        # Call plotTasks - although we won't check the results we can just check
+        # that things aren't totally borken.
+        pid = self.trace.getTasks().keys()[-1]
+        self.trace.analysis.tasks.plotTasks(tasks=[pid])
+
+class TestTraceSchedLoad(TaskSignalsBase):
+    """Test parsing sched_load_* events"""
+
+    traces_dir = os.path.join(os.path.dirname(__file__), 'traces', 'sched_load')
+
+    def test_sched_load_signals(self):
+        """Test parsing sched_load_se events from EAS upstream integration"""
+        self._test_tasks_dfs()
+
+class TestTraceSchedLoadAvg(TaskSignalsBase):
+    """Test parsing sched_load_avg_* events"""
+
+    traces_dir = os.path.join(os.path.dirname(__file__),
+                              'traces', 'sched_load_avg')
+
+    def test_sched_load_avg_signals(self):
+        """Test parsing sched_load_avg_task events from EAS1.2"""
+        self._test_tasks_dfs()
