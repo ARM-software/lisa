@@ -89,11 +89,13 @@ class _LoadTrackingBase(LisaTest):
         sched_assert = self.get_sched_assert(experiment, task)
         duty_cycle_pct = sched_assert.getDutyCycle(self.get_window(experiment))
 
-        # Find the capacity of the CPU the workload was run on
+        # Find the (max) capacity of the CPU the workload was run on
         [cpu] = experiment.wload.cpus
-        cpufreq = experiment.conf['cpufreq']
-
         cpu_capacity = self._get_cpu_capacity(self.te, cpu)
+
+        # Scale the capacity linearly according to the frequency the workload
+        # was run at
+        cpufreq = experiment.conf['cpufreq']
         if cpufreq['governor'] == 'userspace':
             freq = cpufreq['freqs'][cpu]
             max_freq = max(self.te.target.cpufreq.list_frequencies(cpu))
