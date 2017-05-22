@@ -74,6 +74,7 @@ params = dict(
     extras_require={
         'daq': ['daqpower'],
         'doc': ['sphinx'],
+        'monsoon': ['python-gflags'],
     },
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
