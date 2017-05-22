@@ -14,8 +14,8 @@ MonsoonInstrument requires the monsoon.py tool, available from AOSP:
 https://android.googlesource.com/platform/cts/+/master/tools/utils/monsoon.py
 
 Download this script and put it in your $PATH (or pass it as the monsoon_bin
-parameter to MonsoonInstrument). `pip install gflags pyserial` to install the
-dependencies.
+parameter to MonsoonInstrument). `pip install python-gflags pyserial` to install
+the dependencies.
 """
 
 class MonsoonInstrument(Instrument):
