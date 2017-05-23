@@ -439,29 +439,40 @@ class Gem5Connection(TelnetConnection):
         # First check if the connection is set up to interact with gem5
         self._check_ready()
 
-        filename = os.path.basename(source)
+        result = self._gem5_shell("ls {}".format(source))
+        files = result.split()
 
-        logger.debug("pull_file {} {}".format(source, filename))
-        # writefile needs the file to be copied to be in the current working
-        # directory so if needed, copy to the working directory
-        # We don't check the exit code here because it is non-zero if the source
-        # and destination are the same. The ls below will cause an error if the
-        # file was not where we expected it to be.
-        if os.path.isabs(source):
-            if os.path.dirname(source) != self.execute('pwd',check_exit_code=False):
-                self._gem5_shell("cat '{}' > '{}'".format(source, filename))
-        self._gem5_shell("sync")
-        self._gem5_shell("ls -la {}".format(filename))
-        logger.debug('Finished the copy in the simulator')
-        self._gem5_util("writefile {}".format(filename))
+        for filename in files:
+            dest_file = os.path.basename(filename)
+            logger.debug("pull_file {} {}".format(filename, dest_file))
+            # writefile needs the file to be copied to be in the current
+            # working directory so if needed, copy to the working directory
+            # We don't check the exit code here because it is non-zero if the
+            # source and destination are the same. The ls below will cause an
+            # error if the file was not where we expected it to be.
+            if os.path.isabs(source):
+                if os.path.dirname(source) != self.execute('pwd',
+                                              check_exit_code=False):
+                    self._gem5_shell("cat '{}' > '{}'".format(filename,
+                                                              dest_file))
+            self._gem5_shell("sync")
+            self._gem5_shell("ls -la {}".format(dest_file))
+            logger.debug('Finished the copy in the simulator')
+            self._gem5_util("writefile {}".format(dest_file))
 
-        if 'cpu' not in filename:
-            while not os.path.exists(os.path.join(self.gem5_out_dir, filename)):
-                time.sleep(1)
+            if 'cpu' not in filename:
+                while not os.path.exists(os.path.join(self.gem5_out_dir,
+                                                      dest_file)):
+                    time.sleep(1)
 
-        # Perform the local move
-        shutil.move(os.path.join(self.gem5_out_dir, filename), dest)
-        logger.debug("Pull complete.")
+            # Perform the local move
+            if os.path.exists(os.path.join(dest, dest_file)):
+                logger.warning(
+                            'Destination file {} already exists!'\
+                            .format(dest_file))
+            else:
+                shutil.move(os.path.join(self.gem5_out_dir, dest_file), dest)
+            logger.debug("Pull complete.")
 
     def execute(self, command, timeout=1000, check_exit_code=True,
                 as_root=False, strip_colors=True):
