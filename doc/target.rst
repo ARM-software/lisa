@@ -145,11 +145,6 @@ Target
              thread. This will always be set to the connection for the current
              thread.
 
-.. attribute:: Target.dryrun
-
-   The accumulated dry-run commands. If dry-run mode is not active,
-   this will return the last accumulation list.
-
 .. method:: Target.connect([timeout])
    
    Establish a connection to the target. It is usually not necessary to call
@@ -222,19 +217,9 @@ Target
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
        not  complete within this period, an exception will be raised.
 
-.. method:: Target.start_dryrun()
-
-   Starts dry-run mode, making further calls to Target.execute() accumulate
-   commands in a list rather than executing them.
-
-.. method:: Target.stop_dryrun()
-
-   Stops the dry-run mode.
-
 .. method:: Target.execute(command [, timeout [, check_exit_code [, as_root]]])
 
    Execute the specified command on the target device and return its output.
-   Command is not executed if dry-run mode is enabled.
 
    :param command: The command to be executed.
    :param timeout: Timeout (in seconds) for the execution of the command. If
