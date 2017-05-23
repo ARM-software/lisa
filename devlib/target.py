@@ -145,6 +145,10 @@ class Target(object):
         else:
             return None
 
+    @property
+    def dryrun(self):
+        return self._dryrun
+
     def __init__(self,
                  connection_settings=None,
                  platform=None,
@@ -186,6 +190,8 @@ class Target(object):
         self._cache = {}
         self._connections = {}
         self.busybox = None
+        self._dryrun_enabled = False
+        self._dryrun = []
 
         if load_default_modules:
             module_lists = [self.default_modules]
@@ -311,8 +317,20 @@ class Target(object):
 
     # execution
 
+    def start_dryrun(self):
+        if not self._dryrun_enabled:
+            self._dryrun_enabled = True
+            self._dryrun = []
+
+    def stop_dryrun(self):
+        if self._dryrun_enabled:
+            self._dryrun_enabled = False
+
     def execute(self, command, timeout=None, check_exit_code=True, as_root=False):
-        return self.conn.execute(command, timeout, check_exit_code, as_root)
+        if self._dryrun_enabled:
+            self._dryrun.append(command)
+        else:
+            return self.conn.execute(command, timeout, check_exit_code, as_root)
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         return self.conn.background(command, stdout, stderr, as_root)
