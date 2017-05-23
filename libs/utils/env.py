@@ -589,6 +589,13 @@ class TestEnv(ShareState):
         # Brackets are there to let the output dir be created automatically
         virtio_args = '--which-diod={} --workload-automation-vio={{}}'.format(diod_path)
 
+        # Change conf['board'] to include platform information
+        suffix = os.path.splitext(os.path.basename(
+            system['platform']['description']))[0]
+        self.conf['board'] = self.conf['board'].lower() + suffix
+
+        board = self._load_board(self.conf['board'])
+
         # Merge all arguments
         platform = devlib.platform.gem5.Gem5SimulationPlatform(
             name = 'gem5',
@@ -596,6 +603,9 @@ class TestEnv(ShareState):
             gem5_args = args,
             gem5_virtio = virtio_args,
             host_output_dir = self.res_dir,
+            core_names = board['cores'] if board else None,
+            core_clusters = self._get_clusters(board['cores']) if board else None,
+            big_core = board.get('big_core', None) if board else None,
         )
 
         return platform
