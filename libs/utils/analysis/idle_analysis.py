@@ -26,9 +26,6 @@ from analysis_module import AnalysisModule
 from trace import ResidencyTime, ResidencyData
 from trappy.utils import listify
 
-# Configure logging
-import logging
-
 
 class IdleAnalysis(AnalysisModule):
     """
@@ -55,8 +52,8 @@ class IdleAnalysis(AnalysisModule):
         :returns: :mod:`pandas.DataFrame` - idle state residency dataframe
         """
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
-                         'idle state residency computation not possible!')
+            self._log.warning('Events [cpu_idle] not found, '
+                              'idle state residency computation not possible!')
             return None
 
         idle_df = self._dfg_trace_event('cpu_idle')
@@ -72,10 +69,16 @@ class IdleAnalysis(AnalysisModule):
         #     idle_state[t] == 0 otherwise
         available_idles = sorted(idle_df.state.unique())
         # Remove non-idle state from availables
-        available_idles.pop()
+        available_idles = available_idles[1:]
         cpu_idle = cpu_idle.join(cpu_is_idle.to_frame(name='is_idle'),
                                  how='outer')
         cpu_idle.fillna(method='ffill', inplace=True)
+
+        # Extend the last cpu_idle event to the end of the time window under
+        # consideration
+        final_entry = pd.DataFrame([cpu_idle.iloc[-1]], index=[self._trace.x_max])
+        cpu_idle = cpu_idle.append(final_entry)
+
         idle_time = []
         for i in available_idles:
             idle_state = cpu_idle.state.apply(
@@ -99,8 +102,8 @@ class IdleAnalysis(AnalysisModule):
         :returns: :mod:`pandas.DataFrame` - idle state residency dataframe
         """
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
-                         'idle state residency computation not possible!')
+            self._log.warning('Events [cpu_idle] not found, '
+                              'idle state residency computation not possible!')
             return None
 
         _cluster = cluster
@@ -108,7 +111,7 @@ class IdleAnalysis(AnalysisModule):
             try:
                 _cluster = self._platform['clusters'][cluster.lower()]
             except KeyError:
-                logging.warn('%s cluster not found!', cluster)
+                self._log.warning('%s cluster not found!', cluster)
                 return None
 
         idle_df = self._dfg_trace_event('cpu_idle')
@@ -139,7 +142,7 @@ class IdleAnalysis(AnalysisModule):
         #     idle_state[t] == 0 otherwise
         available_idles = sorted(idle_df.state.unique())
         # Remove non-idle state from availables
-        available_idles.pop()
+        available_idles = available_idles[1:]
         cl_idle = cl_idle.join(cl_is_idle.to_frame(name='is_idle'),
                                how='outer')
         cl_idle.fillna(method='ffill', inplace=True)
@@ -175,8 +178,8 @@ class IdleAnalysis(AnalysisModule):
         :type pct: bool
         """
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
-                         'plot DISABLED!')
+            self._log.warning('Events [cpu_idle] not found, '
+                              'plot DISABLED!')
             return
 
         if cpus is None:
@@ -217,7 +220,7 @@ class IdleAnalysis(AnalysisModule):
         :type clusters: str ot list(str)
         """
         if not self._trace.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, plot DISABLED!')
+            self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
             return
 
         # Sanitize clusters

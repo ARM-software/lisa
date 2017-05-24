@@ -21,14 +21,14 @@ from env import TestEnv
 from executor import Executor
 
 from energy import EnergyMeter
-from conf import JsonConf
+from conf import LisaLogging, JsonConf
 
 from trace import Trace
 from perf_analysis import PerfAnalysis
 
 from report import Report
 
-import android
-
 from analysis_register import AnalysisRegister
 from analysis_module import AnalysisModule
+
+import android

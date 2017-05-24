@@ -15,56 +15,83 @@
 # limitations under the License.
 #
 
-import logging
 import os
 import unittest
+import logging
 
 from bart.sched.SchedAssert import SchedAssert
 from bart.sched.SchedMultiAssert import SchedMultiAssert
 from devlib.utils.misc import memoized
 import wrapt
 
-from conf import JsonConf
+from env import TestEnv
 from executor import Executor
+from trace import Trace
+
 
 class LisaTest(unittest.TestCase):
-    """A base class for LISA defined tests"""
+    """
+    A base class for LISA tests
+
+    This class is intended to be subclassed in order to create automated tests
+    for LISA. It sets up the TestEnv and Executor and provides convenience
+    methods for making assertions on results.
+
+    Subclasses should provide a test_conf to configure the TestEnv and an
+    experiments_conf to configure the executor.
+
+    Tests whose behaviour is dependent on target parameters, for example
+    presence of cpufreq governors or number of CPUs, can override
+    _getExperimentsConf to generate target-dependent experiments.
+
+    Example users of this class can be found under LISA's tests/ directory.
+
+    :ivar experiments: List of :class:`Experiment` s executed for the test. Only
+                       available after :meth:`init` has been called.
+    """
+
+    test_conf = None
+    """Override this with a dictionary or JSON path to configure the TestEnv"""
+
+    experiments_conf = None
+    """Override this with a dictionary or JSON path to configure the Executor"""
 
     @classmethod
-    def _init(cls, conf_file, *args, **kwargs):
-        """
-        Base class to run LISA test experiments
-        """
-
-        cls.logger = logging.getLogger('test')
-        cls.logger.setLevel(logging.INFO)
-        if 'loglevel' in kwargs:
-            cls.logger.setLevel(kwargs['loglevel'])
-            kwargs.pop('loglevel')
-
-        cls.conf_file = conf_file
-        cls.logger.info("%14s - Using configuration:",
-                         "LisaTest")
-        cls.logger.info("%14s -    %s",
-                         "LisaTest", cls.conf_file)
-
-        cls.logger.debug("%14s - Load test specific configuration...", "LisaTest")
-        json_conf = JsonConf(cls.conf_file)
-        cls.conf = json_conf.load()
-
-        cls.logger.debug("%14s - Checking tests configuration...", "LisaTest")
-        cls._checkConf()
-
-        cls._runExperiments()
+    def _getTestConf(cls):
+        if cls.test_conf is None:
+            raise NotImplementedError("Override `test_conf` attribute")
+        return cls.test_conf
 
     @classmethod
-    def _runExperiments(cls):
+    def _getExperimentsConf(cls, test_env):
         """
-        Default experiments execution engine
-        """
+        Get the experiments_conf used to configure the Executor
 
-        cls.logger.info("%14s - Setup tests execution engine...", "LisaTest")
-        cls.executor = Executor(tests_conf = cls.conf_file);
+        This method receives the initialized TestEnv as a parameter, so
+        subclasses can override it to configure workloads or target confs in a
+        manner dependent on the target. If not overridden, just returns the
+        experiments_conf attribute.
+        """
+        if cls.experiments_conf is None:
+            raise NotImplementedError("Override `experiments_conf` attribute")
+        return cls.experiments_conf
+
+    @classmethod
+    def runExperiments(cls):
+        """
+        Set up logging and trigger running experiments
+        """
+        cls.logger = logging.getLogger('LisaTest')
+
+        cls.logger.info('Setup tests execution engine...')
+        test_env = TestEnv(test_conf=cls._getTestConf())
+
+        experiments_conf = cls._getExperimentsConf(test_env)
+        cls.executor = Executor(test_env, experiments_conf)
+
+        # Alias tests and workloads configurations
+        cls.wloads = cls.executor._experiments_conf["wloads"]
+        cls.confs = cls.executor._experiments_conf["confs"]
 
         # Alias executor objects to make less verbose tests code
         cls.te = cls.executor.te
@@ -73,25 +100,13 @@ class LisaTest(unittest.TestCase):
         # Execute pre-experiments code defined by the test
         cls._experimentsInit()
 
-        cls.logger.info("%14s - Experiments execution...", "LisaTest")
+        cls.logger.info('Experiments execution...')
         cls.executor.run()
+
+        cls.experiments = cls.executor.experiments
 
         # Execute post-experiments code defined by the test
         cls._experimentsFinalize()
-
-    @classmethod
-    def _checkConf(cls):
-        """
-        Check for mandatory configuration options
-        """
-        assert 'confs' in cls.conf, \
-            "Configuration file missing target configurations ('confs' attribute)"
-        assert cls.conf['confs'], \
-            "Configuration file with empty set of target configurations ('confs' attribute)"
-        assert 'wloads' in cls.conf, \
-            "Configuration file missing workload configurations ('wloads' attribute)"
-        assert cls.conf['wloads'], \
-            "Configuration file with empty set of workloads ('wloads' attribute)"
 
     @classmethod
     def _experimentsInit(cls):
@@ -106,6 +121,14 @@ class LisaTest(unittest.TestCase):
         """
 
     @memoized
+    def get_sched_assert(self, experiment, task):
+        """
+        Return a SchedAssert over the task provided
+        """
+        return SchedAssert(
+            self.get_trace(experiment).ftrace, self.te.topology, execname=task)
+
+    @memoized
     def get_multi_assert(self, experiment, task_filter=""):
         """
         Return a SchedMultiAssert over the tasks whose names contain task_filter
@@ -114,9 +137,28 @@ class LisaTest(unittest.TestCase):
         experiment.
         """
         tasks = experiment.wload.tasks.keys()
-        return SchedMultiAssert(experiment.out_dir,
+        return SchedMultiAssert(self.get_trace(experiment).ftrace,
                                 self.te.topology,
                                 [t for t in tasks if task_filter in t])
+
+    def get_trace(self, experiment):
+        if not hasattr(self, "__traces"):
+            self.__traces = {}
+        if experiment.out_dir in self.__traces:
+            return self.__traces[experiment.out_dir]
+
+        if ('ftrace' not in experiment.conf['flags']
+            or 'ftrace' not in self.test_conf):
+            raise ValueError(
+                'Tracing not enabled. If this test needs a trace, add "ftrace" '
+                'to your test/experiment configuration flags')
+
+        events = self.test_conf['ftrace']['events']
+        tasks = experiment.wload.tasks.keys()
+        trace = Trace(self.te.platform, experiment.out_dir, events, tasks)
+
+        self.__traces[experiment.out_dir] = trace
+        return trace
 
     def get_start_time(self, experiment):
         """
@@ -124,6 +166,16 @@ class LisaTest(unittest.TestCase):
         """
         start_times_dict = self.get_multi_assert(experiment).getStartTime()
         return min([t["starttime"] for t in start_times_dict.itervalues()])
+
+    def get_end_time(self, experiment):
+        """
+        Get the time at which the experiment workload finished executing
+        """
+        end_times_dict = self.get_multi_assert(experiment).getEndTime()
+        return max([t["endtime"] for t in end_times_dict.itervalues()])
+
+    def get_window(self, experiment):
+        return (self.get_start_time(experiment), self.get_end_time(experiment))
 
     def get_end_times(self, experiment):
         """
@@ -133,13 +185,25 @@ class LisaTest(unittest.TestCase):
         """
 
         end_times = {}
+        ftrace = self.get_trace(experiment).ftrace
         for task in experiment.wload.tasks.keys():
-            sched_assert = SchedAssert(experiment.out_dir, self.te.topology,
-                                       execname=task)
+            sched_assert = SchedAssert(ftrace, self.te.topology, execname=task)
             end_times[task] = sched_assert.getEndTime()
 
         return end_times
 
+    def _dummy_method(self):
+        pass
+
+    # In the Python unittest framework you instantiate TestCase objects passing
+    # the name of a test method that is going to be run to make assertions. We
+    # run our tests using nosetests, which automatically discovers these
+    # methods. However we also want to be able to instantiate LisaTest objects
+    # in notebooks without the inconvenience of having to provide a methodName,
+    # since we won't need any assertions. So we'll override __init__ with a
+    # default dummy test method that does nothing.
+    def __init__(self, methodName='_dummy_method', *args, **kwargs):
+        super(LisaTest, self).__init__(methodName, *args, **kwargs)
 
 @wrapt.decorator
 def experiment_test(wrapped_test, instance, args, kwargs):

@@ -30,6 +30,7 @@ export LISA_HOME="$(pwd)"
 export PYTHONPATH=''
 export PYTHONPATH=$LISA_HOME/libs/utils:$PYTHONPATH
 export PYTHONPATH=$LISA_HOME/libs/wlgen:$PYTHONPATH
+export PYTHONPATH=$LISA_HOME:$PYTHONPATH
 
 if [ "x$DEVMODE" == "x1" ]; then
 	export PYTHONPATH=$LISA_HOME/libs/devlib:$PYTHONPATH
@@ -178,21 +179,30 @@ if [ "x$IPADDR" == "x" ]; then
     echo "Usage: $0 <NETIF>"
     echo " NETIF - The network interface to start the server on"
     echo
-    exit 1
+    return 1
 fi
 # Setup paths
 PYDIR="$LISA_HOME/ipynb"
 LOGFILE="$PYDIR/server.log"
 PIDFILE="$PYDIR/server.pid"
+URLFILE="$PYDIR/server.url"
+
+# Generate server URL
+TOKEN=$(cat /dev/urandom | tr -dc 'a-fA-F0-9' | fold -w 48 | head -n 1)
+URL="http://$IPADDR:$PORT/?token=$TOKEN"
+
 # Check if an instance is already running
 if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
-	echo "Server already running, opening new window in browser"
-    xdg-open "http://$IPADDR:8888/"
+	echo "Server already running:"
+    echo "  " $(cat $URLFILE)
+    xdg-open $(cat $URLFILE)
 	return 1
 fi
+
 # Start the server bindeed to the specified interface
-echo 'Starting IPython Notebook server...'
-echo "  IP Address :  http://$IPADDR:$PORT/"
+echo
+echo 'Notebook server configuration:'
+echo '  URL        : ' $URL
 echo '  Folder     : ' $PYDIR
 echo '  Logfile    : ' $LOGFILE
 echo '  PYTHONPATH : '
@@ -200,8 +210,16 @@ echo -e "\t${PYTHONPATH//:/\\n\\t}"
 cd $PYDIR
 echo
 echo -n 'Notebook server task: '
-nohup ipython notebook --ip=$IPADDR --port=$PORT &>$LOGFILE &
+if which ipython >/dev/null; then
+    local cmd=ipython
+else
+    local cmd=jupyter
+fi
+nohup $cmd notebook --ip=$IPADDR --port=$PORT \
+                    --NotebookApp.token=$TOKEN \
+                    >$LOGFILE 2>&1 &
 echo $! >$PIDFILE
+echo $URL >$URLFILE
 cd - >/dev/null
 }
 
@@ -244,29 +262,48 @@ echo
 echo
 }
 
+function lisa-check-submods {
+if [ ! -f ./libs/devlib/setup.py ] ||
+   [ ! -f ./libs/bart/setup.py ] ||
+   [ ! -f ./libs/trappy/setup.py ]; then
+	echo "One or more submodules missing, updating";
+	lisa-update submodules
+fi
+}
+
 ################################################################################
 # LISA Tests utility functions
 ################################################################################
 
 function _lisa-test-usage {
 cat <<EOF
-Usage: lisa-test FILE[:CLASS]
+Usage: lisa-test [args] FILE[:CLASS]
   Run automated tests. Tests can be found under the tests/ directory.
+
+  This is a wrapper for the 'nosetests' utility, additional arguments are passed
+  to that tool.
 
   Examples:
     Run all EAS Acceptance tests:
 
-      lisa-test eas/acceptance.py
+      lisa-test tests/eas/acceptance.py
 
     Run ForkMigration test from EAS Acceptance suite:
 
-      lisa-test eas/acceptance.py:ForkMigration
+      lisa-test tests/eas/acceptance.py:ForkMigration
+
+    Run ForkMigration test from EAS Acceptance suite, generating an XML test
+    report via nose's XUnit plugin (see nosetests documentation):
+
+      lisa-test --with-xunit --xunit-file=report.xml tests/eas/acceptance.py:ForkMigration
+
 EOF
 }
 
 function _lisa-test {
-TEST=${1}
-nosetests -v tests/$TEST
+nosetests -v --nocapture --nologcapture \
+          --logging-config=logging.conf \
+          $*
 }
 
 function lisa-test {
@@ -278,9 +315,11 @@ case "x${CMD^^}" in
 	;;
 *)
 	_lisa-test $*
+        local retcode=$?
 esac
 echo
 echo
+return $retcode
 }
 
 function lisa-report {
@@ -305,7 +344,7 @@ echo
 ################################################################################
 
 # Setup Shell variables
-PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_DEFAULT}\]"
+PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
 
 # Dump out a nice LISA Shell logo
 clear
@@ -325,6 +364,7 @@ EOF
 echo -e "\t${PYTHONPATH//:/\\n\\t}"
 
 if [ "x$DEVMODE" == "x1" ]; then
+lisa-check-submods
 cat <<EOF
 Submodules :
 EOF

@@ -9,7 +9,7 @@
 			"A53_1", "A53_1", "A53_1", "A53_1"
 		],
 		"big_core" : "A53_1",
-		"modules"  : [ "bl", "cpufreq" ]
+		"modules"  : [ "bl", "cpufreq", "cpuidle" ]
 	},
 
 	// Energy Model related functions requires cluster

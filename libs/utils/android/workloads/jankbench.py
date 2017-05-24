@@ -17,11 +17,11 @@
 
 import re
 import os
+import logging
 
 from subprocess import Popen, PIPE
-from android import Screen, System, Workload
 
-import logging
+from android import Screen, System, Workload
 
 # Available test workloads
 _jankbench = {
@@ -61,56 +61,80 @@ class Jankbench(Workload):
     # Package required by this workload
     package = 'com.android.benchmark'
 
-    # Setup logger
-    logger = logging.getLogger('Jankbench')
-    logger.setLevel(logging.INFO)
-
-
     def __init__(self, test_env):
         super(Jankbench, self).__init__(test_env)
-        logging.debug('%14s - Workload created', 'Jankbench')
+        self._log = logging.getLogger('Jankbench')
+        self._log.debug('Workload created')
 
-    def run(self, exp_dir, test_name, iterations, collect=''):
+        # Set of output data reported by Jankbench
+        self.db_file = None
+
+    def run(self, out_dir, test_name, iterations, collect):
+        """
+        Run Jankbench workload for a number of iterations.
+        Returns a collection of results.
+
+        :param out_dir: Path to experiment directory on the host
+                        where to store results.
+        :type out_dir: str
+
+        :param test_name: Name of the test to run
+        :type test_name: str
+
+        :param iterations: Number of iterations for the named test
+        :type iterations: int
+
+        :param collect: Specifies what to collect. Possible values:
+            - 'energy'
+            - 'systrace'
+            - 'ftrace'
+            - any combination of the above as a single space-separated string.
+        :type collect: list(str)
+        """
+
+        # Keep track of mandatory parameters
+        self.out_dir = out_dir
+        self.collect = collect
+
         # Setup test id
         try:
             test_id = _jankbench[test_name]
         except KeyError:
             raise ValueError('Jankbench test [%s] not supported', test_name)
 
-        # Initialize energy meter results
-        nrg_report = None
-
-        # Make sure we exit the app if already open
-        System.menu(self.target)
-        System.back(self.target)
+        # Unlock device screen (assume no password required)
+        Screen.unlock(self._target)
 
         # Close and clear application
-        System.force_stop(self.target, self.package, clear=True)
+        System.force_stop(self._target, self.package, clear=True)
 
         # Set airplane mode
-        System.set_airplane_mode(self.target, on=True)
+        System.set_airplane_mode(self._target, on=True)
+
+        # Set min brightness
+        Screen.set_brightness(self._target, auto=False, percent=0)
 
         # Force screen in PORTRAIT mode
-        Screen.set_orientation(self.target, portrait=True)
+        Screen.set_orientation(self._target, portrait=True)
 
         # Clear logcat
-        os.system(self._adb('logcat -c'));
+        self._target.clear_logcat()
 
-        self.logger.debug('Start Jank Benchmark [%d:%s]', test_id, test_name)
+        self._log.debug('Start Jank Benchmark [%d:%s]', test_id, test_name)
         test_cmd = 'am start -n "com.android.benchmark/.app.RunLocalBenchmarksActivity" '\
                     '--eia "com.android.benchmark.EXTRA_ENABLED_BENCHMARK_IDS" {0} '\
                     '--ei "com.android.benchmark.EXTRA_RUN_COUNT" {1}'\
                     .format(test_id, iterations)
-        self.logger.info(test_cmd)
-        self.target.execute(test_cmd);
+        self._log.info(test_cmd)
+        self._target.execute(test_cmd);
 
         # Parse logcat output lines
         logcat_cmd = self._adb(
                 'logcat ActivityManager:* System.out:I *:S BENCH:*'\
-                .format(self.target.adb_name))
-        self.logger.info("%s", logcat_cmd)
+                .format(self._target.adb_name))
+        self._log.info(logcat_cmd)
 
-        self.logger.debug("Iterations:")
+        self._log.debug('Iterations:')
         logcat = Popen(logcat_cmd, shell=True, stdout=PIPE)
         while True:
 
@@ -120,45 +144,48 @@ class Jankbench(Workload):
             # Benchmark start trigger
             match = JANKBENCH_BENCHMARK_START_RE.search(message)
             if match:
-                if 'energy' in collect and self.te.emeter:
-                    self.te.emeter.reset()
-                self.logger.debug("Benchmark started!")
+                self.tracingStart()
+                self._log.debug('Benchmark started!')
 
             # Benchmark completed trigger
             match = JANKBENCH_BENCHMARK_DONE_RE.search(message)
             if match:
-                if 'energy' in collect and self.te.emeter:
-                    nrg_report = self.te.emeter.report(exp_dir)
-                self.logger.debug("Benchmark done!")
+                self._log.debug('Benchmark done!')
+                self.tracingStop()
                 break
 
             # Iteration completd
             match = JANKBENCH_ITERATION_COUNT_RE.search(message)
             if match:
-                self.logger.debug("Iteration %2d:",
-                                  int(match.group('iteration'))+1)
+                self._log.debug('Iteration %2d:',
+                                int(match.group('iteration'))+1)
             # Iteration metrics
             match = JANKBENCH_ITERATION_METRICS_RE.search(message)
             if match:
-                self.logger.info("   Mean: %7.3f JankP: %7.3f StdDev: %7.3f Count Bad: %4d Count Jank: %4d",
-                                 float(match.group('mean')),
-                                 float(match.group('junk_p')),
-                                 float(match.group('std_dev')),
-                                 int(match.group('count_bad')),
-                                 int(match.group('count_junk')))
+                self._log.info('   Mean: %7.3f JankP: %7.3f StdDev: %7.3f Count Bad: %4d Count Jank: %4d',
+                               float(match.group('mean')),
+                               float(match.group('junk_p')),
+                               float(match.group('std_dev')),
+                               int(match.group('count_bad')),
+                               int(match.group('count_junk')))
 
-        # get results
-        db_file = os.path.join(exp_dir, JANKBENCH_DB_NAME)
-        self.target.pull(JANKBENCH_DB_PATH + JANKBENCH_DB_NAME, db_file)
+        # Get results
+        self.db_file = os.path.join(out_dir, JANKBENCH_DB_NAME)
+        self._target.pull(JANKBENCH_DB_PATH + JANKBENCH_DB_NAME, self.db_file)
 
-        System.force_stop(self.target, self.package, clear=True)
+        System.force_stop(self._target, self.package, clear=True)
 
         # Go back to home screen
-        System.home(self.target)
+        System.home(self._target)
 
-        # Switch back to screen auto rotation
-        Screen.set_orientation(self.target, auto=True)
+        # Reset initial setup
+        # Set orientation back to auto
+        Screen.set_orientation(self._target, auto=True)
 
-        return db_file, nrg_report
+        # Turn off airplane mode
+        System.set_airplane_mode(self._target, on=False)
+
+        # Set brightness back to auto
+        Screen.set_brightness(self._target, auto=True)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

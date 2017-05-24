@@ -24,9 +24,6 @@ import matplotlib.pyplot as plt
 
 from analysis_module import AnalysisModule
 
-# Configure logging
-import logging
-
 
 class StatusAnalysis(AnalysisModule):
     """
@@ -82,8 +79,8 @@ class StatusAnalysis(AnalysisModule):
         :type axes: :mod:`matplotlib.axes.Axes`
         """
         if not self._trace.hasEvents('sched_overutilized'):
-            logging.warn('Event [sched_overutilized] not found, '
-                         'plot DISABLED!')
+            self._log.warning('Event [sched_overutilized] not found, '
+                              'plot DISABLED!')
             return
 
         df = self._dfg_overutilized()

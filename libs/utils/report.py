@@ -24,19 +24,12 @@ import numpy as np
 import os
 import re
 import sys
+import logging
 
 from collections import defaultdict
 from colors import TestColors
 from results import Results
 
-# Configure logging
-import logging
-reload(logging)
-logging.basicConfig(
-    format='%(asctime)-9s %(levelname)-8s: %(message)s',
-    # level=logging.DEBUG,
-    level=logging.INFO,
-    datefmt='%I:%M:%S')
 
 # By default compare all the possible combinations
 DEFAULT_COMPARE = [(r'base_', r'test_')]
@@ -50,24 +43,27 @@ class Report(object):
 
         self.compare = []
 
+        # Setup logging
+        self._log = logging.getLogger('Report')
+
         # Parse results (if required)
         if not os.path.isfile(self.results_json):
             Results(results_dir)
 
         # Load results from file (if already parsed)
-        logging.info('%14s - Load results from [%s]...',
-                'Results', self.results_json)
+        self._log.info('Load results from [%s]...',
+                       self.results_json)
         with open(self.results_json) as infile:
            self.results = json.load(infile)
 
         # Setup configuration comparisons
         if compare is None:
             compare = DEFAULT_COMPARE
-            logging.warning('%14s - Comparing all the possible combination',
-                    'Results')
+            self._log.warning('Comparing all the possible combination')
         for (base_rexp, test_rexp) in compare:
-            logging.info('Configured regexps for comparisions (bases , tests): (%s, %s)',
-                    base_rexp, test_rexp)
+            self._log.info('Configured regexps for comparisions '
+                           '(bases , tests): (%s, %s)',
+                           base_rexp, test_rexp)
             base_rexp = re.compile(base_rexp, re.DOTALL)
             test_rexp = re.compile(test_rexp, re.DOTALL)
             self.compare.append((base_rexp, test_rexp))
@@ -81,23 +77,23 @@ class Report(object):
     def __rtapp_report(self, formats):
 
         if 'rtapp' not in self.results.keys():
-            logging.debug('%14s - No RTApp workloads to report', 'ReportRTApp')
+            self._log.debug('No RTApp workloads to report')
             return
 
-        logging.debug('%14s - Reporting RTApp workloads', 'ReportRTApp')
+        self._log.debug('Reporting RTApp workloads')
 
         # Setup lables depending on requested report
         if 'absolute' in formats:
             nrg_lable = 'Energy Indexes (Absolute)'
             prf_lable = 'Performance Indexes (Absolute)'
-            logging.info('')
-            logging.info('%14s - Absolute comparisions:', 'Report')
+            self._log.info('')
+            self._log.info('Absolute comparisions:')
             print ''
         else:
             nrg_lable = 'Energy Indexes (Relative)'
             prf_lable = 'Performance Indexes (Relative)'
-            logging.info('')
-            logging.info('%14s - Relative comparisions:', 'Report')
+            self._log.info('')
+            self._log.info('Relative comparisions:')
             print ''
 
         # Dump headers
@@ -140,8 +136,8 @@ class Report(object):
     def __rtapp_reference(self, tid, base_idx):
         _results = self.results['rtapp']
 
-        logging.debug('Test %s: compare against [%s] base',
-                tid, base_idx)
+        self._log.debug('Test %s: compare against [%s] base',
+                        tid, base_idx)
         res_line = '{0:12s}: {1:22s} | '.format(tid, base_idx)
 
         # Dump all energy metrics
@@ -159,7 +155,7 @@ class Report(object):
         for pidx in ['perf_avg', 'slack_pct', 'edp1', 'edp2', 'edp3']:
             res_base = _results[tid][base_idx]['performance'][pidx]['avg']
 
-            logging.debug('idx: %s, base: %s', pidx, res_base)
+            self._log.debug('idx: %s, base: %s', pidx, res_base)
 
             if pidx in ['perf_avg']:
                 res_line += ' {0:s}'.format(TestColors.rate(res_base))
@@ -177,8 +173,8 @@ class Report(object):
     def __rtapp_compare(self, tid, base_idx, test_idx, formats):
         _results = self.results['rtapp']
 
-        logging.debug('Test %s: compare %s with %s',
-                tid, base_idx, test_idx)
+        self._log.debug('Test %s: compare %s with %s',
+                        tid, base_idx, test_idx)
         res_line = '{0:12s}:   {1:20s} | '.format(tid, test_idx)
 
         # Dump all energy metrics
@@ -207,8 +203,8 @@ class Report(object):
             res_base = _results[tid][base_idx]['performance'][pidx]['avg']
             res_test = _results[tid][test_idx]['performance'][pidx]['avg']
 
-            logging.debug('idx: %s, base: %s, test: %s',
-                    pidx, res_base, res_test)
+            self._log.debug('idx: %s, base: %s, test: %s',
+                            pidx, res_base, res_test)
 
             if pidx in ['perf_avg']:
                 res_line += ' {0:s}'.format(TestColors.rate(res_test))
@@ -241,23 +237,23 @@ class Report(object):
                 wtypes.append(supported_wtype)
 
         if len(wtypes) == 0:
-            logging.debug('%14s - No Default workloads to report', 'ReportDefault')
+            self._log.debug('No Default workloads to report')
             return
 
-        logging.debug('%14s - Reporting Default workloads', 'ReportDefault')
+        self._log.debug('Reporting Default workloads')
 
         # Setup lables depending on requested report
         if 'absolute' in formats:
             nrg_lable = 'Energy Indexes (Absolute)'
             prf_lable = 'Performance Indexes (Absolute)'
-            logging.info('')
-            logging.info('%14s - Absolute comparisions:', 'Report')
+            self._log.info('')
+            self._log.info('Absolute comparisions:')
             print ''
         else:
             nrg_lable = 'Energy Indexes (Relative)'
             prf_lable = 'Performance Indexes (Relative)'
-            logging.info('')
-            logging.info('%14s - Relative comparisions:', 'Report')
+            self._log.info('')
+            self._log.info('Relative comparisions:')
             print ''
 
         # Dump headers
@@ -300,8 +296,8 @@ class Report(object):
     def __default_compare(self, wtype, tid, base_idx, test_idx, formats):
         _results = self.results[wtype]
 
-        logging.debug('Test %s: compare %s with %s',
-                tid, base_idx, test_idx)
+        self._log.debug('Test %s: compare %s with %s',
+                        tid, base_idx, test_idx)
         res_comp = '{0:s} vs {1:s}'.format(test_idx, base_idx)
         res_line = '{0:8s}: {1:22s} | '.format(tid, res_comp)
 
@@ -340,8 +336,8 @@ class Report(object):
             res_base = _results[tid][base_idx]['performance'][pidx]['avg']
             res_test = _results[tid][test_idx]['performance'][pidx]['avg']
 
-            logging.debug('idx: %s, base: %s, test: %s',
-                    pidx, res_base, res_test)
+            self._log.debug('idx: %s, base: %s, test: %s',
+                            pidx, res_base, res_test)
 
             # Compute difference base-vs-test
             speedup_cnt = 0

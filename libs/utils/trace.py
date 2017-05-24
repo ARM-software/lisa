@@ -25,16 +25,15 @@ import trappy
 import json
 import warnings
 import operator
+import logging
 
 from analysis_register import AnalysisRegister
 from collections import namedtuple
 from devlib.utils.misc import memoized
 from trappy.utils import listify
 
-# Configure logging
-import logging
 
-NON_IDLE_STATE = 4294967295
+NON_IDLE_STATE = -1
 ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
 ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
 
@@ -52,8 +51,9 @@ class Trace(object):
     :param events: events to be parsed (everything in the trace by default)
     :type events: list(str)
 
-    :param tasks: filter data for the specified tasks only
-    :type tasks: list(str)
+    :param tasks: filter data for the specified tasks only. If None (default),
+        use data for all tasks found in the trace.
+    :type tasks: list(str) or NoneType
 
     :param window: time window to consider when parsing the trace
     :type window: tuple(int, int)
@@ -117,6 +117,9 @@ class Trace(object):
         # Folder containing all trace data
         self.data_dir = None
 
+        # Setup logging
+        self._log = logging.getLogger('Trace')
+
         # Folder containing trace
         if not os.path.isdir(data_dir):
             self.data_dir = os.path.dirname(data_dir)
@@ -156,13 +159,13 @@ class Trace(object):
         :param module: module to which the function is added
         :type module: class
         """
-        logging.debug("Registering [%s] local data frames", module)
+        self._log.debug('Registering [%s] local data frames', module)
         for func in dir(module):
             if not func.startswith('_dfg_'):
                 continue
             dfg_name = func.replace('_dfg_', '')
             dfg_func = getattr(module, func)
-            logging.debug("   %s", dfg_name)
+            self._log.debug('   %s', dfg_name)
             setattr(self.data_frame, dfg_name, dfg_func)
 
     def setXTimeRange(self, t_min=None, t_max=None):
@@ -183,8 +186,8 @@ class Trace(object):
             self.x_max = self.time_range
         else:
             self.x_max = t_max
-        logging.info('Set plots time range to (%.6f, %.6f)[s]',
-                     self.x_min, self.x_max)
+        self._log.debug('Set plots time range to (%.6f, %.6f)[s]',
+                       self.x_min, self.x_max)
 
     def __registerTraceEvents(self, events):
         """
@@ -199,6 +202,9 @@ class Trace(object):
             self.events = events
         else:
             raise ValueError('Events must be a string or a list of strings')
+        # Register devlib fake cpu_frequency events
+        if 'cpu_frequency' in events:
+            self.events.append('cpu_frequency_devlib')
 
     def __parseTrace(self, path, tasks, window, normalize_time, trace_format):
         """
@@ -222,14 +228,14 @@ class Trace(object):
             - SysTrace
         :type trace_format: str
         """
-        logging.debug('Loading [sched] events from trace in [%s]...', path)
-        logging.debug("Parsing events: %s", self.events)
+        self._log.debug('Loading [sched] events from trace in [%s]...', path)
+        self._log.debug('Parsing events: %s', self.events)
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
-            logging.info('Parsing SysTrace format...')
+            self._log.debug('Parsing SysTrace format...')
             trace_class = trappy.SysTrace
             self.trace_format = 'SysTrace'
         elif trace_format.upper() == 'FTRACE':
-            logging.info('Parsing FTrace format...')
+            self._log.debug('Parsing FTrace format...')
             trace_class = trappy.FTrace
             self.trace_format = 'FTrace'
         else:
@@ -245,7 +251,7 @@ class Trace(object):
         self.__checkAvailableEvents()
         if len(self.available_events) == 0:
             if has_function_stats:
-                logging.info('Trace contains only functions stats')
+                self._log.info('Trace contains only functions stats')
                 return
             raise ValueError('The trace does not contain useful events '
                              'nor function stats')
@@ -284,28 +290,30 @@ class Trace(object):
             obj = getattr(self.ftrace, val)
             if len(obj.data_frame):
                 self.available_events.append(val)
-        logging.debug('Events found on trace:')
+        self._log.debug('Events found on trace:')
         for evt in self.available_events:
-            logging.debug(' - %s', evt)
+            self._log.debug(' - %s', evt)
 
     def __loadTasksNames(self, tasks):
         """
         Try to load tasks names using one of the supported events.
 
-        :param tasks: list of task names
-        :type tasks: list(str)
+        :param tasks: list of task names. If None, load all tasks found.
+        :type tasks: list(str) or NoneType
         """
+        def load(tasks, event, name_key, pid_key):
+            df = self._dfg_trace_event(event)
+            if tasks is None:
+                tasks = df[name_key].unique()
+            self.getTasks(df, tasks, name_key=name_key, pid_key=pid_key)
+            self._scanTasks(df, name_key=name_key, pid_key=pid_key)
+
         if 'sched_switch' in self.available_events:
-            self.getTasks(self._dfg_trace_event('sched_switch'), tasks,
-                          name_key='next_comm', pid_key='next_pid')
-            self._scanTasks(self._dfg_trace_event('sched_switch'),
-                            name_key='next_comm', pid_key='next_pid')
-            return
-        if 'sched_load_avg_task' in self.available_events:
-            self.getTasks(self._dfg_trace_event('sched_load_avg_task'), tasks)
-            self._scanTasks(self._dfg_trace_event('sched_load_avg_task'))
-            return
-        logging.warning('Failed to load tasks names from trace events')
+            load(tasks, 'sched_switch', 'next_comm', 'next_pid')
+        elif 'sched_load_avg_task' in self.available_events:
+            load(tasks, 'sched_load_avg_task', 'comm', 'pid')
+        else:
+            self._log.warning('Failed to load tasks names from trace events')
 
     def hasEvents(self, dataset):
         """
@@ -336,8 +344,8 @@ class Trace(object):
                 te = df.index[-1]
             self.time_range = te - ts
 
-        logging.info('Collected events spans a %.3f [s] time interval',
-                     self.time_range)
+        self._log.debug('Collected events spans a %.3f [s] time interval',
+                       self.time_range)
 
         # Build a stat on trace overutilization
         if self.hasEvents('sched_overutilized'):
@@ -345,8 +353,8 @@ class Trace(object):
             self.overutilized_time = df[df.overutilized == 1].len.sum()
             self.overutilized_prc = 100. * self.overutilized_time / self.time_range
 
-            logging.info('Overutilized time: %.6f [s] (%.3f%% of trace time)',
-                         self.overutilized_time, self.overutilized_prc)
+            self._log.debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
+                           self.overutilized_time, self.overutilized_prc)
 
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
         """
@@ -401,22 +409,21 @@ class Trace(object):
         """
         Helper function to get PIDs of specified tasks.
 
-        This method requires a Pandas dataset in input to be used to fiter out
+        This method can take a Pandas dataset in input to be used to fiter out
         the PIDs of all the specified tasks. If a dataset is not provided,
         previously filtered PIDs are returned.
 
-        If a list of task names is not provided, the workload defined task
-        names is used instead. The specified dataframe must provide at least
-        two columns reporting the task name and the task PID. The default
-        values of this colums could be specified using the provided parameters.
+        If a list of task names is not provided, all tasks detected in the trace
+        will be used. The specified dataframe must provide at least two columns
+        reporting the task name and the task PID. The default values of this
+        colums could be specified using the provided parameters.
 
-        :param dataframe: A Pandas datafram containing at least 'pid' and
-            'task name' columns. If None, the previously filtered PIDs are
-            returned.
+        :param dataframe: A Pandas dataframe containing at least 'name_key' and
+            'pid_key' columns. If None, the all PIDs are returned.
         :type dataframe: :mod:`pandas.DataFrame`
 
-        :param task_names: The list of tasks to get the PID of (by default the
-            workload defined tasks)
+        :param task_names: The list of tasks to get the PID of (default: all
+            tasks)
         :type task_names: list(str)
 
         :param name_key: The name of the dataframe columns containing task
@@ -426,28 +433,28 @@ class Trace(object):
         :param pid_key: The name of the dataframe columns containing task PIDs
         :type pid_key: str
         """
-        if dataframe is None:
-            return self.tasks
-        df = dataframe
         if task_names is None:
             task_names = self.tasks.keys()
-        logging.debug("Lookup dataset for tasks...")
+        if dataframe is None:
+            return {k: v for k, v in  self.tasks.iteritems() if k in task_names}
+        df = dataframe
+        self._log.debug('Lookup dataset for tasks...')
         for tname in task_names:
-            logging.debug("Lookup for task [%s]...", tname)
+            self._log.debug('Lookup for task [%s]...', tname)
             results = df[df[name_key] == tname][[name_key, pid_key]]
             if len(results) == 0:
-                logging.error('  task %16s NOT found', tname)
+                self._log.error('  task %16s NOT found', tname)
                 continue
             (name, pid) = results.head(1).values[0]
             if name != tname:
-                logging.error('  task %16s NOT found', tname)
+                self._log.error('  task %16s NOT found', tname)
                 continue
             if tname not in self.tasks:
                 self.tasks[tname] = {}
             pids = list(results[pid_key].unique())
             self.tasks[tname]['pid'] = pids
-            logging.info('  task %16s found, pid: %s',
-                         tname, self.tasks[tname]['pid'])
+            self._log.debug('  task %16s found, pid: %s',
+                            tname, self.tasks[tname]['pid'])
         return self.tasks
 
 
@@ -606,6 +613,8 @@ class Trace(object):
         """
         If a energy model is provided, some signals are added to the
         sched_energy_diff trace event data frame.
+
+        Also convert between existing field name formats for sched_energy_diff
         """
         if not self.hasEvents('sched_energy_diff') \
            or 'nrg_model' not in self.platform:
@@ -621,9 +630,17 @@ class Trace(object):
 
         power_max = em_lcpu['nrg_max'] * lcpus + em_bcpu['nrg_max'] * bcpus + \
             em_lcluster['nrg_max'] + em_bcluster['nrg_max']
-        print "Maximum estimated system energy: {0:d}".format(power_max)
+        self._log.debug(
+            "Maximum estimated system energy: {0:d}".format(power_max))
 
         df = self._dfg_trace_event('sched_energy_diff')
+
+        translations = {'nrg_d' : 'nrg_diff',
+                        'utl_d' : 'usage_delta',
+                        'payoff' : 'nrg_payoff'
+        }
+        df.rename(columns=translations, inplace=True)
+
         df['nrg_diff_pct'] = SCHED_LOAD_SCALE * df.nrg_diff / power_max
 
         # Tag columns by usage_delta
@@ -666,21 +683,80 @@ class Trace(object):
         Verify that all platform reported clusters are frequency coherent (i.e.
         frequency scaling is performed at a cluster level).
         """
-        if not self.hasEvents('cpu_frequency'):
+        if not self.hasEvents('cpu_frequency_devlib'):
             return
+
+        devlib_freq = self._dfg_trace_event('cpu_frequency_devlib')
+        devlib_freq.rename(columns={'cpu_id':'cpu'}, inplace=True)
+        devlib_freq.rename(columns={'state':'frequency'}, inplace=True)
+
         df = self._dfg_trace_event('cpu_frequency')
         clusters = self.platform['clusters']
+
+        # devlib always introduces fake cpu_frequency events, in case the
+        # OS has not generated cpu_frequency envets there are the only
+        # frequency events to report
+        if len(df) == 0:
+            # Register devlib injected events as 'cpu_frequency' events
+            setattr(self.ftrace.cpu_frequency, 'data_frame', devlib_freq)
+            df = devlib_freq
+            self.available_events.append('cpu_frequency')
+
+        # make sure fake cpu_frequency events are never interleaved with
+        # OS generated events
+        else:
+            if len(devlib_freq) > 0:
+
+                # Frequencies injection is done in a per-cluster based.
+                # This is based on the assumption that clusters are
+                # frequency choerent.
+                # For each cluster we inject devlib events only if
+                # these events does not overlaps with os-generated ones.
+
+                # Inject "initial" devlib frequencies
+                os_df = df
+                dl_df = devlib_freq.iloc[:self.platform['cpus_count']]
+                for _,c in self.platform['clusters'].iteritems():
+                    dl_freqs = dl_df[dl_df.cpu.isin(c)]
+                    os_freqs = os_df[os_df.cpu.isin(c)]
+                    self._log.debug("First freqs for %s:\n%s", c, dl_freqs)
+                    # All devlib events "before" os-generated events
+                    self._log.debug("Min os freq @: %s", os_freqs.index.min())
+                    if os_freqs.empty or \
+                       os_freqs.index.min() > dl_freqs.index.max():
+                        self._log.debug("Insert devlib freqs for %s", c)
+                        df = pd.concat([dl_freqs, df])
+
+                # Inject "final" devlib frequencies
+                os_df = df
+                dl_df = devlib_freq.iloc[self.platform['cpus_count']:]
+                for _,c in self.platform['clusters'].iteritems():
+                    dl_freqs = dl_df[dl_df.cpu.isin(c)]
+                    os_freqs = os_df[os_df.cpu.isin(c)]
+                    self._log.debug("Last freqs for %s:\n%s", c, dl_freqs)
+                    # All devlib events "after" os-generated events
+                    self._log.debug("Max os freq @: %s", os_freqs.index.max())
+                    if os_freqs.empty or \
+                       os_freqs.index.max() < dl_freqs.index.min():
+                        self._log.debug("Append devlib freqs for %s", c)
+                        df = pd.concat([df, dl_freqs])
+
+                df.sort_index(inplace=True)
+
+            setattr(self.ftrace.cpu_frequency, 'data_frame', df)
+
+        # Frequency Coherency Check
         for _, cpus in clusters.iteritems():
             cluster_df = df[df.cpu.isin(cpus)]
             for chunk in self._chunker(cluster_df, len(cpus)):
                 f = chunk.iloc[0].frequency
                 if any(chunk.frequency != f):
-                    logging.warn('Cluster Frequency is not coherent! '
-                                 'Failure in [cpu_frequency] events at:')
-                    logging.warn(chunk)
+                    self._log.warning('Cluster Frequency is not coherent! '
+                                      'Failure in [cpu_frequency] events at:')
+                    self._log.warning(chunk)
                     self.freq_coherency = False
                     return
-        logging.info("Platform clusters verified to be Frequency coherent")
+        self._log.info('Platform clusters verified to be Frequency coherent')
 
 ###############################################################################
 # Utility Methods
@@ -719,7 +795,7 @@ class Trace(object):
             return False
 
         # Opening functions profiling JSON data file
-        logging.debug('Loading functions profiling data from [%s]...', path)
+        self._log.debug('Loading functions profiling data from [%s]...', path)
         with open(os.path.join(path), 'r') as fh:
             trace_stats = json.load(fh)
 
@@ -739,18 +815,20 @@ class Trace(object):
         """
         Build a square wave representing the active (i.e. non-idle) CPU time,
         i.e.:
-            cpu_active[t] == 1 if at least one CPU is reported to be
-                               non-idle by CPUFreq at time t
-            cpu_active[t] == 0 otherwise
+
+          cpu_active[t] == 1 if the CPU is reported to be non-idle by cpuidle at
+          time t
+          cpu_active[t] == 0 otherwise
 
         :param cpu: CPU ID
         :type cpu: int
 
-        :returns: :mod:`pandas.Series`
+        :returns: A :mod:`pandas.Series` or ``None`` if the trace contains no
+                  "cpu_idle" events
         """
         if not self.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
-                         'cannot compute CPU active signal!')
+            self._log.warning('Events [cpu_idle] not found, '
+                              'cannot compute CPU active signal!')
             return None
 
         idle_df = self._dfg_trace_event('cpu_idle')
@@ -763,7 +841,10 @@ class Trace(object):
         start_time = 0.0
         if not self.ftrace.normalized_time:
             start_time = self.ftrace.basetime
-        if cpu_active.index[0] != start_time:
+
+        if cpu_active.empty:
+            cpu_active = pd.Series([0], index=[start_time])
+        elif cpu_active.index[0] != start_time:
             entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
             cpu_active = pd.concat([entry_0, cpu_active])
 
@@ -774,18 +855,20 @@ class Trace(object):
         """
         Build a square wave representing the active (i.e. non-idle) cluster
         time, i.e.:
-            cluster_active[t] == 1 if at least one CPU is reported to be
-                                   non-idle by CPUFreq at time t
-            cluster_active[t] == 0 otherwise
+
+          cluster_active[t] == 1 if at least one CPU is reported to be non-idle
+          by CPUFreq at time t
+          cluster_active[t] == 0 otherwise
 
         :param cluster: list of CPU IDs belonging to a cluster
         :type cluster: list(int)
 
-        :returns: :mod:`pandas.Series`
+        :returns: A :mod:`pandas.Series` or ``None`` if the trace contains no
+                  "cpu_idle" events
         """
         if not self.hasEvents('cpu_idle'):
-            logging.warn('Events [cpu_idle] not found, '\
-                         'cannot compute cluster active signal!')
+            self._log.warning('Events [cpu_idle] not found, '
+                              'cannot compute cluster active signal!')
             return None
 
         active = self.getCPUActiveSignal(cluster[0]).to_frame(name=cluster[0])

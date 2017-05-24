@@ -16,8 +16,11 @@
 #
 
 import logging
+
 from devlib.utils.android import adb_command
 from devlib import TargetError
+import os
+import pexpect as pe
 
 GET_FRAMESTATS_CMD = 'shell dumpsys gfxinfo {} > {}'
 
@@ -25,6 +28,42 @@ class System(object):
     """
     Collection of Android related services
     """
+
+    @staticmethod
+    def systrace_start(target, trace_file, time=None,
+                       events=['gfx', 'view', 'sched', 'freq', 'idle']):
+
+        log = logging.getLogger('System')
+
+        # Check which systrace binary is available under CATAPULT_HOME
+        for systrace in ['systrace.py', 'run_systrace.py']:
+                systrace_path = os.path.join(target.CATAPULT_HOME, 'systrace',
+                                             'systrace', systrace)
+                if os.path.isfile(systrace_path):
+                        break
+        else:
+                log.warning("Systrace binary not available under CATAPULT_HOME: %s!",
+                            target.CATAPULT_HOME)
+                return None
+
+        #  Format the command according to the specified arguments
+        device = target.conf.get('device', '')
+        if device:
+            device = "-e {}".format(device)
+        systrace_pattern = "{} {} -o {} {}"
+        trace_cmd = systrace_pattern.format(systrace_path, device,
+                                            trace_file, " ".join(events))
+        if time is not None:
+            trace_cmd += " -t {}".format(time)
+
+        log.info('SysTrace: %s', trace_cmd)
+
+        # Actually spawn systrace
+        return pe.spawn(trace_cmd)
+
+    @staticmethod
+    def systrace_wait(target, systrace_output):
+        systrace_output.wait()
 
     @staticmethod
     def set_airplane_mode(target, on=True):
@@ -42,7 +81,39 @@ class System(object):
                            '--ez state {}'\
                            .format(ap_state), as_root=True)
         except TargetError:
-            target.logger.warning("Failed to toggle airplane mode, permission denied.")
+            log = logging.getLogger('System')
+            log.warning('Failed to toggle airplane mode, permission denied.')
+
+    @staticmethod
+    def _set_svc(target, cmd, on=True):
+        mode = 'enable' if on else 'disable'
+        try:
+            target.execute('svc {} {}'.format(cmd, mode), as_root=True)
+        except TargetError:
+            log = logging.getLogger('System')
+            log.warning('Failed to toggle {} mode, permission denied.'\
+                        .format(cmd))
+
+    @staticmethod
+    def set_mobile_data(target, on=True):
+        """
+        Set mobile data connectivity
+        """
+        System._set_svc(target, 'data', on)
+
+    @staticmethod
+    def set_wifi(target, on=True):
+        """
+        Set mobile data connectivity
+        """
+        System._set_svc(target, 'wifi', on)
+
+    @staticmethod
+    def set_nfc(target, on=True):
+        """
+        Set mobile data connectivity
+        """
+        System._set_svc(target, 'nfc', on)
 
     @staticmethod
     def start_app(target, apk_name):
@@ -216,6 +287,46 @@ class System(object):
         :type target: devlib.target.AndroidTarget
         """
         target.execute('input keyevent KEYCODE_BACK')
+
+    @staticmethod
+    def wakeup(target):
+        """
+        Wake up the system if its sleeping
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_WAKEUP')
+
+    @staticmethod
+    def sleep(target):
+        """
+        Make system sleep if its awake
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_SLEEP')
+
+    @staticmethod
+    def volume(target, times=1, direction='down'):
+        """
+        Increase or decrease volume
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param times: number of times to perform operation
+        :type times: int
+
+        :param direction: which direction to increase (up/down)
+        :type direction: str
+        """
+        for i in range(times):
+            if direction == 'up':
+                target.execute('input keyevent KEYCODE_VOLUME_UP')
+            elif direction == 'down':
+                target.execute('input keyevent KEYCODE_VOLUME_DOWN')
 
     @staticmethod
     def gfxinfo_reset(target, apk_name):

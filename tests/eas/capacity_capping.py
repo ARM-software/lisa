@@ -18,16 +18,11 @@
 from bart.sched.SchedMultiAssert import SchedMultiAssert
 from env import TestEnv
 import json
-import logging
 import time
 import trappy
 import unittest
 import os
 from wlgen import Periodic, RTA
-
-# Configure logging to print something while the test runs
-reload(logging)
-logging.basicConfig(level=logging.INFO)
 
 # Read the config file and update the globals
 CONF_FILE = os.path.join(
@@ -100,6 +95,8 @@ class CapacityCappingTest(unittest.TestCase):
         trace = trappy.FTrace(cls.trace_file)
         cls.sa = SchedMultiAssert(trace, cls.env.topology,
                                   execnames=cls.params.keys())
+        times = cls.sa.getStartTime()
+        cls.wload_start_time = min(t["starttime"] for t in times.itervalues())
 
     @classmethod
     def populate_params(cls):
@@ -134,11 +131,22 @@ class CapacityCappingTest(unittest.TestCase):
         wload.run(out_dir=cls.env.res_dir, background=True)
         time.sleep(phase_duration)
 
-        cls.env.target.write_value(max_freq_path, min_frequency)
-        time.sleep(phase_duration)
+        # Writing values on the target can take a non-negligible amount of time.
+        # To prevent this from shifting the transitions between
+        # constrained/unconstrained phases, measure this write latency and
+        # reduce our sleep time by that amount.
+        def write_and_sleep(max_freq):
+            time_before = time.time()
+            cls.env.target.write_value(max_freq_path, max_freq)
+            write_latency = time.time() - time_before
+            if (write_latency > phase_duration):
+                raise ValueError(
+                    "Latency of Target.write_value greater than phase duration! "
+                    "Increase WORKLOAD_DURATION_S or speed up target connection")
+            time.sleep(phase_duration - write_latency)
 
-        cls.env.target.write_value(max_freq_path, max_frequency)
-        time.sleep(phase_duration)
+        write_and_sleep(min_frequency)
+        write_and_sleep(max_frequency)
 
         cls.env.ftrace.stop()
         cls.env.ftrace.get_trace(cls.trace_file)
@@ -162,7 +170,8 @@ class CapacityCappingTest(unittest.TestCase):
         """All busy threads run in the beginning in big cpus"""
 
         phase_duration = WORKLOAD_DURATION_S / 3.
-        unconstrained_window = (0, phase_duration)
+        unconstrained_window = (self.wload_start_time,
+                                self.wload_start_time + phase_duration)
         self.check_residencies(self.env.target.bl.bigs, "big",
                                unconstrained_window, "unconstrained")
 
@@ -170,21 +179,23 @@ class CapacityCappingTest(unittest.TestCase):
         """Busy threads migrate to little in the thermally constrained phase"""
 
         phase_duration = WORKLOAD_DURATION_S / 3.
-        migration_window = (phase_duration, phase_duration + MIGRATION_WINDOW)
+        mig_start = self.wload_start_time + phase_duration
+        mig_end = mig_start + MIGRATION_WINDOW
         num_tasks = len(self.params)
 
         msg = "One or more of the busy threads didn't migrate to a little cpu between {} and {}" \
-              .format(migration_window[0], migration_window[1])
+              .format(mig_start, mig_end)
         self.assertTrue(self.sa.assertSwitch("cluster", self.env.target.bl.bigs,
                                              self.env.target.bl.littles,
-                                             window=migration_window,
+                                             window=(mig_start, mig_end),
                                              rank=num_tasks),
                         msg=msg)
 
         # The tasks must have migrated by the end of the
         # migration_window and they should not move until the end of
         # the phase.
-        constrained_window = (migration_window[1], 2 * phase_duration)
+        constrained_window = (mig_end,
+                              self.wload_start_time + (2 * phase_duration))
         self.check_residencies(self.env.target.bl.littles, "little",
                                constrained_window, "thermally constrained")
 
@@ -195,21 +206,21 @@ class CapacityCappingTest(unittest.TestCase):
         return to the big cpus"""
 
         phase_duration = WORKLOAD_DURATION_S / 3.
-        migration_window = (2 * phase_duration,
-                            2 * phase_duration + MIGRATION_WINDOW)
+        mig_start = self.wload_start_time + 2 * phase_duration
+        mig_end = mig_start + MIGRATION_WINDOW
         num_tasks = len(self.params)
 
         msg = "One of the busy threads didn't return to a big cpu"
         self.assertTrue(self.sa.assertSwitch("cluster",
                                              self.env.target.bl.littles,
                                              self.env.target.bl.bigs,
-                                             window=migration_window,
+                                             window=(mig_start, mig_end),
                                              rank=num_tasks),
                         msg=msg)
 
         # The tasks must have migrated by the end of the
         # migration_window and they should continue to run on bigs
         # until the end of the run.
-        last_phase = (migration_window[1], WORKLOAD_DURATION_S)
+        last_phase = (mig_end, self.wload_start_time + WORKLOAD_DURATION_S)
         self.check_residencies(self.env.target.bl.bigs, "big",
                                last_phase, "unconstrained")

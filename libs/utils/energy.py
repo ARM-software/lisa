@@ -17,14 +17,19 @@
 
 import devlib
 import json
-import logging
 import os
 import psutil
 import time
+import logging
 
 from collections import namedtuple
 from subprocess import Popen, PIPE, STDOUT
 from time import sleep
+
+import numpy as np
+import pandas as pd
+
+from bart.common.Utils import area_under_curve
 
 # Default energy measurements for each board
 DEFAULT_ENERGY_METER = {
@@ -32,10 +37,6 @@ DEFAULT_ENERGY_METER = {
     # ARM TC2: by default use HWMON
     'tc2' : {
         'instrument' : 'hwmon',
-        'conf' : {
-            'sites' : [ 'A7 Jcore', 'A15 Jcore' ],
-            'kinds' : [ 'energy']
-        },
         'channel_map' : {
             'LITTLE' : 'A7 Jcore',
             'big' : 'A15 Jcore',
@@ -45,21 +46,6 @@ DEFAULT_ENERGY_METER = {
     # ARM Juno: by default use HWMON
     'juno' : {
         'instrument' : 'hwmon',
-        'conf' : {
-            'sites' : [ 'a53', 'a57' ],
-            'kinds' : [ 'energy' ],
-        },
-        'channel_map' : {
-            'LITTLE' : 'a53',
-            'big' : 'a57',
-        }
-    },
-    'juno2' : {
-        'instrument' : 'hwmon',
-        'conf' : {
-            'sites' : [ 'BOARDLITTLE', 'BOARDBIG' ],
-            'kinds' : [ 'energy' ]
-        },
         # if the channels do not contain a core name we can match to the
         # little/big cores on the board, use a channel_map section to
         # indicate which channel is which
@@ -71,8 +57,8 @@ DEFAULT_ENERGY_METER = {
 
 }
 
-EnergyCounter = namedtuple('EnergyCounter', ['site', 'pwr_total' , 'pwr_samples', 'pwr_avg', 'time', 'nrg'])
-EnergyReport = namedtuple('EnergyReport', ['channels', 'report_file'])
+EnergyReport = namedtuple('EnergyReport',
+                          ['channels', 'report_file', 'data_frame'])
 
 class EnergyMeter(object):
 
@@ -84,24 +70,28 @@ class EnergyMeter(object):
         if not self._res_dir:
             self._res_dir = '/tmp'
 
+        # Setup logging
+        self._log = logging.getLogger('EnergyMeter')
+
     @staticmethod
     def getInstance(target, conf, force=False, res_dir=None):
 
         if not force and EnergyMeter._meter:
             return EnergyMeter._meter
 
+        log = logging.getLogger('EnergyMeter')
+
         # Initialize energy meter based on configuration
         if 'emeter' in conf:
             emeter = conf['emeter']
-            logging.debug('%14s - using user-defined configuration',
-                          'EnergyMeter')
+            log.debug('using user-defined configuration')
 
         # Initialize energy probe to board default
         elif 'board' in conf and \
             conf['board'] in DEFAULT_ENERGY_METER:
                 emeter = DEFAULT_ENERGY_METER[conf['board']]
-                logging.debug('%14s - using default energy meter for [%s]',
-                              'EnergyMeter', conf['board'])
+                log.debug('using default energy meter for [%s]',
+                          conf['board'])
         else:
             return None
 
@@ -109,10 +99,12 @@ class EnergyMeter(object):
             EnergyMeter._meter = HWMon(target, emeter, res_dir)
         elif emeter['instrument'] == 'aep':
             EnergyMeter._meter = AEP(target, emeter, res_dir)
+        elif emeter['instrument'] == 'monsoon':
+            EnergyMeter._meter = Monsoon(target, emeter, res_dir)
         elif emeter['instrument'] == 'acme':
             EnergyMeter._meter = ACME(target, emeter, res_dir)
 
-        logging.debug('%14s - Results dir: %s', 'EnergyMeter', res_dir)
+        log.debug('Results dir: %s', res_dir)
         return EnergyMeter._meter
 
     def sample(self):
@@ -136,63 +128,81 @@ class HWMon(EnergyMeter):
         self.readings = {}
 
         if 'hwmon' not in self._target.modules:
-            logging.info('%14s - HWMON module not enabled', 'HWMon')
-            logging.warning('%14s - Energy sampling disabled by configuration',
-                            'HWMon')
+            self._log.info('HWMON module not enabled')
+            self._log.warning('Energy sampling disabled by configuration')
             return
 
         # Initialize HWMON instrument
-        logging.info('%14s - Scanning for HWMON channels, may take some time...', 'HWMon')
+        self._log.info('Scanning for HWMON channels, may take some time...')
         self._hwmon = devlib.HwmonInstrument(self._target)
 
+        # Decide which channels we'll collect data from.
+        # If the caller provided a channel_map, require that all the named
+        # channels exist.
+        # Otherwise, try using the big.LITTLE core names as channel names.
+        # If they don't match, just collect all available channels.
+
+        available_sites = [c.site for c in self._hwmon.get_channels('energy')]
+
+        self._channels = conf.get('channel_map')
+        if self._channels:
+            # If the user provides a channel_map then require it to be correct.
+            if not all (s in available_sites for s in self._channels.values()):
+                raise RuntimeError(
+                    "Found sites {} but channel_map contains {}".format(
+                        sorted(available_sites), sorted(channels.values())))
+        elif self._target.big_core:
+            bl_sites = [self._target.big_core.upper(),
+                        self._target.little_core.upper()]
+            if all(s in available_sites for s in bl_sites):
+                self._log.info('Using default big.LITTLE hwmon channels')
+                self._channels = dict(zip(['big', 'LITTLE'], bl_sites))
+
+        if not self._channels:
+            self._log.info('Using all hwmon energy channels')
+            self._channels = {site: site for site in available_sites}
+
         # Configure channels for energy measurements
-        logging.debug('%14s - Enabling channels %s', 'HWMon', conf['conf'])
-        self._hwmon.reset(**conf['conf'])
+        self._log.debug('Enabling channels %s', self._channels.values())
+        self._hwmon.reset(kinds=['energy'], sites=self._channels.values())
 
         # Logging enabled channels
-        logging.info('%14s - Channels selected for energy sampling:', 'HWMon')
+        self._log.info('Channels selected for energy sampling:')
         for channel in self._hwmon.active_channels:
-            logging.info('%14s -    %s', 'HWMon', channel.label)
+            self._log.info('   %s', channel.label)
 
-        # record the HWMon channels
-        self._channels = conf.get('channel_map', {
-            'LITTLE': self._target.little_core.upper(),
-            'big': self._target.big_core.upper()
-        })
 
     def sample(self):
         if self._hwmon is None:
             return None
         samples = self._hwmon.take_measurement()
         for s in samples:
-            label = s.channel.label\
-                    .replace('_energy', '')\
-                    .replace(" ", "_")
+            site = s.channel.site
             value = s.value
 
-            if label not in self.readings:
-                self.readings[label] = {
+            if site not in self.readings:
+                self.readings[site] = {
                         'last'  : value,
                         'delta' : 0,
                         'total' : 0
                         }
                 continue
 
-            self.readings[label]['delta'] = value - self.readings[label]['last']
-            self.readings[label]['last']  = value
-            self.readings[label]['total'] += self.readings[label]['delta']
+            self.readings[site]['delta'] = value - self.readings[site]['last']
+            self.readings[site]['last']  = value
+            self.readings[site]['total'] += self.readings[site]['delta']
 
-        logging.debug('SAMPLE: %s', self.readings)
+        self._log.debug('SAMPLE: %s', self.readings)
         return self.readings
 
     def reset(self):
         if self._hwmon is None:
             return
         self.sample()
-        for label in self.readings:
-            self.readings[label]['delta'] = 0
-            self.readings[label]['total'] = 0
-        logging.debug('RESET: %s', self.readings)
+        for site in self.readings:
+            self.readings[site]['delta'] = 0
+            self.readings[site]['total'] = 0
+        self._log.debug('RESET: %s', self.readings)
 
     def report(self, out_dir, out_file='energy.json'):
         if self._hwmon is None:
@@ -201,10 +211,13 @@ class HWMon(EnergyMeter):
         nrg = self.sample()
         # Reformat data for output generation
         clusters_nrg = {}
-        for channel in self._channels:
-            label = self._channels[channel]
-            nrg_total = nrg[label]['total']
-            logging.debug('%14s - Energy [%16s]: %.6f', 'HWMon', label, nrg_total)
+        for channel, site in self._channels.iteritems():
+            if site not in nrg:
+                raise RuntimeError('hwmon channel "{}" not available. '
+                                   'Selected channels: {}'.format(
+                                       channel, nrg.keys()))
+            nrg_total = nrg[site]['total']
+            self._log.debug('Energy [%16s]: %.6f', site, nrg_total)
             clusters_nrg[channel] = nrg_total
 
         # Dump data as JSON file
@@ -212,95 +225,97 @@ class HWMon(EnergyMeter):
         with open(nrg_file, 'w') as ofile:
             json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
 
-        return EnergyReport(clusters_nrg, nrg_file)
+        return EnergyReport(clusters_nrg, nrg_file, None)
 
-class AEP(EnergyMeter):
-
-    def __init__(self, target, conf, res_dir):
-        super(AEP, self).__init__(target, res_dir)
-
-        # Energy channels
-        self.channels = []
-
-        # Time (start and diff) for power measurment
-        self.time = {}
-
-        # Configure channels for energy measurements
-        logging.info('%14s - AEP configuration', 'AEP')
-        logging.info('%14s -     %s', 'AEP', conf)
-        self._aep = devlib.EnergyProbeInstrument(
-            self._target, labels=conf['channel_map'], **conf['conf'])
-
-        # Configure channels for energy measurements
-        logging.debug('%14s - Enabling channels', 'AEP')
-        self._aep.reset()
-
-        # Logging enabled channels
-        logging.info('%14s - Channels selected for energy sampling:\n%s',
-                     'AEP', str(self._aep.active_channels))
-        logging.debug('%14s - Results dir: %s', 'AEP', self._res_dir)
-
-    def _get_energy(self, samples, time, idx, site):
-        pwr_total = 0
-        pwr_samples = 0
-        for sample in samples:
-            pwr_total += sample[idx].value
-            pwr_samples += 1
-
-        pwr_avg = pwr_total / pwr_samples
-        nrg = pwr_avg * time
-
-        ec = EnergyCounter(site, pwr_total, pwr_samples, pwr_avg, time, nrg)
-        return ec
-
-    def _sample(self, csv_file):
-        if self._aep is None:
-            return
-
-        self.time['diff'] = time.time() - self.time['start']
-        self._aep.stop()
-
-        csv_data = self._aep.get_data(csv_file)
-        samples = csv_data.measurements()
-
-        # Calculate energy for each channel
-        for idx,channel in enumerate(csv_data.channels):
-            if channel.kind is not 'power':
-                continue
-            ec = self._get_energy(samples, self.time['diff'], idx, channel.site)
-            self.channels.append(ec)
+class _DevlibContinuousEnergyMeter(EnergyMeter):
+    """Common functionality for devlib Instruments in CONTINUOUS mode"""
 
     def reset(self):
-        if self._aep is None:
-            return
-
-        self.channels = []
-        logging.debug('RESET: %s', self.channels)
-
-        self._aep.start()
-        self.time['start'] = time.time()
+        self._instrument.start()
 
     def report(self, out_dir, out_energy='energy.json', out_samples='samples.csv'):
-        if self._aep is None:
-            return
+        self._instrument.stop()
 
-        # Retrieve energy consumption data
-        csv_file = '{}/{}'.format(out_dir, out_samples)
-        self._sample(csv_file)
+        csv_path = os.path.join(out_dir, out_samples)
+        csv_data = self._instrument.get_data(csv_path)
+        with open(csv_path) as f:
+            # Each column in the CSV will be headed with 'SITE_measure'
+            # (e.g. 'BAT_power'). Convert that to a list of ('SITE', 'measure')
+            # tuples, then pass that as the `names` parameter to read_csv to get
+            # a nested column index. None of devlib's standard measurement types
+            # have '_' in the name so this use of rsplit should be fine.
+            exp_headers = [c.label for c in csv_data.channels]
+            headers = f.readline().strip().split(',')
+            if set(headers) != set(exp_headers):
+                raise ValueError(
+                    'Unexpected headers in CSV from devlib instrument. '
+                    'Expected {}, found {}'.format(sorted(headers),
+                                                   sorted(exp_headers)))
+            columns = [tuple(h.rsplit('_', 1)) for h in headers]
+            # Passing `names` means read_csv doesn't expect to find headers in
+            # the CSV (i.e. expects every line to hold data). This works because
+            # we have already consumed the first line of `f`.
+            df = pd.read_csv(f, names=columns)
 
-        # Reformat data for output generation
+        sample_period = 1. / self._instrument.sample_rate_hz
+        df.index = np.arange(0, sample_period * len(df), step=sample_period)
+
+        if df.empty:
+            raise RuntimeError('No energy data collected')
+
         channels_nrg = {}
-        for channel in self.channels:
-            logging.debug('%14s - Energy [%16s]: %.6f', 'AEP',
-                          channel.site, channel.nrg)
-            channels_nrg[channel.site] = channel.nrg
+        for site, measure in df:
+            if measure == 'power':
+                channels_nrg[site] = area_under_curve(df[site]['power'])
 
         # Dump data as JSON file
         nrg_file = '{}/{}'.format(out_dir, out_energy)
         with open(nrg_file, 'w') as ofile:
             json.dump(channels_nrg, ofile, sort_keys=True, indent=4)
 
-        return EnergyReport(channels_nrg, nrg_file)
+        return EnergyReport(channels_nrg, nrg_file, df)
+
+class AEP(_DevlibContinuousEnergyMeter):
+
+    def __init__(self, target, conf, res_dir):
+        super(AEP, self).__init__(target, res_dir)
+
+        # Configure channels for energy measurements
+        self._log.info('AEP configuration')
+        self._log.info('    %s', conf)
+        self._instrument = devlib.EnergyProbeInstrument(
+            self._target, labels=conf.get('channel_map'), **conf['conf'])
+
+        # Configure channels for energy measurements
+        self._log.debug('Enabling channels')
+        self._instrument.reset()
+
+        # Logging enabled channels
+        self._log.info('Channels selected for energy sampling:')
+        self._log.info('   %s', str(self._instrument.active_channels))
+        self._log.debug('Results dir: %s', self._res_dir)
+
+class Monsoon(_DevlibContinuousEnergyMeter):
+    """
+    Monsoon Solutions energy monitor
+    """
+
+    def __init__(self, target, conf, res_dir):
+        super(Monsoon, self).__init__(target, res_dir)
+
+        self._instrument = devlib.MonsoonInstrument(self._target, **conf['conf'])
+        self._instrument.reset()
+
+_acme_install_instructions = '''
+
+  If you need to measure energy using an ACME EnergyProbe,
+  please do follow installation instructions available here:
+     https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture---baylibre-acme-cape
+
+  Othwerwise, please select a different energy meter in your
+  configuration file.
+
+'''
 
 class ACME(EnergyMeter):
     """
@@ -308,36 +323,35 @@ class ACME(EnergyMeter):
     """
 
     def __init__(self, target, conf, res_dir):
-        super(ACME, self).__init__(target)
+        super(ACME, self).__init__(target, res_dir)
 
         # Assume iio-capture is available in PATH
-        self._iiocapturebin = conf['conf'].get('iio-capture', 'iio-capture')
-        self._hostname = conf['conf'].get('ip_address', 'baylibre-acme.local')
+        iioc = conf.get('conf', {
+            'iio-capture' : 'iio-capture',
+            'ip_address'  : 'baylibre-acme.local',
+        })
+        self._iiocapturebin = iioc.get('iio-capture', 'iio-capture')
+        self._hostname = iioc.get('ip_address', 'baylibre-acme.local')
+
         self._channels = conf.get('channel_map', {
             'CH0': '0'
         })
-        self._iio = [None] * len(self._channels)
+        self._iio = {}
 
-        logging.info('%14s - ACME configuration:', 'ACME')
-        logging.info('%14s -     binary: %s', 'ACME', self._iiocapturebin)
-        logging.info('%14s -     device: %s', 'ACME', self._hostname)
-        logging.info('%14s -   channels:', 'ACME')
+        self._log.info('ACME configuration:')
+        self._log.info('    binary: %s', self._iiocapturebin)
+        self._log.info('    device: %s', self._hostname)
+        self._log.info('  channels:')
         for channel in self._channels:
-            logging.info('%14s -      %s', 'ACME', self._str(channel))
+            self._log.info('     %s', self._str(channel))
 
         # Check if iio-capture binary is available
         try:
             p = Popen([self._iiocapturebin, '-h'], stdout=PIPE, stderr=STDOUT)
         except:
-            logging.error('%14s - iio-capture binary [%s] not available',
-                          'ACME', self._iiocapturebin)
-            logging.warning('\n\n'\
-                '  If you need to measure energy using an ACME EnergyProbe,\n'\
-                '  please do follow installation instructions available here:\n'\
-                '    https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture---baylibre-acme-cape\n'\
-                '  Othwerwise, please select a different energy meter in your\n'\
-                '  configuration file'\
-            )
+            self._log.error('iio-capture binary [%s] not available',
+                            self._iiocapturebin)
+            self._log.warning(_acme_install_instructions)
             raise RuntimeError('Missing iio-capture binary')
 
     def sample(self):
@@ -361,9 +375,9 @@ class ACME(EnergyMeter):
                 continue
             for channel in self._channels:
                 if self._iio_device(channel) in proc.cmdline():
-                    logging.debug('%14s - Killing previous iio-capture for [%s]',
-                                 'ACME', self._iio_device(channel))
-                    logging.debug('%14s - %s', 'ACME', proc.cmdline())
+                    self._log.debug('Killing previous iio-capture for [%s]',
+                                     self._iio_device(channel))
+                    self._log.debug(proc.cmdline())
                     proc.kill()
                     wait_for_termination = 2
 
@@ -397,19 +411,19 @@ class ACME(EnergyMeter):
 
             self._iio[ch_id].poll()
             if self._iio[ch_id].returncode:
-                logging.error('%14s - Failed to run %s for %s', 'ACME',
-                              self._iiocapturebin, self._str(channel))
-                logging.warning('\n\n'\
+                self._log.error('Failed to run %s for %s',
+                                 self._iiocapturebin, self._str(channel))
+                self._log.warning('\n\n'\
                     '  Make sure there are no iio-capture processes\n'\
                     '  connected to %s and device %s\n',
                     self._hostname, self._str(channel))
                 out, _ = self._iio[ch_id].communicate()
-                logging.error('%14s - Output: [%s]', 'ACME', out.strip())
+                self._log.error('Output: [%s]', out.strip())
                 self._iio[ch_id] = None
                 raise RuntimeError('iio-capture connection error')
 
-        logging.debug('%14s - Started %s on %s...', 'ACME',
-                      self._iiocapturebin, self._str(channel))
+        self._log.debug('Started %s on %s...',
+                        self._iiocapturebin, self._str(channel))
 
     def report(self, out_dir, out_energy='energy.json'):
         """
@@ -433,10 +447,10 @@ class ACME(EnergyMeter):
             if self._iio[ch_id].returncode:
                 # returncode not None means that iio-capture has terminated
                 # already, so there must have been an error
-                logging.error('%14s - %s terminated for %s', 'ACME',
-                              self._iiocapturebin, self._str(channel))
+                self._log.error('%s terminated for %s',
+                                self._iiocapturebin, self._str(channel))
                 out, _ = self._iio[ch_id].communicate()
-                logging.error('%14s - [%s]', 'ACME', out)
+                self._log.error('[%s]', out)
                 self._iio[ch_id] = None
                 continue
 
@@ -446,14 +460,14 @@ class ACME(EnergyMeter):
             self._iio[ch_id].wait()
             self._iio[ch_id] = None
 
-            logging.debug('%14s - Completed IIOCapture for %s...',
-                          'ACME', self._str(channel))
+            self._log.debug('Completed IIOCapture for %s...',
+                            self._str(channel))
 
             # iio-capture return "energy=value", add a simple format check
             if '=' not in out:
-                logging.error('%14s - Bad output format for %s:',
-                              'ACME', self._str(channel))
-                logging.error('%14s - [%s]', 'ACME', out)
+                self._log.error('Bad output format for %s:',
+                                self._str(channel))
+                self._log.error('[%s]', out)
                 continue
 
             # Build energy counter object
@@ -463,8 +477,8 @@ class ACME(EnergyMeter):
                 nrg[key] = float(val)
             channels_stats[channel] = nrg
 
-            logging.debug('%14s - %s', 'ACME', self._str(channel))
-            logging.debug('%14s - %s', 'ACME', nrg)
+            self._log.debug(self._str(channel))
+            self._log.debug(nrg)
 
             # Save CSV samples file to out_dir
             os.system('mv {}/samples_{}.csv {}'
@@ -485,6 +499,6 @@ class ACME(EnergyMeter):
         with open(nrg_stats_file, 'w') as ofile:
             json.dump(channels_stats, ofile, sort_keys=True, indent=4)
 
-        return EnergyReport(channels_nrg, nrg_file)
+        return EnergyReport(channels_nrg, nrg_file, None)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

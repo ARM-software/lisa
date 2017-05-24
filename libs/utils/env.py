@@ -26,15 +26,17 @@ import time
 import unittest
 
 import devlib
+from devlib.utils.misc import memoized
+from devlib import Platform, TargetError
+from trappy.stats.Topology import Topology
 
 from wlgen import RTA
 from energy import EnergyMeter
+from energy_model import EnergyModel
 from conf import JsonConf
-
-from devlib.utils.misc import memoized
-from trappy.stats.Topology import Topology
-
-from devlib import Platform
+from platforms.juno_energy import juno_energy
+from platforms.hikey_energy import hikey_energy
+from platforms.pixel_energy import pixel_energy
 
 USERNAME_DEFAULT = 'root'
 PASSWORD_DEFAULT = ''
@@ -54,51 +56,116 @@ class ShareState(object):
         self.__dict__ = self.__shared_state
 
 class TestEnv(ShareState):
+    """
+    Represents the environment configuring LISA, the target, and the test setup
+
+    The test environment is defined by:
+
+    - a target configuration (target_conf) defining which HW platform we
+      want to use to run the experiments
+    - a test configuration (test_conf) defining which SW setups we need on
+      that HW target
+    - a folder to collect the experiments results, which can be specified
+      using the test_conf::results_dir option and is by default wiped from
+      all the previous contents (if wipe=True)
+
+    :param target_conf:
+        Configuration defining the target to run experiments on. May be
+
+            - A dict defining the values directly
+            - A path to a JSON file containing the configuration
+            - ``None``, in which case $LISA_HOME/target.config is used.
+
+        You need to provide the information needed to connect to the
+        target. For SSH targets that means "host", "username" and
+        either "password" or "keyfile". All other fields are optional if
+        the relevant features aren't needed. Has the following keys:
+
+        **host**
+            Target IP or MAC address for SSH access
+        **username**
+            For SSH access
+        **keyfile**
+            Path to SSH key (alternative to password)
+        **password**
+            SSH password (alternative to keyfile)
+        **device**
+            Target Android device ID if using ADB
+        **port**
+            Port for Android connection default port is 5555
+        **ANDROID_HOME**
+            Path to Android SDK. Defaults to ``$ANDROID_HOME`` from the
+            environment.
+        **rtapp-calib**
+            Calibration values for RT-App. If unspecified, LISA will
+            calibrate RT-App on the target. A message will be logged with
+            a value that can be copied here to avoid having to re-run
+            calibration on subsequent tests.
+        **tftp**
+            Directory path containing kernels and DTB images for the
+            target. LISA does *not* manage this TFTP server, it must be
+            provided externally. Optional.
+
+    :param test_conf: Configuration of software for target experiments. Takes
+                      the same form as target_conf. Fields are:
+
+        **modules**
+            Devlib modules to be enabled. Default is []
+        **exclude_modules**
+            Devlib modules to be disabled. Default is [].
+        **tools**
+            List of tools (available under ./tools/$ARCH/) to install on
+            the target. Names, not paths (e.g. ['ftrace']). Default is [].
+        **ping_time**, **reboot_time**
+            Override parameters to :meth:`reboot` method
+        **__features__**
+            List of test environment features to enable. Options are:
+
+            "no-kernel"
+                do not deploy kernel/dtb images
+            "no-reboot"
+                do not force reboot the target at each configuration change
+            "debug"
+                enable debugging messages
+
+        **ftrace**
+            Configuration for ftrace. Dictionary with keys:
+
+            events
+                events to enable.
+            functions
+                functions to enable in the function tracer. Optional.
+            buffsize
+                Size of buffer. Default is 10240.
+
+        **results_dir**
+            location of results of the experiments
+
+    :param wipe: set true to cleanup all previous content from the output
+                 folder
+    :type wipe: bool
+
+    :param force_new: Create a new TestEnv object even if there is one available
+                      for this session.  By default, TestEnv only creates one
+                      object per session, use this to override this behaviour.
+    :type force_new: bool
+    """
 
     _initialized = False
 
     def __init__(self, target_conf=None, test_conf=None, wipe=True,
                  force_new=False):
-        """
-        Initialize the LISA test environment.
-
-        The test environment is defined by:
-        - a target configuration (target_conf) defining which HW platform we
-        want to use to run the experiments
-        - a test configuration (test_conf) defining which SW setups we need on
-        that HW target
-        - a folder to collect the experiments results, which can be specified
-        using the test_conf::results_dir option and is by default wiped from
-        all the previous contents (if wipe=True)
-
-        :param target_conf: the HW target we want to use
-        :type target_conf: dict
-
-        :param test_conf: the SW setup of the HW target in use
-        :type test_conf: dict
-
-        :param wipe: set true to cleanup all previous content from the output
-        folder
-        :type wipe: bool
-
-        :param force_new: Create a new TestEnv object even if there is
-        one available for this session.  By default, TestEnv only
-        creates one object per session, use this to override this
-        behaviour.
-        :type force_new: bool
-        """
         super(TestEnv, self).__init__()
 
         if self._initialized and not force_new:
             return
 
-        self.conf = None
-        self.test_conf = None
-        self.res_dir = None
+        self.conf = {}
+        self.test_conf = {}
         self.target = None
         self.ftrace = None
         self.workdir = WORKING_DIR_DEFAULT
-        self.__tools = []
+        self.__installed_tools = set()
         self.__modules = []
         self.__connection_settings = None
         self._calib = None
@@ -123,70 +190,51 @@ class TestEnv(ShareState):
         self.CATAPULT_HOME = os.environ.get('CATAPULT_HOME',
                 os.path.join(self.LISA_HOME, 'tools', 'catapult'))
 
+        # Setup logging
+        self._log = logging.getLogger('TestEnv')
+
         # Compute base installation path
-        logging.info('%14s - Using base path: %s',
-                'Target', basepath)
+        self._log.info('Using base path: %s', basepath)
 
         # Setup target configuration
         if isinstance(target_conf, dict):
-            logging.info('%14s - Loading custom (inline) target configuration',
-                    'Target')
+            self._log.info('Loading custom (inline) target configuration')
             self.conf = target_conf
         elif isinstance(target_conf, str):
-            logging.info('%14s - Loading custom (file) target configuration',
-                    'Target')
-            self.conf = TestEnv.loadTargetConfig(target_conf)
+            self._log.info('Loading custom (file) target configuration')
+            self.conf = self.loadTargetConfig(target_conf)
         elif target_conf is None:
-            logging.info('%14s - Loading default (file) target configuration',
-                    'Target')
-            self.conf = TestEnv.loadTargetConfig()
-        logging.debug('%14s - Target configuration %s', 'Target', self.conf)
+            self._log.info('Loading default (file) target configuration')
+            self.conf = self.loadTargetConfig()
+        self._log.debug('Target configuration %s', self.conf)
 
         # Setup test configuration
         if test_conf:
             if isinstance(test_conf, dict):
-                logging.info('%14s - Loading custom (inline) test configuration',
-                        'Target')
+                self._log.info('Loading custom (inline) test configuration')
                 self.test_conf = test_conf
             elif isinstance(test_conf, str):
-                logging.info('%14s - Loading custom (file) test configuration',
-                        'Target')
-                self.test_conf = TestEnv.loadTargetConfig(test_conf)
+                self._log.info('Loading custom (file) test configuration')
+                self.test_conf = self.loadTargetConfig(test_conf)
             else:
                 raise ValueError('test_conf must be either a dictionary or a filepath')
-            logging.debug('%14s - Test configuration %s', 'Target', self.conf)
+            self._log.debug('Test configuration %s', self.conf)
 
         # Setup target working directory
         if 'workdir' in self.conf:
             self.workdir = self.conf['workdir']
 
         # Initialize binary tools to deploy
-        if 'tools' in self.conf:
-            self.__tools = self.conf['tools']
-        # Merge tests specific tools
-        if self.test_conf and 'tools' in self.test_conf and \
-           self.test_conf['tools']:
-            if 'tools' not in self.conf:
-                self.conf['tools'] = []
-            self.__tools = list(set(
-                self.conf['tools'] + self.test_conf['tools']
-            ))
+        test_conf_tools = self.test_conf.get('tools', [])
+        target_conf_tools = self.conf.get('tools', [])
+        self.__tools = list(set(test_conf_tools + target_conf_tools))
 
         # Initialize ftrace events
         # test configuration override target one
-        if self.test_conf and 'ftrace' in self.test_conf:
+        if 'ftrace' in self.test_conf:
             self.conf['ftrace'] = self.test_conf['ftrace']
-        if 'ftrace' in self.conf and self.conf['ftrace']:
+        if self.conf.get('ftrace'):
             self.__tools.append('trace-cmd')
-
-        # Add tools dependencies
-        if 'rt-app' in self.__tools:
-            self.__tools.append('taskset')
-            self.__tools.append('trace-cmd')
-            self.__tools.append('perf')
-            self.__tools.append('cgroup_run_into.sh')
-        # Sanitize list of dependencies to remove duplicates
-        self.__tools = list(set(self.__tools))
 
         # Initialize features
         if '__features__' not in self.conf:
@@ -201,20 +249,20 @@ class TestEnv(ShareState):
         self.calibration()
 
         # Initialize local results folder
-        # test configuration override target one
-        if self.test_conf and 'results_dir' in self.test_conf:
-            self.res_dir = self.test_conf['results_dir']
-        if not self.res_dir and 'results_dir' in self.conf:
-            self.res_dir = self.conf['results_dir']
+        # test configuration overrides target one
+        self.res_dir = (self.test_conf.get('results_dir') or
+                        self.conf.get('results_dir'))
+
         if self.res_dir and not os.path.isabs(self.res_dir):
-                self.res_dir = os.path.join(basepath, 'results', self.res_dir)
+            self.res_dir = os.path.join(basepath, 'results', self.res_dir)
         else:
             self.res_dir = os.path.join(basepath, OUT_PREFIX)
             self.res_dir = datetime.datetime.now()\
                             .strftime(self.res_dir + '/%Y%m%d_%H%M%S')
+
         if wipe and os.path.exists(self.res_dir):
-            logging.warning('%14s - Wipe previous contents of the results folder:', 'TestEnv')
-            logging.warning('%14s -    %s', 'TestEnv', self.res_dir)
+            self._log.warning('Wipe previous contents of the results folder:')
+            self._log.warning('   %s', self.res_dir)
             shutil.rmtree(self.res_dir, ignore_errors=True)
         if not os.path.exists(self.res_dir):
             os.makedirs(self.res_dir)
@@ -227,40 +275,32 @@ class TestEnv(ShareState):
         # Initialize energy probe instrument
         self._init_energy(True)
 
-        logging.info('%14s - Set results folder to:', 'TestEnv')
-        logging.info('%14s -    %s', 'TestEnv', self.res_dir)
-        logging.info('%14s - Experiment results available also in:', 'TestEnv')
-        logging.info('%14s -    %s', 'TestEnv', res_lnk)
+        self._log.info('Set results folder to:')
+        self._log.info('   %s', self.res_dir)
+        self._log.info('Experiment results available also in:')
+        self._log.info('   %s', res_lnk)
 
         self._initialized = True
 
-    @staticmethod
-    def loadTargetConfig(filepath='target.config'):
+    def loadTargetConfig(self, filepath='target.config'):
         """
         Load the target configuration from the specified file.
 
-        The configuration file path must be relative to the test suite
-        installation root folder.
-
-        :param filepath: A string representing the path of the target
-        configuration file. This path must be relative to the root folder of
-        the test suite.
+        :param filepath: Path of the target configuration file. Relative to the
+                         root folder of the test suite.
         :type filepath: str
 
         """
 
         # Loading default target configuration
         conf_file = os.path.join(basepath, filepath)
-        logging.info('%14s - Loading target configuration [%s]...',
-                'Target', conf_file)
+
+        self._log.info('Loading target configuration [%s]...', conf_file)
         conf = JsonConf(conf_file)
         conf.load()
         return conf.json
 
     def _init(self, force = False):
-
-        if self._feature('debug'):
-            logging.getLogger().setLevel(logging.DEBUG)
 
         # Initialize target
         self._init_target(force)
@@ -289,8 +329,8 @@ class TestEnv(ShareState):
                     [i for i,v in enumerate(self.target.core_clusters)
                                 if v == c])
         self.topology = Topology(clusters=CLUSTERS)
-        logging.info(r'%14s - Topology:', 'Target')
-        logging.info(r'%14s -    %s', 'Target', CLUSTERS)
+        self._log.info('Topology:')
+        self._log.info('   %s', CLUSTERS)
 
         # Initialize the platform descriptor
         self._init_platform()
@@ -350,11 +390,9 @@ class TestEnv(ShareState):
             else:
                 raise RuntimeError('Android SDK not found, ANDROID_HOME must be defined!')
 
-            logging.info(r'%14s - External tools using:', 'Target')
-            logging.info(r'%14s -    ANDROID_HOME: %s', 'Target',
-                         self.ANDROID_HOME)
-            logging.info(r'%14s -    CATAPULT_HOME: %s', 'Target',
-                         self.CATAPULT_HOME)
+            self._log.info('External tools using:')
+            self._log.info('   ANDROID_HOME: %s', self.ANDROID_HOME)
+            self._log.info('   CATAPULT_HOME: %s', self.CATAPULT_HOME)
 
             if not os.path.exists(self._adb):
                 raise RuntimeError('\nADB binary not found\n\t{}\ndoes not exists!\n\n'
@@ -367,6 +405,7 @@ class TestEnv(ShareState):
         ########################################################################
 
         # Setup board default if not specified by configuration
+        self.nrg_model = None
         platform = None
         self.__modules = []
         if 'board' not in self.conf:
@@ -380,12 +419,25 @@ class TestEnv(ShareState):
         # Initialize JUNO board
         elif self.conf['board'].upper() in ('JUNO', 'JUNO2'):
             platform = devlib.platform.arm.Juno()
+            self.nrg_model = juno_energy
             self.__modules = ['bl', 'hwmon', 'cpufreq']
 
         # Initialize OAK board
         elif self.conf['board'].upper() == 'OAK':
             platform = Platform(model='MT8173')
             self.__modules = ['bl', 'cpufreq']
+
+        # Initialized HiKey board
+        elif self.conf['board'].upper() == 'HIKEY':
+            self.nrg_model = hikey_energy
+            self.__modules = [ "cpufreq", "cpuidle" ]
+            platform = Platform(model='hikey')
+
+        # Initialize Pixel phone
+        elif self.conf['board'].upper() == 'PIXEL':
+            self.nrg_model = pixel_energy
+            self.__modules = ['bl', 'cpufreq']
+            platform = Platform(model='pixel')
 
         elif self.conf['board'] != 'UNKNOWN':
             # Initilize from platform descriptor (if available)
@@ -404,31 +456,19 @@ class TestEnv(ShareState):
         # Modules configuration
         ########################################################################
 
-        # Refine modules list based on target.conf options
-        if 'modules' in self.conf:
-            self.__modules = list(set(
-                self.__modules + self.conf['modules']
-            ))
+        modules = set(self.__modules)
+
+        # Refine modules list based on target.conf
+        modules.update(self.conf.get('modules', []))
         # Merge tests specific modules
-        if self.test_conf and 'modules' in self.test_conf and \
-           self.test_conf['modules']:
-            self.__modules = list(set(
-                self.__modules + self.test_conf['modules']
-            ))
+        modules.update(self.test_conf.get('modules', []))
 
-        # Initialize modules to exclude on the target
-        if 'exclude_modules' in self.conf:
-            for module in self.conf['exclude_modules']:
-                if module in self.__modules:
-                    self.__modules.remove(module)
-        # Remove tests specific modules
-        if self.test_conf and 'exclude_modules' in self.test_conf:
-            for module in self.test_conf['exclude_modules']:
-                if module in self.__modules:
-                    self.__modules.remove(module)
+        remove_modules = set(self.conf.get('exclude_modules', []) +
+                             self.test_conf.get('exclude_modules', []))
+        modules.difference_update(remove_modules)
 
-        logging.info(r'%14s - Devlib modules to load: %s',
-                'Target', self.__modules)
+        self.__modules = list(modules)
+        self._log.info('Devlib modules to load: %s', self.__modules)
 
         ########################################################################
         # Devlib target setup (based on target.config::platform)
@@ -448,20 +488,18 @@ class TestEnv(ShareState):
                     port = str(self.conf['port'])
                 device = '{}:{}'.format(host, port)
                 self.__connection_settings = {'device' : device}
-            logging.info(r'%14s - Connecting Android target [%s]',
-                         'Target', device)
+            self._log.info('Connecting Android target [%s]', device)
         else:
-            logging.info(r'%14s - Connecting %s target:', 'Target',
-                         platform_type)
+            self._log.info('Connecting %s target:', platform_type)
             for key in self.__connection_settings:
-                logging.info(r'%14s - %10s : %s', 'Target',
-                             key, self.__connection_settings[key])
+                self._log.info('%10s : %s', key,
+                               self.__connection_settings[key])
 
-        logging.info(r'%14s - Connection settings:', 'Target')
-        logging.info(r'%14s -    %s', 'Target', self.__connection_settings)
+        self._log.info('Connection settings:')
+        self._log.info('   %s', self.__connection_settings)
 
         if platform_type.lower() == 'linux':
-            logging.debug('%14s - Setup LINUX target...', 'Target')
+            self._log.debug('Setup LINUX target...')
             if "host" not in self.__connection_settings:
                 raise ValueError('Missing "host" param in Linux target conf')
 
@@ -471,14 +509,14 @@ class TestEnv(ShareState):
                     load_default_modules = False,
                     modules = self.__modules)
         elif platform_type.lower() == 'android':
-            logging.debug('%14s - Setup ANDROID target...', 'Target')
+            self._log.debug('Setup ANDROID target...')
             self.target = devlib.AndroidTarget(
                     platform = platform,
                     connection_settings = self.__connection_settings,
                     load_default_modules = False,
                     modules = self.__modules)
         elif platform_type.lower() == 'host':
-            logging.debug('%14s - Setup HOST target...', 'Target')
+            self._log.debug('Setup HOST target...')
             self.target = devlib.LocalLinuxTarget(
                     platform = platform,
                     load_default_modules = False,
@@ -487,34 +525,64 @@ class TestEnv(ShareState):
             raise ValueError('Config error: not supported [platform] type {}'\
                     .format(platform_type))
 
-        logging.debug('%14s - Checking target connection...', 'Target')
-        logging.debug('%14s - Target info:', 'Target')
-        logging.debug('%14s -       ABI: %s', 'Target', self.target.abi)
-        logging.debug('%14s -      CPUs: %s', 'Target', self.target.cpuinfo)
-        logging.debug('%14s -  Clusters: %s', 'Target', self.target.core_clusters)
+        self._log.debug('Checking target connection...')
+        self._log.debug('Target info:')
+        self._log.debug('      ABI: %s', self.target.abi)
+        self._log.debug('     CPUs: %s', self.target.cpuinfo)
+        self._log.debug(' Clusters: %s', self.target.core_clusters)
 
-        logging.info('%14s - Initializing target workdir:', 'Target')
-        logging.info('%14s -    %s', 'Target', self.target.working_directory)
-        tools_to_install = []
-        if self.__tools:
-            for tool in self.__tools:
-                binary = '{}/tools/scripts/{}'.format(basepath, tool)
-                if not os.path.isfile(binary):
-                    binary = '{}/tools/{}/{}'\
-                            .format(basepath, self.target.abi, tool)
-                tools_to_install.append(binary)
-        self.target.setup(tools_to_install)
+        self._log.info('Initializing target workdir:')
+        self._log.info('   %s', self.target.working_directory)
+
+        self.target.setup()
+        self.install_tools(self.__tools)
 
         # Verify that all the required modules have been initialized
         for module in self.__modules:
-            logging.debug('%14s - Check for module [%s]...', 'Target', module)
+            self._log.debug('Check for module [%s]...', module)
             if not hasattr(self.target, module):
-                logging.warning('%14s - Unable to initialize [%s] module',
-                        'Target', module)
-                logging.error('%14s - Fix your target kernel configuration or '
-                        'disable module from configuration', 'Target')
+                self._log.warning('Unable to initialize [%s] module', module)
+                self._log.error('Fix your target kernel configuration or '
+                                'disable module from configuration')
                 raise RuntimeError('Failed to initialized [{}] module, '
                         'update your kernel or test configurations'.format(module))
+
+        if not self.nrg_model:
+            try:
+                self._log.info('Attempting to read energy model from target')
+                self.nrg_model = EnergyModel.from_target(self.target)
+            except (TargetError, RuntimeError, ValueError) as e:
+                self._log.error("Couldn't read target energy model: %s", e)
+
+    def install_tools(self, tools):
+        """
+        Install tools additional to those specified in the test config 'tools'
+        field
+
+        :param tools: The list of names of tools to install
+        :type tools: list(str)
+        """
+        tools = set(tools)
+
+        # Add tools dependencies
+        if 'rt-app' in tools:
+            tools.update(['taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh'])
+
+        # Remove duplicates and already-instaled tools
+        tools.difference_update(self.__installed_tools)
+
+        tools_to_install = []
+        for tool in tools:
+            binary = '{}/tools/scripts/{}'.format(basepath, tool)
+            if not os.path.isfile(binary):
+                binary = '{}/tools/{}/{}'\
+                         .format(basepath, self.target.abi, tool)
+                tools_to_install.append(binary)
+
+        for tool_to_install in tools_to_install:
+            self.target.install(tool_to_install)
+
+        self.__installed_tools.update(tools)
 
     def ftrace_conf(self, conf):
         self._init_ftrace(True, conf)
@@ -554,13 +622,13 @@ class TestEnv(ShareState):
         )
 
         if events:
-            logging.info('%14s - Enabled tracepoints:', 'FTrace')
+            self._log.info('Enabled tracepoints:')
             for event in events:
-                logging.info('%14s -   %s', 'FTrace', event)
+                self._log.info('   %s', event)
         if functions:
-            logging.info('%14s - Kernel functions profiled:', 'FTrace')
+            self._log.info('Kernel functions profiled:')
             for function in functions:
-                logging.info('%14s -   %s', 'FTrace', function)
+                self._log.info('   %s', function)
 
         return self.ftrace
 
@@ -602,9 +670,7 @@ class TestEnv(ShareState):
                 self.platform['freqs'][cluster_id] = \
                     self.target.cpufreq.list_frequencies(core_id)
         else:
-            logging.warn(
-                    '%14s - Unable to identify cluster frequencies',
-                    'Target')
+            self._log.warning('Unable to identify cluster frequencies')
 
         # TODO: get the performance boundaries in case of intel_pstate driver
 
@@ -613,12 +679,11 @@ class TestEnv(ShareState):
     def _load_em(self, board):
         em_path = os.path.join(basepath,
                 'libs/utils/platforms', board.lower() + '.json')
-        logging.debug('%14s - Trying to load default EM from %s',
-                'Platform', em_path)
+        self._log.debug('Trying to load default EM from %s', em_path)
         if not os.path.exists(em_path):
             return None
-        logging.info('%14s - Loading default EM:', 'Platform')
-        logging.info('%14s -    %s', 'Platform', em_path)
+        self._log.info('Loading default EM:')
+        self._log.info('   %s', em_path)
         board = JsonConf(em_path)
         board.load()
         if 'nrg_model' not in board.json:
@@ -628,12 +693,11 @@ class TestEnv(ShareState):
     def _load_board(self, board):
         board_path = os.path.join(basepath,
                 'libs/utils/platforms', board.lower() + '.json')
-        logging.debug('%14s - Trying to load board descriptor from %s',
-                      'Platform', board_path)
+        self._log.debug('Trying to load board descriptor from %s', board_path)
         if not os.path.exists(board_path):
             return None
-        logging.info('%14s - Loading board:', 'Platform')
-        logging.info('%14s -    %s', 'Platform', board_path)
+        self._log.info('Loading board:')
+        self._log.info('   %s', board_path)
         board = JsonConf(board_path)
         board.load()
         if 'board' not in board.json:
@@ -666,63 +730,79 @@ class TestEnv(ShareState):
         # Adding topology information
         self.platform['topology'] = self.topology.get_level("cluster")
 
-        logging.debug('%14s - Platform descriptor initialized\n%s',
-            'Platform', self.platform)
+        # Adding kernel build information
+        kver = self.target.kernel_version
+        self.platform['kernel'] = {t: getattr(kver, t, None)
+            for t in [
+                'release', 'version',
+                'version_number', 'major', 'minor',
+                'rc', 'sha1', 'parts'
+            ]
+        }
+        self.platform['abi'] = self.target.abi
+        self.platform['os'] = self.target.os
+
+        self._log.debug('Platform descriptor initialized\n%s', self.platform)
         # self.platform_dump('./')
 
     def platform_dump(self, dest_dir, dest_file='platform.json'):
         plt_file = os.path.join(dest_dir, dest_file)
-        logging.debug('%14s - Dump platform descriptor in [%s]',
-            'Platform', plt_file)
+        self._log.debug('Dump platform descriptor in [%s]', plt_file)
         with open(plt_file, 'w') as ofile:
             json.dump(self.platform, ofile, sort_keys=True, indent=4)
         return (self.platform, plt_file)
 
     def calibration(self, force=False):
+        """
+        Get rt-app calibration. Run calibration on target if necessary.
+
+        :param force: Always run calibration on target, even if we have not
+                      installed rt-app or have already run calibration.
+        :returns: A dict with calibration results, which can be passed as the
+                  ``calibration`` parameter to :class:`RTA`, or ``None`` if
+                  force=False and we have not installed rt-app.
+        """
 
         if not force and self._calib:
             return self._calib
 
-        required = False
-        if force:
-            required = True
-        if 'rt-app' in self.__tools:
-            required = True
-        elif 'wloads' in self.conf:
-            wloads = self.conf['wloads']
-            for wl_idx in wloads:
-                if 'rt-app' in wloads[wl_idx]['type']:
-                    required = True
-                    break
+        required = force or 'rt-app' in self.__installed_tools
 
         if not required:
-            logging.debug('No RT-App workloads, skipping calibration')
+            self._log.debug('No RT-App workloads, skipping calibration')
             return
 
         if not force and 'rtapp-calib' in self.conf:
-            logging.warning(
-                r'%14s - Using configuration provided RTApp calibration',
-                'Target')
+            self._log.warning('Using configuration provided RTApp calibration')
             self._calib = {
                     int(key): int(value)
                     for key, value in self.conf['rtapp-calib'].items()
                 }
         else:
-            logging.info(r'%14s - Calibrating RTApp...', 'Target')
+            self._log.info('Calibrating RTApp...')
             self._calib = RTA.calibrate(self.target)
 
-        logging.info(r'%14s - Using RT-App calibration values:', 'Target')
-        logging.info(r'%14s -    %s', 'Target',
-                "{" + ", ".join('"%r": %r' % (key, self._calib[key])
-                                for key in sorted(self._calib)) + "}")
+        self._log.info('Using RT-App calibration values:')
+        self._log.info('   %s',
+                       "{" + ", ".join('"%r": %r' % (key, self._calib[key])
+                                       for key in sorted(self._calib)) + "}")
         return self._calib
 
     def resolv_host(self, host=None):
+        """
+        Resolve a host name or IP address to a MAC address
+
+        .. TODO Is my networking terminology correct here?
+
+        :param host: IP address or host name to resolve. If None, use 'host'
+                    value from target_config.
+        :type host: str
+        """
         if host is None:
             host = self.conf['host']
 
         # Refresh ARP for local network IPs
-        logging.debug('%14s - Collecting all Bcast address', 'HostResolver')
+        self._log.debug('Collecting all Bcast address')
         output = os.popen(r'ifconfig').read().split('\n')
         for line in output:
             match = IFCFG_BCAST_RE.search(line)
@@ -731,12 +811,12 @@ class TestEnv(ShareState):
             baddr = match.group(1)
             try:
                 cmd = r'nmap -T4 -sP {}/24 &>/dev/null'.format(baddr.strip())
-                logging.debug('%14s - %s', 'HostResolver', cmd)
+                self._log.debug(cmd)
                 os.popen(cmd)
             except RuntimeError:
-                logging.warning('%14s - Nmap not available, try IP lookup using broadcast ping')
+                self._log.warning('Nmap not available, try IP lookup using broadcast ping')
                 cmd = r'ping -b -c1 {} &>/dev/null'.format(baddr)
-                logging.debug('%14s - %s', 'HostResolver', cmd)
+                self._log.debug(cmd)
                 os.popen(cmd)
 
         return self.parse_arp_cache(host)
@@ -781,14 +861,21 @@ class TestEnv(ShareState):
 
         if not ipaddr or not macaddr:
             raise ValueError('Unable to lookup for target IP/MAC address')
-        logging.info('%14s - Target (%s) at IP address: %s',
-                'HostResolver', macaddr, ipaddr)
+        self._log.info('Target (%s) at IP address: %s', macaddr, ipaddr)
         return (macaddr, ipaddr)
 
     def reboot(self, reboot_time=120, ping_time=15):
+        """
+        Reboot target.
+
+        :param boot_time: Time to wait for the target to become available after
+                          reboot before declaring failure.
+        :param ping_time: Period between attempts to ping the target while
+                          waiting for reboot.
+        """
         # Send remote target a reboot command
         if self._feature('no-reboot'):
-            logging.warning('%14s - Reboot disabled by conf features', 'Reboot')
+            self._log.warning('Reboot disabled by conf features')
         else:
             if 'reboot_time' in self.conf:
                 reboot_time = int(self.conf['reboot_time'])
@@ -803,27 +890,28 @@ class TestEnv(ShareState):
             self.target.execute('sleep 2 && reboot -f &', as_root=True)
 
             # Wait for the target to complete the reboot
-            logging.info('%14s - Waiting up to %s[s] for target [%s] to reboot...',
-                    'Reboot', reboot_time, self.ip)
+            self._log.info('Waiting up to %s[s] for target [%s] to reboot...',
+                           reboot_time, self.ip)
 
             ping_cmd = "ping -c 1 {} >/dev/null".format(self.ip)
             elapsed = 0
             start = time.time()
             while elapsed <= reboot_time:
                 time.sleep(ping_time)
-                logging.debug('%14s - Trying to connect to [%s] target...',
-                        'Reboot', self.ip)
+                self._log.debug('Trying to connect to [%s] target...', self.ip)
                 if os.system(ping_cmd) == 0:
                     break
                 elapsed = time.time() - start
             if elapsed > reboot_time:
                 if self.mac:
-                    logging.warning('%14s - target [%s] not responding to \
-                            PINGs, trying to resolve MAC address...', 'Reboot', self.ip)
+                    self._log.warning('target [%s] not responding to PINGs, '
+                                      'trying to resolve MAC address...',
+                                      self.ip)
                     (self.mac, self.ip) = self.resolv_host(self.mac)
                 else:
-                    logging.warning('%14s - target [%s] not responding to PINGs, trying to continue...',
-                        'Reboot', self.ip)
+                    self._log.warning('target [%s] not responding to PINGs, '
+                                      'trying to continue...',
+                                      self.ip)
 
         # Force re-initialization of all the devlib modules
         force = True
@@ -838,6 +926,16 @@ class TestEnv(ShareState):
         self._init_energy(force)
 
     def install_kernel(self, tc, reboot=False):
+        """
+        Deploy kernel and DTB via TFTP, optionally rebooting
+
+        :param tc: Dicionary containing optional keys 'kernel' and 'dtb'. Values
+                   are paths to the binaries to deploy.
+        :type tc: dict
+
+        :param reboot: Reboot thet target after deployment
+        :type reboot: bool
+        """
 
         # Default initialize the kernel/dtb settings
         tc.setdefault('kernel', None)
@@ -846,16 +944,14 @@ class TestEnv(ShareState):
         if self.kernel == tc['kernel'] and self.dtb == tc['dtb']:
             return
 
-        logging.info('%14s - Install kernel [%s] on target...',
-                'KernelSetup', tc['kernel'])
+        self._log.info('Install kernel [%s] on target...', tc['kernel'])
 
         # Install kernel/dtb via FTFP
         if self._feature('no-kernel'):
-            logging.warning('%14s - Kernel deploy disabled by conf features',
-                    'KernelSetup')
+            self._log.warning('Kernel deploy disabled by conf features')
 
         elif 'tftp' in self.conf:
-            logging.info('%14s - Deploy kernel via TFTP...', 'KernelSetup')
+            self._log.info('Deploy kernel via TFTP...')
 
             # Deploy kernel in TFTP folder (mandatory)
             if 'kernel' not in tc or not tc['kernel']:
@@ -865,16 +961,14 @@ class TestEnv(ShareState):
 
             # Deploy DTB in TFTP folder (if provided)
             if 'dtb' not in tc or not tc['dtb']:
-                logging.debug('%14s - DTB not provided, using existing one',
-                        'KernelSetup')
-                logging.debug('%14s - Current conf:\n%s', 'KernelSetup', tc)
-                logging.warn('%14s - Using pre-installed DTB', 'KernelSetup')
+                self._log.debug('DTB not provided, using existing one')
+                self._log.debug('Current conf:\n%s', tc)
+                self._log.warning('Using pre-installed DTB')
             else:
                 self.tftp_deploy(tc['dtb'])
 
         else:
-            raise ValueError('%14s - Kernel installation method not supported',
-                    'KernelSetup')
+            raise ValueError('Kernel installation method not supported')
 
         # Keep track of last installed kernel
         self.kernel = tc['kernel']
@@ -885,11 +979,14 @@ class TestEnv(ShareState):
             return
 
         # Reboot target
-        logging.info('%14s - Rebooting taget...', 'KernelSetup')
+        self._log.info('Rebooting taget...')
         self.reboot()
 
 
     def tftp_deploy(self, src):
+        """
+        .. TODO
+        """
 
         tftp = self.conf['tftp']
 
@@ -902,12 +999,10 @@ class TestEnv(ShareState):
             dst = os.path.join(dst, os.path.basename(src))
 
         cmd = 'cp {} {} && sync'.format(src, dst)
-        logging.info('%14s - Deploy %s into %s',
-                'TFTP', src, dst)
+        self._log.info('Deploy %s into %s', src, dst)
         result = os.system(cmd)
         if result != 0:
-            logging.error('%14s - Failed to deploy image: %s',
-                    'FTFP', src)
+            self._log.error('Failed to deploy image: %s', src)
             raise ValueError('copy error')
 
     def _feature(self, feature):
