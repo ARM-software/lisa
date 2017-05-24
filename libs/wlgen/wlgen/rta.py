@@ -335,7 +335,7 @@ class RTA(Workload):
     def _confProfile(self):
 
         # Sanity check for task names
-        for task in self.params.keys():
+        for task in self.params['profile'].keys():
             if len(task) > 15:
                 # rt-app uses pthread_setname_np(3) which limits the task name
                 # to 16 characters including the terminal '\0'.
