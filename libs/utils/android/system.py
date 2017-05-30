@@ -30,10 +30,16 @@ class System(object):
     """
 
     @staticmethod
-    def systrace_start(target, trace_file, time=None,
-                       events=['gfx', 'view', 'sched', 'freq', 'idle']):
+    def systrace_start(target, trace_file, time=None):
 
         log = logging.getLogger('System')
+
+        # Load the list of events for systrace from the target conf file
+        if ('systrace' in target.conf) and ('events' in target.conf['systrace']):
+            events = target.conf['systrace']['events']
+        # Default list of events to capture
+        else:
+            events = ['gfx', 'view', 'sched', 'freq', 'idle']
 
         # Check which systrace binary is available under CATAPULT_HOME
         for systrace in ['systrace.py', 'run_systrace.py']:
