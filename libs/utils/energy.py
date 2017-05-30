@@ -18,9 +18,12 @@
 import devlib
 import json
 import os
+import os.path
 import psutil
 import time
 import logging
+from subprocess import Popen, STDOUT
+from threading import Timer
 
 from collections import namedtuple
 from subprocess import Popen, PIPE, STDOUT
@@ -115,6 +118,58 @@ class EnergyMeter(object):
 
     def report(self, out_dir):
         raise NotImplementedError('Missing implementation')
+
+class Monsoon(EnergyMeter):
+    def print_log(self, errmsg, exception=0):
+	print errmsg
+	self._log.error(errmsg)
+	if exception == 1:
+		raise(Exception(errmsg))
+
+    def __init__(self, target, conf=None):
+	super(Monsoon, self).__init__(target, '')
+
+	# Read config
+	# { 'config': { 'device_entry' : '/dev/ttyACM1', 'voltage' : 4.3 } }
+	try:
+		device_entry = conf['config']['device_entry']
+		self.voltage = conf['config']['voltage']
+	except:
+		device_entry = None
+		self.voltage = 4.3
+		self._log.info("Invalid conf, using defaults. Example format is \
+			       { 'config': { 'device_entry' : '/dev/ttyACM1', 'voltage' : 4.3 }")
+	self._monsoon = devlib.MonsoonInstrument(self._target, device_entry)
+
+    def reset_only(self):
+	m = self._monsoon
+        self._log.info('Initiailzing Monsoon')
+	# Waiting for monsoon to get ready
+	m.get_status()
+	# Provide power to the target
+	m.set_voltage(0)
+	m.set_current(8)
+	m.set_start_current(8)
+	m.set_voltage(self.voltage)
+	self._log.info("Monsoon ready for action")
+
+    # Start a monsoon run asynchronously
+    def reset(self):
+	m = self._monsoon
+	self.reset_only()
+	m.start()
+
+    # Kill an already running test and report in panda dataframes
+    def report(self):
+	return self._monsoon.report()
+
+    # This is synchronous (block until duration)
+    def get_samples(self, duration):
+	return self._monsoon.get_samples_sync(duration)
+
+    # Returns csv text output synchronously - function not typically used directly
+    def run_monsoon(self, args, stream=0, timeout=5):
+	return self._monsoon.run_monsoon(args, stream, timeout)
 
 class HWMon(EnergyMeter):
 

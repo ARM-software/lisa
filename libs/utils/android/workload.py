@@ -88,7 +88,7 @@ class Workload(object):
             **kwargs):
         raise RuntimeError('Not implemeted')
 
-    def tracingStart(self):
+    def tracingStart(self, bufsize=None):
         if 'ftrace' in self.collect and 'systrace' in self.collect:
             msg = 'ftrace and systrace cannot be used at the same time'
             raise ValueError(msg)
@@ -105,7 +105,12 @@ class Workload(object):
             self._trace_time = match.group(1) if match else None
             self._log.info('Systrace START')
             self._systrace_output = System.systrace_start(
-                self._te, self.trace_file, self._trace_time)
+                self._te, self.trace_file, self._trace_time, bufsize=bufsize)
+        elif 'monsoon' in self.collect:
+            self._target.execute('svc power stayon usb')
+            self._target.execute('echo 0 > /sys/class/power_supply/battery/charging_enabled')
+            monsout = os.path.join(self.out_dir, 'monsoon.txt')
+            os.system("~/repo/monsoon/monsoon.par --timestamp --hz 5 --samples 300 > " + monsout)
         # Initialize energy meter results
         if 'energy' in self.collect and self._te.emeter:
             self._te.emeter.reset()

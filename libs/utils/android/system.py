@@ -31,7 +31,7 @@ class System(object):
 
     @staticmethod
     def systrace_start(target, trace_file, time=None,
-                       events=['gfx', 'view', 'sched', 'freq', 'idle']):
+                       events=['irq', 'sched'], bufsize=None):
 
         log = logging.getLogger('System')
 
@@ -55,6 +55,9 @@ class System(object):
                                             trace_file, " ".join(events))
         if time is not None:
             trace_cmd += " -t {}".format(time)
+
+        if bufsize is not None:
+            trace_cmd += " -b {}".format(bufsize)
 
         log.info('SysTrace: %s', trace_cmd)
 
@@ -359,7 +362,7 @@ class System(object):
                     GET_FRAMESTATS_CMD.format(apk_name, out_file))
 
     @staticmethod
-    def monkey(target, apk_name, event_count=1):
+    def monkey(target, apk_name, event_count=1, check_exit_code=True, timeout=None):
         """
         Wrapper for adb monkey tool.
 
@@ -382,7 +385,11 @@ class System(object):
         :param event_count: number of events to generate
         :type event_count: int
         """
-        target.execute('monkey -p {} {}'.format(apk_name, event_count))
+        if timeout:
+            target.execute('timeout {} monkey -p {} {}'.format(timeout, apk_name, event_count),
+                           check_exit_code=check_exit_code)
+            return
+        target.execute('monkey -p {} {}'.format(apk_name, event_count), check_exit_code=check_exit_code)
 
     @staticmethod
     def list_packages(target, apk_filter=''):
