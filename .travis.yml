@@ -22,4 +22,5 @@ install:
 script:
   - cd $TRAVIS_BUILD_DIR
   - 'echo backend : Agg > matplotlibrc' # Otherwise it tries to use tkinter
+  - export PATH=$TRAVIS_BUILD_DIR/tools/x86_64/:$PATH # For trace-cmd
   - source init_env && lisa-test tests/lisa/
