@@ -37,6 +37,7 @@ from conf import JsonConf
 from platforms.juno_energy import juno_energy
 from platforms.hikey_energy import hikey_energy
 from platforms.pixel_energy import pixel_energy
+from platforms.gem5 import *
 
 USERNAME_DEFAULT = 'root'
 PASSWORD_DEFAULT = ''
@@ -599,6 +600,14 @@ class TestEnv(ShareState):
         suffix = os.path.splitext(os.path.basename(
             system['platform']['description']))[0]
         self.conf['board'] = self.conf['board'].lower() + suffix
+
+        energy_file = self.conf['board'] + '_energy';
+        try:
+            self.nrg_model = globals()[energy_file]
+        except KeyError:
+            self._log.warning('GEM5: Energy model was not found %s.',
+                              energy_file)
+            self.nrg_model = None
 
         board = self._load_board(self.conf['board'])
 
