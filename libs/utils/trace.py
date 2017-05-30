@@ -30,7 +30,7 @@ import logging
 from analysis_register import AnalysisRegister
 from collections import namedtuple
 from devlib.utils.misc import memoized
-from trappy.utils import listify
+from trappy.utils import listify, handle_duplicate_index
 
 
 NON_IDLE_STATE = -1
@@ -848,7 +848,9 @@ class Trace(object):
             entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
             cpu_active = pd.concat([entry_0, cpu_active])
 
-        return cpu_active
+        # Fix sequences of wakeup/sleep events reported with the same index
+        return handle_duplicate_index(cpu_active)
+
 
     @memoized
     def getClusterActiveSignal(self, cluster):
