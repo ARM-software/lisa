@@ -169,6 +169,8 @@ class UiAutomatorGUI(object):
 
     stages = ['setup', 'runWorkload', 'extractResults', 'teardown']
 
+    uiauto_runner = 'android.support.test.runner.AndroidJUnitRunner'
+
     def __init__(self, owner, package=None, klass='UiAutomation', timeout=600):
         self.owner = owner
         self.target = self.owner.target
@@ -176,18 +178,15 @@ class UiAutomatorGUI(object):
         self.uiauto_class = klass
         self.timeout = timeout
         self.logger = logging.getLogger('gui')
-        self.jar_file = None
-        self.target_jar_file = None
+        self.uiauto_file = None
         self.commands = {}
         self.uiauto_params = {}
 
     def init_resources(self, resolver):
-        self.jar_file = resolver.get(JarFile(self.owner))
-        jar_name = os.path.basename(self.jar_file)
-        self.target_jar_file = self.target.get_workpath(jar_name)
+        self.uiauto_file = resolver.get(ApkFile(self.owner, uiauto=True))
         if not self.uiauto_package:
-            package = os.path.splitext(os.path.basename(self.jar_file))[0]
-            self.uiauto_package = package
+            uiauto_info = ApkInfo(self.uiauto_file)
+            self.uiauto_package = uiauto_info.package
 
     def init_commands(self):
         params_dict = self.uiauto_params
@@ -197,15 +196,16 @@ class UiAutomatorGUI(object):
             params += ' -e {} {}'.format(k, v)
 
         for stage in self.stages:
-            method_string = '{}.{}#{}'.format(self.uiauto_package,
-                                              self.uiauto_class,
-                                              stage)
-            cmd_template = 'uiautomator runtest {}{} -c {}'
-            self.commands[stage] = cmd_template.format(self.target_jar_file,
-                                                       params, method_string)
+            class_string = '{}.{}#{}'.format(self.uiauto_package, self.uiauto_class,
+                                             stage)
+            instrumentation_string = '{}/{}'.format(self.uiauto_package,
+                                                    self.uiauto_runner)
+            cmd_template = 'am instrument -w -r{} -e class {} {}'
+            self.commands[stage] = cmd_template.format(params, class_string,
+                                                       instrumentation_string)
 
     def deploy(self):
-        self.target.push(self.jar_file, self.target_jar_file)
+        self.target.install_apk(self.uiauto_file, replace=True)
 
     def set(self, name, value):
         self.uiauto_params[name] = value
@@ -232,7 +232,7 @@ class UiAutomatorGUI(object):
         self._execute('teardown', timeout or self.timeout)
 
     def remove(self):
-        self.target.remove(self.target_jar_file)
+        self.target.uninstall(self.uiauto_package)
 
     def _execute(self, stage, timeout):
         result = self.target.execute(self.commands[stage], timeout)
