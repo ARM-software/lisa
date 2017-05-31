@@ -186,6 +186,20 @@ def sched_switch_parser(event, text):
         return default_body_parser(event, text.replace('==>', ''))
 
 
+def sched_stat_parser(event, text):
+    """
+    sched_stat_* events unclude the units, "[ns]", in an otherwise
+    regular key=value sequence; so the units  need to be stripped out first.
+    """
+    return default_body_parser(event, text.replace(' [ns]', ''))
+
+
+def sched_wakeup_parser(event, text):
+    regex = re.compile(r'(?P<comm>\S+):(?P<pid>\d+) \[(?P<prio>\d+)\] success=(?P<success>\d) CPU:(?P<cpu>\d+)')
+    parse_func = regex_body_parser(regex)
+    return parse_func(event, text)
+
+
 # Maps event onto the corresponding parser for its body text. A parser may be
 # a callable with signature
 #
@@ -195,7 +209,14 @@ def sched_switch_parser(event, text):
 # regex). In case of a string/regex, its named groups will be used to populate
 # the event's attributes.
 EVENT_PARSER_MAP = {
+    'sched_stat_blocked': sched_stat_parser,
+    'sched_stat_iowait': sched_stat_parser,
+    'sched_stat_runtime': sched_stat_parser,
+    'sched_stat_sleep': sched_stat_parser,
+    'sched_stat_wait': sched_stat_parser,
     'sched_switch': sched_switch_parser,
+    'sched_wakeup': sched_wakeup_parser,
+    'sched_wakeup_new': sched_wakeup_parser,
 }
 
 TRACE_EVENT_REGEX = re.compile(r'^\s+(?P<thread>\S+.*?\S+)\s+\[(?P<cpu_id>\d+)\]\s+(?P<ts>[\d.]+):\s+'
