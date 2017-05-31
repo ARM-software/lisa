@@ -1037,6 +1037,12 @@ class AndroidTarget(Target):
                 return line.split('=', 1)[1]
         return None
 
+    def get_sdk_version(self):
+        try:
+            return int(self.getprop('ro.build.version.sdk'))
+        except (ValueError, TypeError):
+            return None
+
     def install_apk(self, filepath, timeout=None, replace=False, allow_downgrade=False):  # pylint: disable=W0221
         ext = os.path.splitext(filepath)[1].lower()
         if ext == '.apk':
