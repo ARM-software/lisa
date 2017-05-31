@@ -3,6 +3,7 @@
 *.bak
 *.o
 *.cmd
+*.iml
 Module.symvers
 modules.order
 *~
@@ -20,4 +21,9 @@ pmu_logger.mod.c
 .tmp_versions
 obj/
 libs/armeabi
-uiauto/bin/
+**/uiauto/**/build/
+**/uiauto/**/.gradle
+**/uiauto/**/.idea
+**/uiauto/**/proguard-rules.pro
+**/uiauto/app/libs/
+**/uiauto/*.properties
