@@ -20,6 +20,7 @@
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pylab as pl
 import re
 
@@ -77,10 +78,13 @@ class TasksAnalysis(AnalysisModule):
                        len(big_tasks), min_utilization)
 
         # Compute number of samples above threshold
-        big_tasks_stats = big_tasks_events.groupby('pid')\
-                            .describe(include=['object'])
-        big_tasks_stats = big_tasks_stats.unstack()['comm']\
-                            .sort_values(by=['count'], ascending=False)
+        desc = big_tasks_events.groupby('pid').describe(include=['object'])
+        if isinstance(desc.index, pd.MultiIndex):
+            # We must be running on a pre-0.20.0 version of pandas.
+            # unstack will convert the old output format to the new.
+            # http://pandas.pydata.org/pandas-docs/version/0.20/whatsnew.html#groupby-describe-formatting
+            desc = desc.unstack()
+        big_tasks_stats = desc['comm'].sort_values(by=['count'], ascending=False)
 
         # Filter for number of occurrences
         big_tasks_stats = big_tasks_stats[big_tasks_stats['count'] > min_samples]
