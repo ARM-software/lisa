@@ -359,7 +359,7 @@ class System(object):
                     GET_FRAMESTATS_CMD.format(apk_name, out_file))
 
     @staticmethod
-    def monkey(target, apk_name, event_count=1):
+    def monkey(target, apk_name, event_count=1, pct_syskeys=0):
         """
         Wrapper for adb monkey tool.
 
@@ -381,8 +381,13 @@ class System(object):
 
         :param event_count: number of events to generate
         :type event_count: int
+        
+        :param pct_syskeys: percentage of physical keys to be used
+        :type pct_syskeys: int
         """
-        target.execute('monkey -p {} {}'.format(apk_name, event_count))
+        target.execute('monkey --pct-syskeys {} -p {} {}'.format(pct_syskeys,
+                                                                 apk_name,
+                                                                 event_count))
 
     @staticmethod
     def list_packages(target, apk_filter=''):
