@@ -1,4 +1,4 @@
-/*    Copyright 2013-2015 ARM Limited
+/*    Copyright 2013-2016 ARM Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,49 +13,69 @@
  * limitations under the License.
 */
 
-
 package com.arm.wa.uiauto;
 
-import java.io.File;
+import android.app.Instrumentation;
+import android.content.Context;
+import android.os.SystemClock;
+import android.support.test.InstrumentationRegistry;
+import android.support.test.uiautomator.UiDevice;
+import android.support.test.uiautomator.UiObject;
+import android.support.test.uiautomator.UiObjectNotFoundException;
+import android.support.test.uiautomator.UiSelector;
+
+import org.junit.Before;
+import org.junit.Test;
+import static android.support.test.InstrumentationRegistry.getArguments;
+
+import android.os.Bundle;
+
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.util.concurrent.TimeoutException;
 
-import android.app.Activity;
-import android.os.Bundle;
 
-// Import the uiautomator libraries
-import com.android.uiautomator.core.UiObject;
-import com.android.uiautomator.core.UiObjectNotFoundException;
-import com.android.uiautomator.core.UiScrollable;
-import com.android.uiautomator.core.UiSelector;
-import com.android.uiautomator.testrunner.UiAutomatorTestCase;
+public class BaseUiAutomation {
 
-public class BaseUiAutomation extends UiAutomatorTestCase {   
+    public Instrumentation mInstrumentation;
+    public Context mContext;
+    public UiDevice mDevice;
 
+    @Before
+    public void initialize_instrumentation() {
+        mInstrumentation = InstrumentationRegistry.getInstrumentation();
+        mDevice = UiDevice.getInstance(mInstrumentation);
+        mContext = mInstrumentation.getTargetContext();
+    }
+
+    @Test
     public void setup() throws Exception {
     }
 
+    @Test
     public void runWorkload() throws Exception {
     }
 
+    @Test
     public void extractResults() throws Exception {
     }
 
+    @Test
     public void teardown() throws Exception {
     }
 
     public void sleep(int second) {
-        super.sleep(second * 1000);
+        SystemClock.sleep(second * 1000);
     }
 
     public boolean takeScreenshot(String name) {
-        Bundle params = getParams();
-	String png_dir = params.getString("workdir");
+        Bundle params = getArguments();
+        String png_dir = params.getString("workdir");
 
         try {
-            return getUiDevice().takeScreenshot(new File(png_dir, name + ".png"));
-        } catch(NoSuchMethodError e) {
+            return mDevice.takeScreenshot(new File(png_dir, name + ".png"));
+        } catch (NoSuchMethodError e) {
             return true;
         }
     }
@@ -66,8 +86,8 @@ public class BaseUiAutomation extends UiAutomatorTestCase {
 
     public void waitText(String text, int second) throws UiObjectNotFoundException {
         UiSelector selector = new UiSelector();
-        UiObject text_obj = new UiObject(selector.text(text)
-                                       .className("android.widget.TextView"));
+        UiObject text_obj = mDevice.findObject(selector.text(text)
+                                                       .className("android.widget.TextView"));
         waitObject(text_obj, second);
     }
 
@@ -76,7 +96,7 @@ public class BaseUiAutomation extends UiAutomatorTestCase {
     }
 
     public void waitObject(UiObject obj, int second) throws UiObjectNotFoundException {
-        if (! obj.waitForExists(second * 1000)){
+        if (!obj.waitForExists(second * 1000)) {
             throw new UiObjectNotFoundException("UiObject is not found: "
                     + obj.getSelector().toString());
         }
@@ -98,10 +118,10 @@ public class BaseUiAutomation extends UiAutomatorTestCase {
 
         long currentTime = System.currentTimeMillis();
         boolean found = false;
-        while ((currentTime - startTime) < timeout){ 
+        while ((currentTime - startTime) < timeout) {
             sleep(2);  // poll every two seconds
 
-            while((line=reader.readLine())!=null) {
+            while ((line = reader.readLine()) != null) {
                 if (line.contains(searchText)) {
                     found = true;
                     break;
@@ -121,4 +141,3 @@ public class BaseUiAutomation extends UiAutomatorTestCase {
         }
     }
 }
-
