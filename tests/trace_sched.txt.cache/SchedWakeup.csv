@@ -1,0 +1,3 @@
+Time,__comm,__cpu,__pid,comm,pid,prio,success,target_cpu
+0.0814890000001,<idle>,1,0,rcu_preempt,7,120,1,1
+1.981491,<idle>,1,0,rcu_preempt,7,120,1,1

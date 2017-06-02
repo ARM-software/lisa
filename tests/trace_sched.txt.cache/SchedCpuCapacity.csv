@@ -1,0 +1,2 @@
+Time,__comm,__cpu,__pid,capacity,cpu,rt_capacity
+0.000293999999485,trace-cmd,3,3519,430,3,1024
