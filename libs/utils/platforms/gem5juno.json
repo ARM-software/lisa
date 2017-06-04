@@ -1,0 +1,30 @@
+{
+    "board" : {
+	"cores" : [
+		"A53", "A53", "A53", "A53",
+		"A57", "A57",
+	],
+	"big_core" : "A57",
+    },
+    // JUNO Energy Model
+    "nrg_model" : {
+        "little" : {
+            "cpu" : {
+                "nrg_max" :   93,
+                "cap_max" :  447
+            },
+            "cluster" : {
+                "nrg_max" :   57
+            }
+        },
+        "big": {
+            "cpu" : {
+                "nrg_max" :  616,
+                "cap_max" : 1024
+            },
+            "cluster" : {
+                "nrg_max" :   64
+            }
+        }
+    }
+}
