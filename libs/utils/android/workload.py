@@ -94,11 +94,15 @@ class Workload(object):
             raise ValueError(msg)
         # Start FTrace
         if 'ftrace' in self.collect:
+            # Ensure symbols addresses are exposed via /proc/kallsyms
+            self._target.write_value('/proc/sys/kernel/kptr_restrict', 0)
             self.trace_file = os.path.join(self.out_dir, 'trace.dat')
             self._log.info('FTrace START')
             self._te.ftrace.start()
         # Start Systrace (mutually exclusive with ftrace)
         elif 'systrace' in self.collect:
+            # Ensure symbols addresses are exposed via /proc/kallsyms
+            self._target.write_value('/proc/sys/kernel/kptr_restrict', 0)
             self.trace_file = os.path.join(self.out_dir, 'trace.html')
             # Get the systrace time
             match = re.search(r'systrace_([0-9]+)', self.collect)
