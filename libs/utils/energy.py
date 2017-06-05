@@ -258,7 +258,7 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
             df = pd.read_csv(f, names=columns)
 
         sample_period = 1. / self._instrument.sample_rate_hz
-        df.index = np.arange(0, sample_period * len(df), step=sample_period)
+        df.index = np.linspace(0, sample_period * len(df), num=len(df))
 
         if df.empty:
             raise RuntimeError('No energy data collected')
