@@ -82,7 +82,7 @@ class EnergyProbeInstrument(Instrument):
                 'Energy Probe: Caiman exited unexpectedly with exit code {}.\n'
                 'stdout:\n{}\nstderr:\n{}'.format(self.process.returncode,
                                                   stdout, stderr))
-        os.killpg(self.process.pid, signal.SIGTERM)
+        os.killpg(self.process.pid, signal.SIGINT)
 
     def get_data(self, outfile):  # pylint: disable=R0914
         all_channels = [c.label for c in self.list_channels()]
