@@ -382,7 +382,9 @@ class CpufreqModule(Module):
                 'cpufreq_set_all_governors {}'.format(governor),
                 as_root=True)
         except TargetError as e:
-            if "echo: I/O error" in str(e):
+            if ("echo: I/O error" in str(e) or
+                "write error: Invalid argument" in str(e)):
+
                 cpus_unsupported = [c for c in self.target.list_online_cpus()
                                     if governor not in self.list_governors(c)]
                 raise TargetError("Governor {} unsupported for CPUs {}".format(
