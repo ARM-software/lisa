@@ -15,6 +15,9 @@ from devlib.exception  import WorkerThreadError, TargetNotRespondingError, Timeo
 
 logger = logging.getLogger('rendering')
 
+SurfaceFlingerFrame = namedtuple('SurfaceFlingerFrame',
+                                 'desired_present_time actual_present_time frame_ready_time')
+
 
 class FrameCollector(threading.Thread):
 
@@ -97,6 +100,57 @@ class FrameCollector(threading.Thread):
 
     def _process_raw_file(self, fh):
         raise NotImplementedError()
+
+
+class SurfaceFlingerFrameCollector(FrameCollector):
+
+    def __init__(self, target, period, view, header=None):
+        super(SurfaceFlingerFrameCollector, self).__init__(target, period)
+        self.view = view
+        self.header = header or SurfaceFlingerFrame._fields
+
+    def collect_frames(self, wfh):
+        for activity in self.list():
+            if activity == self.view:
+                wfh.write(self.get_latencies(activity))
+
+    def clear(self):
+        self.target.execute('dumpsys SurfaceFlinger --latency-clear ')
+
+    def get_latencies(self, activity):
+        cmd = 'dumpsys SurfaceFlinger --latency "{}"'
+        return self.target.execute(cmd.format(activity))
+
+    def list(self):
+        return self.target.execute('dumpsys SurfaceFlinger --list').split('\r\n')
+
+    def _process_raw_file(self, fh):
+        text = fh.read().replace('\r\n', '\n').replace('\r', '\n')
+        for line in text.split('\n'):
+            line = line.strip()
+            if line:
+                self._process_trace_line(line)
+
+    def _process_trace_line(self, line):
+        parts = line.split()
+        if len(parts) == 3:
+            frame = SurfaceFlingerFrame(*map(int, parts))
+            if not frame.frame_ready_time:
+                return # "null" frame
+            if frame.frame_ready_time <= self.last_ready_time:
+                return  # duplicate frame
+            if (frame.frame_ready_time - frame.desired_present_time) > self.drop_threshold:
+                logger.debug('Dropping bogus frame {}.'.format(line))
+                return  # bogus data
+            self.last_ready_time = frame.frame_ready_time
+            self.frames.append(frame)
+        elif len(parts) == 1:
+            self.refresh_period = int(parts[0])
+            self.drop_threshold = self.refresh_period * 1000
+        elif 'SurfaceFlinger appears to be unresponsive, dumping anyways' in line:
+            self.unresponsive_count += 1
+        else:
+            logger.warning('Unexpected SurfaceFlinger dump output: {}'.format(line))
 
 
 def read_gfxinfo_columns(target):
