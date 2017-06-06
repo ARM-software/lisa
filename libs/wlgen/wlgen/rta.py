@@ -99,13 +99,10 @@ class RTA(Workload):
         log = logging.getLogger('RTApp')
 
         # Save previous governors
-        cpus = target.list_online_cpus()
         old_governors = {}
-
-        for cpu in cpus:
-            domain = tuple(target.cpufreq.get_domain_cpus(cpu))
-            if domain not in old_governors:
-                old_governors[domain] = target.cpufreq.get_governor(cpu)
+        for domain in target.cpufreq.iter_domains():
+            cpu = domain[0]
+            old_governors[cpu] = target.cpufreq.get_governor(cpu)
 
         target.cpufreq.set_all_governors('performance')
 
@@ -145,8 +142,8 @@ class RTA(Workload):
         #   Setting a governor for a cpu will set it for all cpus in the same
         #   clock domain, so only restoring the governor of one cpu per domain
         #   is enough to restore all of the previous governors
-        for domain, governor in old_governors.iteritems():
-            target.cpufreq.set_governor(domain[0], governor)
+        for cpu, governor in old_governors.iteritems():
+            target.cpufreq.set_governor(cpu, governor)
 
         log.info('Target RT-App calibration:')
         log.info("{" + ", ".join('"%r": %r' % (key, pload[key])
