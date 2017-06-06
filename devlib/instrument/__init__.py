@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import division
 import csv
 import logging
 import collections
@@ -24,28 +25,33 @@ from devlib.utils.types import numeric
 INSTANTANEOUS = 1
 CONTINUOUS = 2
 
+MEASUREMENT_TYPES = {}  # populated further down
 
-class MeasurementType(tuple):
 
-    __slots__ = []
+class MeasurementType(object):
 
-    def __new__(cls, name, units, category=None):
-        return tuple.__new__(cls, (name, units, category))
+    def __init__(self, name, units, category=None, conversions=None):
+        self.name = name
+        self.units = units
+        self.category = category
+        self.conversions = {}
+        if conversions is not None:
+            for key, value in conversions.iteritems():
+                if not callable(value):
+                    msg = 'Converter must be callable; got {} "{}"'
+                    raise ValueError(msg.format(type(value), value))
+                self.conversions[key] = value
 
-    @property
-    def name(self):
-        return tuple.__getitem__(self, 0)
-
-    @property
-    def units(self):
-        return tuple.__getitem__(self, 1)
-
-    @property
-    def category(self):
-        return tuple.__getitem__(self, 2)
-
-    def __getitem__(self, item):
-        raise TypeError()
+    def convert(self, value, to):
+        if isinstance(to, basestring) and to in MEASUREMENT_TYPES:
+            to = MEASUREMENT_TYPES[to]
+        if not isinstance(to, MeasurementType):
+            msg = 'Unexpected conversion target: "{}"'
+            raise ValueError(msg.format(to))
+        if not to.name in self.conversions:
+            msg = 'No conversion from {} to {} available'
+            raise ValueError(msg.format(self.name, to.name))
+        return self.conversions[to.name](value)
 
     def __cmp__(self, other):
         if isinstance(other, MeasurementType):
@@ -55,7 +61,13 @@ class MeasurementType(tuple):
     def __str__(self):
         return self.name
 
-    __repr__ = __str__
+    def __repr__(self):
+        if self.category:
+            text = 'MeasurementType({}, {}, {})'
+            return text.format(self.name, self.units, self.category)
+        else:
+            text = 'MeasurementType({}, {})'
+            return text.format(self.name, self.units)
 
 
 # Standard measures
@@ -72,7 +84,8 @@ _measurement_types = [
     MeasurementType('rx', 'bytes', 'data transfer'),
     MeasurementType('tx/rx', 'bytes', 'data transfer'),
 ]
-MEASUREMENT_TYPES = {m.name: m for m in _measurement_types}
+for m in _measurement_types:
+    MEASUREMENT_TYPES[m.name] = m
 
 
 class Measurement(object):
