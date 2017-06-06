@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 
-
 class DevlibError(Exception):
     """Base class for all Devlib exceptions."""
     pass
@@ -49,3 +48,42 @@ class TimeoutError(DevlibError):
 
     def __str__(self):
         return '\n'.join([self.message, 'OUTPUT:', self.output or ''])
+
+
+class WorkerThreadError(DevlibError):
+    """
+    This should get raised  in the main thread if a non-WAError-derived
+    exception occurs on a worker/background thread. If a WAError-derived
+    exception is raised in the worker, then it that exception should be
+    re-raised on the main thread directly -- the main point of this is to
+    preserve the backtrace in the output, and backtrace doesn't get output for
+    WAErrors.
+
+    """
+
+    def __init__(self, thread, exc_info):
+        self.thread = thread
+        self.exc_info = exc_info
+        orig = self.exc_info[1]
+        orig_name = type(orig).__name__
+        message = 'Exception of type {} occured on thread {}:\n'.format(orig_name, thread)
+        message += '{}\n{}: {}'.format(get_traceback(self.exc_info), orig_name, orig)
+        super(WorkerThreadError, self).__init__(message)
+
+
+def get_traceback(exc=None):
+    """
+    Returns the string with the traceback for the specifiec exc
+    object, or for the current exception exc is not specified.
+
+    """
+    import StringIO, traceback, sys
+    if exc is None:
+        exc = sys.exc_info()
+    if not exc:
+        return None
+    tb = exc[2]
+    sio = StringIO.StringIO()
+    traceback.print_tb(tb, file=sio)
+    del tb  # needs to be done explicitly see: http://docs.python.org/2/library/sys.html#sys.exc_info
+    return sio.getvalue()
