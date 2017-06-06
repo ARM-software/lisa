@@ -72,7 +72,16 @@ class MeasurementType(object):
 
 # Standard measures
 _measurement_types = [
-    MeasurementType('time', 'seconds'),
+    MeasurementType('time', 'seconds',
+        conversions={
+            'time_us': lambda x: x * 1000,
+        }
+    ),
+    MeasurementType('time_us', 'microseconds',
+        conversions={
+            'time': lambda x: x / 1000,
+        }
+    ),
     MeasurementType('temperature', 'degrees'),
 
     MeasurementType('power', 'watts', 'power/energy'),
@@ -83,6 +92,8 @@ _measurement_types = [
     MeasurementType('tx', 'bytes', 'data transfer'),
     MeasurementType('rx', 'bytes', 'data transfer'),
     MeasurementType('tx/rx', 'bytes', 'data transfer'),
+
+    MeasurementType('frames', 'frames', 'ui render'),
 ]
 for m in _measurement_types:
     MEASUREMENT_TYPES[m.name] = m
