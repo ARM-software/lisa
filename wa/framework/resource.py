@@ -143,19 +143,21 @@ class ApkFile(Resource):
 
     kind = 'apk'
 
-    def __init__(self, owner, variant=None, version=None):
+    def __init__(self, owner, variant=None, version=None, uiauto=False):
         super(ApkFile, self).__init__(owner)
         self.variant = variant
         self.version = version
+        self.uiauto = uiauto
 
     def match(self, path):
         name_matches = True
         version_matches = True
+        uiauto_matches = uiauto_test_matches(path, self.uiauto)
         if self.version is not None:
             version_matches = apk_version_matches(path, self.version)
         if self.variant is not None:
             name_matches = file_name_matches(path, self.variant)
-        return name_matches and version_matches
+        return name_matches and version_matches and uiauto_matches
 
     def __str__(self):
         text = '<{}\'s apk'.format(self.owner)
@@ -163,6 +165,8 @@ class ApkFile(Resource):
             text += ' {}'.format(self.variant)
         if self.version:
             text += ' {}'.format(self.version)
+        if self.uiauto:
+            text += 'uiautomator test'
         text += '>'
         return text
 
@@ -216,7 +220,7 @@ class ResourceResolver(object):
     def load(self):
         for gettercls in self.loader.list_plugins('resource_getter'):
             self.logger.debug('Loading getter {}'.format(gettercls.name))
-            getter = self.loader.get_plugin(name=gettercls.name, 
+            getter = self.loader.get_plugin(name=gettercls.name,
                                             kind="resource_getter")
             log.indent()
             try:
@@ -271,3 +275,6 @@ def file_name_matches(path, pattern):
         return True
     return False
 
+def uiauto_test_matches(path, uiauto):
+    info = ApkInfo(path)
+    return uiauto == ('com.arm.wa.uiauto' in info.package)
