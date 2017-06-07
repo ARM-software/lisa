@@ -43,7 +43,7 @@ class BenchmarkPi(ApkUiautoWorkload):
     takes to run and complete the Pi calculation algorithm resulting in a
     approximation of the first Pi digits.
     """
-    package = 'gr.androiddev.BenchmarkPi'
+    package_names = ['gr.androiddev.BenchmarkPi']
     activity = '.BenchmarkPi'
 
     regex = re.compile('You calculated Pi in ([0-9]+)')
