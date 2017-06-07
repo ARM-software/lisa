@@ -54,7 +54,8 @@ class PluginCache(object):
 
     def add_source(self, source):
         if source in self.sources:
-            raise Exception("Source has already been added.")
+            msg = "Source '{}' has already been added."
+            raise Exception(msg.format(source))
         self.sources.append(source)
 
     def add_global_alias(self, alias, value, source):
