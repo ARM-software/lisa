@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import division
 import csv
 import logging
 import collections
@@ -24,28 +25,33 @@ from devlib.utils.types import numeric
 INSTANTANEOUS = 1
 CONTINUOUS = 2
 
+MEASUREMENT_TYPES = {}  # populated further down
 
-class MeasurementType(tuple):
 
-    __slots__ = []
+class MeasurementType(object):
 
-    def __new__(cls, name, units, category=None):
-        return tuple.__new__(cls, (name, units, category))
+    def __init__(self, name, units, category=None, conversions=None):
+        self.name = name
+        self.units = units
+        self.category = category
+        self.conversions = {}
+        if conversions is not None:
+            for key, value in conversions.iteritems():
+                if not callable(value):
+                    msg = 'Converter must be callable; got {} "{}"'
+                    raise ValueError(msg.format(type(value), value))
+                self.conversions[key] = value
 
-    @property
-    def name(self):
-        return tuple.__getitem__(self, 0)
-
-    @property
-    def units(self):
-        return tuple.__getitem__(self, 1)
-
-    @property
-    def category(self):
-        return tuple.__getitem__(self, 2)
-
-    def __getitem__(self, item):
-        raise TypeError()
+    def convert(self, value, to):
+        if isinstance(to, basestring) and to in MEASUREMENT_TYPES:
+            to = MEASUREMENT_TYPES[to]
+        if not isinstance(to, MeasurementType):
+            msg = 'Unexpected conversion target: "{}"'
+            raise ValueError(msg.format(to))
+        if not to.name in self.conversions:
+            msg = 'No conversion from {} to {} available'
+            raise ValueError(msg.format(self.name, to.name))
+        return self.conversions[to.name](value)
 
     def __cmp__(self, other):
         if isinstance(other, MeasurementType):
@@ -55,12 +61,28 @@ class MeasurementType(tuple):
     def __str__(self):
         return self.name
 
-    __repr__ = __str__
+    def __repr__(self):
+        if self.category:
+            text = 'MeasurementType({}, {}, {})'
+            return text.format(self.name, self.units, self.category)
+        else:
+            text = 'MeasurementType({}, {})'
+            return text.format(self.name, self.units)
 
 
 # Standard measures
 _measurement_types = [
-    MeasurementType('time', 'seconds'),
+    MeasurementType('unknown', None),
+    MeasurementType('time', 'seconds',
+        conversions={
+            'time_us': lambda x: x * 1000,
+        }
+    ),
+    MeasurementType('time_us', 'microseconds',
+        conversions={
+            'time': lambda x: x / 1000,
+        }
+    ),
     MeasurementType('temperature', 'degrees'),
 
     MeasurementType('power', 'watts', 'power/energy'),
@@ -71,8 +93,11 @@ _measurement_types = [
     MeasurementType('tx', 'bytes', 'data transfer'),
     MeasurementType('rx', 'bytes', 'data transfer'),
     MeasurementType('tx/rx', 'bytes', 'data transfer'),
+
+    MeasurementType('frames', 'frames', 'ui render'),
 ]
-MEASUREMENT_TYPES = {m.name: m for m in _measurement_types}
+for m in _measurement_types:
+    MEASUREMENT_TYPES[m.name] = m
 
 
 class Measurement(object):
@@ -108,10 +133,12 @@ class Measurement(object):
 
 class MeasurementsCsv(object):
 
-    def __init__(self, path, channels):
+    def __init__(self, path, channels=None):
         self.path = path
         self.channels = channels
         self._fh = open(path, 'rb')
+        if self.channels is None:
+            self._load_channels()
 
     def measurements(self):
         return list(self.itermeasurements())
@@ -123,6 +150,29 @@ class MeasurementsCsv(object):
         for row in reader:
             values = map(numeric, row)
             yield [Measurement(v, c) for (v, c) in zip(values, self.channels)]
+
+    def _load_channels(self):
+        self._fh.seek(0)
+        reader = csv.reader(self._fh)
+        header = reader.next()
+        self._fh.seek(0)
+
+        self.channels = []
+        for entry in header:
+            for mt in MEASUREMENT_TYPES:
+                suffix = '_{}'.format(mt)
+                if entry.endswith(suffix):
+                    site =  entry[:-len(suffix)]
+                    measure = mt
+                    name = '{}_{}'.format(site, measure)
+                    break
+            else:
+                site = entry
+                measure = 'unknown'
+                name = entry
+
+            chan = InstrumentChannel(name, site, measure)
+            self.channels.append(chan)
 
 
 class InstrumentChannel(object):
