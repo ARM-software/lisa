@@ -14,6 +14,7 @@
 #
 import logging
 import os
+import re
 import time
 
 from wa.framework.plugin import TargetedPlugin
@@ -24,6 +25,7 @@ from wa.utils.revent import ReventRecorder
 from wa.utils.exec_control import once
 
 from devlib.utils.android import ApkInfo
+from devlib.exception import TargetError
 
 
 class Workload(TargetedPlugin):
@@ -101,6 +103,7 @@ class ApkUIWorkload(Workload):
     # May be optionally overwritten by subclasses
     # Times are in seconds
     loading_time = 10
+    package_names = []
 
     def __init__(self, target, **kwargs):
         super(ApkUIWorkload, self).__init__(target, **kwargs)
@@ -108,7 +111,6 @@ class ApkUIWorkload(Workload):
         self.gui = None
 
     def init_resources(self, context):
-        self.apk.init_resources(context.resolver)
         self.gui.init_resources(context.resolver)
         self.gui.init_commands()
 
@@ -336,13 +338,14 @@ class ReventGUI(object):
 class PackageHandler(object):
 
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
-                 strict=True, force_install=False, uninstall=False):
+                 package=None, strict=False, force_install=False, uninstall=False):
         self.logger = logging.getLogger('apk')
         self.owner = owner
         self.target = self.owner.target
         self.install_timeout = install_timeout
         self.version = version
         self.variant = variant
+        self.package = package
         self.strict = strict
         self.force_install = force_install
         self.uninstall = uninstall
@@ -351,49 +354,78 @@ class PackageHandler(object):
         self.apk_version = None
         self.logcat_log = None
 
-    def init_resources(self, resolver):
-        self.apk_file = resolver.get(ApkFile(self.owner,
-                                             variant=self.variant,
-                                             version=self.version),
-                                             strict=self.strict)
-        self.apk_info = ApkInfo(self.apk_file)
+    def initialize(self, context):
+        self.resolve_package(context)
+        self.initialize_package(context)
 
     def setup(self, context):
-        self.initialize_package(context)
         self.start_activity()
         self.target.execute('am kill-all')  # kill all *background* activities
         self.target.clear_logcat()
 
+    def resolve_package(self, context):
+        self.apk_file = context.resolver.get(ApkFile(self.owner,
+                                                     variant=self.variant,
+                                                     version=self.version,
+                                                     package=self.package),
+                                             strict=self.strict)
+        if self.apk_file:
+            self.apk_info = ApkInfo(self.apk_file)
+        else:
+            if not self.owner.package_names and not self.package:
+                msg = 'No package name(s) specified and no matching APK file found on host'
+                raise WorkloadError(msg)
+            self.resolve_package_from_target(context)
+
+    def resolve_package_from_target(self, context):
+        if self.package:
+            if not self.target.package_is_installed(self.package):
+                msg = 'Package "{}" cannot be found on the host or device'
+            raise WorkloadError(msg.format(self.package))
+        else:
+            installed_versions = []
+            for package in self.owner.package_names:
+                if self.target.package_is_installed(package):
+                    installed_versions.append(package)
+
+            if self.version:
+                for package in installed_versions:
+                    if self.version == self.target.get_package_version(package):
+                        self.package = package
+                        break
+            else:
+                if len(installed_versions) == 1:
+                    self.package = installed_versions[0]
+                else:
+                    msg = 'Package version not set and multiple versions found on device'
+                    raise WorkloadError(msg)
+
+            if not self.package:
+                raise WorkloadError('No matching package found')
+
+        self.pull_apk(self.package)
+        self.apk_file = context.resolver.get(ApkFile(self.owner,
+                                                     variant=self.variant,
+                                                     version=self.version,
+                                                     package=self.package),
+                                             strict=self.strict)
+        self.apk_info = ApkInfo(self.apk_file)
+
     def initialize_package(self, context):
         installed_version = self.target.get_package_version(self.apk_info.package)
-        if self.strict:
-            self.initialize_with_host_apk(context, installed_version)
-        else:
-            if not installed_version:
-                message = '{} not found found on the device and check_apk is set '\
-                          'to "False" so host version was not checked.'
-                raise WorkloadError(message.format(self.apk_info.package))
-            message = 'Version {} installed on device; skipping host APK check.'
-            self.logger.debug(message.format(installed_version))
-            self.reset(context)
-            self.version = installed_version
-
-    def initialize_with_host_apk(self, context, installed_version):
         host_version = self.apk_info.version_name
         if installed_version != host_version:
             if installed_version:
                 message = '{} host version: {}, device version: {}; re-installing...'
-                self.logger.debug(message.format(os.path.basename(self.apk_file),
-                                                 host_version, installed_version))
+                self.logger.debug(message.format(self.owner.name, host_version,
+                                                 installed_version))
             else:
                 message = '{} host version: {}, not found on device; installing...'
-                self.logger.debug(message.format(os.path.basename(self.apk_file),
-                                                 host_version))
+                self.logger.debug(message.format(self.owner.name, host_version))
             self.force_install = True  # pylint: disable=attribute-defined-outside-init
         else:
             message = '{} version {} found on both device and host.'
-            self.logger.debug(message.format(os.path.basename(self.apk_file),
-                                             host_version))
+            self.logger.debug(message.format(self.owner.name, host_version))
         if self.force_install:
             if installed_version:
                 self.target.uninstall_package(self.apk_info.package)
@@ -426,6 +458,14 @@ class PackageHandler(object):
                 raise WorkloadError(output)
         else:
             self.logger.debug(output)
+
+    def pull_apk(self, package):
+        if not self.target.package_is_installed(package):
+            message = 'Cannot retrieve "{}" as not installed on Target'
+            raise WorkloadError(message.format(package))
+        package_info = self.target.execute('pm list packages -f {}'.format(package))
+        apk_path = re.match('package:(.*)=', package_info).group(1)
+        self.target.pull(apk_path, self.owner.dependencies_directory)
 
     def teardown(self):
         self.target.execute('am force-stop {}'.format(self.apk_info.package))
