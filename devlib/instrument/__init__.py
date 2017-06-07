@@ -72,6 +72,7 @@ class MeasurementType(object):
 
 # Standard measures
 _measurement_types = [
+    MeasurementType('unknown', None),
     MeasurementType('time', 'seconds',
         conversions={
             'time_us': lambda x: x * 1000,
@@ -132,10 +133,12 @@ class Measurement(object):
 
 class MeasurementsCsv(object):
 
-    def __init__(self, path, channels):
+    def __init__(self, path, channels=None):
         self.path = path
         self.channels = channels
         self._fh = open(path, 'rb')
+        if self.channels is None:
+            self._load_channels()
 
     def measurements(self):
         return list(self.itermeasurements())
@@ -147,6 +150,29 @@ class MeasurementsCsv(object):
         for row in reader:
             values = map(numeric, row)
             yield [Measurement(v, c) for (v, c) in zip(values, self.channels)]
+
+    def _load_channels(self):
+        self._fh.seek(0)
+        reader = csv.reader(self._fh)
+        header = reader.next()
+        self._fh.seek(0)
+
+        self.channels = []
+        for entry in header:
+            for mt in MEASUREMENT_TYPES:
+                suffix = '_{}'.format(mt)
+                if entry.endswith(suffix):
+                    site =  entry[:-len(suffix)]
+                    measure = mt
+                    name = '{}_{}'.format(site, measure)
+                    break
+            else:
+                site = entry
+                measure = 'unknown'
+                name = entry
+
+            chan = InstrumentChannel(name, site, measure)
+            self.channels.append(chan)
 
 
 class InstrumentChannel(object):
