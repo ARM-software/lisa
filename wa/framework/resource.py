@@ -143,21 +143,28 @@ class ApkFile(Resource):
 
     kind = 'apk'
 
-    def __init__(self, owner, variant=None, version=None, uiauto=False):
+    def __init__(self, owner, variant=None, version=None,
+                 package=None, uiauto=False):
         super(ApkFile, self).__init__(owner)
         self.variant = variant
         self.version = version
+        self.package = package
         self.uiauto = uiauto
 
     def match(self, path):
         name_matches = True
         version_matches = True
+        package_matches = True
         uiauto_matches = uiauto_test_matches(path, self.uiauto)
         if self.version is not None:
             version_matches = apk_version_matches(path, self.version)
         if self.variant is not None:
             name_matches = file_name_matches(path, self.variant)
-        return name_matches and version_matches and uiauto_matches
+        if self.package is not None:
+            package_matches = package_name_matches(path, self.package)
+        return name_matches and version_matches and \
+               uiauto_matches and package_matches
+
 
     def __str__(self):
         text = '<{}\'s apk'.format(self.owner)
@@ -278,3 +285,7 @@ def file_name_matches(path, pattern):
 def uiauto_test_matches(path, uiauto):
     info = ApkInfo(path)
     return uiauto == ('com.arm.wa.uiauto' in info.package)
+
+def package_name_matches(path, package):
+    info = ApkInfo(path)
+    return info.package == package
