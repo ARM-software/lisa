@@ -197,6 +197,17 @@ class EnergyModelNode(_CpuTree):
         """Compute capacity at highest frequency"""
         return max(s.capacity for s in self.active_states.values())
 
+    def idle_state_by_idx(self, idx):
+        """Return the idle state with index ``idx``"""
+        if not isinstance(self.idle_states, OrderedDict):
+            f = 'idle_states is {}, must be collections.OrderedDict'
+            raise ValueError(f.format(type(self.idle_states)))
+
+        if self.idle_states and idx < len(self.idle_states):
+            return self.idle_states.keys()[idx]
+
+        raise KeyError('No idle state with index {}'.format(idx))
+
 class EnergyModelRoot(EnergyModelNode):
     """
     Convenience class for root of an EnergyModelNode tree.
@@ -411,17 +422,21 @@ class EnergyModel(object):
                 groups.append([node.cpu])
         return groups
 
-    def _guess_idle_states(self, cpus_active):
+    def _deepest_idle_idxs(self, cpus_active):
         def find_deepest(pd):
-            if not any(cpus_active[c] for c in pd.cpus):
-                if pd.parent:
-                    parent_state = find_deepest(pd.parent)
-                    if parent_state:
-                        return parent_state
-                return pd.idle_states[-1] if len(pd.idle_states) else None
-            return None
-
+            if any(cpus_active[c] for c in pd.cpus):
+                return -1
+            if pd.parent:
+                parent_idx = find_deepest(pd.parent)
+            else:
+                parent_idx = -1
+            ret = parent_idx + len(pd.idle_states)
+            return ret
         return [find_deepest(pd) for pd in self.cpu_pds]
+
+    def _guess_idle_states(self, cpus_active):
+        idxs = self._deepest_idle_idxs(cpus_active)
+        return [n.idle_state_by_idx(max(i, 0)) for n, i in zip(self.cpu_nodes, idxs)]
 
     def get_cpu_capacity(self, cpu, freq=None):
         """Convenience method to get the capacity of a CPU at a given frequency
