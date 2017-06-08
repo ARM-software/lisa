@@ -566,7 +566,6 @@ class EnergyModel(object):
             # For now we assume topology nodes with energy models do not overlap
             # with frequency domains
             freq = freqs[cpus[0]]
-            assert all(freqs[c] == freq for c in cpus[1:])
 
             # The active time of a node is estimated as the max of the active
             # times of its children.
