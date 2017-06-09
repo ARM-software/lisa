@@ -284,18 +284,19 @@ Usage: lisa-test [args] FILE[:CLASS]
   to that tool.
 
   Examples:
-    Run all EAS Acceptance tests:
+    Run all EAS Generic tests:
 
-      lisa-test tests/eas/acceptance.py
+      lisa-test tests/eas/generic.py
 
-    Run ForkMigration test from EAS Acceptance suite:
+    Run RampUp test from EAS Generic suite:
 
-      lisa-test tests/eas/acceptance.py:ForkMigration
+      lisa-test tests/eas/generic.py:RampUp
 
-    Run ForkMigration test from EAS Acceptance suite, generating an XML test
+    Run RampUp test from EAS Generic suite, generating an XML test
     report via nose's XUnit plugin (see nosetests documentation):
 
-      lisa-test --with-xunit --xunit-file=report.xml tests/eas/acceptance.py:ForkMigration
+      lisa-test --with-xunit --xunit-file=report.xml tests/eas/generic.py:RampUp
+
 
 EOF
 }
