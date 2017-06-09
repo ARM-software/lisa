@@ -942,9 +942,8 @@ class JobSpec(Configuration):
                     cfg_point.set_value(workload_params, value, 
                                         check_mandatory=False)
             if config:
-                msg = 'conflicting entry(ies) for "{}" in {}: "{}"'
-                msg = msg.format(self.workload_name, source.name,
-                                    '", "'.join(workload_params[source]))
+                msg = 'Unexpected config "{}" for "{}"'
+                raise ConfigError(msg.format(config, self.workload_name))
 
         self.workload_parameters = workload_params
 
