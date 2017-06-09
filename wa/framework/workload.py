@@ -17,6 +17,7 @@ import os
 import re
 import time
 
+from wa import Parameter
 from wa.framework.plugin import TargetedPlugin
 from wa.framework.resource import (ApkFile, JarFile, ReventFile, NO_ONE,
                                    Executable, File)
@@ -142,9 +143,57 @@ class ApkUiautoWorkload(ApkUIWorkload):
 
     platform = 'android'
 
+    parameters = [
+        Parameter('package', kind=str,
+                  description="""
+                  The pacakge name that can be used to specify
+                  the workload apk to use.
+                  """),
+        Parameter('install_timeout', kind=int,
+                  constraint=lambda x: x > 0,
+                  default=300,
+                  description="""
+                  Timeout for the installation of the apk.
+                  """),
+        Parameter('version', kind=str,
+                  default=None,
+                  description="""
+                  The version of the package to be used.
+                  """),
+        Parameter('variant', kind=str,
+                  default=None,
+                  description="""
+                  The variant of the package to be used.
+                  """),
+        Parameter('strict', kind=bool,
+                  default=False,
+                  description="""
+                  Whether to throw and error if the specified package cannot be found
+                  on host.
+                  """),
+        Parameter('force_install', kind=bool,
+                  default=False,
+                  description="""
+                  Always re-install the APK, even if matching version is found already installed
+                  on the device.
+                  """),
+        Parameter('uninstall', kind=bool,
+                  default=False,
+                  description="""
+                  If ``True``, will uninstall workload\'s APK as part of teardown.'
+                  """),
+    ]
+
     def __init__(self, target, **kwargs):
         super(ApkUiautoWorkload, self).__init__(target, **kwargs)
-        self.apk = PackageHandler(self)
+        self.apk = PackageHandler(self,
+                                  package=self.package,
+                                  variant=self.variant,
+                                  strict=self.strict,
+                                  version=self.version,
+                                  force_install=self.force_install,
+                                  install_timeout=self.install_timeout,
+                                  uninstall=self.uninstall)
         self.gui = UiAutomatorGUI(self)
 
 
@@ -282,7 +331,7 @@ class ReventGUI(object):
         self.revent_teardown_file = resolver.get(resource=ReventFile(owner=self.workload,
                                                             stage='teardown',
                                                             target=self.target.model),
-                                                strict=False)
+                                                 strict=False)
 
     def deploy(self):
         self.revent_recorder.deploy()
