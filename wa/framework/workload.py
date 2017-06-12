@@ -98,50 +98,12 @@ class Workload(TargetedPlugin):
     def __str__(self):
         return '<Workload {}>'.format(self.name)
 
-
-class ApkUIWorkload(Workload):
+class ApkWorkload(Workload):
 
     # May be optionally overwritten by subclasses
     # Times are in seconds
     loading_time = 10
     package_names = []
-
-    def __init__(self, target, **kwargs):
-        super(ApkUIWorkload, self).__init__(target, **kwargs)
-        self.apk = None
-        self.gui = None
-
-    def init_resources(self, context):
-        self.gui.init_resources(context.resolver)
-        self.gui.init_commands()
-
-    @once
-    def initialize(self, context):
-        self.gui.deploy()
-
-    def setup(self, context):
-        self.apk.setup(context)
-        time.sleep(self.loading_time)
-        self.gui.setup()
-
-    def run(self, context):
-        self.gui.run()
-
-    def extract_results(self, context):
-        self.gui.extract_results()
-
-    def teardown(self, context):
-        self.gui.teardown()
-        self.apk.teardown()
-
-    @once
-    def finalize(self, context):
-        self.gui.remove()
-
-
-class ApkUiautoWorkload(ApkUIWorkload):
-
-    platform = 'android'
 
     parameters = [
         Parameter('package', kind=str,
@@ -185,7 +147,7 @@ class ApkUiautoWorkload(ApkUIWorkload):
     ]
 
     def __init__(self, target, **kwargs):
-        super(ApkUiautoWorkload, self).__init__(target, **kwargs)
+        super(ApkWorkload, self).__init__(target, **kwargs)
         self.apk = PackageHandler(self,
                                   package=self.package,
                                   variant=self.variant,
@@ -194,6 +156,74 @@ class ApkUiautoWorkload(ApkUIWorkload):
                                   force_install=self.force_install,
                                   install_timeout=self.install_timeout,
                                   uninstall=self.uninstall)
+
+    def init_resources(self, context):
+        pass
+
+    def initialize(self, context):
+        self.apk.initialize(context)
+
+    def setup(self, context):
+        self.apk.setup(context)
+        time.sleep(self.loading_time)
+
+    def run(self, context):
+        pass
+
+    def extract_results(self, context):
+        pass
+
+    def teardown(self, context):
+        self.apk.teardown()
+
+    @once
+    def finalize(self, context):
+        pass
+
+
+class ApkUIWorkload(ApkWorkload):
+
+    def __init__(self, target, **kwargs):
+        super(ApkUIWorkload, self).__init__(target, **kwargs)
+        self.gui = None
+
+    def init_resources(self, context):
+        super(ApkUIWorkload, self).init_resources(context)
+        self.gui.init_resources(context.resolver)
+        self.gui.init_commands()
+
+    def initialize(self, context):
+        super(ApkUIWorkload, self).initialize(context)
+        self.gui.deploy()
+
+    def setup(self, context):
+        super(ApkUIWorkload, self).setup(context)
+        self.gui.setup()
+
+    def run(self, context):
+        super(ApkUIWorkload, self).run(context)
+        self.gui.run()
+
+    def extract_results(self, context):
+        super(ApkUIWorkload, self).extract_results(context)
+        self.gui.extract_results()
+
+    def teardown(self, context):
+        self.gui.teardown()
+        super(ApkUIWorkload, self).teardown(context)
+
+    @once
+    def finalize(self, context):
+        super(ApkUIWorkload, self).finalize(context)
+        self.gui.remove()
+
+
+class ApkUiautoWorkload(ApkUIWorkload):
+
+    platform = 'android'
+
+    def __init__(self, target, **kwargs):
+        super(ApkUiautoWorkload, self).__init__(target, **kwargs)
         self.gui = UiAutomatorGUI(self)
 
 
