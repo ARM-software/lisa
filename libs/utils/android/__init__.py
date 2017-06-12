@@ -20,6 +20,7 @@
 from screen import Screen
 from system import System
 from workload import Workload
+from viewer import ViewerWorkload
 from benchmark import LisaBenchmark
 
 # Initialization of Android Workloads
