@@ -142,7 +142,7 @@ class ApkUiautoWorkload(ApkUIWorkload):
 
     def __init__(self, target, **kwargs):
         super(ApkUiautoWorkload, self).__init__(target, **kwargs)
-        self.apk = ApkHander(self)
+        self.apk = PackageHandler(self)
         self.gui = UiAutomatorGUI(self)
 
 
@@ -157,7 +157,7 @@ class ReventWorkload(ApkUIWorkload):
 
     def __init__(self, target, **kwargs):
         super(ReventWorkload, self).__init__(target, **kwargs)
-        self.apk = ApkHander(self)
+        self.apk = PackageHandler(self)
         self.gui = ReventGUI(self, target,
                              self.setup_timeout,
                              self.run_timeout,
@@ -333,7 +333,7 @@ class ReventGUI(object):
             self.target.push(self.revent_teardown_file, self.on_target_teardown_revent)
 
 
-class ApkHander(object):
+class PackageHandler(object):
 
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
                  strict=True, force_install=False, uninstall=False):
