@@ -168,21 +168,6 @@ class Executor():
     :type experiments_conf: dict
     """
 
-    critical_tasks = {
-        'linux': ['init', 'systemd', 'sh', 'ssh'],
-        'android': [
-            'sh', 'adbd',
-            'usb', 'transport',
-            # We don't actually need this task but on Google Pixel it apparently
-            # cannot be frozen, so the cgroup state gets stuck in FREEZING if we
-            # try to freeze it.
-            'thermal-engine'
-        ]
-    }
-    """
-    Dictionary mapping OS name to list of task names that we can't afford to
-    freeze when using freeeze_userspace.
-    """
 
     def __init__(self, test_env, experiments_conf):
         # Initialize globals
@@ -672,7 +657,7 @@ class Executor():
         # Freeze all userspace tasks that we don't need for running tests
         need_thaw = False
         if self._target_conf_flag(tc, 'freeze_userspace'):
-            need_thaw = self._freeze_userspace()
+            need_thaw = self.te.freeze_userspace()
 
         # FTRACE: start (if a configuration has been provided)
         if self.te.ftrace and self._target_conf_flag(tc, 'ftrace'):
@@ -708,30 +693,9 @@ class Executor():
 
         # Unfreeze the tasks we froze
         if need_thaw:
-            self._thaw_userspace()
+            self.te.thaw_userspace()
 
         self._print_footer()
-
-    def _freeze_userspace(self):
-        if 'cgroups' not in self.target.modules:
-            raise RuntimeError(
-                'Failed to freeze userspace. Ensure "cgroups" module is listed '
-                'among modules in target/test configuration')
-        controllers = [s.name for s in self.target.cgroups.list_subsystems()]
-        if 'freezer' not in controllers:
-            self._log.warning('No freezer cgroup controller on target. '
-                              'Not freezing userspace')
-            return False
-
-        exclude = self.critical_tasks[self.te.target.os]
-        self._log.info('Freezing all tasks except: %s', ','.join(exclude))
-        self.te.target.cgroups.freeze(exclude)
-        return True
-
-
-    def _thaw_userspace(self):
-        self._log.info('Un-freezing userspace tasks')
-        self.te.target.cgroups.freeze(thaw=True)
 
 ################################################################################
 # Utility Functions

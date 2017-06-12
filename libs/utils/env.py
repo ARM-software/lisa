@@ -151,6 +151,22 @@ class TestEnv(ShareState):
     :type force_new: bool
     """
 
+    critical_tasks = {
+        'linux': ['init', 'systemd', 'sh', 'ssh'],
+        'android': [
+            'sh', 'adbd',
+            'usb', 'transport',
+            # We don't actually need this task but on Google Pixel it apparently
+            # cannot be frozen, so the cgroup state gets stuck in FREEZING if we
+            # try to freeze it.
+            'thermal-engine'
+        ]
+    }
+    """
+    Dictionary mapping OS name to list of task names that we can't afford to
+    freeze when using freeeze_userspace.
+    """
+
     _initialized = False
 
     def __init__(self, target_conf=None, test_conf=None, wipe=True,
@@ -1007,6 +1023,32 @@ class TestEnv(ShareState):
 
     def _feature(self, feature):
         return feature in self.conf['__features__']
+
+    def freeze_userspace(self):
+        self.need_thaw = False
+        if 'cgroups' not in self.target.modules:
+            raise RuntimeError(
+                'Failed to freeze userspace. Ensure "cgroups" module is listed '
+                'among modules in target/test configuration')
+        controllers = [s.name for s in self.target.cgroups.list_subsystems()]
+        if 'freezer' not in controllers:
+            self._log.warning('No freezer cgroup controller on target. '
+                              'Not freezing userspace')
+            return False
+
+        exclude = self.critical_tasks[self.target.os]
+        self._log.info('Freezing all tasks except: %s', ','.join(exclude))
+        self.target.cgroups.freeze(exclude)
+        self.need_thaw = True
+        return True
+
+    def thaw_userspace(self):
+        if self.need_thaw:
+            self._log.info('Un-freezing userspace tasks')
+            self.target.cgroups.freeze(thaw=True)
+        else:
+            self._log.error('Trying to un-freeze tasks without first freezing. '
+                            'Not unfreezing userspace')
 
 IFCFG_BCAST_RE = re.compile(
     r'Bcast:(.*) '
