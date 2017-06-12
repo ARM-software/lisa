@@ -21,8 +21,13 @@ from devlib.utils.android import adb_command
 from devlib import TargetError
 import os
 import pexpect as pe
+from time import sleep
 
 GET_FRAMESTATS_CMD = 'shell dumpsys gfxinfo {} > {}'
+
+# See https://developer.android.com/reference/android/content/Intent.html#setFlags(int)
+FLAG_ACTIVITY_NEW_TASK = 0x10000000
+FLAG_ACTIVITY_CLEAR_TASK = 0x00008000
 
 class System(object):
     """
@@ -151,6 +156,29 @@ class System(object):
         :type action_args: str
         """
         target.execute('am start -a {} {}'.format(action, action_args))
+
+    @staticmethod
+    def view_uri(target, uri, force_new=True):
+        """
+        Start a view activity by specifying a URI
+
+        :param uri: URI of the item to display
+        :type uri: str
+
+        :param force_new: Force the viewing application to be
+            relaunched if it is already running
+        :type force_new: bool
+        """
+        arguments = '-d {}'.format(uri)
+
+        if force_new:
+            # Activity flags ensure the app is restarted
+            arguments = '{} -f {}'.format(arguments,
+                FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK)
+
+        System.start_action(target, 'android.intent.action.VIEW', arguments)
+        # Wait for the viewing application to be completely loaded
+        sleep(5)
 
     @staticmethod
     def force_stop(target, apk_name, clear=False):
@@ -340,6 +368,7 @@ class System(object):
         :type apk_name: str
         """
         target.execute('dumpsys gfxinfo {} reset'.format(apk_name))
+        sleep(1)
 
     @staticmethod
     def gfxinfo_get(target, apk_name, out_file):
