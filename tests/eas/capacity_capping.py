@@ -83,6 +83,7 @@ class CapacityCappingTest(unittest.TestCase):
 
     """
 
+
     @classmethod
     def setUpClass(cls):
         cls.params = {}
@@ -126,6 +127,7 @@ class CapacityCappingTest(unittest.TestCase):
         wload.conf(kind="profile", params=cls.params)
         phase_duration = WORKLOAD_DURATION_S / 3.
 
+        cls.env.freeze_userspace()
         cls.env.ftrace.start()
 
         wload.run(out_dir=cls.env.res_dir, background=True)
@@ -150,6 +152,7 @@ class CapacityCappingTest(unittest.TestCase):
 
         cls.env.ftrace.stop()
         cls.env.ftrace.get_trace(cls.trace_file)
+        cls.env.thaw_userspace()
 
     def check_residencies(self, cpus, cpus_name, window, phase_description):
         """Helper function to check the residencies of all busy threads on a
