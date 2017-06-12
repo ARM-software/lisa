@@ -34,7 +34,7 @@ from devlib.utils.misc import escape_single_quotes, escape_double_quotes
 logger = logging.getLogger('android')
 
 MAX_ATTEMPTS = 5
-AM_START_ERROR = re.compile(r"Error: Activity class {[\w|.|/]*} does not exist")
+AM_START_ERROR = re.compile(r"Error: Activity.*")
 
 # See:
 # http://developer.android.com/guide/topics/manifest/uses-sdk-element.html#ApiLevels
@@ -366,19 +366,19 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
 
     if check_exit_code:
         exit_code = exit_code.strip()
+        re_search = AM_START_ERROR.findall('{}\n{}'.format(output, error))
         if exit_code.isdigit():
             if int(exit_code):
                 message = ('Got exit code {}\nfrom target command: {}\n'
                            'STDOUT: {}\nSTDERR: {}')
                 raise TargetError(message.format(exit_code, command, output, error))
-            elif AM_START_ERROR.findall(output):
-                message = 'Could not start activity; got the following:'
-                message += '\n{}'.format(AM_START_ERROR.findall(output)[0])
-                raise TargetError(message)
-        else:  # not all digits
-            if AM_START_ERROR.findall(output):
+            elif re_search:
                 message = 'Could not start activity; got the following:\n{}'
-                raise TargetError(message.format(AM_START_ERROR.findall(output)[0]))
+                raise TargetError(message.format(re_search[0]))
+        else:  # not all digits
+            if re_search:
+                message = 'Could not start activity; got the following:\n{}'
+                raise TargetError(message.format(re_search[0]))
             else:
                 message = 'adb has returned early; did not get an exit code. '\
                           'Was kill-server invoked?'
