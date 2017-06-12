@@ -83,6 +83,7 @@ class CapacityCappingTest(unittest.TestCase):
 
     """
 
+
     @classmethod
     def setUpClass(cls):
         cls.params = {}
@@ -90,7 +91,8 @@ class CapacityCappingTest(unittest.TestCase):
         cls.trace_file = os.path.join(cls.env.res_dir, "cap_cap.dat")
         cls.populate_params()
 
-        cls.run_workload()
+        with cls.env.freeze_userspace():
+            cls.run_workload()
 
         trace = trappy.FTrace(cls.trace_file)
         cls.sa = SchedMultiAssert(trace, cls.env.topology,
