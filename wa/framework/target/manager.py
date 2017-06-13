@@ -9,6 +9,7 @@ from wa.framework.target.info import TargetInfo
 from wa.framework.target.runtime_parameter_manager import RuntimeParameterManager
 
 from devlib.utils.misc import memoized
+from devlib.exception import TargetError
 
 
 class TargetManager(object):
@@ -39,7 +40,12 @@ class TargetManager(object):
         # and restore orignal configuration after completed.
         if self.target.has('hotplug'):
             online_cpus = self.target.list_online_cpus()
-            self.target.hotplug.online_all()
+            try:
+                self.target.hotplug.online_all()
+            except TargetError:
+                msg = 'Failed to online all CPUS - some information may not be '\
+                      'able to be retrieved.'
+                self.logger.debug(msg)
             self.rpm = RuntimeParameterManager(self.target)
             all_cpus = set(range(self.target.number_of_cpus))
             self.target.hotplug.offline(*all_cpus.difference(online_cpus))
