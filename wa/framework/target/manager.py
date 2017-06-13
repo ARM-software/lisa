@@ -37,7 +37,7 @@ class TargetManager(object):
         self._init_target()
 
         # If target supports hotplugging, online all cpus before perform discovery
-        # and restore orignal configuration after completed.
+        # and restore original configuration after completed.
         if self.target.has('hotplug'):
             online_cpus = self.target.list_online_cpus()
             try:
