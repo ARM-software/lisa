@@ -203,6 +203,19 @@ class TestBase(utils_tests.SetupDirectory):
         self.assertEquals(round(thrm.data_frame.index[0], 7), 0)
         self.assertEquals(round(last_time - expected_last_time, 7), 0)
 
+    def test_line_num(self):
+        """TestBase: Test line number functionality"""
+        trace = trappy.FTrace()
+        self.assertEquals(trace.lines, 804)
+
+        df = trace.thermal.data_frame
+        self.assertEquals(df.iloc[0]['__line'], 0);
+        self.assertEquals(df.iloc[-1]['__line'], 792);
+
+        df = trace.thermal_governor.data_frame
+        self.assertEquals(df.iloc[0]['__line'], 11);
+        self.assertEquals(df.iloc[-1]['__line'], 803)
+
     def test_equals_in_field_value(self):
         """TestBase: Can parse events with fields with values containing '='"""
         trace = trappy.FTrace("trace_equals.txt", events=['equals_event'])
