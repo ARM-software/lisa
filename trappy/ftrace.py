@@ -18,6 +18,7 @@
 # pylint: disable=no-member
 
 import itertools
+import json
 import os
 import re
 import pandas as pd
@@ -74,27 +75,32 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         cache_path = os.path.join(tracefile_dir, cache_dir)
         return cache_path
 
-    def _check_trace_cache(self):
+    def _check_trace_cache(self, params):
         cache_path = self._trace_cache_path()
         md5file = os.path.join(cache_path, 'md5sum')
+        params_path = os.path.join(cache_path, 'params.json')
 
-        if not os.path.exists(cache_path) or not os.path.exists(md5file):
-            return False
+        for path in [cache_path, md5file, params_path]:
+            if not os.path.exists(path):
+                return False
 
         with open(md5file) as f:
             cache_md5sum = f.read()
         with open(self.trace_path, 'rb') as f:
             trace_md5sum = hashlib.md5(f.read()).hexdigest()
+        with open(params_path) as f:
+            cache_params = json.load(f)
 
         # check if cache is valid
-        if cache_md5sum != trace_md5sum:
+        if cache_md5sum != trace_md5sum or cache_params != params:
             shutil.rmtree(cache_path)
             return False
         return True
 
-    def _create_trace_cache(self):
+    def _create_trace_cache(self, params):
         cache_path = self._trace_cache_path()
         md5file = os.path.join(cache_path, 'md5sum')
+        params_path = os.path.join(cache_path, 'params.json')
 
         if os.path.exists(cache_path):
             shutil.rmtree(cache_path)
@@ -103,6 +109,9 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         md5sum = hashlib.md5(open(self.trace_path, 'rb').read()).hexdigest()
         with open(md5file, 'w') as f:
             f.write(md5sum)
+
+        with open(params_path, 'w') as f:
+            json.dump(params, f)
 
     def _get_csv_path(self, trace_class):
         path = self._trace_cache_path()
@@ -173,7 +182,8 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                 del scope_classes[name]
 
     def _do_parse(self):
-        if not self.__class__.disable_cache and self._check_trace_cache():
+        params = {'window': self.window, 'abs_window': self.abs_window}
+        if not self.__class__.disable_cache and self._check_trace_cache(params):
             # Read csv into frames
             for trace_class in self.trace_classes:
                 try:
@@ -190,7 +200,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             try:
                 # Recreate basic cache directories only if nothing cached
                 if not all([c.cached for c in self.trace_classes]):
-                    self._create_trace_cache()
+                    self._create_trace_cache(params)
 
                 # Write out only events that weren't cached before
                 for trace_class in self.trace_classes:
