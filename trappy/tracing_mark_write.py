@@ -37,4 +37,7 @@ class TracingMarkWrite(Base):
         data_dict = { 'string': data_str }
         return data_dict
 
+    def __init__(self):
+        super(TracingMarkWrite, self).__init__(fallback=True)
+
 register_ftrace_parser(TracingMarkWrite)

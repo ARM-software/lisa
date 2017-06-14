@@ -95,10 +95,15 @@ class Base(object):
     :param parse_raw: If :code:`True`, raw trace data (-R option) to
         trace-cmd will be used
 
+    :param fallback: If :code:`True`, the parsing class will be used
+        only if no other candidate class's unique_word matched. subclasses
+        should override this (for ex. TracingMarkWrite uses it)
+
     This class acts as a base class for all TRAPpy events
 
     """
-    def __init__(self, parse_raw=False):
+    def __init__(self, parse_raw=False, fallback=False):
+        self.fallback = fallback
         self.tracer = None
         self.data_frame = pd.DataFrame()
         self.data_array = []

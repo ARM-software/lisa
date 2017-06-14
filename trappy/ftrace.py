@@ -181,9 +181,11 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             for unique_word, cls in cls_for_unique_word.iteritems():
                 if unique_word in line:
                     trace_class = cls
-                    break
+                    if not cls.fallback:
+                        break
             else:
-                raise FTraceParseError("No unique word in '{}'".format(line))
+                if not trace_class:
+                    raise FTraceParseError("No unique word in '{}'".format(line))
 
             line = line[:-1]
 
