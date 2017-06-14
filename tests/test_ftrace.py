@@ -424,6 +424,10 @@ class TestFTraceSched(utils_tests.SetupDirectory):
         """Test with a matching unique but no special fields"""
         version_parser = trappy.register_dynamic_ftrace("Version", "version")
 
+        # Append invalid line to file
+        with open("trace.txt", "a") as fil:
+            fil.write("version = 6")
+
         with self.assertRaises(ValueError):
             trappy.FTrace(scope="custom")
 
