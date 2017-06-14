@@ -27,24 +27,26 @@ the trace
     the headers that start with #
 
     """
-    def __init__(self):
+    def __init__(self, tracer):
         self.before_begin_trace = True
-        self.before_script_trace_data = True
         self.before_actual_trace = True
+        self.tracer = tracer
 
     def __call__(self, line):
         if self.before_begin_trace:
             if line.startswith("<!-- BEGIN TRACE -->") or \
                line.startswith("<title>Android System Trace</title>"):
                 self.before_begin_trace = False
-        elif self.before_script_trace_data:
+        elif self.before_actual_trace:
             if line.startswith('  <script class="trace-data"') or \
                line.startswith("  var linuxPerfData"):
-                self.before_script_trace_data = False
-        elif not line.startswith("#"):
-            self.before_actual_trace = False
+                self.before_actual_trace = False
 
-        return self.before_actual_trace
+        if not self.before_actual_trace:
+            base_call = super(SysTrace, self.tracer).trace_hasnt_started()
+            return base_call(line)
+        else:
+            return True
 
 class SysTrace(GenericFTrace):
     """A wrapper that parses all events of a SysTrace run
@@ -67,7 +69,7 @@ class SysTrace(GenericFTrace):
             pass
 
     def trace_hasnt_started(self):
-        return drop_before_trace()
+        return drop_before_trace(self)
 
     def trace_hasnt_finished(self):
         """Return a function that returns True while the current line is still part of the trace

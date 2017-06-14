@@ -85,7 +85,7 @@ class TestBase(utils_tests.SetupDirectory):
         in_data = """     kworker/4:1-397   [004]   720.741315: thermal_power_cpu_get: cpus=000000f0 freq=1900000 raw_cpu_power=1259 load={} power=61
      kworker/4:1-397   [004]   720.741349: thermal_power_cpu_get: cpus=0000000f freq=1400000 raw_cpu_power=189 load={} power=14"""
 
-        expected_columns = set(["__comm", "__pid", "__cpu", "cpus", "freq",
+        expected_columns = set(["__comm", "__pid", "__cpu", "__line", "cpus", "freq",
                                 "raw_cpu_power", "power"])
 
         with open("trace.txt", "w") as fout:
@@ -121,7 +121,7 @@ class TestBase(utils_tests.SetupDirectory):
                         timestamp
                         )
 
-        expected_columns = set(["__comm", "__pid", "__cpu", "tag"])
+        expected_columns = set(["__comm", "__pid", "__cpu", "__line", "tag"])
 
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
@@ -145,7 +145,7 @@ class TestBase(utils_tests.SetupDirectory):
 
         in_data = """     rcu_preempt-7     [000]    73.604532: my_sched_stat_runtime:   comm=Space separated taskname pid=7 runtime=262875 [ns] vruntime=17096359856 [ns]"""
 
-        expected_columns = set(["__comm", "__pid", "__cpu", "comm", "pid", "runtime", "vruntime"])
+        expected_columns = set(["__comm", "__pid", "__cpu", "__line", "comm", "pid", "runtime", "vruntime"])
 
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
@@ -203,13 +203,26 @@ class TestBase(utils_tests.SetupDirectory):
         self.assertEquals(round(thrm.data_frame.index[0], 7), 0)
         self.assertEquals(round(last_time - expected_last_time, 7), 0)
 
+    def test_line_num(self):
+        """TestBase: Test line number functionality"""
+        trace = trappy.FTrace()
+        self.assertEquals(trace.lines, 804)
+
+        df = trace.thermal.data_frame
+        self.assertEquals(df.iloc[0]['__line'], 0);
+        self.assertEquals(df.iloc[-1]['__line'], 792);
+
+        df = trace.thermal_governor.data_frame
+        self.assertEquals(df.iloc[0]['__line'], 11);
+        self.assertEquals(df.iloc[-1]['__line'], 803)
+
     def test_equals_in_field_value(self):
         """TestBase: Can parse events with fields with values containing '='"""
         trace = trappy.FTrace("trace_equals.txt", events=['equals_event'])
 
         df = trace.equals_event.data_frame
         self.assertSetEqual(set(df.columns),
-                            set(["__comm", "__pid", "__cpu", "my_field"]))
+                            set(["__comm", "__pid", "__cpu", "__line", "my_field"]))
         self.assertListEqual(df["my_field"].tolist(),
                              ["foo", "foo=bar", "foo=bar=baz", 1,
                               "1=2", "1=foo", "1foo=2"])
