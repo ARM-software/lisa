@@ -168,11 +168,10 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                     return True
             return False
 
-        special_fields_regexp = r"^\s*(?P<comm>.*)-(?P<pid>\d+)(?:\s+\(.*\))"\
+        fields_regexp = r"^\s*(?P<comm>.*)-(?P<pid>\d+)(?:\s+\(.*\))"\
                                 r"?\s+\[(?P<cpu>\d+)\](?:\s+....)?\s+"\
-                                r"(?P<timestamp>[0-9]+\.[0-9]+):"
-        special_fields_regexp = re.compile(special_fields_regexp)
-        start_match = re.compile(r"[A-Za-z0-9_]+=")
+                                r"(?P<timestamp>[0-9]+\.[0-9]+): (\w+:\s+)+(?P<data>.+)"
+        fields_regexp = re.compile(fields_regexp)
 
         actual_trace = itertools.dropwhile(self.trace_hasnt_started(), fin)
         actual_trace = itertools.takewhile(self.trace_hasnt_finished(),
@@ -182,19 +181,22 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             for unique_word, cls in cls_for_unique_word.iteritems():
                 if unique_word in line:
                     trace_class = cls
-                    break
+                    if not cls.fallback:
+                        break
             else:
-                raise FTraceParseError("No unique word in '{}'".format(line))
+                if not trace_class:
+                    raise FTraceParseError("No unique word in '{}'".format(line))
 
             line = line[:-1]
 
-            special_fields_match = special_fields_regexp.match(line)
-            if not special_fields_match:
+            fields_match = fields_regexp.match(line)
+            if not fields_match:
                 raise FTraceParseError("Couldn't match special fields in '{}'".format(line))
-            comm = special_fields_match.group('comm')
-            pid = int(special_fields_match.group('pid'))
-            cpu = int(special_fields_match.group('cpu'))
-            timestamp = float(special_fields_match.group('timestamp'))
+            comm = fields_match.group('comm')
+            pid = int(fields_match.group('pid'))
+            cpu = int(fields_match.group('cpu'))
+            timestamp = float(fields_match.group('timestamp'))
+            data_str = fields_match.group('data')
 
             if not self.basetime:
                 self.basetime = timestamp
@@ -206,13 +208,6 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             if (window[1] and timestamp > window[1] + self.basetime) or \
                (abs_window[1] and timestamp > abs_window[1]):
                 return
-
-            try:
-                data_start_idx =  start_match.search(line).start()
-            except AttributeError:
-                continue
-
-            data_str = line[data_start_idx:]
 
             # Remove empty arrays from the trace
             data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)

@@ -21,7 +21,8 @@ class TestSystrace(utils_tests.SetupDirectory):
 
     def __init__(self, *args, **kwargs):
         super(TestSystrace, self).__init__(
-             [("trace_systrace.html", "trace.html")],
+             [("trace_systrace.html", "trace.html"),
+             ("trace_surfaceflinger.html", "trace_sf.html")],
              *args,
              **kwargs)
 
@@ -51,6 +52,17 @@ class TestSystrace(utils_tests.SetupDirectory):
         self.assertTrue(hasattr(trace, "_cpus"))
         self.assertEquals(trace._cpus, 3)
 
+    def test_systrace_userspace(self):
+        """Test parsing of userspace events"""
+
+        trace = trappy.SysTrace("trace_sf.html")
+        dfr = trace.tracing_mark_write.data_frame
+        self.assertTrue(dfr['__pid'].iloc[2], 7459)
+        self.assertTrue(dfr['__comm'].iloc[2], 'RenderThread')
+        self.assertTrue(dfr['pid'].iloc[2], 7459)
+        self.assertTrue(dfr['event'].iloc[2], 'B')
+        self.assertTrue(dfr['func'].iloc[2], 'notifyFramePending')
+        self.assertTrue(dfr['data'].iloc[-2], 'HW_VSYNC_0')
 
 class TestLegacySystrace(utils_tests.SetupDirectory):
 

@@ -14,6 +14,10 @@
 #
 
 from trappy.ftrace import GenericFTrace
+import re
+
+SYSTRACE_EVENT = re.compile(
+    r'^(?P<event>[A-Z])(\|(?P<pid>\d+)\|(?P<func>.*)(\|(?P<data>\d+))?)?')
 
 class drop_before_trace(object):
     """Object that, when called, returns True if the line is not part of
@@ -75,3 +79,16 @@ class SysTrace(GenericFTrace):
 
         """
         return lambda x: not x.endswith("</script>\n")
+
+    def generate_data_dict(self, data_str):
+        """ Custom parsing for systrace's userspace events """
+        data_dict = None
+
+        match = SYSTRACE_EVENT.match(data_str)
+        if match:
+            data_dict = { 'event': match.group('event'),
+                          'pid'  : match.group('pid'),
+                          'func' : match.group('func'),
+                          'data' : match.group('data') }
+
+        return data_dict
