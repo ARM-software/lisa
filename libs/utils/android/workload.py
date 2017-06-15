@@ -48,6 +48,14 @@ class Workload(object):
         return 'adb -s {} {}'.format(self._target.adb_name, cmd)
 
     @classmethod
+    def _subclasses(cls):
+        """
+        Recursively get all subclasses
+        """
+        nodes = cls.__subclasses__()
+        return nodes + [child for node in nodes for child in node._subclasses()]
+
+    @classmethod
     def _check_availables(cls, test_env):
         """
         List the supported android workloads which are available on the target
@@ -60,7 +68,7 @@ class Workload(object):
         _log.debug('Packages:\n%s', cls._packages)
 
         _log.debug('Building list of available workloads...')
-        for sc in Workload.__subclasses__():
+        for sc in Workload._subclasses():
             _log.debug('Checking workload [%s]...', sc.__name__)
             if sc.package in cls._packages or sc.package == '':
                 cls._availables[sc.__name__.lower()] = sc
