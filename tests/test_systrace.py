@@ -64,6 +64,15 @@ class TestSystrace(utils_tests.SetupDirectory):
         self.assertTrue(dfr['func'].iloc[2], 'notifyFramePending')
         self.assertTrue(dfr['data'].iloc[-2], 'HW_VSYNC_0')
 
+    def test_systrace_line_num(self):
+        """Test for line numbers in a systrace"""
+        trace = trappy.SysTrace("trace_sf.html")
+        dfr = trace.sched_switch.data_frame
+        self.assertEquals(trace.lines, 2506)
+        self.assertEquals(dfr['__line'].iloc[0], 0)
+        self.assertEquals(dfr['__line'].iloc[1], 6)
+        self.assertEquals(dfr['__line'].iloc[-1], 2505)
+
 class TestLegacySystrace(utils_tests.SetupDirectory):
 
     def __init__(self, *args, **kwargs):
