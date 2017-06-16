@@ -17,7 +17,7 @@ from trappy.ftrace import GenericFTrace
 import re
 
 SYSTRACE_EVENT = re.compile(
-    r'^(?P<event>[A-Z])(\|(?P<pid>\d+)\|(?P<func>.*)(\|(?P<data>\d+))?)?')
+    r'^(?P<event>[A-Z])(\|(?P<pid>\d+)\|(?P<func>[^|]*)(\|(?P<data>.*))?)?')
 
 class drop_before_trace(object):
     """Object that, when called, returns True if the line is not part of
