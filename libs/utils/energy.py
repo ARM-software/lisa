@@ -150,7 +150,7 @@ class HWMon(EnergyMeter):
             if not all (s in available_sites for s in self._channels.values()):
                 raise RuntimeError(
                     "Found sites {} but channel_map contains {}".format(
-                        sorted(available_sites), sorted(channels.values())))
+                        sorted(available_sites), sorted(self._channels.values())))
         elif self._target.big_core:
             bl_sites = [self._target.big_core.upper(),
                         self._target.little_core.upper()]
