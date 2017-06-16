@@ -175,7 +175,7 @@ cd iio-capture && make && sudo make install && cd -
 
 If you are using a MicroSD card, please ensure that the card is properly inserted in its slot and to keep pressed the power push-button while connecting the power (via the miniUSB cable).
 Here is an image of the configuration we usually use:
-![ACME Cape Configuration](https://drive.google.com/open?id=0B5oRu4ZO-uuKcTFEQmpGNVJYQlU)
+[[images/ACMECapeBoardConfiguration.png]]
 
 
 Once the board is booted, by default it has its IP address associated with the `baylibre-acme.local` hostname.
