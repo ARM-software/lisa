@@ -92,7 +92,7 @@ class Base(object):
     e.g. "sched_switch:") but it can be anything else for trace points
     generated using trace_printk().
 
-    :param parse_raw: If :code:`True`, raw trace data (-R option) to
+    :param parse_raw: If :code:`True`, raw trace data (-r option) to
         trace-cmd will be used
 
     :param fallback: If :code:`True`, the parsing class will be used

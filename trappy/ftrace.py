@@ -66,9 +66,6 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                  events=[], window=(0, None), abs_window=(0, None)):
         super(GenericFTrace, self).__init__(name)
 
-        if not hasattr(self, "needs_raw_parsing"):
-            self.needs_raw_parsing = False
-
         self.class_definitions.update(self.dynamic_classes.items())
         self.__add_events(listify(events))
 
@@ -268,9 +265,6 @@ is part of the trace.
         cls_for_unique_word = {}
         for trace_name in self.class_definitions.iterkeys():
             trace_class = getattr(self, trace_name)
-
-            if self.needs_raw_parsing and (trace_class.parse_raw != raw):
-                continue
 
             unique_word = trace_class.unique_word
             cls_for_unique_word[unique_word] = trace_class
@@ -503,7 +497,6 @@ class FTrace(GenericFTrace):
 
     def __init__(self, path=".", name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
-        self.needs_raw_parsing = True
         super(FTrace, self).__init__(name, normalize_time, scope, events,
                                      window, abs_window)
         self.raw_events = []
@@ -561,11 +554,14 @@ class FTrace(GenericFTrace):
                         self.raw_events.append(name)
 
     def __run_trace_cmd_report(self, fname):
-        """Run "trace-cmd report fname > fname.txt"
+        """Run "trace-cmd report [ -r raw_event ]* fname > fname.txt"
 
         The resulting trace is stored in files with extension ".txt". If
         fname is "my_trace.dat", the trace is stored in "my_trace.txt". The
         contents of the destination file is overwritten if it exists.
+        Trace events which require unformatted output (raw_event == True)
+        are added to the command line with one '-r <event>' each event and
+        trace-cmd then prints those events without formatting.
 
         """
         from subprocess import check_output

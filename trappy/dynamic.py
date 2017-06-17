@@ -81,7 +81,7 @@ def register_dynamic_ftrace(class_name, unique_word, scope="all",
         the parsing of events and group them together)
     :type scope: str
 
-    :param parse_raw: If, true, raw trace output (-R flag)
+    :param parse_raw: If, true, raw trace output (-r flag)
         will be used
     :type parse_raw: bool
 
