@@ -181,14 +181,14 @@ class TestFTrace(BaseTestThermal):
 
 
     def test_ftrace_normalize_time(self):
-        """FTrace().normalize_time() works accross all classes"""
+        """FTrace()._normalize_time() works accross all classes"""
 
         trace = trappy.FTrace(normalize_time=False)
 
         prev_inpower_basetime = trace.cpu_in_power.data_frame.index[0]
         prev_inpower_last = trace.cpu_in_power.data_frame.index[-1]
 
-        trace.normalize_time()
+        trace._normalize_time()
 
         self.assertEquals(round(trace.thermal.data_frame.index[0], 7), 0)
 

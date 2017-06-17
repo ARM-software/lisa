@@ -66,7 +66,7 @@ class TestBareTrace(unittest.TestCase):
         trace.add_parsed_event("load_event", self.dfr[1].copy())
 
         basetime = self.dfr[0].index[0]
-        trace.normalize_time(basetime)
+        trace._normalize_time(basetime)
 
         expected_duration = self.dfr[1].index[-1] - basetime
         self.assertEquals(trace.get_duration(), expected_duration)
@@ -80,7 +80,7 @@ class TestBareTrace(unittest.TestCase):
         prev_first_time = trace.pmu_counter.data_frame.index[0]
         basetime = 3
 
-        trace.normalize_time(basetime)
+        trace._normalize_time(basetime)
 
         self.assertEquals(trace.basetime, basetime)
 

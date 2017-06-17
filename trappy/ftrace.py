@@ -85,14 +85,10 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             setattr(self, attr, trace_class)
             self.trace_classes.append(trace_class)
 
-        self.__parse_trace_file(self.trace_path, window, abs_window)
-        if self.needs_raw_parsing and (self.trace_path_raw is not None):
-            self.__parse_trace_file(self.trace_path_raw, window, abs_window,
-                                    raw=True)
-        self.finalize_objects()
-
-        if normalize_time:
-            self.normalize_time()
+        # save parameters to complete init later
+        self.normalize_time = normalize_time
+        self.window = window
+        self.abs_window = abs_window
 
     @classmethod
     def register_parser(cls, cobject, scope):
@@ -133,6 +129,13 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             if cobject == obj:
                 del scope_classes[name]
 
+    def _do_parse(self):
+        self.__parse_trace_file(self.trace_path)
+        self.finalize_objects()
+
+        if self.normalize_time:
+            self._normalize_time()
+
     def __add_events(self, events):
         """Add events to the class_definitions
 
@@ -165,7 +168,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                 trace_class = DynamicTypeFactory(event_name, (Base,), kwords)
                 self.class_definitions[event_name] = trace_class
 
-    def __populate_data(self, fin, cls_for_unique_word, window, abs_window):
+    def __populate_data(self, fin, cls_for_unique_word):
         """Append to trace data from a txt trace"""
 
         def contains_unique_word(line, unique_words=cls_for_unique_word.keys()):
@@ -212,13 +215,13 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             if not self.basetime:
                 self.basetime = timestamp
 
-            if (timestamp < window[0] + self.basetime) or \
-               (timestamp < abs_window[0]):
+            if (timestamp < self.window[0] + self.basetime) or \
+               (timestamp < self.abs_window[0]):
                 self.lines += 1
                 continue
 
-            if (window[1] and timestamp > window[1] + self.basetime) or \
-               (abs_window[1] and timestamp > abs_window[1]):
+            if (self.window[1] and timestamp > self.window[1] + self.basetime) or \
+               (self.abs_window[1] and timestamp > self.abs_window[1]):
                 return
 
             # Remove empty arrays from the trace
@@ -258,7 +261,7 @@ is part of the trace.
         """
         return lambda x: True
 
-    def __parse_trace_file(self, trace_file, window, abs_window, raw=False):
+    def __parse_trace_file(self, trace_file):
         """parse the trace and create a pandas DataFrame"""
 
         # Memoize the unique words to speed up parsing the trace file
@@ -279,7 +282,7 @@ is part of the trace.
             with open(trace_file) as fin:
                 self.lines = 0
                 self.__populate_data(
-                    fin, cls_for_unique_word, window, abs_window)
+                    fin, cls_for_unique_word)
         except FTraceParseError as e:
             raise ValueError('Failed to parse ftrace file {}:\n{}'.format(
                 trace_file, str(e)))
@@ -500,13 +503,12 @@ class FTrace(GenericFTrace):
 
     def __init__(self, path=".", name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
-        self.trace_path, self.trace_path_raw = self.__process_path(path)
         self.needs_raw_parsing = True
-
-        self.__populate_metadata()
-
         super(FTrace, self).__init__(name, normalize_time, scope, events,
                                      window, abs_window)
+        self.trace_path, self.trace_path_raw = self.__process_path(path)
+        self.__populate_metadata()
+        self._do_parse()
 
     def __process_path(self, basepath):
         """Process the path and return the path to the trace text file"""

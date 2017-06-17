@@ -63,6 +63,7 @@ class SysTrace(GenericFTrace):
         super(SysTrace, self).__init__(name, normalize_time, scope, events,
                                        window, abs_window)
 
+        self._do_parse()
         try:
             self._cpus = 1 + self.sched_switch.data_frame["__cpu"].max()
         except AttributeError:
