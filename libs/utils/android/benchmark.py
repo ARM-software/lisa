@@ -116,7 +116,7 @@ class LisaBenchmark(object):
 
         # Test customization
         parser.add_argument('--results-dir', type=str,
-                default=None,
+                default=self.__class__.__name__,
                 help='Results folder, '
                      'if specified override test defaults')
         parser.add_argument('--collect', type=str,
