@@ -55,6 +55,7 @@ class LisaBenchmark(object):
         # Define devlib modules to load
         "modules"     : [
             'cpufreq',
+            'cpuidle',
         ],
 
         # FTrace events to collect for all the tests configuration which have
