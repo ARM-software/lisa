@@ -11,52 +11,6 @@ from devlib.exception import TargetError
 
 class VellamoTest(LisaBenchmark):
 
-    bm_conf = {
-
-        # Target platform and board
-        "platform"      : 'android',
-
-        # Define devlib modules to load
-        "modules"     : [
-            'cpufreq',
-        ],
-
-        # FTrace events to collect for all the tests configuration which have
-        # the "ftrace" flag enabled
-        "ftrace"  : {
-            "events" : [
-                "sched_switch",
-                "sched_overutilized",
-                "sched_contrib_scale_f",
-                "sched_load_avg_cpu",
-                "sched_load_avg_task",
-                "sched_tune_tasks_update",
-                "sched_boost_cpu",
-                "sched_boost_task",
-                "sched_energy_diff",
-                "cpu_frequency",
-                "cpu_idle",
-                "cpu_capacity",
-            ],
-            "buffsize" : 10 * 1024,
-        },
-
-        # Default EnergyMeter Configuration
-        "emeter" : {
-            "instrument" : "acme",
-            "channel_map" : {
-                "Device0" : 0,
-            }
-        },
-
-        # Tools required by the experiments
-        "tools"   : [ 'trace-cmd' ],
-
-		# Default results folder
-		"results_dir" : "AndroidVellamo",
-
-    }
-
     # Android Workload to run
     bm_name = 'Vellamo'
 
