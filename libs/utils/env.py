@@ -520,7 +520,8 @@ class TestEnv(ShareState):
             self.target = devlib.LocalLinuxTarget(
                     platform = platform,
                     load_default_modules = False,
-                    modules = self.__modules)
+                    modules = self.__modules,
+                    connection_settings = {'unrooted': True})
         else:
             raise ValueError('Config error: not supported [platform] type {}'\
                     .format(platform_type))
