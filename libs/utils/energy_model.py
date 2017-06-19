@@ -147,6 +147,8 @@ class EnergyModelNode(_CpuTree):
                  cpu=None, children=None, name=None):
         super(EnergyModelNode, self).__init__(cpu, children)
 
+        self._log = logging.getLogger('EnergyModel')
+
         def is_monotonic(l, decreasing=False):
             op = operator.ge if decreasing else operator.le
             return all(op(a, b) for a, b in zip(l, l[1:]))
@@ -155,14 +157,14 @@ class EnergyModelNode(_CpuTree):
             # Sanity check for active_states's frequencies
             freqs = active_states.keys()
             if not is_monotonic(freqs):
-                raise ValueError(
+                self._log.warning(
                     'Active states frequencies are expected to be '
                     'monotonically increasing. Freqs: {}'.format(freqs))
 
             # Sanity check for active_states's powers
             power_vals = [s.power for s in active_states.values()]
             if not is_monotonic(power_vals):
-                raise ValueError(
+                self._log.warning(
                     'Active states powers are expected to be '
                     'monotonically increasing. Values: {}'.format(power_vals))
 
@@ -170,7 +172,7 @@ class EnergyModelNode(_CpuTree):
         if idle_states:
             power_vals = idle_states.values()
             if not is_monotonic(power_vals, decreasing=True):
-                raise ValueError(
+                self._log.warning(
                     'Idle states powers are expected to be '
                     'monotonically decreasing. Values: {}'.format(power_vals))
 
