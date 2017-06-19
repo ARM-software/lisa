@@ -230,6 +230,31 @@ class TestFTrace(BaseTestThermal):
         # Make sure there are no NaNs in the middle of the array
         self.assertTrue(allfreqs[0][1]["A57_freq_in"].notnull().all())
 
+    def test_apply_callbacks(self):
+        """Test apply_callbacks()"""
+
+        counts = {
+            "cpu_in_power": 0,
+            "cpu_out_power": 0
+        }
+
+        def cpu_in_power_fn(data):
+            counts["cpu_in_power"] += 1
+
+        def cpu_out_power_fn(data):
+            counts["cpu_out_power"] += 1
+
+        fn_map = {
+            "cpu_in_power": cpu_in_power_fn,
+            "cpu_out_power": cpu_out_power_fn
+        }
+        trace = trappy.FTrace()
+
+        trace.apply_callbacks(fn_map)
+
+        self.assertEqual(counts["cpu_in_power"], 134)
+        self.assertEqual(counts["cpu_out_power"], 134)
+
     def test_plot_freq_hists(self):
         """Test that plot_freq_hists() doesn't bomb"""
 

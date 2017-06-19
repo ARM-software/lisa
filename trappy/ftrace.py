@@ -401,6 +401,55 @@ is part of the trace.
 
         return ret
 
+    def apply_callbacks(self, fn_map):
+        """
+        Apply callback functions to trace events in chronological order.
+
+        This method iterates over a user-specified subset of the available trace
+        event dataframes, calling different user-specified functions for each
+        event type. These functions are passed a dictionary mapping 'Index' and
+        the column names to their values for that row.
+
+        For example, to iterate over trace t, applying your functions callback_fn1
+        and callback_fn2 to each sched_switch and sched_wakeup event respectively:
+
+        t.apply_callbacks({
+            "sched_switch": callback_fn1,
+            "sched_wakeup": callback_fn2
+        })
+        """
+        dfs = {event: getattr(self, event).data_frame for event in fn_map.keys()}
+        events = [event for event in fn_map.keys() if not dfs[event].empty]
+        iters = {event: dfs[event].itertuples() for event in events}
+        next_rows = {event: iterator.next() for event,iterator in iters.iteritems()}
+
+        # Column names beginning with underscore will not be preserved in tuples
+        # due to constraints on namedtuple field names, so store mappings from
+        # column name to column number for each trace event.
+        col_idxs = {event: {
+            name: idx for idx, name in enumerate(
+                ['Index'] + dfs[event].columns.tolist()
+            )
+        } for event in events}
+
+        def getLine(event):
+            line_col_idx = col_idxs[event]['__line']
+            return next_rows[event][line_col_idx]
+
+        while events:
+            event_name = min(events, key=getLine)
+            event_tuple = next_rows[event_name]
+
+            event_dict = {
+                col: event_tuple[idx] for col, idx in col_idxs[event_name].iteritems()
+            }
+            fn_map[event_name](event_dict)
+            event_row = next(iters[event_name], None)
+            if event_row:
+                next_rows[event_name] = event_row
+            else:
+                events.remove(event_name)
+
     def plot_freq_hists(self, map_label, ax):
         """Plot histograms for each actor input and output frequency
 
