@@ -6,3 +6,4 @@
     + [Integrating a new board in LISA](https://github.com/ARM-software/lisa/wiki/Integrating-a-new-board-in-LISA)
     + [Energy Meters Requirements](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements)
 * [Android Tools for Tracing](https://github.com/ARM-software/lisa/wiki/Android-Tools-for-Tracing)
+* [FAQ](https://github.com/ARM-software/lisa/wiki/FAQ)
