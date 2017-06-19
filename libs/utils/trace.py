@@ -294,7 +294,7 @@ class Trace(object):
             self._scanTasks(df, name_key=name_key, pid_key=pid_key)
 
         if 'sched_switch' in self.available_events:
-            load('sched_switch', 'next_comm', 'next_pid')
+            load('sched_switch', 'prev_comm', 'prev_pid')
             return
 
         if 'sched_load_avg_task' in self.available_events:
