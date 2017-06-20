@@ -352,34 +352,14 @@ class TestFTraceRawDat(utils_tests.SetupDirectory):
         shutil.move("trace.dat", arbitrary_name)
 
         trace = trappy.FTrace(arbitrary_name)
-        self.assertTrue(os.path.isfile("my_trace.raw.txt"))
         self.assertTrue(hasattr(trace, "sched_switch"))
         self.assertTrue(len(trace.sched_switch.data_frame) > 0)
-
-    def test_raw_created_if_dat_and_txt_exist(self):
-        """trace.raw.txt is created when both trace.dat and trace.txt exist"""
-
-        # Create the trace.txt
-        cmd = ["trace-cmd", "report", "trace.dat"]
-        with open(os.devnull) as devnull:
-            out = subprocess.check_output(cmd, stderr=devnull)
-
-        with open("trace.txt", "w") as fout:
-            fout.write(out)
-
-        # Now check that the raw trace is created and analyzed when creating the trace
-        trace = trappy.FTrace()
-
-        self.assertTrue(hasattr(trace, "sched_switch"))
-        self.assertTrue(len(trace.sched_switch.data_frame) > 0)
-        self.assertTrue("prev_comm" in trace.sched_switch.data_frame.columns)
 
 class TestFTraceRawBothTxt(utils_tests.SetupDirectory):
 
     def __init__(self, *args, **kwargs):
         super(TestFTraceRawBothTxt, self).__init__(
-             [("raw_trace.txt", "trace.txt"),
-              ("raw_trace.raw.txt", "trace.raw.txt")],
+             [("raw_trace.txt", "trace.txt"),],
              *args,
              **kwargs)
 
@@ -395,10 +375,8 @@ class TestFTraceRawBothTxt(utils_tests.SetupDirectory):
         """Test raw parsing for txt files arbitrary name"""
 
         arbitrary_name = "my_trace.txt"
-        arbitrary_name_raw = "my_trace.raw.txt"
 
         shutil.move("trace.txt", arbitrary_name)
-        shutil.move("trace.raw.txt", arbitrary_name_raw)
 
         trace = trappy.FTrace(arbitrary_name)
         self.assertTrue(hasattr(trace, "sched_switch"))
@@ -475,14 +453,6 @@ class TestTraceDat(utils_tests.SetupDirectory):
 
         self.assert_thermal_in_trace("trace.txt")
 
-    def test_do_raw_txt_if_not_there(self):
-        """Create trace.raw.txt if it's not there"""
-        self.assertFalse(os.path.isfile("trace.raw.txt"))
-
-        trappy.FTrace()
-
-        self.assert_thermal_in_trace("trace.raw.txt")
-
     def test_ftrace_arbitrary_trace_dat(self):
         """FTrace() works if asked to parse a binary trace with a filename other than trace.dat"""
         arbitrary_trace_name = "my_trace.dat"
@@ -491,11 +461,9 @@ class TestTraceDat(utils_tests.SetupDirectory):
         dfr = trappy.FTrace(arbitrary_trace_name).thermal.data_frame
 
         self.assertTrue(os.path.exists("my_trace.txt"))
-        self.assertTrue(os.path.exists("my_trace.raw.txt"))
         self.assertTrue(len(dfr) > 0)
         self.assertFalse(os.path.exists("trace.dat"))
         self.assertFalse(os.path.exists("trace.txt"))
-        self.assertFalse(os.path.exists("trace.raw.txt"))
 
     def test_regenerate_txt_if_outdated(self):
         """Regenerate the trace.txt if it's older than the trace.dat"""
