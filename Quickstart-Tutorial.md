@@ -32,7 +32,13 @@ Starting IPython Notebook server...
 Notebook server task: [1] 24745
 ```
 
-The main folder served by the server is:
+Note that the `lisa-ipython` command allows to specify also interface and
+port in case you have several network interfaces on your host:
+
+```lisa-ipython start [interface [port]]```
+
+The URL of the main folder served by the server is printed on the screen.
+By default it is 
   http://127.0.0.1:8888/
   
 Once the server is started you can have a look at the provide tutorial notebooks
@@ -40,7 +46,7 @@ are accessible by following (in your browser) this link:
 
   http://127.0.0.1:8888/notebooks/tutorial/00_LisaInANutshell.ipynb
 
-This intial tutorial can be seen (but not executed) also on GitHub:
+This initial tutorial can be seen (but not executed) also on GitHub:
 
   https://github.com/ARM-software/lisa/blob/master/ipynb/tutorial/00_LisaInANutshell.ipynb
 
