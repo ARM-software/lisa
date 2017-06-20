@@ -9,7 +9,11 @@ the following requirements:
 
 ## Linux Targets
 
-- allow `ssh` access, preferably as root, using either a password or an SSH key
+- allow `ssh` access, preferably as root, using either a password or an SSH key.
+
+  Note that on Ubuntu targets, SSH root access can be enabled by setting `PermitRootLogin yes`
+  in the file `/etc/ssh/sshd_config`, and then restarting the SSH daemon.
+
 - support `sudo`, even if it's accessed as root user
 
 ## Android Targets
