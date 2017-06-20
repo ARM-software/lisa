@@ -1,5 +1,3 @@
-**NOTE** As of now, only dual cluster devices are fully supported.
-
 Adding support for your device is a simple as writing a JSON file with the following information:
 
 ```json
@@ -20,3 +18,8 @@ Where:
 The two parameters are needed to understand the topology of the target device.
 
 The file must be placed under `<LISA_HOME>/utils/platforms/`.
+
+NOTE: As of now, **only dual cluster devices are fully supported**.
+To add a single-cluster device, remove the `big_core` entry and the `bl` module
+from the json configuration.
+
