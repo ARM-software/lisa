@@ -27,6 +27,9 @@ Machine based installation](https://github.com/ARM-software/lisa/wiki/Installati
 	# Install the Python package manager
 	$ sudo apt-get install python-pip python-dev
 
+	# Update the Python package manager (some distribution may have an outdated version)
+	$ pip install --upgrade pip
+
 	# Install (upgrade) required Python libraries
 	$ sudo pip install --upgrade Cython trappy bart-py devlib psutil wrapt
 
