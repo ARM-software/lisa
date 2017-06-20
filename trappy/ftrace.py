@@ -49,7 +49,7 @@ def _plot_freq_hists(allfreqs, what, axis, title):
 SPECIAL_FIELDS_RE = re.compile(
                         r"^\s*(?P<comm>.*)-(?P<pid>\d+)(?:\s+\(.*\))"\
                         r"?\s+\[(?P<cpu>\d+)\](?:\s+....)?\s+"\
-                        r"(?P<timestamp>[0-9]+\.[0-9]+): (\w+:\s+)+(?P<data>.+)"
+                        r"(?P<timestamp>[0-9]+(?P<us>\.[0-9]+)?): (\w+:\s+)+(?P<data>.+)"
 )
 
 class GenericFTrace(BareTrace):
@@ -199,7 +199,14 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             comm = fields_match.group('comm')
             pid = int(fields_match.group('pid'))
             cpu = int(fields_match.group('cpu'))
+
+            # The timestamp, depending on the trace_clock configuration, can be
+            # reported either in [s].[us] or [ns] format. Let's ensure that we
+            # always generate DF which have the index expressed in:
+            #    [s].[decimals]
             timestamp = float(fields_match.group('timestamp'))
+            if not fields_match.group('us'):
+                timestamp /= 1e9
             data_str = fields_match.group('data')
 
             if not self.basetime:

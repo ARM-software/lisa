@@ -101,6 +101,7 @@ class TestBase(utils_tests.SetupDirectory):
         """TestBase: Task name, PID, CPU and timestamp are properly paresed """
 
         events = {
+                # Trace events using [global] clock format ([us] resolution)
                 1001.456789 : { 'task': 'rcu_preempt',       'pid': 1123, 'cpu': 001 },
                 1002.456789 : { 'task': 'rs:main',           'pid': 2123, 'cpu': 002 },
                 1003.456789 : { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 003 },
@@ -108,6 +109,15 @@ class TestBase(utils_tests.SetupDirectory):
                 1005.456789 : { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 005 },
                 1006.456789 : { 'task': 'IntentService[',    'pid': 6123, 'cpu': 005 },
                 1006.456789 : { 'task': r'/system/bin/.s$_?.u- \a]}c\./ef[.12]*[[l]in]ger',
+                                'pid': 1234, 'cpu': 666 },
+                # Trace events using [boot] clock format ([ns] resolution)
+                1011456789000: { 'task': 'rcu_preempt',       'pid': 1123, 'cpu': 001 },
+                1012456789000: { 'task': 'rs:main',           'pid': 2123, 'cpu': 002 },
+                1013456789000: { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 003 },
+                1014456789000: { 'task': 'kworker/1:1H',      'pid': 4123, 'cpu': 004 },
+                1015456789000: { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 005 },
+                1016456789000: { 'task': 'IntentService[',    'pid': 6123, 'cpu': 005 },
+                1016456789000: { 'task': r'/system/bin/.s$_?.u- \a]}c\./ef[.12]*[[l]in]ger',
                                 'pid': 1234, 'cpu': 666 },
         }
 
@@ -133,6 +143,8 @@ class TestBase(utils_tests.SetupDirectory):
         self.assertEquals(set(dfr.columns), expected_columns)
 
         for timestamp, event in events.iteritems():
+            if type(timestamp) == int:
+                timestamp = float(timestamp) / 1e9
             self.assertEquals(dfr["__comm"].loc[timestamp], event['task'])
             self.assertEquals(dfr["__pid"].loc[timestamp],  event['pid'])
             self.assertEquals(dfr["__cpu"].loc[timestamp],  event['cpu'])
