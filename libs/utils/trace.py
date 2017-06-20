@@ -251,7 +251,6 @@ class Trace(object):
 
         # Setup internal data reference to interesting events/dataframes
 
-        self._sanitize_SchedLoadAvgCpu()
         self._sanitize_SchedCpuCapacity()
         self._sanitize_SchedBoostCpu()
         self._sanitize_SchedBoostTask()
@@ -506,17 +505,6 @@ class Trace(object):
         df['tip_capacity'] = np.select(
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 [tip_lcap], tip_bcap)
-
-    def _sanitize_SchedLoadAvgCpu(self):
-        """
-        If necessary, rename certain signal names from v5.0 to v5.1 format.
-        """
-        if not self.hasEvents('sched_load_avg_cpu'):
-            return
-        df = self._dfg_trace_event('sched_load_avg_cpu')
-        if 'utilization' in df:
-            df.rename(columns={'utilization': 'util_avg'}, inplace=True)
-            df.rename(columns={'load': 'load_avg'}, inplace=True)
 
     def _sanitize_SchedBoostCpu(self):
         """

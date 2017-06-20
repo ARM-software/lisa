@@ -18,6 +18,7 @@
 """ CPUs Analysis Module """
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pylab as pl
 import pandas as pd
 
@@ -63,6 +64,53 @@ class CpusAnalysis(AnalysisModule):
         ctx_sw_df.index.name = 'cpu'
         return ctx_sw_df
 
+    def _dfg_cpu_load_events(self):
+        """
+        Get a DataFrame with the scheduler's per-CPU load-tracking signals
+
+        Parse the relevant trace event and return a DataFrame with the
+        scheduler's load tracking update events for each CPU.
+
+        :returns: DataFrame with at least the following columns:
+                  'cpu', 'load_avg', 'util_avg'.
+        """
+
+        # If necessary, rename certain signal names from v5.0 to v5.1 format.
+        if self._trace.hasEvents('sched_load_avg_cpu'):
+            df = self._dfg_trace_event('sched_load_avg_cpu')
+            if 'utilization' in df:
+                df.rename(columns={'utilization': 'util_avg'}, inplace=True)
+                df.rename(columns={'load': 'load_avg'}, inplace=True)
+
+        elif self._trace.hasEvents('sched_load_cfs_rq'):
+            df = self._trace._dfg_trace_event('sched_load_cfs_rq')
+            df = df.rename(columns={'util': 'util_avg', 'load': 'load_avg'})
+            # We're talking about CPU-level evnts so we only care about the
+            # root_task_group.
+            df = df[df.path == '/']
+
+        else:
+            return None
+
+        # TODO: Remove these additional columns? It doesn't work without
+        # manually-provided platform data, and it doesn't conceptually belong
+        # here.
+
+        platform = self._trace.platform
+        df['cluster'] = np.select(
+                [df.cpu.isin(platform['clusters']['little'])],
+                ['LITTLE'], 'big')
+        # Add a column which represents the max capacity of the smallest
+        # cluster which can accomodate the task utilization
+        little_cap = platform['nrg_model']['little']['cpu']['cap_max']
+        big_cap = platform['nrg_model']['big']['cpu']['cap_max']
+        df['min_cluster_cap'] = df.util_avg.map(
+            lambda util_avg: big_cap if util_avg > little_cap else little_cap
+        )
+
+        return df
+
+
 
 ###############################################################################
 # Plotting Methods
@@ -75,8 +123,8 @@ class CpusAnalysis(AnalysisModule):
         :param cpus: list of CPUs to be plotted
         :type cpus: list(int)
         """
-        if not self._trace.hasEvents('sched_load_avg_cpu'):
-            self._log.warning('Events [sched_load_avg_cpu] not found, '
+        if self._dfg_cpu_load_events() is None:
+            self._log.warning('CPU load tracking events not found, '
                               'plot DISABLED!')
             return
 
@@ -125,7 +173,7 @@ class CpusAnalysis(AnalysisModule):
 
             # Add CPU utilization
             axes.set_title('{0:s}CPU [{1:d}]'.format(label1, cpu))
-            df = self._dfg_trace_event('sched_load_avg_cpu')
+            df = self._dfg_cpu_load_events()
             df = df[df.cpu == cpu]
             if len(df):
                 df[['util_avg']].plot(ax=axes, drawstyle='steps-post',

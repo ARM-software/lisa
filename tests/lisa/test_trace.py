@@ -25,7 +25,8 @@ from trace import Trace
 class TraceBase(TestCase):
     """Base class for tests for Trace class"""
 
-    events = ['sched_switch', 'sched_load_se', 'sched_load_avg_task']
+    events = ['sched_switch', 'sched_load_se', 'sched_load_avg_task',
+              'sched_load_cfs_rq', 'sched_load_avg_cpu']
 
     def __init__(self, *args, **kwargs):
         super(TraceBase, self).__init__(*args, **kwargs)
@@ -105,6 +106,18 @@ class TaskSignalsBase(TraceBase):
         pid = self.trace.getTasks().keys()[-1]
         self.trace.analysis.tasks.plotTasks(tasks=[pid])
 
+    def _test_cpus_dfs(self):
+        """Helper for smoke testing _dfg methods in cpus_analysis"""
+        df = self.trace.data_frame.cpu_load_events()
+        for column in ['cpu', 'load_avg', 'util_avg']:
+            msg = 'CPU signals parsed from {} missing {} column'.format(
+                self.trace.data_dir, column)
+            self.assertIn(column, df, msg=msg)
+
+        # Call plotCPU - although we won't check the results we can just check
+        # that things aren't totally borken.
+        self.trace.analysis.cpus.plotCPU()
+
 class TestTraceSchedLoad(TaskSignalsBase):
     """Test parsing sched_load_* events"""
 
@@ -113,6 +126,10 @@ class TestTraceSchedLoad(TaskSignalsBase):
     def test_sched_load_signals(self):
         """Test parsing sched_load_se events from EAS upstream integration"""
         self._test_tasks_dfs()
+
+    def test_sched_load_signals(self):
+        """Test parsing sched_load_cfs_rq events from EAS upstream integration"""
+        self._test_cpus_dfs()
 
 class TestTraceSchedLoadAvg(TaskSignalsBase):
     """Test parsing sched_load_avg_* events"""
@@ -123,3 +140,7 @@ class TestTraceSchedLoadAvg(TaskSignalsBase):
     def test_sched_load_avg_signals(self):
         """Test parsing sched_load_avg_task events from EAS1.2"""
         self._test_tasks_dfs()
+
+    def test_sched_load_avg_signals(self):
+        """Test parsing sched_load_avg_cpu events from EAS1.2"""
+        self._test_cpus_dfs()
