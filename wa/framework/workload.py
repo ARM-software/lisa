@@ -14,8 +14,10 @@
 #
 import logging
 import os
+import re
 import time
 
+from wa import Parameter
 from wa.framework.plugin import TargetedPlugin
 from wa.framework.resource import (ApkFile, JarFile, ReventFile, NO_ONE,
                                    Executable, File)
@@ -24,6 +26,7 @@ from wa.utils.revent import ReventRecorder
 from wa.utils.exec_control import once
 
 from devlib.utils.android import ApkInfo
+from devlib.exception import TargetError
 
 
 class Workload(TargetedPlugin):
@@ -95,44 +98,123 @@ class Workload(TargetedPlugin):
     def __str__(self):
         return '<Workload {}>'.format(self.name)
 
-
-class ApkUIWorkload(Workload):
+class ApkWorkload(Workload):
 
     # May be optionally overwritten by subclasses
     # Times are in seconds
     loading_time = 10
+    package_names = []
+
+    parameters = [
+        Parameter('package', kind=str,
+                  description="""
+                  The pacakge name that can be used to specify
+                  the workload apk to use.
+                  """),
+        Parameter('install_timeout', kind=int,
+                  constraint=lambda x: x > 0,
+                  default=300,
+                  description="""
+                  Timeout for the installation of the apk.
+                  """),
+        Parameter('version', kind=str,
+                  default=None,
+                  description="""
+                  The version of the package to be used.
+                  """),
+        Parameter('variant', kind=str,
+                  default=None,
+                  description="""
+                  The variant of the package to be used.
+                  """),
+        Parameter('strict', kind=bool,
+                  default=False,
+                  description="""
+                  Whether to throw and error if the specified package cannot be found
+                  on host.
+                  """),
+        Parameter('force_install', kind=bool,
+                  default=False,
+                  description="""
+                  Always re-install the APK, even if matching version is found already installed
+                  on the device.
+                  """),
+        Parameter('uninstall', kind=bool,
+                  default=False,
+                  description="""
+                  If ``True``, will uninstall workload\'s APK as part of teardown.'
+                  """),
+    ]
 
     def __init__(self, target, **kwargs):
-        super(ApkUIWorkload, self).__init__(target, **kwargs)
-        self.apk = None
-        self.gui = None
+        super(ApkWorkload, self).__init__(target, **kwargs)
+        self.apk = PackageHandler(self,
+                                  package=self.package,
+                                  variant=self.variant,
+                                  strict=self.strict,
+                                  version=self.version,
+                                  force_install=self.force_install,
+                                  install_timeout=self.install_timeout,
+                                  uninstall=self.uninstall)
 
     def init_resources(self, context):
-        self.apk.init_resources(context.resolver)
-        self.gui.init_resources(context.resolver)
-        self.gui.init_commands()
+        pass
 
-    @once
     def initialize(self, context):
-        self.gui.deploy()
+        self.apk.initialize(context)
 
     def setup(self, context):
         self.apk.setup(context)
         time.sleep(self.loading_time)
-        self.gui.setup()
 
     def run(self, context):
-        self.gui.run()
+        pass
 
     def extract_results(self, context):
-        self.gui.extract_results()
+        pass
 
     def teardown(self, context):
-        self.gui.teardown()
         self.apk.teardown()
 
     @once
     def finalize(self, context):
+        pass
+
+
+class ApkUIWorkload(ApkWorkload):
+
+    def __init__(self, target, **kwargs):
+        super(ApkUIWorkload, self).__init__(target, **kwargs)
+        self.gui = None
+
+    def init_resources(self, context):
+        super(ApkUIWorkload, self).init_resources(context)
+        self.gui.init_resources(context.resolver)
+        self.gui.init_commands()
+
+    def initialize(self, context):
+        super(ApkUIWorkload, self).initialize(context)
+        self.gui.deploy()
+
+    def setup(self, context):
+        super(ApkUIWorkload, self).setup(context)
+        self.gui.setup()
+
+    def run(self, context):
+        super(ApkUIWorkload, self).run(context)
+        self.gui.run()
+
+    def extract_results(self, context):
+        super(ApkUIWorkload, self).extract_results(context)
+        self.gui.extract_results()
+
+    def teardown(self, context):
+        self.gui.teardown()
+        super(ApkUIWorkload, self).teardown(context)
+
+    @once
+    def finalize(self, context):
+        super(ApkUIWorkload, self).finalize(context)
         self.gui.remove()
 
 
@@ -142,7 +224,6 @@ class ApkUiautoWorkload(ApkUIWorkload):
 
     def __init__(self, target, **kwargs):
         super(ApkUiautoWorkload, self).__init__(target, **kwargs)
-        self.apk = ApkHander(self)
         self.gui = UiAutomatorGUI(self)
 
 
@@ -157,7 +238,7 @@ class ReventWorkload(ApkUIWorkload):
 
     def __init__(self, target, **kwargs):
         super(ReventWorkload, self).__init__(target, **kwargs)
-        self.apk = ApkHander(self)
+        self.apk = PackageHandler(self)
         self.gui = ReventGUI(self, target,
                              self.setup_timeout,
                              self.run_timeout,
@@ -169,6 +250,8 @@ class UiAutomatorGUI(object):
 
     stages = ['setup', 'runWorkload', 'extractResults', 'teardown']
 
+    uiauto_runner = 'android.support.test.runner.AndroidJUnitRunner'
+
     def __init__(self, owner, package=None, klass='UiAutomation', timeout=600):
         self.owner = owner
         self.target = self.owner.target
@@ -176,18 +259,15 @@ class UiAutomatorGUI(object):
         self.uiauto_class = klass
         self.timeout = timeout
         self.logger = logging.getLogger('gui')
-        self.jar_file = None
-        self.target_jar_file = None
+        self.uiauto_file = None
         self.commands = {}
         self.uiauto_params = {}
 
     def init_resources(self, resolver):
-        self.jar_file = resolver.get(JarFile(self.owner))
-        jar_name = os.path.basename(self.jar_file)
-        self.target_jar_file = self.target.get_workpath(jar_name)
+        self.uiauto_file = resolver.get(ApkFile(self.owner, uiauto=True))
         if not self.uiauto_package:
-            package = os.path.splitext(os.path.basename(self.jar_file))[0]
-            self.uiauto_package = package
+            uiauto_info = ApkInfo(self.uiauto_file)
+            self.uiauto_package = uiauto_info.package
 
     def init_commands(self):
         params_dict = self.uiauto_params
@@ -197,15 +277,16 @@ class UiAutomatorGUI(object):
             params += ' -e {} {}'.format(k, v)
 
         for stage in self.stages:
-            method_string = '{}.{}#{}'.format(self.uiauto_package,
-                                              self.uiauto_class,
-                                              stage)
-            cmd_template = 'uiautomator runtest {}{} -c {}'
-            self.commands[stage] = cmd_template.format(self.target_jar_file,
-                                                       params, method_string)
+            class_string = '{}.{}#{}'.format(self.uiauto_package, self.uiauto_class,
+                                             stage)
+            instrumentation_string = '{}/{}'.format(self.uiauto_package,
+                                                    self.uiauto_runner)
+            cmd_template = 'am instrument -w -r{} -e class {} {}'
+            self.commands[stage] = cmd_template.format(params, class_string,
+                                                       instrumentation_string)
 
     def deploy(self):
-        self.target.push(self.jar_file, self.target_jar_file)
+        self.target.install_apk(self.uiauto_file, replace=True)
 
     def set(self, name, value):
         self.uiauto_params[name] = value
@@ -232,7 +313,7 @@ class UiAutomatorGUI(object):
         self._execute('teardown', timeout or self.timeout)
 
     def remove(self):
-        self.target.remove(self.target_jar_file)
+        self.target.uninstall(self.uiauto_package)
 
     def _execute(self, stage, timeout):
         result = self.target.execute(self.commands[stage], timeout)
@@ -280,7 +361,7 @@ class ReventGUI(object):
         self.revent_teardown_file = resolver.get(resource=ReventFile(owner=self.workload,
                                                             stage='teardown',
                                                             target=self.target.model),
-                                                strict=False)
+                                                 strict=False)
 
     def deploy(self):
         self.revent_recorder.deploy()
@@ -333,16 +414,17 @@ class ReventGUI(object):
             self.target.push(self.revent_teardown_file, self.on_target_teardown_revent)
 
 
-class ApkHander(object):
+class PackageHandler(object):
 
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
-                 strict=True, force_install=False, uninstall=False):
+                 package=None, strict=False, force_install=False, uninstall=False):
         self.logger = logging.getLogger('apk')
         self.owner = owner
         self.target = self.owner.target
         self.install_timeout = install_timeout
         self.version = version
         self.variant = variant
+        self.package = package
         self.strict = strict
         self.force_install = force_install
         self.uninstall = uninstall
@@ -351,49 +433,78 @@ class ApkHander(object):
         self.apk_version = None
         self.logcat_log = None
 
-    def init_resources(self, resolver):
-        self.apk_file = resolver.get(ApkFile(self.owner,
-                                             variant=self.variant,
-                                             version=self.version),
-                                             strict=self.strict)
-        self.apk_info = ApkInfo(self.apk_file)
+    def initialize(self, context):
+        self.resolve_package(context)
+        self.initialize_package(context)
 
     def setup(self, context):
-        self.initialize_package(context)
         self.start_activity()
         self.target.execute('am kill-all')  # kill all *background* activities
         self.target.clear_logcat()
 
+    def resolve_package(self, context):
+        self.apk_file = context.resolver.get(ApkFile(self.owner,
+                                                     variant=self.variant,
+                                                     version=self.version,
+                                                     package=self.package),
+                                             strict=self.strict)
+        if self.apk_file:
+            self.apk_info = ApkInfo(self.apk_file)
+        else:
+            if not self.owner.package_names and not self.package:
+                msg = 'No package name(s) specified and no matching APK file found on host'
+                raise WorkloadError(msg)
+            self.resolve_package_from_target(context)
+
+    def resolve_package_from_target(self, context):
+        if self.package:
+            if not self.target.package_is_installed(self.package):
+                msg = 'Package "{}" cannot be found on the host or device'
+            raise WorkloadError(msg.format(self.package))
+        else:
+            installed_versions = []
+            for package in self.owner.package_names:
+                if self.target.package_is_installed(package):
+                    installed_versions.append(package)
+
+            if self.version:
+                for package in installed_versions:
+                    if self.version == self.target.get_package_version(package):
+                        self.package = package
+                        break
+            else:
+                if len(installed_versions) == 1:
+                    self.package = installed_versions[0]
+                else:
+                    msg = 'Package version not set and multiple versions found on device'
+                    raise WorkloadError(msg)
+
+            if not self.package:
+                raise WorkloadError('No matching package found')
+
+        self.pull_apk(self.package)
+        self.apk_file = context.resolver.get(ApkFile(self.owner,
+                                                     variant=self.variant,
+                                                     version=self.version,
+                                                     package=self.package),
+                                             strict=self.strict)
+        self.apk_info = ApkInfo(self.apk_file)
+
     def initialize_package(self, context):
         installed_version = self.target.get_package_version(self.apk_info.package)
-        if self.strict:
-            self.initialize_with_host_apk(context, installed_version)
-        else:
-            if not installed_version:
-                message = '{} not found found on the device and check_apk is set '\
-                          'to "False" so host version was not checked.'
-                raise WorkloadError(message.format(self.apk_info.package))
-            message = 'Version {} installed on device; skipping host APK check.'
-            self.logger.debug(message.format(installed_version))
-            self.reset(context)
-            self.version = installed_version
-
-    def initialize_with_host_apk(self, context, installed_version):
         host_version = self.apk_info.version_name
         if installed_version != host_version:
             if installed_version:
                 message = '{} host version: {}, device version: {}; re-installing...'
-                self.logger.debug(message.format(os.path.basename(self.apk_file),
-                                                 host_version, installed_version))
+                self.logger.debug(message.format(self.owner.name, host_version,
+                                                 installed_version))
             else:
                 message = '{} host version: {}, not found on device; installing...'
-                self.logger.debug(message.format(os.path.basename(self.apk_file),
-                                                 host_version))
+                self.logger.debug(message.format(self.owner.name, host_version))
             self.force_install = True  # pylint: disable=attribute-defined-outside-init
         else:
             message = '{} version {} found on both device and host.'
-            self.logger.debug(message.format(os.path.basename(self.apk_file),
-                                             host_version))
+            self.logger.debug(message.format(self.owner.name, host_version))
         if self.force_install:
             if installed_version:
                 self.target.uninstall_package(self.apk_info.package)
@@ -426,6 +537,14 @@ class ApkHander(object):
                 raise WorkloadError(output)
         else:
             self.logger.debug(output)
+
+    def pull_apk(self, package):
+        if not self.target.package_is_installed(package):
+            message = 'Cannot retrieve "{}" as not installed on Target'
+            raise WorkloadError(message.format(package))
+        package_info = self.target.execute('pm list packages -f {}'.format(package))
+        apk_path = re.match('package:(.*)=', package_info).group(1)
+        self.target.pull(apk_path, self.owner.dependencies_directory)
 
     def teardown(self):
         self.target.execute('am force-stop {}'.format(self.apk_info.package))

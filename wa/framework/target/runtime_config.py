@@ -26,6 +26,7 @@ class RuntimeParameter(Parameter):
 
 class RuntimeConfig(Plugin):
 
+    name = None
     kind = 'runtime-config'
 
     @property
@@ -41,7 +42,12 @@ class RuntimeConfig(Plugin):
         self.target = target
         self._target_checked = False
         self._runtime_params = {}
-        self.initialize()
+        try:
+            self.initialize()
+        except TargetError:
+            msg = 'Failed to initialize: "{}"'
+            self.logger.debug(msg.format(self.name))
+            self._runtime_params = {}
 
     def initialize(self):
         raise NotImplementedError()

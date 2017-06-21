@@ -20,7 +20,7 @@ from collections import OrderedDict, defaultdict
 from wa.framework.exception import ConfigError, NotFoundError
 from wa.framework.configuration.tree import SectionNode
 from wa.utils.misc import (get_article, merge_config_values)
-from wa.utils.types import (identifier, integer, boolean, list_of_strings, 
+from wa.utils.types import (identifier, integer, boolean, list_of_strings,
                             list_of, toggle_set, obj_dict, enum)
 from wa.utils.serializer import is_pod
 
@@ -520,9 +520,9 @@ class Configuration(object):
 
     def set(self, name, value, check_mandatory=True):
         if name not in self.configuration:
-            raise ConfigError('Unknown {} configuration "{}"'.format(self.name, 
+            raise ConfigError('Unknown {} configuration "{}"'.format(self.name,
                                                                      name))
-        self.configuration[name].set_value(self, value, 
+        self.configuration[name].set_value(self, value,
                                            check_mandatory=check_mandatory)
 
     def update_config(self, values, check_mandatory=True):
@@ -939,12 +939,11 @@ class JobSpec(Configuration):
             for name, cfg_point in cfg_points.iteritems():
                 if name in config:
                     value = config.pop(name)
-                    cfg_point.set_value(workload_params, value, 
+                    cfg_point.set_value(workload_params, value,
                                         check_mandatory=False)
             if config:
-                msg = 'conflicting entry(ies) for "{}" in {}: "{}"'
-                msg = msg.format(self.workload_name, source.name,
-                                    '", "'.join(workload_params[source]))
+                msg = 'Unexpected config "{}" for "{}"'
+                raise ConfigError(msg.format(config, self.workload_name))
 
         self.workload_parameters = workload_params
 
@@ -1042,7 +1041,7 @@ class JobGenerator(object):
                 sections.insert(0, ancestor)
 
             for workload_entry in workload_entries:
-                job_spec = create_job_spec(workload_entry, sections, 
+                job_spec = create_job_spec(workload_entry, sections,
                                            target_manager, self.plugin_cache,
                                            self.disabled_instruments)
                 if self.ids_to_run:

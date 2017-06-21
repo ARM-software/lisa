@@ -15,7 +15,18 @@
 #
 set -e
 
+# Ensure gradelw exists before starting
+if [[ ! -f gradlew ]]; then
+    echo 'gradlew file not found! Check that you are in the right directory.'
+    exit 9
+fi
 
-ant build
+# Build and return appropriate exit code if failed
+./gradlew clean :app:assembleDebug
+exit_code=$?
+if [ $exit_code -ne 0 ]; then
+    echo "ERROR: 'gradle build' exited with code $exit_code"
+    exit $exit_code
+fi
 
-cp bin/classes/com/arm/wa/uiauto/BaseUiAutomation.class .
+cp app/build/outputs/aar/app-debug.aar ./uiauto.aar
