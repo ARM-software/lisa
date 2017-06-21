@@ -511,6 +511,19 @@ class FTrace(GenericFTrace):
         self.__populate_metadata()
         self._do_parse()
 
+    def __warn_about_txt_trace_files(self, trace_dat, raw_txt, formatted_txt):
+        self.__get_raw_event_list()
+        warn_text = ( "You appear to be parsing both raw and formatted "
+                      "trace files. TRAPpy now uses a unified format. "
+                      "If you have the {} file, remove the .txt files "
+                      "and try again. If not, you can manually move "
+                      "lines with the following events from {} to {} :"
+                      ).format(trace_dat, raw_txt, formatted_txt)
+        for raw_event in self.raw_events:
+            warn_text = warn_text+" \"{}\"".format(raw_event)
+
+        raise RuntimeError(warn_text)
+
     def __process_path(self, basepath):
         """Process the path and return the path to the trace text file"""
 
@@ -520,9 +533,13 @@ class FTrace(GenericFTrace):
             trace_name = os.path.join(basepath, "trace")
 
         trace_txt = trace_name + ".txt"
+        trace_raw_txt = trace_name + ".raw.txt"
         trace_dat = trace_name + ".dat"
 
         if os.path.isfile(trace_dat):
+            # Warn users if raw.txt files are present
+            if os.path.isfile(trace_raw_txt):
+                self.__warn_about_txt_trace_files(trace_dat, trace_raw_txt, trace_txt)
             # TXT traces must always be generated
             if not os.path.isfile(trace_txt):
                 self.__run_trace_cmd_report(trace_dat)
