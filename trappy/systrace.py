@@ -17,7 +17,7 @@ from trappy.ftrace import GenericFTrace
 import re
 
 SYSTRACE_EVENT = re.compile(
-    r'^(?P<event>[A-Z])(\|(?P<pid>\d+)\|(?P<func>.*)(\|(?P<data>\d+))?)?')
+    r'^(?P<event>[A-Z])(\|(?P<pid>\d+)\|(?P<func>[^|]*)(\|(?P<data>.*))?)?')
 
 class drop_before_trace(object):
     """Object that, when called, returns True if the line is not part of
@@ -88,9 +88,11 @@ class SysTrace(GenericFTrace):
 
         match = SYSTRACE_EVENT.match(data_str)
         if match:
-            data_dict = { 'event': match.group('event'),
-                          'pid'  : match.group('pid'),
-                          'func' : match.group('func'),
-                          'data' : match.group('data') }
+            data_dict = {
+                          'event': match.group('event'),
+                          'pid'  : int(match.group('pid')) if match.group('pid') else None,
+                          'func' : match.group('func' ),
+                          'data' : match.group('data' )
+                        }
 
         return data_dict
