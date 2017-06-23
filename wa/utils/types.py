@@ -488,9 +488,17 @@ class level(object):
 
     """
 
+    @staticmethod
+    def from_pod(pod):
+        name, value_part =  pod.split('(')
+        return level(name, numeric(value_part.rstrip(')')))
+
     def __init__(self, name, value):
         self.name = caseless_string(name)
-        self.value = value
+        self.value = numeric(value)
+
+    def to_pod(self):
+        return repr(self)
 
     def __str__(self):
         return self.name
@@ -544,6 +552,15 @@ def enum(args, start=0, step=1):
     """
 
     class Enum(object):
+
+        @classmethod
+        def from_pod(cls, pod):
+            lv = level.from_pod(pod)
+            for enum_level in cls.values:
+                if enum_level == lv:
+                    return enum_level
+            msg = 'Unexpected value "{}" for enum.'
+            raise ValueError(msg.format(pod))
 
         def __new__(cls, name):
             for attr_name in dir(cls):
