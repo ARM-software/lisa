@@ -1037,10 +1037,24 @@ class AndroidTarget(Target):
                 return line.split('=', 1)[1]
         return None
 
-    def install_apk(self, filepath, timeout=None):  # pylint: disable=W0221
+    def get_sdk_version(self):
+        try:
+            return int(self.getprop('ro.build.version.sdk'))
+        except (ValueError, TypeError):
+            return None
+
+    def install_apk(self, filepath, timeout=None, replace=False, allow_downgrade=False):  # pylint: disable=W0221
         ext = os.path.splitext(filepath)[1].lower()
         if ext == '.apk':
-            return adb_command(self.adb_name, "install '{}'".format(filepath), timeout=timeout)
+            flags = []
+            if replace:
+                flags.append('-r')  # Replace existing APK
+            if allow_downgrade:
+                flags.append('-d')  # Install the APK even if a newer version is already installed
+            if self.get_sdk_version() >= 23:
+                flags.append('-g')  # Grant all runtime permissions
+            self.logger.debug("Replace APK = {}, ADB flags = '{}'".format(replace, ' '.join(flags)))
+            return adb_command(self.adb_name, "install {} '{}'".format(' '.join(flags), filepath), timeout=timeout)
         else:
             raise TargetError('Can\'t install {}: unsupported format.'.format(filepath))
 
