@@ -69,7 +69,7 @@ class Trace(object):
     :type plots_prefix: str
     """
 
-    def __init__(self, platform, data_dir, events,
+    def __init__(self, platform, data_dir, events=None,
                  window=(0, None),
                  normalize_time=True,
                  trace_format='FTrace',
@@ -125,7 +125,7 @@ class Trace(object):
             self.plots_dir = self.data_dir
         self.plots_prefix = plots_prefix
 
-        self.__registerTraceEvents(events)
+        self.__registerTraceEvents(events) if events else None
         self.__parseTrace(data_dir, window, normalize_time,
                           trace_format)
         self.__computeTimeSpan()
@@ -219,7 +219,7 @@ class Trace(object):
         :type trace_format: str
         """
         self._log.debug('Loading [sched] events from trace in [%s]...', path)
-        self._log.debug('Parsing events: %s', self.events)
+        self._log.debug('Parsing events: %s', self.events if self.events else 'ALL')
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
             self._log.debug('Parsing SysTrace format...')
             trace_class = trappy.SysTrace
@@ -231,7 +231,8 @@ class Trace(object):
         else:
             raise ValueError("Unknown trace format {}".format(trace_format))
 
-        self.ftrace = trace_class(path, scope="custom", events=self.events,
+        scope = 'custom' if self.events else 'all'
+        self.ftrace = trace_class(path, scope=scope, events=self.events,
                                   window=window, normalize_time=normalize_time)
 
         # Load Functions profiling data
