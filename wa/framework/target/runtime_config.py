@@ -457,7 +457,7 @@ class CpufreqRuntimeConfig(RuntimeConfig):
         if self.target.has('bl'):
             for cluster in ['big', 'little']:
                 cpu = resolve_unique_domain_cpus(cluster, self.target)[0]
-                freq_val = FreqValue(self.smentupported_cpu_freqs.get(cpu))
+                freq_val = FreqValue(self.supported_cpu_freqs.get(cpu))
                 avail_govs = self.supported_cpu_governors.get(cpu)
                 param_name = '{}_frequency'.format(cluster)
 
@@ -467,7 +467,7 @@ class CpufreqRuntimeConfig(RuntimeConfig):
                               setter_params={'core': cluster},
                               description="""
                               The desired frequency for the {} cluster
-                              """.format(cluster)),
+                              """.format(cluster))
                 param_name = '{}_max_frequency'.format(cluster)
                 self._runtime_params[param_name] = \
                     RuntimeParameter(param_name, kind=freq_val,
@@ -475,7 +475,7 @@ class CpufreqRuntimeConfig(RuntimeConfig):
                               setter_params={'core': cluster},
                               description="""
                               The maximum frequency for the {} cluster
-                              """.format(cluster)),
+                              """.format(cluster))
                 param_name = '{}_min_frequency'.format(cluster)
                 self._runtime_params[param_name] = \
                     RuntimeParameter(param_name, kind=freq_val,
@@ -483,7 +483,7 @@ class CpufreqRuntimeConfig(RuntimeConfig):
                               setter_params={'core': cluster},
                               description="""
                               The minimum frequency for the {} cluster
-                              """.format(cluster)),
+                              """.format(cluster))
                 param_name = '{}_governor'.format(cluster)
                 self._runtime_params[param_name] = \
                     RuntimeParameter(param_name, kind=str,
@@ -492,7 +492,7 @@ class CpufreqRuntimeConfig(RuntimeConfig):
                               setter_params={'core': cluster},
                               description="""
                               The governor to be set for the {} cores
-                              """.format(cluster)),
+                              """.format(cluster))
                 param_name = '{}_gov_tunables'.format(cluster)
                 self._runtime_params[param_name] = \
                     RuntimeParameter(param_name, kind=dict,
