@@ -32,6 +32,7 @@ import numbers
 import shlex
 import string
 from bisect import insort
+from urllib import quote, unquote
 from collections import defaultdict, MutableMapping
 from copy import copy
 
@@ -327,7 +328,7 @@ class prioritylist(object):
             raise ValueError('Invalid index {}'.format(index))
         current_global_offset = 0
         priority_counts = {priority: count for (priority, count) in
-                           zip(self.priorities, [len(self.elements[p]) 
+                           zip(self.priorities, [len(self.elements[p])
                                                  for p in self.priorities])}
         for priority in self.priorities:
             if not index_range:
@@ -586,3 +587,118 @@ def enum(args, start=0, step=1):
 
     return Enum
 
+
+class ParameterDict(dict):
+    """
+    A dict-like object that automatically encodes various types into a url safe string,
+    and enforces a single type for the contents in a list.
+    Each value is first prefixed with 2 letters to preserve type when encoding to a string.
+    The format used is "value_type, value_dimension" e.g a 'list of floats' would become 'fl'.
+    """
+
+    # Function to determine the appropriate prefix based on the parameters type
+    @staticmethod
+    def _get_prefix(obj):
+        if isinstance(obj, basestring):
+            prefix = 's'
+        elif isinstance(obj, float):
+            prefix = 'f'
+        elif isinstance(obj, long):
+            prefix = 'd'
+        elif isinstance(obj, bool):
+            prefix = 'b'
+        elif isinstance(obj, int):
+            prefix = 'i'
+        elif obj is None:
+            prefix = 'n'
+        else:
+            raise ValueError('Unable to encode {} {}'.format(obj, type(obj)))
+        return prefix
+
+    # Function to add prefix and urlencode a provided parameter.
+    @staticmethod
+    def _encode(obj):
+        if isinstance(obj, list):
+            t = type(obj[0])
+            prefix = ParameterDict._get_prefix(obj[0]) + 'l'
+            for item in obj:
+                if not isinstance(item, t):
+                    msg = 'Lists must only contain a single type, contains {} and {}'
+                    raise ValueError(msg.format(t, type(item)))
+            obj = '0newelement0'.join(str(x) for x in obj)
+        else:
+            prefix = ParameterDict._get_prefix(obj) + 's'
+        return quote(prefix + str(obj))
+
+    # Function to decode a string and return a value of the original parameter type.
+    # pylint: disable=too-many-return-statements
+    @staticmethod
+    def _decode(string):
+        value_type = string[:1]
+        value_dimension = string[1:2]
+        value = unquote(string[2:])
+        if value_dimension == 's':
+            if value_type == 's':
+                return str(value)
+            elif value_type == 'b':
+                return boolean(value)
+            elif value_type == 'd':
+                return long(value)
+            elif value_type == 'f':
+                return float(value)
+            elif value_type == 'i':
+                return int(value)
+            elif value_type == 'n':
+                return None
+        elif value_dimension == 'l':
+            return [ParameterDict._decode(value_type + 's' + x)
+                    for x in value.split('0newelement0')]
+        else:
+            raise ValueError('Unknown {} {}'.format(type(string), string))
+
+    def __init__(self, *args, **kwargs):
+        for k, v in kwargs.iteritems():
+            self.__setitem__(k, v)
+        dict.__init__(self, *args)
+
+    def __setitem__(self, name, value):
+        dict.__setitem__(self, name, self._encode(value))
+
+    def __getitem__(self, name):
+        return self._decode(dict.__getitem__(self, name))
+
+    def __contains__(self, item):
+        return dict.__contains__(self, self._encode(item))
+
+    def __iter__(self):
+        return iter((k, self._decode(v)) for (k, v) in self.items())
+
+    def iteritems(self):
+        return self.__iter__()
+
+    def get(self, name):
+        return self._decode(dict.get(self, name))
+
+    def pop(self, key):
+        return self._decode(dict.pop(self, key))
+
+    def popitem(self):
+        key, value = dict.popitem(self)
+        return (key, self._decode(value))
+
+    def iter_encoded_items(self):
+        return dict.iteritems(self)
+
+    def get_encoded_value(self, name):
+        return dict.__getitem__(self, name)
+
+    def values(self):
+        return [self[k] for k in dict.keys(self)]
+
+    def update(self, *args, **kwargs):
+        for d in list(args) + [kwargs]:
+            if isinstance(d, ParameterDict):
+                dict.update(self, d)
+            else:
+                for k, v in d.iteritems():
+                    self[k] = v
