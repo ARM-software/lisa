@@ -67,7 +67,7 @@ class BareTrace(object):
 
         return filters
 
-    def normalize_time(self, basetime=None):
+    def _normalize_time(self, basetime=None):
         """Normalize the time of all the trace classes
 
         :param basetime: The offset which needs to be subtracted from

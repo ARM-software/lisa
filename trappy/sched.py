@@ -104,9 +104,10 @@ class SchedSwitch(Base):
     """Parse sched_switch"""
 
     unique_word = "sched_switch:"
+    parse_raw = True
 
     def __init__(self):
-        super(SchedSwitch, self).__init__(parse_raw=True)
+        super(SchedSwitch, self).__init__(parse_raw=self.parse_raw)
 
     def create_dataframe(self):
         self.data_array = [line.replace(" ==> ", " ", 1)

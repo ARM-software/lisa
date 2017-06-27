@@ -25,8 +25,7 @@ sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "trappy"))
 class BaseTestSched(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         super(BaseTestSched, self).__init__(
-             [("trace_sched.txt", "trace.txt"),
-              ("trace_sched.txt", "trace.raw.txt")],
+             [("trace_sched.txt", "trace.txt"),],
              *args,
              **kwargs)
 

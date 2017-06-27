@@ -66,9 +66,6 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                  events=[], window=(0, None), abs_window=(0, None)):
         super(GenericFTrace, self).__init__(name)
 
-        if not hasattr(self, "needs_raw_parsing"):
-            self.needs_raw_parsing = False
-
         self.class_definitions.update(self.dynamic_classes.items())
         self.__add_events(listify(events))
 
@@ -85,14 +82,10 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             setattr(self, attr, trace_class)
             self.trace_classes.append(trace_class)
 
-        self.__parse_trace_file(self.trace_path, window, abs_window)
-        if self.needs_raw_parsing and (self.trace_path_raw is not None):
-            self.__parse_trace_file(self.trace_path_raw, window, abs_window,
-                                    raw=True)
-        self.finalize_objects()
-
-        if normalize_time:
-            self.normalize_time()
+        # save parameters to complete init later
+        self.normalize_time = normalize_time
+        self.window = window
+        self.abs_window = abs_window
 
     @classmethod
     def register_parser(cls, cobject, scope):
@@ -133,6 +126,13 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             if cobject == obj:
                 del scope_classes[name]
 
+    def _do_parse(self):
+        self.__parse_trace_file(self.trace_path)
+        self.finalize_objects()
+
+        if self.normalize_time:
+            self._normalize_time()
+
     def __add_events(self, events):
         """Add events to the class_definitions
 
@@ -165,7 +165,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                 trace_class = DynamicTypeFactory(event_name, (Base,), kwords)
                 self.class_definitions[event_name] = trace_class
 
-    def __populate_data(self, fin, cls_for_unique_word, window, abs_window):
+    def __populate_data(self, fin, cls_for_unique_word):
         """Append to trace data from a txt trace"""
 
         def contains_unique_word(line, unique_words=cls_for_unique_word.keys()):
@@ -212,13 +212,13 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             if not self.basetime:
                 self.basetime = timestamp
 
-            if (timestamp < window[0] + self.basetime) or \
-               (timestamp < abs_window[0]):
+            if (timestamp < self.window[0] + self.basetime) or \
+               (timestamp < self.abs_window[0]):
                 self.lines += 1
                 continue
 
-            if (window[1] and timestamp > window[1] + self.basetime) or \
-               (abs_window[1] and timestamp > abs_window[1]):
+            if (self.window[1] and timestamp > self.window[1] + self.basetime) or \
+               (self.abs_window[1] and timestamp > self.abs_window[1]):
                 return
 
             # Remove empty arrays from the trace
@@ -258,16 +258,13 @@ is part of the trace.
         """
         return lambda x: True
 
-    def __parse_trace_file(self, trace_file, window, abs_window, raw=False):
+    def __parse_trace_file(self, trace_file):
         """parse the trace and create a pandas DataFrame"""
 
         # Memoize the unique words to speed up parsing the trace file
         cls_for_unique_word = {}
         for trace_name in self.class_definitions.iterkeys():
             trace_class = getattr(self, trace_name)
-
-            if self.needs_raw_parsing and (trace_class.parse_raw != raw):
-                continue
 
             unique_word = trace_class.unique_word
             cls_for_unique_word[unique_word] = trace_class
@@ -279,7 +276,7 @@ is part of the trace.
             with open(trace_file) as fin:
                 self.lines = 0
                 self.__populate_data(
-                    fin, cls_for_unique_word, window, abs_window)
+                    fin, cls_for_unique_word)
         except FTraceParseError as e:
             raise ValueError('Failed to parse ftrace file {}:\n{}'.format(
                 trace_file, str(e)))
@@ -500,13 +497,25 @@ class FTrace(GenericFTrace):
 
     def __init__(self, path=".", name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
-        self.trace_path, self.trace_path_raw = self.__process_path(path)
-        self.needs_raw_parsing = True
-
-        self.__populate_metadata()
-
         super(FTrace, self).__init__(name, normalize_time, scope, events,
                                      window, abs_window)
+        self.raw_events = []
+        self.trace_path = self.__process_path(path)
+        self.__populate_metadata()
+        self._do_parse()
+
+    def __warn_about_txt_trace_files(self, trace_dat, raw_txt, formatted_txt):
+        self.__get_raw_event_list()
+        warn_text = ( "You appear to be parsing both raw and formatted "
+                      "trace files. TRAPpy now uses a unified format. "
+                      "If you have the {} file, remove the .txt files "
+                      "and try again. If not, you can manually move "
+                      "lines with the following events from {} to {} :"
+                      ).format(trace_dat, raw_txt, formatted_txt)
+        for raw_event in self.raw_events:
+            warn_text = warn_text+" \"{}\"".format(raw_event)
+
+        raise RuntimeError(warn_text)
 
     def __process_path(self, basepath):
         """Process the path and return the path to the trace text file"""
@@ -517,32 +526,42 @@ class FTrace(GenericFTrace):
             trace_name = os.path.join(basepath, "trace")
 
         trace_txt = trace_name + ".txt"
-        trace_raw = trace_name + ".raw.txt"
+        trace_raw_txt = trace_name + ".raw.txt"
         trace_dat = trace_name + ".dat"
 
         if os.path.isfile(trace_dat):
-            # Both TXT and RAW traces must always be generated
-            if not os.path.isfile(trace_txt) or \
-               not os.path.isfile(trace_raw):
+            # Warn users if raw.txt files are present
+            if os.path.isfile(trace_raw_txt):
+                self.__warn_about_txt_trace_files(trace_dat, trace_raw_txt, trace_txt)
+            # TXT traces must always be generated
+            if not os.path.isfile(trace_txt):
                 self.__run_trace_cmd_report(trace_dat)
-            # TXT (and RAW) traces must match the most recent binary trace
+            # TXT traces must match the most recent binary trace
             elif os.path.getmtime(trace_txt) < os.path.getmtime(trace_dat):
                 self.__run_trace_cmd_report(trace_dat)
 
-        if not os.path.isfile(trace_raw):
-            trace_raw = None
+        return trace_txt
 
-        return trace_txt, trace_raw
+    def __get_raw_event_list(self):
+        self.raw_events = []
+        # Generate list of events which need to be parsed in raw format
+        for event_class in (self.thermal_classes, self.sched_classes, self.dynamic_classes):
+            for trace_class in event_class.itervalues():
+                raw = getattr(trace_class, 'parse_raw', None)
+                if raw:
+                    name = getattr(trace_class, 'name', None)
+                    if name:
+                        self.raw_events.append(name)
 
     def __run_trace_cmd_report(self, fname):
-        """Run "trace-cmd report fname > fname.txt"
-           and "trace-cmd report -R fname > fname.raw.txt"
+        """Run "trace-cmd report [ -r raw_event ]* fname > fname.txt"
 
-        The resulting traces are stored in files with extension ".txt"
-        and ".raw.txt" respectively.  If fname is "my_trace.dat", the
-        trace is stored in "my_trace.txt" and "my_trace.raw.txt".  The
-        contents of the destination files are overwritten if they
-        exist.
+        The resulting trace is stored in files with extension ".txt". If
+        fname is "my_trace.dat", the trace is stored in "my_trace.txt". The
+        contents of the destination file is overwritten if it exists.
+        Trace events which require unformatted output (raw_event == True)
+        are added to the command line with one '-r <event>' each event and
+        trace-cmd then prints those events without formatting.
 
         """
         from subprocess import check_output
@@ -552,8 +571,12 @@ class FTrace(GenericFTrace):
         if not os.path.isfile(fname):
             raise IOError("No such file or directory: {}".format(fname))
 
-        raw_trace_output = os.path.splitext(fname)[0] + ".raw.txt"
         trace_output = os.path.splitext(fname)[0] + ".txt"
+        # Ask for the raw event list and request them unformatted
+        self.__get_raw_event_list()
+        for raw_event in self.raw_events:
+            cmd.extend([ '-r', raw_event ])
+
         cmd.append(fname)
 
         with open(os.devnull) as devnull:
@@ -564,17 +587,9 @@ class FTrace(GenericFTrace):
                     raise OSError(2, "trace-cmd not found in PATH, is it installed?")
                 else:
                     raise
-
-            # Add the -R flag to the trace-cmd
-            # for raw parsing
-            cmd.insert(-1, "-R")
-            raw_out = check_output(cmd, stderr=devnull)
-
         with open(trace_output, "w") as fout:
             fout.write(out)
 
-        with open(raw_trace_output, "w") as fout:
-            fout.write(raw_out)
 
     def __populate_metadata(self):
         """Populates trace metadata"""
