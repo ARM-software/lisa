@@ -20,7 +20,9 @@ from unittest import TestCase
 from nose.tools import raises, assert_equal, assert_not_equal, assert_in, assert_not_in
 from nose.tools import assert_true, assert_false
 
-from wa.utils.types import list_or_integer, list_or_bool, caseless_string, arguments, prioritylist
+from wa.utils.types import (list_or_integer, list_or_bool, caseless_string,
+                            arguments, prioritylist, enum, level)
+
 
 
 class TestPriorityList(TestCase):
@@ -91,3 +93,18 @@ class TestPriorityList(TestCase):
         assert_equal(list(pl), ['a', 'b','y', 'x', 'm', 'n'])
         pl.add_after('z', 'm')
         assert_equal(list(pl), ['a', 'b', 'y', 'x', 'm', 'z', 'n'])
+
+
+class TestEnumLevel(TestCase):
+
+    def test_serialize_level(self):
+        l = level('test', 1)
+        s = l.to_pod()
+        l2 = level.from_pod(s)
+        assert_equal(l, l2)
+
+    def test_deserialize_enum(self):
+        e = enum(['one', 'two', 'three'])
+        s = e.one.to_pod()
+        l = e.from_pod(s)
+        assert_equal(l, e.one)
