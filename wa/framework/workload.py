@@ -22,6 +22,7 @@ from wa.framework.plugin import TargetedPlugin
 from wa.framework.resource import (ApkFile, JarFile, ReventFile, NO_ONE,
                                    Executable, File)
 from wa.framework.exception import WorkloadError
+from wa.utils.types import ParameterDict
 from wa.utils.revent import ReventRecorder
 from wa.utils.exec_control import once
 
@@ -261,7 +262,7 @@ class UiAutomatorGUI(object):
         self.logger = logging.getLogger('gui')
         self.uiauto_file = None
         self.commands = {}
-        self.uiauto_params = {}
+        self.uiauto_params = ParameterDict()
 
     def init_resources(self, resolver):
         self.uiauto_file = resolver.get(ApkFile(self.owner, uiauto=True))
@@ -273,7 +274,7 @@ class UiAutomatorGUI(object):
         params_dict = self.uiauto_params
         params_dict['workdir'] = self.target.working_directory
         params = ''
-        for k, v in self.uiauto_params.iteritems():
+        for k, v in params_dict.iter_encoded_items():
             params += ' -e {} {}'.format(k, v)
 
         for stage in self.stages:
