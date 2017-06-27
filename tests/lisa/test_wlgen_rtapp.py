@@ -19,6 +19,7 @@ from collections import OrderedDict
 import json
 import os
 
+from perf_analysis import PerfAnalysis
 from wlgen import RTA, Periodic, Ramp
 
 from test_wlgen import WlgenSelfBase
@@ -56,6 +57,11 @@ class RTABase(WlgenSelfBase):
         path = os.path.join(self.host_out_dir, path)
         self.assertTrue(os.path.isfile(path),
                         'No output file {} from rt-app'.format(path))
+
+    def assert_can_read_logfile(self, exp_tasks):
+        """Assert that the perf_analysis module understands the log output"""
+        pa = PerfAnalysis(self.host_out_dir)
+        self.assertSetEqual(set(exp_tasks), set(pa.tasks()))
 
 class TestRTAProfile(RTABase):
     def test_profile_periodic_smoke(self):
@@ -97,8 +103,9 @@ class TestRTAProfile(RTABase):
         self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
 
         self.assert_output_file_exists('output.log')
-        self.assert_output_file_exists('rt-app-task_p20-0.log')
         self.assert_output_file_exists('test_00.json')
+        self.assert_output_file_exists('rt-app-task_p20-0.log')
+        self.assert_can_read_logfile(exp_tasks=['task_p20'])
 
 class TestRTAComposition(RTABase):
     def test_composition(self):
@@ -205,8 +212,9 @@ class TestRTAComposition(RTABase):
         self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
 
         self.assert_output_file_exists('output.log')
-        self.assert_output_file_exists('rt-app-task_ramp-0.log')
         self.assert_output_file_exists('test_00.json')
+        self.assert_output_file_exists('rt-app-task_ramp-0.log')
+        self.assert_can_read_logfile(exp_tasks=['task_ramp'])
 
 
 class TestRTACustom(RTABase):
