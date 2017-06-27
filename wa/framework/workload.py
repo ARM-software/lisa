@@ -515,9 +515,12 @@ class PackageHandler(object):
         self.apk_version = host_version
 
     def start_activity(self):
-        cmd = 'am start -W -n {}/{}'
-        output = self.target.execute(cmd.format(self.apk_info.package,
-                                                self.apk_info.activity))
+        if not self.apk_info.activity:
+            cmd = 'am start -W {}'.format(self.apk_info.package)
+        else:
+            cmd = 'am start -W -n {}/{}'.format(self.apk_info.package,
+                                                self.apk_info.activity)
+        output = self.target.execute(cmd)
         if 'Error:' in output:
             # this will dismiss any error dialogs
             self.target.execute('am force-stop {}'.format(self.apk_info.package))
