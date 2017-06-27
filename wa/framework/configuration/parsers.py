@@ -114,7 +114,7 @@ class AgendaParser(object):
             if 'run_name' in entry:
                 state.run_config.set('run_name', entry.pop('run_name'))
 
-            state.load_config(entry, source, wrap_exceptions=False)
+            state.load_config(entry, '{}/{}'.format(source, name), wrap_exceptions=False)
 
     def _pop_sections(self, raw):
         sections = raw.pop("sections", [])
