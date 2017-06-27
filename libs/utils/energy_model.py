@@ -38,18 +38,27 @@ def read_multiple_oneline_files(target, glob_patterns):
     target or connection is slow this saves a lot of time when reading a large
     number of files.
 
+    This will only work safely on stationary files, don't try to use it where
+    the glob expansion will change often - for example /proc/**/autogroup would
+    not work because /proc/ entries will likely appear & disappear while we're
+    reading them.
+
     :param target: devlib target object to read from
     :param glob_pattern: Unix glob pattern matching the files to read
     :returns: A dictionary mapping matched paths to the values read. ``{}`` if
               no paths matched the globs.
     """
+    find_cmd = 'find ' + ' '.join(glob_patterns)
     try:
-        paths = target.execute('find ' + ' '.join(glob_patterns)).split()
+        paths = target.execute(find_cmd).split()
     except TargetError:
         return {}
 
-    cmd = 'cat ' + ' '.join(glob_patterns)
+    cmd = '{} | {} xargs cat'.format(find_cmd, target.busybox)
     contents = target.execute(cmd).splitlines()
+
+    if len(contents) != len(paths):
+        raise RuntimeError('File count mismatch while reading multiple files')
 
     return dict(zip(paths, contents))
 
