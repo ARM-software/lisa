@@ -457,6 +457,58 @@ class Trace(object):
                             tname, self.tasks[tname]['pid'])
         return self.tasks
 
+    def runCustomAnalysis(self, fn_map):
+        """
+        Apply analysis functions to trace events in chronological order.
+
+        This method iterates over a user-specified subset of the available trace
+        event dataframes, calling different user-specified functions for each
+        event type. These functions are passed a dictionary mapping 'Index' and
+        the column names to their values for that row.
+
+        For example, to iterate over trace t, applying your functions analysis_fn1
+        and analysis_fn2 to each sched_switch and sched_wakeup event respectively:
+
+        t.runCustomAnalysis({
+            "sched_switch": analysis_fn1,
+            "sched_wakeup": analysis_fn2
+        })
+
+        :param fn_map: A dictionary mapping event names to functions.
+        :type fn_map: dict
+        """
+        events = fn_map.keys()
+        dfs = {event: self.data_frame.trace_event(event) for event in events}
+        iters = {event: dfs[event].itertuples() for event in events}
+        next_rows = {event: iterator.next() for event,iterator in iters.iteritems()}
+
+        # Column names beginning with underscore will not be preserved in tuples
+        # due to constraints on namedtuple field names, so store mappings from
+        # column name to column number for each trace event.
+        col_idxs = {event: {
+            name: idx for idx, name in enumerate(
+                ['Index'] + dfs[event].columns.tolist()
+            )
+        } for event in events}
+
+        def getLine(event):
+            line_col_idx = col_idxs[event]['__line']
+            return next_rows[event][line_col_idx]
+
+        while events:
+            event_name = min(events, key=getLine)
+            event_tuple = next_rows[event_name]
+
+            event_dict = {
+                col: event_tuple[idx] for col, idx in col_idxs[event_name].iteritems()
+            }
+            fn_map[event_name](event_dict)
+            event_row = next(iters[event_name], None)
+            if event_row:
+                next_rows[event_name] = event_row
+            else:
+                events.remove(event_name)
+
 
 ###############################################################################
 # DataFrame Getter Methods
