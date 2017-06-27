@@ -249,6 +249,15 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                 trace_class = DynamicTypeFactory(event_name, (Base,), kwords)
                 self.class_definitions[event_name] = trace_class
 
+    def __get_trace_class(self, line, cls_word):
+        trace_class = None
+        for unique_word, cls in cls_word.iteritems():
+            if unique_word in line:
+                trace_class = cls
+                if not cls.fallback:
+                    return trace_class
+        return trace_class
+
     def __populate_data(self, fin, cls_for_unique_word):
         """Append to trace data from a txt trace"""
 
@@ -257,16 +266,10 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                                            actual_trace)
 
         for line in actual_trace:
-            trace_class = None
-            for unique_word, cls in cls_for_unique_word.iteritems():
-                if unique_word in line:
-                    trace_class = cls
-                    if not cls.fallback:
-                        break
-            else:
-                if not trace_class:
-                    self.lines += 1
-                    continue
+            trace_class = self.__get_trace_class(line, cls_for_unique_word)
+            if not trace_class:
+                self.lines += 1
+                continue
 
             line = line[:-1]
 
