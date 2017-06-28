@@ -63,7 +63,7 @@ class _EnergyModelTest(LisaTest):
     negative_slack_allowed_pct = 15
     """Percentage of RT-App task activations with negative slack allowed"""
 
-    energy_est_threshold_pct = 20
+    energy_est_threshold_pct = 5
     """
     Allowed margin for error in estimated energy cost for task placement,
     compared to optimal placment.
