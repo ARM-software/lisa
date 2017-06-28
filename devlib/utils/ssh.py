@@ -160,7 +160,8 @@ class SshConnection(object):
                  telnet=False,
                  password_prompt=None,
                  original_prompt=None,
-                 platform=None
+                 platform=None,
+                 sudo_cmd="sudo -- sh -c '{}'"
                  ):
         self.host = host
         self.username = username
@@ -169,6 +170,7 @@ class SshConnection(object):
         self.port = port
         self.lock = threading.Lock()
         self.password_prompt = password_prompt if password_prompt is not None else self.default_password_prompt
+        self.sudo_cmd = sudo_cmd
         logger.debug('Logging in {}@{}'.format(username, host))
         timeout = timeout if timeout is not None else self.default_timeout
         self.conn = ssh_get_shell(host, username, password, self.keyfile, port, timeout, False, None)
@@ -212,7 +214,7 @@ class SshConnection(object):
             port_string = '-p {}'.format(self.port) if self.port else ''
             keyfile_string = '-i {}'.format(self.keyfile) if self.keyfile else ''
             if as_root:
-                command = "sudo -- sh -c '{}'".format(command)
+                command = self.sudo_cmd.format(command)
             command = '{} {} {} {}@{} {}'.format(ssh, keyfile_string, port_string, self.username, self.host, command)
             logger.debug(command)
             if self.password:
@@ -240,7 +242,7 @@ class SshConnection(object):
             # As we're already root, there is no need to use sudo.
             as_root = False
         if as_root:
-            command = "sudo -- sh -c '{}'".format(escape_single_quotes(command))
+            command = self.sudo_cmd.format(escape_single_quotes(command))
             if log:
                 logger.debug(command)
             self.conn.sendline(command)
