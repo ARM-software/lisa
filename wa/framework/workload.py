@@ -293,7 +293,9 @@ class UiAutomatorGUI(object):
                                                        instrumentation_string)
 
     def deploy(self):
-        self.target.install_apk(self.uiauto_file, replace=True)
+        if self.target.package_is_installed(self.uiauto_package):
+            self.target.uninstall_package(self.uiauto_package)
+        self.target.install_apk(self.uiauto_file)
 
     def set(self, name, value):
         self.uiauto_params[name] = value
