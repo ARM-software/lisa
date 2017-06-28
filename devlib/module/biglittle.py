@@ -44,79 +44,131 @@ class BigLittleModule(Module):
     # cpufreq
 
     def list_bigs_frequencies(self):
-        return self.target.cpufreq.list_frequencies(self.bigs_online[0])
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            return self.target.cpufreq.list_frequencies(bigs_online[0])
 
     def list_bigs_governors(self):
-        return self.target.cpufreq.list_governors(self.bigs_online[0])
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            return self.target.cpufreq.list_governors(bigs_online[0])
 
     def list_bigs_governor_tunables(self):
-        return self.target.cpufreq.list_governor_tunables(self.bigs_online[0])
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            return self.target.cpufreq.list_governor_tunables(bigs_online[0])
 
     def list_littles_frequencies(self):
-        return self.target.cpufreq.list_frequencies(self.littles_online[0])
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            return self.target.cpufreq.list_frequencies(littles_online[0])
 
     def list_littles_governors(self):
-        return self.target.cpufreq.list_governors(self.littles_online[0])
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            return self.target.cpufreq.list_governors(littles_online[0])
 
     def list_littles_governor_tunables(self):
-        return self.target.cpufreq.list_governor_tunables(self.littles_online[0])
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            return self.target.cpufreq.list_governor_tunables(littles_online[0])
 
     def get_bigs_governor(self):
-        return self.target.cpufreq.get_governor(self.bigs_online[0])
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            return self.target.cpufreq.get_governor(bigs_online[0])
 
     def get_bigs_governor_tunables(self):
-        return self.target.cpufreq.get_governor_tunables(self.bigs_online[0])
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            return self.target.cpufreq.get_governor_tunables(bigs_online[0])
 
     def get_bigs_frequency(self):
-        return self.target.cpufreq.get_frequency(self.bigs_online[0])
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            return self.target.cpufreq.get_frequency(bigs_online[0])
 
     def get_bigs_min_frequency(self):
-        return self.target.cpufreq.get_min_frequency(self.bigs_online[0])
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            return self.target.cpufreq.get_min_frequency(bigs_online[0])
 
     def get_bigs_max_frequency(self):
-        return self.target.cpufreq.get_max_frequency(self.bigs_online[0])
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            return self.target.cpufreq.get_max_frequency(bigs_online[0])
 
     def get_littles_governor(self):
-        return self.target.cpufreq.get_governor(self.littles_online[0])
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            return self.target.cpufreq.get_governor(littles_online[0])
 
     def get_littles_governor_tunables(self):
-        return self.target.cpufreq.get_governor_tunables(self.littles_online[0])
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            return self.target.cpufreq.get_governor_tunables(littles_online[0])
 
     def get_littles_frequency(self):
-        return self.target.cpufreq.get_frequency(self.littles_online[0])
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            return self.target.cpufreq.get_frequency(littles_online[0])
 
     def get_littles_min_frequency(self):
-        return self.target.cpufreq.get_min_frequency(self.littles_online[0])
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            return self.target.cpufreq.get_min_frequency(littles_online[0])
 
     def get_littles_max_frequency(self):
-        return self.target.cpufreq.get_max_frequency(self.littles_online[0])
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            return self.target.cpufreq.get_max_frequency(littles_online[0])
 
     def set_bigs_governor(self, governor, **kwargs):
-        self.target.cpufreq.set_governor(self.bigs_online[0], governor, **kwargs)
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            self.target.cpufreq.set_governor(bigs_online[0], governor, **kwargs)
 
     def set_bigs_governor_tunables(self, governor, **kwargs):
-        self.target.cpufreq.set_governor_tunables(self.bigs_online[0], governor, **kwargs)
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            self.target.cpufreq.set_governor_tunables(bigs_online[0], governor, **kwargs)
 
     def set_bigs_frequency(self, frequency, exact=True):
-        self.target.cpufreq.set_frequency(self.bigs_online[0], frequency, exact)
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            self.target.cpufreq.set_frequency(bigs_online[0], frequency, exact)
 
     def set_bigs_min_frequency(self, frequency, exact=True):
-        self.target.cpufreq.set_min_frequency(self.bigs_online[0], frequency, exact)
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            self.target.cpufreq.set_min_frequency(bigs_online[0], frequency, exact)
 
     def set_bigs_max_frequency(self, frequency, exact=True):
-        self.target.cpufreq.set_max_frequency(self.bigs_online[0], frequency, exact)
+        bigs_online = self.bigs_online
+        if len(bigs_online) > 0:
+            self.target.cpufreq.set_max_frequency(bigs_online[0], frequency, exact)
 
     def set_littles_governor(self, governor, **kwargs):
-        self.target.cpufreq.set_governor(self.littles_online[0], governor, **kwargs)
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            self.target.cpufreq.set_governor(littles_online[0], governor, **kwargs)
 
     def set_littles_governor_tunables(self, governor, **kwargs):
-        self.target.cpufreq.set_governor_tunables(self.littles_online[0], governor, **kwargs)
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            self.target.cpufreq.set_governor_tunables(littles_online[0], governor, **kwargs)
 
     def set_littles_frequency(self, frequency, exact=True):
-        self.target.cpufreq.set_frequency(self.littles_online[0], frequency, exact)
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            self.target.cpufreq.set_frequency(littles_online[0], frequency, exact)
 
     def set_littles_min_frequency(self, frequency, exact=True):
-        self.target.cpufreq.set_min_frequency(self.littles_online[0], frequency, exact)
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            self.target.cpufreq.set_min_frequency(littles_online[0], frequency, exact)
 
     def set_littles_max_frequency(self, frequency, exact=True):
-        self.target.cpufreq.set_max_frequency(self.littles_online[0], frequency, exact)
+        littles_online = self.littles_online
+        if len(littles_online) > 0:
+            self.target.cpufreq.set_max_frequency(littles_online[0], frequency, exact)
