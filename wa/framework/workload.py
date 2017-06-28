@@ -191,7 +191,6 @@ class ApkUIWorkload(ApkWorkload):
     def init_resources(self, context):
         super(ApkUIWorkload, self).init_resources(context)
         self.gui.init_resources(context.resolver)
-        self.gui.init_commands()
 
     def initialize(self, context):
         super(ApkUIWorkload, self).initialize(context)
@@ -226,6 +225,11 @@ class ApkUiautoWorkload(ApkUIWorkload):
     def __init__(self, target, **kwargs):
         super(ApkUiautoWorkload, self).__init__(target, **kwargs)
         self.gui = UiAutomatorGUI(self)
+
+    def setup(self, context):
+        self.gui.uiauto_params['package_name'] = self.apk.apk_info.package
+        self.gui.init_commands()
+        super(ApkUiautoWorkload, self).setup(context)
 
 
 class ReventWorkload(ApkUIWorkload):
@@ -395,9 +399,6 @@ class ReventGUI(object):
 
     def remove(self):
         self.revent_recorder.remove()
-
-    def init_commands(self):
-        pass
 
     def _check_revent_files(self):
         if not self.revent_run_file:
