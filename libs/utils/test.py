@@ -56,6 +56,9 @@ class LisaTest(unittest.TestCase):
     experiments_conf = None
     """Override this with a dictionary or JSON path to configure the Executor"""
 
+    permitted_fail_pct = 0
+    """The percentage of iterations of each test that may be permitted to fail"""
+
     @classmethod
     def _getTestConf(cls):
         if cls.test_conf is None:
@@ -81,9 +84,9 @@ class LisaTest(unittest.TestCase):
         """
         Set up logging and trigger running experiments
         """
-        cls.logger = logging.getLogger('LisaTest')
+        cls._log = logging.getLogger('LisaTest')
 
-        cls.logger.info('Setup tests execution engine...')
+        cls._log.info('Setup tests execution engine...')
         test_env = TestEnv(test_conf=cls._getTestConf())
 
         experiments_conf = cls._getExperimentsConf(test_env)
@@ -100,7 +103,7 @@ class LisaTest(unittest.TestCase):
         # Execute pre-experiments code defined by the test
         cls._experimentsInit()
 
-        cls.logger.info('Experiments execution...')
+        cls._log.info('Experiments execution...')
         cls.executor.run()
 
         cls.experiments = cls.executor.experiments
@@ -213,16 +216,33 @@ def experiment_test(wrapped_test, instance, args, kwargs):
     The method will be passed the experiment object and a list of the names of
     tasks that were run as the experiment's workload.
     """
+    failures = {}
     for experiment in instance.executor.experiments:
         tasks = experiment.wload.tasks.keys()
         try:
             wrapped_test(experiment, tasks, *args, **kwargs)
         except AssertionError as e:
             trace_relpath = os.path.join(experiment.out_dir, "trace.dat")
-            add_msg = "\n\tCheck trace file: " + os.path.abspath(trace_relpath)
-            orig_msg = e.args[0] if len(e.args) else ""
-            e.args = (orig_msg + add_msg,) + e.args[1:]
-            raise
+            add_msg = "Check trace file: " + os.path.abspath(trace_relpath)
+            msg = str(e) + "\n\t" +  add_msg
+
+            test_key = (experiment.wload_name, experiment.conf['tag'])
+            failures[test_key] = failures.get(test_key, []) + [msg]
+
+    for fails in failures.itervalues():
+        iterations = instance.executor.iterations
+        fail_pct = 100. * len(fails) / iterations
+
+        msg = "{} failures from {} iteration(s):\n{}".format(
+            len(fails), iterations, '\n'.join(fails))
+        if fail_pct > instance.permitted_fail_pct:
+            raise AssertionError(msg)
+        else:
+            instance._log.warning(msg)
+            instance._log.warning(
+                'ALLOWING due to permitted_fail_pct={}'.format(
+                    instance.permitted_fail_pct))
+
 
 # Prevent nosetests from running experiment_test directly as a test case
 experiment_test.__test__ = False

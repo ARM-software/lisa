@@ -166,6 +166,13 @@ class Executor():
             Number of iterations for each workload/conf combination. Default
             is 1.
     :type experiments_conf: dict
+
+    :ivar experiments: After calling `meth`:run:, the list of
+                       :class:`Experiment` s that were run
+
+    :ivar iterations: The number of iterations run for each wload/conf pair
+                       (i.e. ``experiments_conf['iterations']``.
+
     """
 
     critical_tasks = {
@@ -215,9 +222,9 @@ class Executor():
         self.te = test_env
         self.target = self.te.target
 
-        self._iterations = self._experiments_conf.get('iterations', 1)
+        self.iterations = self._experiments_conf.get('iterations', 1)
         # Compute total number of experiments
-        self._exp_count = self._iterations \
+        self._exp_count = self.iterations \
                 * len(self._experiments_conf['wloads']) \
                 * len(self._experiments_conf['confs'])
 
@@ -233,7 +240,7 @@ class Executor():
 
         self._log.info('   %3d workloads (%d iterations each)',
                        len(self._experiments_conf['wloads']),
-                       self._iterations)
+                       self.iterations)
         wload_confs = ', '.join(self._experiments_conf['wloads'])
         self._log.info('      %s', wload_confs)
 
@@ -261,7 +268,7 @@ class Executor():
             for wl_idx in self._experiments_conf['wloads']:
                 # TEST: configuration
                 wload, test_dir = self._wload_init(tc, wl_idx)
-                for itr_idx in range(1, self._iterations + 1):
+                for itr_idx in range(1, self.iterations + 1):
                     exp = Experiment(
                         wload_name=wl_idx,
                         wload=wload,
@@ -663,7 +670,7 @@ class Executor():
         self._print_title('Experiment {}/{}, [{}:{}] {}/{}'\
                 .format(exp_idx, self._exp_count,
                         tc_idx, experiment.wload_name,
-                        experiment.iteration, self._iterations))
+                        experiment.iteration, self.iterations))
 
         # Setup local results folder
         self._log.debug('out_dir set to [%s]', experiment.out_dir)
