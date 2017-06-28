@@ -90,6 +90,14 @@ class LisaTest(unittest.TestCase):
         test_env = TestEnv(test_conf=cls._getTestConf())
 
         experiments_conf = cls._getExperimentsConf(test_env)
+
+        if ITERATIONS_FROM_CMDLINE:
+            if 'iterations' in experiments_conf:
+                cls.logger.warning(
+                    "Command line overrides iteration count in "
+                    "{}'s experiments_conf".format(cls.__name__))
+            experiments_conf['iterations'] = ITERATIONS_FROM_CMDLINE
+
         cls.executor = Executor(test_env, experiments_conf)
 
         # Alias tests and workloads configurations
@@ -246,5 +254,21 @@ def experiment_test(wrapped_test, instance, args, kwargs):
 
 # Prevent nosetests from running experiment_test directly as a test case
 experiment_test.__test__ = False
+
+# Allow the user to override the iterations setting from the command
+# line. Nosetests does not support this kind of thing, so we use an
+# evil hack: the lisa-test shell function takes an --iterations
+# argument and exports an environment variable. If the test itself
+# specifies an iterations count, we'll later print a warning and
+# override it. We do this here in the root scope, rather than in
+# runExperiments, so that if the value is invalid we print the error
+# immediately instead of going ahead with target setup etc.
+try:
+    ITERATIONS_FROM_CMDLINE = int(
+        os.getenv('LISA_TEST_ITERATIONS', '0'))
+    if ITERATIONS_FROM_CMDLINE < 0:
+        raise ValueError('Cannot be negative')
+except ValueError as e:
+    raise ValueError("Couldn't read iterations count: {}".format(e))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
