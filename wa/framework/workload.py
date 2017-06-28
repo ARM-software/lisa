@@ -537,7 +537,8 @@ class PackageHandler(object):
         self.target.execute('pm clear {}'.format(self.apk_info.package))
 
     def install_apk(self, context):
-        output = self.target.install_apk(self.apk_file, self.install_timeout)
+        output = self.target.install_apk(self.apk_file, self.install_timeout,
+                                         replace=True, allow_downgrade=True)
         if 'Failure' in output:
             if 'ALREADY_EXISTS' in output:
                 msg = 'Using already installed APK (did not unistall properly?)'
