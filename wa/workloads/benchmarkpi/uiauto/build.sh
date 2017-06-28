@@ -29,7 +29,7 @@ if [[ ! -f gradlew ]]; then
     exit 9
 fi
 
-# Copy base class library from wlauto dist
+# Copy base class library from wa dist
 libs_dir=app/libs
 base_class=`python -c "import os, wa; print os.path.join(os.path.dirname(wa.__file__), 'framework', 'uiauto', 'uiauto.aar')"`
 mkdir -p $libs_dir
