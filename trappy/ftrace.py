@@ -18,9 +18,13 @@
 # pylint: disable=no-member
 
 import itertools
+import json
 import os
 import re
 import pandas as pd
+import hashlib
+import shutil
+import warnings
 
 from trappy.bare_trace import BareTrace
 from trappy.utils import listify
@@ -61,6 +65,57 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
     sched_classes = {}
 
     dynamic_classes = {}
+
+    disable_cache = False
+
+    def _trace_cache_path(self):
+        trace_file = self.trace_path
+        cache_dir  = '.' +  os.path.basename(trace_file) + '.cache'
+        tracefile_dir = os.path.dirname(os.path.abspath(trace_file))
+        cache_path = os.path.join(tracefile_dir, cache_dir)
+        return cache_path
+
+    def _check_trace_cache(self, params):
+        cache_path = self._trace_cache_path()
+        md5file = os.path.join(cache_path, 'md5sum')
+        params_path = os.path.join(cache_path, 'params.json')
+
+        for path in [cache_path, md5file, params_path]:
+            if not os.path.exists(path):
+                return False
+
+        with open(md5file) as f:
+            cache_md5sum = f.read()
+        with open(self.trace_path, 'rb') as f:
+            trace_md5sum = hashlib.md5(f.read()).hexdigest()
+        with open(params_path) as f:
+            cache_params = json.load(f)
+
+        # check if cache is valid
+        if cache_md5sum != trace_md5sum or cache_params != params:
+            shutil.rmtree(cache_path)
+            return False
+        return True
+
+    def _create_trace_cache(self, params):
+        cache_path = self._trace_cache_path()
+        md5file = os.path.join(cache_path, 'md5sum')
+        params_path = os.path.join(cache_path, 'params.json')
+
+        if os.path.exists(cache_path):
+            shutil.rmtree(cache_path)
+        os.mkdir(cache_path)
+
+        md5sum = hashlib.md5(open(self.trace_path, 'rb').read()).hexdigest()
+        with open(md5file, 'w') as f:
+            f.write(md5sum)
+
+        with open(params_path, 'w') as f:
+            json.dump(params, f)
+
+    def _get_csv_path(self, trace_class):
+        path = self._trace_cache_path()
+        return os.path.join(path, trace_class.__class__.__name__ + '.csv')
 
     def __init__(self, name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
@@ -127,7 +182,36 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                 del scope_classes[name]
 
     def _do_parse(self):
+        params = {'window': self.window, 'abs_window': self.abs_window}
+        if not self.__class__.disable_cache and self._check_trace_cache(params):
+            # Read csv into frames
+            for trace_class in self.trace_classes:
+                try:
+                    csv_file = self._get_csv_path(trace_class)
+                    trace_class.read_csv(csv_file)
+                    trace_class.cached = True
+                except:
+                    warnstr = "TRAPpy: Couldn't read {} from cache, reading it from trace".format(trace_class)
+                    warnings.warn(warnstr)
+
         self.__parse_trace_file(self.trace_path)
+
+        if not self.__class__.disable_cache:
+            try:
+                # Recreate basic cache directories only if nothing cached
+                if not all([c.cached for c in self.trace_classes]):
+                    self._create_trace_cache(params)
+
+                # Write out only events that weren't cached before
+                for trace_class in self.trace_classes:
+                    if trace_class.cached:
+                        continue
+                    csv_file = self._get_csv_path(trace_class)
+                    trace_class.write_csv(csv_file)
+            except OSError as err:
+                warnings.warn(
+                    "TRAPpy: Cache not created due to OS error: {0}".format(err))
+
         self.finalize_objects()
 
         if self.normalize_time:
@@ -265,6 +349,8 @@ is part of the trace.
         cls_for_unique_word = {}
         for trace_name in self.class_definitions.iterkeys():
             trace_class = getattr(self, trace_name)
+            if trace_class.cached:
+                continue
 
             unique_word = trace_class.unique_word
             cls_for_unique_word[unique_word] = trace_class
