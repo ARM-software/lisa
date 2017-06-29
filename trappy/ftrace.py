@@ -78,6 +78,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
     def _check_trace_cache(self, params):
         cache_path = self._trace_cache_path()
         md5file = os.path.join(cache_path, 'md5sum')
+        basetime_path = os.path.join(cache_path, 'basetime')
         params_path = os.path.join(cache_path, 'params.json')
 
         for path in [cache_path, md5file, params_path]:
@@ -86,10 +87,15 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
         with open(md5file) as f:
             cache_md5sum = f.read()
+        with open(basetime_path) as f:
+            self.basetime = float(f.read())
         with open(self.trace_path, 'rb') as f:
             trace_md5sum = hashlib.md5(f.read()).hexdigest()
         with open(params_path) as f:
-            cache_params = json.load(f)
+            cache_params = json.dumps(json.load(f))
+
+        # Convert to a json string for comparison
+        params = json.dumps(params)
 
         # check if cache is valid
         if cache_md5sum != trace_md5sum or cache_params != params:
@@ -100,6 +106,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
     def _create_trace_cache(self, params):
         cache_path = self._trace_cache_path()
         md5file = os.path.join(cache_path, 'md5sum')
+        basetime_path = os.path.join(cache_path, 'basetime')
         params_path = os.path.join(cache_path, 'params.json')
 
         if os.path.exists(cache_path):
@@ -109,6 +116,9 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         md5sum = hashlib.md5(open(self.trace_path, 'rb').read()).hexdigest()
         with open(md5file, 'w') as f:
             f.write(md5sum)
+
+        with open(basetime_path, 'w') as f:
+            f.write(str(self.basetime))
 
         with open(params_path, 'w') as f:
             json.dump(params, f)
@@ -194,7 +204,14 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                     warnstr = "TRAPpy: Couldn't read {} from cache, reading it from trace".format(trace_class)
                     warnings.warn(warnstr)
 
+        if all([c.cached for c in self.trace_classes]):
+            if self.normalize_time:
+                self._normalize_time()
+            return
+
         self.__parse_trace_file(self.trace_path)
+
+        self.finalize_objects()
 
         if not self.__class__.disable_cache:
             try:
@@ -211,8 +228,6 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             except OSError as err:
                 warnings.warn(
                     "TRAPpy: Cache not created due to OS error: {0}".format(err))
-
-        self.finalize_objects()
 
         if self.normalize_time:
             self._normalize_time()

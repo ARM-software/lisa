@@ -134,6 +134,9 @@ class BareTrace(object):
 
     def finalize_objects(self):
         for trace_class in self.trace_classes:
+            # If cached, don't need to do any other DF operation
+            if trace_class.cached:
+                continue
             trace_class.tracer = self
             trace_class.create_dataframe()
             trace_class.finalize_object()
