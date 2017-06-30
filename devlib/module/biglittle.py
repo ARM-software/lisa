@@ -127,48 +127,68 @@ class BigLittleModule(Module):
         bigs_online = self.bigs_online
         if len(bigs_online) > 0:
             self.target.cpufreq.set_governor(bigs_online[0], governor, **kwargs)
+        else:
+            raise ValueError("All bigs appear to be offline")
 
     def set_bigs_governor_tunables(self, governor, **kwargs):
         bigs_online = self.bigs_online
         if len(bigs_online) > 0:
             self.target.cpufreq.set_governor_tunables(bigs_online[0], governor, **kwargs)
+        else:
+            raise ValueError("All bigs appear to be offline")
 
     def set_bigs_frequency(self, frequency, exact=True):
         bigs_online = self.bigs_online
         if len(bigs_online) > 0:
             self.target.cpufreq.set_frequency(bigs_online[0], frequency, exact)
+        else:
+            raise ValueError("All bigs appear to be offline")
 
     def set_bigs_min_frequency(self, frequency, exact=True):
         bigs_online = self.bigs_online
         if len(bigs_online) > 0:
             self.target.cpufreq.set_min_frequency(bigs_online[0], frequency, exact)
+        else:
+            raise ValueError("All bigs appear to be offline")
 
     def set_bigs_max_frequency(self, frequency, exact=True):
         bigs_online = self.bigs_online
         if len(bigs_online) > 0:
             self.target.cpufreq.set_max_frequency(bigs_online[0], frequency, exact)
+        else:
+            raise ValueError("All bigs appear to be offline")
 
     def set_littles_governor(self, governor, **kwargs):
         littles_online = self.littles_online
         if len(littles_online) > 0:
             self.target.cpufreq.set_governor(littles_online[0], governor, **kwargs)
+        else:
+            raise ValueError("All littles appear to be offline")
 
     def set_littles_governor_tunables(self, governor, **kwargs):
         littles_online = self.littles_online
         if len(littles_online) > 0:
             self.target.cpufreq.set_governor_tunables(littles_online[0], governor, **kwargs)
+        else:
+            raise ValueError("All littles appear to be offline")
 
     def set_littles_frequency(self, frequency, exact=True):
         littles_online = self.littles_online
         if len(littles_online) > 0:
             self.target.cpufreq.set_frequency(littles_online[0], frequency, exact)
+        else:
+            raise ValueError("All littles appear to be offline")
 
     def set_littles_min_frequency(self, frequency, exact=True):
         littles_online = self.littles_online
         if len(littles_online) > 0:
             self.target.cpufreq.set_min_frequency(littles_online[0], frequency, exact)
+        else:
+            raise ValueError("All littles appear to be offline")
 
     def set_littles_max_frequency(self, frequency, exact=True):
         littles_online = self.littles_online
         if len(littles_online) > 0:
             self.target.cpufreq.set_max_frequency(littles_online[0], frequency, exact)
+        else:
+            raise ValueError("All littles appear to be offline")
