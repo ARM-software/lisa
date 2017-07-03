@@ -329,6 +329,15 @@ class ThreeSmallTasks(_EnergyModelTest):
     """
     Test EAS for 3 20% tasks over 2 seconds
     """
+
+    # The energy estimation for this test is probably not very accurate and this
+    # isn't a very realistic workload. It doesn't really matter if we pick an
+    # "ideal" task placement for this workload, we just want to avoid using big
+    # CPUs in a big.LITTLE system. So use a larger energy threshold that
+    # hopefully prevents too much use of big CPUs but otherwise is flexible in
+    # allocation of LITTLEs.
+    energy_est_threshold_pct = 20
+
     workloads = {
         'three_small' : {
             'type' : 'rt-app',
@@ -452,6 +461,14 @@ class RampDown(_EnergyModelTest):
     """
     Test EAS for a task ramping from 70% down to 5% over 2 seconds
     """
+
+    # The main purpose of this test is to ensure that as it reduces in load, a
+    # task is migrated from big to LITTLE CPUs on a big.LITTLE system.
+    # This migration naturally happens some time _after_ it could possibly be
+    # done, since there must be some hysteresis to avoid a performance cost.
+    # Therefore allow a larger energy usage threshold
+    energy_est_threshold_pct = 15
+
     workloads = {
         "ramp_down" : {
             "type": "rt-app",
