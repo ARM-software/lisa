@@ -29,7 +29,7 @@ from trace import Trace
 from unittest import SkipTest
 
 
-WORKLOAD_PERIOD_MS =  10
+WORKLOAD_PERIOD_MS =  16
 SET_IS_BIG_LITTLE = True
 SET_INITIAL_TASK_UTIL = True
 
@@ -311,7 +311,7 @@ class OneSmallTask(_EnergyModelTest):
                 'params' : {
                     'duty_cycle_pct': 20,
                     'duration_s': 2,
-                    'period_ms': 10,
+                    'period_ms': WORKLOAD_PERIOD_MS,
                 },
                 'tasks' : 1,
                 'prefix' : 'many',
@@ -337,7 +337,7 @@ class ThreeSmallTasks(_EnergyModelTest):
                 'params' : {
                     'duty_cycle_pct': 20,
                     'duration_s': 2,
-                    'period_ms': 10,
+                    'period_ms': WORKLOAD_PERIOD_MS,
                 },
                 'tasks' : 3,
                 'prefix' : 'many',
@@ -363,7 +363,7 @@ class TwoBigTasks(_EnergyModelTest):
                 'params' : {
                     'duty_cycle_pct': 80,
                     'duration_s': 2,
-                    'period_ms': 10,
+                    'period_ms': WORKLOAD_PERIOD_MS,
                 },
                 'tasks' : 2,
                 'prefix' : 'many',
@@ -429,7 +429,7 @@ class RampUp(_EnergyModelTest):
                     "r5_10-60" : {
                         "kind"   : "Ramp",
                         "params" : {
-                            "period_ms" : 16,
+                            'period_ms': WORKLOAD_PERIOD_MS,
                             "start_pct" :  5,
                             "end_pct"   : 70,
                             "delta_pct" :  5,
@@ -461,7 +461,7 @@ class RampDown(_EnergyModelTest):
                     "r5_10-60" : {
                         "kind"   : "Ramp",
                         "params" : {
-                            "period_ms" : 16,
+                            'period_ms': WORKLOAD_PERIOD_MS,
                             "start_pct" : 70,
                             "end_pct"   :  5,
                             "delta_pct" :  5,
@@ -493,6 +493,7 @@ class EnergyModelWakeMigration(_EnergyModelTest):
                     'wmig' : {
                         'kind' : 'Step',
                         'params' : {
+                            "period_ms" : WORKLOAD_PERIOD_MS,
                             'start_pct': 10,
                             'end_pct': 50,
                             'time_s': 2,
