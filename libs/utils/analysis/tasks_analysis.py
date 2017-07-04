@@ -692,16 +692,19 @@ class TasksAnalysis(AnalysisModule):
         :type is_last: bool
         """
         util_df = self._dfg_trace_event('sched_load_avg_task')
-        data = util_df[util_df.pid == tid][['cluster', 'cpu']]
-        for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
-            cdata = data[data.cluster == clabel]
-            if len(cdata) > 0:
-                cdata.plot(ax=axes, style=[ccolor+'+'], legend=False)
+
+        if 'cluster' in util_df:
+            data = util_df[util_df.pid == tid][['cluster', 'cpu']]
+            for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
+                cdata = data[data.cluster == clabel]
+                if len(cdata) > 0:
+                    cdata.plot(ax=axes, style=[ccolor+'+'], legend=False)
+
         # Y Axis - placeholders for legend, acutal CPUs. topmost empty lane
         cpus = [str(n) for n in range(self._platform['cpus_count'])]
         ylabels = [''] + cpus
         axes.set_yticklabels(ylabels)
-        axes.set_ylim(-1, self._platform['cpus_count'])
+        axes.set_ylim(-1, len(cpus))
         axes.set_ylabel('CPUs')
         # X Axis
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
