@@ -35,8 +35,7 @@ class TestTrace(TestCase):
 
         self.test_trace = os.path.join(self.traces_dir, 'test_trace.txt')
 
-        with open(os.path.join(self.traces_dir, 'platform.json')) as f:
-            self.platform = json.load(f)
+        self.platform = self._get_platform()
 
         self.trace_path = os.path.join(self.traces_dir, 'trace.txt')
         self.trace = Trace(self.platform, self.trace_path, self.events)
@@ -47,6 +46,10 @@ class TestTrace(TestCase):
 
         return Trace(self.platform, self.test_trace, self.events,
                      normalize_time=False)
+
+    def _get_platform(self):
+        with open(os.path.join(self.traces_dir, 'platform.json')) as f:
+            return json.load(f)
 
     def test_getTaskByName(self):
         """TestTrace: getTaskByName() returns the list of PIDs for all tasks with the specified name"""
@@ -138,4 +141,16 @@ class TestTrace(TestCase):
         trace = self.make_trace(in_data)
 
         self.assertEqual(trace.platform['cpus_count'], 3)
+
+class TestTraceNoClusterData(TestTrace):
+    """
+    Test Trace without cluster data
+
+    Inherits from TestTrace, so all the tests are run again but with
+    no cluster info the platform dict.
+    """
+    def _get_platform(self):
+        platform = super(TestTraceNoClusterData, self)._get_platform()
+        del platform['clusters']
+        return platform
 
