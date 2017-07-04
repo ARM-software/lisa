@@ -43,7 +43,7 @@ class Trace(object):
 
     :param platform: a dictionary containing information about the target
         platform
-    :type platform: dict
+    :type platform: dict or None
 
     :param data_dir: folder containing all trace data
     :type data_dir: str
@@ -77,7 +77,7 @@ class Trace(object):
                  plots_prefix=''):
 
         # The platform used to run the experiments
-        self.platform = platform
+        self.platform = platform or {}
 
         # TRAPpy Trace object
         self.ftrace = None
@@ -518,6 +518,10 @@ class Trace(object):
         df['cluster'] = np.select(
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 ['LITTLE'], 'big')
+
+        if 'nrg_model' not in self.platform:
+            return
+
         # Add a column which represents the max capacity of the smallest
         # clustre which can accomodate the task utilization
         little_cap = self.platform['nrg_model']['little']['cpu']['cap_max']
@@ -642,7 +646,8 @@ class Trace(object):
         Verify that all platform reported clusters are frequency coherent (i.e.
         frequency scaling is performed at a cluster level).
         """
-        if not self.hasEvents('cpu_frequency_devlib'):
+        if not self.hasEvents('cpu_frequency_devlib') \
+           or 'clusters' not in self.platform:
             return
 
         devlib_freq = self._dfg_trace_event('cpu_frequency_devlib')

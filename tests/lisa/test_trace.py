@@ -174,3 +174,12 @@ class TestTraceNoClusterData(TestTrace):
         del platform['clusters']
         return platform
 
+class TestTraceNoPlatform(TestTrace):
+    """
+    Test Trace with platform=none
+
+    Inherits from TestTrace, so all the tests are run again but with
+    platform=None
+    """
+    def _get_platform(self):
+        return None
