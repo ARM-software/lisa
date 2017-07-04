@@ -24,7 +24,7 @@ from wa.framework.resource import (ApkFile, JarFile, ReventFile, NO_ONE,
 from wa.framework.exception import WorkloadError
 from wa.utils.types import ParameterDict
 from wa.utils.revent import ReventRecorder
-from wa.utils.exec_control import once
+from wa.utils.exec_control import once_per_instance
 
 from devlib.utils.android import ApkInfo
 from devlib.exception import TargetError
@@ -161,6 +161,7 @@ class ApkWorkload(Workload):
     def init_resources(self, context):
         pass
 
+    @once_per_instance
     def initialize(self, context):
         self.apk.initialize(context)
 
@@ -177,7 +178,7 @@ class ApkWorkload(Workload):
     def teardown(self, context):
         self.apk.teardown()
 
-    @once
+    @once_per_instance
     def finalize(self, context):
         pass
 
@@ -192,6 +193,7 @@ class ApkUIWorkload(ApkWorkload):
         super(ApkUIWorkload, self).init_resources(context)
         self.gui.init_resources(context.resolver)
 
+    @once_per_instance
     def initialize(self, context):
         super(ApkUIWorkload, self).initialize(context)
 
@@ -212,7 +214,7 @@ class ApkUIWorkload(ApkWorkload):
         self.gui.teardown()
         super(ApkUIWorkload, self).teardown(context)
 
-    @once
+    @once_per_instance
     def finalize(self, context):
         super(ApkUIWorkload, self).finalize(context)
         self.gui.remove()
