@@ -788,7 +788,9 @@ class Trace(object):
         """
         if os.path.isdir(path):
             path = os.path.join(path, 'trace.stats')
-        if path.endswith('dat') or path.endswith('html'):
+        if (path.endswith('dat') or
+            path.endswith('txt') or
+            path.endswith('html')):
             pre, ext = os.path.splitext(path)
             path = pre + '.stats'
         if not os.path.isfile(path):
