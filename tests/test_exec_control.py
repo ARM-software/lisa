@@ -46,11 +46,41 @@ class SubClass(TestClass):
     def __init__(self):
         super(SubClass, self).__init__()
 
+    @once
+    def initilize_once(self):
+        super(SubClass, self).initilize_once()
+        self.count += 1
+
+    @once_per_class
+    def initilize_once_per_class(self):
+        super(SubClass, self).initilize_once_per_class()
+        self.count += 1
+
+    @once_per_instance
+    def initilize_once_per_instance(self):
+        super(SubClass, self).initilize_once_per_instance()
+        self.count += 1
+
 
 class SubSubClass(SubClass):
 
     def __init__(self):
         super(SubSubClass, self).__init__()
+
+    @once
+    def initilize_once(self):
+        super(SubSubClass, self).initilize_once()
+        self.count += 1
+
+    @once_per_class
+    def initilize_once_per_class(self):
+        super(SubSubClass, self).initilize_once_per_class()
+        self.count += 1
+
+    @once_per_instance
+    def initilize_once_per_instance(self):
+        super(SubSubClass, self).initilize_once_per_instance()
+        self.count += 1
 
 
 class AnotherClass(object):
@@ -262,8 +292,8 @@ class OncePerInstanceEnvironmentTest(TestCase):
 
         sc.initilize_once_per_instance()
         sc.initilize_once_per_instance()
-        assert_equal(sc.count, 1)
+        assert_equal(sc.count, 2)
 
         ss.initilize_once_per_instance()
         ss.initilize_once_per_instance()
-        assert_equal(ss.count, 1)
+        assert_equal(ss.count, 3)

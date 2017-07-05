@@ -59,7 +59,7 @@ def once_per_instance(method):
     def wrapper(*args, **kwargs):
         if __active_environment is None:
             activate_environment('default')
-        func_id = repr(args[0])
+        func_id = repr(method.__hash__()) + repr(args[0])
         if func_id in __environments[__active_environment]:
             return
         else:
