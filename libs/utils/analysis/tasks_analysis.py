@@ -450,14 +450,10 @@ class TasksAnalysis(AnalysisModule):
 
             # Get per cluster wakeup events
             df = self._dfg_trace_event('sched_wakeup_new')
-            big_frequent = (
-                    (df.target_cpu.isin(self._big_cpus))
-                    )
+            big_frequent = df.target_cpu.isin(self._big_cpus)
             ntbc = df[big_frequent]
             ntbc_count = len(ntbc)
-            little_frequent = (
-                    (df.target_cpu.isin(self._little_cpus))
-                    )
+            little_frequent = df.target_cpu.isin(self._little_cpus)
             ntlc = df[little_frequent];
             ntlc_count = len(ntlc)
 
@@ -567,14 +563,11 @@ class TasksAnalysis(AnalysisModule):
         # Add column of expected cluster depending on:
         # a) task utilization value
         # b) capacity of the selected cluster
-        bu_bc = ( \
-                (df['util_avg'] > self._little_cap) & \
-                (df['cpu'].isin(self._big_cpus))
-            )
-        su_lc = ( \
-                (df['util_avg'] <= self._little_cap) & \
-                (df['cpu'].isin(self._little_cpus))
-            )
+        bu_bc = ((df['util_avg'] > self._little_cap) &
+                 (df['cpu'].isin(self._big_cpus)))
+        su_lc = ((df['util_avg'] <= self._little_cap) &
+                 (df['cpu'].isin(self._little_cpus)))
+
         # The Cluster CAPacity Matches the UTILization (ccap_mutil) iff:
         # - tasks with util_avg  > little_cap are running on a BIG cpu
         # - tasks with util_avg <= little_cap are running on a LITTLe cpu
