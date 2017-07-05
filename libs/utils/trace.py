@@ -134,6 +134,13 @@ class Trace(object):
         self.data_frame = TraceData()
         self._registerDataFrameGetters(self)
 
+        # If we don't know the number of CPUs, check the trace for the
+        # highest-numbered CPU that traced an event.
+        if 'cpus_count' not in self.platform:
+            max_cpu = max(int(self.data_frame.trace_event(e)['__cpu'].max())
+                          for e in self.available_events)
+            self.platform['cpus_count'] = max_cpu + 1
+
         self.analysis = AnalysisRegister(self)
 
     def _registerDataFrameGetters(self, module):

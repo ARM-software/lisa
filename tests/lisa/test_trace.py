@@ -124,3 +124,18 @@ class TestTrace(TestCase):
         expected_time = (events[1] - events[0]) + (trace_end - events[2])
 
         self.assertAlmostEqual(self.trace.overutilized_time, expected_time, places=6)
+
+    def test_deriving_cpus_count(self):
+        """Test that Trace derives cpus_count if it isn't provided"""
+        if self.platform:
+            del self.platform['cpus_count']
+
+        in_data = """
+            father-1234  [000] 18765.018235: sched_switch: prev_comm=father prev_pid=1234 prev_prio=120 prev_state=0 next_comm=father next_pid=5678 next_prio=120
+             child-5678  [002] 18765.018235: sched_switch: prev_comm=child prev_pid=5678 prev_prio=120 prev_state=1 next_comm=father next_pid=5678 next_prio=120
+        """
+
+        trace = self.make_trace(in_data)
+
+        self.assertEqual(trace.platform['cpus_count'], 3)
+
