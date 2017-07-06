@@ -194,10 +194,10 @@ class ApkUIWorkload(ApkWorkload):
 
     def initialize(self, context):
         super(ApkUIWorkload, self).initialize(context)
-        self.gui.deploy()
 
     def setup(self, context):
         super(ApkUIWorkload, self).setup(context)
+        self.gui.deploy()
         self.gui.setup()
 
     def run(self, context):
