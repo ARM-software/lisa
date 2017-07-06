@@ -437,9 +437,9 @@ class PackageHandler(object):
 
     def initialize(self, context):
         self.resolve_package(context)
-        self.initialize_package(context)
 
     def setup(self, context):
+        self.initialize_package(context)
         self.start_activity()
         self.target.execute('am kill-all')  # kill all *background* activities
         self.target.clear_logcat()
