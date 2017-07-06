@@ -407,7 +407,7 @@ class TestEnv(ShareState):
         # Setup board default if not specified by configuration
         self.nrg_model = None
         platform = None
-        self.__modules = []
+        self.__modules = ['cpufreq']
         if 'board' not in self.conf:
             self.conf['board'] = 'UNKNOWN'
 
@@ -456,7 +456,8 @@ class TestEnv(ShareState):
                     core_clusters = self._get_clusters(core_names),
                     big_core=board.get('big_core', None)
                 )
-                self.__modules=board.get('modules', [])
+                if 'modules' in board:
+                    self.__modules = board['modules']
 
         ########################################################################
         # Modules configuration
