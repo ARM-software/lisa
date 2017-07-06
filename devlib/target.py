@@ -1186,6 +1186,26 @@ class AndroidTarget(Target):
         if self.is_screen_on():
             self.execute('input keyevent 26')
 
+    def set_auto_brightness(self, auto_brightness):
+        cmd = 'settings put system screen_brightness_mode {}'
+        self.execute(cmd.format(int(boolean(auto_brightness))))
+
+    def get_auto_brightness(self):
+        cmd = 'settings get system screen_brightness_mode'
+        return boolean(self.execute(cmd).strip())
+
+    def set_brightness(self, value):
+        if not 0 <= value <= 255:
+            msg = 'Invalid brightness "{}"; Must be between 0 and 255'
+            raise ValueError(msg.format(value))
+        self.set_auto_brightness(False)
+        cmd = 'settings put system screen_brightness {}'
+        self.execute(cmd.format(int(value)))
+
+    def get_brightness(self):
+        cmd = 'settings get system screen_brightness'
+        return integer(self.execute(cmd).strip())
+
     def homescreen(self):
         self.execute('am start -a android.intent.action.MAIN -c android.intent.category.HOME')
 
