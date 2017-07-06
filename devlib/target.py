@@ -351,6 +351,38 @@ class Target(object):
             command = 'cd {} && {}'.format(in_directory, command)
         return self.execute(command, as_root=as_root, timeout=timeout)
 
+    def background_invoke(self, binary, args=None, in_directory=None,
+                          on_cpus=None, as_root=False):
+        """
+        Executes the specified binary as a background task under the
+        specified conditions.
+
+        :binary: binary to execute. Must be present and executable on the device.
+        :args: arguments to be passed to the binary. The can be either a list or
+               a string.
+        :in_directory:  execute the binary in the  specified directory. This must
+                        be an absolute path.
+        :on_cpus:  taskset the binary to these CPUs. This may be a single ``int`` (in which
+                   case, it will be interpreted as the mask), a list of ``ints``, in which
+                   case this will be interpreted as the list of cpus, or string, which
+                   will be interpreted as a comma-separated list of cpu ranges, e.g.
+                   ``"0,4-7"``.
+        :as_root: Specify whether the command should be run as root
+
+        :returns: the subprocess instance handling that command
+        """
+        command = binary
+        if args:
+            if isiterable(args):
+                args = ' '.join(args)
+            command = '{} {}'.format(command, args)
+        if on_cpus:
+            on_cpus = bitmask(on_cpus)
+            command = '{} taskset 0x{:x} {}'.format(self.busybox, on_cpus, command)
+        if in_directory:
+            command = 'cd {} && {}'.format(in_directory, command)
+        return self.background(command, as_root=as_root)
+
     def kick_off(self, command, as_root=False):
         raise NotImplementedError()
 
