@@ -265,6 +265,24 @@ Target
    :param timeout: If this is specified and invocation does not terminate within this number 
            of seconds, an exception will be raised.
 
+.. method:: Target.background_invoke(binary [, args [, in_directory [, on_cpus [, as_root ]]]])
+
+   Execute the specified binary on target (must already be installed) as a background
+   task, under the specified conditions and return the :class:`subprocess.Popen`
+   instance for the command.
+
+   :param binary: binary to execute. Must be present and executable on the device.
+   :param args: arguments to be passed to the binary. The can be either a list or
+          a string.
+   :param in_directory:  execute the binary in the  specified directory. This must
+                   be an absolute path.
+   :param on_cpus:  taskset the binary to these CPUs. This may be a single ``int`` (in which
+          case, it will be interpreted as the mask), a list of ``ints``, in which
+          case this will be interpreted as the list of cpus, or string, which
+          will be interpreted as a comma-separated list of cpu ranges, e.g.
+          ``"0,4-7"``.
+   :param as_root: Specify whether the command should be run as root
+
 .. method:: Target.kick_off(command [, as_root])
 
    Kick off the specified command on the target and return immediately. Unlike
