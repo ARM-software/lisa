@@ -1206,6 +1206,18 @@ class AndroidTarget(Target):
         cmd = 'settings get system screen_brightness'
         return integer(self.execute(cmd).strip())
 
+    def get_airplane_mode(self):
+        cmd = 'settings get global airplane_mode_on'
+        return boolean(self.execute(cmd).strip())
+
+    def set_airplane_mode(self, mode):
+        root_required = self.get_sdk_version() > 23
+        if root_required and not self.is_rooted:
+            raise TargetError('Root is required to toggle airplane mode on Android 7+')
+        cmd = 'settings put global airplane_mode_on {}'
+        self.execute(cmd.format(int(boolean(mode))))
+        self.execute('am broadcast -a android.intent.action.AIRPLANE_MODE', as_root=root_required)
+
     def homescreen(self):
         self.execute('am start -a android.intent.action.MAIN -c android.intent.category.HOME')
 
