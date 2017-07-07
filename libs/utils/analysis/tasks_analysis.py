@@ -255,6 +255,81 @@ class TasksAnalysis(AnalysisModule):
         # task_cpu.
         return reindex_df_union(wk, mg).ffill()
 
+    def _dfg_task_runnable(self):
+        """
+        Get a DataFrame showing when tasks were RUNNABLE
+
+        Each column in this DataFrame, labeled by PID, is a signal which is 1.0
+        when the task was runnable (including when it was running), and 0.0 when
+        it was not.
+        """
+        if not (self._trace.hasEvents('sched_wakeup') and
+                self._trace.hasEvents('sched_switch')):
+            self._log.warning(
+                'Events [sched_wakeup, sched_switch] not found')
+            return None
+
+        # sched_wakeup tells us when a task becomes runnable.
+        # Make a DataFrame with a column per PID with 1s where the PID became
+        # runnable.
+        wk = self.__get_wake_df()
+        wk[~wk.isnull()] = 1
+
+        # When a task switches out and prev_state is not 0 (TASK_RUNNING),
+        # sched_switch tells us a task is no longer runnable.
+        # Make a DataFrame with a column per PID with 0s where the PID stopped
+        # being runnable.
+        sw = self._trace.data_frame.trace_event('sched_switch')
+        sw = sw[sw.prev_state != 0].pivot(columns='prev_pid').next_pid
+        sw[~sw.isnull()] = 0
+
+        # Combine wakeups and sleep events to find RUNNABLE time.
+        return reindex_df_union(wk, sw).ffill()
+
+    def _dfg_nr_running(self):
+        """
+        Get a DataFrame showing the number of runnable tasks on a CPU
+
+        The returned DataFrame has a column for each CPU, which is a signal
+        showing the number of runnable tasks on that CPU.
+        """
+        tc = self._trace.data_frame.task_cpu()
+        tr = self._trace.data_frame.task_runnable()
+
+        index = tc.index.append(tr.index).sort_values()
+        tc = tc.reindex(index, method='ffill')
+        tr = tr.reindex(index, method='ffill')
+
+        # task_cpu has CPU IDs, task_runnable has 0s and 1s. Add 1 to the CPU
+        # IDs before multiplying the two, then subtract 1 , so that the result
+        # has -1.0s where the task was blocked and the CPU ID where the task
+        # was running on a CPU or on its runqueue.
+        tcr = ((tc + 1) * tr) - 1
+
+        # For each row, count the number of instances of each CPU number - this
+        # is the number of runnable tasks on that CPU.
+        cpus = range(self._platform['cpus_count'])
+        df = pd.DataFrame({cpu: tcr[tcr == cpu].count(axis=1) for cpu in cpus})
+
+        # Until we first saw a CPU go idle, we don't know what nr_running was,
+        # so, n each column, set everything up until the first 0 to NaN.
+
+        # Convert to float, otherwise df[cpu].values.fill(np.nan) will produce
+        # garbage
+        df = df.astype(float)
+
+        for cpu in cpus:
+            # Find index of first time when the idle thread was switched in
+            sw = self._trace.data_frame.trace_event('sched_switch')
+            sw = sw[(sw['__cpu'] == cpu) & (sw.next_pid == 0)]
+
+            if sw.empty:
+                df[cpu].values.fill(np.nan)
+            else:
+                df[cpu] = df[cpu].where(df.index >= sw.index[0])
+
+        return df
+
 ###############################################################################
 # Plotting Methods
 ###############################################################################
