@@ -17,6 +17,7 @@
 
 import logging
 from system import System
+from time import sleep
 
 class Screen(object):
     """
@@ -150,6 +151,7 @@ class Screen(object):
     @staticmethod
     def unlock(target):
        Screen.set_screen(target, on=True)
+       sleep(1)
        System.menu(target)
        System.home(target)
 
