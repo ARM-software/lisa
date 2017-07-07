@@ -27,6 +27,36 @@ from analysis_module import AnalysisModule
 from devlib.utils.misc import memoized
 from trappy.utils import listify
 
+def reindex_df_union(df1, df2):
+    """
+    Get the 'union' of two DataFrames
+
+    Return a DataFrame with the union of ``df1`` and ``df2`` 's columns and
+    index. Where both DataFrames have a value for the same column/index, df1's
+    value will be used in the returned DataFrame.
+
+    Example:
+
+      >>> a = pd.DataFrame({'a': [1, 2]}, index=[1, 2])
+      >>> a
+      a
+      1  1
+      2  2
+      >>> b = pd.DataFrame({'b': [0, 1]}, index=[0, 1])
+      >>> b
+      b
+      0  0
+      1  1
+      >>> reindex_df_union(a, b)
+          a    b
+      0  NaN  0.0
+      1  1.0  1.0
+      2  2.0  NaN
+
+    """
+    index = df1.index.append(df2.index).drop_duplicates().sort_values()
+    columns = sorted(set(df1.columns).union(df2.columns))
+    return df1.reindex(index, columns).fillna(df2)
 
 class TasksAnalysis(AnalysisModule):
     """
@@ -182,6 +212,48 @@ class TasksAnalysis(AnalysisModule):
 
         return rt_tasks
 
+    # Helper to get a DataFrame of all wake events, pivoted so that columns are
+    # pids.
+    @memoized
+    def __get_wake_df(self):
+        def get_df(event):
+            df = self._trace.data_frame.trace_event(event)
+            return df[df.success == 1].pivot(columns='pid').target_cpu
+
+        wk = get_df('sched_wakeup')
+
+        # The first wakeup event for a task has a different name
+        # Add those different events in if they're present.
+        if self._trace.hasEvents('sched_wakeup_new'):
+            wkn = get_df('sched_wakeup_new')
+            wk = reindex_df_union(wk, wkn)
+
+        return  wk
+
+    def _dfg_task_cpu(self):
+        """
+        Get a DatFrame showing which CPU a task was attached to
+
+        Each column in this DataFrame, labeled by PID, is a signal which
+        indicates which CPU's runqueue a task was attached to. This does not
+        imply it was _running_ on that CPU.
+        """
+        if not (self._trace.hasEvents('sched_wakeup') and
+                self._trace.hasEvents('sched_migrate_task')):
+            self._log.warning(
+                'Events [sched_wakeup, sched_migrate_task] not found')
+            return None
+
+        # wk will give us all the times where a task was woken up onto a CPU
+        wk = self.__get_wake_df()
+
+        # mg will give us all the times where a task migrated to a CPU
+        mg = self._trace.data_frame.trace_event('sched_migrate_task')
+        mg = mg.pivot(columns='pid').dest_cpu
+
+        # Combine the wake-on-cpu events with migrate-to-cpu events to find the
+        # task_cpu.
+        return reindex_df_union(wk, mg).ffill()
 
 ###############################################################################
 # Plotting Methods

@@ -16,7 +16,9 @@
 #
 
 import json
+from numpy.testing import assert_array_equal
 import os
+import pandas as pd
 from unittest import TestCase
 
 from trace import Trace
@@ -37,13 +39,30 @@ def sched_switch(timestamp, cpu,
             "prev_comm={prev_comm} prev_pid={prev_pid} prev_prio=120 prev_state={prev_state} "
             "next_comm={next_comm} next_pid={next_pid} next_prio=120").format(**locals())
 
+def _sched_wakeup(event_name, timestamp, _cpu, comm, pid, target_cpu):
+    return (_event_common('<idle>', 0, _cpu, timestamp) + "{event_name}: "
+            "comm={comm} pid={pid} prio=100 success=1 target_cpu={target_cpu}"
+            .format(**locals()))
+
+# sched_wakeup_new is exactly the same as sched_wakeup, but with a different
+# name.
+def sched_wakeup(*args, **kwargs):
+    return _sched_wakeup('sched_wakeup', *args, **kwargs)
+def sched_wakeup_new(*args, **kwargs):
+    return _sched_wakeup('sched_wakeup_new', *args, **kwargs)
+
+
+def sched_migrate_task(timestamp, comm, pid, orig_cpu, dest_cpu):
+    return (_event_common("<idle>", 0, 0, timestamp) + "sched_migrate_task: "
+            "comm={comm} pid={pid} prio=100 orig_cpu={orig_cpu} dest_cpu={dest_cpu}"
+            .format(**locals()))
 
 class TestTrace(TestCase):
     """Smoke tests for LISA's Trace class"""
 
     traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
     events = [
-        'sched_switch',
+        'sched_switch', 'sched_wakeup', 'sched_wakeup_new', 'sched_migrate_task'
     ]
 
     def __init__(self, *args, **kwargs):
@@ -102,3 +121,71 @@ class TestTrace(TestCase):
         self.assertEqual(trace.getTaskByName('father'), [1234])
 
         os.remove(self.test_trace)
+
+    def test_dfg_task_cpu_single_task(self):
+        """Test the task_cpu DataFrame getter for one task"""
+
+        comm = 'mytask'
+        pid = 100
+
+        trace = self.make_trace([
+            sched_wakeup_new('0.1', 0, comm, pid, 0),
+            sched_migrate_task('0.2', comm, pid, 0, 1),
+            sched_migrate_task('0.3', comm, pid, 1, 2),
+            sched_wakeup('0.4', 0, comm, pid, 2),
+            sched_migrate_task('0.5', comm, pid, 2, 0),
+        ])
+
+        df = trace.data_frame.task_cpu()[pid].astype(int)
+        assert_array_equal(df.values, [0, 1, 2,  2, 0])
+        assert_array_equal(df.index,  [0.1, 0.2, 0.3, 0.4, 0.5])
+
+    def test_dfg_task_cpu_no_wakeup(self):
+        """Test the task_cpu DataFrame getter for task without wake event"""
+
+        comm = 'mytask'
+        pid = 100
+
+        trace = self.make_trace([
+            # Task gets migrated to CPU 1
+            sched_migrate_task('0.1', comm, pid, 0, 1),
+            # Then to CPU 2
+            sched_migrate_task('0.2', comm, pid, 1, 2),
+            # Include an unrelated sched_wakeup event just so
+            # hasEvents('sched_wakeup') is True
+            sched_wakeup('0.5', 0, 'other', pid + 1, 0)
+        ])
+
+        df = trace.data_frame.task_cpu()[pid].astype(int)
+        df = df[df.shift() != df] # drop consecutive duplicates
+
+        assert_array_equal(df.values, [1, 2])
+        assert_array_equal(df.index,  [0.1, 0.2])
+
+    def _test_dfg_task_cpu_no_migration(self, wake_event):
+
+        comm = 'mytask'
+        pid = 100
+
+        trace = self.make_trace([
+            # Task wakes up on CPU 0
+            wake_event('0.1', 0, comm, pid, 0),
+            # Include unrelated events so the analyser doesn't bail out due to
+            # missing events
+            sched_wakeup('0.1', 0, 'other', pid + 1, 0),
+            sched_migrate_task('0.5', 'other', pid + 1, 0, 1),
+        ])
+
+        df = trace.data_frame.task_cpu()[pid].astype(int)
+        df = df[df.shift() != df] # drop consecutive duplicates
+
+        assert_array_equal(df.values, [0])
+        assert_array_equal(df.index,  [0.1])
+
+    def test_dfg_task_cpu_no_migration(self):
+        """Test the task_cpu DataFrame getter for task without migrate event"""
+        self._test_dfg_task_cpu_no_migration(sched_wakeup)
+
+    def test_dfg_task_cpu_no_migration(self):
+        """Test the task_cpu DataFrame getter for task only sched_wakeup_new"""
+        self._test_dfg_task_cpu_no_migration(sched_wakeup_new)
