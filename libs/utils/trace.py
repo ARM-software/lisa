@@ -71,6 +71,14 @@ class Trace(object):
 
     :param plots_prefix: prefix for plots file names
     :type plots_prefix: str
+
+    :param cgroup_info: add cgroup information for sanitization
+      example:
+        {
+            'controller_ids': { 2: 'schedtune', 4: 'cpuset' },
+            'cgroups': [ 'root', 'background', 'foreground' ],  # list of allowed cgroup names
+        }
+    :type cgroup_info: dict
     """
 
     def __init__(self, platform, data_dir, events,
@@ -78,7 +86,8 @@ class Trace(object):
                  normalize_time=True,
                  trace_format='FTrace',
                  plots_dir=None,
-                 plots_prefix=''):
+                 plots_prefix='',
+                 cgroup_info={}):
 
         # The platform used to run the experiments
         self.platform = platform
@@ -131,6 +140,9 @@ class Trace(object):
         if self.plots_dir is None:
             self.plots_dir = self.data_dir
         self.plots_prefix = plots_prefix
+
+        # Cgroup info for sanitization
+        self.cgroup_info = cgroup_info
 
         self.__registerTraceEvents(events)
         self.__parseTrace(data_dir, tasks, window, normalize_time,
@@ -266,6 +278,7 @@ class Trace(object):
         self._sanitize_SchedEnergyDiff()
         self._sanitize_SchedOverutilized()
         self._sanitize_CpuFrequency()
+        self._sanitize_CgroupAttachTask()
 
         self.__loadTasksNames(tasks)
 
@@ -515,6 +528,22 @@ class Trace(object):
             return df
         return df.loc[df.index.get_level_values(1).isin(listify(functions))]
 
+    def _dfg_cgroup_attach_task(self):
+        cgroup_events = ['cgroup_attach_task', 'cgroup_attach_task_devlib']
+        df = None
+
+        for cev in cgroup_events:
+            if not cev in self.available_events:
+                continue
+            cdf = self._dfg_trace_event(cev)
+            cdf = cdf[['pid', 'controller', 'cgroup']]
+            if not isinstance(df, pd.DataFrame):
+                df = cdf
+            else:
+                df = pd.concat([cdf, df])
+
+        return df
+
 
 ###############################################################################
 # Trace Events Sanitize Methods
@@ -664,6 +693,52 @@ class Trace(object):
         df['start'] = df.index
         df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
         df.drop('start', axis=1, inplace=True)
+
+    # Sanitize cgroup information helper
+    def _helper_sanitize_CgroupAttachTask(self, df, allowed_cgroups, controller_id_name):
+        def get_cgroup_name(path, valid_names):
+            name = os.path.basename(path)
+            name = 'root' if not name in valid_names else name
+            return name
+
+        def get_cgroup_names(rows):
+            ret = []
+            for r in rows.iterrows():
+                 ret.append(get_cgroup_name(r[1]['dst_path'], allowed_cgroups))
+            return ret
+
+        def get_controller_names(rows):
+            ret = []
+            for r in rows.iterrows():
+                 ret.append(controller_id_name[r[1]['dst_root']])
+            return ret
+
+        # Sanitize cgroup names
+        # cgroup column isn't in mainline, add it in
+        # its already added for some out of tree kernels so check first
+        if not 'cgroup' in df.columns:
+            if not 'dst_path' in df.columns:
+                raise RuntimeError('Cant santize cgroup DF, need dst_path')
+            df = df.assign(cgroup = get_cgroup_names)
+
+        # Sanitize controller names
+        if not 'controller' in df.columns:
+            if not 'dst_root' in df.columns:
+                raise RuntimeError('Cant santize cgroup DF, need dst_path')
+            df = df.assign(controller = get_controller_names)
+
+        return df
+
+    def _sanitize_CgroupAttachTask(self):
+        def sanitize_cgroup_event(name):
+            if not name in self.available_events:
+                return
+            df = self._dfg_trace_event(name)
+            df = self._helper_sanitize_CgroupAttachTask(df, self.cgroup_info['cgroups'],
+                                              self.cgroup_info['controller_ids'])
+            getattr(self.ftrace, name).data_frame = df
+        sanitize_cgroup_event('cgroup_attach_task')
+        sanitize_cgroup_event('cgroup_attach_task_devlib')
 
     def _chunker(self, seq, size):
         """
