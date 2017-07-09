@@ -191,3 +191,25 @@ class TestCaching(utils_tests.SetupDirectory):
             window=(0, None))
 
         self.assertEqual(len(trace1.sched_wakeup.data_frame), 2)
+
+    def test_cache_delete_single(self):
+        GenericFTrace.disable_cache = False
+        trace = trappy.FTrace()
+
+        trace_path = os.path.abspath(trace.trace_path)
+        trace_dir = os.path.dirname(trace_path)
+        trace_file = os.path.basename(trace_path)
+        cache_dir = '.' + trace_file + '.cache'
+        self.assertEquals(len(os.listdir(cache_dir)), 22)
+
+        os.remove(os.path.join(cache_dir, 'SchedWakeup.csv'))
+        self.assertEquals(len(os.listdir(cache_dir)), 21)
+
+        # Generate trace again, should regenerate only the missing item
+        trace = trappy.FTrace()
+        self.assertEquals(len(os.listdir(cache_dir)), 22)
+        for c in trace.trace_classes:
+            if isinstance(c, trace.class_definitions['sched_wakeup']):
+                self.assertEquals(c.cached, False)
+                continue
+            self.assertEquals(c.cached, True)
