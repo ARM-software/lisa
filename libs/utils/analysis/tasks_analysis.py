@@ -20,6 +20,7 @@
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pylab as pl
 import re
 
@@ -295,6 +296,9 @@ class TasksAnalysis(AnalysisModule):
         """
         tc = self._trace.data_frame.task_cpu()
         tr = self._trace.data_frame.task_runnable()
+
+        if tc is None or tr is None:
+            return None
 
         index = tc.index.append(tr.index).sort_values()
         tc = tc.reindex(index, method='ffill')
