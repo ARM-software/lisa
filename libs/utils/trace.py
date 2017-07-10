@@ -544,6 +544,26 @@ class Trace(object):
 
         return df
 
+    def _dfg_sched_switch_cgroup(self, controllers = ['schedtune', 'cpuset']):
+        def sched_switch_add_cgroup(sdf, cdf, controller, direction):
+            cdf = cdf[cdf['controller'] == controller]
+
+            ret_df = sdf.rename(columns = { direction + '_pid': 'pid' })
+            ret_df = trappy.utils.merge_dfs(ret_df, cdf, pivot='pid')
+            ret_df.rename(columns = { 'pid': direction + '_pid' }, inplace=True)
+
+            ret_df.drop('controller', axis=1, inplace=True)
+            ret_df.rename(columns = { 'cgroup': direction + '_' + controller }, inplace=True)
+            return ret_df
+
+        sdf = self._dfg_trace_event('sched_switch')
+        cdf = self._dfg_cgroup_attach_task()
+
+        for c in controllers:
+            sdf = sched_switch_add_cgroup(sdf, cdf, c, 'next')
+            sdf = sched_switch_add_cgroup(sdf, cdf, c, 'prev')
+
+        return sdf
 
 ###############################################################################
 # Trace Events Sanitize Methods
