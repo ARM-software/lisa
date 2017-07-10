@@ -236,6 +236,19 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
     def report(self, out_dir, out_energy='energy.json', out_samples='samples.csv'):
         self._instrument.stop()
 
+        df = self._read_csv(out_dir, out_samples)
+        df = self._build_timeline(df)
+        if df.empty:
+            raise RuntimeError('No energy data collected')
+        channels_nrg = self._compute_energy(df)
+        # Dump data as JSON file
+        nrg_file = os.path.join(out_dir, out_energy)
+        with open(nrg_file, 'w') as ofile:
+            json.dump(channels_nrg, ofile, sort_keys=True, indent=4)
+
+        return EnergyReport(channels_nrg, nrg_file, df)
+
+    def _read_csv(self, out_dir, out_samples):
         csv_path = os.path.join(out_dir, out_samples)
         csv_data = self._instrument.get_data(csv_path)
         with open(csv_path) as f:
@@ -256,24 +269,19 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
             # the CSV (i.e. expects every line to hold data). This works because
             # we have already consumed the first line of `f`.
             df = pd.read_csv(f, names=columns)
-
+        return df
+    
+    def _build_timeline(self, df):
         sample_period = 1. / self._instrument.sample_rate_hz
         df.index = np.linspace(0, sample_period * len(df), num=len(df))
+        return df
 
-        if df.empty:
-            raise RuntimeError('No energy data collected')
-
+    def _compute_energy(self, df):
         channels_nrg = {}
         for site, measure in df:
             if measure == 'power':
                 channels_nrg[site] = area_under_curve(df[site]['power'])
-
-        # Dump data as JSON file
-        nrg_file = '{}/{}'.format(out_dir, out_energy)
-        with open(nrg_file, 'w') as ofile:
-            json.dump(channels_nrg, ofile, sort_keys=True, indent=4)
-
-        return EnergyReport(channels_nrg, nrg_file, df)
+        return channels_nrg
 
 class AEP(_DevlibContinuousEnergyMeter):
 
