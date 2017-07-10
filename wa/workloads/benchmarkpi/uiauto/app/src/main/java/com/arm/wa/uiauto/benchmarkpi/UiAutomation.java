@@ -33,6 +33,9 @@ public class UiAutomation extends BaseUiAutomation {
 
     public static String TAG = "benchmarkpi";
 
+    public Bundle parameters;
+    public String packageID;
+
     @Test
     public void runWorkload() throws Exception {
         startTest();
@@ -43,7 +46,7 @@ public class UiAutomation extends BaseUiAutomation {
     public void extractResults() throws Exception {
         UiSelector selector = new UiSelector();
         UiObject resultsText = mDevice.findObject(selector.textContains("You calculated Pi in")
-                .className("android.widget.TextView"));
+                                                          .className("android.widget.TextView"));
         Log.v(TAG, resultsText.getText());
     }
 

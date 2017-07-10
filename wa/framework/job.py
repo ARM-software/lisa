@@ -6,6 +6,8 @@ from wa.framework.configuration.core import Status
 
 class Job(object):
 
+    _workload_cache = {}
+
     @property
     def id(self):
         return self.spec.id
@@ -40,11 +42,15 @@ class Job(object):
 
     def load(self, target, loader=pluginloader):
         self.logger.info('Loading job {}'.format(self.id))
-        self.workload = loader.get_workload(self.spec.workload_name,
-                                            target,
-                                            **self.spec.workload_parameters)
-        self.workload.init_resources(self.context)
-        self.workload.validate()
+        if self.iteration == 1:
+            self.workload = loader.get_workload(self.spec.workload_name,
+                                                target,
+                                                **self.spec.workload_parameters)
+            self.workload.init_resources(self.context)
+            self.workload.validate()
+            self._workload_cache[self.id] = self.workload
+        else:
+            self.workload = self._workload_cache[self.id]
 
     def initialize(self, context):
         self.logger.info('Initializing job {}'.format(self.id))

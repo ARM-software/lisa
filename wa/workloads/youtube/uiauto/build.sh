@@ -45,7 +45,7 @@ if [[ $exit_code -ne 0 ]]; then
 fi
 
 # If successful move APK file to workload folder (overwrite previous)
-package=com.arm.wa.uiauto.benchmarkpi
+package=com.arm.wa.uiauto.youtube
 rm -f ../$package
 if [[ -f app/build/apk/$package.apk ]]; then
     cp app/build/apk/$package.apk ../$package.apk

@@ -22,8 +22,9 @@ from wa.framework.plugin import TargetedPlugin
 from wa.framework.resource import (ApkFile, JarFile, ReventFile, NO_ONE,
                                    Executable, File)
 from wa.framework.exception import WorkloadError
+from wa.utils.types import ParameterDict
 from wa.utils.revent import ReventRecorder
-from wa.utils.exec_control import once
+from wa.utils.exec_control import once_per_instance
 
 from devlib.utils.android import ApkInfo
 from devlib.exception import TargetError
@@ -160,6 +161,7 @@ class ApkWorkload(Workload):
     def init_resources(self, context):
         pass
 
+    @once_per_instance
     def initialize(self, context):
         self.apk.initialize(context)
 
@@ -176,7 +178,7 @@ class ApkWorkload(Workload):
     def teardown(self, context):
         self.apk.teardown()
 
-    @once
+    @once_per_instance
     def finalize(self, context):
         pass
 
@@ -190,14 +192,14 @@ class ApkUIWorkload(ApkWorkload):
     def init_resources(self, context):
         super(ApkUIWorkload, self).init_resources(context)
         self.gui.init_resources(context.resolver)
-        self.gui.init_commands()
 
+    @once_per_instance
     def initialize(self, context):
         super(ApkUIWorkload, self).initialize(context)
-        self.gui.deploy()
 
     def setup(self, context):
         super(ApkUIWorkload, self).setup(context)
+        self.gui.deploy()
         self.gui.setup()
 
     def run(self, context):
@@ -212,7 +214,7 @@ class ApkUIWorkload(ApkWorkload):
         self.gui.teardown()
         super(ApkUIWorkload, self).teardown(context)
 
-    @once
+    @once_per_instance
     def finalize(self, context):
         super(ApkUIWorkload, self).finalize(context)
         self.gui.remove()
@@ -225,6 +227,11 @@ class ApkUiautoWorkload(ApkUIWorkload):
     def __init__(self, target, **kwargs):
         super(ApkUiautoWorkload, self).__init__(target, **kwargs)
         self.gui = UiAutomatorGUI(self)
+
+    def setup(self, context):
+        self.gui.uiauto_params['package_name'] = self.apk.apk_info.package
+        self.gui.init_commands()
+        super(ApkUiautoWorkload, self).setup(context)
 
 
 class ReventWorkload(ApkUIWorkload):
@@ -261,7 +268,7 @@ class UiAutomatorGUI(object):
         self.logger = logging.getLogger('gui')
         self.uiauto_file = None
         self.commands = {}
-        self.uiauto_params = {}
+        self.uiauto_params = ParameterDict()
 
     def init_resources(self, resolver):
         self.uiauto_file = resolver.get(ApkFile(self.owner, uiauto=True))
@@ -273,7 +280,7 @@ class UiAutomatorGUI(object):
         params_dict = self.uiauto_params
         params_dict['workdir'] = self.target.working_directory
         params = ''
-        for k, v in self.uiauto_params.iteritems():
+        for k, v in params_dict.iter_encoded_items():
             params += ' -e {} {}'.format(k, v)
 
         for stage in self.stages:
@@ -286,7 +293,9 @@ class UiAutomatorGUI(object):
                                                        instrumentation_string)
 
     def deploy(self):
-        self.target.install_apk(self.uiauto_file, replace=True)
+        if self.target.package_is_installed(self.uiauto_package):
+            self.target.uninstall_package(self.uiauto_package)
+        self.target.install_apk(self.uiauto_file)
 
     def set(self, name, value):
         self.uiauto_params[name] = value
@@ -395,9 +404,6 @@ class ReventGUI(object):
     def remove(self):
         self.revent_recorder.remove()
 
-    def init_commands(self):
-        pass
-
     def _check_revent_files(self):
         if not self.revent_run_file:
             # pylint: disable=too-few-format-args
@@ -435,9 +441,9 @@ class PackageHandler(object):
 
     def initialize(self, context):
         self.resolve_package(context)
-        self.initialize_package(context)
 
     def setup(self, context):
+        self.initialize_package(context)
         self.start_activity()
         self.target.execute('am kill-all')  # kill all *background* activities
         self.target.clear_logcat()
@@ -514,9 +520,12 @@ class PackageHandler(object):
         self.apk_version = host_version
 
     def start_activity(self):
-        cmd = 'am start -W -n {}/{}'
-        output = self.target.execute(cmd.format(self.apk_info.package,
-                                                self.apk_info.activity))
+        if not self.apk_info.activity:
+            cmd = 'am start -W {}'.format(self.apk_info.package)
+        else:
+            cmd = 'am start -W -n {}/{}'.format(self.apk_info.package,
+                                                self.apk_info.activity)
+        output = self.target.execute(cmd)
         if 'Error:' in output:
             # this will dismiss any error dialogs
             self.target.execute('am force-stop {}'.format(self.apk_info.package))
@@ -528,7 +537,8 @@ class PackageHandler(object):
         self.target.execute('pm clear {}'.format(self.apk_info.package))
 
     def install_apk(self, context):
-        output = self.target.install_apk(self.apk_file, self.install_timeout)
+        output = self.target.install_apk(self.apk_file, self.install_timeout,
+                                         replace=True, allow_downgrade=True)
         if 'Failure' in output:
             if 'ALREADY_EXISTS' in output:
                 msg = 'Using already installed APK (did not unistall properly?)'

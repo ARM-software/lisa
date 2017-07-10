@@ -241,7 +241,7 @@ def update_config_from_source(final_config, source, state):
                 cfg_point.set_value(final_config, value, check_mandatory=False)
 
         if state.generic_config[source]:
-            msg = 'Unexected values for {}: {}'
+            msg = 'Unexpected values for {}: {}'
             raise ConfigError(msg.format(state.generic_name,
                                          state.generic_config[source]))
 
@@ -254,6 +254,6 @@ def update_config_from_source(final_config, source, state):
                 cfg_point.set_value(final_config, value, check_mandatory=False)
 
         if state.specific_config[source]:
-            msg = 'Unexected values for {}: {}'
+            msg = 'Unexpected values for {}: {}'
             raise ConfigError(msg.format(state.specific_name,
                                          state.specific_config[source]))
