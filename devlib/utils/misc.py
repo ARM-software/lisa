@@ -81,6 +81,7 @@ CPU_PART_MAP = {
     },
     0x42: {  # Broadcom
         0x516: {None: 'Vulcan'},
+    },
     0x43: {  # Cavium
         0x0a1: {None: 'Thunderx'},
         0x0a2: {None: 'Thunderx81xx'},
