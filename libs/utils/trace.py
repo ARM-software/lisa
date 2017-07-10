@@ -536,7 +536,7 @@ class Trace(object):
             if not cev in self.available_events:
                 continue
             cdf = self._dfg_trace_event(cev)
-            cdf = cdf[['pid', 'controller', 'cgroup']]
+            cdf = cdf[['__line', 'pid', 'controller', 'cgroup']]
             if not isinstance(df, pd.DataFrame):
                 df = cdf
             else:
