@@ -79,8 +79,17 @@ CPU_PART_MAP = {
         0xd08: {None: 'A72'},
         0xd09: {None: 'A73'},
     },
+    0x42: {  # Broadcom
+        0x516: {None: 'Vulcan'},
+    0x43: {  # Cavium
+        0x0a1: {None: 'Thunderx'},
+        0x0a2: {None: 'Thunderx81xx'},
+    },
     0x4e: {  # Nvidia
         0x0: {None: 'Denver'},
+    },
+    0x50: {  # AppliedMicro
+        0x0: {None: 'xgene'},
     },
     0x51: {  # Qualcomm
         0x02d: {None: 'Scorpion'},
@@ -91,6 +100,7 @@ CPU_PART_MAP = {
         },
         0x205: {0x1: 'KryoSilver'},
         0x211: {0x1: 'KryoGold'},
+        0x800: {None: 'Falkor'},
     },
     0x56: {  # Marvell
         0x131: {
