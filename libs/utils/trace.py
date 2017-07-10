@@ -528,7 +528,8 @@ class Trace(object):
             return df
         return df.loc[df.index.get_level_values(1).isin(listify(functions))]
 
-    def _dfg_cgroup_attach_task(self):
+    # cgroup_attach_task with just merged fake and real events
+    def _cgroup_attach_task(self):
         cgroup_events = ['cgroup_attach_task', 'cgroup_attach_task_devlib']
         df = None
 
@@ -542,7 +543,46 @@ class Trace(object):
             else:
                 df = pd.concat([cdf, df])
 
+        # Always drop na since this DF is used as secondary
+        df.dropna(inplace=True, how='any')
         return df
+
+    def _dfg_cgroup_attach_task(self, controllers = ['schedtune', 'cpuset']):
+        # Since fork doesn't result in attach events, generate fake attach events
+        # The below mechanism doesn't work to propogate nested fork levels:
+        # For ex:
+        # cgroup_attach_task: pid=1166
+        # fork: pid=1166 child_pid=2222  <-- fake attach generated
+        # fork: pid=2222 child_pid=3333  <-- fake attach not generated
+        def fork_add_cgroup(fdf, cdf, controller):
+            cdf = cdf[cdf['controller'] == controller]
+            ret_df = trappy.utils.merge_dfs(fdf, cdf, pivot='pid')
+            return ret_df
+
+        fdf = self._dfg_trace_event('sched_process_fork')
+
+        forks_len = len(fdf)
+        forkdf = fdf
+        cdf = self._cgroup_attach_task()
+        for idx, c in enumerate(controllers):
+            fdf = fork_add_cgroup(fdf, cdf, c)
+            if (idx != (len(controllers) - 1)):
+                fdf = pd.concat([fdf, forkdf]).sort(columns='__line')
+
+        fdf = fdf[['__line', 'child_pid', 'controller', 'cgroup']]
+        fdf.rename(columns = { 'child_pid': 'pid' }, inplace=True)
+
+        # Always drop na since this DF is used as secondary
+        fdf.dropna(inplace=True, how='any')
+
+        new_forks_len = len(fdf) / len(controllers)
+
+        fdf = pd.concat([fdf, cdf]).sort(columns='__line')
+
+        if new_forks_len < forks_len:
+            dropped = forks_len - new_forks_len
+            self._log.info("Couldn't attach all forks cgroup with-attach events ({} dropped)".format(dropped))
+        return fdf
 
     def _dfg_sched_switch_cgroup(self, controllers = ['schedtune', 'cpuset']):
         def sched_switch_add_cgroup(sdf, cdf, controller, direction):
