@@ -103,6 +103,8 @@ class EnergyMeter(object):
             EnergyMeter._meter = Monsoon(target, emeter, res_dir)
         elif emeter['instrument'] == 'acme':
             EnergyMeter._meter = ACME(target, emeter, res_dir)
+        elif emeter['instrument'] == 'gem5':
+            EnergyMeter._meter = Gem5EnergyMeter(target, emeter, res_dir)
 
         log.debug('Results dir: %s', res_dir)
         return EnergyMeter._meter
@@ -508,5 +510,31 @@ class ACME(EnergyMeter):
             json.dump(channels_stats, ofile, sort_keys=True, indent=4)
 
         return EnergyReport(channels_nrg, nrg_file, None)
+
+class Gem5EnergyMeter(_DevlibContinuousEnergyMeter):
+    def __init__(self, target, conf, res_dir):
+        super(Gem5EnergyMeter, self).__init__(target, res_dir)
+
+        power_sites = conf['channel_map'].values()
+        self._instrument = devlib.Gem5PowerInstrument(self._target, power_sites)
+
+    def reset(self):
+        self._instrument.reset()
+        self._instrument.start()
+
+    def _build_timeline(self, df):
+        # Power measurements on gem5 are performed not only periodically but also
+        # spuriously on OPP changes. Let's use the time channel provided by the 
+        # gem5 power instrument to build the timeline accordingly. 
+        for site, measure in df:
+            if measure == 'time':
+                meas_dur = df[site]['time']
+                break
+        timeline = np.zeros(len(meas_dur))
+        # The time channel gives the elapsed time since previous measurement
+        for i in range(1, len(meas_dur)):
+            timeline[i] = meas_dur[i] + timeline[i - 1]
+        df.index = timeline
+        return df
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
