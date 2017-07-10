@@ -28,6 +28,7 @@ class Gem5ROI:
         self.target = target
         self.number = number
         self.running = False
+        self.field = 'ROI::{}'.format(number)
 
     def start(self):
         if self.running:
@@ -42,7 +43,7 @@ class Gem5ROI:
         self.target.execute('m5 roiend {}'.format(self.number))
         self.running = False
         return True
-    
+
 class Gem5StatsModule(Module):
     '''
     Module controlling Region of Interest (ROIs) markers, satistics dump 
@@ -56,7 +57,7 @@ class Gem5StatsModule(Module):
 
     @staticmethod
     def probe(target):
-       return isinstance(target.platform, Gem5SimulationPlatform)
+        return isinstance(target.platform, Gem5SimulationPlatform)
 
     def __init__(self, target):
         super(Gem5StatsModule, self).__init__(target)
@@ -112,26 +113,41 @@ class Gem5StatsModule(Module):
         Keys must match fields in gem5's statistics log file. Key example:
             system.cluster0.cores0.power_model.static_power
         '''
+        records = defaultdict(lambda : defaultdict(list))
+        for record, active_rois in self.match_iter(keys, rois_labels):
+            for key in record:
+                for roi_label in active_rois:
+                    records[key][roi_label].append(record[key])
+        return records
+
+    def match_iter(self, keys, rois_labels):
+        '''
+        Yields for each dump since origin a pair containing:
+        1. a dict storing the values corresponding to each of the specified keys
+        2. the list of currently active ROIs among those passed as parameters.
+
+        Keys must match fields in gem5's statistics log file. Key example:
+            system.cluster0.cores0.power_model.static_power
+        '''
         for label in rois_labels:
             if label not in self.rois:
                 raise KeyError('Impossible to match ROI label {}'.format(label))
             if self.rois[label].running:
                 self.logger.warning('Trying to match records in statistics file'
                         ' while ROI {} is running'.format(label))
+        
+        def roi_active(roi_label, dump):
+            roi = self.rois[roi_label]
+            return (roi.field in dump) and (int(dump[roi.field]) == 1)
 
-        records = {}
-        for key in keys:
-            records[key] = defaultdict(list)
         with open(self._stats_file_path, 'r') as stats_file:
             stats_file.seek(self._current_origin)
             for dump in iter_statistics_dump(stats_file):
-                for label in rois_labels:
-                    # Save records only when ROIs are ON
-                    roi_field = 'ROI::{}'.format(self.rois[label].number)
-                    if (roi_field in dump) and (int(dump[roi_field]) == 1):
-                        for key in keys:
-                            records[key][label].append(dump[key])
-        return records
+                active_rois = [l for l in rois_labels if roi_active(l, dump)]
+                if active_rois:
+                    record = {k: dump[k] for k in keys}
+                    yield (record, active_rois)
+
 
     def reset_origin(self):
         '''

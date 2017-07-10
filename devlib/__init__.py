@@ -17,6 +17,7 @@ from devlib.instrument.frames import GfxInfoFramesInstrument
 from devlib.instrument.hwmon import HwmonInstrument
 from devlib.instrument.monsoon import MonsoonInstrument
 from devlib.instrument.netstats import NetstatsInstrument
+from devlib.instrument.gem5power import Gem5PowerInstrument
 
 from devlib.trace.ftrace import FtraceCollector
 
