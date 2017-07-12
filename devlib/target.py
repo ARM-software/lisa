@@ -877,8 +877,16 @@ class AndroidTarget(Target):
             pass
         self._connected_as_root = None
 
-    def connect(self, timeout=10, check_boot_completed=True):  # pylint: disable=arguments-differ
+    def wait_boot_complete(self, timeout=10):
         start = time.time()
+        boot_completed = boolean(self.getprop('sys.boot_completed'))
+        while not boot_completed and timeout >= time.time() - start:
+            time.sleep(5)
+            boot_completed = boolean(self.getprop('sys.boot_completed'))
+        if not boot_completed:
+            raise TargetError('Connected but Android did not fully boot.')
+
+    def connect(self, timeout=10, check_boot_completed=True):  # pylint: disable=arguments-differ
         device = self.connection_settings.get('device')
         if device and ':' in device:
             # ADB does not automatically remove a network device from it's
@@ -890,12 +898,7 @@ class AndroidTarget(Target):
         super(AndroidTarget, self).connect(timeout=timeout)
 
         if check_boot_completed:
-            boot_completed = boolean(self.getprop('sys.boot_completed'))
-            while not boot_completed and timeout >= time.time() - start:
-                time.sleep(5)
-                boot_completed = boolean(self.getprop('sys.boot_completed'))
-            if not boot_completed:
-                raise TargetError('Connected but Android did not fully boot.')
+            self.wait_boot_complete(timeout)
 
     def setup(self, executables=None):
         super(AndroidTarget, self).setup(executables)
