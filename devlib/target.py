@@ -1077,6 +1077,12 @@ class AndroidTarget(Target):
     def clear_logcat(self):
         adb_command(self.adb_name, 'logcat -c', timeout=30)
 
+    def adb_kill_server(self, timeout=30):
+        adb_command(self.adb_name, 'kill-server', timeout)
+
+    def adb_wait_for_device(self, timeout=30):
+        adb_command(self.adb_name, 'wait-for-device', timeout)
+
     def adb_reboot_bootloader(self, timeout=30):
         adb_command(self.adb_name, 'reboot-bootloader', timeout)
 
