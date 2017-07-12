@@ -381,8 +381,9 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
                 raise TargetError(message.format(re_search[0]))
             else:
                 message = 'adb has returned early; did not get an exit code. '\
-                          'Was kill-server invoked?'
-                raise TargetError(message)
+                          'Was kill-server invoked?\nOUTPUT:\n-----\n{}\n'\
+                          '-----\nERROR:\n-----\n{}\n-----'
+                raise TargetError(message.format(raw_output, error))
 
     return output
 
