@@ -74,13 +74,13 @@ This sets up the target for ``devlib`` interaction. This includes creating
 working directories, deploying busybox, etc. It's usually enough to do this once
 for a new device, as the changes this makes will persist across reboots.
 However, there is no issue with calling this multiple times, so, to be on the
-safe site, it's a good idea to call this once at the beginning of your scripts.
+safe side, it's a good idea to call this once at the beginning of your scripts.
 
 Command Execution
 ~~~~~~~~~~~~~~~~~
 
 There are several ways to execute a command on the target. In each case, a
-:class:`TargetError` will be raised if something goes wrong. In very case, it is
+:class:`TargetError` will be raised if something goes wrong. In each case, it is
 also possible to specify ``as_root=True`` if the specified command should be
 executed as root.
 
@@ -154,7 +154,7 @@ Process Control
    # kill all running instances of a process.
    t.killall('badexe', signal=signal.SIGKILL)
 
-   # List processes running on the target. This retruns a list of parsed
+   # List processes running on the target. This returns a list of parsed
    # PsEntry records.
    entries = t.ps()
    # e.g.  print virtual memory sizes of all running sshd processes:
