@@ -301,6 +301,9 @@ class TestSchedDomainFlags(BasicCheckTest):
         - Finally, revert to the old cpu_capacity values and check the flag
           returns to its old value.
         """
+        if not self.target.file_exists(self._get_cpu_cap_path(0)):
+            raise SkipTest('cpu_capacity info not exposed in sysfs.')
+
         old_caps = self.read_cpu_caps()
         old_caps_asym = any(c != old_caps[0] for c in old_caps[1:])
 

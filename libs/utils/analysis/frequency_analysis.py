@@ -263,7 +263,7 @@ class FrequencyAnalysis(AnalysisModule):
             avg_freq = 0
             if len(_df) > 1:
                 timespan = _df.index[-1] - _df.index[0]
-                avg_req = area_under_curve(_df['frequency']) / timespan
+                avg_freq = area_under_curve(_df['frequency']) / timespan
 
             # Store DF for plotting
             freq[cpu_id] = {

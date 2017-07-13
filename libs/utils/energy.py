@@ -150,7 +150,7 @@ class HWMon(EnergyMeter):
             if not all (s in available_sites for s in self._channels.values()):
                 raise RuntimeError(
                     "Found sites {} but channel_map contains {}".format(
-                        sorted(available_sites), sorted(channels.values())))
+                        sorted(available_sites), sorted(self._channels.values())))
         elif self._target.big_core:
             bl_sites = [self._target.big_core.upper(),
                         self._target.little_core.upper()]
@@ -258,7 +258,7 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
             df = pd.read_csv(f, names=columns)
 
         sample_period = 1. / self._instrument.sample_rate_hz
-        df.index = np.arange(0, sample_period * len(df), step=sample_period)
+        df.index = np.linspace(0, sample_period * len(df), num=len(df))
 
         if df.empty:
             raise RuntimeError('No energy data collected')

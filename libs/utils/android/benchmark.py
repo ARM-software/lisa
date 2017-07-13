@@ -47,7 +47,49 @@ class LisaBenchmark(object):
     directory.
     """
 
-    bm_conf = None
+    bm_conf = {
+
+        # Target platform and board
+        "platform"      : 'android',
+
+        # Define devlib modules to load
+        "modules"     : [
+            'cpufreq',
+            'cpuidle',
+        ],
+
+        # FTrace events to collect for all the tests configuration which have
+        # the "ftrace" flag enabled
+        "ftrace"  : {
+            "events" : [
+                "sched_switch",
+                "sched_overutilized",
+                "sched_contrib_scale_f",
+                "sched_load_avg_cpu",
+                "sched_load_avg_task",
+                "sched_tune_tasks_update",
+                "sched_boost_cpu",
+                "sched_boost_task",
+                "sched_energy_diff",
+                "cpu_frequency",
+                "cpu_idle",
+                "cpu_capacity",
+            ],
+            "buffsize" : 10 * 1024,
+        },
+
+        # Default EnergyMeter Configuration
+        "emeter" : {
+            "instrument" : "acme",
+            "channel_map" : {
+                "Device0" : 0,
+            }
+        },
+
+        # Tools required by the experiments
+        "tools"   : [ 'trace-cmd' ],
+
+    }
     """Override this with a dictionary or JSON path to configure the TestEnv"""
 
     bm_name = None
@@ -116,7 +158,7 @@ class LisaBenchmark(object):
 
         # Test customization
         parser.add_argument('--results-dir', type=str,
-                default=None,
+                default=self.__class__.__name__,
                 help='Results folder, '
                      'if specified override test defaults')
         parser.add_argument('--collect', type=str,
@@ -145,10 +187,6 @@ class LisaBenchmark(object):
 
 
     def _getBmConf(self):
-        if self.bm_conf is None:
-            msg = 'Benchmark subclasses must override the `bm_conf` attribute'
-            raise NotImplementedError(msg)
-
         # Override default configuration with command line parameters
         if self.args.boot_image:
             self.bm_reboot = True

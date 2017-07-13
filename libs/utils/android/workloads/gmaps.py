@@ -21,6 +21,7 @@ import logging
 
 from time import sleep
 
+from target_script import TargetScript
 from android import Screen, System
 from android.workload import Workload
 
@@ -90,20 +91,33 @@ class GMaps(Workload):
         # Allow the activity to start
         sleep(1)
 
-        self.tracingStart()
+        script = TargetScript(self._te, "gmaps_swiper.sh")
+        self._log.debug('Accumulating commands')
+
+        for i in range(swipe_count):
+            System.hswipe(script, 20, 80, 100, True)
+            script.append('sleep 1')
+            System.hswipe(script, 20, 80, 100, False)
+            script.append('sleep 1')
+            System.vswipe(script, 40, 60, 100, True)
+            script.append('sleep 1')
+            System.vswipe(script, 40, 60, 100, False)
+            script.append('sleep 1')
+
+        self._log.debug('Accumulation done')
+
+        # Push script to the target
+        script.push()
+
         self._log.info('Opening GMaps to [%s]', loc_url)
         # Let GMaps zoom in on the location
         sleep(2)
 
-        for i in range(swipe_count):
-            System.hswipe(self._target, 20, 80, 100, True)
-            sleep(.5)
-            System.hswipe(self._target, 20, 80, 100, False)
-            sleep(.5)
-            System.vswipe(self._target, 40, 60, 100, True)
-            sleep(.5)
-            System.vswipe(self._target, 40, 60, 100, False)
-            sleep(.5)
+        self.tracingStart()
+
+        self._log.info('Launching target script')
+        script.run()
+        self._log.info('Target script ended')
 
         self.tracingStop()
 
