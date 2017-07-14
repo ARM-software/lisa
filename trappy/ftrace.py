@@ -216,7 +216,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         if not self.__class__.disable_cache:
             try:
                 # Recreate basic cache directories only if nothing cached
-                if not all([c.cached for c in self.trace_classes]):
+                if not any([c.cached for c in self.trace_classes]):
                     self._create_trace_cache(params)
 
                 # Write out only events that weren't cached before
