@@ -27,7 +27,7 @@ import re
 from collections import defaultdict
 
 from devlib.exception import TargetError, HostError, DevlibError
-from devlib.utils.misc import check_output, which, memoized
+from devlib.utils.misc import check_output, which, memoized, ABI_MAP
 from devlib.utils.misc import escape_single_quotes, escape_double_quotes
 
 
@@ -124,6 +124,7 @@ class ApkInfo(object):
         self.label = None
         self.version_name = None
         self.version_code = None
+        self.native_code = None
         self.parse(path)
 
     def parse(self, apk_path):
@@ -143,6 +144,19 @@ class ApkInfo(object):
             elif line.startswith('launchable-activity:'):
                 match = self.name_regex.search(line)
                 self.activity = match.group('name')
+            elif line.startswith('native-code'):
+                apk_abis = [entry.strip() for entry in line.split(':')[1].split("'") if entry.strip()]
+                mapped_abis = []
+                for apk_abi in apk_abis:
+                    found = False
+                    for abi, architectures in ABI_MAP.iteritems():
+                        if apk_abi in architectures:
+                            mapped_abis.append(abi)
+                            found = True
+                            break
+                    if not found:
+                        mapped_abis.append(apk_abi)
+                self.native_code = mapped_abis
             else:
                 pass  # not interested
 
