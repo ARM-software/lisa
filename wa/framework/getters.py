@@ -67,7 +67,7 @@ def get_generic_resource(resource, files):
         return None
     if len(matches) > 1:
         msg = 'Multiple matches for {}: {}'
-        return ResourceError(msg.format(resource, matches))
+        raise ResourceError(msg.format(resource, matches))
     return matches[0]
 
 
