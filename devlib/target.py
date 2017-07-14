@@ -102,6 +102,10 @@ class Target(object):
         return None
 
     @property
+    def supported_abi(self):
+        return [self.abi]
+
+    @property
     @memoized
     def cpuinfo(self):
         return Cpuinfo(self.execute('cat /proc/cpuinfo'))
@@ -827,6 +831,30 @@ class AndroidTarget(Target):
     @memoized
     def abi(self):
         return self.getprop()['ro.product.cpu.abi'].split('-')[0]
+
+    @property
+    @memoized
+    def supported_abi(self):
+        props = self.getprop()
+        result = [props['ro.product.cpu.abi']]
+        if 'ro.product.cpu.abi2' in props:
+            result.append(props['ro.product.cpu.abi2'])
+        if 'ro.product.cpu.abilist' in props:
+            for abi in props['ro.product.cpu.abilist'].split(','):
+                if abi not in result:
+                    result.append(abi)
+
+        mapped_result = []
+        for supported_abi in result:
+            for abi, architectures in ABI_MAP.iteritems():
+                found = False
+                if supported_abi in architectures and abi not in mapped_result:
+                    mapped_result.append(abi)
+                    found = True
+                    break
+            if not found and supported_abi not in mapped_result:
+                mapped_result.append(supported_abi)
+        return mapped_result
 
     @property
     @memoized
