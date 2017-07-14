@@ -577,7 +577,7 @@ class TestEnv(ShareState):
             if not os.path.isfile(binary):
                 binary = '{}/tools/{}/{}'\
                          .format(basepath, self.target.abi, tool)
-                tools_to_install.append(binary)
+            tools_to_install.append(binary)
 
         for tool_to_install in tools_to_install:
             self.target.install(tool_to_install)
