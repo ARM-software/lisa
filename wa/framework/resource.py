@@ -29,7 +29,7 @@ from wa.framework.exception import ResourceError
 from wa.framework.configuration import settings
 from wa.utils import log
 from wa.utils.misc import ensure_directory_exists as _d, get_object_name
-from wa.utils.types import boolean, prioritylist, enum
+from wa.utils.types import boolean, prioritylist, enum, list_or_string
 
 
 
@@ -144,17 +144,21 @@ class ApkFile(Resource):
     kind = 'apk'
 
     def __init__(self, owner, variant=None, version=None,
-                 package=None, uiauto=False):
+                 package=None, uiauto=False, exact_abi=False,
+                 supported_abi=None):
         super(ApkFile, self).__init__(owner)
         self.variant = variant
         self.version = version
         self.package = package
         self.uiauto = uiauto
+        self.exact_abi = exact_abi
+        self.supported_abi = supported_abi
 
     def match(self, path):
         name_matches = True
         version_matches = True
         package_matches = True
+        abi_matches = True
         uiauto_matches = uiauto_test_matches(path, self.uiauto)
         if self.version is not None:
             version_matches = apk_version_matches(path, self.version)
@@ -162,8 +166,12 @@ class ApkFile(Resource):
             name_matches = file_name_matches(path, self.variant)
         if self.package is not None:
             package_matches = package_name_matches(path, self.package)
+        if self.supported_abi is not None:
+            abi_matches = apk_abi_matches(path, self.supported_abi,
+                                          self.exact_abi)
         return name_matches and version_matches and \
-               uiauto_matches and package_matches
+               uiauto_matches and package_matches and \
+               abi_matches
 
 
     def __str__(self):
@@ -289,3 +297,18 @@ def uiauto_test_matches(path, uiauto):
 def package_name_matches(path, package):
     info = ApkInfo(path)
     return info.package == package
+
+def apk_abi_matches(path, supported_abi, exact_abi=False):
+    supported_abi = list_or_string(supported_abi)
+    info = ApkInfo(path)
+    # If no native code present, suitable for all devices.
+    if not info.native_code:
+        return True
+
+    if exact_abi:  # Only check primary
+        return supported_abi[0] in info.native_code
+    else:
+        for abi in supported_abi:
+            if abi in info.native_code:
+                return True
+    return False

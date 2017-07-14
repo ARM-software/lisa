@@ -145,6 +145,12 @@ class ApkWorkload(Workload):
                   description="""
                   If ``True``, will uninstall workload\'s APK as part of teardown.'
                   """),
+        Parameter('exact_abi', kind=bool,
+                  default=False,
+                  description="""
+                  If ``True``, workload will check that the APK matches the target
+                        device ABI, otherwise any suitable APK found will be used.
+                  """)
     ]
 
     def __init__(self, target, **kwargs):
@@ -156,7 +162,8 @@ class ApkWorkload(Workload):
                                   version=self.version,
                                   force_install=self.force_install,
                                   install_timeout=self.install_timeout,
-                                  uninstall=self.uninstall)
+                                  uninstall=self.uninstall,
+                                  exact_abi=self.exact_abi)
 
     def init_resources(self, context):
         pass
@@ -423,7 +430,8 @@ class ReventGUI(object):
 class PackageHandler(object):
 
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
-                 package=None, strict=False, force_install=False, uninstall=False):
+                 package=None, strict=False, force_install=False, uninstall=False,
+                 exact_abi=False):
         self.logger = logging.getLogger('apk')
         self.owner = owner
         self.target = self.owner.target
@@ -434,10 +442,12 @@ class PackageHandler(object):
         self.strict = strict
         self.force_install = force_install
         self.uninstall = uninstall
+        self.exact_abi = exact_abi
         self.apk_file = None
         self.apk_info = None
         self.apk_version = None
         self.logcat_log = None
+        self.supported_abi = self.target.supported_abi
 
     def initialize(self, context):
         self.resolve_package(context)
@@ -452,7 +462,9 @@ class PackageHandler(object):
         self.apk_file = context.resolver.get(ApkFile(self.owner,
                                                      variant=self.variant,
                                                      version=self.version,
-                                                     package=self.package),
+                                                     package=self.package,
+                                                     exact_abi=self.exact_abi,
+                                                     supported_abi=self.supported_abi),
                                              strict=self.strict)
         if self.apk_file:
             self.apk_info = ApkInfo(self.apk_file)
