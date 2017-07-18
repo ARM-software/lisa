@@ -20,7 +20,7 @@ import time
 from wa import Parameter
 from wa.framework.plugin import TargetedPlugin
 from wa.framework.resource import (ApkFile, JarFile, ReventFile, NO_ONE,
-                                   Executable, File)
+                                   Executable, File, loose_version_matching)
 from wa.framework.exception import WorkloadError
 from wa.utils.types import ParameterDict
 from wa.utils.revent import ReventRecorder
@@ -468,6 +468,13 @@ class PackageHandler(object):
                                              strict=self.strict)
         if self.apk_file:
             self.apk_info = ApkInfo(self.apk_file)
+            if self.version:
+                installed_version = self.target.get_package_version(self.apk_info.package)
+                host_version = self.apk_info.version_name
+                if (installed_version != host_version and
+                        loose_version_matching(self.version, installed_version)):
+                    msg = 'Multiple matching packages found for {}; host version: {}, device version: {}'
+                    raise WorkloadError(msg.format(self.owner, host_version, installed_version))
         else:
             if not self.owner.package_names and not self.package:
                 msg = 'No package name(s) specified and no matching APK file found on host'
@@ -487,7 +494,8 @@ class PackageHandler(object):
 
             if self.version:
                 for package in installed_versions:
-                    if self.version == self.target.get_package_version(package):
+                    package_version = self.target.get_package_version(package)
+                    if loose_version_matching(self.version, package_version):
                         self.package = package
                         break
             else:

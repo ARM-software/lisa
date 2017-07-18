@@ -279,7 +279,19 @@ def apk_version_matches(path, version):
     info = ApkInfo(path)
     if info.version_name == version or info.version_code == version:
         return True
-    return False
+    return loose_version_matching(version, info.version_name)
+
+def loose_version_matching(config_version, apk_version):
+    config_version = config_version.split('.')
+    apk_version = apk_version.split('.')
+
+    if len(apk_version) < len(config_version):
+        return False  # More specific version requested than available
+
+    for i in xrange(len(config_version)):
+        if config_version[i] != apk_version[i]:
+            return False
+    return True
 
 
 def file_name_matches(path, pattern):
