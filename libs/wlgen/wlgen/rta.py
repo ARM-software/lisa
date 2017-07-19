@@ -385,6 +385,9 @@ class RTA(Workload):
         for tid in sorted(self.params['profile'].keys()):
             task = self.params['profile'][tid]
 
+            if isinstance(task, RTATask):
+                task = task.get()
+
             # Initialize task configuration
             task_conf = {}
 
