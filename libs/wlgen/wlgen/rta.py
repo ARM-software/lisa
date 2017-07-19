@@ -50,7 +50,8 @@ class RTA(Workload):
     def __init__(self,
                  target,
                  name,
-                 calibration=None):
+                 calibration=None,
+                 *args, **kwargs):
         """
         :param target: Devlib target to run workload on.
         :param name: Human-readable name for the workload.
@@ -67,8 +68,6 @@ class RTA(Workload):
         # TODO: Assume rt-app is pre-installed on target
         # self.target.setup('rt-app')
 
-        super(RTA, self).__init__(target, name)
-
         # rt-app executor
         self.wtype = 'rtapp'
         self.executor = 'rt-app'
@@ -80,6 +79,8 @@ class RTA(Workload):
         self.rta_cmd  = None
         self.rta_conf = None
         self.test_label = None
+
+        super(RTA, self).__init__(target, name, *args, **kwargs)
 
         # Setup RTA callbacks
         self.setCallback('postrun', self.__postrun)
