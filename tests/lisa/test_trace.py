@@ -21,6 +21,23 @@ from unittest import TestCase
 
 from trace import Trace
 
+
+#
+# Helpers for generating example text-format trace events.
+# Doesn't have the exact same whitespace as real trace output, but that
+# shouldn't matter.
+#
+
+def _event_common(_comm, _pid, _cpu, timestamp):
+    return "{_comm}-{_pid}  [{_cpu:0>3}] {timestamp}: ".format(**locals())
+
+def sched_switch(timestamp, cpu,
+                 prev_comm, prev_pid, prev_state, next_comm, next_pid):
+    return (_event_common(prev_comm, prev_pid, cpu, timestamp) + "sched_switch: "
+            "prev_comm={prev_comm} prev_pid={prev_pid} prev_prio=120 prev_state={prev_state} "
+            "next_comm={next_comm} next_pid={next_pid} next_prio=120").format(**locals())
+
+
 class TestTrace(TestCase):
     """Smoke tests for LISA's Trace class"""
 
@@ -64,10 +81,10 @@ class TestTrace(TestCase):
 
     def test_setTaskName(self):
         """TestTrace: getTaskBy{Pid,Name}() properly track tasks renaming"""
-        in_data = """
-          father-1234  [002] 18765.018235: sched_switch:          prev_comm=father prev_pid=1234 prev_prio=120 prev_state=0 next_comm=father next_pid=5678 next_prio=120
-           child-5678  [002] 18766.018236: sched_switch:          prev_comm=child prev_pid=5678 prev_prio=120 prev_state=1 next_comm=sh next_pid=3367 next_prio=120
-        """
+
+        in_data = '\n'.join([
+            sched_switch('18765.018235', 2, 'father', 1234, 0, 'father', 5678),
+            sched_switch('18765.018235', 2, 'child',  5678, 1, 'father', 5678)])
 
         with open(self.test_trace, "w") as fout:
             fout.write(in_data)
