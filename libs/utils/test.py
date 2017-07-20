@@ -165,8 +165,7 @@ class LisaTest(unittest.TestCase):
                 'to your test/experiment configuration flags')
 
         events = self.test_conf['ftrace']['events']
-        tasks = experiment.wload.tasks.keys()
-        trace = Trace(self.te.platform, experiment.out_dir, events, tasks)
+        trace = Trace(self.te.platform, experiment.out_dir, events)
 
         self.__traces[experiment.out_dir] = trace
         return trace

@@ -51,10 +51,6 @@ class Trace(object):
     :param events: events to be parsed (everything in the trace by default)
     :type events: list(str)
 
-    :param tasks: filter data for the specified tasks only. If None (default),
-        use data for all tasks found in the trace.
-    :type tasks: list(str) or NoneType
-
     :param window: time window to consider when parsing the trace
     :type window: tuple(int, int)
 
@@ -74,7 +70,7 @@ class Trace(object):
     """
 
     def __init__(self, platform, data_dir, events,
-                 tasks=None, window=(0, None),
+                 window=(0, None),
                  normalize_time=True,
                  trace_format='FTrace',
                  plots_dir=None,
@@ -101,9 +97,6 @@ class Trace(object):
         # Time the system was overutilzied
         self.overutilized_time = 0
         self.overutilized_prc = 0
-
-        # The dictionary of tasks descriptors available in the dataset
-        self.tasks = {}
 
         # List of events required by user
         self.events = []
@@ -133,7 +126,7 @@ class Trace(object):
         self.plots_prefix = plots_prefix
 
         self.__registerTraceEvents(events)
-        self.__parseTrace(data_dir, tasks, window, normalize_time,
+        self.__parseTrace(data_dir, window, normalize_time,
                           trace_format)
         self.__computeTimeSpan()
 
@@ -206,16 +199,13 @@ class Trace(object):
         if 'cpu_frequency' in events:
             self.events.append('cpu_frequency_devlib')
 
-    def __parseTrace(self, path, tasks, window, normalize_time, trace_format):
+    def __parseTrace(self, path, window, normalize_time, trace_format):
         """
         Internal method in charge of performing the actual parsing of the
         trace.
 
         :param path: path to the trace folder (or trace file)
         :type path: str
-
-        :param tasks: filter data for the specified tasks only
-        :type tasks: list(str)
 
         :param window: time window to consider when parsing the trace
         :type window: tuple(int, int)
@@ -256,6 +246,9 @@ class Trace(object):
             raise ValueError('The trace does not contain useful events '
                              'nor function stats')
 
+        # Index PIDs and Task names
+        self.__loadTasksNames()
+
         # Setup internal data reference to interesting events/dataframes
 
         self._sanitize_SchedLoadAvgCpu()
@@ -266,8 +259,6 @@ class Trace(object):
         self._sanitize_SchedEnergyDiff()
         self._sanitize_SchedOverutilized()
         self._sanitize_CpuFrequency()
-
-        self.__loadTasksNames(tasks)
 
         # Compute plot window
         if not normalize_time:
@@ -294,26 +285,23 @@ class Trace(object):
         for evt in self.available_events:
             self._log.debug(' - %s', evt)
 
-    def __loadTasksNames(self, tasks):
+    def __loadTasksNames(self):
         """
         Try to load tasks names using one of the supported events.
-
-        :param tasks: list of task names. If None, load all tasks found.
-        :type tasks: list(str) or NoneType
         """
-        def load(tasks, event, name_key, pid_key):
+        def load(event, name_key, pid_key):
             df = self._dfg_trace_event(event)
-            if tasks is None:
-                tasks = df[name_key].unique()
-            self.getTasks(df, tasks, name_key=name_key, pid_key=pid_key)
             self._scanTasks(df, name_key=name_key, pid_key=pid_key)
 
         if 'sched_switch' in self.available_events:
-            load(tasks, 'sched_switch', 'next_comm', 'next_pid')
-        elif 'sched_load_avg_task' in self.available_events:
-            load(tasks, 'sched_load_avg_task', 'comm', 'pid')
-        else:
-            self._log.warning('Failed to load tasks names from trace events')
+            load('sched_switch', 'prev_comm', 'prev_pid')
+            return
+
+        if 'sched_load_avg_task' in self.available_events:
+            load('sched_load_avg_task', 'comm', 'pid')
+            return
+
+        self._log.warning('Failed to load tasks names from trace events')
 
     def hasEvents(self, dataset):
         """
@@ -373,89 +361,64 @@ class Trace(object):
         :type pid_key: str
         """
         df = df[[name_key, pid_key]]
-        self._tasks_by_name = df.set_index(name_key)
-        self._tasks_by_pid = df.set_index(pid_key)
+        self._tasks_by_pid = (df.drop_duplicates(subset=pid_key, keep='last')
+                .rename(columns={
+                    pid_key : 'PID',
+                    name_key : 'TaskName'})
+                .set_index('PID').sort_index())
 
     def getTaskByName(self, name):
         """
         Get the PIDs of all tasks with the specified name.
 
+        The same PID can have different task names, mainly because once a task
+        is generated it inherits the parent name and then its name is updated
+        to represent what the task really is.
+
+        This API works under the assumption that a task name is updated at
+        most one time and it always considers the name a task had the last time
+        it has been scheduled for execution in the current trace.
+
         :param name: task name
         :type name: str
+
+        :return: a list of PID for tasks which name matches the required one,
+                 the last time they ran in the current trace
         """
-        if name not in self._tasks_by_name.index:
-            return []
-        if len(self._tasks_by_name.ix[name].values) > 1:
-            return list({task[0] for task in
-                         self._tasks_by_name.ix[name].values})
-        return [self._tasks_by_name.ix[name].values[0]]
+        return (self._tasks_by_pid[self._tasks_by_pid.TaskName == name]
+                    .index.tolist())
 
     def getTaskByPid(self, pid):
         """
-        Get the names of all tasks with the specified PID.
+        Get the name of the task with the specified PID.
+
+        The same PID can have different task names, mainly because once a task
+        is generated it inherits the parent name and then its name is
+        updated to represent what the task really is.
+
+        This API works under the assumption that a task name is updated at
+        most one time and it always report the name the task had the last time
+        it has been scheduled for execution in the current trace.
 
         :param name: task PID
         :type name: int
+
+        :return: the name of the task which PID matches the required one,
+                 the last time they ran in the current trace
         """
-        if pid not in self._tasks_by_pid.index:
-            return []
-        if len(self._tasks_by_pid.ix[pid].values) > 1:
-            return list({task[0] for task in
-                         self._tasks_by_pid.ix[pid].values})
-        return [self._tasks_by_pid.ix[pid].values[0]]
+        try:
+            return self._tasks_by_pid.ix[pid].values[0]
+        except KeyError:
+            return None
 
-    def getTasks(self, dataframe=None,
-                 task_names=None, name_key='comm', pid_key='pid'):
+    def getTasks(self):
         """
-        Helper function to get PIDs of specified tasks.
+        Get a dictionary of all the tasks in the Trace.
 
-        This method can take a Pandas dataset in input to be used to fiter out
-        the PIDs of all the specified tasks. If a dataset is not provided,
-        previously filtered PIDs are returned.
-
-        If a list of task names is not provided, all tasks detected in the trace
-        will be used. The specified dataframe must provide at least two columns
-        reporting the task name and the task PID. The default values of this
-        colums could be specified using the provided parameters.
-
-        :param dataframe: A Pandas dataframe containing at least 'name_key' and
-            'pid_key' columns. If None, the all PIDs are returned.
-        :type dataframe: :mod:`pandas.DataFrame`
-
-        :param task_names: The list of tasks to get the PID of (default: all
-            tasks)
-        :type task_names: list(str)
-
-        :param name_key: The name of the dataframe columns containing task
-            names
-        :type name_key: str
-
-        :param pid_key: The name of the dataframe columns containing task PIDs
-        :type pid_key: str
+        :return: a dictionary which maps each PID to the corresponding task
+                 name
         """
-        if task_names is None:
-            task_names = self.tasks.keys()
-        if dataframe is None:
-            return {k: v for k, v in  self.tasks.iteritems() if k in task_names}
-        df = dataframe
-        self._log.debug('Lookup dataset for tasks...')
-        for tname in task_names:
-            self._log.debug('Lookup for task [%s]...', tname)
-            results = df[df[name_key] == tname][[name_key, pid_key]]
-            if len(results) == 0:
-                self._log.error('  task %16s NOT found', tname)
-                continue
-            (name, pid) = results.head(1).values[0]
-            if name != tname:
-                self._log.error('  task %16s NOT found', tname)
-                continue
-            if tname not in self.tasks:
-                self.tasks[tname] = {}
-            pids = list(results[pid_key].unique())
-            self.tasks[tname]['pid'] = pids
-            self._log.debug('  task %16s found, pid: %s',
-                            tname, self.tasks[tname]['pid'])
-        return self.tasks
+        return self._tasks_by_pid.TaskName.to_dict()
 
 
 ###############################################################################
@@ -788,7 +751,9 @@ class Trace(object):
         """
         if os.path.isdir(path):
             path = os.path.join(path, 'trace.stats')
-        if path.endswith('dat') or path.endswith('html'):
+        if (path.endswith('dat') or
+            path.endswith('txt') or
+            path.endswith('html')):
             pre, ext = os.path.splitext(path)
             path = pre + '.stats'
         if not os.path.isfile(path):
