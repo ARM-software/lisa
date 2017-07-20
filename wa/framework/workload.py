@@ -20,7 +20,7 @@ import time
 from wa import Parameter
 from wa.framework.plugin import TargetedPlugin
 from wa.framework.resource import (ApkFile, JarFile, ReventFile, NO_ONE,
-                                   Executable, File)
+                                   Executable, File, loose_version_matching)
 from wa.framework.exception import WorkloadError
 from wa.utils.types import ParameterDict
 from wa.utils.revent import ReventRecorder
@@ -145,6 +145,12 @@ class ApkWorkload(Workload):
                   description="""
                   If ``True``, will uninstall workload\'s APK as part of teardown.'
                   """),
+        Parameter('exact_abi', kind=bool,
+                  default=False,
+                  description="""
+                  If ``True``, workload will check that the APK matches the target
+                        device ABI, otherwise any suitable APK found will be used.
+                  """)
     ]
 
     def __init__(self, target, **kwargs):
@@ -156,7 +162,8 @@ class ApkWorkload(Workload):
                                   version=self.version,
                                   force_install=self.force_install,
                                   install_timeout=self.install_timeout,
-                                  uninstall=self.uninstall)
+                                  uninstall=self.uninstall,
+                                  exact_abi=self.exact_abi)
 
     def init_resources(self, context):
         pass
@@ -423,7 +430,8 @@ class ReventGUI(object):
 class PackageHandler(object):
 
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
-                 package=None, strict=False, force_install=False, uninstall=False):
+                 package=None, strict=False, force_install=False, uninstall=False,
+                 exact_abi=False):
         self.logger = logging.getLogger('apk')
         self.owner = owner
         self.target = self.owner.target
@@ -434,10 +442,12 @@ class PackageHandler(object):
         self.strict = strict
         self.force_install = force_install
         self.uninstall = uninstall
+        self.exact_abi = exact_abi
         self.apk_file = None
         self.apk_info = None
         self.apk_version = None
         self.logcat_log = None
+        self.supported_abi = self.target.supported_abi
 
     def initialize(self, context):
         self.resolve_package(context)
@@ -452,10 +462,19 @@ class PackageHandler(object):
         self.apk_file = context.resolver.get(ApkFile(self.owner,
                                                      variant=self.variant,
                                                      version=self.version,
-                                                     package=self.package),
+                                                     package=self.package,
+                                                     exact_abi=self.exact_abi,
+                                                     supported_abi=self.supported_abi),
                                              strict=self.strict)
         if self.apk_file:
             self.apk_info = ApkInfo(self.apk_file)
+            if self.version:
+                installed_version = self.target.get_package_version(self.apk_info.package)
+                host_version = self.apk_info.version_name
+                if (installed_version != host_version and
+                        loose_version_matching(self.version, installed_version)):
+                    msg = 'Multiple matching packages found for {}; host version: {}, device version: {}'
+                    raise WorkloadError(msg.format(self.owner, host_version, installed_version))
         else:
             if not self.owner.package_names and not self.package:
                 msg = 'No package name(s) specified and no matching APK file found on host'
@@ -475,7 +494,8 @@ class PackageHandler(object):
 
             if self.version:
                 for package in installed_versions:
-                    if self.version == self.target.get_package_version(package):
+                    package_version = self.target.get_package_version(package)
+                    if loose_version_matching(self.version, package_version):
                         self.package = package
                         break
             else:
