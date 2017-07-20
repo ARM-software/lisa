@@ -764,7 +764,7 @@ class TestEnv(ShareState):
                   force=False and we have not installed rt-app.
         """
 
-        if not force:
+        if not force and 'rt-app' not in self.__installed_tools:
             if not self._calib and 'rtapp-calib' in self.conf:
                 self._log.warning('Using configuration provided RTApp calibration')
                 self._calib = {
@@ -772,12 +772,6 @@ class TestEnv(ShareState):
                     for key, value in self.conf['rtapp-calib'].items()
                 }
             return self._calib
-
-        required = force or 'rt-app' in self.__installed_tools
-
-        if not required:
-            self._log.debug('No RT-App workloads, skipping calibration')
-            return
 
         self._log.info('Calibrating RTApp...')
         self._calib = RTA.calibrate(self.target)
