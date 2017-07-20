@@ -41,7 +41,7 @@ from devlib.exception import HostError, TimeoutError
 
 # ABI --> architectures list
 ABI_MAP = {
-    'armeabi': ['armeabi', 'armv7', 'armv7l', 'armv7el', 'armv7lh'],
+    'armeabi': ['armeabi', 'armv7', 'armv7l', 'armv7el', 'armv7lh', 'armeabi-v7a'],
     'arm64': ['arm64', 'armv8', 'arm64-v8a', 'aarch64'],
 }
 
