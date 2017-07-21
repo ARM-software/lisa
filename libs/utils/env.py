@@ -433,6 +433,11 @@ class TestEnv(ShareState):
             self.__modules = [ "cpufreq", "cpuidle" ]
             platform = Platform(model='hikey')
 
+        # Initialize HiKey960 board
+        elif self.conf['board'].upper() == 'HIKEY960':
+            self.__modules = ['bl', 'cpufreq', 'cpuidle']
+            platform = Platform(model='hikey960')
+
         # Initialize Pixel phone
         elif self.conf['board'].upper() == 'PIXEL':
             self.nrg_model = pixel_energy
