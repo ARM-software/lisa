@@ -45,6 +45,15 @@ class _LoadTrackingBase(LisaTest):
         'modules': ['cpufreq', 'cgroups'],
     }
 
+    @memoized
+    @staticmethod
+    def _get_cpu_capacity(test_env, cpu):
+        if test_env.nrg_model:
+            return test_env.nrg_model.get_cpu_capacity(cpu)
+
+        return test_env.target.read_int(
+            '/sys/devices/system/cpu/cpu{}/cpu_capacity'.format(cpu))
+
     @classmethod
     def setUpClass(cls, *args, **kwargs):
         super(_LoadTrackingBase, cls).runExperiments(*args, **kwargs)
@@ -80,17 +89,24 @@ class _LoadTrackingBase(LisaTest):
         sched_assert = self.get_sched_assert(experiment, task)
         duty_cycle_pct = sched_assert.getDutyCycle(self.get_window(experiment))
 
-        # Find the capacity of the CPU the workload was run on
+        # Find the (max) capacity of the CPU the workload was run on
         [cpu] = experiment.wload.cpus
+        cpu_capacity = self._get_cpu_capacity(self.te, cpu)
+
+        # Scale the capacity linearly according to the frequency the workload
+        # was run at
         cpufreq = experiment.conf['cpufreq']
         if cpufreq['governor'] == 'userspace':
             freq = cpufreq['freqs'][cpu]
+            max_freq = max(self.te.target.cpufreq.list_frequencies(cpu))
+            cpu_capacity *= float(freq) / max_freq
         else:
             assert cpufreq['governor'] == 'performance'
-            freq = None
-        cpu_capacity = self.te.nrg_model.get_cpu_capacity(cpu, freq)
 
-        scaling_factor = float(cpu_capacity) / self.te.nrg_model.capacity_scale
+        # Scale the relative CPU/freq capacity into the range 0..1
+        scale = max(self._get_cpu_capacity(self.te, cpu)
+                    for cpu in range(self.te.target.number_of_cpus))
+        scaling_factor = float(cpu_capacity) / scale
 
         return UTIL_SCALE * (duty_cycle_pct / 100.) * scaling_factor
 
@@ -177,7 +193,8 @@ class FreqInvarianceTest(_LoadTrackingBase):
     @classmethod
     def _getExperimentsConf(cls, test_env):
         # Run on one of the CPUs with highest capacity
-        cpu = test_env.nrg_model.biggest_cpus[0]
+        cpu = max(range(test_env.target.number_of_cpus),
+                  key=lambda c: cls._get_cpu_capacity(test_env, c))
 
         wloads = {
             'fie_10pct' : cls.get_wload(cpu)
@@ -267,8 +284,13 @@ class CpuInvarianceTest(_LoadTrackingBase):
     def _getExperimentsConf(cls, test_env):
         # Run the 10% workload on one CPU in each capacity group
         wloads = {}
-        for group in test_env.nrg_model.cpu_groups:
-            cpu = group[0]
+        tested_caps = set()
+        for cpu in range(test_env.target.number_of_cpus):
+            cap = cls._get_cpu_capacity(test_env, cpu)
+            if cap in tested_caps:
+                # No need to test on every CPU, just one for each capacity value
+                continue
+            tested_caps.add(cap)
             wloads['cie_cpu{}'.format(cpu)] = cls.get_wload(cpu)
 
         conf = {
