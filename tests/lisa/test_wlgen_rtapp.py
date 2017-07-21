@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 import json
 import os
 
@@ -280,3 +280,42 @@ class TestRTACustom(RTABase):
     def test_custom_smoke_no_calib(self):
         """Test RTA custom workload (providing no calibration)"""
         self._test_custom_smoke(None)
+
+
+DummyBlModule = namedtuple('bl', ['bigs'])
+
+class TestRTACalibrationConf(RTABase):
+    """Test setting the "calibration" field of rt-app config"""
+    def _get_calib_conf(self, calibration):
+        rtapp = RTA(self.target, name='test', calibration=calibration)
+
+        rtapp.conf(
+            kind = 'profile',
+            params = {'t1': Periodic().get()},
+            run_dir=self.target_run_dir
+        )
+
+        with open(rtapp.json) as f:
+            return json.load(f)['global']['calibration']
+
+    def test_calibration_conf_pload(self):
+        """Test that the smallest pload value is used, if provided"""
+        cpus = range(self.target.number_of_cpus)
+        conf = self._get_calib_conf(dict(zip(cpus, [c + 100 for c in cpus])))
+        self.assertEqual(conf, 100,
+                         'Calibration not set to minimum pload value')
+
+    def test_calibration_conf_bl(self):
+        """Test that a big CPU is used if big.LITTLE data is available"""
+        self.target.modules.append('bl')
+        self.target.bl = DummyBlModule([1, 2])
+        conf = self._get_calib_conf(None)
+        self.assertIn(conf, ['CPU{}'.format(c) for c in self.target.bl.bigs],
+                      'Calibration not set to use a big CPU')
+
+    def test_calibration_conf_nodata(self):
+        """Test that the last CPU is used if no data is available"""
+        conf = self._get_calib_conf(None)
+        cpu = self.target.number_of_cpus - 1
+        self.assertEqual(conf, 'CPU{}'.format(cpu),
+                         'Calibration not set to highest numbered CPU')

@@ -184,104 +184,25 @@ class RTA(Workload):
             for line in self.output['executor'].split('\n'):
                 ofile.write(line+'\n')
 
-    def _getFirstBiggest(self, cpus):
-        # Non big.LITTLE system:
-        if 'bl' not in self.target.modules:
-            # return the first CPU of the last cluster
-            platform = self.target.platform
-            cluster_last = list(set(platform.core_clusters))[-1]
-            cluster_cpus = [cpu_id
-                    for cpu_id, cluster_id in enumerate(platform.core_clusters)
-                                           if cluster_id == cluster_last]
-            # If CPUs have been specified': return the fist in the last cluster
-            if cpus:
-                for cpu_id in cpus:
-                    if cpu_id in cluster_cpus:
-                        return cpu_id
-            # Otherwise just return the first cpu of the last cluster
-            return cluster_cpus[0]
-
-        # big.LITTLE system:
-        for c in cpus:
-             if c not in self.target.bl.bigs:
-                continue
-             return c
-        # Only LITTLE CPUs, thus:
-        #  return the first possible cpu
-        return cpus[0]
-
-    def _getFirstBig(self, cpus=None):
-        # Non big.LITTLE system:
-        if 'bl' not in self.target.modules:
-            return self._getFirstBiggest(cpus)
-        if cpus:
-            for c in cpus:
-                if c not in self.target.bl.bigs:
-                    continue
-                return c
-        # Only LITTLE CPUs, thus:
-        #  return the first big core of the system
-        if self.target.big_core:
-            # Big.LITTLE system
-            return self.target.bl.bigs[0]
-        return 0
-
-    def _getFirstLittle(self, cpus=None):
-        # Non big.LITTLE system:
-        if 'bl' not in self.target.modules:
-            # return the first CPU of the first cluster
-            platform = self.target.platform
-            cluster_first = list(set(platform.core_clusters))[0]
-            cluster_cpus = [cpu_id
-                    for cpu_id, cluster_id in enumerate(platform.core_clusters)
-                                           if cluster_id == cluster_first]
-            # If CPUs have been specified': return the fist in the first cluster
-            if cpus:
-                for cpu_id in cpus:
-                    if cpu_id in cluster_cpus:
-                        return cpu_id
-            # Otherwise just return the first cpu of the first cluster
-            return cluster_cpus[0]
-
-        # Try to return one LITTLE CPUs among the specified ones
-        if cpus:
-            for c in cpus:
-                if c not in self.target.bl.littles:
-                    continue
-                return c
-        # Only big CPUs, thus:
-        #  return the first LITTLE core of the system
-        if self.target.little_core:
-            # Big.LITTLE system
-            return self.target.bl.littles[0]
-        return 0
-
-    def getTargetCpu(self, loadref):
+    def getCalibrationConf(self):
         # Select CPU for task calibration, which is the first little
         # of big depending on the loadref tag
         if self.pload is not None:
-            if loadref and loadref.upper() == 'LITTLE':
-                target_cpu = self._getFirstLittle()
-                self._log.debug('ref on LITTLE cpu: %d', target_cpu)
+            if self.loadref and self.loadref.upper() == 'LITTLE':
+                return max(self.pload.values())
             else:
-                target_cpu = self._getFirstBig()
-                self._log.debug('ref on big cpu: %d', target_cpu)
-            return target_cpu
-
-        # These options are selected only when RTApp has not been
-        # already calibrated
-        if self.cpus is None:
-            target_cpu = self._getFirstBig()
-            self._log.debug('ref on cpu: %d', target_cpu)
+                return min(self.pload.values())
         else:
-            target_cpu = self._getFirstBiggest(self.cpus)
-            self._log.debug('ref on (possible) biggest cpu: %d', target_cpu)
-        return target_cpu
+            cpus = self.cpus or range(self.target.number_of_cpus)
 
-    def getCalibrationConf(self, target_cpu=0):
-        if self.pload is None:
+            target_cpu = cpus[-1]
+            if 'bl'in self.target.modules:
+                cluster = self.target.bl.bigs
+                candidates = sorted(set(self.target.bl.bigs).intersection(cpus))
+                if candidates:
+                    target_cpu = candidates[0]
+
             return 'CPU{0:d}'.format(target_cpu)
-        return self.pload[target_cpu]
 
     def _confCustom(self):
 
@@ -297,15 +218,13 @@ class RTA(Workload):
         if self.duration is None:
             raise ValueError('Workload duration not specified')
 
-        target_cpu = self.getTargetCpu(self.loadref)
-        calibration = self.getCalibrationConf(target_cpu)
-
         self._log.info('Loading custom configuration:')
         self._log.info('   %s', rtapp_conf)
         self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
         ofile = open(self.json, 'w')
         ifile = open(rtapp_conf, 'r')
 
+        calibration = self.getCalibrationConf()
         # Calibration can either be a string like "CPU1" or an integer, if the
         # former we need to quote it.
         if type(calibration) != int:
@@ -344,7 +263,6 @@ class RTA(Workload):
                 raise ValueError(msg)
 
         # Task configuration
-        target_cpu = self.getTargetCpu(self.loadref)
         self.rta_profile = {
             'tasks': {},
             'global': {}
@@ -354,13 +272,10 @@ class RTA(Workload):
         global_conf = {
                 'default_policy': 'SCHED_OTHER',
                 'duration': -1,
-                'calibration': 'CPU'+str(target_cpu),
+                'calibration': self.getCalibrationConf(),
                 'logdir': self.run_dir,
             }
 
-        # Setup calibration data
-        calibration = self.getCalibrationConf(target_cpu)
-        global_conf['calibration'] = calibration
         if self.duration is not None:
             global_conf['duration'] = self.duration
             self._log.warn('Limiting workload duration to %d [s]',
@@ -414,8 +329,6 @@ class RTA(Workload):
                     task_conf['delay'] = int(task['delay'] * 1e6)
                     self._log.info(' | start delay: %.6f [s]',
                             task['delay'])
-
-            self._log.info(' | calibration CPU: %d', target_cpu)
 
             if 'loops' not in task.keys():
                 task['loops'] = 1
