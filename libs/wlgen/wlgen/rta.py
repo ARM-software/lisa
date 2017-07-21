@@ -606,6 +606,14 @@ class RTATask(object):
         return self._task
 
     def __add__(self, next_phases):
+        if next_phases._task.get('delay', 0):
+            # This won't work, because rt-app's "delay" field is per-task and
+            # not per-phase. We might be able to implement it by adding a
+            # "sleep" event here, but let's not bother unless such a need
+            # arises.
+            raise ValueError("Can't compose rt-app tasks "
+                             "when the second has nonzero 'delay_s'")
+
         self._task['phases'].extend(next_phases._task['phases'])
         return self
 

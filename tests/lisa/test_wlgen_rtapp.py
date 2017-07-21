@@ -216,6 +216,21 @@ class TestRTAComposition(RTABase):
         self.assert_output_file_exists('rt-app-task_ramp-0.log')
         self.assert_can_read_logfile(exp_tasks=['task_ramp'])
 
+    def test_invalid_composition(self):
+        """Test that you can't compose tasks with a delay in the second task"""
+        t1 = Periodic()
+        t2 = Periodic(delay_s=1)
+
+        # Should work fine if delayed task is the first one
+        try:
+            t3 = t2 + t1
+        except Exception as e:
+            raise AssertionError("Couldn't compose tasks: {}".format(e))
+
+        # But not the other way around
+        with self.assertRaises(ValueError):
+            t3 = t1 + t2
+
 
 class TestRTACustom(RTABase):
     def _test_custom_smoke(self, calibration):
