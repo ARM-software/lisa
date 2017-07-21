@@ -17,12 +17,9 @@
 
 import logging
 
-from devlib.utils.android import adb_command
 from devlib import TargetError
 import os
 import pexpect as pe
-
-GET_FRAMESTATS_CMD = 'shell dumpsys gfxinfo {} > {}'
 
 class System(object):
     """
@@ -355,8 +352,9 @@ class System(object):
         :param out_file: output file name
         :type out_file: str
         """
-        adb_command(target.adb_name,
-                    GET_FRAMESTATS_CMD.format(apk_name, out_file))
+        output = target.execute('dumpsys gfxinfo {}'.format(apk_name))
+        with open(out_file, 'w') as ofile:
+            ofile.write(output)
 
     @staticmethod
     def monkey(target, apk_name, event_count=1):
