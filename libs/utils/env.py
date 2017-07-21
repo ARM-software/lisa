@@ -36,6 +36,7 @@ from energy_model import EnergyModel
 from conf import JsonConf
 from platforms.juno_energy import juno_energy
 from platforms.hikey_energy import hikey_energy
+from platforms.hikey960_energy import hikey960_energy
 from platforms.pixel_energy import pixel_energy
 
 USERNAME_DEFAULT = 'root'
@@ -433,6 +434,12 @@ class TestEnv(ShareState):
             self.__modules = [ "cpufreq", "cpuidle" ]
             platform = Platform(model='hikey')
 
+        # Initialized HiKey960 board
+        elif self.conf['board'].upper() == 'HIKEY960':
+            self.nrg_model = hikey960_energy
+            self.__modules = [ "bl", "cpufreq", "cpuidle" ]
+            platform = Platform(model='hikey960')
+
         # Initialize Pixel phone
         elif self.conf['board'].upper() == 'PIXEL':
             self.nrg_model = pixel_energy
@@ -447,6 +454,8 @@ class TestEnv(ShareState):
 
         elif self.conf['board'] != 'UNKNOWN':
             # Initilize from platform descriptor (if available)
+            self._log.error('Warning: UNKNOWN board type detected!!')
+            self._log.error('Warning: Below execution results may be not expected.')
             board = self._load_board(self.conf['board'])
             if board:
                 core_names=board['cores']
