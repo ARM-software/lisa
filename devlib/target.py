@@ -1218,6 +1218,37 @@ class AndroidTarget(Target):
         self.execute(cmd.format(int(boolean(mode))))
         self.execute('am broadcast -a android.intent.action.AIRPLANE_MODE', as_root=root_required)
 
+    def get_auto_rotation(self):
+        cmd = 'settings get system accelerometer_rotation'
+        return boolean(self.execute(cmd).strip())
+
+    def set_auto_rotation(self, autorotate):
+        cmd = 'settings put system accelerometer_rotation {}'
+        self.execute(cmd.format(int(boolean(autorotate))))
+
+    def set_natural_rotation(self):
+        self.set_rotation(0)
+
+    def set_left_rotation(self):
+        self.set_rotation(1)
+
+    def set_inverted_rotation(self):
+        self.set_rotation(2)
+
+    def set_right_rotation(self):
+        self.set_rotation(3)
+
+    def get_rotation(self):
+        cmd = 'settings get system user_rotation'
+        return self.execute(cmd).strip()
+
+    def set_rotation(self, rotation):
+        if not 0 <= rotation <= 3:
+            raise ValueError('Rotation value must be between 0 and 3')
+        self.set_auto_rotation(False)
+        cmd = 'settings put system user_rotation {}'
+        self.execute(cmd.format(rotation))
+
     def homescreen(self):
         self.execute('am start -a android.intent.action.MAIN -c android.intent.category.HOME')
 
