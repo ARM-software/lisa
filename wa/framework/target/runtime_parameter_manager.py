@@ -5,7 +5,8 @@ from wa.framework.exception import ConfigError
 from wa.framework.target.runtime_config import (SysfileValuesRuntimeConfig,
                                                 HotplugRuntimeConfig,
                                                 CpufreqRuntimeConfig,
-                                                CpuidleRuntimeConfig)
+                                                CpuidleRuntimeConfig,
+                                                AndroidRuntimeConfig)
 from wa.utils.types import obj_dict
 
 
@@ -17,6 +18,7 @@ class RuntimeParameterManager(object):
         HotplugRuntimeConfig,
         CpufreqRuntimeConfig,
         CpuidleRuntimeConfig,
+        AndroidRuntimeConfig,
     ]
 
     def __init__(self, target):

@@ -4,7 +4,7 @@ from collections import defaultdict, OrderedDict
 from wa.framework.exception import ConfigError
 from wa.framework.plugin import Plugin, Parameter
 from wa.utils.misc import resolve_cpus, resolve_unique_domain_cpus
-from wa.utils.types import caseless_string
+from wa.utils.types import caseless_string, enum
 
 from devlib.exception import TargetError
 from devlib.utils.misc import unique
@@ -809,3 +809,77 @@ class CpuidleRuntimeConfig(RuntimeConfig):
                 if state.name not in common_idle_states:
                     common_idle_states.append(state)
         return common_idle_states
+
+ScreenOrientation = enum(['NATURAL', 'LEFT', 'INVERTED', 'RIGHT'])
+
+
+class AndroidRuntimeConfig(RuntimeConfig):
+
+    name = 'rt-android'
+
+    @staticmethod
+    def set_brightness(obj, value):
+        if value is not None:
+            obj.config['brightness'] = value
+
+    @staticmethod
+    def set_airplane_mode(obj, value):
+        if value is not None:
+            obj.config['airplane_mode'] = value
+
+    @staticmethod
+    def set_rotation(obj, value):
+        if value is not None:
+            obj.config['rotation'] = value.value
+
+    def __init__(self, target):
+        self.config = defaultdict(dict)
+        super(AndroidRuntimeConfig, self).__init__(target)
+
+    def initialize(self):
+        if self.target.os != 'android':
+            return
+
+        param_name = 'brightness'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=int,
+                              constraint=lambda x: 0 <= x <= 255,
+                              default=127,
+                              setter=self.set_brightness,
+                              description="""
+                              Specify the screen brightness to be set for
+                              the device
+                              """)
+        param_name = 'airplane_mode'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=bool,
+                              setter=self.set_airplane_mode,
+                              description="""
+                              Specify whether airplane mode should be
+                              enabled for the device
+                              """)
+        param_name = 'rotation'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=ScreenOrientation,
+                              setter=self.set_rotation,
+                              description="""
+                              Specify the screen orientation for the device
+                              """)
+
+    def check_target(self):
+        if self.target.os != 'android':
+            raise ConfigError('Target does not appear to be running Android')
+
+    def validate_parameters(self):
+        pass
+
+    def commit(self):
+        if 'airplane_mode' in self.config:
+            self.target.set_airplane_mode(self.config['airplane_mode'])
+        if 'brightness' in self.config:
+            self.target.set_brightness(self.config['brightness'])
+        if 'rotation' in self.config:
+            self.target.set_rotation(self.config['rotation'])
+
+    def clear(self):
+        self.config = {}
