@@ -191,7 +191,7 @@ class SysfileValuesRuntimeConfig(RuntimeConfig):
 
             if path in obj.sysfile_values:
                 msg = 'Syspath "{}:{}" already specified with a value of "{}"'
-                raise ConfigError(msg.foramt(path, value, obj.sysfile_values[path][0]))
+                raise ConfigError(msg.format(path, value, obj.sysfile_values[path][0]))
 
             obj.sysfile_values[path] = (value, verify)
 
