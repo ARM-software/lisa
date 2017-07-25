@@ -186,7 +186,7 @@ def pop_aliased_param(cfg_point, d, default=None):
     aliases = [cfg_point.name] + cfg_point.aliases
     alias_map = [a for a in aliases if a in d]
     if len(alias_map) > 1:
-        raise ConfigError(DUPLICATE_ENTRY_ERROR.format(aliases))
+        raise ConfigError('Duplicate entry: {}'.format(aliases))
     elif alias_map:
         return d.pop(alias_map[0])
     else:
