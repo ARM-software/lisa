@@ -85,18 +85,18 @@ class SysfsExtractor(Instrument):
     ]
 
     def initialize(self, context):
-        if not self.device.is_rooted and self.use_tmpfs:  # pylint: disable=access-member-before-definition
+        if not self.target.is_rooted and self.use_tmpfs:  # pylint: disable=access-member-before-definition
             raise ConfigError('use_tempfs must be False for an unrooted device.')
         elif self.use_tmpfs is None:  # pylint: disable=access-member-before-definition
-            self.use_tmpfs = self.device.is_rooted
+            self.use_tmpfs = self.target.is_rooted
 
         if self.use_tmpfs:
-            self.on_device_before = self.device.path.join(self.tmpfs_mount_point, 'before')
-            self.on_device_after = self.device.path.join(self.tmpfs_mount_point, 'after')
+            self.on_device_before = self.target.path.join(self.tmpfs_mount_point, 'before')
+            self.on_device_after = self.target.path.join(self.tmpfs_mount_point, 'after')
 
-            if not self.device.file_exists(self.tmpfs_mount_point):
-                self.device.execute('mkdir -p {}'.format(self.tmpfs_mount_point), as_root=True)
-                self.device.execute(self.mount_command.format(self.tmpfs_size, self.tmpfs_mount_point),
+            if not self.target.file_exists(self.tmpfs_mount_point):
+                self.target.execute('mkdir -p {}'.format(self.tmpfs_mount_point), as_root=True)
+                self.target.execute(self.mount_command.format(self.tmpfs_size, self.tmpfs_mount_point),
                                     as_root=True)
 
     def setup(self, context):
@@ -116,62 +116,62 @@ class SysfsExtractor(Instrument):
 
         if self.use_tmpfs:
             for d in self.paths:
-                before_dir = self.device.path.join(self.on_device_before,
-                                                   self.device.path.dirname(as_relative(d)))
-                after_dir = self.device.path.join(self.on_device_after,
-                                                  self.device.path.dirname(as_relative(d)))
-                if self.device.file_exists(before_dir):
-                    self.device.execute('rm -rf  {}'.format(before_dir), as_root=True)
-                self.device.execute('mkdir -p {}'.format(before_dir), as_root=True)
-                if self.device.file_exists(after_dir):
-                    self.device.execute('rm -rf  {}'.format(after_dir), as_root=True)
-                self.device.execute('mkdir -p {}'.format(after_dir), as_root=True)
+                before_dir = self.target.path.join(self.on_device_before,
+                                                   self.target.path.dirname(as_relative(d)))
+                after_dir = self.target.path.join(self.on_device_after,
+                                                  self.target.path.dirname(as_relative(d)))
+                if self.target.file_exists(before_dir):
+                    self.target.execute('rm -rf  {}'.format(before_dir), as_root=True)
+                self.target.execute('mkdir -p {}'.format(before_dir), as_root=True)
+                if self.target.file_exists(after_dir):
+                    self.target.execute('rm -rf  {}'.format(after_dir), as_root=True)
+                self.target.execute('mkdir -p {}'.format(after_dir), as_root=True)
 
     def slow_start(self, context):
         if self.use_tmpfs:
             for d in self.paths:
-                dest_dir = self.device.path.join(self.on_device_before, as_relative(d))
+                dest_dir = self.target.path.join(self.on_device_before, as_relative(d))
                 if '*' in dest_dir:
-                    dest_dir = self.device.path.dirname(dest_dir)
-                self.device.execute('{} cp -Hr {} {}'.format(self.device.busybox, d, dest_dir),
+                    dest_dir = self.target.path.dirname(dest_dir)
+                self.target.execute('{} cp -Hr {} {}'.format(self.target.busybox, d, dest_dir),
                                     as_root=True, check_exit_code=False)
         else:  # not rooted
             for dev_dir, before_dir, _, _ in self.device_and_host_paths:
-                self.device.pull(dev_dir, before_dir)
+                self.target.pull(dev_dir, before_dir)
 
     def slow_stop(self, context):
         if self.use_tmpfs:
             for d in self.paths:
-                dest_dir = self.device.path.join(self.on_device_after, as_relative(d))
+                dest_dir = self.target.path.join(self.on_device_after, as_relative(d))
                 if '*' in dest_dir:
-                    dest_dir = self.device.path.dirname(dest_dir)
-                self.device.execute('{} cp -Hr {} {}'.format(self.device.busybox, d, dest_dir),
+                    dest_dir = self.target.path.dirname(dest_dir)
+                self.target.execute('{} cp -Hr {} {}'.format(self.target.busybox, d, dest_dir),
                                     as_root=True, check_exit_code=False)
         else:  # not using tmpfs
             for dev_dir, _, after_dir, _ in self.device_and_host_paths:
-                self.device.pull(dev_dir, after_dir)
+                self.target.pull(dev_dir, after_dir)
 
     def update_result(self, context):
         if self.use_tmpfs:
-            on_device_tarball = self.device.path.join(self.device.working_directory, self.tarname)
-            on_host_tarball = self.device.path.join(context.output_directory, self.tarname)
-            self.device.execute('{} tar czf {} -C {} .'.format(self.device.busybox,
+            on_device_tarball = self.target.path.join(self.target.working_directory, self.tarname)
+            on_host_tarball = self.target.path.join(context.output_directory, self.tarname)
+            self.target.execute('{} tar czf {} -C {} .'.format(self.target.busybox,
                                                                on_device_tarball,
                                                                self.tmpfs_mount_point),
                                 as_root=True)
-            self.device.execute('chmod 0777 {}'.format(on_device_tarball), as_root=True)
-            self.device.pull(on_device_tarball, on_host_tarball)
+            self.target.execute('chmod 0777 {}'.format(on_device_tarball), as_root=True)
+            self.target.pull(on_device_tarball, on_host_tarball)
             with tarfile.open(on_host_tarball, 'r:gz') as tf:
                 tf.extractall(context.output_directory)
-            self.device.remove(on_device_tarball)
+            self.target.remove(on_device_tarball)
             os.remove(on_host_tarball)
 
         for paths in self.device_and_host_paths:
             after_dir = paths[self.AFTER_PATH]
             dev_dir = paths[self.DEVICE_PATH].strip('*')  # remove potential trailing '*'
             if (not os.listdir(after_dir) and
-                    self.device.file_exists(dev_dir) and
-                    self.device.list_directory(dev_dir)):
+                    self.target.file_exists(dev_dir) and
+                    self.target.list_directory(dev_dir)):
                 self.logger.error('sysfs files were not pulled from the device.')
                 self.device_and_host_paths.remove(paths)  # Path is removed to skip diffing it
         for _, before_dir, after_dir, diff_dir in self.device_and_host_paths:
@@ -183,19 +183,19 @@ class SysfsExtractor(Instrument):
     def finalize(self, context):
         if self.use_tmpfs:
             try:
-                self.device.execute('umount {}'.format(self.tmpfs_mount_point), as_root=True)
+                self.target.execute('umount {}'.format(self.tmpfs_mount_point), as_root=True)
             except (TargetError, CalledProcessError):
                 # assume a directory but not mount point
                 pass
-            self.device.execute('rm -rf {}'.format(self.tmpfs_mount_point),
+            self.target.execute('rm -rf {}'.format(self.tmpfs_mount_point),
                                 as_root=True, check_exit_code=False)
 
     def validate(self):
         if not self.tmpfs_mount_point:  # pylint: disable=access-member-before-definition
-            self.tmpfs_mount_point = self.device.path.join(self.device.working_directory, 'temp-fs')
+            self.tmpfs_mount_point = self.target.path.join(self.target.working_directory, 'temp-fs')
 
     def _local_dir(self, directory):
-        return os.path.dirname(as_relative(directory).replace(self.device.path.sep, os.sep))
+        return os.path.dirname(as_relative(directory).replace(self.target.path.sep, os.sep))
 
 
 class ExecutionTimeInstrument(Instrument):
