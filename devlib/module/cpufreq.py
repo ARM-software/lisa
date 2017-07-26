@@ -414,7 +414,7 @@ class CpufreqModule(Module):
 
     def get_affected_cpus(self, cpu):
         """
-        Get the CPUs that share a frequency domain with the given CPU
+        Get the online CPUs that share a frequency domain with the given CPU
         """
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
