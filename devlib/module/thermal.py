@@ -61,8 +61,8 @@ class ThermalZone(object):
         value = self.target.read_value(self.target.path.join(self.path, 'mode'))
         return value == 'enabled'
 
-    def set_mode(self, enable):
-        value = 'enabled' if enable else 'disabled'
+    def set_enabled(self, enabled=True):
+        value = 'enabled' if enabled else 'disabled'
         self.target.write_value(self.target.path.join(self.path, 'mode'), value)
 
     def get_temperature(self):
@@ -100,5 +100,5 @@ class ThermalModule(Module):
 
     def disable_all_zones(self):
         """Disables all the thermal zones in the target"""
-        for zone in self.zones:
-            zone.set_mode('disabled')
+        for zone in self.zones.itervalues():
+            zone.set_enabled(False)
