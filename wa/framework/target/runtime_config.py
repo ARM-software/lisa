@@ -14,10 +14,10 @@ logger = logging.getLogger('RuntimeConfig')
 
 
 class RuntimeParameter(Parameter):
-    def __init__(self, name, setter, setter_params, **kwargs):
+    def __init__(self, name, setter, setter_params=None, **kwargs):
         super(RuntimeParameter, self).__init__(name, **kwargs)
         self.setter = setter
-        self.setter_params = setter_params
+        self.setter_params = setter_params or {}
 
     def set(self, obj, value):
         self.validate_value(self.name, value)
