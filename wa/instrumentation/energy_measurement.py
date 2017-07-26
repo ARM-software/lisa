@@ -161,19 +161,19 @@ class EnergyMeasurement(Instrument):
                    Specify the parameters used to initialize the desired
                    instrumentation.
                    """),
-        Parameter('sites', kind=list_or_string, default=[],
+        Parameter('sites', kind=list_or_string,
                   description="""
                   Specify which sites measurements should be collected
                   from, if not specified the measurements will be
                   collected for all available sites.
                   """),
-        Parameter('kinds', kind=list_or_string, default=[],
+        Parameter('kinds', kind=list_or_string,
                   description="""
                   Specify the kinds of measurements should be collected,
                   if not specified measurements will be
                   collected for all available kinds.
                   """),
-        Parameter('channels', kind=list_or_string, default=[],
+        Parameter('channels', kind=list_or_string,
                   description="""
                   Specify the channels to be collected,
                   if not specified the measurements will be
@@ -204,7 +204,7 @@ class EnergyMeasurement(Instrument):
     def initialize(self, context):
         self.instrumentation = self.backend.instrument(self.target, **self.params)
 
-        for channel in self.channels:
+        for channel in self.channels or []:
             if not self.instrumentation.get_channels(channel):
                 raise ConfigError('No channels found for "{}"'.format(channel))
 
