@@ -57,6 +57,16 @@ class TestTrace(TestCase):
         trace_path = os.path.join(self.traces_dir, 'trace.txt')
         self.trace = Trace(self.platform, trace_path, self.events)
 
+    def make_trace(self, lines):
+        """Helper to create a trace from lines of a trace.txt"""
+        trace_txt = '\n'.join(lines) + '\n' # Final newline is required!
+
+        with open(self.test_trace, "w") as fout:
+            fout.write(trace_txt)
+
+        return Trace(self.platform, self.test_trace, self.events,
+                     normalize_time=False)
+
     def test_getTaskByName(self):
         """TestTrace: getTaskByName() returns the list of PIDs for all tasks with the specified name"""
         for name, pids in [('watchdog/0', [12]),
@@ -82,13 +92,10 @@ class TestTrace(TestCase):
     def test_setTaskName(self):
         """TestTrace: getTaskBy{Pid,Name}() properly track tasks renaming"""
 
-        in_data = '\n'.join([
+        trace = self.make_trace([
             sched_switch('18765.018235', 2, 'father', 1234, 0, 'father', 5678),
-            sched_switch('18765.018235', 2, 'child',  5678, 1, 'father', 5678)])
-
-        with open(self.test_trace, "w") as fout:
-            fout.write(in_data)
-        trace = Trace(self.platform, self.test_trace, self.events)
+            sched_switch('18765.018235', 2, 'child',  5678, 1, 'father', 5678)
+        ])
 
         self.assertEqual(trace.getTaskByPid(1234), 'father')
         self.assertEqual(trace.getTaskByPid(5678), 'child')
