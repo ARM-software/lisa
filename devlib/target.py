@@ -1065,16 +1065,16 @@ class AndroidTarget(Target):
         width, height = self.screen_resolution
         command = 'input swipe {} {} {} {}'
         if direction == "horizontal":
-            swipe_heigh = height * 2 // 3
+            swipe_height = height * 2 // 3
             start = 100
             stop = width - start
-            self.execute(command.format(start, swipe_heigh, stop, swipe_heigh))
-        if direction == "vertical":
-            swipe_middle = height / 2
-            swipe_heigh = height * 2 // 3
-            self.execute(command.format(swipe_middle, swipe_heigh, swipe_middle, 0))
+            self.execute(command.format(start, swipe_height, stop, swipe_height))
+        elif direction == "vertical":
+            swipe_middle = width / 2
+            swipe_height = height * 2 // 3
+            self.execute(command.format(swipe_middle, swipe_height, swipe_middle, 0))
         else:
-            raise DeviceError("Invalid swipe direction: {}".format(self.swipe_to_unlock))
+            raise TargetError("Invalid swipe direction: {}".format(direction))
 
     def getprop(self, prop=None):
         props = AndroidProperties(self.execute('getprop'))
