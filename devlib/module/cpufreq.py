@@ -420,7 +420,7 @@ class CpufreqModule(Module):
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
 
-        sysfile = '/sys/devices/system/cpu/{}/cpufreq/affected_cpus'.format(cpu)
+        sysfile = '/sys/devices/system/cpu/{}/cpufreq/related_cpus'.format(cpu)
 
         return [int(c) for c in self.target.read_value(sysfile).split()]
 
