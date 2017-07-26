@@ -622,7 +622,7 @@ class CpufreqRuntimeConfig(RuntimeConfig):
         can still be populated.
         '''
         for cluster_cpu in resolve_unique_domain_cpus('all', self.target):
-            domain_cpus = self.target.cpufreq.get_domain_cpus(cluster_cpu)
+            domain_cpus = self.target.cpufreq.get_related_cpus(cluster_cpu)
             for cpu in domain_cpus:
                 if cpu in self.target.list_online_cpus():
                     supported_cpu_freqs = self.target.cpufreq.list_frequencies(cpu)

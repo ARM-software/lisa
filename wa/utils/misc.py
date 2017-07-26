@@ -668,7 +668,7 @@ def resolve_unique_domain_cpus(name, target):
     domain_cpus = []
     for cpu in cpus:
         if cpu not in domain_cpus:
-            domain_cpus = target.cpufreq.get_domain_cpus(cpu)
+            domain_cpus = target.cpufreq.get_related_cpus(cpu)
         if domain_cpus[0] not in unique_cpus:
             unique_cpus.append(domain_cpus[0])
     return unique_cpus
