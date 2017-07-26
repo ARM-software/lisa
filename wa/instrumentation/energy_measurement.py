@@ -22,6 +22,8 @@ from collections import defaultdict
 from devlib.instrument import CONTINUOUS
 from devlib.instrument.energy_probe import EnergyProbeInstrument
 from devlib.instrument.daq import DaqInstrument
+from devlib.instrument.acmecape import AcmeCapeInstrument
+from devlib.utils.misc import which
 
 from wa import Instrument, Parameter
 from wa.framework import pluginloader
@@ -140,6 +142,31 @@ class EnergyProbeBackend(EnergyInstrumentBackend):
                 msg = 'Number of Energy Probe port labels does not match the number of resistor values.'
                 raise ConfigError(msg)
 
+class AcmeCapeBackend(EnergyInstrumentBackend):
+
+    name = 'acme_cape'
+
+    parameters = [
+        Parameter('iio-capture', default=which('iio-capture'),
+                  description="""
+                  Path to the iio-capture binary will be taken from the
+                  environment, if not specfied.
+                  """),
+        Parameter('host', default='baylibre-acme.local',
+                  description="""
+                  Host name (or IP address) of the ACME cape board.
+                  """),
+        Parameter('iio-device', default='iio:device0',
+                  description="""
+                  """),
+        Parameter('buffer-size', kind=int, default=256,
+                  description="""
+                  Size of the capture buffer (in KB).
+                  """),
+    ]
+
+    instrument = AcmeCapeInstrument
+
 
 class EnergyMeasurement(Instrument):
 
@@ -152,7 +179,7 @@ class EnergyMeasurement(Instrument):
 
     parameters = [
         Parameter('instrument', kind=str, mandatory=True,
-                  allowed_values=['daq', 'energy_probe'],
+                  allowed_values=['daq', 'energy_probe', 'acme_cape'],
                   description="""
                   Specify the energy instrumentation to be enabled.
                   """),
