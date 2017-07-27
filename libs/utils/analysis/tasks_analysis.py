@@ -334,6 +334,29 @@ class TasksAnalysis(AnalysisModule):
 
         return df
 
+    def _dfg_underutilization(self):
+        """
+        Get a DataFrame of "underutilization index" over time
+
+        Underutilization index is defined as the number of idle CPUs that could
+        be running a task. This is min(i, t) where i is the number of idle CPUs
+        and t is the number of "waiting" (i.e. runnable but not running) tasks.
+        """
+        nr = self._trace.data_frame.nr_running()
+
+        if nr is None:
+            return None
+
+        # Get number of "waiting" (runnable but on running) tasks
+        # (i.e. max(0, nr_running -1), summed across each CPU)
+        waiting_tasks = (nr - (nr > 0)).sum(axis=1)
+
+        # Get number of idle CPUs
+        idle_cpus = (nr == 0).sum(axis=1)
+
+        return pd.concat([waiting_tasks, idle_cpus], axis=1).min(axis=1)
+
+
 ###############################################################################
 # Plotting Methods
 ###############################################################################

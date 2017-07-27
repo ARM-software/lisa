@@ -23,7 +23,6 @@ from unittest import TestCase
 
 from trace import Trace
 
-
 #
 # Helpers for generating example text-format trace events.
 # Doesn't have the exact same whitespace as real trace output, but that
@@ -57,16 +56,14 @@ def sched_migrate_task(timestamp, comm, pid, orig_cpu, dest_cpu):
             "comm={comm} pid={pid} prio=100 orig_cpu={orig_cpu} dest_cpu={dest_cpu}"
             .format(**locals()))
 
-class TestTrace(TestCase):
-    """Smoke tests for LISA's Trace class"""
-
+class TraceBase(TestCase):
     traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
     events = [
         'sched_switch', 'sched_wakeup', 'sched_wakeup_new', 'sched_migrate_task'
     ]
 
     def __init__(self, *args, **kwargs):
-        super(TestTrace, self).__init__(*args, **kwargs)
+        super(TraceBase, self).__init__(*args, **kwargs)
 
         self.test_trace = os.path.join(self.traces_dir, 'test_trace.txt')
 
@@ -85,6 +82,9 @@ class TestTrace(TestCase):
 
         return Trace(self.platform, self.test_trace, self.events,
                      normalize_time=False)
+
+class TestTrace(TraceBase):
+    """Smoke tests for LISA's Trace class"""
 
     def test_getTaskByName(self):
         """TestTrace: getTaskByName() returns the list of PIDs for all tasks with the specified name"""
@@ -121,6 +121,15 @@ class TestTrace(TestCase):
         self.assertEqual(trace.getTaskByName('father'), [1234])
 
         os.remove(self.test_trace)
+
+
+class TestTasksAnalysis(TraceBase):
+    def __init__(self, *args, **kwargs):
+        super(TestTasksAnalysis, self).__init__(*args, **kwargs)
+        self.platform = {
+            'clusters': {'x': [0, 1, 2, 3, 4, 5]},
+            'cpus_count': 6
+        }
 
     def test_dfg_task_cpu_single_task(self):
         """Test the task_cpu DataFrame getter for one task"""
@@ -297,4 +306,56 @@ class TestTrace(TestCase):
         assert_array_equal(
             nr.index,  [0.07, 0.09, 0.11, 0.13, 0.16, 0.17, 0.18, 0.19, 0.21])
 
+    def test_dfg_underutilization(self):
+        trace = self.make_trace([
+            # last task goes to sleep, nr_running[0] = 0
+            sched_switch('0.07', 0, 't1', 101, 1, 'swapper', 0),
+            # last task goes to sleep, nr_running[1] = 0
+            sched_switch('0.07', 1, 't5', 105, 1, 'swapper', 0),
+            # last task goes to sleep, nr_running[2] = 0
+            sched_switch('0.07', 2, 't7', 107, 1, 'swapper', 0),
+            # last task goes to sleep, nr_running[3] = 0
+            sched_switch('0.07', 3, 't8', 108, 1, 'swapper', 0),
+            # last task goes to sleep, nr_running[4] = 0
+            sched_switch('0.07', 4, 't9', 109, 1, 'swapper', 0),
+            # last task goes to sleep, nr_running[5] = 0
+            sched_switch('0.07', 5, 't10', 110, 1, 'swapper', 0),
+            # t4 wakes up, nr_running[1] = 1
+            sched_wakeup('0.08', 1, 't4', 104, 1),
+            # t1 wakes up on, nr_running[0] = 1
+            sched_wakeup('0.09', 0, 't1', 101, 0),
+            sched_switch('0.09', 0, 'swapper', 0, 0, 't1', 101),
 
+            # t2 wakes up, nr_running[0] = 2
+            sched_wakeup('0.11', 0, 't2', 102, 0),
+
+            # t3 wakesup, nr_running[0] = 3
+            sched_wakeup('0.13', 0, 't3', 103, 0),
+
+            # t4 migrates in, nr_running[0] = 4, nr_running[1] = 0
+            sched_migrate_task('0.16', 't4', 104, 1, 0),
+
+            # t5 wakes up, nr_running[1] = 1
+            sched_wakeup('0.17', 1, 't5', 105, 1),
+
+            # t2 goes to sleep (t3 takes over), nr_running[0] = 3
+            sched_switch('0.18', 0, 't2', 102, 1, 't3', 103),
+
+            # t1 migrates out, nr_running[0] = 2, nr_running[2] = 1
+            sched_migrate_task('0.19', 't1', 101, 0, 2),
+
+            # t3 goes to sleep (t4 takes over), nr_running[0] = 1
+            sched_switch('0.20', 0, 't3', 103, 1, 't4', 104),
+            # t4 goes to sleep, nr_running[0] = 1
+            sched_switch('0.21', 0, 't4', 104, 1, 'swapper', 0),
+            # t5 goes to sleep, nr_running[1] = 0
+            sched_switch('0.22', 0, 't5', 105, 1, 'swapper', 0),
+        ])
+
+        uu = trace.data_frame.underutilization().astype(int)
+        uu = uu[uu.shift() != uu]
+
+        assert_array_equal(
+            uu.values, [   0,    1,    2,    3,    2,    1,    0])
+        assert_array_equal(
+            uu.index,  [0.07, 0.11, 0.13, 0.16, 0.18, 0.19, 0.20])
