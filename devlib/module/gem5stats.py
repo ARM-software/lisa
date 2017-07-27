@@ -17,6 +17,7 @@ import os.path
 from collections import defaultdict
 
 import devlib
+from devlib.exception import TargetError
 from devlib.module import Module
 from devlib.platform import Platform
 from devlib.platform.gem5 import Gem5SimulationPlatform
