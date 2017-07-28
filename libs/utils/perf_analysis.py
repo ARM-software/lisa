@@ -158,7 +158,7 @@ class PerfAnalysis(object):
         axes.set_title('Task [{0:s}] (start) Latency and (completion) Slack'\
                 .format(task));
         data = self.df(task)[['Slack', 'WKPLatency']]
-        data.plot(ax=axes, drawstyle='steps-post', style=['r', 'g']);
+        data.plot(ax=axes, drawstyle='steps-post', style=['b', 'g']);
         # axes.set_xlim(x_min, x_max);
         axes.xaxis.set_visible(False);
         # Plot: Performance
