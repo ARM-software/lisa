@@ -114,7 +114,7 @@ struct reading
 	double sys_enm_ch0_gpu;
 };
 
-inline uint64_t join_64bit_register(uint32_t *buffer, int index)
+static inline uint64_t join_64bit_register(uint32_t *buffer, int index)
 {
 	uint64_t result = 0;
 	result |= buffer[index];
