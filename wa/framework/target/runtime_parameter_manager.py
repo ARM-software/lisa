@@ -69,6 +69,7 @@ class RuntimeParameterManager(object):
     def clear_runtime_parameters(self):
         for cfg in self.runtime_configs:
             cfg.clear()
+            cfg.set_defaults()
 
     def get_config_for_name(self, name):
         for rp_name, rp in self.runtime_params.iteritems():

@@ -61,6 +61,11 @@ class RuntimeConfig(Plugin):
             self._target_checked = True
         self._runtime_params[name].set(self, value)
 
+    def set_defaults(self):
+        for p in self.supported_parameters:
+            if p.default:
+                self.set_runtime_parameter(p.name, p.default)
+
     def validate_parameters(self):
         raise NotImplementedError()
 
