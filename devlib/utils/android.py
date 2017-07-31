@@ -177,7 +177,7 @@ class AdbConnection(object):
     @memoized
     def newline_separator(self):
         output = adb_command(self.device,
-                             "shell '({}); echo \"\n$?\"'".format(self.ls_command))
+                             "shell '({}); echo \"\n$?\"'".format(self.ls_command), adb_server=self.adb_server)
         if output.endswith('\r\n'):
             return '\r\n'
         elif output.endswith('\n'):
@@ -192,7 +192,7 @@ class AdbConnection(object):
     def _setup_ls(self):
         command = "shell '(ls -1); echo \"\n$?\"'"
         try:
-            output = adb_command(self.device, command, timeout=self.timeout)
+            output = adb_command(self.device, command, timeout=self.timeout, adb_server=self.adb_server)
         except subprocess.CalledProcessError as e:
             raise HostError(
                 'Failed to set up ls command on Android device. Output:\n'
@@ -205,11 +205,12 @@ class AdbConnection(object):
             self.ls_command = 'ls'
         logger.debug("ls command is set to {}".format(self.ls_command))
 
-    def __init__(self, device=None, timeout=None, platform=None):
+    def __init__(self, device=None, timeout=None, platform=None, adb_server=None):
         self.timeout = timeout if timeout is not None else self.default_timeout
         if device is None:
-            device = adb_get_device(timeout=timeout)
+            device = adb_get_device(timeout=timeout, adb_server=adb_server)
         self.device = device
+        self.adb_server = adb_server
         adb_connect(self.device)
         AdbConnection.active_connections[self.device] += 1
         self._setup_ls()
@@ -220,7 +221,7 @@ class AdbConnection(object):
         command = "push '{}' '{}'".format(source, dest)
         if not os.path.exists(source):
             raise HostError('No such file "{}"'.format(source))
-        return adb_command(self.device, command, timeout=timeout)
+        return adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
 
     def pull(self, source, dest, timeout=None):
         if timeout is None:
@@ -229,18 +230,18 @@ class AdbConnection(object):
         if os.path.isdir(dest) and \
            ('*' in source or '?' in source):
             command = 'shell {} {}'.format(self.ls_command, source)
-            output = adb_command(self.device, command, timeout=timeout)
+            output = adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
             for line in output.splitlines():
                 command = "pull '{}' '{}'".format(line.strip(), dest)
-                adb_command(self.device, command, timeout=timeout)
+                adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
             return
         command = "pull '{}' '{}'".format(source, dest)
-        return adb_command(self.device, command, timeout=timeout)
+        return adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
 
     def execute(self, command, timeout=None, check_exit_code=False,
                 as_root=False, strip_colors=True):
         return adb_shell(self.device, command, timeout, check_exit_code,
-                         as_root, self.newline_separator)
+                         as_root, self.newline_separator,adb_server=self.adb_server)
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         return adb_background_shell(self.device, command, stdout, stderr, as_root)
@@ -272,7 +273,7 @@ def fastboot_flash_partition(partition, path_to_image):
     fastboot_command(command)
 
 
-def adb_get_device(timeout=None):
+def adb_get_device(timeout=None, adb_server=None):
     """
     Returns the serial number of a connected android device.
 
@@ -287,7 +288,7 @@ def adb_get_device(timeout=None):
     # then the output length is 2 + (1 for each device)
     start = time.time()
     while True:
-        output = adb_command(None, "devices").splitlines()  # pylint: disable=E1103
+        output = adb_command(None, "devices", adb_server=adb_server).splitlines()  # pylint: disable=E1103
         output_length = len(output)
         if output_length == 3:
             # output[1] is the 2nd line in the output which has the device name
@@ -353,11 +354,14 @@ def _ping(device):
 
 
 def adb_shell(device, command, timeout=None, check_exit_code=False,
-              as_root=False, newline_separator='\r\n'):  # NOQA
+              as_root=False, newline_separator='\r\n', adb_server=None):  # NOQA
     _check_env()
     if as_root:
         command = 'echo \'{}\' | su'.format(escape_single_quotes(command))
-    device_part = ['-s', device] if device else []
+    device_part = []
+    if adb_server:
+        device_part = ['-H', adb_server]
+    device_part += ['-s', device] if device else []
 
     # On older combinations of ADB/Android versions, the adb host command always
     # exits with 0 if it was able to run the command on the target, even if the
@@ -416,8 +420,8 @@ def adb_background_shell(device, command,
     return subprocess.Popen(full_command, stdout=stdout, stderr=stderr, shell=True)
 
 
-def adb_list_devices():
-    output = adb_command(None, 'devices')
+def adb_list_devices(adb_server=None):
+    output = adb_command(None, 'devices',adb_server=adb_server)
     devices = []
     for line in output.splitlines():
         parts = [p.strip() for p in line.split()]
@@ -426,9 +430,12 @@ def adb_list_devices():
     return devices
 
 
-def adb_command(device, command, timeout=None):
+def adb_command(device, command, timeout=None,adb_server=None):
     _check_env()
-    device_string = ' -s {}'.format(device) if device else ''
+    device_string = ""
+    if adb_server != None:
+        device_string = ' -H {}'.format(adb_server)
+    device_string += ' -s {}'.format(device) if device else ''
     full_command = "adb{} {}".format(device_string, command)
     logger.debug(full_command)
     output, _ = check_output(full_command, timeout, shell=True)
