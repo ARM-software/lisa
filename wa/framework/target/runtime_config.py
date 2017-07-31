@@ -832,6 +832,11 @@ class AndroidRuntimeConfig(RuntimeConfig):
         if value is not None:
             obj.config['rotation'] = value.value
 
+    @staticmethod
+    def set_screen_state(obj, value):
+        if value is not None:
+            obj.config['screen_on'] = value
+
     def __init__(self, target):
         self.config = defaultdict(dict)
         super(AndroidRuntimeConfig, self).__init__(target)
@@ -865,6 +870,14 @@ class AndroidRuntimeConfig(RuntimeConfig):
                               description="""
                               Specify the screen orientation for the device
                               """)
+        param_name = 'screen_on'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=bool,
+                              default=True,
+                              setter=self.set_screen_state,
+                              description="""
+                              Specify whether the device screen should be on
+                              """)
 
     def check_target(self):
         if self.target.os != 'android':
@@ -880,6 +893,11 @@ class AndroidRuntimeConfig(RuntimeConfig):
             self.target.set_brightness(self.config['brightness'])
         if 'rotation' in self.config:
             self.target.set_rotation(self.config['rotation'])
+        if 'screen_on' in self.config:
+            if self.config['screen_on']:
+                self.target.ensure_screen_is_on()
+            else:
+                self.target.ensure_screen_is_off()
 
     def clear(self):
         self.config = {}
