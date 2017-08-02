@@ -48,6 +48,8 @@ class MeasurementType(object):
         if not isinstance(to, MeasurementType):
             msg = 'Unexpected conversion target: "{}"'
             raise ValueError(msg.format(to))
+        if to.name == self.name:
+            return value
         if not to.name in self.conversions:
             msg = 'No conversion from {} to {} available'
             raise ValueError(msg.format(self.name, to.name))
