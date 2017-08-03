@@ -16,6 +16,7 @@ class FramesInstrument(Instrument):
         self.collector_target = collector_target
         self.period = period
         self.keep_raw = keep_raw
+        self.sample_rate_hz = 1 / self.period
         self.collector = None
         self.header = None
         self._need_reset = True

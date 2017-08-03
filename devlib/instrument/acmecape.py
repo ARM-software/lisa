@@ -46,6 +46,7 @@ class AcmeCapeInstrument(Instrument):
         self.host = host
         self.iio_device = iio_device
         self.buffer_size = buffer_size
+        self.sample_rate_hz = 100
         if self.iio_capture is None:
             raise HostError('Missing iio-capture binary')
         self.command = None

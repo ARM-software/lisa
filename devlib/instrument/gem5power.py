@@ -28,10 +28,10 @@ class Gem5PowerInstrument(Instrument):
 
     mode = CONTINUOUS
     roi_label = 'power_instrument'
-    
+
     def __init__(self, target, power_sites):
         '''
-        Parameter power_sites is a list of gem5 identifiers for power values. 
+        Parameter power_sites is a list of gem5 identifiers for power values.
         One example of such a field:
             system.cluster0.cores0.power_model.static_power
         '''
@@ -51,6 +51,9 @@ class Gem5PowerInstrument(Instrument):
             self.add_channel(field, 'power')
         self.target.gem5stats.book_roi(self.roi_label)
         self.sample_period_ns = 10000000
+        # Sample rate must remain unset as gem5 does not provide samples
+        # at regular intervals therefore the reported timestamp should be used.
+        self.sample_rate_hz = None
         self.target.gem5stats.start_periodic_dump(0, self.sample_period_ns)
         self._base_stats_dump = 0
 
@@ -59,17 +62,17 @@ class Gem5PowerInstrument(Instrument):
 
     def stop(self):
         self.target.gem5stats.roi_end(self.roi_label)
-       
+
     def get_data(self, outfile):
         active_sites = [c.site for c in self.active_channels]
         with open(outfile, 'wb') as wfh:
             writer = csv.writer(wfh)
             writer.writerow([c.label for c in self.active_channels]) # headers
-            for rec, rois in self.target.gem5stats.match_iter(active_sites, 
+            for rec, rois in self.target.gem5stats.match_iter(active_sites,
                     [self.roi_label], self._base_stats_dump):
                 writer.writerow([float(rec[s]) for s in active_sites])
         return MeasurementsCsv(outfile, self.active_channels)
-    
+
     def reset(self, sites=None, kinds=None, channels=None):
         super(Gem5PowerInstrument, self).reset(sites, kinds, channels)
         self._base_stats_dump = self.target.gem5stats.next_dump_no()
