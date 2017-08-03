@@ -143,9 +143,10 @@ class Measurement(object):
 
 class MeasurementsCsv(object):
 
-    def __init__(self, path, channels=None):
+    def __init__(self, path, channels=None, sample_rate_hz=None):
         self.path = path
         self.channels = channels
+        self.sample_rate_hz = sample_rate_hz
         self._fh = open(path, 'rb')
         if self.channels is None:
             self._load_channels()
