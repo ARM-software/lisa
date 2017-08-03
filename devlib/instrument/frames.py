@@ -44,7 +44,7 @@ class FramesInstrument(Instrument):
         self.collector.process_frames(raw_outfile)
         active_sites = [chan.label for chan in self.active_channels]
         self.collector.write_frames(outfile, columns=active_sites)
-        return MeasurementsCsv(outfile, self.active_channels)
+        return MeasurementsCsv(outfile, self.active_channels, self.sample_rate_hz)
 
     def _init_channels(self):
         raise NotImplementedError()
