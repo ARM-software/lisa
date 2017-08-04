@@ -588,7 +588,7 @@ class Executor():
                         wl_idx, calibration = self.te.calib)
             rtapp.conf(kind='custom',
                     params=conf['json'],
-                    duration=conf['duration'],
+                    duration=conf.get('duration'),
                     loadref=loadref,
                     cpus=cpus, run_dir=self.te.run_dir)
             return rtapp

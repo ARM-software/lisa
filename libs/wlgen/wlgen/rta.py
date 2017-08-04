@@ -215,9 +215,6 @@ class RTA(Workload):
             raise ValueError('value specified for \'params\' is not '
                              'a valid rt-app JSON configuration file')
 
-        if self.duration is None:
-            raise ValueError('Workload duration not specified')
-
         self._log.info('Loading custom configuration:')
         self._log.info('   %s', rtapp_conf)
         self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
@@ -238,6 +235,8 @@ class RTA(Workload):
         }
 
         for line in ifile:
+            if '__DURATION__' in line and self.duration is None:
+                raise ValueError('Workload duration not specified')
             for src, target in replacements.iteritems():
                 line = line.replace(src, target)
             ofile.write(line)
