@@ -151,7 +151,7 @@ Instrument
    Sample rate of the instrument in Hz. Assumed to be the same for all channels.
 
    .. note:: This attribute is only provided by :class:`Instrument`\ s that
-             support ``CONTINUOUS`` measurment.
+             support ``CONTINUOUS`` measurement.
 
 Instrument Channel
 ~~~~~~~~~~~~~~~~~~
