@@ -351,6 +351,26 @@ class TestFTrace(BaseTestThermal):
         self.assertEquals(trace.thermal.data_frame.iloc[0]["temp"], 68989)
         self.assertEquals(trace.thermal.data_frame.iloc[-1]["temp"], 69530)
 
+    def test_parse_tracing_mark_write_events(self):
+        """Check that tracing_mark_write events are parsed without errors"""
+
+        in_data = """     sh-1379  [002]   353.397813: print:                tracing_mark_write: TRACE_MARKER_START
+     shutils-1381  [001]   353.680439: print:                tracing_mark_write: cpu_frequency:        state=450000 cpu_id=5"""
+
+        with open("trace.txt", "w") as fout:
+            fout.write(in_data)
+
+        try:
+            trace = trappy.FTrace()
+        except TypeError as e:
+            self.fail("tracing_mark_write parsing failed with {} exception"\
+                      .format(e.message))
+        # The second event is recognised as a cpu_frequency event and therefore
+        # put under trace.cpu_frequency
+        self.assertEquals(trace.tracing_mark_write.data_frame.iloc[-1]["string"],
+                          "TRACE_MARKER_START")
+        self.assertEquals(len(trace.tracing_mark_write.data_frame), 1)
+
 
 @unittest.skipUnless(utils_tests.trace_cmd_installed(),
                      "trace-cmd not installed")

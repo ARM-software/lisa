@@ -141,5 +141,5 @@ class BareTrace(object):
             trace_class.create_dataframe()
             trace_class.finalize_object()
 
-    def generate_data_dict(self):
+    def generate_data_dict(self, data_str):
         return None

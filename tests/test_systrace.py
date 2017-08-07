@@ -93,6 +93,16 @@ class TestSystrace(utils_tests.SetupDirectory):
         self.assertEquals(dfr['__line'].iloc[1], 6)
         self.assertEquals(dfr['__line'].iloc[-1], 2505)
 
+    def test_parse_tracing_mark_write_events(self):
+        """Check that tracing_mark_write events are parsed without errors"""
+        events = ['tracing_mark_write']
+        try:
+            trace = trappy.SysTrace("trace.html", events=events)
+        except TypeError as e:
+            self.fail("tracing_mark_write parsing failed with {} exception"\
+                      .format(e.message))
+
+
 class TestLegacySystrace(utils_tests.SetupDirectory):
 
     def __init__(self, *args, **kwargs):
