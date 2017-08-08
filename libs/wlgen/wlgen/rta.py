@@ -533,8 +533,13 @@ class RTATask(object):
     ``Periodic``.
     """
 
-    def __init__(self):
+    def __init__(self, delay_s=0, loops=1, sched=None, cpus=None):
         self._task = {}
+
+        self._task['cpus'] = cpus
+        self._task['sched'] = sched or {'policy' : 'DEFAULT'}
+        self._task['delay'] = delay_s
+        self._task['loops'] = loops
 
     def get(self):
         """
@@ -582,14 +587,7 @@ class Ramp(RTATask):
 
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
                  period_ms=100, delay_s=0, loops=1, sched=None, cpus=None):
-        super(Ramp, self).__init__()
-
-        self._task['cpus'] = cpus
-        if not sched:
-            sched = {'policy' : 'DEFAULT'}
-        self._task['sched'] = sched
-        self._task['delay'] = delay_s
-        self._task['loops'] = loops
+        super(Ramp, self).__init__(delay_s, loops, sched, cpus)
 
         if start_pct not in range(0,101) or end_pct not in range(0,101):
             raise ValueError('start_pct and end_pct must be in [0..100] range')
@@ -676,20 +674,10 @@ class Pulse(RTATask):
 
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched=None, cpus=None):
-        super(Pulse, self).__init__()
+        super(Pulse, self).__init__(delay_s, loops, sched, cpus)
 
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
-
-        self._task = {}
-
-        self._task['cpus'] = cpus
-        if not sched:
-            sched = {'policy' : 'DEFAULT'}
-        self._task['sched'] = sched
-        self._task['delay'] = delay_s
-        self._task['loops'] = loops
-        self._task['phases'] = {}
 
         if end_pct not in range(0,101) or start_pct not in range(0,101):
             raise ValueError('end_pct and start_pct must be in [0..100] range')
