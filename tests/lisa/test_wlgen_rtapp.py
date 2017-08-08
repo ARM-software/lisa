@@ -20,7 +20,7 @@ import json
 import os
 
 from perf_analysis import PerfAnalysis
-from wlgen import RTA, Periodic, Ramp
+from wlgen import RTA, Periodic, Ramp, Step
 
 from test_wlgen import WlgenSelfBase
 
@@ -117,8 +117,28 @@ class TestRTAProfile(RTABase):
 
         self._do_test(task, exp_phases)
 
+    def test_profile_step_smoke(self):
+        """
+        Smoketest Step rt-app workload
 
+        Creates a workload using Step, tests that the JSON has the expected
+        content, then tests that it can be run.
+        """
 
+        task = Step(start_pct=100, end_pct=0, time_s=1)
+
+        exp_phases = [
+            {
+                'run': 1000000,
+                'loop': 1
+            },
+            {
+                'sleep': 1000000,
+                'loop': 1
+            },
+        ]
+
+        self._do_test(task, exp_phases)
 
     def test_composition(self):
         """
