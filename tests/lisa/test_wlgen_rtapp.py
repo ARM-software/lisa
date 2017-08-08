@@ -20,7 +20,7 @@ import json
 import os
 
 from perf_analysis import PerfAnalysis
-from wlgen import RTA, Periodic, Ramp
+from wlgen import RTA, Periodic, Ramp, RunAndSync
 
 from test_wlgen import WlgenSelfBase
 
@@ -117,8 +117,17 @@ class TestRTAProfile(RTABase):
 
         self._do_test(task, exp_phases)
 
+    def test_profile_run_and_sync_smoke(self):
+        task = RunAndSync('my_barrier', time_s=1)
+        exp_phases = [
+            OrderedDict([
+                ('loop', 1),
+                ('run', 1000000),
+                ('barrier', 'my_barrier')
+            ])
+        ]
 
-
+        self._do_test(task, exp_phases)
 
     def test_composition(self):
         """
