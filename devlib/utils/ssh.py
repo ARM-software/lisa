@@ -292,7 +292,8 @@ class SshConnection(object):
         try:
             check_output(command, timeout=timeout, shell=True)
         except subprocess.CalledProcessError as e:
-            raise subprocess.CalledProcessError(e.returncode, command_redacted e.output)
+            raise HostError("Failed to copy file with '{}'. Output:\n{}".format(
+                command_redacted, e.output))
         except TimeoutError as e:
             raise TimeoutError(command_redacted, e.output)
 
