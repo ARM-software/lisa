@@ -204,7 +204,7 @@ class TestSchedutilTunables(BasicCheckTest):
 
         while cpus:
             cpu = iter(cpus).next()
-            domain = tuple(self.target.cpufreq.get_domain_cpus(cpu))
+            domain = tuple(self.target.cpufreq.get_related_cpus(cpu))
 
             tunables = self.target.cpufreq.get_governor_tunables(cpu)
             for name, value in tunables.iteritems():
