@@ -18,7 +18,7 @@
 from unittest import TestCase
 
 from nose.tools import raises, assert_equal, assert_not_equal, assert_in, assert_not_in
-from nose.tools import assert_true, assert_false
+from nose.tools import assert_true, assert_false, assert_raises, assert_is, assert_list_equal
 
 from wa.utils.types import (list_or_integer, list_or_bool, caseless_string,
                             arguments, prioritylist, enum, level)
@@ -96,6 +96,37 @@ class TestPriorityList(TestCase):
 
 
 class TestEnumLevel(TestCase):
+
+    def test_enum_creation(self):
+        e = enum(['one', 'two', 'three'])
+        assert_list_equal(e.values, [0, 1, 2])
+
+        e = enum(['one', 'two', 'three'], start=10)
+        assert_list_equal(e.values, [10, 11, 12])
+
+        e = enum(['one', 'two', 'three'], start=-10, step=10)
+        assert_list_equal(e.values, [-10, 0, 10])
+
+    def test_enum_behavior(self):
+        e = enum(['one', 'two', 'three'])
+
+        # case-insensitive level name and level value may all
+        # be used for equality comparisons.
+        assert_equal(e.one, 'one')
+        assert_equal(e.one, 'ONE')
+        assert_equal(e.one, 0)
+        assert_not_equal(e.one, '0')
+
+        # ditto for enum membership tests
+        assert_in('one', e.values)
+        assert_in(2, e.values)
+        assert_not_in('five', e.values)
+
+        # The same level object returned, only when
+        # passing in a valid level name/value.
+        assert_is(e('one'), e('ONE'))
+        assert_is(e('one'), e(0))
+        assert_raises(ValueError, e, 'five')
 
     def test_serialize_level(self):
         l = level('test', 1)
