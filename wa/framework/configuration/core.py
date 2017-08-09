@@ -741,7 +741,7 @@ class RunConfiguration(Configuration):
             'retry_on_status',
             kind=list_of(Status),
             default=['FAILED', 'PARTIAL'],
-            allowed_values=Status.values[Status.RUNNING.value:],
+            allowed_values=Status.levels[Status.RUNNING.value:],
             description='''
             This is list of statuses on which a job will be considered to have
             failed and will be automatically retried up to ``max_retries``

@@ -235,50 +235,6 @@ def get_pager():
     return pager
 
 
-def enum_metaclass(enum_param, return_name=False, start=0):
-    """
-    Returns a ``type`` subclass that may be used as a metaclass for
-    an enum.
-
-    Paremeters:
-
-        :enum_param: the name of class attribute that defines enum values.
-                     The metaclass will add a class attribute for each value in
-                     ``enum_param``. The value of the attribute depends on the type
-                     of ``enum_param`` and on the values of ``return_name``. If
-                     ``return_name`` is ``True``, then the value of the new attribute is
-                     the name of that attribute; otherwise, if ``enum_param`` is a ``list``
-                     or a ``tuple``, the value will be the index of that param in
-                     ``enum_param``, optionally offset by ``start``, otherwise, it will
-                     be assumed that ``enum_param`` implementa a dict-like inteface and
-                     the value will be ``enum_param[attr_name]``.
-        :return_name: If ``True``, the enum values will the names of enum attributes. If
-                      ``False``, the default, the values will depend on the type of
-                      ``enum_param`` (see above).
-        :start: If ``enum_param`` is a list or a tuple, and ``return_name`` is ``False``,
-                this specifies an "offset" that will be added to the index of the attribute
-                within ``enum_param`` to form the value.
-
-
-    """
-    class __EnumMeta(type):
-        def __new__(mcs, clsname, bases, attrs):
-            cls = type.__new__(mcs, clsname, bases, attrs)
-            values = getattr(cls, enum_param, [])
-            if return_name:
-                for name in values:
-                    setattr(cls, name, name)
-            else:
-                if isinstance(values, list) or isinstance(values, tuple):
-                    for i, name in enumerate(values):
-                        setattr(cls, name, i + start)
-                else:  # assume dict-like
-                    for name in values:
-                        setattr(cls, name, values[name])
-            return cls
-    return __EnumMeta
-
-
 _bash_color_regex = re.compile('\x1b\[[0-9;]+m')
 
 

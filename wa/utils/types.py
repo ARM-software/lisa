@@ -557,7 +557,7 @@ def enum(args, start=0, step=1):
         @classmethod
         def from_pod(cls, pod):
             lv = level.from_pod(pod)
-            for enum_level in cls.values:
+            for enum_level in cls.levels:
                 if enum_level == lv:
                     return enum_level
             msg = 'Unexpected value "{}" for enum.'
@@ -574,16 +574,24 @@ def enum(args, start=0, step=1):
 
             raise ValueError('Invalid enum value: {}'.format(repr(name)))
 
+    reserved = ['values', 'levels', 'names']
+
     levels = []
     n = start
     for v in args:
-        name = caseless_string(identifier(v))
+        id_v = identifier(v)
+        if id_v in reserved:
+            message = 'Invalid enum level name "{}"; must not be in {}'
+            raise ValueError(message.format(v, reserved))
+        name = caseless_string(id_v)
         lv = level(v, n)
         setattr(Enum, name, lv)
         levels.append(lv)
         n += step
 
-    setattr(Enum, 'values', levels)
+    setattr(Enum, 'levels', levels)
+    setattr(Enum, 'values', [lv.value for lv in levels])
+    setattr(Enum, 'names', [lv.name for lv in levels])
 
     return Enum
 
