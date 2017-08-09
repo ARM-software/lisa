@@ -107,6 +107,14 @@ class TestEnumLevel(TestCase):
         e = enum(['one', 'two', 'three'], start=-10, step=10)
         assert_list_equal(e.values, [-10, 0, 10])
 
+    def test_enum_name_conflicts(self):
+        assert_raises(ValueError, enum, ['names', 'one', 'two'])
+
+        e = enum(['NAMES', 'one', 'two'])
+        assert_in('names', e.levels)
+        assert_list_equal(e.names, ['names', 'one', 'two'])
+        assert_equal(e.NAMES, 'names')
+
     def test_enum_behavior(self):
         e = enum(['one', 'two', 'three'])
 
@@ -118,9 +126,9 @@ class TestEnumLevel(TestCase):
         assert_not_equal(e.one, '0')
 
         # ditto for enum membership tests
-        assert_in('one', e.values)
-        assert_in(2, e.values)
-        assert_not_in('five', e.values)
+        assert_in('one', e.levels)
+        assert_in(2, e.levels)
+        assert_not_in('five', e.levels)
 
         # The same level object returned, only when
         # passing in a valid level name/value.

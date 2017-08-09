@@ -186,7 +186,7 @@ def priority(priority):
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
         wrapper.func_name = func.func_name
-        if priority in Priority.values:
+        if priority in Priority.levels:
             wrapper.priority = Priority(priority)
         else:
             if not isinstance(priority, int):
