@@ -1061,10 +1061,15 @@ class AndroidTarget(Target):
 
     # Android-specific
 
-    def swipe_to_unlock(self, direction="horizontal"):
+    def swipe_to_unlock(self, direction="diagonal"):
         width, height = self.screen_resolution
         command = 'input swipe {} {} {} {}'
-        if direction == "horizontal":
+        if direction == "diagonal":
+            start = 100
+            stop = width - start
+            swipe_height = height * 2 // 3
+            self.execute(command.format(start, swipe_height, stop, 0))
+        elif direction == "horizontal":
             swipe_height = height * 2 // 3
             start = 100
             stop = width - start
