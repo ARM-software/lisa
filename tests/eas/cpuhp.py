@@ -217,3 +217,28 @@ class _CpuHotplugTest(LisaTest):
         except Exception:
             raise AssertionError("the target is not responsive")
 
+class ThreeSmallTasks(_CpuHotplugTest):
+    """
+    Test EAS for 3 20% tasks over 60 seconds
+    """
+    workloads = {
+        'cpuhp_three_small' : {
+            'type' : 'rt-app',
+            'conf' : {
+                'class' : 'periodic',
+                'params' : {
+                    'duty_cycle_pct': 20,
+                    'duration_s': 60,
+                    'period_ms': 16,
+                },
+                'tasks' : 3,
+                'prefix' : 'many',
+            },
+        },
+    }
+
+    @experiment_test
+    def test_random_hotplugs(self, experiment, tasks):
+        '''Test that the system doesn't crash while under hotplug stress'''
+        self._test_target_is_alive()
+
