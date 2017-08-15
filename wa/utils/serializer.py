@@ -52,7 +52,7 @@ import dateutil.parser
 
 from wa.framework.exception import SerializerSyntaxError
 from wa.utils.misc import isiterable
-from wa.utils.types import regex_type, none_type
+from wa.utils.types import regex_type, none_type, level
 
 
 __all__ = [
@@ -78,6 +78,7 @@ POD_TYPES = [
     datetime,
     regex_type,
     none_type,
+    level,
 ]
 
 class WAJSONEncoder(_json.JSONEncoder):
@@ -87,6 +88,8 @@ class WAJSONEncoder(_json.JSONEncoder):
             return 'REGEX:{}:{}'.format(obj.flags, obj.pattern)
         elif isinstance(obj, datetime):
             return 'DATET:{}'.format(obj.isoformat())
+        elif isinstance(obj, level):
+            return 'LEVEL:{}:{}'.format(obj.name, obj.value)
         else:
             return _json.JSONEncoder.default(self, obj)
 
@@ -97,14 +100,18 @@ class WAJSONDecoder(_json.JSONDecoder):
         d = _json.JSONDecoder.decode(self, s, **kwargs)
 
         def try_parse_object(v):
-            if isinstance(v, basestring) and v.startswith('REGEX:'):
-                _, flags, pattern = v.split(':', 2)
-                return re.compile(pattern, int(flags or 0))
-            elif isinstance(v, basestring) and v.startswith('DATET:'):
-                _, pattern = v.split(':', 1)
-                return dateutil.parser.parse(pattern)
-            else:
-                return v
+            if isinstance(v, basestring):
+                if v.startswith('REGEX:'):
+                    _, flags, pattern = v.split(':', 2)
+                    return re.compile(pattern, int(flags or 0))
+                elif v.startswith('DATET:'):
+                    _, pattern = v.split(':', 1)
+                    return dateutil.parser.parse(pattern)
+                elif v.startswith('LEVEL:'):
+                    _, name, value = v.split(':', 2)
+                    return level(name, value)
+
+            return v
 
         def load_objects(d):
             pairs = []
@@ -147,6 +154,7 @@ class json(object):
 
 _mapping_tag = _yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
 _regex_tag = u'tag:wa:regex'
+_level_tag = u'tag:wa:level'
 
 
 def _wa_dict_representer(dumper, data):
@@ -157,6 +165,9 @@ def _wa_regex_representer(dumper, data):
     text = '{}:{}'.format(data.flags, data.pattern)
     return dumper.represent_scalar(_regex_tag, text)
 
+def _wa_level_representer(dumper, data):
+    text = '{}:{}'.format(data.name, data.level)
+    return dumper.represent_scalar(_level_tag, text)
 
 def _wa_dict_constructor(loader, node):
     pairs = loader.construct_pairs(node)
@@ -173,11 +184,18 @@ def _wa_regex_constructor(loader, node):
     flags, pattern = value.split(':', 1)
     return re.compile(pattern, int(flags or 0))
 
+def _wa_level_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    name, value = value.split(':', 1)
+    return level(name, value)
+
 
 _yaml.add_representer(OrderedDict, _wa_dict_representer)
 _yaml.add_representer(regex_type, _wa_regex_representer)
+_yaml.add_representer(level, _wa_level_representer)
 _yaml.add_constructor(_mapping_tag, _wa_dict_constructor)
 _yaml.add_constructor(_regex_tag, _wa_regex_constructor)
+_yaml.add_constructor(_level_tag, _wa_level_constructor)
 
 
 class yaml(object):
