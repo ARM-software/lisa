@@ -93,17 +93,13 @@ class TargetScript(object):
         actions = ['#!{} sh'.format(self._target.busybox)] + actions
         actions = str.join('\n', actions)
 
-        self._remote_path = self._target.path.join(self._target.executables_directory,
-                                                   self._script_name)
-        self._local_path = os.path.join(self._env.res_dir, self._script_name)
-
         # Create script locally
+        self._local_path = os.path.join(self._env.res_dir, self._script_name)
         with open(self._local_path, 'w') as script:
             script.write(actions)
 
         # Push it on target
-        self._target.push(self._local_path, self._remote_path)
-        self._target.execute('chmod +x {}'.format(self._remote_path))
+        self._remote_path = self._target.install(self._local_path)
 
     def run(self):
         """
