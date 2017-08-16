@@ -108,14 +108,55 @@ class Gem5StatsModule(Module):
     
     def match(self, keys, rois_labels, base_dump=0):
         '''
-        Tries to match the list of keys passed as parameter over the statistics
-        dumps covered by selected ROIs since ``base_dump``. Returns a dict 
-        indexed by key parameters containing a dict indexed by ROI labels 
-        containing an in-order list of records for the key under consideration
-        during the active intervals of the ROI.
+        Extract specific values from the statistics log file of gem5
 
-        Keys must match fields in gem5's statistics log file. Key example:
-            system.cluster0.cores0.power_model.static_power
+        :param keys: a list of key name or regular expression patterns that
+            will be matched in the fields of the statistics file. ``match()``
+            returns only the values of fields matching at least one these
+            keys.
+        :type keys: list
+
+        :param rois_labels: list of ROIs labels. ``match()`` returns the 
+            values of the specified fields only during dumps spanned by at
+            least one of these ROIs.
+        :type rois_label: list
+
+        :param base_dump: dump number from which ``match()`` should operate. By 
+            specifying a non-zero dump number, one can virtually truncate 
+            the head of the stats file and ignore all dumps before a specific
+            instant. The value of ``base_dump`` will typically (but not 
+            necessarily) be the result of a previous call to ``next_dump_no``.
+            Default value is 0.
+        :type base_dump: int
+
+        :returns: a dict indexed by key parameters containing a dict indexed by
+        ROI labels containing an in-order list of records for the key under
+        consideration during the active intervals of the ROI. 
+        
+        Example of return value:
+         * Result of match(['sim_'],['roi_1']):
+            {
+                'sim_inst': 
+                {
+                    'roi_1': [265300176, 267975881]
+                }
+                'sim_ops': 
+                {
+                    'roi_1': [324395787, 327699419]
+                }
+                'sim_seconds': 
+                {
+                    'roi_1': [0.199960, 0.199897]
+                }
+                'sim_freq': 
+                {
+                    'roi_1': [1000000000000, 1000000000000]
+                }
+                'sim_ticks': 
+                {
+                    'roi_1': [199960234227, 199896897330]
+                }
+            }
         '''
         records = defaultdict(lambda : defaultdict(list))
         for record, active_rois in self.match_iter(keys, rois_labels, base_dump):
@@ -126,12 +167,27 @@ class Gem5StatsModule(Module):
 
     def match_iter(self, keys, rois_labels, base_dump=0):
         '''
-        Yields for each dump since ``base_dump`` a pair containing:
-        1. a dict storing the values corresponding to each of the specified keys
-        2. the list of currently active ROIs among those passed as parameters.
+        Yield specific values dump-by-dump from the statistics log file of gem5
 
-        Keys must match fields in gem5's statistics log file. Key example:
-            system.cluster0.cores0.power_model.static_power
+        :param keys: same as ``match()``
+        :param rois_labels: same as ``match()``
+        :param base_dump: same as ``match()``
+        :returns: a pair containing:
+            1. a dict storing the values corresponding to each of the found keys
+            2. the list of currently active ROIs among those passed as parameters
+
+        Example of return value:
+         * Result of match_iter(['sim_'],['roi_1', 'roi_2']).next()
+            ( 
+                { 
+                    'sim_inst': 265300176,
+                    'sim_ops': 324395787,
+                    'sim_seconds': 0.199960, 
+                    'sim_freq': 1000000000000,
+                    'sim_ticks': 199960234227,
+                },
+                [ 'roi_1 ' ] 
+            )
         '''
         for label in rois_labels:
             if label not in self.rois:
