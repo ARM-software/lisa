@@ -52,6 +52,7 @@ class Gem5PowerInstrument(Instrument):
         self.target.gem5stats.book_roi(self.roi_label)
         self.sample_period_ns = 10000000
         self.target.gem5stats.start_periodic_dump(0, self.sample_period_ns)
+        self._base_stats_dump = 0
 
     def start(self):
         self.target.gem5stats.roi_start(self.roi_label)
@@ -64,11 +65,12 @@ class Gem5PowerInstrument(Instrument):
         with open(outfile, 'wb') as wfh:
             writer = csv.writer(wfh)
             writer.writerow([c.label for c in self.active_channels]) # headers
-            for rec, rois in self.target.gem5stats.match_iter(active_sites, [self.roi_label]):
+            for rec, rois in self.target.gem5stats.match_iter(active_sites, 
+                    [self.roi_label], self._base_stats_dump):
                 writer.writerow([float(rec[s]) for s in active_sites])
         return MeasurementsCsv(outfile, self.active_channels)
     
     def reset(self, sites=None, kinds=None, channels=None):
         super(Gem5PowerInstrument, self).reset(sites, kinds, channels)
-        self.target.gem5stats.reset_origin()
+        self._base_stats_dump = self.target.gem5stats.next_dump_no()
 

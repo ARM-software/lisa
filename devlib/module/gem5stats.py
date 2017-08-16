@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import logging
 import os.path
 from collections import defaultdict
@@ -66,6 +67,7 @@ class Gem5StatsModule(Module):
         self._stats_file_path = os.path.join(target.platform.gem5_out_dir,
                                             'stats.txt')
         self.rois = {}
+        self._dump_pos_cache = {0: 0}
 
     def book_roi(self, label):
         if label in self.rois:
@@ -103,27 +105,27 @@ class Gem5StatsModule(Module):
             raise ValueError(msg.format(delay_ns, period_ns))
         self.target.execute('m5 dumpresetstats {} {}'.format(delay_ns, period_ns))
     
-    def match(self, keys, rois_labels):
+    def match(self, keys, rois_labels, base_dump=0):
         '''
         Tries to match the list of keys passed as parameter over the statistics
-        dumps covered by selected ROIs since origin. Returns a dict indexed by 
-        key parameters containing a dict indexed by ROI labels containing an 
-        in-order list of records for the key under consideration during the 
-        active intervals of the ROI.
+        dumps covered by selected ROIs since ``base_dump``. Returns a dict 
+        indexed by key parameters containing a dict indexed by ROI labels 
+        containing an in-order list of records for the key under consideration
+        during the active intervals of the ROI.
 
         Keys must match fields in gem5's statistics log file. Key example:
             system.cluster0.cores0.power_model.static_power
         '''
         records = defaultdict(lambda : defaultdict(list))
-        for record, active_rois in self.match_iter(keys, rois_labels):
+        for record, active_rois in self.match_iter(keys, rois_labels, base_dump):
             for key in record:
                 for roi_label in active_rois:
                     records[key][roi_label].append(record[key])
         return records
 
-    def match_iter(self, keys, rois_labels):
+    def match_iter(self, keys, rois_labels, base_dump=0):
         '''
-        Yields for each dump since origin a pair containing:
+        Yields for each dump since ``base_dump`` a pair containing:
         1. a dict storing the values corresponding to each of the specified keys
         2. the list of currently active ROIs among those passed as parameters.
 
@@ -142,24 +144,50 @@ class Gem5StatsModule(Module):
             return (roi.field in dump) and (int(dump[roi.field]) == 1)
 
         with open(self._stats_file_path, 'r') as stats_file:
-            stats_file.seek(self._current_origin)
+            self._goto_dump(stats_file, base_dump)
             for dump in iter_statistics_dump(stats_file):
                 active_rois = [l for l in rois_labels if roi_active(l, dump)]
                 if active_rois:
                     record = {k: dump[k] for k in keys}
                     yield (record, active_rois)
 
-
-    def reset_origin(self):
+    def next_dump_no(self):
         '''
-        Place origin right after the last full dump in the file
+        Returns the number of the next dump to be written to the stats file.
+        
+        For example, if next_dump_no is called while there are 5 (0 to 4) full 
+        dumps in the stats file, it will return 5. This will be usefull to know
+        from which dump one should match() in the future to get only data from
+        now on.
         '''
-        last_dump_tail = self._current_origin
-        # Dump & reset stats to start from a fresh state
-        self.target.execute('m5 dumpresetstats')
         with open(self._stats_file_path, 'r') as stats_file:
-            for line in stats_file:
-                if GEM5STATS_DUMP_TAIL in line:
-                    last_dump_tail = stats_file.tell()
-        self._current_origin = last_dump_tail
+            # _goto_dump reach EOF and returns the total number of dumps + 1
+            return self._goto_dump(stats_file, sys.maxint)
+    
+    def _goto_dump(self, stats_file, target_dump):
+        if target_dump < 0:
+            raise HostError('Cannot go to dump {}'.format(target_dump))
+
+        # Go to required dump quickly if it was visited before
+        if target_dump in self._dump_pos_cache:
+            stats_file.seek(self._dump_pos_cache[target_dump])
+            return target_dump
+        # Or start from the closest dump already visited before the required one
+        prev_dumps = filter(lambda x: x < target_dump, self._dump_pos_cache.keys())
+        curr_dump = max(prev_dumps)
+        curr_pos = self._dump_pos_cache[curr_dump]
+        stats_file.seek(curr_pos)
+        
+        # And iterate until target_dump
+        dump_iterator = iter_statistics_dump(stats_file)
+        while curr_dump < target_dump:
+            try:
+                dump = dump_iterator.next()
+            except StopIteration:
+                break
+            # End of passed dump is beginning og next one
+            curr_pos = stats_file.tell()
+            curr_dump += 1
+        self._dump_pos_cache[curr_dump] = curr_pos
+        return curr_dump
 
