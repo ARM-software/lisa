@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 import sys
 import logging
 import os.path
@@ -139,6 +140,10 @@ class Gem5StatsModule(Module):
                 self.logger.warning('Trying to match records in statistics file'
                         ' while ROI {} is running'.format(label))
         
+        # Construct one large regex that concatenates all keys because
+        # matching one large expression is more efficient than several smaller
+        all_keys_re = re.compile('|'.join(keys))
+        
         def roi_active(roi_label, dump):
             roi = self.rois[roi_label]
             return (roi.field in dump) and (int(dump[roi.field]) == 1)
@@ -148,8 +153,8 @@ class Gem5StatsModule(Module):
             for dump in iter_statistics_dump(stats_file):
                 active_rois = [l for l in rois_labels if roi_active(l, dump)]
                 if active_rois:
-                    record = {k: dump[k] for k in keys}
-                    yield (record, active_rois)
+                    rec = {k: dump[k] for k in dump if all_keys_re.search(k)}
+                    yield (rec, active_rois)
 
     def next_dump_no(self):
         '''
