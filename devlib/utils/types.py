@@ -68,6 +68,15 @@ def numeric(value):
     """
     if isinstance(value, int):
         return value
+
+    if isinstance(value, basestring):
+        value = value.strip()
+        if value.endswith('%'):
+            try:
+                return float(value.rstrip('%')) / 100
+            except ValueError:
+                raise ValueError('Not numeric: {}'.format(value))
+
     try:
         fvalue = float(value)
     except ValueError:
