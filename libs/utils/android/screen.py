@@ -16,8 +16,10 @@
 #
 
 import logging
+
 from system import System
 from time import sleep
+import os
 
 class Screen(object):
     """
@@ -154,5 +156,85 @@ class Screen(object):
        sleep(1)
        System.menu(target)
        System.home(target)
+
+    class Recorder(object):
+        """
+        Android screenrecord utility class
+        """
+
+        def __init__(self, target):
+            self._target = target
+            self._log = logging.getLogger('Recorder')
+
+            self._recording = False
+
+        def start(self, out_file, timestamp=True, max_time=None):
+            """
+            Start recording the screen of the device
+            """
+            if self._recording:
+                raise RuntimeError('Recording already started')
+
+            self._local_file = out_file
+            self._remote_file = self._target.path.join(
+                self._target.working_directory,
+                os.path.basename(out_file)
+            )
+
+            self._max_time = max_time
+
+            options = []
+            if timestamp:
+                options.append('--bugreport')
+            if max_time:
+                options.append('--time-limit {}'.format(max_time))
+
+            record_cmd = 'screenrecord {} {}'.format(
+                ' '.join(options), self._remote_file
+            )
+
+            self._log.debug('screenrecord command = \"{}\"'.format(record_cmd))
+            self._log.info('Starting screen recording')
+
+            self._recording = True
+            self._process = self._target.background(record_cmd, as_root=True)
+
+        def _finalize(self):
+            self._process.wait()
+
+            self._target.pull(self._remote_file,
+                              self._local_file,
+                              as_root=True)
+
+            self._recording = False
+            self._log.info('Recording available at {}'.format(self._local_file))
+
+        def wait(self):
+            """
+            Wait for the recording to end
+            """
+            if not self._recording:
+                raise RuntimeError('Recording not started')
+
+            if not self._max_time:
+                self.stop()
+                raise RuntimeError('max_time not set, stopped Recorder')
+
+            self._log.info('Waiting for recording to end ({}s total)'.format(self._max_time))
+            self._finalize()
+
+        def stop(self):
+            """
+            Force stop recording the screen of the device
+            """
+            if not self._recording:
+                raise RuntimeError('Recording not started')
+
+            # Recording must be ended by Ctrl-C on the device
+            self._log.debug('Sending Ctrl-C to screenrecord')
+            self._target.execute('kill -INT $(pgrep screenrecord)', as_root=True)
+
+            self._finalize()
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab
