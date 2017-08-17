@@ -66,7 +66,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
     dynamic_classes = {}
 
-    disable_cache = False
+    disable_cache = True
 
     def _trace_cache_path(self):
         trace_file = self.trace_path
