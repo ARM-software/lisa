@@ -4,7 +4,7 @@ from collections import defaultdict, OrderedDict
 from wa.framework.exception import ConfigError
 from wa.framework.plugin import Plugin, Parameter
 from wa.utils.misc import resolve_cpus, resolve_unique_domain_cpus
-from wa.utils.types import caseless_string
+from wa.utils.types import caseless_string, enum
 
 from devlib.exception import TargetError
 from devlib.utils.misc import unique
@@ -14,10 +14,10 @@ logger = logging.getLogger('RuntimeConfig')
 
 
 class RuntimeParameter(Parameter):
-    def __init__(self, name, setter, setter_params, **kwargs):
+    def __init__(self, name, setter, setter_params=None, **kwargs):
         super(RuntimeParameter, self).__init__(name, **kwargs)
         self.setter = setter
-        self.setter_params = setter_params
+        self.setter_params = setter_params or {}
 
     def set(self, obj, value):
         self.validate_value(self.name, value)
@@ -60,6 +60,11 @@ class RuntimeConfig(Plugin):
             self.check_target()
             self._target_checked = True
         self._runtime_params[name].set(self, value)
+
+    def set_defaults(self):
+        for p in self.supported_parameters:
+            if p.default:
+                self.set_runtime_parameter(p.name, p.default)
 
     def validate_parameters(self):
         raise NotImplementedError()
@@ -191,7 +196,7 @@ class SysfileValuesRuntimeConfig(RuntimeConfig):
 
             if path in obj.sysfile_values:
                 msg = 'Syspath "{}:{}" already specified with a value of "{}"'
-                raise ConfigError(msg.foramt(path, value, obj.sysfile_values[path][0]))
+                raise ConfigError(msg.format(path, value, obj.sysfile_values[path][0]))
 
             obj.sysfile_values[path] = (value, verify)
 
@@ -804,3 +809,95 @@ class CpuidleRuntimeConfig(RuntimeConfig):
                 if state.name not in common_idle_states:
                     common_idle_states.append(state)
         return common_idle_states
+
+ScreenOrientation = enum(['NATURAL', 'LEFT', 'INVERTED', 'RIGHT'])
+
+
+class AndroidRuntimeConfig(RuntimeConfig):
+
+    name = 'rt-android'
+
+    @staticmethod
+    def set_brightness(obj, value):
+        if value is not None:
+            obj.config['brightness'] = value
+
+    @staticmethod
+    def set_airplane_mode(obj, value):
+        if value is not None:
+            obj.config['airplane_mode'] = value
+
+    @staticmethod
+    def set_rotation(obj, value):
+        if value is not None:
+            obj.config['rotation'] = value.value
+
+    @staticmethod
+    def set_screen_state(obj, value):
+        if value is not None:
+            obj.config['screen_on'] = value
+
+    def __init__(self, target):
+        self.config = defaultdict(dict)
+        super(AndroidRuntimeConfig, self).__init__(target)
+
+    def initialize(self):
+        if self.target.os != 'android':
+            return
+
+        param_name = 'brightness'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=int,
+                              constraint=lambda x: 0 <= x <= 255,
+                              default=127,
+                              setter=self.set_brightness,
+                              description="""
+                              Specify the screen brightness to be set for
+                              the device
+                              """)
+        param_name = 'airplane_mode'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=bool,
+                              setter=self.set_airplane_mode,
+                              description="""
+                              Specify whether airplane mode should be
+                              enabled for the device
+                              """)
+        param_name = 'rotation'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=ScreenOrientation,
+                              setter=self.set_rotation,
+                              description="""
+                              Specify the screen orientation for the device
+                              """)
+        param_name = 'screen_on'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=bool,
+                              default=True,
+                              setter=self.set_screen_state,
+                              description="""
+                              Specify whether the device screen should be on
+                              """)
+
+    def check_target(self):
+        if self.target.os != 'android':
+            raise ConfigError('Target does not appear to be running Android')
+
+    def validate_parameters(self):
+        pass
+
+    def commit(self):
+        if 'airplane_mode' in self.config:
+            self.target.set_airplane_mode(self.config['airplane_mode'])
+        if 'brightness' in self.config:
+            self.target.set_brightness(self.config['brightness'])
+        if 'rotation' in self.config:
+            self.target.set_rotation(self.config['rotation'])
+        if 'screen_on' in self.config:
+            if self.config['screen_on']:
+                self.target.ensure_screen_is_on()
+            else:
+                self.target.ensure_screen_is_off()
+
+    def clear(self):
+        self.config = {}

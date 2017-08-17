@@ -554,6 +554,10 @@ def enum(args, start=0, step=1):
 
     class Enum(object):
 
+        class __metaclass__(type):
+            def __str__(cls):
+                return str(cls.levels)
+
         @classmethod
         def from_pod(cls, pod):
             lv = level.from_pod(pod)
