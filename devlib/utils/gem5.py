@@ -13,12 +13,17 @@
 # limitations under the License.
 
 import re
+import logging
+
+from devlib.utils.types import numeric
 
 
 GEM5STATS_FIELD_REGEX = re.compile("^(?P<key>[^- ]\S*) +(?P<value>[^#]+).+$")
 GEM5STATS_DUMP_HEAD = '---------- Begin Simulation Statistics ----------'
 GEM5STATS_DUMP_TAIL = '---------- End Simulation Statistics   ----------'
 GEM5STATS_ROI_NUMBER = 8
+
+logger = logging.getLogger('gem5')
 
 
 def iter_statistics_dump(stats_file):
@@ -38,6 +43,11 @@ def iter_statistics_dump(stats_file):
             res = GEM5STATS_FIELD_REGEX.match(line) 
             if res:
                 k = res.group("key")
-                v = res.group("value").split()
-                cur_dump[k] = v[0] if len(v)==1 else set(v)
+                vtext = res.group("value")
+                try:
+                    v = map(numeric, vtext.split())
+                    cur_dump[k] = v[0] if len(v)==1 else set(v)
+                except ValueError:
+                    msg = 'Found non-numeric entry in gem5 stats ({}: {})'
+                    logger.warning(msg.format(k, vtext))
 

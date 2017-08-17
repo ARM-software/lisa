@@ -72,7 +72,7 @@ class Gem5PowerInstrument(Instrument):
             sites_to_match = [self.site_mapping.get(s, s) for s in active_sites]
             for rec, rois in self.target.gem5stats.match_iter(sites_to_match,
                     [self.roi_label], self._base_stats_dump):
-                writer.writerow([float(rec[s]) for s in active_sites])
+                writer.writerow([rec[s] for s in active_sites])
         return MeasurementsCsv(outfile, self.active_channels, self.sample_rate_hz)
 
     def reset(self, sites=None, kinds=None, channels=None):
