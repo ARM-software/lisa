@@ -21,6 +21,8 @@ import warnings
 
 from resource import getrusage, RUSAGE_SELF
 
+from trappy.exception import TrappyParseError
+
 def _get_free_memory_kb():
     try:
         with open("/proc/meminfo") as f:
@@ -206,6 +208,18 @@ class Base(object):
         prev_key = None
         for field in data_str.split():
             if "=" not in field:
+                if not prev_key:
+                    if 'FAILED TO PARSE' in data_str:
+                        warnings.warn(
+                            'trace-cmd failed to parse the "{}" event. You may '
+                            'need to compile the latest trace-cmd and put it in '
+                            'your $PATH. Continuing, but some data may be missing'
+                            .format(self.unique_word))
+                        continue
+                    else:
+                        raise TrappyParseError(
+                            "TRAPpy's parser for '{}' failed to parse the line:"
+                            "\n{}".format(self.unique_word, data_str))
                 # Concatenation is supported only for "string" values
                 if type(data_dict[prev_key]) is not str:
                     continue
