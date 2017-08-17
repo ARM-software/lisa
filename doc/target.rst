@@ -2,18 +2,18 @@ Target
 ======
 
 
-.. class:: Target(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT)
-   
+.. class:: Target(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=None)
+
     :class:`Target` is the primary interface to the remote device. All interactions
     with the device are performed via a :class:`Target` instance, either
     directly, or via its modules or a wrapper interface (such as an
     :class:`Instrument`).
 
-    :param connection_settings: A ``dict`` that specifies how to connect to the remote 
+    :param connection_settings: A ``dict`` that specifies how to connect to the remote
        device. Its contents depend on the specific :class:`Target` type (used see
        :ref:`connection-types`\ ).
 
-    :param platform: A :class:`Target` defines interactions at Operating System level. A 
+    :param platform: A :class:`Target` defines interactions at Operating System level. A
         :class:`Platform` describes the underlying hardware (such as CPUs
         available). If a :class:`Platform` instance is not specified on
         :class:`Target` creation, one will be created automatically and it will
@@ -22,8 +22,8 @@ Target
 
     :param working_directory: This is primary location for on-target file system
         interactions performed by ``devlib``. This location *must* be readable and
-        writable directly (i.e. without sudo) by the connection's user account. 
-        It may or may not allow execution. This location will be created, 
+        writable directly (i.e. without sudo) by the connection's user account.
+        It may or may not allow execution. This location will be created,
         if necessary, during ``setup()``.
 
         If not explicitly specified, this will be set to a default value
@@ -35,7 +35,7 @@ Target
         (obviously). It should also be possible to write to this location,
         possibly with elevated privileges (i.e. on a rooted Linux target, it
         should be possible to write here with sudo, but not necessarily directly
-        by the connection's account). This location will be created, 
+        by the connection's account). This location will be created,
         if necessary, during ``setup()``.
 
         This location does *not* need to be same as the system's executables
@@ -52,7 +52,7 @@ Target
 
     :param modules: a list of additional modules to be installed. Some modules will
         try to install by default (if supported by the underlying target).
-        Current default modules are ``hotplug``, ``cpufreq``, ``cpuidle``, 
+        Current default modules are ``hotplug``, ``cpufreq``, ``cpuidle``,
         ``cgroups``, and ``hwmon`` (See :ref:`modules`\ ).
 
         See modules documentation for more detail.
@@ -67,6 +67,9 @@ Target
     :param shell_prompt: This is a regular expression that matches the shell
          prompted on the target. This may be used by some modules that establish
          auxiliary connections to a target over UART.
+
+    :param conn_cls: This is the type of connection that will be used to communicate
+        with the device.
 
 .. attribute:: Target.core_names
 
@@ -94,7 +97,7 @@ Target
 .. attribute:: Target.is_connected
 
    A boolean value that indicates whether an active connection exists to the
-   target device. 
+   target device.
 
 .. attribute:: Target.connected_as_root
 
@@ -146,7 +149,7 @@ Target
              thread.
 
 .. method:: Target.connect([timeout])
-   
+
    Establish a connection to the target. It is usually not necessary to call
    this explicitly, as a connection gets automatically established on
    instantiation.
@@ -225,7 +228,7 @@ Target
    :param timeout: Timeout (in seconds) for the execution of the command. If
        specified, an exception will be raised if execution does not complete
        with the specified period.
-   :param check_exit_code: If ``True`` (the default) the exit code (on target) 
+   :param check_exit_code: If ``True`` (the default) the exit code (on target)
        from execution of the command will be checked, and an exception will be
        raised if it is not ``0``.
    :param as_root: The command will be executed as root. This will fail on
@@ -262,7 +265,7 @@ Target
           will be interpreted as a comma-separated list of cpu ranges, e.g.
           ``"0,4-7"``.
    :param as_root: Specify whether the command should be run as root
-   :param timeout: If this is specified and invocation does not terminate within this number 
+   :param timeout: If this is specified and invocation does not terminate within this number
            of seconds, an exception will be raised.
 
 .. method:: Target.background_invoke(binary [, args [, in_directory [, on_cpus [, as_root ]]]])
@@ -314,13 +317,13 @@ Target
 
 .. method:: Target.write_value(path, value [, verify])
 
-   Write the value to the specified path on the target. This is primarily 
+   Write the value to the specified path on the target. This is primarily
    intended for sysfs/procfs/debugfs etc.
 
    :param path: file to write into
    :param value: value to be written
    :param verify: If ``True`` (the default) the value will be read back after
-       it is written to make sure it has been written successfully. This due to 
+       it is written to make sure it has been written successfully. This due to
        some sysfs entries silently failing to set the written value without
        returning an error code.
 
@@ -450,3 +453,110 @@ Target
     Returns the path to the extracted contents. In case of files (gzip and
     bzip2), the path to the decompressed file is returned; for archives, the
     path to the directory with the archive's contents is returned.
+
+
+Android Target
+---------------
+
+.. class:: AndroidTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=AdbConnection, package_data_directory="/data/data")
+
+    :class:`AndroidTarget` is a subclass of :class:`Target` with additional features specific to a device running Android.
+
+    :param package_data_directory: This is the location of the data stored
+        for installed Android packages on the device.
+
+.. method:: AndroidTarget.set_rotation(rotation)
+
+   Specify an integer representing the desired screen rotation with the
+   following mappings: Natural: ``0``, Rotated Left: ``1``, Inverted : ``2``
+   and Rotated Right : ``3``.
+
+.. method:: AndroidTarget.get_rotation(rotation)
+
+   Returns an integer value representing the orientation of the devices
+   screen. ``0`` : Natural, ``1`` : Rotated Left, ``2`` : Inverted
+   and ``3`` : Rotated Right.
+
+.. method:: AndroidTarget.set_natural_rotation()
+
+   Sets the screen orientation of the device to its natural (0 degrees)
+   orientation.
+
+.. method:: AndroidTarget.set_left_rotation()
+
+   Sets the screen orientation of the device to 90 degrees.
+
+.. method:: AndroidTarget.set_inverted_rotation()
+
+   Sets the screen orientation of the device to its inverted (180 degrees)
+   orientation.
+
+.. method:: AndroidTarget.set_right_rotation()
+
+   Sets the screen orientation of the device to 270 degrees.
+
+.. method:: AndroidTarget.set_auto_rotation(autorotate)
+
+   Specify a boolean value for whether the devices auto-rotation should
+   be enabled.
+
+.. method:: AndroidTarget.get_auto_rotation()
+
+   Returns ``True`` if the targets auto rotation is currently enabled and
+   ``False`` otherwise.
+
+.. method:: AndroidTarget.set_airplane_mode(mode)
+
+   Specify a boolean value for whether the device should be in airplane mode.
+
+   .. note:: Requires the device to be rooted if the device is running Android 7+.
+
+.. method:: AndroidTarget.get_airplane_mode()
+
+   Returns ``True`` if the target is currently in airplane mode and
+   ``False`` otherwise.
+
+.. method:: AndroidTarget.set_brightness(value)
+
+   Sets the devices screen brightness to a specified integer between ``0`` and
+   ``255``.
+
+.. method:: AndroidTarget.get_brightness()
+
+   Returns an integer between ``0`` and ``255`` representing the devices
+   current screen brightness.
+
+.. method:: AndroidTarget.set_auto_brightness(auto_brightness)
+
+   Specify a boolean value for whether the devices auto brightness
+   should be enabled.
+
+.. method:: AndroidTarget.get_auto_brightness()
+
+   Returns ``True`` if the targets auto brightness is currently
+   enabled and ``False`` otherwise.
+
+.. method:: AndroidTarget.ensure_screen_is_off()
+
+   Checks if the devices screen is on and if so turns it off.
+
+.. method:: AndroidTarget.ensure_screen_is_on()
+
+   Checks if the devices screen is off and if so turns it on.
+
+.. method:: AndroidTarget.is_screen_on()
+
+   Returns ``True`` if the targets screen is currently on and ``False``
+   otherwise.
+
+.. method:: AndroidTarget.homescreen()
+
+   Returns the device to its home screen.
+
+.. method:: AndroidTarget.swipe_to_unlock(direction="diagonal")
+
+   Performs a swipe input on the device to try and unlock the device.
+   A direction of ``"horizontal"``, ``"vertical"`` or ``"diagonal"``
+   can be supplied to specify in which direction the swipe should be
+   performed. By default ``"diagonal"`` will be used to try and
+   support the majority of newer devices.

@@ -1061,20 +1061,25 @@ class AndroidTarget(Target):
 
     # Android-specific
 
-    def swipe_to_unlock(self, direction="horizontal"):
+    def swipe_to_unlock(self, direction="diagonal"):
         width, height = self.screen_resolution
         command = 'input swipe {} {} {} {}'
-        if direction == "horizontal":
-            swipe_heigh = height * 2 // 3
+        if direction == "diagonal":
             start = 100
             stop = width - start
-            self.execute(command.format(start, swipe_heigh, stop, swipe_heigh))
-        if direction == "vertical":
-            swipe_middle = height / 2
-            swipe_heigh = height * 2 // 3
-            self.execute(command.format(swipe_middle, swipe_heigh, swipe_middle, 0))
+            swipe_height = height * 2 // 3
+            self.execute(command.format(start, swipe_height, stop, 0))
+        elif direction == "horizontal":
+            swipe_height = height * 2 // 3
+            start = 100
+            stop = width - start
+            self.execute(command.format(start, swipe_height, stop, swipe_height))
+        elif direction == "vertical":
+            swipe_middle = width / 2
+            swipe_height = height * 2 // 3
+            self.execute(command.format(swipe_middle, swipe_height, swipe_middle, 0))
         else:
-            raise DeviceError("Invalid swipe direction: {}".format(self.swipe_to_unlock))
+            raise TargetError("Invalid swipe direction: {}".format(direction))
 
     def getprop(self, prop=None):
         props = AndroidProperties(self.execute('getprop'))
@@ -1185,6 +1190,69 @@ class AndroidTarget(Target):
     def ensure_screen_is_off(self):
         if self.is_screen_on():
             self.execute('input keyevent 26')
+
+    def set_auto_brightness(self, auto_brightness):
+        cmd = 'settings put system screen_brightness_mode {}'
+        self.execute(cmd.format(int(boolean(auto_brightness))))
+
+    def get_auto_brightness(self):
+        cmd = 'settings get system screen_brightness_mode'
+        return boolean(self.execute(cmd).strip())
+
+    def set_brightness(self, value):
+        if not 0 <= value <= 255:
+            msg = 'Invalid brightness "{}"; Must be between 0 and 255'
+            raise ValueError(msg.format(value))
+        self.set_auto_brightness(False)
+        cmd = 'settings put system screen_brightness {}'
+        self.execute(cmd.format(int(value)))
+
+    def get_brightness(self):
+        cmd = 'settings get system screen_brightness'
+        return integer(self.execute(cmd).strip())
+
+    def get_airplane_mode(self):
+        cmd = 'settings get global airplane_mode_on'
+        return boolean(self.execute(cmd).strip())
+
+    def set_airplane_mode(self, mode):
+        root_required = self.get_sdk_version() > 23
+        if root_required and not self.is_rooted:
+            raise TargetError('Root is required to toggle airplane mode on Android 7+')
+        cmd = 'settings put global airplane_mode_on {}'
+        self.execute(cmd.format(int(boolean(mode))))
+        self.execute('am broadcast -a android.intent.action.AIRPLANE_MODE', as_root=root_required)
+
+    def get_auto_rotation(self):
+        cmd = 'settings get system accelerometer_rotation'
+        return boolean(self.execute(cmd).strip())
+
+    def set_auto_rotation(self, autorotate):
+        cmd = 'settings put system accelerometer_rotation {}'
+        self.execute(cmd.format(int(boolean(autorotate))))
+
+    def set_natural_rotation(self):
+        self.set_rotation(0)
+
+    def set_left_rotation(self):
+        self.set_rotation(1)
+
+    def set_inverted_rotation(self):
+        self.set_rotation(2)
+
+    def set_right_rotation(self):
+        self.set_rotation(3)
+
+    def get_rotation(self):
+        cmd = 'settings get system user_rotation'
+        return self.execute(cmd).strip()
+
+    def set_rotation(self, rotation):
+        if not 0 <= rotation <= 3:
+            raise ValueError('Rotation value must be between 0 and 3')
+        self.set_auto_rotation(False)
+        cmd = 'settings put system user_rotation {}'
+        self.execute(cmd.format(rotation))
 
     def homescreen(self):
         self.execute('am start -a android.intent.action.MAIN -c android.intent.category.HOME')
