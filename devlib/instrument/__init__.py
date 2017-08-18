@@ -76,11 +76,19 @@ _measurement_types = [
     MeasurementType('time', 'seconds',
         conversions={
             'time_us': lambda x: x * 1000000,
+            'time_ms': lambda x: x * 1000,
         }
     ),
     MeasurementType('time_us', 'microseconds',
         conversions={
             'time': lambda x: x / 1000000,
+            'time_ms': lambda x: x / 1000,
+        }
+    ),
+    MeasurementType('time_ms', 'milliseconds',
+        conversions={
+            'time': lambda x: x / 1000,
+            'time_us': lambda x: x * 1000,
         }
     ),
     MeasurementType('temperature', 'degrees'),
