@@ -28,6 +28,7 @@ class Gem5PowerInstrument(Instrument):
 
     mode = CONTINUOUS
     roi_label = 'power_instrument'
+    site_mapping = {'timestamp': 'sim_seconds'}
 
     def __init__(self, target, power_sites):
         '''
@@ -46,7 +47,7 @@ class Gem5PowerInstrument(Instrument):
             self.power_sites = power_sites
         else:
             self.power_sites = [power_sites]
-        self.add_channel('sim_seconds', 'time')
+        self.add_channel('timestamp', 'time')
         for field in self.power_sites:
             self.add_channel(field, 'power')
         self.target.gem5stats.book_roi(self.roi_label)
@@ -68,7 +69,8 @@ class Gem5PowerInstrument(Instrument):
         with open(outfile, 'wb') as wfh:
             writer = csv.writer(wfh)
             writer.writerow([c.label for c in self.active_channels]) # headers
-            for rec, rois in self.target.gem5stats.match_iter(active_sites,
+            sites_to_match = [self.site_mapping.get(s, s) for s in active_sites]
+            for rec, rois in self.target.gem5stats.match_iter(sites_to_match,
                     [self.roi_label], self._base_stats_dump):
                 writer.writerow([float(rec[s]) for s in active_sites])
         return MeasurementsCsv(outfile, self.active_channels)
