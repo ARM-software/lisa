@@ -17,13 +17,13 @@
 # pylint: disable=W0613,E1101
 from __future__ import division
 import os
-from collections import defaultdict
 
 from devlib.instrument import CONTINUOUS
 from devlib.instrument.energy_probe import EnergyProbeInstrument
 from devlib.instrument.daq import DaqInstrument
 from devlib.instrument.acmecape import AcmeCapeInstrument
 from devlib.utils.misc import which
+from devlib.derived.derived_measurements import DerivedEnergyMeasurements
 
 from wa import Instrument, Parameter
 from wa.framework import pluginloader
@@ -253,24 +253,7 @@ class EnergyMeasurement(Instrument):
         self.extract_metrics(context)
 
     def extract_metrics(self, context):
-        measurements = self.measurement_csv.itermeasurements()
-        energy_results = defaultdict(dict)
-        power_results = defaultdict(int)
-
-        for count, row in enumerate(measurements):
-            for entry in row:
-                channel = entry.channel
-                if channel.kind == 'energy':
-                    if count == 0:
-                        energy_results[channel.site]['start'] = entry.value
-                    else:
-                        energy_results[channel.site]['end'] = entry.value
-                elif channel.kind == 'power':
-                    power_results[channel.site] += entry.value
-
-        for site in energy_results:
-            total_energy = energy_results[site]['end'] - energy_results[site]['start']
-            context.add_metric('{}_energy'.format(site), total_energy, 'joules')
-        for site in power_results:
-            power = power_results[site] / count + 1  #pylint: disable=undefined-loop-variable
-            context.add_metric('{}_power'.format(site), power, 'watts')
+        derived_measurements = DerivedEnergyMeasurements.process(self.measurement_csv)
+        for meas in derived_measurements:
+            name = '{}_{}'.format(meas.channel.site, meas.channel.name)
+            context.add_metric(name, meas.value, meas.units)
