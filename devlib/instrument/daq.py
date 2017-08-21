@@ -126,7 +126,7 @@ class DaqInstrument(Instrument):
                     writer.writerow(row)
                     raw_row = _read_next_rows()
 
-            return MeasurementsCsv(outfile, self.active_channels)
+            return MeasurementsCsv(outfile, self.active_channels, self.sample_rate_hz)
         finally:
             for fh in file_handles:
                 fh.close()

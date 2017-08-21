@@ -48,6 +48,8 @@ class MeasurementType(object):
         if not isinstance(to, MeasurementType):
             msg = 'Unexpected conversion target: "{}"'
             raise ValueError(msg.format(to))
+        if to.name == self.name:
+            return value
         if not to.name in self.conversions:
             msg = 'No conversion from {} to {} available'
             raise ValueError(msg.format(self.name, to.name))
@@ -75,12 +77,20 @@ _measurement_types = [
     MeasurementType('unknown', None),
     MeasurementType('time', 'seconds',
         conversions={
-            'time_us': lambda x: x * 1000,
+            'time_us': lambda x: x * 1000000,
+            'time_ms': lambda x: x * 1000,
         }
     ),
     MeasurementType('time_us', 'microseconds',
         conversions={
+            'time': lambda x: x / 1000000,
+            'time_ms': lambda x: x / 1000,
+        }
+    ),
+    MeasurementType('time_ms', 'milliseconds',
+        conversions={
             'time': lambda x: x / 1000,
+            'time_us': lambda x: x * 1000,
         }
     ),
     MeasurementType('temperature', 'degrees'),
@@ -133,9 +143,10 @@ class Measurement(object):
 
 class MeasurementsCsv(object):
 
-    def __init__(self, path, channels=None):
+    def __init__(self, path, channels=None, sample_rate_hz=None):
         self.path = path
         self.channels = channels
+        self.sample_rate_hz = sample_rate_hz
         self._fh = open(path, 'rb')
         if self.channels is None:
             self._load_channels()

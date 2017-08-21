@@ -129,4 +129,4 @@ class MonsoonInstrument(Instrument):
                     row.append(usb)
                 writer.writerow(row)
 
-        return MeasurementsCsv(outfile, self.active_channels)
+        return MeasurementsCsv(outfile, self.active_channels, self.sample_rate_hz)

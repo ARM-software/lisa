@@ -113,4 +113,4 @@ class EnergyProbeInstrument(Instrument):
                             continue
                         else:
                             not_a_full_row_seen = True
-        return MeasurementsCsv(outfile, self.active_channels)
+        return MeasurementsCsv(outfile, self.active_channels, self.sample_rate_hz)

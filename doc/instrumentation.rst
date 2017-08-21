@@ -139,6 +139,14 @@ Instrument
    ``<site>_<kind>`` (see :class:`InstrumentChannel`). The order of the columns
    will be the same as the order of channels in ``Instrument.active_channels``.
 
+   If reporting timestamps, one channel must have a ``site`` named ``"timestamp"``
+   and a ``kind`` of a :class:`MeasurmentType` of an appropriate time unit which will
+   be used, if appropriate, during any post processing.
+
+   .. note:: Currently supported time units are seconds, milliseconds and
+             microseconds, other units can also be used if an appropriate
+             conversion is provided.
+
    This returns a :class:`MeasurementCsv` instance associated with the outfile
    that can be used to stream :class:`Measurement`\ s lists (similar to what is
    returned by ``take_measurement()``.
@@ -151,7 +159,7 @@ Instrument
    Sample rate of the instrument in Hz. Assumed to be the same for all channels.
 
    .. note:: This attribute is only provided by :class:`Instrument`\ s that
-             support ``CONTINUOUS`` measurment.
+             support ``CONTINUOUS`` measurement.
 
 Instrument Channel
 ~~~~~~~~~~~~~~~~~~
@@ -211,27 +219,31 @@ be reported as "power" in Watts, and never as "pwr" in milliWatts. Currently
 defined measurement types are
 
 
-+-------------+---------+---------------+
-| name        | units   | category      |
-+=============+=========+===============+
-| time        | seconds |               |
-+-------------+---------+---------------+
-| temperature | degrees |               |
-+-------------+---------+---------------+
-| power       | watts   | power/energy  |
-+-------------+---------+---------------+
-| voltage     | volts   | power/energy  |
-+-------------+---------+---------------+
-| current     | amps    | power/energy  |
-+-------------+---------+---------------+
-| energy      | joules  | power/energy  |
-+-------------+---------+---------------+
-| tx          | bytes   | data transfer |
-+-------------+---------+---------------+
-| rx          | bytes   | data transfer |
-+-------------+---------+---------------+
-| tx/rx       | bytes   | data transfer |
-+-------------+---------+---------------+
++-------------+-------------+---------------+
+| name        | units       | category      |
++=============+=============+===============+
+| time        | seconds     |               |
++-------------+-------------+---------------+
+| time        | microseconds|               |
++-------------+-------------+---------------+
+| time        | milliseconds|               |
++-------------+-------------+---------------+
+| temperature | degrees     |               |
++-------------+-------------+---------------+
+| power       | watts       | power/energy  |
++-------------+-------------+---------------+
+| voltage     | volts       | power/energy  |
++-------------+-------------+---------------+
+| current     | amps        | power/energy  |
++-------------+-------------+---------------+
+| energy      | joules      | power/energy  |
++-------------+-------------+---------------+
+| tx          | bytes       | data transfer |
++-------------+-------------+---------------+
+| rx          | bytes       | data transfer |
++-------------+-------------+---------------+
+| tx/rx       | bytes       | data transfer |
++-------------+-------------+---------------+
 
 
 .. instruments:
