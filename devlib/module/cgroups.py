@@ -466,11 +466,11 @@ class CgroupsModule(Module):
         if freezer is None:
             raise RuntimeError('freezer cgroup controller not present')
         freezer_cg = freezer.cgroup('/DEVLIB_FREEZER')
-        thawed_cg = freezer.cgroup('/')
+        cmd = 'cgroups_freezer_set_state {{}} {}'.format(freezer_cg.directory)
 
         if thaw:
             # Restart froozen tasks
-            freezer_cg.set(state='THAWED')
+            freezer.target._execute_util(cmd.format('THAWED'), as_root=True)
             # Remove all tasks from freezer
             freezer.move_all_tasks_to('/')
             return
@@ -482,7 +482,7 @@ class CgroupsModule(Module):
         tasks = freezer.tasks('/')
 
         # Freeze all tasks
-        freezer_cg.set(state='FROZEN')
+        freezer.target._execute_util(cmd.format('FROZEN'), as_root=True)
 
         return tasks
 

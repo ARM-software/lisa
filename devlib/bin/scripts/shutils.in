@@ -177,6 +177,23 @@ cgroups_tasks_in() {
 	exit 0
 }
 
+cgroups_freezer_set_state() {
+    STATE=${1}
+    SYSFS_ENTRY=${2}/freezer.state
+
+    # Set the state of the freezer
+    echo $STATE > $SYSFS_ENTRY
+    
+    # And check it applied cleanly
+    for i in `seq 1 10`; do
+        [ $($CAT $SYSFS_ENTRY) = $STATE ] && exit 0
+        sleep 1
+    done
+
+    # We have an issue
+    echo "ERROR: Freezer stalled while changing state to \"$STATE\"." >&2
+    exit 1
+}
 
 ################################################################################
 # Main Function Dispatcher
@@ -212,6 +229,9 @@ cgroups_tasks_move)
 	;;
 cgroups_tasks_in)
 	cgroups_tasks_in $*
+	;;
+cgroups_freezer_set_state)
+	cgroups_freezer_set_state $*
 	;;
 ftrace_get_function_stats)
     ftrace_get_function_stats
