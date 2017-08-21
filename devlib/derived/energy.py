@@ -56,7 +56,7 @@ class DerivedEnergyMeasurements(DerivedMeasurements):
         power_results = defaultdict(float)
 
         # Process data
-        for count, row in enumerate(measurements_csv.itermeasurements()):
+        for count, row in enumerate(measurements_csv.iter_measurements()):
             if use_timestamp:
                 last_ts = row_ts
                 row_ts = time_measurment.convert(float(row[ts_index].value), 'time')

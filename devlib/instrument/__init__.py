@@ -152,9 +152,9 @@ class MeasurementsCsv(object):
             self._load_channels()
 
     def measurements(self):
-        return list(self.itermeasurements())
+        return list(self.iter_measurements())
 
-    def itermeasurements(self):
+    def iter_measurements(self):
         self._fh.seek(0)
         reader = csv.reader(self._fh)
         reader.next()  # headings
