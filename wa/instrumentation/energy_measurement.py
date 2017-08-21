@@ -17,11 +17,13 @@
 # pylint: disable=W0613,E1101
 from __future__ import division
 import os
-from collections import defaultdict
 
 from devlib.instrument import CONTINUOUS
 from devlib.instrument.energy_probe import EnergyProbeInstrument
 from devlib.instrument.daq import DaqInstrument
+from devlib.instrument.acmecape import AcmeCapeInstrument
+from devlib.utils.misc import which
+from devlib.derived.derived_measurements import DerivedEnergyMeasurements
 
 from wa import Instrument, Parameter
 from wa.framework import pluginloader
@@ -140,6 +142,31 @@ class EnergyProbeBackend(EnergyInstrumentBackend):
                 msg = 'Number of Energy Probe port labels does not match the number of resistor values.'
                 raise ConfigError(msg)
 
+class AcmeCapeBackend(EnergyInstrumentBackend):
+
+    name = 'acme_cape'
+
+    parameters = [
+        Parameter('iio-capture', default=which('iio-capture'),
+                  description="""
+                  Path to the iio-capture binary will be taken from the
+                  environment, if not specfied.
+                  """),
+        Parameter('host', default='baylibre-acme.local',
+                  description="""
+                  Host name (or IP address) of the ACME cape board.
+                  """),
+        Parameter('iio-device', default='iio:device0',
+                  description="""
+                  """),
+        Parameter('buffer-size', kind=int, default=256,
+                  description="""
+                  Size of the capture buffer (in KB).
+                  """),
+    ]
+
+    instrument = AcmeCapeInstrument
+
 
 class EnergyMeasurement(Instrument):
 
@@ -152,7 +179,7 @@ class EnergyMeasurement(Instrument):
 
     parameters = [
         Parameter('instrument', kind=str, mandatory=True,
-                  allowed_values=['daq', 'energy_probe'],
+                  allowed_values=['daq', 'energy_probe', 'acme_cape'],
                   description="""
                   Specify the energy instrumentation to be enabled.
                   """),
@@ -161,19 +188,19 @@ class EnergyMeasurement(Instrument):
                    Specify the parameters used to initialize the desired
                    instrumentation.
                    """),
-        Parameter('sites', kind=list_or_string, default=[],
+        Parameter('sites', kind=list_or_string,
                   description="""
                   Specify which sites measurements should be collected
                   from, if not specified the measurements will be
                   collected for all available sites.
                   """),
-        Parameter('kinds', kind=list_or_string, default=[],
+        Parameter('kinds', kind=list_or_string,
                   description="""
                   Specify the kinds of measurements should be collected,
                   if not specified measurements will be
                   collected for all available kinds.
                   """),
-        Parameter('channels', kind=list_or_string, default=[],
+        Parameter('channels', kind=list_or_string,
                   description="""
                   Specify the channels to be collected,
                   if not specified the measurements will be
@@ -204,7 +231,7 @@ class EnergyMeasurement(Instrument):
     def initialize(self, context):
         self.instrumentation = self.backend.instrument(self.target, **self.params)
 
-        for channel in self.channels:
+        for channel in self.channels or []:
             if not self.instrumentation.get_channels(channel):
                 raise ConfigError('No channels found for "{}"'.format(channel))
 
@@ -226,24 +253,7 @@ class EnergyMeasurement(Instrument):
         self.extract_metrics(context)
 
     def extract_metrics(self, context):
-        measurements = self.measurement_csv.itermeasurements()
-        energy_results = defaultdict(dict)
-        power_results = defaultdict(int)
-
-        for count, row in enumerate(measurements):
-            for entry in row:
-                channel = entry.channel
-                if channel.kind == 'energy':
-                    if count == 0:
-                        energy_results[channel.site]['start'] = entry.value
-                    else:
-                        energy_results[channel.site]['end'] = entry.value
-                elif channel.kind == 'power':
-                    power_results[channel.site] += entry.value
-
-        for site in energy_results:
-            total_energy = energy_results[site]['end'] - energy_results[site]['start']
-            context.add_metric('{}_energy'.format(site), total_energy, 'joules')
-        for site in power_results:
-            power = power_results[site] / count + 1  #pylint: disable=undefined-loop-variable
-            context.add_metric('{}_power'.format(site), power, 'watts')
+        derived_measurements = DerivedEnergyMeasurements.process(self.measurement_csv)
+        for meas in derived_measurements:
+            name = '{}_{}'.format(meas.channel.site, meas.channel.name)
+            context.add_metric(name, meas.value, meas.units)
