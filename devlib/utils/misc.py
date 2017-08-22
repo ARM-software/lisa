@@ -103,6 +103,9 @@ CPU_PART_MAP = {
         0x211: {0x1: 'KryoGold'},
         0x800: {None: 'Falkor'},
     },
+    0x53: {  # Samsung LSI
+        0x001: {0x1: 'MongooseM1'},
+    },
     0x56: {  # Marvell
         0x131: {
             0x2: 'Feroceon 88F6281',
