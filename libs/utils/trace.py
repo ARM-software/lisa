@@ -115,7 +115,7 @@ class Trace(object):
 
         # Folder containing trace
         if not os.path.isdir(data_dir):
-            self.data_dir = os.path.dirname(data_dir)
+            self.data_dir = os.path.dirname(data_dir) or '.'
         else:
             self.data_dir = data_dir
 
