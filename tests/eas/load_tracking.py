@@ -37,8 +37,8 @@ class _LoadTrackingBase(LisaTest):
                 'sched_switch',
                 'sched_load_avg_task',
                 'sched_load_avg_cpu',
-                'sched_pelt_se',
-                'sched_load_se'
+                'sched_load_se',
+                'sched_load_cfs_rq'
             ],
         },
         # cgroups required by freeze_userspace flag
@@ -58,6 +58,7 @@ class _LoadTrackingBase(LisaTest):
     def setUpClass(cls, *args, **kwargs):
         super(_LoadTrackingBase, cls).runExperiments(*args, **kwargs)
 
+class _InvarianceBase(LisaTest):
     @classmethod
     def get_wload(cls, cpu):
         """
@@ -323,3 +324,84 @@ class CpuInvarianceTest(_LoadTrackingBase):
         Test that the mean of the util_avg signal matched the expected value
         """
         return self._test_signal(experiment, tasks, 'util_avg')
+
+class NohzUpdatesTest(_LoadTrackingBase):
+    """
+    Test that load tracking signals are updated while CPUs are idle
+
+    This test runs a workload that creates load and then goes suddenly idle. It
+    then collects the load-tracking signals for this workload and asserts that
+    after a certain time the load was decayed, despite no tasks (in theory)
+    running on the CPU.
+    """
+    PELT_HALF_LIFE_MS = 32
+
+    util_pct = 60
+
+    @classmethod
+    def _getExperimentsConf(cls, te):
+        # Run on highest-capacity CPU
+        cls.max_cap_cpu = max(range(te.target.number_of_cpus),
+                              key=lambda c: cls._get_cpu_capacity(te, c))
+
+        return {
+            'wloads': {
+                'nohz_wload' : {
+                    'type' : 'rt-app',
+                    'conf' : {
+                        'class' : 'profile',
+                        'params' : {
+                            'wmig' : {
+                                'kind' : 'Step',
+                                'params' : {
+                                    "period_ms" : 16,
+                                    'start_pct': cls.util_pct,
+                                    'end_pct': 0,
+                                    'time_s': 2,
+                                    'cpus': [cls.max_cap_cpu],
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            'confs': [{'tag': 'conf1', 'flags': ['ftrace']}]
+        }
+
+    @experiment_test
+    def test_signals_decayed(self, experiment, tasks):
+        trace = self.get_trace(experiment)
+        [comm] = tasks
+        [pid] = trace.getTaskByName(comm)
+
+        # Get last time the workload ran
+        sw = trace.data_frame.trace_event('sched_switch')
+        # The workload will have an activation at the end of the 0% step, so we
+        # want the _penultimate_ switch-out event
+        end_time = sw[sw.prev_pid == pid].index[-2]
+        num_half_lives = 3
+        decayed_time = end_time + num_half_lives * self.PELT_HALF_LIFE_MS
+
+        # Get the util_avg signal at the times we're interested in
+        df = trace.data_frame.task_load_events()
+        util = df[df.pid == pid].util_avg
+        util = util.reindex([end_time, decayed_time], method='ffill')
+
+        # Sanity check util value at the end of the 60% step
+        end_util = util[end_time]
+        cpu_cap = self._get_cpu_capacity(self.te, self.max_cap_cpu)
+        exp_end_util = cpu_cap * (self.util_pct / 100.)
+        msg = 'Expected util {} at end of load step, saw {}. Maybe test bug'.format(
+            exp_end_util, end_util
+        )
+        self.assertAlmostEqual(end_util, exp_end_util,
+                               delta=0.05 * exp_end_util, msg=msg)
+
+        # Test that we were decayed when idle
+        decayed_util = util[decayed_time]
+        exp_decayed_util = end_util * (0.5 ** num_half_lives)
+        msg = 'Expected util {} after {} half lives, saw {}. Maybe test bug'.format(
+            exp_end_util, num_half_lives, end_util
+        )
+        self.assertAlmostEqual(end_util, exp_end_util,
+                               delta=0.05 * exp_decayed_util, msg=msg)
