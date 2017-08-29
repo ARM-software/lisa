@@ -585,10 +585,10 @@ class Executor():
 
         if conf['class'] == 'custom':
             rtapp = wlgen.RTA(self.target,
-                        wl_idx, calibration = self.te.calib)
+                              wl_idx, calibration = self.te.calibration())
             rtapp.conf(kind='custom',
                     params=conf['json'],
-                    duration=conf['duration'],
+                    duration=conf.get('duration'),
                     loadref=loadref,
                     cpus=cpus, run_dir=self.te.run_dir)
             return rtapp
