@@ -229,11 +229,11 @@ defined measurement types are
 +-------------+-------------+---------------+
 | name        | units       | category      |
 +=============+=============+===============+
-| time        | seconds     |               |
+| time        | seconds     |  time         |
 +-------------+-------------+---------------+
-| time        | microseconds|               |
+| time_us     | microseconds|  time         |
 +-------------+-------------+---------------+
-| time        | milliseconds|               |
+| time_ms     | milliseconds|  time         |
 +-------------+-------------+---------------+
 | temperature | degrees     |               |
 +-------------+-------------+---------------+

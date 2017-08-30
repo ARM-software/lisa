@@ -75,19 +75,19 @@ class MeasurementType(object):
 # Standard measures
 _measurement_types = [
     MeasurementType('unknown', None),
-    MeasurementType('time', 'seconds',
+    MeasurementType('time', 'seconds', 'time',
         conversions={
             'time_us': lambda x: x * 1000000,
             'time_ms': lambda x: x * 1000,
         }
     ),
-    MeasurementType('time_us', 'microseconds',
+    MeasurementType('time_us', 'microseconds', 'time',
         conversions={
             'time': lambda x: x / 1000000,
             'time_ms': lambda x: x / 1000,
         }
     ),
-    MeasurementType('time_ms', 'milliseconds',
+    MeasurementType('time_ms', 'milliseconds', 'time',
         conversions={
             'time': lambda x: x / 1000,
             'time_us': lambda x: x * 1000,
