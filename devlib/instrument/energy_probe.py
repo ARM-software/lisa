@@ -52,6 +52,7 @@ class EnergyProbeInstrument(Instrument):
         self.raw_output_directory = None
         self.process = None
         self.sample_rate_hz = 10000 # Determined empirically
+        self.raw_data_file = None
 
         for label in self.labels:
             for kind in self.attributes:
@@ -64,6 +65,7 @@ class EnergyProbeInstrument(Instrument):
                  for i, rval in enumerate(self.resistor_values)]
         rstring = ''.join(parts)
         self.command = '{} -d {} -l {} {}'.format(self.caiman, self.device_entry, rstring, self.raw_output_directory)
+        self.raw_data_file = None
 
     def start(self):
         self.logger.debug(self.command)
@@ -92,10 +94,10 @@ class EnergyProbeInstrument(Instrument):
         num_of_ports = len(self.resistor_values)
         struct_format = '{}I'.format(num_of_ports * self.attributes_per_sample)
         not_a_full_row_seen = False
-        raw_data_file = os.path.join(self.raw_output_directory, '0000000000')
+        self.raw_data_file = os.path.join(self.raw_output_directory, '0000000000')
 
-        self.logger.debug('Parsing raw data file: {}'.format(raw_data_file))
-        with open(raw_data_file, 'rb') as bfile:
+        self.logger.debug('Parsing raw data file: {}'.format(self.raw_data_file))
+        with open(self.raw_data_file, 'rb') as bfile:
             with open(outfile, 'wb') as wfh:
                 writer = csv.writer(wfh)
                 writer.writerow(active_channels)
@@ -114,3 +116,6 @@ class EnergyProbeInstrument(Instrument):
                         else:
                             not_a_full_row_seen = True
         return MeasurementsCsv(outfile, self.active_channels, self.sample_rate_hz)
+
+    def get_raw(self):
+        return [self.raw_data_file]

@@ -121,3 +121,6 @@ class AcmeCapeInstrument(Instrument):
                             output_row.append(float(row[i])/1000)
                     writer.writerow(output_row)
         return MeasurementsCsv(outfile, self.active_channels, self.sample_rate_hz)
+
+    def get_raw(self):
+        return [self.raw_data_file]

@@ -297,3 +297,6 @@ class Instrument(object):
 
     def get_data(self, outfile):
         pass
+
+    def get_raw(self):
+        return []
