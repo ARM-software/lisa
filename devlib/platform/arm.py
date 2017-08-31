@@ -210,22 +210,22 @@ class JunoEnergyInstrument(Instrument):
     mode = CONTINUOUS | INSTANTANEOUS
 
     _channels = [
-        InstrumentChannel('sys_curr', 'sys', 'current'),
-        InstrumentChannel('a57_curr', 'a57', 'current'),
-        InstrumentChannel('a53_curr', 'a53', 'current'),
-        InstrumentChannel('gpu_curr', 'gpu', 'current'),
-        InstrumentChannel('sys_volt', 'sys', 'voltage'),
-        InstrumentChannel('a57_volt', 'a57', 'voltage'),
-        InstrumentChannel('a53_volt', 'a53', 'voltage'),
-        InstrumentChannel('gpu_volt', 'gpu', 'voltage'),
-        InstrumentChannel('sys_pow', 'sys', 'power'),
-        InstrumentChannel('a57_pow', 'a57', 'power'),
-        InstrumentChannel('a53_pow', 'a53', 'power'),
-        InstrumentChannel('gpu_pow', 'gpu', 'power'),
-        InstrumentChannel('sys_cenr', 'sys', 'energy'),
-        InstrumentChannel('a57_cenr', 'a57', 'energy'),
-        InstrumentChannel('a53_cenr', 'a53', 'energy'),
-        InstrumentChannel('gpu_cenr', 'gpu', 'energy'),
+        InstrumentChannel('sys', 'current'),
+        InstrumentChannel('a57', 'current'),
+        InstrumentChannel('a53', 'current'),
+        InstrumentChannel('gpu', 'current'),
+        InstrumentChannel('sys', 'voltage'),
+        InstrumentChannel('a57', 'voltage'),
+        InstrumentChannel('a53', 'voltage'),
+        InstrumentChannel('gpu', 'voltage'),
+        InstrumentChannel('sys', 'power'),
+        InstrumentChannel('a57', 'power'),
+        InstrumentChannel('a53', 'power'),
+        InstrumentChannel('gpu', 'power'),
+        InstrumentChannel('sys', 'energy'),
+        InstrumentChannel('a57', 'energy'),
+        InstrumentChannel('a53', 'energy'),
+        InstrumentChannel('gpu', 'energy'),
     ]
 
     def __init__(self, target):

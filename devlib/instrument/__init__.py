@@ -175,14 +175,12 @@ class MeasurementsCsv(object):
                 if entry.endswith(suffix):
                     site =  entry[:-len(suffix)]
                     measure = mt
-                    name = '{}_{}'.format(site, measure)
                     break
             else:
                 site = entry
                 measure = 'unknown'
-                name = entry
 
-            chan = InstrumentChannel(name, site, measure)
+            chan = InstrumentChannel(site, measure)
             self.channels.append(chan)
 
 
@@ -192,6 +190,8 @@ class InstrumentChannel(object):
     def label(self):
         return '{}_{}'.format(self.site, self.kind)
 
+    name = label
+
     @property
     def kind(self):
         return self.measurement_type.name
@@ -200,8 +200,7 @@ class InstrumentChannel(object):
     def units(self):
         return self.measurement_type.units
 
-    def __init__(self, name, site, measurement_type, **attrs):
-        self.name = name
+    def __init__(self, site, measurement_type, **attrs):
         self.site = site
         if isinstance(measurement_type, MeasurementType):
             self.measurement_type = measurement_type
@@ -243,10 +242,8 @@ class Instrument(object):
             measure = measure.name
         return [c for c in self.list_channels() if c.kind == measure]
 
-    def add_channel(self, site, measure, name=None, **attrs):
-        if name is None:
-            name = '{}_{}'.format(site, measure)
-        chan = InstrumentChannel(name, site, measure, **attrs)
+    def add_channel(self, site, measure, **attrs):
+        chan = InstrumentChannel(site, measure, **attrs)
         self.channels[chan.label] = chan
 
     # initialization and teardown
