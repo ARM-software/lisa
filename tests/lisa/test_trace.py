@@ -162,6 +162,35 @@ class TestTrace(TestCase):
 
         self.assertEqual(trace.platform['cpus_count'], 3)
 
+    def test_dfg_cpu_wakeups(self):
+        """
+        Test the cpu_wakeups DataFrame getter
+        """
+        trace = self.make_trace("""
+          <idle>-0     [004]   519.021928: cpu_idle:             state=4294967295 cpu_id=4
+          <idle>-0     [004]   519.022147: cpu_idle:             state=0 cpu_id=4
+          <idle>-0     [004]   519.022641: cpu_idle:             state=4294967295 cpu_id=4
+          <idle>-0     [001]   519.022642: cpu_idle:             state=4294967295 cpu_id=1
+          <idle>-0     [002]   519.022643: cpu_idle:             state=4294967295 cpu_id=2
+          <idle>-0     [001]   519.022788: cpu_idle:             state=0 cpu_id=1
+          <idle>-0     [002]   519.022831: cpu_idle:             state=2 cpu_id=2
+          <idle>-0     [003]   519.022867: cpu_idle:             state=4294967295 cpu_id=3
+          <idle>-0     [003]   519.023045: cpu_idle:             state=2 cpu_id=3
+          <idle>-0     [004]   519.023080: cpu_idle:             state=1 cpu_id=4
+        """)
+
+        df = trace.data_frame.cpu_wakeups()
+
+        exp_index=[519.021928, 519.022641, 519.022642, 519.022643, 519.022867]
+        exp_cpus= [         4,          4,          1,          2,          3]
+        self.assertListEqual(df.index.tolist(), exp_index)
+        self.assertListEqual(df.cpu.tolist(), exp_cpus)
+
+        df = trace.data_frame.cpu_wakeups([2])
+
+        self.assertListEqual(df.index.tolist(), [519.022643])
+        self.assertListEqual(df.cpu.tolist(), [2])
+
 class TestTraceNoClusterData(TestTrace):
     """
     Test Trace without cluster data
