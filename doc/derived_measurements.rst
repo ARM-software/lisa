@@ -9,7 +9,7 @@ Example
 -------
 
 The following example shows how to use an implementation of a
-:class:`DerivedMeasurement` to obtain a list of calculated ``Measurements``.
+:class:`DerivedMeasurement` to obtain a list of calculated ``DerivedMetric``'s.
 
 .. code-block:: ipython
 
@@ -42,8 +42,38 @@ Derived Measurements
 
 .. method:: DerivedMeasurements.process(measurement_csv)
 
-   Returns a list of :class:`Measurement` objects that have been calculated.
+   Returns a list of :class:`DerivedMetric` objects that have been calculated.
 
+
+Derived Metric
+~~~~~~~~~~~~~~
+
+.. class:: DerivedMetric
+
+  Represents a metric derived from previously collected ``Measurement``s.
+  Unlike, a ``Measurement``, this was not measured directly from the target.
+
+
+.. attribute:: DerivedMetric.name
+
+   The name of the derived metric. This uniquely defines a metric -- two
+   ``DerivedMetric`` objects with the same ``name`` represent to instances of
+   the same metric (e.g. computed from two different inputs).
+
+.. attribute:: DerivedMetric.value
+
+   The ``numeric`` value of the metric that has been computed for a particular
+   input.
+
+.. attribute:: DerivedMetric.measurement_type
+
+   The ``MeasurementType`` of the metric. This indicates which conceptual
+   category the metric falls into, its units, and conversions to other
+   measurement types.
+
+.. attribute:: DerivedMetric.units
+
+   The units in which the metric's value is expressed.
 
 
 Available Derived Measurements
@@ -63,7 +93,7 @@ Available Derived Measurements
 
 .. method:: DerivedEnergyMeasurements.process(measurement_csv)
 
-  Returns a list of :class:`Measurement` objects that have been calculated for
+  Returns a list of :class:`DerivedMetric` objects that have been calculated for
   the average power and cumulative energy for each site.
 
 

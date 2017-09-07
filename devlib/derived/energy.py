@@ -15,8 +15,8 @@
 from __future__ import division
 from collections import defaultdict
 
-from devlib import DerivedMeasurements
-from devlib.instrument import Measurement, MEASUREMENT_TYPES, InstrumentChannel
+from devlib import DerivedMeasurements, DerivedMetric
+from devlib.instrument import  MEASUREMENT_TYPES, InstrumentChannel
 
 
 class DerivedEnergyMeasurements(DerivedMeasurements):
@@ -86,12 +86,12 @@ class DerivedEnergyMeasurements(DerivedMeasurements):
         derived_measurements = []
         for site in energy_results:
             total_energy = energy_results[site]['end'] - energy_results[site]['start']
-            instChannel = InstrumentChannel('cum_energy', site, MEASUREMENT_TYPES['energy'])
-            derived_measurements.append(Measurement(total_energy, instChannel))
+            name = '{}_total_energy'.format(site)
+            derived_measurements.append(DerivedMetric(name, total_energy, MEASUREMENT_TYPES['energy']))
 
         for site in power_results:
             power = power_results[site] / (count + 1)  #pylint: disable=undefined-loop-variable
-            instChannel = InstrumentChannel('avg_power', site, MEASUREMENT_TYPES['power'])
-            derived_measurements.append(Measurement(power, instChannel))
+            name = '{}_average_power'.format(site)
+            derived_measurements.append(DerivedMetric(name, power, MEASUREMENT_TYPES['power']))
 
         return derived_measurements
