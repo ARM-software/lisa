@@ -127,7 +127,7 @@ class Measurement(object):
         self.channel = channel
 
     def __cmp__(self, other):
-        if isinstance(other, Measurement):
+        if hasattr(other, 'value'):
             return cmp(self.value, other.value)
         else:
             return cmp(self.value, other)
@@ -147,26 +147,32 @@ class MeasurementsCsv(object):
         self.path = path
         self.channels = channels
         self.sample_rate_hz = sample_rate_hz
-        self._fh = open(path, 'rb')
         if self.channels is None:
             self._load_channels()
+        headings = [chan.label for chan in self.channels]
+        self.data_tuple = collections.namedtuple('csv_entry', headings)
 
     def measurements(self):
         return list(self.iter_measurements())
 
     def iter_measurements(self):
-        self._fh.seek(0)
-        reader = csv.reader(self._fh)
-        reader.next()  # headings
-        for row in reader:
+        for row in self._iter_rows():
             values = map(numeric, row)
             yield [Measurement(v, c) for (v, c) in zip(values, self.channels)]
 
+    def values(self):
+        return list(self.iter_values())
+
+    def iter_values(self):
+        for row in self._iter_rows():
+            values = map(numeric, row)
+            yield self.data_tuple(*values)
+
     def _load_channels(self):
-        self._fh.seek(0)
-        reader = csv.reader(self._fh)
-        header = reader.next()
-        self._fh.seek(0)
+        header = []
+        with open(self.path, 'rb') as fh:
+            reader = csv.reader(fh)
+            header = reader.next()
 
         self.channels = []
         for entry in header:
@@ -177,11 +183,22 @@ class MeasurementsCsv(object):
                     measure = mt
                     break
             else:
-                site = entry
-                measure = 'unknown'
+                if entry in MEASUREMENT_TYPES:
+                    site = None
+                    measure = entry
+                else:
+                    site = entry
+                    measure = 'unknown'
 
             chan = InstrumentChannel(site, measure)
             self.channels.append(chan)
+
+    def _iter_rows(self):
+        with open(self.path, 'rb') as fh:
+            reader = csv.reader(fh)
+            reader.next()  # headings
+            for row in reader:
+                yield row
 
 
 class InstrumentChannel(object):
