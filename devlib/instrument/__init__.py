@@ -188,7 +188,9 @@ class InstrumentChannel(object):
 
     @property
     def label(self):
-        return '{}_{}'.format(self.site, self.kind)
+        if self.site is not None:
+            return '{}_{}'.format(self.site, self.kind)
+        return self.kind
 
     name = label
 
