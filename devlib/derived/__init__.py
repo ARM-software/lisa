@@ -53,6 +53,8 @@ class DerivedMetric(object):
 
 class DerivedMeasurements(object):
 
-    @staticmethod
-    def process(measurements_csv):
-        raise NotImplementedError()
+    def process(self, measurements_csv):
+        return []
+
+    def process_raw(self, *args):
+        return []
