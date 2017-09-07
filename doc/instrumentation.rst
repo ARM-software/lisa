@@ -236,13 +236,15 @@ defined measurement types are
 +-------------+-------------+---------------+
 | name        | units       | category      |
 +=============+=============+===============+
-| time        | seconds     |  time         |
+| count       | count       |               |
++-------------+-------------+---------------+
+| percent     | percent     |               |
 +-------------+-------------+---------------+
 | time_us     | microseconds|  time         |
 +-------------+-------------+---------------+
 | time_ms     | milliseconds|  time         |
 +-------------+-------------+---------------+
-| temperature | degrees     |               |
+| temperature | degrees     |  thermal      |
 +-------------+-------------+---------------+
 | power       | watts       | power/energy  |
 +-------------+-------------+---------------+

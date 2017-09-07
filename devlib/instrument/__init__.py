@@ -72,9 +72,25 @@ class MeasurementType(object):
             return text.format(self.name, self.units)
 
 
-# Standard measures
+# Standard measures. In order to make sure that downstream data processing is not tied
+# to particular insturments (e.g. a particular method of mearuing power), instruments
+# must, where possible, resport their measurments formatted as on of the standard types
+# defined here.
 _measurement_types = [
+    # For whatever reason, the type of measurement could not be established.
     MeasurementType('unknown', None),
+
+    # Generic measurements
+    MeasurementType('count', 'count'),
+    MeasurementType('percent', 'percent'),
+
+    # Time measurement. While there is typically a single "canonical" unit
+    # used for each type of measurmenent, time may be measured to a wide variety
+    # of events occuring at a wide range of scales. Forcing everying into a
+    # single scale will lead to inefficient and awkward to work with result tables.
+    # Coversion functions between the formats are specified, so that downstream
+    # processors that expect all times time be at a particular scale can automatically
+    # covert without being familar with individual instruments.
     MeasurementType('time', 'seconds', 'time',
         conversions={
             'time_us': lambda x: x * 1000000,
@@ -93,17 +109,23 @@ _measurement_types = [
             'time_us': lambda x: x * 1000,
         }
     ),
-    MeasurementType('temperature', 'degrees'),
 
+    # Measurements related to thermals.
+    MeasurementType('temperature', 'degrees', 'thermal'),
+
+    # Measurements related to power end energy consumption.
     MeasurementType('power', 'watts', 'power/energy'),
     MeasurementType('voltage', 'volts', 'power/energy'),
     MeasurementType('current', 'amps', 'power/energy'),
     MeasurementType('energy', 'joules', 'power/energy'),
 
+    # Measurments realted to data transfer, e.g. neworking,
+    # memory, or backing storage.
     MeasurementType('tx', 'bytes', 'data transfer'),
     MeasurementType('rx', 'bytes', 'data transfer'),
     MeasurementType('tx/rx', 'bytes', 'data transfer'),
 
+    MeasurementType('fps', 'fps', 'ui render'),
     MeasurementType('frames', 'frames', 'ui render'),
 ]
 for m in _measurement_types:
