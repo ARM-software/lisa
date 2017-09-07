@@ -18,6 +18,8 @@ logger = logging.getLogger('rendering')
 SurfaceFlingerFrame = namedtuple('SurfaceFlingerFrame',
                                  'desired_present_time actual_present_time frame_ready_time')
 
+VSYNC_INTERVAL = 16666667
+
 
 class FrameCollector(threading.Thread):
 

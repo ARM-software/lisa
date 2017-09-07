@@ -21,6 +21,7 @@ from devlib.instrument.gem5power import Gem5PowerInstrument
 
 from devlib.derived import DerivedMeasurements, DerivedMetric
 from devlib.derived.energy import DerivedEnergyMeasurements
+from devlib.derived.fps import DerivedGfxInfoStats
 
 from devlib.trace.ftrace import FtraceCollector
 
