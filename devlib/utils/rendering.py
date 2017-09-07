@@ -203,3 +203,43 @@ class GfxinfoFrameCollector(FrameCollector):
         if not found:
             logger.warning('Could not find frames data in gfxinfo output')
             return
+
+
+def _file_reverse_iter(fh, buf_size=1024):
+    fh.seek(0, os.SEEK_END)
+    offset = 0
+    file_size = remaining_size = fh.tell()
+    while remaining_size > 0:
+        offset = min(file_size, offset + buf_size)
+        fh.seek(file_size - offset)
+        buf = fh.read(min(remaining_size, buf_size))
+        remaining_size -= buf_size
+        yield buf
+
+
+def gfxinfo_get_last_dump(filepath):
+    """
+    Return the last gfxinfo dump from the frame collector's raw output.
+
+    """
+    record = ''
+    with open(filepath, 'r') as fh:
+        fh_iter = _file_reverse_iter(fh)
+        try:
+            while True:
+                buf = fh_iter.next()
+                ix = buf.find('** Graphics')
+                if ix >= 0:
+                    return buf[ix:] + record
+
+                ix = buf.find(' **\n')
+                if ix >= 0:
+                    buf =  fh_iter.next() + buf
+                    ix = buf.find('** Graphics')
+                    if ix < 0:
+                        msg = '"{}" appears to be corrupted'
+                        raise RuntimeError(msg.format(filepath))
+                    return buf[ix:] + record
+                record = buf + record
+        except StopIteration:
+            pass
