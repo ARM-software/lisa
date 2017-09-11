@@ -14,7 +14,7 @@ from devlib.module import get_module
 from devlib.platform import Platform
 from devlib.exception import TargetError, TargetNotRespondingError, TimeoutError
 from devlib.utils.ssh import SshConnection
-from devlib.utils.android import AdbConnection, AndroidProperties, adb_command, adb_disconnect
+from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect
 from devlib.utils.misc import memoized, isiterable, convert_new_lines, merge_lists
 from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list, escape_double_quotes
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string
@@ -1155,6 +1155,9 @@ class AndroidTarget(Target):
 
     def clear_logcat(self):
         adb_command(self.adb_name, 'logcat -c', timeout=30)
+
+    def get_logcat_monitor(self, regexps=None):
+        return LogcatMonitor(self, regexps)
 
     def adb_kill_server(self, timeout=30):
         adb_command(self.adb_name, 'kill-server', timeout)
