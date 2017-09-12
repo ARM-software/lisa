@@ -32,6 +32,7 @@ from collections import defaultdict
 from devlib.exception import TargetError, HostError, DevlibError
 from devlib.utils.misc import check_output, which, memoized, ABI_MAP
 from devlib.utils.misc import escape_single_quotes, escape_double_quotes
+from devlib import host
 
 
 logger = logging.getLogger('android')
@@ -555,18 +556,21 @@ class LogcatMonitor(threading.Thread):
             regexp = '{}'.format('|'.join(self._regexps))
             if len(self._regexps) > 1:
                 regexp = '({})'.format(regexp)
-            logcat_cmd = '{} -e {}'.format(logcat_cmd, regexp)
+            logcat_cmd = '{} -e "{}"'.format(logcat_cmd, regexp)
 
         logger.debug('logcat command ="{}"'.format(logcat_cmd))
         self._logcat = self.target.background(logcat_cmd)
 
         while not self._stopped.is_set():
             line = self._logcat.stdout.readline(1024)
-            self._add_line(line)
+            if line:
+                self._add_line(line)
 
     def stop(self):
-        # Popen can be stuck on readline() so send it a SIGKILL
-        self._logcat.terminate()
+        # Kill the underlying logcat process
+        # This will unblock self._logcat.stdout.readline()
+        host.kill_children(self._logcat.pid)
+        self._logcat.kill()
 
         self._stopped.set()
         self.join()
@@ -609,9 +613,10 @@ class LogcatMonitor(threading.Thread):
 
         return res
 
-    def search(self, regexp, timeout=30):
+    def search(self, regexp):
         """
         Search a line that matches a regexp in the logcat log
+        Return immediatly
         """
         res = []
 
@@ -623,8 +628,18 @@ class LogcatMonitor(threading.Thread):
                     if re.match(regexp, line):
                         res.append(line)
 
+        return res
+
+    def wait_for(self, regexp, timeout=30):
+        """
+        Search a line that matches a regexp in the logcat log
+        Wait for it to appear if it's not found
+        """
+        res = self.search(regexp)
+
         # Found some matches, return them
-        if len(res) > 0:
+        # Also return if thread not running
+        if len(res) > 0 or not self.is_alive():
             return res
 
         # Did not find any match, wait for one to pop up
