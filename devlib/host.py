@@ -14,6 +14,7 @@
 #
 from glob import iglob
 import os
+import signal
 import shutil
 import subprocess
 import logging
@@ -24,6 +25,11 @@ from devlib.utils.misc import check_output
 
 PACKAGE_BIN_DIRECTORY = os.path.join(os.path.dirname(__file__), 'bin')
 
+def kill_children(pid, signal=signal.SIGKILL):
+    with open('/proc/{0}/task/{0}/children'.format(pid), 'r') as fd:
+        for cpid in map(int, fd.read().strip().split()):
+            kill_children(cpid, signal)
+            os.kill(cpid, signal)
 
 class LocalConnection(object):
 
