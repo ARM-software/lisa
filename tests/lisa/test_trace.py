@@ -41,6 +41,13 @@ class TestTrace(TestCase):
         self.trace_path = os.path.join(self.traces_dir, 'trace.txt')
         self.trace = Trace(self.platform, self.trace_path, self.events)
 
+    def make_trace(self, in_data):
+        with open(self.test_trace, "w") as fout:
+            fout.write(in_data)
+
+        return Trace(self.platform, self.test_trace, self.events,
+                     normalize_time=False)
+
     def test_getTaskByName(self):
         """TestTrace: getTaskByName() returns the list of PIDs for all tasks with the specified name"""
         for name, pids in [('watchdog/0', [12]),
@@ -69,10 +76,7 @@ class TestTrace(TestCase):
           father-1234  [002] 18765.018235: sched_switch:          prev_comm=father prev_pid=1234 prev_prio=120 prev_state=0 next_comm=father next_pid=5678 next_prio=120
            child-5678  [002] 18766.018236: sched_switch:          prev_comm=child prev_pid=5678 prev_prio=120 prev_state=1 next_comm=sh next_pid=3367 next_prio=120
         """
-
-        with open(self.test_trace, "w") as fout:
-            fout.write(in_data)
-        trace = Trace(self.platform, self.test_trace, self.events)
+        trace = self.make_trace(in_data)
 
         self.assertEqual(trace.getTaskByPid(1234), 'father')
         self.assertEqual(trace.getTaskByPid(5678), 'child')
