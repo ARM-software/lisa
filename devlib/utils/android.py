@@ -454,6 +454,8 @@ def grant_app_permissions(target, package):
     permissions = re.search(
         'requested permissions:\s*(?P<permissions>(android.permission.+\s*)+)', dumpsys
     )
+    if permissions is None:
+        return
     permissions = permissions.group('permissions').replace(" ", "").splitlines()
 
     for permission in permissions:
