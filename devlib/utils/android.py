@@ -445,6 +445,23 @@ def adb_command(device, command, timeout=None,adb_server=None):
     output, _ = check_output(full_command, timeout, shell=True)
     return output
 
+def grant_app_permissions(target, package):
+    """
+    Grant an app all the permissions it may ask for
+    """
+    dumpsys = target.execute('dumpsys package {}'.format(package))
+
+    permissions = re.search(
+        'requested permissions:\s*(?P<permissions>(android.permission.+\s*)+)', dumpsys
+    )
+    permissions = permissions.group('permissions').replace(" ", "").splitlines()
+
+    for permission in permissions:
+        try:
+            target.execute('pm grant {} {}'.format(package, permission))
+        except TargetError:
+            logger.debug('Cannot grant {}'.format(permission))
+
 
 # Messy environment initialisation stuff...
 
