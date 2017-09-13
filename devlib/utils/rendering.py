@@ -122,7 +122,8 @@ class SurfaceFlingerFrameCollector(FrameCollector):
         return self.target.execute(cmd.format(activity))
 
     def list(self):
-        return self.target.execute('dumpsys SurfaceFlinger --list').split('\r\n')
+        text = self.target.execute('dumpsys SurfaceFlinger --list')
+        return text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
 
     def _process_raw_file(self, fh):
         text = fh.read().replace('\r\n', '\n').replace('\r', '\n')
