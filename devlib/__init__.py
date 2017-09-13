@@ -13,7 +13,7 @@ from devlib.instrument import Instrument, InstrumentChannel, Measurement, Measur
 from devlib.instrument import MEASUREMENT_TYPES, INSTANTANEOUS, CONTINUOUS
 from devlib.instrument.daq import DaqInstrument
 from devlib.instrument.energy_probe import EnergyProbeInstrument
-from devlib.instrument.frames import GfxInfoFramesInstrument
+from devlib.instrument.frames import GfxInfoFramesInstrument, SurfaceFlingerFramesInstrument
 from devlib.instrument.hwmon import HwmonInstrument
 from devlib.instrument.monsoon import MonsoonInstrument
 from devlib.instrument.netstats import NetstatsInstrument
@@ -21,7 +21,7 @@ from devlib.instrument.gem5power import Gem5PowerInstrument
 
 from devlib.derived import DerivedMeasurements, DerivedMetric
 from devlib.derived.energy import DerivedEnergyMeasurements
-from devlib.derived.fps import DerivedGfxInfoStats
+from devlib.derived.fps import DerivedGfxInfoStats, DerivedSurfaceFlingerStats
 
 from devlib.trace.ftrace import FtraceCollector
 

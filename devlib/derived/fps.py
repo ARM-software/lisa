@@ -9,6 +9,7 @@ except ImportError:
     pd = None
 
 from devlib import DerivedMeasurements, DerivedMetric, MeasurementsCsv, InstrumentChannel
+from devlib.exception import HostError
 from devlib.utils.rendering import gfxinfo_get_last_dump, VSYNC_INTERVAL
 from devlib.utils.types import numeric
 
@@ -135,3 +136,79 @@ class DerivedGfxInfoStats(DerivedFpsStats):
                 DerivedMetric('total_frames', frame_count, 'frames'),
                 MeasurementsCsv(csv_file)]
 
+
+class DerivedSurfaceFlingerStats(DerivedFpsStats):
+
+    def _process_with_pandas(self, measurements_csv):
+        data = pd.read_csv(measurements_csv.path)
+
+        # fiter out bogus frames.
+        bogus_frames_filter = data.actual_present_time_us != 0x7fffffffffffffff
+        actual_present_times = data.actual_present_time_us[bogus_frames_filter]
+        actual_present_time_deltas = actual_present_times.diff().dropna()
+
+        vsyncs_to_compose = actual_present_time_deltas.div(VSYNC_INTERVAL)
+        vsyncs_to_compose.apply(lambda x: int(round(x, 0)))
+
+        # drop values lower than drop_threshold FPS as real in-game frame
+        # rate is unlikely to drop below that (except on loading screens
+        # etc, which should not be factored in frame rate calculation).
+        per_frame_fps = (1.0 / (vsyncs_to_compose.multiply(VSYNC_INTERVAL / 1e9)))
+        keep_filter = per_frame_fps > self.drop_threshold
+        filtered_vsyncs_to_compose = vsyncs_to_compose[keep_filter]
+        per_frame_fps.name = 'fps'
+
+        csv_file = self._get_csv_file_name(measurements_csv.path)
+        per_frame_fps.to_csv(csv_file, index=False, header=True)
+
+        if not filtered_vsyncs_to_compose.empty:
+            fps = 0
+            total_vsyncs = filtered_vsyncs_to_compose.sum()
+            frame_count = filtered_vsyncs_to_compose.size
+
+            if total_vsyncs:
+                fps = 1e9 * frame_count / (VSYNC_INTERVAL * total_vsyncs)
+
+            janks = self._calc_janks(filtered_vsyncs_to_compose)
+            not_at_vsync = self._calc_not_at_vsync(vsyncs_to_compose)
+        else:
+            fps = 0
+            frame_count = 0
+            janks = 0
+            not_at_vsync = 0
+
+        return [DerivedMetric('fps', fps, 'fps'),
+                DerivedMetric('total_frames', frame_count, 'frames'),
+                MeasurementsCsv(csv_file),
+                DerivedMetric('janks', janks, 'count'),
+                DerivedMetric('janks_pc', janks * 100 / frame_count, 'percent'),
+                DerivedMetric('missed_vsync', not_at_vsync, 'count')]
+
+    def _process_without_pandas(self, measurements_csv):
+        # Given that SurfaceFlinger has been deprecated in favor of GfxInfo,
+        # it does not seem worth it implementing this.
+        raise HostError('Please install "pandas" Python package to process SurfaceFlinger frames')
+
+    @staticmethod
+    def _calc_janks(filtered_vsyncs_to_compose):
+        """
+        Internal method for calculating jank frames.
+        """
+        pause_latency = 20
+        vtc_deltas = filtered_vsyncs_to_compose.diff().dropna()
+        vtc_deltas = vtc_deltas.abs()
+        janks = vtc_deltas.apply(lambda x: (pause_latency > x > 1.5) and 1 or 0).sum()
+
+        return janks
+
+    @staticmethod
+    def _calc_not_at_vsync(vsyncs_to_compose):
+        """
+        Internal method for calculating the number of frames that did not
+        render in a single vsync cycle.
+        """
+        epsilon = 0.0001
+        func = lambda x: (abs(x - 1.0) > epsilon) and 1 or 0
+        not_at_vsync = vsyncs_to_compose.apply(func).sum()
+
+        return not_at_vsync
