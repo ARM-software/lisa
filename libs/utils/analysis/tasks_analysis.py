@@ -56,15 +56,15 @@ class TasksAnalysis(AnalysisModule):
             default: capacity of a little cluster
         :type min_utilization: int
         """
-        if not self._trace.hasEvents('sched_load_avg_task'):
-            self._log.warning('Events [sched_load_avg_task] not found')
+        if self._dfg_task_load_events() is None:
+            self._log.warning('No trace events for task signals, plot DISABLED')
             return None
 
         if min_utilization is None:
             min_utilization = self._little_cap
 
         # Get utilization samples >= min_utilization
-        df = self._dfg_trace_event('sched_load_avg_task')
+        df = self._dfg_task_load_events()
         big_tasks_events = df[df.util_avg > min_utilization]
         if not len(big_tasks_events):
             self._log.warning('No tasks with with utilization samples > %d',
@@ -182,6 +182,51 @@ class TasksAnalysis(AnalysisModule):
 
         return rt_tasks
 
+    def _dfg_task_load_events(self):
+        """
+        Get a DataFrame with the scheduler's per-task load-tracking signals
+
+        Parse the relevant trace event and return a DataFrame with the
+        scheduler's load tracking update events for each task.
+
+        :returns: DataFrame with at least the following columns:
+                  'comm', 'pid', 'load_avg', 'util_avg'.
+        """
+        if 'sched_load_avg_task' in self._trace.available_events:
+            df = self._dfg_trace_event('sched_load_avg_task')
+            if 'utilization' in df:
+                df.rename(columns={'utilization': 'util_avg'}, inplace=True)
+                df.rename(columns={'load': 'load_avg'}, inplace=True)
+                df.rename(columns={'avg_period': 'period_contrib'}, inplace=True)
+                df.rename(columns={'runnable_avg_sum': 'load_sum'}, inplace=True)
+                df.rename(columns={'running_avg_sum': 'util_sum'}, inplace=True)
+
+        elif 'sched_load_se' in self._trace.available_events:
+            df = self._trace._dfg_trace_event('sched_load_se')
+            df = df.rename(columns={'util': 'util_avg', 'load': 'load_avg'})
+            # In sched_load_se, PID shows -1 for task groups.
+            df = df[df.pid != -1]
+        else:
+            return None
+
+        # TODO: Remove these additional columns? It doesn't work without
+        # manually-provided platform data, and it doesn't conceptually belong
+        # here.
+
+        platform = self._trace.platform
+        df['cluster'] = np.select(
+                [df.cpu.isin(platform['clusters']['little'])],
+                ['LITTLE'], 'big')
+        # Add a column which represents the max capacity of the smallest
+        # cluster which can accomodate the task utilization
+        little_cap = platform['nrg_model']['little']['cpu']['cap_max']
+        big_cap = platform['nrg_model']['big']['cpu']['cap_max']
+        df['min_cluster_cap'] = df.util_avg.map(
+            lambda util_avg: big_cap if util_avg > little_cap else little_cap
+        )
+
+        return df
+
 
 ###############################################################################
 # Plotting Methods
@@ -229,9 +274,8 @@ class TasksAnalysis(AnalysisModule):
                        'residencies']
 
         # Check for the minimum required signals to be available
-        if not self._trace.hasEvents('sched_load_avg_task'):
-            self._log.warning('Events [sched_load_avg_task] not found, '
-                              'plot DISABLED!')
+        if self._dfg_task_load_events() is None:
+            self._log.warning('No trace events for task signals, plot DISABLED')
             return
 
         # Defined list of tasks to plot
@@ -376,7 +420,7 @@ class TasksAnalysis(AnalysisModule):
             return
 
         # Get the list of events for all big frequent tasks
-        df = self._dfg_trace_event('sched_load_avg_task')
+        df = self._dfg_task_load_events()
         big_frequent_tasks_events = df[df.pid.isin(big_frequent_task_pids)]
 
         # Define axes for side-by-side plottings
@@ -533,11 +577,14 @@ class TasksAnalysis(AnalysisModule):
         :type big_cluster: bool
         """
 
-        if not self._trace.hasEvents('sched_load_avg_task'):
-            self._log.warning('Events [sched_load_avg_task] not found')
-            return
         if not self._trace.hasEvents('cpu_frequency'):
             self._log.warning('Events [cpu_frequency] not found')
+            return
+
+        # Get all utilization update events
+        df = self._dfg_task_load_events()
+        if df is None:
+            self._log.warning('No trace events for task signals, plot DISABLED')
             return
 
         if big_cluster:
@@ -546,9 +593,6 @@ class TasksAnalysis(AnalysisModule):
         else:
             cluster_correct = 'LITTLE'
             cpus = self._little_cpus
-
-        # Get all utilization update events
-        df = self._dfg_trace_event('sched_load_avg_task')
 
         # Keep events of defined big tasks
         big_task_pids = self._dfg_top_big_tasks(
@@ -635,7 +679,7 @@ class TasksAnalysis(AnalysisModule):
         :type is_last: bool
         """
         # Get dataframe for the required task
-        util_df = self._dfg_trace_event('sched_load_avg_task')
+        util_df = self._dfg_task_load_events()
 
         # Plot load and util
         signals_to_plot = set(signals).difference({'boosted_util'})
@@ -698,7 +742,7 @@ class TasksAnalysis(AnalysisModule):
         :param is_last: if True this is the last plot
         :type is_last: bool
         """
-        util_df = self._dfg_trace_event('sched_load_avg_task')
+        util_df = self._dfg_task_load_events()
         data = util_df[util_df.pid == tid][['cluster', 'cpu']]
         for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
             cdata = data[data.cluster == clabel]
@@ -733,6 +777,11 @@ class TasksAnalysis(AnalysisModule):
         :param signals: signals to be plot
         :param signals: list(str)
         """
+        if not self._trace.hasEvents('sched_load_avg_task'):
+            self._log.warning(
+                'No sched_load_avg_task events, skipping PELT plot')
+            return
+
         util_df = self._dfg_trace_event('sched_load_avg_task')
         data = util_df[util_df.pid == tid][['load_sum',
                                             'util_sum',
