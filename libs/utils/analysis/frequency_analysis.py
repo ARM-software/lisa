@@ -446,7 +446,6 @@ class FrequencyAnalysis(AnalysisModule):
 # Utility Methods
 ###############################################################################
 
-    @memoized
     def _getFrequencyResidency(self, cluster):
         """
         Get a DataFrame with per cluster frequency residency, i.e. amount of
@@ -479,7 +478,8 @@ class FrequencyAnalysis(AnalysisModule):
             self._log.warning('Cluster frequency is NOT coherent,'
                               'cannot compute residency!')
             return None
-        cluster_freqs = freq_df[freq_df.cpu == _cluster[0]]
+        cluster_freqs = freq_df[freq_df.cpu == _cluster[0]].frequency
+        cluster_freqs = self._trace._cropToXTimeRange(cluster_freqs)
 
         # Compute TOTAL Time
         time_intervals = cluster_freqs.index[1:] - cluster_freqs.index[:-1]
@@ -490,7 +490,8 @@ class FrequencyAnalysis(AnalysisModule):
         total_time = total_time.groupby(['frequency']).sum()
 
         # Compute ACTIVE Time
-        cluster_active = self._trace.getClusterActiveSignal(_cluster)
+        cluster_active = self._getClusterActiveSignal(_cluster)
+        cluster_active = self._trace._cropToXTimeRange(cluster_active)
 
         # In order to compute the active time spent at each frequency we
         # multiply 2 square waves:

@@ -78,3 +78,53 @@ class TestTrace(TestCase):
         self.assertEqual(trace.getTaskByName('father'), [1234])
 
         os.remove(self.test_trace)
+
+    def test_setXTimeRange(self):
+        """
+        TestTrace: setXTimeRange() properly update user-specified trace time
+        boundaries.
+        """
+        # Test min and max values out of range
+        t_min = self.trace.window[1] + 10
+        with self.assertRaises(ValueError):
+            self.trace.setXTimeRange(t_min=t_min)
+
+        t_max = self.trace.window[0] - 10
+        with self.assertRaises(ValueError):
+            self.trace.setXTimeRange(t_max=t_max)
+
+        # Test min/max set to valid values in the range
+        # [trace.window[0], trace.window[1]]
+        t_min = self.trace.window[0] + 1
+        t_max = self.trace.window[1] - 1
+        self.trace.setXTimeRange(t_min, t_max)
+        self.assertEqual(self.trace.x_min, t_min)
+        self.assertEqual(self.trace.x_max, t_max)
+
+        # Test min/max reset to trace.window[0]/trace.window[1]
+        self.trace.setXTimeRange()
+        self.assertEqual(self.trace.x_min, self.trace.window[0])
+        self.assertEqual(self.trace.x_max, self.trace.window[1])
+
+        # Test min value and max capped to trace minimum and maximum
+        # respectively
+        t_min = self.trace.window[0] - 10
+        t_max = self.trace.window[1] + 10
+        self.trace.setXTimeRange(t_min, t_max)
+        self.assertEqual(self.trace.x_min, self.trace.window[0])
+        self.assertEqual(self.trace.x_max, self.trace.window[1])
+
+    def test_cropToXTimeRange(self):
+        """
+        TestTrace: cropToXTimeRange() properly crops the data frame to the X
+        time range specified by the user through setXTimeRange().
+        """
+        series = self.trace.data_frame.trace_event('sched_switch').prev_state
+
+        t_min = self.trace.window[0] + 2
+        t_max = self.trace.window[1] - 2
+        self.trace.setXTimeRange(t_min, t_max)
+
+        cropped_series = self.trace._cropToXTimeRange(series)
+        self.assertTrue(cropped_series.index[0] >= t_min)
+        self.assertTrue(cropped_series.index[-1] <= t_max)
