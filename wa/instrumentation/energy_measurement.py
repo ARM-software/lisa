@@ -18,12 +18,12 @@
 from __future__ import division
 import os
 
+from devlib import DerivedEnergyMeasurements
 from devlib.instrument import CONTINUOUS
 from devlib.instrument.energy_probe import EnergyProbeInstrument
 from devlib.instrument.daq import DaqInstrument
 from devlib.instrument.acmecape import AcmeCapeInstrument
 from devlib.utils.misc import which
-from devlib.derived.derived_measurements import DerivedEnergyMeasurements
 
 from wa import Instrument, Parameter
 from wa.framework import pluginloader
