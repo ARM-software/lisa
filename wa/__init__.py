@@ -14,4 +14,4 @@ from wa.framework.plugin import Plugin, Parameter
 from wa.framework.processor import ResultProcessor
 from wa.framework.resource import (NO_ONE, JarFile, ApkFile, ReventFile, File,
                                    Executable)
-from wa.framework.workload import Workload, ApkUiautoWorkload, ReventWorkload
+from wa.framework.workload import Workload, ApkWorkload, ApkUiautoWorkload, ReventWorkload
