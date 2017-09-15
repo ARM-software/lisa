@@ -99,14 +99,21 @@ Instrument
    ``teardown()`` has been called), but see documentation for the instrument
    you're interested in.
 
-.. method:: Instrument.reset([sites, [kinds]])
+.. method:: Instrument.reset(sites=None, kinds=None, channels=None)
 
    This is used to configure an instrument for collection. This must be invoked
-   before ``start()`` is called to begin collection. ``sites`` and ``kinds``
-   parameters may be used to specify which channels measurements should be
-   collected from (if omitted, then measurements will be collected for all
-   available sites/kinds). This methods sets the ``active_channels`` attribute
-   of the ``Instrument``.
+   before ``start()`` is called to begin collection. This methods sets the
+   ``active_channels`` attribute of the ``Instrument``.
+
+   If ``channels`` is provided, it is a list of names of channels to enable and
+   ``sites`` and ``kinds`` must both be ``None``.
+
+   Otherwise, if one of ``sites`` or ``kinds`` is provided, all channels
+   matching the given sites or kinds are enabled. If both are provided then all
+   channels of the given kinds at the given sites are enabled.
+
+   If none of ``sites``, ``kinds`` or ``channels`` are provided then all
+   available channels are enabled.
 
 .. method:: Instrument.take_measurment()
 
