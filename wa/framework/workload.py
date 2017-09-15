@@ -485,7 +485,7 @@ class PackageHandler(object):
         if self.package:
             if not self.target.package_is_installed(self.package):
                 msg = 'Package "{}" cannot be found on the host or device'
-            raise WorkloadError(msg.format(self.package))
+                raise WorkloadError(msg.format(self.package_name))
         else:
             installed_versions = []
             for package in self.owner.package_names:
