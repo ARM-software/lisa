@@ -76,6 +76,11 @@ class ExecutionContext(object):
         return self.current_job.spec.id != self.next_job.spec.id
 
     @property
+    def workload(self):
+        if self.current_job:
+            return self.current_job.workload
+
+    @property
     def job_output(self):
         if self.current_job:
             return self.current_job.output
@@ -150,6 +155,11 @@ class ExecutionContext(object):
         self.output.write_result()
         self.current_job = None
 
+    def set_status(self, status):
+        if not self.current_job:
+            raise RuntimeError('No jobs in progress')
+        self.current_job.status = Status(status)
+
     def extract_results(self):
         self.tm.extract_results(self)
 
@@ -170,6 +180,14 @@ class ExecutionContext(object):
 
     def write_state(self):
         self.run_output.write_state()
+
+    def get_metric(self, name):
+        try:
+            return self.output.get_metric(name)
+        except HostError:
+            if not self.current_job:
+                raise
+            return self.run_output.get_metric(name)
 
     def add_metric(self, name, value, units=None, lower_is_better=False,
                    classifiers=None):
