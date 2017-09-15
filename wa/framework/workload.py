@@ -107,9 +107,9 @@ class ApkWorkload(Workload):
     package_names = []
 
     parameters = [
-        Parameter('package', kind=str,
+        Parameter('package_name', kind=str,
                   description="""
-                  The pacakge name that can be used to specify
+                  The package name that can be used to specify
                   the workload apk to use.
                   """),
         Parameter('install_timeout', kind=int,
@@ -153,10 +153,14 @@ class ApkWorkload(Workload):
                   """)
     ]
 
+    @property
+    def package(self):
+        return self.apk.package
+
     def __init__(self, target, **kwargs):
         super(ApkWorkload, self).__init__(target, **kwargs)
         self.apk = PackageHandler(self,
-                                  package=self.package,
+                                  package_name=self.package_name,
                                   variant=self.variant,
                                   strict=self.strict,
                                   version=self.version,
@@ -429,8 +433,14 @@ class ReventGUI(object):
 
 class PackageHandler(object):
 
+    @property
+    def package(self):
+        if self.apk_info is None:
+            return None
+        return self.apk_info.package
+
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
-                 package=None, strict=False, force_install=False, uninstall=False,
+                 package_name=None, strict=False, force_install=False, uninstall=False,
                  exact_abi=False):
         self.logger = logging.getLogger('apk')
         self.owner = owner
@@ -438,7 +448,7 @@ class PackageHandler(object):
         self.install_timeout = install_timeout
         self.version = version
         self.variant = variant
-        self.package = package
+        self.package_name = package_name
         self.strict = strict
         self.force_install = force_install
         self.uninstall = uninstall
@@ -462,7 +472,7 @@ class PackageHandler(object):
         self.apk_file = context.resolver.get(ApkFile(self.owner,
                                                      variant=self.variant,
                                                      version=self.version,
-                                                     package=self.package,
+                                                     package=self.package_name,
                                                      exact_abi=self.exact_abi,
                                                      supported_abi=self.supported_abi),
                                              strict=self.strict)
@@ -471,19 +481,19 @@ class PackageHandler(object):
             if self.version:
                 installed_version = self.target.get_package_version(self.apk_info.package)
                 host_version = self.apk_info.version_name
-                if (installed_version != host_version and
+                if (installed_version and installed_version != host_version and
                         loose_version_matching(self.version, installed_version)):
                     msg = 'Multiple matching packages found for {}; host version: {}, device version: {}'
                     raise WorkloadError(msg.format(self.owner, host_version, installed_version))
         else:
-            if not self.owner.package_names and not self.package:
+            if not self.owner.package_names and not self.package_name:
                 msg = 'No package name(s) specified and no matching APK file found on host'
                 raise WorkloadError(msg)
             self.resolve_package_from_target(context)
 
     def resolve_package_from_target(self, context):
-        if self.package:
-            if not self.target.package_is_installed(self.package):
+        if self.package_name:
+            if not self.target.package_is_installed(self.package_name):
                 msg = 'Package "{}" cannot be found on the host or device'
                 raise WorkloadError(msg.format(self.package_name))
         else:
@@ -496,23 +506,23 @@ class PackageHandler(object):
                 for package in installed_versions:
                     package_version = self.target.get_package_version(package)
                     if loose_version_matching(self.version, package_version):
-                        self.package = package
+                        self.package_name = package
                         break
             else:
                 if len(installed_versions) == 1:
-                    self.package = installed_versions[0]
+                    self.package_name = installed_versions[0]
                 else:
                     msg = 'Package version not set and multiple versions found on device'
                     raise WorkloadError(msg)
 
-            if not self.package:
+            if not self.package_name:
                 raise WorkloadError('No matching package found')
 
-        self.pull_apk(self.package)
+        self.pull_apk(self.package_name)
         self.apk_file = context.resolver.get(ApkFile(self.owner,
                                                      variant=self.variant,
                                                      version=self.version,
-                                                     package=self.package),
+                                                     package=self.package_name),
                                              strict=self.strict)
         self.apk_info = ApkInfo(self.apk_file)
 
