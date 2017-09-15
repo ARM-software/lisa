@@ -49,6 +49,18 @@ class Output(object):
     def status(self, value):
         self.result.status =  value
 
+    @property
+    def metrics(self):
+        if self.result is None:
+            return []
+        return self.result.metrics
+
+    @property
+    def artifacts(self):
+        if self.result is None:
+            return []
+        return self.result.artifacts
+
     def __init__(self, path):
         self.basepath = path
         self.result = None
@@ -83,6 +95,9 @@ class Output(object):
 
     def add_event(self, message):
         self.result.add_event(message)
+
+    def get_metric(self, name):
+        return self.result.get_metric(name)
 
     def get_artifact(self, name):
         return self.result.get_artifact(name)
@@ -240,6 +255,12 @@ class Result(object):
 
     def add_event(self, message):
         self.events.append(Event(message))
+
+    def get_metric(self, name):
+        for metric in self.metrics:
+            if metric.name == name:
+                return metric
+        return None
 
     def get_artifact(self, name):
         for artifact in self.artifacts:
