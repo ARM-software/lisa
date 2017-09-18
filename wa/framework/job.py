@@ -58,7 +58,7 @@ class Job(object):
         self.logger.info('Initializing job {}'.format(self.id))
         with signal.wrap('WORKLOAD_INITIALIZED', self, context):
             self.workload.initialize(context)
-        self.status = Status.PENDING
+        self.set_status(Status.PENDING)
         context.update_job_state(self)
 
     def configure_target(self, context):
@@ -96,3 +96,8 @@ class Job(object):
         self.logger.info('Finalizing job {}'.format(self.id))
         with signal.wrap('WORKLOAD_FINALIZED', self, context):
             self.workload.finalize(context)
+
+    def set_status(self, status, force=False):
+        status = Status(status)
+        if force or self.status < status:
+            self.status = status

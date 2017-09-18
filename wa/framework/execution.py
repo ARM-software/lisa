@@ -32,6 +32,7 @@ from wa.framework.configuration.core import settings, Status
 from wa.framework.exception import (WAError, ConfigError, TimeoutError,
                                     InstrumentError, TargetError, HostError,
                                     TargetNotRespondingError)
+from wa.framework.job import Job
 from wa.framework.output import init_job_output
 from wa.framework.plugin import Artifact
 from wa.framework.processor import ProcessorManager
@@ -155,10 +156,10 @@ class ExecutionContext(object):
         self.output.write_result()
         self.current_job = None
 
-    def set_status(self, status):
+    def set_status(self, status, force=False):
         if not self.current_job:
             raise RuntimeError('No jobs in progress')
-        self.current_job.status = Status(status)
+        self.current_job.set_status(status, force)
 
     def extract_results(self):
         self.tm.extract_results(self)
@@ -391,12 +392,12 @@ class Runner(object):
         try:
             log.indent()
             self.do_run_job(job, context)
-            job.status = Status.OK
+            job.set_status(Status.OK)
         except KeyboardInterrupt:
-            job.status = Status.ABORTED
+            job.set_status(Status.ABORTED)
             raise
         except Exception as e:
-            job.status = Status.FAILED
+            job.set_status(Status.FAILED)
             context.add_event(e.message)
             if not getattr(e, 'logged', None):
                 log.log_error(e, self.logger)
@@ -410,7 +411,7 @@ class Runner(object):
             self.check_job(job)
 
     def do_run_job(self, job, context):
-        job.status = Status.RUNNING
+        job.set_status(Status.RUNNING)
         self.send(signal.JOB_STARTED)
 
         with signal.wrap('JOB_TARGET_CONFIG', self):
@@ -429,15 +430,15 @@ class Runner(object):
                 self.pm.process_job_output(context)
                 self.pm.export_job_output(context)
             except Exception:
-                job.status = Status.PARTIAL
+                job.set_status(Status.PARTIAL)
                 raise
 
         except KeyboardInterrupt:
-            job.status = Status.ABORTED
+            job.set_status(Status.ABORTED)
             self.logger.info('Got CTRL-C. Aborting.')
             raise
         except Exception as e:
-            job.status = Status.FAILED
+            job.set_status(Status.FAILED)
             if not getattr(e, 'logged', None):
                 log.log_error(e, self.logger)
                 e.logged = True
@@ -454,19 +455,24 @@ class Runner(object):
             if job.retries < rc.max_retries:
                 msg = 'Job {} iteration {} completed with status {}. retrying...'
                 self.logger.error(msg.format(job.id, job.status, job.iteration))
+                self.retry_job(job)
                 self.context.move_failed(job)
-                job.retries += 1
-                job.status = Status.PENDING
-                self.context.job_queue.insert(0, job)
                 self.context.write_state()
             else:
                 msg = 'Job {} iteration {} completed with status {}. '\
                       'Max retries exceeded.'
-                self.logger.error(msg.format(job.id, job.status, job.iteration))
+                self.logger.error(msg.format(job.id, job.iteration, job.status))
                 self.context.failed_jobs += 1
         else:  # status not in retry_on_status
             self.logger.info('Job completed with status {}'.format(job.status))
             self.context.successful_jobs += 1
+
+    def retry_job(self, job):
+        retry_job = Job(job.spec, job.iteration, self.context)
+        retry_job.workload = job.workload
+        retry_job.retries = job.retries + 1
+        retry_job.set_status(Status.PENDING)
+        self.context.job_queue.insert(0, retry_job)
         
     def send(self, s):
         signal.send(s, self, self.context)

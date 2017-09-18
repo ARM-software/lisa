@@ -34,7 +34,7 @@ KIND_MAP = {
 
 Status = enum(['UNKNOWN', 'NEW', 'PENDING',
                'STARTED', 'CONNECTED', 'INITIALIZED', 'RUNNING',
-               'SKIPPED', 'ABORTED', 'FAILED', 'PARTIAL', 'OK'])
+               'OK', 'PARTIAL', 'FAILED', 'ABORTED', 'SKIPPED'])
 
 
 

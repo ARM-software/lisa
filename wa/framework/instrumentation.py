@@ -104,7 +104,8 @@ from collections import OrderedDict
 
 from wa.framework import signal
 from wa.framework.plugin import Plugin
-from wa.framework.exception import WAError, TargetNotRespondingError, TimeoutError
+from wa.framework.exception import (WAError, TargetNotRespondingError, TimeoutError,
+                                    WorkloadError)
 from wa.utils.log import log_error
 from wa.utils.misc import get_traceback, isiterable
 from wa.utils.types import identifier, enum, level
@@ -250,7 +251,7 @@ def check_failures():
 
 class ManagedCallback(object):
     """
-    This wraps instruments' callbacks to ensure that errors do interfer
+    This wraps instruments' callbacks to ensure that errors do not interfer
     with run execution.
 
     """
@@ -270,7 +271,11 @@ class ManagedCallback(object):
                 global failures_detected  # pylint: disable=W0603
                 failures_detected = True
                 log_error(e, logger)
-                disable(self.instrument)
+                context.add_event(e.message)
+                if isinstance(e, WorkloadError):
+                    context.set_status('FAILED')
+                else:
+                    context.set_status('PARTIAL')
 
 
 # Need this to keep track of callbacks, because the dispatcher only keeps
