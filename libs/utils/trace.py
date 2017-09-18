@@ -130,16 +130,6 @@ class Trace(object):
 
         self.__registerTraceEvents(events)
         self.__parseTrace(data_dir, window, trace_format)
-        self.__computeTimeSpan()
-
-        # Minimum and Maximum x_time to use for all plots
-        self.x_min = 0
-        self.x_max = self.time_range
-
-        # Reset x axis time range to full scale
-        t_min = self.window[0]
-        t_max = self.window[1]
-        self.setXTimeRange(t_min, t_max)
 
         self.data_frame = TraceData()
         self._registerDataFrameGetters(self)
@@ -173,14 +163,9 @@ class Trace(object):
         :param t_max: upper bound
         :type t_max: int or float
         """
-        if t_min is None:
-            self.x_min = 0
-        else:
-            self.x_min = t_min
-        if t_max is None:
-            self.x_max = self.time_range
-        else:
-            self.x_max = t_max
+        self.x_min = t_min if t_min is not None else self.start_time
+        self.x_max = t_max if t_max is not None else self.start_time + self.time_range
+
         self._log.debug('Set plots time range to (%.6f, %.6f)[s]',
                        self.x_min, self.x_max)
 
@@ -230,8 +215,16 @@ class Trace(object):
         else:
             raise ValueError("Unknown trace format {}".format(trace_format))
 
+        # If using normalized time, we should use
+        # TRAPpy's `abs_window` instead of `window`
+        window_kw = {}
+        if self.normalize_time:
+            window_kw['window'] = window
+        else:
+            window_kw['abs_window'] = window
+
         self.ftrace = trace_class(path, scope="custom", events=self.events,
-                                  window=window, normalize_time=self.normalize_time)
+                                  normalize_time=self.normalize_time, **window_kw)
 
         # Load Functions profiling data
         has_function_stats = self._loadFunctionsStats(path)
@@ -248,8 +241,9 @@ class Trace(object):
         # Index PIDs and Task names
         self.__loadTasksNames()
 
-        # Setup internal data reference to interesting events/dataframes
+        self.__computeTimeSpan()
 
+        # Setup internal data reference to interesting events/dataframes
         self._sanitize_SchedLoadAvgCpu()
         self._sanitize_SchedLoadAvgTask()
         self._sanitize_SchedCpuCapacity()
@@ -258,16 +252,6 @@ class Trace(object):
         self._sanitize_SchedEnergyDiff()
         self._sanitize_SchedOverutilized()
         self._sanitize_CpuFrequency()
-
-        # Compute plot window
-        if not self.normalize_time:
-            start = self.window[0]
-            if self.window[1]:
-                duration = min(self.ftrace.get_duration(), self.window[1])
-            else:
-                duration = self.ftrace.get_duration()
-            self.window = (self.ftrace.basetime + start,
-                           self.ftrace.basetime + duration)
 
     def __checkAvailableEvents(self, key=""):
         """
@@ -318,30 +302,12 @@ class Trace(object):
         """
         Compute time axis range, considering all the parsed events.
         """
-        ts = sys.maxint
-        te = 0
-
-        for events in self.available_events:
-            df = self._dfg_trace_event(events)
-            if len(df) == 0:
-                continue
-            if (df.index[0]) < ts:
-                ts = df.index[0]
-            if (df.index[-1]) > te:
-                te = df.index[-1]
-            self.time_range = te - ts
-
+        self.start_time = 0 if self.normalize_time else self.ftrace.basetime
+        self.time_range = self.ftrace.get_duration()
         self._log.debug('Collected events spans a %.3f [s] time interval',
                        self.time_range)
 
-        # Build a stat on trace overutilization
-        if self.hasEvents('sched_overutilized'):
-            df = self._dfg_trace_event('sched_overutilized')
-            self.overutilized_time = df[df.overutilized == 1].len.sum()
-            self.overutilized_prc = 100. * self.overutilized_time / self.time_range
-
-            self._log.debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
-                           self.overutilized_time, self.overutilized_prc)
+        self.setXTimeRange(self.window[0], self.window[1])
 
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
         """
@@ -626,6 +592,14 @@ class Trace(object):
         df['start'] = df.index
         df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
         df.drop('start', axis=1, inplace=True)
+
+        # Build a stat on trace overutilization
+        df = self._dfg_trace_event('sched_overutilized')
+        self.overutilized_time = df[df.overutilized == 1].len.sum()
+        self.overutilized_prc = 100. * self.overutilized_time / self.time_range
+
+        self._log.debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
+                        self.overutilized_time, self.overutilized_prc)
 
     def _chunker(self, seq, size):
         """
