@@ -37,8 +37,8 @@ class TestTrace(TestCase):
         with open(os.path.join(self.traces_dir, 'platform.json')) as f:
             self.platform = json.load(f)
 
-        trace_path = os.path.join(self.traces_dir, 'trace.txt')
-        self.trace = Trace(self.platform, trace_path, self.events)
+        self.trace_path = os.path.join(self.traces_dir, 'trace.txt')
+        self.trace = Trace(self.platform, self.trace_path, self.events)
 
     def test_getTaskByName(self):
         """TestTrace: getTaskByName() returns the list of PIDs for all tasks with the specified name"""
