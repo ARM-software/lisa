@@ -56,7 +56,7 @@ class TestBareTrace(unittest.TestCase):
         trace.add_parsed_event("pmu_counter", self.dfr[0])
         trace.add_parsed_event("load_event", self.dfr[1])
 
-        self.assertEquals(trace.get_duration(), self.dfr[1].index[-1])
+        self.assertEquals(trace.get_duration(), self.dfr[1].index[-1] - self.dfr[0].index[0])
 
     def test_bare_trace_get_duration_normalized(self):
         """BareTrace.get_duration() works if the trace has been normalized"""

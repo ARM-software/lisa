@@ -37,21 +37,20 @@ class BareTrace(object):
     def get_duration(self):
         """Returns the largest time value of all classes,
         returns 0 if the data frames of all classes are empty"""
-        durations = []
+        max_durations = []
+        min_durations = []
 
         for trace_class in self.trace_classes:
             try:
-                durations.append(trace_class.data_frame.index[-1])
+                max_durations.append(trace_class.data_frame.index[-1])
+                min_durations.append(trace_class.data_frame.index[0])
             except IndexError:
                 pass
 
-        if len(durations) == 0:
+        if len(min_durations) == 0 or len(max_durations) == 0:
             return 0
 
-        if self.normalized_time:
-            return max(durations)
-        else:
-            return max(durations) - self.basetime
+        return max(max_durations) - min(min_durations)
 
     def get_filters(self, key=""):
         """Returns an array with the available filters.
