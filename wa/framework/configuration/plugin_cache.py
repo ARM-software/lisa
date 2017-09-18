@@ -152,7 +152,7 @@ class PluginCache(object):
 
     def _get_target_params(self, name):
         td = self.targets[name]
-        params = {p.name: p for p in chain(td.target_params, td.platform_params)}
+        params = {p.name: p for p in chain(td.target_params, td.platform_params, td.conn_params)}
         #params['connection_settings'] = {p.name: p for p in td.conn_params}
         return params
 

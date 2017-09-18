@@ -2,7 +2,8 @@ from collections import OrderedDict
 from copy import copy
 
 from devlib import (LinuxTarget, AndroidTarget, LocalLinuxTarget,
-                    Platform, Juno, TC2, Gem5SimulationPlatform)
+                    Platform, Juno, TC2, Gem5SimulationPlatform,
+                    AdbConnection, SshConnection, LocalConnection)
 
 from wa.framework import pluginloader
 from wa.framework.exception import PluginLoaderError
@@ -248,16 +249,90 @@ GEM5_PLATFORM_PARAMS = [
               '''),
 ]
 
-# name --> (target_class, params_list, defaults, assistant_class)
+
+CONNECTION_PARAMS = {
+    AdbConnection: [
+        Parameter('device', kind=str,
+                description="""
+                ADB device name
+                """),
+        Parameter('adb_server', kind=str,
+                description="""
+                ADB server to connect to.
+                """),
+    ],
+    SshConnection: [
+        Parameter('host', kind=str, mandatory=True,
+                description="""
+                Host name or IP address of the target.
+                """),
+        Parameter('username', kind=str, mandatory=True,
+                description="""
+                User name to connect with
+                """),
+        Parameter('password', kind=str,
+                description="""
+                Password to use.
+                """),
+        Parameter('keyfile', kind=str,
+                description="""
+                Key file to use
+                """),
+        Parameter('port', kind=int,
+                description="""
+                The port SSH server is listening on on the target.
+                """),
+        Parameter('telent', kind=bool, default=False,
+                description="""
+                If set to ``True``, a Telent connection, rather than
+                SSH will be used.
+                """),
+        Parameter('password_prompt', kind=str,
+                description="""
+                Password prompt to expect
+                """),
+        Parameter('original_prompt', kind=str,
+                description="""
+                Original shell prompt to expect.
+                """),
+        Parameter('sudo_cmd', kind=str,
+                default="sudo -- sh -c '{}'",
+                description="""
+                Sudo command to use. Must have ``"{}"``` specified
+                somewher in the string it indicate where the command
+                to be run via sudo is to go.
+                """),
+    ],
+    LocalConnection: [
+        Parameter('password', kind=str,
+                description="""
+                Password to use for sudo. if not specified, the user will
+                be prompted during intialization.
+                """),
+        Parameter('keep_password', kind=bool, default=True,
+                description="""
+                If ``True`` (the default), the password will be cached in
+                memory after it is first obtained from the user, so that the
+                user would not be prompted for it again.
+                """),
+        Parameter('unrooted', kind=bool, default=False,
+                description="""
+                Indicate that the target should be considered unrooted; do not
+                attempt sudo or ask the user for their password.
+                """),
+    ],
+}
+
+# name --> ((target_class, conn_class), params_list, defaults, assistant_class)
 TARGETS = {
-    'linux': (LinuxTarget, COMMON_TARGET_PARAMS, None),
-    'android': (AndroidTarget, COMMON_TARGET_PARAMS +
+    'linux': ((LinuxTarget, SshConnection), COMMON_TARGET_PARAMS, None),
+    'android': ((AndroidTarget, AdbConnection), COMMON_TARGET_PARAMS +
                 [Parameter('package_data_directory', kind=str, default='/data/data',
                            description='''
                            Directory containing Android data
                            '''),
                 ], None),
-    'local': (LocalLinuxTarget, COMMON_TARGET_PARAMS, None),
+    'local': ((LocalLinuxTarget, LocalConnection), COMMON_TARGET_PARAMS, None),
 }
 
 # name --> assistant
@@ -303,17 +378,19 @@ class DefaultTargetDescriptor(TargetDescriptor):
     def get_descriptions(self):
         result = []
         for target_name, target_tuple in TARGETS.iteritems():
-            target, target_params = self._get_item(target_tuple)
+            (target, conn), target_params = self._get_item(target_tuple)
             assistant = ASSISTANTS[target_name]
+            conn_params =  CONNECTION_PARAMS[conn]
             for platform_name, platform_tuple in PLATFORMS.iteritems():
                 platform, platform_params = self._get_item(platform_tuple)
-
                 name = '{}_{}'.format(platform_name, target_name)
                 td = TargetDescription(name, self)
                 td.target = target
+                td.conn = conn
                 td.platform = platform
                 td.assistant = assistant
                 td.target_params = target_params
+                td.conn_params = conn_params
                 td.platform_params = platform_params
                 td.assistant_params = assistant.parameters
                 result.append(td)
