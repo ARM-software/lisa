@@ -593,6 +593,10 @@ class Trace(object):
         df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
         df.drop('start', axis=1, inplace=True)
 
+        # Fix the last event, which will have a NaN duration
+        # Set duration to trace_end - last_event
+        df.loc[df.index[-1], 'len'] = self.start_time + self.time_range - df.index[-1]
+
         # Build a stat on trace overutilization
         df = self._dfg_trace_event('sched_overutilized')
         self.overutilized_time = df[df.overutilized == 1].len.sum()
