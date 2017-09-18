@@ -170,6 +170,22 @@ class TestFTrace(BaseTestThermal):
 
         self.assertEqual(trace.get_duration(), duration)
 
+    def test_ftrace_duration_window(self):
+        """Test that duration is correct with time window (normalize_time=True)"""
+        trace = trappy.FTrace(normalize_time=True, window=[1, 5])
+
+        duration = trace.thermal_governor.data_frame.index[-1] - trace.thermal.data_frame.index[0]
+
+        self.assertEqual(trace.get_duration(), duration)
+
+    def test_ftrace_duration_window_not_normalized(self):
+        """Test that duration is correct with time window (normalize_time=False)"""
+        trace = trappy.FTrace(normalize_time=False, window=[1, 5])
+
+        duration = trace.thermal_governor.data_frame.index[-1] - trace.thermal.data_frame.index[0]
+
+        self.assertEqual(trace.get_duration(), duration)
+
     def test_ftrace_duration_not_normalized(self):
         """Test get_duration: normalize_time=True"""
 
