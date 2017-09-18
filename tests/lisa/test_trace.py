@@ -78,3 +78,28 @@ class TestTrace(TestCase):
         self.assertEqual(trace.getTaskByName('father'), [1234])
 
         os.remove(self.test_trace)
+
+    def test_time_range(self):
+        """
+        TestTrace: time_range is the duration of the trace
+        """
+        expected_duration = 6.676497
+
+        trace = Trace(self.platform, self.trace_path,
+                      self.events, normalize_time=False
+        )
+
+        self.assertAlmostEqual(trace.time_range, expected_duration, places=6)
+
+    def test_time_range_window(self):
+        """
+        TestTrace: time_range is the duration of the trace in the given window
+        """
+        expected_duration = 4.0
+
+        trace = Trace(self.platform, self.trace_path,
+                      self.events, normalize_time=False,
+                      window=(76.402065, 80.402065)
+        )
+
+        self.assertAlmostEqual(trace.time_range, expected_duration, places=6)
