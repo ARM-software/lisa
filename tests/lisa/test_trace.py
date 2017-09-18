@@ -27,6 +27,7 @@ class TestTrace(TestCase):
     traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
     events = [
         'sched_switch',
+        'sched_overutilized'
     ]
 
     def __init__(self, *args, **kwargs):
@@ -103,3 +104,19 @@ class TestTrace(TestCase):
         )
 
         self.assertAlmostEqual(trace.time_range, expected_duration, places=6)
+
+    def test_overutilized_time(self):
+        """
+        TestTrace: overutilized_time is the total time spent while system was overutilized
+        """
+        events = [
+            76.402065,
+            80.402065,
+            82.001337
+        ]
+
+        trace_end = self.trace.ftrace.basetime + self.trace.ftrace.get_duration()
+        # Last event should be extended to the trace's end
+        expected_time = (events[1] - events[0]) + (trace_end - events[2])
+
+        self.assertAlmostEqual(self.trace.overutilized_time, expected_time, places=6)
