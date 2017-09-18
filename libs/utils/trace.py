@@ -88,6 +88,9 @@ class Trace(object):
         # The time window used to limit trace parsing to
         self.window = window
 
+        # Whether trace timestamps are normalized or not
+        self.normalize_time = normalize_time
+
         # Dynamically registered TRAPpy events
         self.trappy_cls = {}
 
@@ -126,8 +129,7 @@ class Trace(object):
         self.plots_prefix = plots_prefix
 
         self.__registerTraceEvents(events)
-        self.__parseTrace(data_dir, window, normalize_time,
-                          trace_format)
+        self.__parseTrace(data_dir, window, trace_format)
         self.__computeTimeSpan()
 
         # Minimum and Maximum x_time to use for all plots
@@ -199,7 +201,7 @@ class Trace(object):
         if 'cpu_frequency' in events:
             self.events.append('cpu_frequency_devlib')
 
-    def __parseTrace(self, path, window, normalize_time, trace_format):
+    def __parseTrace(self, path, window, trace_format):
         """
         Internal method in charge of performing the actual parsing of the
         trace.
@@ -209,9 +211,6 @@ class Trace(object):
 
         :param window: time window to consider when parsing the trace
         :type window: tuple(int, int)
-
-        :param normalize_time: normalize trace time stamps
-        :type normalize_time: bool
 
         :param trace_format: format of the trace. Possible values are:
             - FTrace
@@ -232,7 +231,7 @@ class Trace(object):
             raise ValueError("Unknown trace format {}".format(trace_format))
 
         self.ftrace = trace_class(path, scope="custom", events=self.events,
-                                  window=window, normalize_time=normalize_time)
+                                  window=window, normalize_time=self.normalize_time)
 
         # Load Functions profiling data
         has_function_stats = self._loadFunctionsStats(path)
@@ -261,7 +260,7 @@ class Trace(object):
         self._sanitize_CpuFrequency()
 
         # Compute plot window
-        if not normalize_time:
+        if not self.normalize_time:
             start = self.window[0]
             if self.window[1]:
                 duration = min(self.ftrace.get_duration(), self.window[1])
