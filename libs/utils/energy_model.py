@@ -951,7 +951,14 @@ class EnergyModel(object):
         # Drop consecutive duplicates (optimisation)
         inputs = inputs[(inputs.shift() != inputs).any(axis=1)]
 
+        memo_cache = {}
+
         def f(input_row):
+            # The code in this module is slow. Try not to call it too much.
+            memo_key = tuple(input_row)
+            if memo_key in memo_cache:
+                return memo_cache[memo_key]
+
             # cpuidle doesn't understand shared resources so it will claim to
             # put a CPU into e.g. 'cluster sleep' while its cluster siblings are
             # active. Rectify those false claims.
@@ -980,6 +987,8 @@ class EnergyModel(object):
 
             nrg = {'-'.join(str(c) for c in k): v for k, v in nrg.iteritems()}
 
-            return pd.Series(nrg)
+            ret = pd.Series(nrg)
+            memo_cache[memo_key] = ret
+            return ret
 
         return inputs.apply(f, axis=1)
