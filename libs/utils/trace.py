@@ -301,9 +301,10 @@ class Trace(object):
         :param dataset: trace event name or list of trace events
         :type dataset: str or list(str)
         """
-        if dataset in self.available_events:
-            return True
-        return False
+        if isinstance(dataset, str):
+            return dataset in self.available_events
+
+        return set(dataset).issubset(set(self.available_events))
 
     def __computeTimeSpan(self):
         """
