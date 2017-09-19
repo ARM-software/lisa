@@ -83,9 +83,14 @@ class FrameCollector(threading.Thread):
             header = self.header
             frames = self.frames
         else:
-            header = [c for c in self.header if c in columns]
-            indexes = [self.header.index(c) for c in header]
+            indexes = []
+            for c in columns:
+                if c not in self.header:
+                    msg = 'Invalid column "{}"; must be in {}'
+                    raise ValueError(msg.format(c, self.header))
+                indexes.append(self.header.index(c))
             frames = [[f[i] for i in indexes] for f in self.frames]
+            header = columns
         with open(outfile, 'w') as wfh:
             writer = csv.writer(wfh)
             if header:
