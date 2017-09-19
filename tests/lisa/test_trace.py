@@ -27,6 +27,7 @@ class TestTrace(TestCase):
     traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
     events = [
         'sched_switch',
+        'sched_overutilized'
     ]
 
     def __init__(self, *args, **kwargs):
@@ -37,8 +38,8 @@ class TestTrace(TestCase):
         with open(os.path.join(self.traces_dir, 'platform.json')) as f:
             self.platform = json.load(f)
 
-        trace_path = os.path.join(self.traces_dir, 'trace.txt')
-        self.trace = Trace(self.platform, trace_path, self.events)
+        self.trace_path = os.path.join(self.traces_dir, 'trace.txt')
+        self.trace = Trace(self.platform, self.trace_path, self.events)
 
     def test_getTaskByName(self):
         """TestTrace: getTaskByName() returns the list of PIDs for all tasks with the specified name"""
@@ -78,3 +79,44 @@ class TestTrace(TestCase):
         self.assertEqual(trace.getTaskByName('father'), [1234])
 
         os.remove(self.test_trace)
+
+    def test_time_range(self):
+        """
+        TestTrace: time_range is the duration of the trace
+        """
+        expected_duration = 6.676497
+
+        trace = Trace(self.platform, self.trace_path,
+                      self.events, normalize_time=False
+        )
+
+        self.assertAlmostEqual(trace.time_range, expected_duration, places=6)
+
+    def test_time_range_window(self):
+        """
+        TestTrace: time_range is the duration of the trace in the given window
+        """
+        expected_duration = 4.0
+
+        trace = Trace(self.platform, self.trace_path,
+                      self.events, normalize_time=False,
+                      window=(76.402065, 80.402065)
+        )
+
+        self.assertAlmostEqual(trace.time_range, expected_duration, places=6)
+
+    def test_overutilized_time(self):
+        """
+        TestTrace: overutilized_time is the total time spent while system was overutilized
+        """
+        events = [
+            76.402065,
+            80.402065,
+            82.001337
+        ]
+
+        trace_end = self.trace.ftrace.basetime + self.trace.ftrace.get_duration()
+        # Last event should be extended to the trace's end
+        expected_time = (events[1] - events[0]) + (trace_end - events[2])
+
+        self.assertAlmostEqual(self.trace.overutilized_time, expected_time, places=6)
