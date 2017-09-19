@@ -272,12 +272,12 @@ class ConfigurationPoint(object):
             value = merge_config_values(getattr(obj, self.name), value)
         setattr(obj, self.name, value)
 
-    def validate(self, obj):
+    def validate(self, obj, check_mandatory=True):
         value = getattr(obj, self.name, None)
         if value is not None:
             self.validate_value(obj.name, value)
         else:
-            if self.mandatory:
+            if check_mandatory and self.mandatory:
                 msg = 'No value specified for mandatory parameter "{}" in {}.'
                 raise ConfigError(msg.format(self.name, obj.name))
 
@@ -928,7 +928,8 @@ class JobSpec(Configuration):
     def merge_workload_parameters(self, plugin_cache):
         # merge global generic and specific config
         workload_params = plugin_cache.get_plugin_config(self.workload_name,
-                                                         generic_name="workload_parameters")
+                                                         generic_name="workload_parameters",
+                                                         is_final=False)
 
         cfg_points = plugin_cache.get_plugin_parameters(self.workload_name)
         for source in self._sources:

@@ -99,7 +99,7 @@ class PluginCache(object):
     def list_plugins(self, kind=None):
         return self.loader.list_plugins(kind)
 
-    def get_plugin_config(self, plugin_name, generic_name=None):
+    def get_plugin_config(self, plugin_name, generic_name=None, is_final=True):
         config = obj_dict(not_in_dict=['name'])
         config.name = plugin_name
 
@@ -120,7 +120,8 @@ class PluginCache(object):
         else:
             # A more complicated merge that involves priority of sources and
             # specificity
-            self._merge_using_priority_specificity(plugin_name, generic_name, config)
+            self._merge_using_priority_specificity(plugin_name, generic_name,
+                                                   config, is_final)
 
         return config
 
@@ -158,7 +159,7 @@ class PluginCache(object):
 
     # pylint: disable=too-many-nested-blocks, too-many-branches
     def _merge_using_priority_specificity(self, specific_name, 
-                                          generic_name, final_config):
+                                          generic_name, merged_config, is_final=True):
         """
         WA configuration can come from various sources of increasing priority,
         as well as being specified in a generic and specific manner (e.g
@@ -175,13 +176,15 @@ class PluginCache(object):
         In this situation it is not possible to know the end users intention
         and WA will error.
 
-        :param generic_name: The name of the generic configuration
-                             e.g ``device_config``
         :param specific_name: The name of the specific configuration used
                               e.g ``nexus10``
-        :param cfg_point: A dict of ``ConfigurationPoint``s to be used when
-                          merging configuration.  keys=config point name, 
-                          values=config point
+        :param generic_name: The name of the generic configuration
+                             e.g ``device_config``
+        :param merge_config: A dict of ``ConfigurationPoint``s to be used when
+                             merging configuration.  keys=config point name, 
+                             values=config point
+        :param is_final: if ``True`` (the default) make sure that mandatory
+                         parameters are set.
 
         :rtype: A fully merged and validated configuration in the form of a
                 obj_dict.
@@ -197,18 +200,18 @@ class PluginCache(object):
         # set_value uses the 'name' attribute of the passed object in it error
         # messages, to ensure these messages make sense the name will have to be
         # changed several times during this function.
-        final_config.name = specific_name
+        merged_config.name = specific_name
 
         for source in sources:
             try:
-                update_config_from_source(final_config, source, ms)
+                update_config_from_source(merged_config, source, ms)
             except ConfigError as e:
                 raise ConfigError('Error in "{}":\n\t{}'.format(source, str(e)))
 
         # Validate final configuration
-        final_config.name = specific_name
+        merged_config.name = specific_name
         for cfg_point in ms.cfg_points.itervalues():
-            cfg_point.validate(final_config)
+            cfg_point.validate(merged_config, check_mandatory=is_final)
 
 
 class MergeState(object):
