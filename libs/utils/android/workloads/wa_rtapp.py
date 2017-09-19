@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2015, ARM Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+from android import Wlauto
+from android import Workload
+
+import logging
+
+class WaRTApp(Wlauto):
+    """
+    Android rt-app workload
+    """
+
+    # WA name of the workload
+    workload_name = 'rt-app'
+
+    def __init__(self, test_env):
+        super(WaRTApp, self).__init__(test_env)
+        self._log = logging.getLogger('rt-app')
+        self._log.debug('Workload created')
+
+    def run(self, exp_dir, agenda, collect=''):
+        """
+        :param exp_dir: Path to experiment directory where to store results.
+        :type exp_dir: str
+
+        :param agenda: Agenda to be passed to workload-automation. Can be a
+            YAML file or a dictionary.
+        :type agenda: str or dict
+
+        :param collect: Specifies what to collect. Possible values:
+            - 'energy'
+        :type collect: list(str)
+        """
+        _agenda = agenda
+        if isinstance(agenda, dict):
+            _agenda = self.generate_yaml_agenda(agenda)
+
+        self._log.debug('Running')
+
+        nrg_report  = Wlauto.wa_run(exp_dir, _agenda,
+                                    WaRTApp.workload_name, collect=collect)
+
+        # RTApp has no db_file so return None as first value
+        return None, nrg_report
+
+    @staticmethod
+    def _is_available(target):
+        if target.get_installed('rt-app'):
+            return Wlauto._wload_is_available(WaRTApp.workload_name)
+        return False
+
+# vim :set tabstop=4 shiftwidth=4 expandtab

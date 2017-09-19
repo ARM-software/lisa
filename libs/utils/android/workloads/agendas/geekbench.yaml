@@ -1,0 +1,5 @@
+config:
+    device: generic_android
+workloads:
+    - id: lisa_geekbench
+      name: geekbench

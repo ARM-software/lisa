@@ -1,0 +1,8 @@
+config:
+    device: Nexus5
+workloads:
+    - id: lisa_rtapp_mp3
+      name: rt-app
+      workload_parameters:
+          duration: 5
+          config: mp3-short

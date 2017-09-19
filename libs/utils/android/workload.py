@@ -70,7 +70,14 @@ class Workload(object):
         _log.debug('Building list of available workloads...')
         for sc in Workload._subclasses():
             _log.debug('Checking workload [%s]...', sc.__name__)
-            if sc.package in cls._packages or sc.package == '':
+            # Check if it is a WA-wrapped workload
+            if sc.__name__ == 'Wlauto':
+                cls._availables[sc.__name__.lower()] = sc
+            elif 'Wa' in sc.__name__:
+                if sc._is_available(test_env.target):
+                    cls._availables[sc.__name__.lower()] = sc
+            # Check if non-WA-wrapped workload is available
+            elif sc.package in cls._packages or sc.package == '':
                 cls._availables[sc.__name__.lower()] = sc
 
         _log.info('Supported workloads available on target:')
