@@ -21,4 +21,5 @@ install:
   - pip install --upgrade trappy bart-py devlib psutil wrapt matplotlib
 script:
   - cd $TRAVIS_BUILD_DIR
+  - 'echo backend : Agg > matplotlibrc' # Otherwise it tries to use tkinter
   - source init_env && lisa-test tests/lisa/
