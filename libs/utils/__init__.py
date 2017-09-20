@@ -15,7 +15,11 @@
 # limitations under the License.
 #
 
-"""Initialization for utils module"""
+"""
+..automdule:: env
+  :members:
+  :show-inheritance:
+"""
 
 from env import TestEnv
 from executor import Executor

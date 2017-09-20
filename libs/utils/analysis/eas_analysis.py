@@ -29,7 +29,7 @@ class EasAnalysis(AnalysisModule):
     Support for EAS signals anaysis
 
     :param trace: input Trace object
-    :type trace: :mod:`libs.utils.Trace`
+    :type trace: :class:`trace.Trace`
     """
 
     def __init__(self, trace):

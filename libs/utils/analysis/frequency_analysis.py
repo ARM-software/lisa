@@ -35,7 +35,7 @@ class FrequencyAnalysis(AnalysisModule):
     Support for plotting Frequency Analysis data
 
     :param trace: input Trace object
-    :type trace: :mod:`libs.utils.Trace`
+    :type trace: :class:`trace.Trace`
     """
 
     def __init__(self, trace):
