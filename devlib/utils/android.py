@@ -545,6 +545,7 @@ class LogcatMonitor(threading.Thread):
 
         self.target = target
 
+        self._started = threading.Event()
         self._stopped = threading.Event()
         self._match_found = threading.Event()
 
@@ -580,12 +581,17 @@ class LogcatMonitor(threading.Thread):
         logger.debug('logcat command ="{}"'.format(logcat_cmd))
         self._logcat = self.target.background(logcat_cmd)
 
+        self._started.set()
+
         while not self._stopped.is_set():
             line = self._logcat.stdout.readline(1024)
             if line:
                 self._add_line(line)
 
     def stop(self):
+        # Make sure we've started before we try to kill anything
+        self._started.wait()
+
         # Kill the underlying logcat process
         # This will unblock self._logcat.stdout.readline()
         host.kill_children(self._logcat.pid)
