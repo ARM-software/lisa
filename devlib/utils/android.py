@@ -616,7 +616,7 @@ class LogcatMonitor(threading.Thread):
         with self._datalock:
             while not self._lines.empty():
                 self._lines.get()
-                
+
             with open(self._logfile, 'w') as fh:
                 pass
 
