@@ -286,6 +286,10 @@ def adb_get_device(timeout=None, adb_server=None):
     """
     # TODO this is a hacky way to issue a adb command to all listed devices
 
+    # Ensure server is started so the 'daemon started successfully' message
+    # doesn't confuse the parsing below
+    adb_command(None, 'start-server', adb_server=adb_server)
+
     # The output of calling adb devices consists of a heading line then
     # a list of the devices sperated by new line
     # The last line is a blank new line. in otherwords, if there is a device found
