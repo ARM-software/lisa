@@ -33,8 +33,8 @@ Machine based installation](https://github.com/ARM-software/lisa/wiki/Installati
 	# Install (upgrade) required Python libraries
 	$ sudo pip install --upgrade Cython trappy bart-py devlib psutil wrapt
 
-        # Some specific notebooks may also require scipy
-        $ sudo pip install --upgrade scipy
+	# Some specific notebooks may also require scipy
+	$ sudo pip install --upgrade scipy
 
 *NOTE:* TRAPpy and BART depend on `ipython` and `jupyter`. Some IPython
 Notebooks examples are written using the notebooks JSON nbformat version 4,
