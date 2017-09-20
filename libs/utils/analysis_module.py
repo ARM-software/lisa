@@ -41,27 +41,13 @@ class AnalysisModule(object):
         # By default assume SMP system
         self._big_cap = 1024
         self._little_cap = 1024
-        nrg_model = self._platform.get('nrg_model', None)
-        if nrg_model:
-            try:
-                self._big_cap = nrg_model['big']['cpu']['cap_max']
-                self._little_cap = nrg_model['little']['cpu']['cap_max']
-            except TypeError:
-                self._log.debug('Failed parsing EM from platform data')
-        else:
-            self._log.debug('Platform data without Energy Model info')
-
-        # By default assume SMP system
-        self._big_cpus = []
+        self._big_cpus = range(self._platform['cpus_count'])
         self._little_cpus = []
-        if 'big' in self._platform['clusters']:
-            self._log.debug('Parsing big.LITTLE system clusters')
+
+        if self._trace.has_big_little:
+            self._little_cap = self._platform['nrg_model']['little']['cpu']['cap_max']
             self._big_cpus = self._platform['clusters']['big']
             self._little_cpus = self._platform['clusters']['little']
-        else:
-            self._log.debug('Parsing SMP clusters')
-            for cid in self._platform['clusters']:
-                self._big_cpus.append(self._platform['clusters'][cid])
 
         trace._registerDataFrameGetters(self)
 

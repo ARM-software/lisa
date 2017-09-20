@@ -27,7 +27,8 @@ class TestTrace(TestCase):
     traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
     events = [
         'sched_switch',
-        'sched_overutilized'
+        'sched_overutilized',
+        'cpu_idle',
     ]
 
     def __init__(self, *args, **kwargs):
@@ -35,11 +36,21 @@ class TestTrace(TestCase):
 
         self.test_trace = os.path.join(self.traces_dir, 'test_trace.txt')
 
-        with open(os.path.join(self.traces_dir, 'platform.json')) as f:
-            self.platform = json.load(f)
+        self.platform = self._get_platform()
 
         self.trace_path = os.path.join(self.traces_dir, 'trace.txt')
         self.trace = Trace(self.platform, self.trace_path, self.events)
+
+    def make_trace(self, in_data):
+        with open(self.test_trace, "w") as fout:
+            fout.write(in_data)
+
+        return Trace(self.platform, self.test_trace, self.events,
+                     normalize_time=False)
+
+    def _get_platform(self):
+        with open(os.path.join(self.traces_dir, 'platform.json')) as f:
+            return json.load(f)
 
     def test_getTaskByName(self):
         """TestTrace: getTaskByName() returns the list of PIDs for all tasks with the specified name"""
@@ -69,10 +80,7 @@ class TestTrace(TestCase):
           father-1234  [002] 18765.018235: sched_switch:          prev_comm=father prev_pid=1234 prev_prio=120 prev_state=0 next_comm=father next_pid=5678 next_prio=120
            child-5678  [002] 18766.018236: sched_switch:          prev_comm=child prev_pid=5678 prev_prio=120 prev_state=1 next_comm=sh next_pid=3367 next_prio=120
         """
-
-        with open(self.test_trace, "w") as fout:
-            fout.write(in_data)
-        trace = Trace(self.platform, self.test_trace, self.events)
+        trace = self.make_trace(in_data)
 
         self.assertEqual(trace.getTaskByPid(1234), 'father')
         self.assertEqual(trace.getTaskByPid(5678), 'child')
@@ -120,3 +128,58 @@ class TestTrace(TestCase):
         expected_time = (events[1] - events[0]) + (trace_end - events[2])
 
         self.assertAlmostEqual(self.trace.overutilized_time, expected_time, places=6)
+
+    def test_plotCPUIdleStateResidency(self):
+        """
+        Test that plotCPUIdleStateResidency doesn't crash
+        """
+        in_data = """
+            foo-1  [000] 0.01: cpu_idle: state=0 cpu_id=0
+            foo-1  [000] 0.02: cpu_idle: state=-1 cpu_id=0
+            bar-2  [000] 0.03: cpu_idle: state=0 cpu_id=1
+            bar-2  [000] 0.04: cpu_idle: state=-1 cpu_id=1
+            baz-3  [000] 0.05: cpu_idle: state=0 cpu_id=2
+            baz-3  [000] 0.06: cpu_idle: state=-1 cpu_id=2
+            bam-4  [000] 0.07: cpu_idle: state=0 cpu_id=3
+            bam-4  [000] 0.08: cpu_idle: state=-1 cpu_id=3
+            child-5678  [002] 18765.018235: sched_switch: prev_comm=child prev_pid=5678 prev_prio=120 prev_state=1 next_comm=father next_pid=5678 next_prio=120
+        """
+        trace = self.make_trace(in_data)
+
+        trace.analysis.idle.plotCPUIdleStateResidency()
+
+    def test_deriving_cpus_count(self):
+        """Test that Trace derives cpus_count if it isn't provided"""
+        if self.platform:
+            del self.platform['cpus_count']
+
+        in_data = """
+            father-1234  [000] 18765.018235: sched_switch: prev_comm=father prev_pid=1234 prev_prio=120 prev_state=0 next_comm=father next_pid=5678 next_prio=120
+             child-5678  [002] 18765.018235: sched_switch: prev_comm=child prev_pid=5678 prev_prio=120 prev_state=1 next_comm=father next_pid=5678 next_prio=120
+        """
+
+        trace = self.make_trace(in_data)
+
+        self.assertEqual(trace.platform['cpus_count'], 3)
+
+class TestTraceNoClusterData(TestTrace):
+    """
+    Test Trace without cluster data
+
+    Inherits from TestTrace, so all the tests are run again but with
+    no cluster info the platform dict.
+    """
+    def _get_platform(self):
+        platform = super(TestTraceNoClusterData, self)._get_platform()
+        del platform['clusters']
+        return platform
+
+class TestTraceNoPlatform(TestTrace):
+    """
+    Test Trace with platform=none
+
+    Inherits from TestTrace, so all the tests are run again but with
+    platform=None
+    """
+    def _get_platform(self):
+        return None

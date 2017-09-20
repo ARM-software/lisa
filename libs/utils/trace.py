@@ -43,7 +43,7 @@ class Trace(object):
 
     :param platform: a dictionary containing information about the target
         platform
-    :type platform: dict
+    :type platform: dict or None
 
     :param data_dir: folder containing all trace data
     :type data_dir: str
@@ -77,7 +77,7 @@ class Trace(object):
                  plots_prefix=''):
 
         # The platform used to run the experiments
-        self.platform = platform
+        self.platform = platform or {}
 
         # TRAPpy Trace object
         self.ftrace = None
@@ -133,6 +133,13 @@ class Trace(object):
 
         self.data_frame = TraceData()
         self._registerDataFrameGetters(self)
+
+        # If we don't know the number of CPUs, check the trace for the
+        # highest-numbered CPU that traced an event.
+        if 'cpus_count' not in self.platform:
+            max_cpu = max(int(self.data_frame.trace_event(e)['__cpu'].max())
+                          for e in self.available_events)
+            self.platform['cpus_count'] = max_cpu + 1
 
         self.analysis = AnalysisRegister(self)
 
@@ -447,14 +454,21 @@ class Trace(object):
 ###############################################################################
 # Trace Events Sanitize Methods
 ###############################################################################
+    @property
+    def has_big_little(self):
+        return ('clusters' in self.platform
+                and 'big' in self.platform['clusters']
+                and 'little' in self.platform['clusters']
+                and 'nrg_model' in self.platform)
 
     def _sanitize_SchedCpuCapacity(self):
         """
         Add more columns to cpu_capacity data frame if the energy model is
-        available.
+        available and the platform is big.LITTLE.
         """
         if not self.hasEvents('cpu_capacity') \
-           or 'nrg_model' not in self.platform:
+           or 'nrg_model' not in self.platform \
+           or not self.has_big_little:
             return
 
         df = self._dfg_trace_event('cpu_capacity')
@@ -497,9 +511,17 @@ class Trace(object):
             df.rename(columns={'avg_period': 'period_contrib'}, inplace=True)
             df.rename(columns={'runnable_avg_sum': 'load_sum'}, inplace=True)
             df.rename(columns={'running_avg_sum': 'util_sum'}, inplace=True)
+
+        if not self.has_big_little:
+            return
+
         df['cluster'] = np.select(
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 ['LITTLE'], 'big')
+
+        if 'nrg_model' not in self.platform:
+            return
+
         # Add a column which represents the max capacity of the smallest
         # clustre which can accomodate the task utilization
         little_cap = self.platform['nrg_model']['little']['cpu']['cap_max']
@@ -545,7 +567,8 @@ class Trace(object):
         Also convert between existing field name formats for sched_energy_diff
         """
         if not self.hasEvents('sched_energy_diff') \
-           or 'nrg_model' not in self.platform:
+           or 'nrg_model' not in self.platform \
+           or not self.has_big_little:
             return
         nrg_model = self.platform['nrg_model']
         em_lcluster = nrg_model['little']['cluster']
@@ -623,7 +646,8 @@ class Trace(object):
         Verify that all platform reported clusters are frequency coherent (i.e.
         frequency scaling is performed at a cluster level).
         """
-        if not self.hasEvents('cpu_frequency_devlib'):
+        if not self.hasEvents('cpu_frequency_devlib') \
+           or 'clusters' not in self.platform:
             return
 
         devlib_freq = self._dfg_trace_event('cpu_frequency_devlib')
