@@ -589,6 +589,10 @@ class LogcatMonitor(threading.Thread):
                 self._add_line(line)
 
     def stop(self):
+        if not self.is_alive():
+            logger.warning('LogcatMonitor.stop called before start')
+            return
+
         # Make sure we've started before we try to kill anything
         self._started.wait()
 
