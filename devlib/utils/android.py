@@ -20,6 +20,7 @@ Utility functions for working with Android devices through adb.
 """
 # pylint: disable=E1103
 import os
+import pexpect
 import time
 import subprocess
 import logging
@@ -543,19 +544,18 @@ def _check_env():
         adb = _env.adb
         aapt = _env.aapt
 
-class LogcatMonitor(threading.Thread):
+class LogcatMonitor(object):
     """
     Helper class for monitoring Anroid's logcat
 
     :param target: Android target to monitor
     :type target: :class:`AndroidTarget`
 
+    :param regexps: List of uncompiled regular expressions to filter on the
                     device. Logcat entries that don't match any will not be
                     seen. If omitted, all entries will be sent to host.
     :type regexps: list(str)
     """
-
-    FLUSH_SIZE = 1000
 
     @property
     def logfile(self):
@@ -565,16 +565,6 @@ class LogcatMonitor(threading.Thread):
         super(LogcatMonitor, self).__init__()
 
         self.target = target
-
-        self._started = threading.Event()
-        self._stopped = threading.Event()
-        self._match_found = threading.Event()
-
-        self._sought = None
-        self._found = None
-
-        self._lines = Queue.Queue()
-        self._datalock = threading.Lock()
         self._regexps = regexps
 
     def start(self, outfile=None):
@@ -585,15 +575,10 @@ class LogcatMonitor(threading.Thread):
         :type outfile: str
         """
         if outfile:
-            self._logfile = outfile
+            self._logfile = open(outfile)
         else:
-            fd, self._logfile = tempfile.mkstemp()
-            os.close(fd)
-        logger.debug('Logging to {}'.format(self._logfile))
+            self._logfile = tempfile.NamedTemporaryFile()
 
-        super(LogcatMonitor, self).start()
-
-    def run(self):
         self.target.clear_logcat()
 
         logcat_cmd = 'logcat'
@@ -605,86 +590,32 @@ class LogcatMonitor(threading.Thread):
                 regexp = '({})'.format(regexp)
             logcat_cmd = '{} -e "{}"'.format(logcat_cmd, regexp)
 
+        logcat_cmd = get_adb_command(self.target.conn.device, logcat_cmd)
+
         logger.debug('logcat command ="{}"'.format(logcat_cmd))
-        self._logcat = self.target.background(logcat_cmd)
-
-        self._started.set()
-
-        while not self._stopped.is_set():
-            line = self._logcat.stdout.readline(1024)
-            if line:
-                self._add_line(line)
+        self._logcat = pexpect.spawn(logcat_cmd, logfile=self._logfile)
 
     def stop(self):
-        if not self.is_alive():
-            logger.warning('LogcatMonitor.stop called before start')
-            return
-
-        # Make sure we've started before we try to kill anything
-        self._started.wait()
-
-        # Kill the underlying logcat process
-        # This will unblock self._logcat.stdout.readline()
-        host.kill_children(self._logcat.pid)
-        self._logcat.kill()
-
-        self._stopped.set()
-        self.join()
-
-        self._flush_lines()
-
-    def _add_line(self, line):
-        self._lines.put(line)
-
-        if self._sought and re.match(self._sought, line):
-            self._found = line
-            self._match_found.set()
-
-        if self._lines.qsize() >= self.FLUSH_SIZE:
-            self._flush_lines()
-
-    def _flush_lines(self):
-        with self._datalock:
-            with open(self._logfile, 'a') as fh:
-                while not self._lines.empty():
-                    fh.write(self._lines.get())
-
-    def clear_log(self):
-        with self._datalock:
-            while not self._lines.empty():
-                self._lines.get()
-
-            with open(self._logfile, 'w') as fh:
-                pass
+        self._logcat.terminate()
+        self._logfile.close()
 
     def get_log(self):
         """
         Return the list of lines found by the monitor
         """
-        self._flush_lines()
+        with open(self._logfile.name) as fh:
+            return [line for line in fh]
 
-        with self._datalock:
-            with open(self._logfile, 'r') as fh:
-                res = [line for line in fh]
-
-        return res
+    def clear_log(self):
+        with open(self._logfile, 'w') as fh:
+            pass
 
     def search(self, regexp):
         """
         Search a line that matches a regexp in the logcat log
         Return immediatly
         """
-        res = []
-
-        self._flush_lines()
-
-        with self._datalock:
-            with open(self._logfile, 'r') as fh:
-                for line in fh:
-                    if re.match(regexp, line):
-                        res.append(line)
-
-        return res
+        return [line for line in self.get_log() if re.match(regexp, line)]
 
     def wait_for(self, regexp, timeout=30):
         """
@@ -700,20 +631,21 @@ class LogcatMonitor(threading.Thread):
 
         :returns: List of matched strings
         """
-        res = self.search(regexp)
+        log = self.get_log()
+        res = [line for line in log if re.match(regexp, line)]
 
         # Found some matches, return them
-        # Also return if thread not running
-        if len(res) > 0 or not self.is_alive():
+        if len(res) > 0:
             return res
 
-        # Did not find any match, wait for one to pop up
-        self._sought = regexp
-        found = self._match_found.wait(timeout)
-        self._match_found.clear()
-        self._sought = None
+        # Store the number of lines we've searched already, so we don't have to
+        # re-grep them after 'expect' returns
+        next_line_num = len(log)
 
-        if found:
-            return [self._found]
-        else:
+        try:
+            self._logcat.expect(regexp, timeout=timeout)
+        except pexpect.TIMEOUT:
             raise RuntimeError('Logcat monitor timeout ({}s)'.format(timeout))
+
+        return [line for line in self.get_log()[next_line_num:]
+                if re.match(regexp, line)]
