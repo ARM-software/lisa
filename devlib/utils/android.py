@@ -537,6 +537,16 @@ def _check_env():
         aapt = _env.aapt
 
 class LogcatMonitor(threading.Thread):
+    """
+    Helper class for monitoring Anroid's logcat
+
+    :param target: Android target to monitor
+    :type target: :class:`AndroidTarget`
+
+                    device. Logcat entries that don't match any will not be
+                    seen. If omitted, all entries will be sent to host.
+    :type regexps: list(str)
+    """
 
     FLUSH_SIZE = 1000
 
@@ -561,6 +571,12 @@ class LogcatMonitor(threading.Thread):
         self._regexps = regexps
 
     def start(self, outfile=None):
+        """
+        Start logcat and begin monitoring
+
+        :param outfile: Optional path to file to store all logcat entries
+        :type outfile: str
+        """
         if outfile:
             self._logfile = outfile
         else:
@@ -667,6 +683,15 @@ class LogcatMonitor(threading.Thread):
         """
         Search a line that matches a regexp in the logcat log
         Wait for it to appear if it's not found
+
+        :param regexp: regexp to search
+        :type regexp: str
+
+        :param timeout: Timeout in seconds, before rasing RuntimeError.
+                        ``None`` means wait indefinitely
+        :type timeout: number
+
+        :returns: List of matched strings
         """
         res = self.search(regexp)
 
