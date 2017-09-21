@@ -442,13 +442,16 @@ def adb_list_devices(adb_server=None):
     return devices
 
 
-def adb_command(device, command, timeout=None,adb_server=None):
+def get_adb_command(device, command, timeout=None,adb_server=None):
     _check_env()
     device_string = ""
     if adb_server != None:
         device_string = ' -H {}'.format(adb_server)
     device_string += ' -s {}'.format(device) if device else ''
-    full_command = "adb{} {}".format(device_string, command)
+    return "adb{} {}".format(device_string, command)
+
+def adb_command(device, command, timeout=None,adb_server=None):
+    full_command = get_adb_command(device, command, timeout, adb_server)
     logger.debug(full_command)
     output, _ = check_output(full_command, timeout, shell=True)
     return output
