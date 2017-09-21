@@ -29,9 +29,10 @@ from devlib.utils.android import grant_app_permissions
 
 # Regexps for benchmark synchronization
 REGEXPS = {
-    'start'    : '.*Displayed com.google.android.exoplayer2.demo/.PlayerActivity',
-    'duration' : '.*period \[(?P<duration>[0-9]+.*)\]',
-    'end'      : '.*state \[.+, .+, E\]'
+    'start'         : '.*Displayed com.google.android.exoplayer2.demo/.PlayerActivity',
+    'duration'      : '.*period \[(?P<duration>[0-9]+.*)\]',
+    'end'           : '.*state \[.+, .+, E\]',
+    'dropped_frames': '.*droppedFrames \[(?P<session_time>[0-9]+\.[0-9]+), (?P<count>[0-9]+)\]'
 }
 
 
@@ -57,6 +58,10 @@ class ExoPlayer(ApkWorkload):
     loading the ExoPlayer sources into Android Studio.
 
     Version r2.4.0 built from commit d979469 is known to work
+
+    Produces a metric 'exoplayer_dropped_frames' - this is the count of frames
+    that Exoplayer itself reports as dropped. This is not the same thing as the
+    dropped frames reported by gfxinfo.
     """
 
     name = 'exoplayer'
@@ -181,6 +186,18 @@ class ExoPlayer(ApkWorkload):
             self.logger.info('Waiting for playback completion ({} seconds)'
                            .format(media_duration_s))
             self.monitor.wait_for(REGEXPS['end'], timeout = media_duration_s + 30)
+
+    def update_output(self, context):
+        regex = re.compile(REGEXPS['dropped_frames'])
+
+        dropped_frames = 0
+        for line in self.monitor.get_log():
+            match = regex.match(line)
+            if match:
+                dropped_frames += int(match.group('count'))
+
+        context.add_metric('exoplayer_dropped_frames', dropped_frames,
+                           lower_is_better=True)
 
     def teardown(self, context):
         super(ExoPlayer, self).teardown(context)
