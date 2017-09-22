@@ -388,8 +388,9 @@ class ReventGUI(object):
 
     def setup(self):
         self._check_revent_files()
-        self.revent_recorder.replay(self.on_target_setup_revent,
-                                    timeout=self.setup_timeout)
+        if self.revent_setup_file:
+            self.revent_recorder.replay(self.on_target_setup_revent,
+                                        timeout=self.setup_timeout)
 
     def run(self):
         msg = 'Replaying {}'
