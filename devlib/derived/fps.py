@@ -97,7 +97,7 @@ class DerivedGfxInfoStats(DerivedFpsStats):
 
         if frame_count:
             duration = end_vsync - start_vsync
-            fps = (1e9 * frame_count) / float(duration)
+            fps = (1e6 * frame_count) / float(duration)
         else:
             duration = 0
             fps = 0
@@ -116,7 +116,7 @@ class DerivedGfxInfoStats(DerivedFpsStats):
         data = pd.read_csv(measurements_csv.path)
         data = data[data.Flags_flags == 0]
         frame_time = data.FrameCompleted_time_us - data.IntendedVsync_time_us
-        per_frame_fps = (1e9 / frame_time)
+        per_frame_fps = (1e6 / frame_time)
         keep_filter = per_frame_fps > self.drop_threshold
         per_frame_fps = per_frame_fps[keep_filter]
         per_frame_fps.name = 'fps'
