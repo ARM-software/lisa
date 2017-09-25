@@ -202,7 +202,7 @@ class ReventRecording(object):
             raise ValueError(msg.format(self.filepath))
         self.version = version
 
-        if self.version == 2:
+        if 3 >= self.version >= 2:
             self.mode, = read_struct(fh, header_two_struct)
             if self.mode == GENERAL_MODE:
                 self._read_devices(fh)
@@ -211,6 +211,14 @@ class ReventRecording(object):
             else:
                 raise ValueError('Unexpected recording mode: {}'.format(self.mode))
             self.num_events, = read_struct(fh, u64_struct)
+            if self.version > 2:
+                ts_sec = read_struct(fh, u64_struct)
+                ts_usec = read_struct(fh, u64_struct)
+                self.start_time = datetime.fromtimestamp(ts_sec + float(ts_usec) / 1000000)
+                ts_sec = read_struct(fh, u64_struct)
+                ts_usec = read_struct(fh, u64_struct)
+                self.end_time = datetime.fromtimestamp(ts_sec + float(ts_usec) / 1000000)
+
         elif 2 > self.version >= 0:
             self.mode = GENERAL_MODE
             self._read_devices(fh)
@@ -281,8 +289,6 @@ class ReventRecorder(object):
 
     def stop_record(self):
         self.target.killall('revent', signal.SIGINT, as_root=self.target.is_rooted)
-        self.target.sleep(1)
-        self.target.execute('sync')
 
     def replay(self, revent_file, timeout=None):
         self.target.killall('revent')

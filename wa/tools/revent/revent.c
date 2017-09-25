@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -49,8 +50,10 @@
 
 const char MAGIC[] = "REVENT";
 
-// NOTE: This should be incremented if any changes are made to the file format
-uint16_t FORMAT_VERSION = 2;
+// NOTE: This should be incremented if any changes are made to the file format.
+//       Should that be the case, also make sure to update the format description
+//       in doc/source/revent.rst and the Python parser in wa/utils/revent.py.
+uint16_t FORMAT_VERSION = 3;
 
 typedef enum {
 	FALSE=0,
@@ -117,6 +120,8 @@ typedef struct {
 	input_devices_t devices;
 	device_info_t *gamepad_info;
 	uint64_t num_events;
+	struct timeval start_time;
+	struct timeval end_time;
 	replay_event_t *events;
 } revent_recording_t;
 
@@ -268,14 +273,17 @@ void adjust_event_times(revent_recording_t *recording)
 	if (recording->num_events == 0)
 		return;
 
-	time_zero.tv_sec = recording->events[0].event.time.tv_sec;
-	time_zero.tv_usec = recording->events[0].event.time.tv_usec;
+	time_zero.tv_sec = recording->start_time.tv_sec;
+	time_zero.tv_usec = recording->start_time.tv_usec;
 
 	for(i = 0; i < recording->num_events; i++) {
 		timersub(&recording->events[i].event.time, &time_zero, &time_delta);
 		recording->events[i].event.time.tv_sec = time_delta.tv_sec;
 		recording->events[i].event.time.tv_usec = time_delta.tv_usec;
 	}
+	timersub(&recording->end_time, &time_zero, &time_delta);
+	recording->end_time.tv_sec = time_delta.tv_sec;
+	recording->end_time.tv_usec = time_delta.tv_usec;
 }
 
 int write_record_header(int fd, const revent_record_desc_t *desc)
@@ -557,6 +565,28 @@ void print_device_info(device_info_t *info)
 				inf->minimum, inf->maximum, inf->fuzz, inf->flat,
 				inf->resolution);
 	}
+}
+
+int read_record_timestamps(FILE *fin, revent_recording_t *recording)
+{
+	int ret;
+	ret = fread(&recording->start_time.tv_sec, sizeof(uint64_t), 1, fin);
+	if (ret < 1)
+		return errno;
+
+	ret = fread(&recording->start_time.tv_usec, sizeof(uint64_t), 1, fin);
+	if (ret < 1)
+		return errno;
+
+	ret = fread(&recording->end_time.tv_sec, sizeof(uint64_t), 1, fin);
+	if (ret < 1)
+		return errno;
+
+	ret = fread(&recording->end_time.tv_usec, sizeof(uint64_t), 1, fin);
+	if (ret < 1)
+		return errno;
+
+	return 0;
 }
 
 int write_replay_event(FILE *fout, const replay_event_t *ev)
@@ -982,12 +1012,32 @@ inline void read_revent_recording_or_die(const char *filepath, revent_recording_
 		if (ret < 1)
 			die("Could not read the number of recorded events");
 
+		if (recording->desc.version > 2) {
+			ret = read_record_timestamps(fin, recording);
+			if (ret)
+				die("Could not read recroding timestamps.");
+		}
+
 		recording->events = malloc(sizeof(replay_event_t) * recording->num_events);
 		if (recording->events == NULL)
 			die("Not enough memory to allocate replay buffer");
 
-		for(i=0; i < recording->num_events; i++) {
+		// start/end times tracking for recording as a whole was added in version 3
+		// of recording format; for earlier recordings, use timestamps of the first and
+		// last events.
+		read_replay_event(fin, &recording->events[0]);
+		if (recording->desc.version <= 2) {
+			recording->start_time.tv_sec  = recording->events[0].event.time.tv_sec;
+			recording->start_time.tv_usec  = recording->events[0].event.time.tv_usec;
+		}
+
+		for(i=1; i < recording->num_events; i++) {
 			read_replay_event(fin, &recording->events[i]);
+		}
+
+		if (recording->desc.version <= 2) {
+			recording->end_time.tv_sec  = recording->events[i].event.time.tv_sec;
+			recording->end_time.tv_usec  = recording->events[i].event.time.tv_usec;
 		}
 	} else {   // backwards compatibility
 		/* Prior to verion 2, the total number of recorded events was not being
@@ -1039,6 +1089,7 @@ void exitHandler(int z) {
 void record(const char *filepath, int delay, recording_mode_t mode)
 {
 	int ret;
+	struct timespec start_time, end_time;
 	FILE *fout = init_recording(filepath, mode);
 	if (fout == NULL)
 		die("Could not create recording \"%s\": %s", filepath, strerror(errno));
@@ -1075,10 +1126,11 @@ void record(const char *filepath, int delay, recording_mode_t mode)
 
 	// Write the zero size as a place holder and remember the position in the
 	// file stream, so that it may be updated at the end with the actual event
-	// count.
+	// count. Reserving space for five uint64_t's -- the number of events and
+	// end time stamps.
 	uint64_t event_count = 0;
 	long size_pos = ftell(fout);
-	ret = fwrite(&event_count, sizeof(uint64_t), 1, fout);
+	ret = fwrite(&event_count, sizeof(uint64_t), 5, fout);
 	if (ret < 1)
 		die("Could not initialise event count: %s", strerror(errno));
 
@@ -1096,6 +1148,7 @@ void record(const char *filepath, int delay, recording_mode_t mode)
 	errno = 0;
 	signal(SIGINT, exitHandler);
 	
+	clock_gettime(CLOCK_MONOTONIC_RAW, &start_time);
 	while(1)
 	{
 		FD_ZERO(&readfds);
@@ -1160,6 +1213,7 @@ void record(const char *filepath, int delay, recording_mode_t mode)
 			}
 		}
 	}
+	clock_gettime(CLOCK_MONOTONIC_RAW, &end_time);
 
 	dprintf("Writing event count...");
 	if ((ret = fseek(fout, size_pos, SEEK_SET)) == -1)
@@ -1167,6 +1221,16 @@ void record(const char *filepath, int delay, recording_mode_t mode)
 	ret = fwrite(&event_count, sizeof(uint64_t), 1, fout);
 	if (ret < 1)
 		die("Could not write event count: %s", strerror(errno));
+	dprintf("Writing recording timestamps...");
+	uint64_t usecs;
+	fwrite(&start_time.tv_sec, sizeof(uint64_t), 1, fout);
+	usecs = start_time.tv_nsec / 1000;
+	fwrite(&usecs, sizeof(uint64_t), 1, fout);
+	fwrite(&end_time.tv_sec, sizeof(uint64_t), 1, fout);
+	usecs = end_time.tv_nsec / 1000;
+	ret = fwrite(&usecs, sizeof(uint64_t), 1, fout);
+	if (ret < 1)
+		die("Could not write recording timestamps: %s", strerror(errno));
 
 	fclose(fout);
 
@@ -1190,6 +1254,8 @@ void dump(const char *filepath)
 	printf("recording version: %u\n", recording.desc.version);
 	printf("recording type: %i\n", recording.desc.mode);
 	printf("number of recorded events: %lu\n", recording.num_events);
+	printf("start time: %ld.%06ld \n", recording.start_time.tv_sec, recording.start_time.tv_usec);
+	printf("end time:   %ld.%06ld \n", recording.end_time.tv_sec, recording.end_time.tv_usec);
 
 	printf("\n");
 	if (recording.desc.mode == GENERAL_MODE) {
@@ -1264,18 +1330,35 @@ void replay(const char *filepath)
 
 		int32_t idx = (recording.events[i]).dev_idx;
 		struct input_event ev = (recording.events[i]).event;
-		while((i < recording.num_events) && !timercmp(&ev.time, &last_event_delta, !=)) {
+		while(!timercmp(&ev.time, &last_event_delta, !=)) {
 			ret = write(recording.devices.fds[idx], &ev, sizeof(ev));
 			if (ret != sizeof(ev))
 				die("Could not replay event");
 			dprintf("replayed event: type %d code %d value %d\n", ev.type, ev.code, ev.value);
 
 			i++;
+			if (i >= recording.num_events) {
+				break;
+			}
 			idx = recording.events[i].dev_idx;
 			ev = recording.events[i].event;
 		}
 		last_event_delta = ev.time;
 	}
+	timeradd(&start_time, &recording.end_time, &desired_time);
+	gettimeofday(&now, NULL);
+	if (timercmp(&desired_time, &now, >)) {
+		timersub(&desired_time, &now, &delta);
+		useconds_t d = (useconds_t)delta.tv_sec * 1000000 + delta.tv_usec;
+		dprintf("now %u.%u recording end time %u.%u sleeping %u uS\n",
+				(unsigned int)now.tv_sec,
+				(unsigned int)now.tv_usec,
+				(unsigned int)desired_time.tv_sec,
+				(unsigned int)desired_time.tv_usec,
+				d);
+		usleep(d);
+	}
+
 
         if (recording.desc.mode == GAMEPAD_MODE)
 		destroy_replay_device(recording.devices.fds[0]);
