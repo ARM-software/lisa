@@ -1,7 +1,10 @@
 .. _revent_files_creation:
 
 revent
-======
+++++++
+
+Overview and Usage
+==================
 
 revent utility can be used to record and later play back a sequence of user
 input events, such as key presses and touch screen taps. This is an alternative
@@ -17,36 +20,47 @@ to Android UI Automator for providing automation for workloads. ::
                         info:shows info about each event char device
                         any additional parameters make it verbose
 
-
-.. note:: There are now also WA commands that perform the below steps.
-          Please see ``wa show record/replay`` and ``wa record/replay --help``
-          for details.
-
 Recording
 ---------
 
-To record, transfer the revent binary to the device, then invoke ``revent
-record``, giving it the time (in seconds) you want to record for, and the
-file you want to record to (WA expects these files to have .revent
-plugin)::
+WA features a ``record`` command that will automatically deploy and start
+revent on the target device::
 
-        host$  adb push revent /data/local/revent
-        host$  adb shell
-        device#  cd /data/local
-        device#  ./revent record 1000 my_recording.revent
+    wa record
+    INFO     Connecting to device...
+    INFO     Press Enter when you are ready to record...
+    [Pressed Enter]
+    INFO     Press Enter when you have finished recording...
+    [Pressed Enter]
+    INFO     Pulling files from device
 
-The recording has now started and button presses, taps, etc you perform on the
-device will go into the .revent file. The recording will stop after the
-specified time period, and you can also stop it by hitting return in the adb
-shell.
+Once started, you will need to get the target device ready to record (e.g.
+unlock screen, navigate menus and launch an app) then press ``ENTER``.
+The recording has now started and button presses, taps, etc you perform on
+the device will go into the .revent file. To stop the recording simply press
+``ENTER`` again.
+
+Once you have finished recording the revent file will be pulled from the device
+to the current directory. It will be named ``{device_model}.revent``. When
+recording revent files for a ``GameWorkload`` you can use the ``-s`` option to
+add ``run`` or ``setup`` suffixes.
+
+From version 2.6 of WA onwards, a "gamepad" recording mode is also supported.
+This mode requires a gamepad to be connected to the device when recoridng, but
+the recordings produced in this mode should be portable across devices.
+
+For more information run please read :ref:`record-command`
+
 
 Replaying
 ---------
 
-To replay a recorded file, run ``revent replay`` on the device, giving it the
-file you want to replay::
+To replay a recorded file, run ``wa replay``, giving it the file you want to
+replay::
 
-        device#  ./revent replay my_recording.revent
+        wa replay my_recording.revent
+
+For more information run please read :ref:`replay-command`
 
 
 Using revent With Workloads
