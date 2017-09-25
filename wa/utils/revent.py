@@ -281,6 +281,8 @@ class ReventRecorder(object):
 
     def stop_record(self):
         self.target.killall('revent', signal.SIGINT, as_root=self.target.is_rooted)
+        self.target.sleep(1)
+        self.target.execute('sync')
 
     def replay(self, revent_file, timeout=None):
         self.target.killall('revent')
