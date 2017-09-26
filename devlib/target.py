@@ -1024,8 +1024,12 @@ class AndroidTarget(Target):
         result = []
         for line in lines:
             parts = line.split(None, 8)
-            if parts:
-                result.append(PsEntry(*(parts[0:1] + map(int, parts[1:5]) + parts[5:])))
+            if not parts:
+                continue
+            if len(parts) == 8:
+                # wchan was blank; insert an empty field where it should be.
+                parts.insert(5, '')
+            result.append(PsEntry(*(parts[0:1] + map(int, parts[1:5]) + parts[5:])))
         if not kwargs:
             return result
         else:
