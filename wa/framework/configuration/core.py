@@ -14,7 +14,7 @@
 
 import os
 import re
-from copy import copy
+from copy import copy, deepcopy
 from collections import OrderedDict, defaultdict
 
 from wa.framework.exception import ConfigError, NotFoundError
@@ -1042,7 +1042,7 @@ class JobGenerator(object):
                 sections.insert(0, ancestor)
 
             for workload_entry in workload_entries:
-                job_spec = create_job_spec(workload_entry, sections,
+                job_spec = create_job_spec(deepcopy(workload_entry), sections,
                                            target_manager, self.plugin_cache,
                                            self.disabled_instruments)
                 if self.ids_to_run:
