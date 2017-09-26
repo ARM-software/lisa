@@ -259,6 +259,7 @@ class Trace(object):
         self._sanitize_SchedEnergyDiff()
         self._sanitize_SchedOverutilized()
         self._sanitize_CpuFrequency()
+        self._sanitize_ThermalPowerCpu()
 
     def __checkAvailableEvents(self, key=""):
         """
@@ -628,6 +629,34 @@ class Trace(object):
 
         self._log.debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
                         self.overutilized_time, self.overutilized_prc)
+
+    def _sanitize_ThermalPowerCpu(self):
+        self._sanitize_ThermalPowerCpuGetPower()
+        self._sanitize_ThermalPowerCpuLimit()
+
+    def _sanitize_ThermalPowerCpuMask(self, mask):
+        # Replace '00000000,0000000f' format in more usable int
+        return int(mask.replace(',', ''), 16)
+
+    def _sanitize_ThermalPowerCpuGetPower(self):
+        if not self.hasEvents('thermal_power_cpu_get_power'):
+            return
+
+        df = self._dfg_trace_event('thermal_power_cpu_get_power')
+
+        df['cpus'] = df['cpus'].apply(
+            self._sanitize_ThermalPowerCpuMask
+        )
+
+    def _sanitize_ThermalPowerCpuLimit(self):
+        if not self.hasEvents('thermal_power_cpu_limit'):
+            return
+
+        df = self._dfg_trace_event('thermal_power_cpu_limit')
+
+        df['cpus'] = df['cpus'].apply(
+            self._sanitize_ThermalPowerCpuMask
+        )
 
     def _chunker(self, seq, size):
         """
