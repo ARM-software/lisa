@@ -110,9 +110,8 @@ class JobState(object):
 
     @staticmethod
     def from_pod(pod):
-        instance = JobState(pod['id'], pod['label'], Status(pod['status']))
+        instance = JobState(pod['id'], pod['label'], pod['iteration'], Status(pod['status']))
         instance.retries = pod['retries']
-        instance.iteration = pod['iteration']
         instance.timestamp = pod['timestamp']
         return instance
 
