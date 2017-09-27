@@ -178,7 +178,7 @@ class RecordCommand(Command):
 
         self.logger.info('Deploying {}'.format(args.workload))
         workload = pluginloader.get_workload(args.workload, self.target)
-        workload.apk.init_resources(context.resolver)
+        workload.apk.initialize(context)
         workload.apk.setup(context)
         sleep(workload.loading_time)
 

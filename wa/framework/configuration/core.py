@@ -14,7 +14,7 @@
 
 import os
 import re
-from copy import copy
+from copy import copy, deepcopy
 from collections import OrderedDict, defaultdict
 
 from wa.framework.exception import ConfigError, NotFoundError
@@ -34,7 +34,7 @@ KIND_MAP = {
 
 Status = enum(['UNKNOWN', 'NEW', 'PENDING',
                'STARTED', 'CONNECTED', 'INITIALIZED', 'RUNNING',
-               'SKIPPED', 'ABORTED', 'FAILED', 'PARTIAL', 'OK'])
+               'OK', 'PARTIAL', 'FAILED', 'ABORTED', 'SKIPPED'])
 
 
 
@@ -272,12 +272,12 @@ class ConfigurationPoint(object):
             value = merge_config_values(getattr(obj, self.name), value)
         setattr(obj, self.name, value)
 
-    def validate(self, obj):
+    def validate(self, obj, check_mandatory=True):
         value = getattr(obj, self.name, None)
         if value is not None:
             self.validate_value(obj.name, value)
         else:
-            if self.mandatory:
+            if check_mandatory and self.mandatory:
                 msg = 'No value specified for mandatory parameter "{}" in {}.'
                 raise ConfigError(msg.format(self.name, obj.name))
 
@@ -928,7 +928,8 @@ class JobSpec(Configuration):
     def merge_workload_parameters(self, plugin_cache):
         # merge global generic and specific config
         workload_params = plugin_cache.get_plugin_config(self.workload_name,
-                                                         generic_name="workload_parameters")
+                                                         generic_name="workload_parameters",
+                                                         is_final=False)
 
         cfg_points = plugin_cache.get_plugin_parameters(self.workload_name)
         for source in self._sources:
@@ -1041,7 +1042,7 @@ class JobGenerator(object):
                 sections.insert(0, ancestor)
 
             for workload_entry in workload_entries:
-                job_spec = create_job_spec(workload_entry, sections,
+                job_spec = create_job_spec(deepcopy(workload_entry), sections,
                                            target_manager, self.plugin_cache,
                                            self.disabled_instruments)
                 if self.ids_to_run:

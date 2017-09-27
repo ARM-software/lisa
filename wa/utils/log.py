@@ -165,6 +165,8 @@ def log_error(e, logger, critical=False):
         log_func(tb)
         log_func('{}({})'.format(e.__class__.__name__, e))
 
+    e.logged = True
+
 
 class ErrorSignalHandler(logging.Handler):
     """
