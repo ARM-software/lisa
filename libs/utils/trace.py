@@ -847,6 +847,10 @@ class Trace(object):
             )
 
         active.fillna(method='ffill', inplace=True)
+        # There might be NaNs in the signal where we got data from some CPUs
+        # before others. That will break the .astype(int) below, so drop rows
+        # with NaN in them.
+        active.dropna(inplace=True)
 
         # Cluster active is the OR between the actives on each CPU
         # belonging to that specific cluster
