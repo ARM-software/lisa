@@ -12,8 +12,49 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+from devlib.instrument import MeasurementType, MEASUREMENT_TYPES
+
+
+class DerivedMetric(object):
+
+    __slots__ = ['name', 'value', 'measurement_type']
+
+    @property
+    def units(self):
+        return self.measurement_type.units
+
+    def __init__(self, name, value, measurement_type):
+        self.name = name
+        self.value = value
+        if isinstance(measurement_type, MeasurementType):
+            self.measurement_type = measurement_type
+        else:
+            try:
+                self.measurement_type = MEASUREMENT_TYPES[measurement_type]
+            except KeyError:
+                msg = 'Unknown measurement type:  {}'
+                raise ValueError(msg.format(measurement_type))
+
+    def __cmp__(self, other):
+        if hasattr(other, 'value'):
+            return cmp(self.value, other.value)
+        else:
+            return cmp(self.value, other)
+
+    def __str__(self):
+        if self.units:
+            return '{}: {} {}'.format(self.name, self.value, self.units)
+        else:
+            return '{}: {}'.format(self.name, self.value)
+
+    __repr__ = __str__
+
+
 class DerivedMeasurements(object):
 
-    @staticmethod
-    def process(measurements_csv):
-        raise NotImplementedError()
+    def process(self, measurements_csv):
+        return []
+
+    def process_raw(self, *args):
+        return []

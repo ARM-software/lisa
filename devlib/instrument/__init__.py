@@ -72,38 +72,60 @@ class MeasurementType(object):
             return text.format(self.name, self.units)
 
 
-# Standard measures
+# Standard measures. In order to make sure that downstream data processing is not tied
+# to particular insturments (e.g. a particular method of mearuing power), instruments
+# must, where possible, resport their measurments formatted as on of the standard types
+# defined here.
 _measurement_types = [
+    # For whatever reason, the type of measurement could not be established.
     MeasurementType('unknown', None),
-    MeasurementType('time', 'seconds',
+
+    # Generic measurements
+    MeasurementType('count', 'count'),
+    MeasurementType('percent', 'percent'),
+
+    # Time measurement. While there is typically a single "canonical" unit
+    # used for each type of measurmenent, time may be measured to a wide variety
+    # of events occuring at a wide range of scales. Forcing everying into a
+    # single scale will lead to inefficient and awkward to work with result tables.
+    # Coversion functions between the formats are specified, so that downstream
+    # processors that expect all times time be at a particular scale can automatically
+    # covert without being familar with individual instruments.
+    MeasurementType('time', 'seconds', 'time',
         conversions={
             'time_us': lambda x: x * 1000000,
             'time_ms': lambda x: x * 1000,
         }
     ),
-    MeasurementType('time_us', 'microseconds',
+    MeasurementType('time_us', 'microseconds', 'time',
         conversions={
             'time': lambda x: x / 1000000,
             'time_ms': lambda x: x / 1000,
         }
     ),
-    MeasurementType('time_ms', 'milliseconds',
+    MeasurementType('time_ms', 'milliseconds', 'time',
         conversions={
             'time': lambda x: x / 1000,
             'time_us': lambda x: x * 1000,
         }
     ),
-    MeasurementType('temperature', 'degrees'),
 
+    # Measurements related to thermals.
+    MeasurementType('temperature', 'degrees', 'thermal'),
+
+    # Measurements related to power end energy consumption.
     MeasurementType('power', 'watts', 'power/energy'),
     MeasurementType('voltage', 'volts', 'power/energy'),
     MeasurementType('current', 'amps', 'power/energy'),
     MeasurementType('energy', 'joules', 'power/energy'),
 
+    # Measurments realted to data transfer, e.g. neworking,
+    # memory, or backing storage.
     MeasurementType('tx', 'bytes', 'data transfer'),
     MeasurementType('rx', 'bytes', 'data transfer'),
     MeasurementType('tx/rx', 'bytes', 'data transfer'),
 
+    MeasurementType('fps', 'fps', 'ui render'),
     MeasurementType('frames', 'frames', 'ui render'),
 ]
 for m in _measurement_types:
@@ -127,7 +149,7 @@ class Measurement(object):
         self.channel = channel
 
     def __cmp__(self, other):
-        if isinstance(other, Measurement):
+        if hasattr(other, 'value'):
             return cmp(self.value, other.value)
         else:
             return cmp(self.value, other)
@@ -147,26 +169,32 @@ class MeasurementsCsv(object):
         self.path = path
         self.channels = channels
         self.sample_rate_hz = sample_rate_hz
-        self._fh = open(path, 'rb')
         if self.channels is None:
             self._load_channels()
+        headings = [chan.label for chan in self.channels]
+        self.data_tuple = collections.namedtuple('csv_entry', headings)
 
     def measurements(self):
-        return list(self.itermeasurements())
+        return list(self.iter_measurements())
 
-    def itermeasurements(self):
-        self._fh.seek(0)
-        reader = csv.reader(self._fh)
-        reader.next()  # headings
-        for row in reader:
+    def iter_measurements(self):
+        for row in self._iter_rows():
             values = map(numeric, row)
             yield [Measurement(v, c) for (v, c) in zip(values, self.channels)]
 
+    def values(self):
+        return list(self.iter_values())
+
+    def iter_values(self):
+        for row in self._iter_rows():
+            values = map(numeric, row)
+            yield self.data_tuple(*values)
+
     def _load_channels(self):
-        self._fh.seek(0)
-        reader = csv.reader(self._fh)
-        header = reader.next()
-        self._fh.seek(0)
+        header = []
+        with open(self.path, 'rb') as fh:
+            reader = csv.reader(fh)
+            header = reader.next()
 
         self.channels = []
         for entry in header:
@@ -175,22 +203,35 @@ class MeasurementsCsv(object):
                 if entry.endswith(suffix):
                     site =  entry[:-len(suffix)]
                     measure = mt
-                    name = '{}_{}'.format(site, measure)
                     break
             else:
-                site = entry
-                measure = 'unknown'
-                name = entry
+                if entry in MEASUREMENT_TYPES:
+                    site = None
+                    measure = entry
+                else:
+                    site = entry
+                    measure = 'unknown'
 
-            chan = InstrumentChannel(name, site, measure)
+            chan = InstrumentChannel(site, measure)
             self.channels.append(chan)
+
+    def _iter_rows(self):
+        with open(self.path, 'rb') as fh:
+            reader = csv.reader(fh)
+            reader.next()  # headings
+            for row in reader:
+                yield row
 
 
 class InstrumentChannel(object):
 
     @property
     def label(self):
-        return '{}_{}'.format(self.site, self.kind)
+        if self.site is not None:
+            return '{}_{}'.format(self.site, self.kind)
+        return self.kind
+
+    name = label
 
     @property
     def kind(self):
@@ -200,8 +241,7 @@ class InstrumentChannel(object):
     def units(self):
         return self.measurement_type.units
 
-    def __init__(self, name, site, measurement_type, **attrs):
-        self.name = name
+    def __init__(self, site, measurement_type, **attrs):
         self.site = site
         if isinstance(measurement_type, MeasurementType):
             self.measurement_type = measurement_type
@@ -243,10 +283,8 @@ class Instrument(object):
             measure = measure.name
         return [c for c in self.list_channels() if c.kind == measure]
 
-    def add_channel(self, site, measure, name=None, **attrs):
-        if name is None:
-            name = '{}_{}'.format(site, measure)
-        chan = InstrumentChannel(name, site, measure, **attrs)
+    def add_channel(self, site, measure, **attrs):
+        chan = InstrumentChannel(site, measure, **attrs)
         self.channels[chan.label] = chan
 
     # initialization and teardown
@@ -297,3 +335,6 @@ class Instrument(object):
 
     def get_data(self, outfile):
         pass
+
+    def get_raw(self):
+        return []

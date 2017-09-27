@@ -33,6 +33,7 @@ class DaqInstrument(Instrument):
         # pylint: disable=no-member
         super(DaqInstrument, self).__init__(target)
         self._need_reset = True
+        self._raw_files = []
         if execute_command is None:
             raise HostError('Could not import "daqpower": {}'.format(import_error_mesg))
         if labels is None:
@@ -68,6 +69,7 @@ class DaqInstrument(Instrument):
         if not result.status == Status.OK:  # pylint: disable=no-member
             raise HostError(result.message)
         self._need_reset = False
+        self._raw_files = []
 
     def start(self):
         if self._need_reset:
@@ -86,6 +88,7 @@ class DaqInstrument(Instrument):
             site = os.path.splitext(entry)[0]
             path = os.path.join(tempdir, entry)
             raw_file_map[site] = path
+            self._raw_files.append(path)
 
         active_sites = unique([c.site for c in self.active_channels])
         file_handles = []
@@ -130,6 +133,9 @@ class DaqInstrument(Instrument):
         finally:
             for fh in file_handles:
                 fh.close()
+
+    def get_raw(self):
+        return self._raw_files
 
     def teardown(self):
         self.execute('close')

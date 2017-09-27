@@ -65,8 +65,8 @@ Instrument
    :INSTANTANEOUS: The instrument supports taking a single sample via
                    ``take_measurement()``.
    :CONTINUOUS: The instrument supports collecting measurements over a
-                period of time via ``start()``, ``stop()``, and
-                ``get_data()`` methods.
+                period of time via ``start()``, ``stop()``, ``get_data()``,
+		and (optionally) ``get_raw`` methods.
 
    .. note:: It's possible for one instrument to support more than a single
              mode.
@@ -161,6 +161,13 @@ Instrument
    .. note:: This method is only implemented by :class:`Instrument`\ s that
              support ``CONTINUOUS`` measurement.
 
+.. method:: Instrument.get_raw()
+
+   Returns a list of paths to files containing raw output from the underlying
+   source(s) that is used to produce the data CSV. If now raw output is
+   generated or saved, an empty list will be returned. The format of the
+   contents of the raw files is entirely source-dependent.
+
 .. attribute:: Instrument.sample_rate_hz
 
    Sample rate of the instrument in Hz. Assumed to be the same for all channels.
@@ -229,13 +236,15 @@ defined measurement types are
 +-------------+-------------+---------------+
 | name        | units       | category      |
 +=============+=============+===============+
-| time        | seconds     |               |
+| count       | count       |               |
 +-------------+-------------+---------------+
-| time        | microseconds|               |
+| percent     | percent     |               |
 +-------------+-------------+---------------+
-| time        | milliseconds|               |
+| time_us     | microseconds|  time         |
 +-------------+-------------+---------------+
-| temperature | degrees     |               |
+| time_ms     | milliseconds|  time         |
++-------------+-------------+---------------+
+| temperature | degrees     |  thermal      |
 +-------------+-------------+---------------+
 | power       | watts       | power/energy  |
 +-------------+-------------+---------------+

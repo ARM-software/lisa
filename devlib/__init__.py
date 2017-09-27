@@ -19,8 +19,8 @@ from devlib.instrument.monsoon import MonsoonInstrument
 from devlib.instrument.netstats import NetstatsInstrument
 from devlib.instrument.gem5power import Gem5PowerInstrument
 
-from devlib.derived import DerivedMeasurements
-from devlib.derived.derived_measurements import DerivedEnergyMeasurements
+from devlib.derived import DerivedMeasurements, DerivedMetric
+from devlib.derived.energy import DerivedEnergyMeasurements
 
 from devlib.trace.ftrace import FtraceCollector
 

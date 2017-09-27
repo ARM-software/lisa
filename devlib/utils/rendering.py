@@ -83,9 +83,14 @@ class FrameCollector(threading.Thread):
             header = self.header
             frames = self.frames
         else:
-            header = [c for c in self.header if c in columns]
-            indexes = [self.header.index(c) for c in header]
+            indexes = []
+            for c in columns:
+                if c not in self.header:
+                    msg = 'Invalid column "{}"; must be in {}'
+                    raise ValueError(msg.format(c, self.header))
+                indexes.append(self.header.index(c))
             frames = [[f[i] for i in indexes] for f in self.frames]
+            header = columns
         with open(outfile, 'w') as wfh:
             writer = csv.writer(wfh)
             if header:
@@ -122,7 +127,8 @@ class SurfaceFlingerFrameCollector(FrameCollector):
         return self.target.execute(cmd.format(activity))
 
     def list(self):
-        return self.target.execute('dumpsys SurfaceFlinger --list').split('\r\n')
+        text = self.target.execute('dumpsys SurfaceFlinger --list')
+        return text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
 
     def _process_raw_file(self, fh):
         text = fh.read().replace('\r\n', '\n').replace('\r', '\n')
@@ -203,3 +209,43 @@ class GfxinfoFrameCollector(FrameCollector):
         if not found:
             logger.warning('Could not find frames data in gfxinfo output')
             return
+
+
+def _file_reverse_iter(fh, buf_size=1024):
+    fh.seek(0, os.SEEK_END)
+    offset = 0
+    file_size = remaining_size = fh.tell()
+    while remaining_size > 0:
+        offset = min(file_size, offset + buf_size)
+        fh.seek(file_size - offset)
+        buf = fh.read(min(remaining_size, buf_size))
+        remaining_size -= buf_size
+        yield buf
+
+
+def gfxinfo_get_last_dump(filepath):
+    """
+    Return the last gfxinfo dump from the frame collector's raw output.
+
+    """
+    record = ''
+    with open(filepath, 'r') as fh:
+        fh_iter = _file_reverse_iter(fh)
+        try:
+            while True:
+                buf = fh_iter.next()
+                ix = buf.find('** Graphics')
+                if ix >= 0:
+                    return buf[ix:] + record
+
+                ix = buf.find(' **\n')
+                if ix >= 0:
+                    buf =  fh_iter.next() + buf
+                    ix = buf.find('** Graphics')
+                    if ix < 0:
+                        msg = '"{}" appears to be corrupted'
+                        raise RuntimeError(msg.format(filepath))
+                    return buf[ix:] + record
+                record = buf + record
+        except StopIteration:
+            pass

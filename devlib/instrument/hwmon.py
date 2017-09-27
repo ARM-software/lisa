@@ -45,7 +45,7 @@ class HwmonInstrument(Instrument):
                 measure = self.measure_map.get(ts.kind)[0]
                 if measure:
                     self.logger.debug('\tAdding sensor {}'.format(ts.name))
-                    self.add_channel(_guess_site(ts), measure, name=ts.name, sensor=ts)
+                    self.add_channel(_guess_site(ts), measure, sensor=ts)
                 else:
                     self.logger.debug('\tSkipping sensor {} (unknown kind "{}")'.format(ts.name, ts.kind))
             except ValueError:

@@ -20,6 +20,7 @@ class FramesInstrument(Instrument):
         self.collector = None
         self.header = None
         self._need_reset = True
+        self._raw_file = None
         self._init_channels()
 
     def reset(self, sites=None, kinds=None, channels=None):
@@ -27,6 +28,7 @@ class FramesInstrument(Instrument):
         self.collector = self.collector_cls(self.target, self.period,
                                             self.collector_target, self.header)
         self._need_reset = False
+        self._raw_file = None
 
     def start(self):
         if self._need_reset:
@@ -38,13 +40,15 @@ class FramesInstrument(Instrument):
         self._need_reset = True
 
     def get_data(self, outfile):
-        raw_outfile = None
         if self.keep_raw:
-            raw_outfile = outfile + '.raw'
-        self.collector.process_frames(raw_outfile)
+            self._raw_file = outfile + '.raw'
+        self.collector.process_frames(self._raw_file)
         active_sites = [chan.label for chan in self.active_channels]
         self.collector.write_frames(outfile, columns=active_sites)
         return MeasurementsCsv(outfile, self.active_channels, self.sample_rate_hz)
+
+    def get_raw(self):
+        return [self._raw_file] if self._raw_file else []
 
     def _init_channels(self):
         raise NotImplementedError()

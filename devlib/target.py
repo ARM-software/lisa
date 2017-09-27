@@ -1011,11 +1011,12 @@ class AndroidTarget(Target):
             self.uninstall_executable(name)
 
     def get_pids_of(self, process_name):
-        result = self.execute('ps {}'.format(process_name[-15:]), check_exit_code=False).strip()
-        if result and 'not found' not in result:
-            return [int(x.split()[1]) for x in result.split('\n')[1:]]
-        else:
-            return []
+        result = []
+        search_term = process_name[-15:]
+        for entry in self.ps():
+            if search_term in entry.name:
+                result.append(entry.pid)
+        return result
 
     def ps(self, **kwargs):
         lines = iter(convert_new_lines(self.execute('ps')).split('\n'))
@@ -1023,8 +1024,12 @@ class AndroidTarget(Target):
         result = []
         for line in lines:
             parts = line.split(None, 8)
-            if parts:
-                result.append(PsEntry(*(parts[0:1] + map(int, parts[1:5]) + parts[5:])))
+            if not parts:
+                continue
+            if len(parts) == 8:
+                # wchan was blank; insert an empty field where it should be.
+                parts.insert(5, '')
+            result.append(PsEntry(*(parts[0:1] + map(int, parts[1:5]) + parts[5:])))
         if not kwargs:
             return result
         else:
