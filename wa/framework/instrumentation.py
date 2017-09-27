@@ -275,7 +275,10 @@ class ManagedCallback(object):
                 if isinstance(e, WorkloadError):
                     context.set_status('FAILED')
                 else:
-                    context.set_status('PARTIAL')
+                    if context.current_job:
+                        context.set_status('PARTIAL')
+                    else:
+                        raise
 
 
 # Need this to keep track of callbacks, because the dispatcher only keeps
