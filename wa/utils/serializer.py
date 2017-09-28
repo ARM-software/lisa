@@ -75,6 +75,7 @@ POD_TYPES = [
     int,
     float,
     bool,
+    OrderedDict,
     datetime,
     regex_type,
     none_type,
