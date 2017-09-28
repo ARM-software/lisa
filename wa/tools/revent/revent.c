@@ -265,13 +265,10 @@ inline void block_sigterm(sigset_t *oldset)
 
 // Events are recorded with their original timestamps, but for playback, we
 // want to treat timestamps as deltas from event zero.
-void adjust_event_times(revent_recording_t *recording)
+void adjust_timestamps(revent_recording_t *recording)
 {
 	uint64_t i;
 	struct timeval time_zero, time_delta;
-
-	if (recording->num_events == 0)
-		return;
 
 	time_zero.tv_sec = recording->start_time.tv_sec;
 	time_zero.tv_usec = recording->start_time.tv_usec;
@@ -1302,8 +1299,8 @@ void replay(const char *filepath)
 	default:
 		die("Unexpected recording mod: %d", recording.desc.mode);
 	}
-	dprintf("Adjusting event timestamps\n");
-	adjust_event_times(&recording);
+	dprintf("Adjusting timestamps\n");
+	adjust_timestamps(&recording);
 
 	struct timeval start_time, now, desired_time, last_event_delta, delta;
 	bzero(&last_event_delta, sizeof(struct timeval));
@@ -1345,12 +1342,13 @@ void replay(const char *filepath)
 		}
 		last_event_delta = ev.time;
 	}
+
 	timeradd(&start_time, &recording.end_time, &desired_time);
 	gettimeofday(&now, NULL);
 	if (timercmp(&desired_time, &now, >)) {
 		timersub(&desired_time, &now, &delta);
 		useconds_t d = (useconds_t)delta.tv_sec * 1000000 + delta.tv_usec;
-		dprintf("now %u.%u recording end time %u.%u sleeping %u uS\n",
+		dprintf("now %u.%u recording end time %u.%u; sleeping %u uS\n",
 				(unsigned int)now.tv_sec,
 				(unsigned int)now.tv_usec,
 				(unsigned int)desired_time.tv_sec,
@@ -1358,7 +1356,14 @@ void replay(const char *filepath)
 				d);
 		usleep(d);
 	}
-
+	else {
+		dprintf("now %u.%u recording end time %u.%u; no need to sleep\n",
+				(unsigned int)now.tv_sec,
+				(unsigned int)now.tv_usec,
+				(unsigned int)desired_time.tv_sec,
+				(unsigned int)desired_time.tv_usec);
+	}
+	dprintf("Playback complete\n");
 
         if (recording.desc.mode == GAMEPAD_MODE)
 		destroy_replay_device(recording.devices.fds[0]);
