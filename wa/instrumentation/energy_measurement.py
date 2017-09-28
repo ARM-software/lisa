@@ -255,5 +255,4 @@ class EnergyMeasurement(Instrument):
     def extract_metrics(self, context):
         derived_measurements = DerivedEnergyMeasurements.process(self.measurement_csv)
         for meas in derived_measurements:
-            name = '{}_{}'.format(meas.channel.site, meas.channel.name)
-            context.add_metric(name, meas.value, meas.units)
+            context.add_metric(meas.name, meas.value, meas.units)
