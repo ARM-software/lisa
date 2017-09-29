@@ -99,12 +99,14 @@ class Workload(TargetedPlugin):
     def __str__(self):
         return '<Workload {}>'.format(self.name)
 
+
 class ApkWorkload(Workload):
 
     # May be optionally overwritten by subclasses
     # Times are in seconds
     loading_time = 10
     package_names = []
+    view = None
 
     parameters = [
         Parameter('package_name', kind=str,
@@ -175,6 +177,9 @@ class ApkWorkload(Workload):
     @once_per_instance
     def initialize(self, context):
         self.apk.initialize(context)
+        if self.view is None:
+            self.view = 'SurfaceView - {}/{}'.format(self.apk.package,
+                                                     self.apk.activity)
 
     def setup(self, context):
         self.apk.setup(context)
@@ -439,6 +444,12 @@ class PackageHandler(object):
         if self.apk_info is None:
             return None
         return self.apk_info.package
+
+    @property
+    def activity(self):
+        if self.apk_info is None:
+            return None
+        return self.apk_info.activity
 
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
                  package_name=None, strict=False, force_install=False, uninstall=False,
