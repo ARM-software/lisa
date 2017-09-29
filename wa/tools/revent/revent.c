@@ -739,6 +739,8 @@ int init_general_input_devices(input_devices_t *devices)
 	char paths[INPDEV_MAX_DEVICES][INPDEV_MAX_PATH];
 	int fds[INPDEV_MAX_DEVICES];
 	int max_fd = 0;
+	int ret;
+	int clk_id = CLOCK_MONOTONIC;
 
 	num = 0;
 	for(i = 0; i < INPDEV_MAX_DEVICES; ++i) {
@@ -747,6 +749,10 @@ int init_general_input_devices(input_devices_t *devices)
 		if(fds[num] > 0) {
 			if (fds[num] > max_fd)
 				max_fd = fds[num];
+			if (ret = ioctl(fds[num], EVIOCSCLOCKID, &clk_id)) {
+				dprintf("Failed to set monotonic clock for %s.\n", paths[num]);
+				return -ret;
+			}
 			dprintf("opened %s\n", paths[num]);
 			num++;
 		}
@@ -851,6 +857,13 @@ int init_gamepad_input_devices(input_devices_t *devices, device_info_t *gamepad_
 	if (devices->fds[0] < 0) {
 		return errno;
 	}
+
+	int clk_id = CLOCK_MONOTONIC;
+	if (ret = ioctl(devices->fds[0], EVIOCSCLOCKID, &clk_id)) {
+		dprintf("Could not set monotonic clock for the gamepad.\n");
+		return -ret;
+	}
+
 	devices->max_fd = devices->fds[0];
 
 	return 0;
@@ -882,7 +895,9 @@ void fini_revent_recording(revent_recording_t *recording)
 		// We're finalizing the recording so at this point,
 		// we don't care.
 	}
-	free(recording->events);
+	if (recording->num_events) {
+		free(recording->events);
+	}
 	recording->num_events = 0;
 	recording->desc.version = 0;
 	recording->desc.mode = INVALID_MODE;
@@ -1145,7 +1160,7 @@ void record(const char *filepath, int delay, recording_mode_t mode)
 	errno = 0;
 	signal(SIGINT, exitHandler);
 	
-	clock_gettime(CLOCK_MONOTONIC_RAW, &start_time);
+	clock_gettime(CLOCK_MONOTONIC, &start_time);
 	while(1)
 	{
 		FD_ZERO(&readfds);
@@ -1210,15 +1225,15 @@ void record(const char *filepath, int delay, recording_mode_t mode)
 			}
 		}
 	}
-	clock_gettime(CLOCK_MONOTONIC_RAW, &end_time);
+	clock_gettime(CLOCK_MONOTONIC, &end_time);
 
-	dprintf("Writing event count...");
+	dprintf("Writing event count...\n");
 	if ((ret = fseek(fout, size_pos, SEEK_SET)) == -1)
 		die("Could not write event count: %s", strerror(errno));
 	ret = fwrite(&event_count, sizeof(uint64_t), 1, fout);
 	if (ret < 1)
 		die("Could not write event count: %s", strerror(errno));
-	dprintf("Writing recording timestamps...");
+	dprintf("Writing recording timestamps...\n");
 	uint64_t usecs;
 	fwrite(&start_time.tv_sec, sizeof(uint64_t), 1, fout);
 	usecs = start_time.tv_nsec / 1000;
@@ -1227,9 +1242,10 @@ void record(const char *filepath, int delay, recording_mode_t mode)
 	usecs = end_time.tv_nsec / 1000;
 	ret = fwrite(&usecs, sizeof(uint64_t), 1, fout);
 	if (ret < 1)
-		die("Could not write recording timestamps: %s", strerror(errno));
+		die("Could not write recording timestamps: %s\n", strerror(errno));
 
 	fclose(fout);
+	dprintf("Recording complete.\n");
 
 	if (mode == GENERAL_MODE) {
 		fini_general_input_devices(&devices);
