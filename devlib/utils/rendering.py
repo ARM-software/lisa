@@ -18,6 +18,8 @@ logger = logging.getLogger('rendering')
 SurfaceFlingerFrame = namedtuple('SurfaceFlingerFrame',
                                  'desired_present_time actual_present_time frame_ready_time')
 
+VSYNC_INTERVAL = 16666667
+
 
 class FrameCollector(threading.Thread):
 
@@ -193,6 +195,7 @@ class GfxinfoFrameCollector(FrameCollector):
     def _process_raw_file(self, fh):
         found = False
         try:
+            last_vsync = 0
             while True:
                 for line in fh:
                     if line.startswith('---PROFILEDATA---'):
@@ -203,7 +206,11 @@ class GfxinfoFrameCollector(FrameCollector):
                 for line in fh:
                     if line.startswith('---PROFILEDATA---'):
                         break
-                    self.frames.append(map(int, line.strip().split(',')[:-1]))  # has a trailing ','
+                    entries = map(int, line.strip().split(',')[:-1])  # has a trailing ','
+                    if entries[1] <= last_vsync:
+                        continue  # repeat frame
+                    last_vsync = entries[1]
+                    self.frames.append(entries)
         except StopIteration:
             pass
         if not found:

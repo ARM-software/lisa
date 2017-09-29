@@ -1,3 +1,4 @@
+from __future__ import division
 from devlib.instrument import (Instrument, CONTINUOUS,
                                MeasurementsCsv, MeasurementType)
 from devlib.utils.rendering import (GfxinfoFrameCollector,
