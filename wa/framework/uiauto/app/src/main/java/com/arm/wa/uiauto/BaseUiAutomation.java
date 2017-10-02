@@ -43,6 +43,8 @@ public class BaseUiAutomation {
     // Time in milliseconds
     public long uiAutoTimeout = 4 * 1000;
 
+    public enum Direction { UP, DOWN, LEFT, RIGHT, NULL };
+
     public static final int CLICK_REPEAT_INTERVAL_MINIMUM = 5;
     public static final int CLICK_REPEAT_INTERVAL_DEFAULT = 50;
 
@@ -146,6 +148,79 @@ public class BaseUiAutomation {
 
         if ((currentTime - startTime) >= timeout) {
             throw new TimeoutException("Timed out waiting for Logcat text \"%s\"".format(searchText));
+        }
+    }
+
+    public int getDisplayHeight() {
+        return mDevice.getDisplayHeight();
+    }
+
+    public int getDisplayWidth() {
+        return mDevice.getDisplayWidth();
+    }
+
+    public int getDisplayCentreWidth() {
+        return getDisplayWidth() / 2;
+    }
+
+    public int getDisplayCentreHeight() {
+        return getDisplayHeight() / 2;
+    }
+
+    public void uiDeviceSwipeUp(int steps) {
+        mDevice.swipe(
+            getDisplayCentreWidth(),
+            (getDisplayCentreHeight() + (getDisplayCentreHeight() / 2)),
+            getDisplayCentreWidth(),
+            (getDisplayCentreHeight() / 2),
+            steps);
+    }
+
+    public void uiDeviceSwipeDown(int steps) {
+        mDevice.swipe(
+            getDisplayCentreWidth(),
+            (getDisplayCentreHeight() / 2),
+            getDisplayCentreWidth(),
+            (getDisplayCentreHeight() + (getDisplayCentreHeight() / 2)),
+            steps);
+    }
+
+    public void uiDeviceSwipeLeft(int steps) {
+        mDevice.swipe(
+            (getDisplayCentreWidth() + (getDisplayCentreWidth() / 2)),
+            getDisplayCentreHeight(),
+            (getDisplayCentreWidth() / 2),
+            getDisplayCentreHeight(),
+            steps);
+    }
+
+    public void uiDeviceSwipeRight(int steps) {
+        mDevice.swipe(
+            (getDisplayCentreWidth() / 2),
+            getDisplayCentreHeight(),
+            (getDisplayCentreWidth() + (getDisplayCentreWidth() / 2)),
+            getDisplayCentreHeight(),
+            steps);
+    }
+
+    public void uiDeviceSwipe(Direction direction, int steps) throws Exception {
+        switch (direction) {
+            case UP:
+                uiDeviceSwipeUp(steps);
+                break;
+            case DOWN:
+                uiDeviceSwipeDown(steps);
+                break;
+            case LEFT:
+                uiDeviceSwipeLeft(steps);
+                break;
+            case RIGHT:
+                uiDeviceSwipeRight(steps);
+                break;
+            case NULL:
+                throw new Exception("No direction specified");
+            default:
+                break;
         }
     }
 
