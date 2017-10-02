@@ -15,6 +15,7 @@
 import re
 from collections import defaultdict
 
+from devlib import TargetError
 from devlib.module import Module
 from devlib.utils.types import integer
 
@@ -116,7 +117,15 @@ class HwmonModule(Module):
 
     @staticmethod
     def probe(target):
-        return target.file_exists(HWMON_ROOT)
+        if not target.file_exists(HWMON_ROOT):
+            return False
+        try:
+            target.list_directory(HWMON_ROOT, as_root=target.is_rooted)
+        except TargetError:
+            # Probably no permissions
+            return False
+
+        return True
 
     @property
     def sensors(self):
