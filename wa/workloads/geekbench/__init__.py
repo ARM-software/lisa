@@ -112,6 +112,12 @@ class Geekbench(ApkUiautoWorkload):
         self.gui.uiauto_params['times'] = self.times
         self.gui.uiauto_params['is_corporate'] = self.is_corporate
 
+    def initialize(self, context):
+        super(Geekbench, self).initialize(context)
+        if not self.target.is_rooted:
+            raise WorkloadError(
+                'Geekbench workload requires root to collect results')
+
     def setup(self, context):
         super(Geekbench, self).setup(context)
         self.run_timeout = self.timeout * self.times
