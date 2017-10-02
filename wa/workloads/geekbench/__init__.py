@@ -158,14 +158,13 @@ class Geekbench(ApkUiautoWorkload):
             os.remove(host_temp_file)
             with open(host_output_file, 'w') as wfh:
                 json.dump(data, wfh, indent=4)
-            context.iteration_artifacts.append(Artifact('geekout', path=os.path.basename(on_target_output_file),
-                                                        kind='data',
-                                                        description='Geekbench 3 output from target.'))
-            context.result.add_metric(namemify('score', i), data['score'])
-            context.result.add_metric(namemify('multicore_score', i), data['multicore_score'])
+            context.add_artifact('geekout', host_output_file, kind='data',
+                                 description='Geekbench 3 output from target.')
+            context.add_metric(namemify('score', i), data['score'])
+            context.add_metric(namemify('multicore_score', i), data['multicore_score'])
             for section in data['sections']:
-                context.result.add_metric(namemify(section['name'] + '_score', i), section['score'])
-                context.result.add_metric(namemify(section['name'] + '_multicore_score', i),
+                context.add_metric(namemify(section['name'] + '_score', i), section['score'])
+                context.add_metric(namemify(section['name'] + '_multicore_score', i),
                                           section['multicore_score'])
 
     def update_result_4(self, context):
@@ -386,18 +385,18 @@ class GBScoreCalculator(object):
         for wkload in self.workloads:
             st_score, mt_score = wkload.get_scores()
             scores_by_category[wkload.category].append(st_score)
-            context.result.add_metric(wkload.name + ' (single-threaded)', int(st_score))
+            context.add_metric(wkload.name + ' (single-threaded)', int(st_score))
             if mt_score is not None:
                 scores_by_category[wkload.category].append(mt_score)
-                context.result.add_metric(wkload.name + ' (multi-threaded)', int(mt_score))
+                context.add_metric(wkload.name + ' (multi-threaded)', int(mt_score))
 
         overall_score = 0
         for category in scores_by_category:
             scores = scores_by_category[category]
             category_score = sum(scores) / len(scores)
             overall_score += category_score * self.category_weights[category]
-            context.result.add_metric(capitalize(category) + ' Score', int(category_score))
-        context.result.add_metric('Geekbench Score', int(overall_score))
+            context.add_metric(capitalize(category) + ' Score', int(category_score))
+        context.add_metric('Geekbench Score', int(overall_score))
 
 
 class GeekbenchCorproate(Geekbench):
