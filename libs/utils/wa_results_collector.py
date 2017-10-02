@@ -292,7 +292,7 @@ class WaResultsCollector(object):
 
         metrics = []
         events = ['irq_handler_entry', 'cpu_frequency', 'nohz_kick', 'sched_switch',
-                'sched_load_cfs_rq', 'sched_load_avg_task']
+                  'sched_load_cfs_rq', 'sched_load_avg_task', 'thermal_temperature']
         trace = Trace(self.platform, trace_path, events)
 
         if hasattr(trace.data_frame, 'cpu_wakeups'): # Not merged in LISA yet
@@ -347,6 +347,15 @@ class WaResultsCollector(object):
                         .pivot(columns='cpu')[column].ffill().sum(axis=1))
             avg_util_sum = area_under_curve(util_sum) / (util_sum.index[-1] - util_sum.index[0])
             metrics.append(('avg_util_sum', avg_util_sum, None))
+
+        if trace.hasEvents('thermal_temperature'):
+            df = trace.data_frame.trace_event('thermal_temperature')
+            for zone, zone_df in df.groupby('thermal_zone'):
+                metrics.append('tz_{}_start_temp'.format(
+                    thermal_zone, zone_df.iloc[0]['temp_prev'], 'milliCelcius'))
+
+                avg_tmp = (area_under_curve(zone_df.temperature['temperature'])
+                           / (zone_df.index[-1] - zone_df.index[0]))
 
         ret = pd.DataFrame(metrics, columns=['metric', 'value', 'units'])
         ret.to_csv(cache_path, index=False)
