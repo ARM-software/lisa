@@ -614,6 +614,20 @@ class Target(object):
         timeout = duration + 10
         self.execute('sleep {}'.format(duration), timeout=timeout)
 
+    def read_tree_values_flat(self, path, depth=1, check_exit_code=True):
+        command = 'read_tree_values {} {}'.format(path, depth)
+        output = self._execute_util(command, as_root=self.is_rooted,
+                                    check_exit_code=check_exit_code)
+        result = {}
+        for entry in output.strip().split('\n'):
+            path, value = entry.strip().split(':', 1)
+            result[path] = value
+        return result
+
+    def read_tree_values(self, path, depth=1, dictcls=dict, check_exit_code=True):
+	value_map = self.read_tree_values_flat(path, depth, check_exit_code)
+	return _build_path_tree(value_map, path, self.path.sep, dictcls)
+
     # internal methods
 
     def _setup_shutils(self):
@@ -1558,3 +1572,32 @@ def _get_part_name(section):
     if name is None:
         name = '{}/{}/{}'.format(implementer, part, variant)
     return name
+
+
+def _build_path_tree(path_map, basepath, sep=os.path.sep, dictcls=dict):
+    """
+    Convert a flat mapping of paths to values into a nested structure of
+    dict-line object (``dict``'s by default), mirroring the directory hierarchy
+    represented by the paths relative to ``basepath``.
+
+    """
+    def process_node(node, path, value):
+        parts = path.split(sep, 1)
+        if len(parts) == 1:   # leaf
+            node[parts[0]] = value
+        else:  # branch
+            if parts[0] not in node:
+                node[parts[0]] = dictcls()
+            process_node(node[parts[0]], parts[1], value)
+
+    relpath_map = {os.path.relpath(p, basepath): v
+                   for p, v in path_map.iteritems()}
+
+    if len(relpath_map) == 1 and relpath_map.keys()[0] == '.':
+        result = relpath_map.values()[0]
+    else:
+        result = dictcls()
+        for path, value in relpath_map.iteritems():
+            process_node(result, path, value)
+
+    return result

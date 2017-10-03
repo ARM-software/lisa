@@ -196,6 +196,22 @@ cgroups_freezer_set_state() {
 }
 
 ################################################################################
+# Misc
+################################################################################
+
+read_tree_values() {
+    PATH=$1
+    MAXDEPTH=$2
+
+    PATHS=$($BUSYBOX find $PATH -follow -maxdepth $MAXDEPTH)
+    if [ ${#PATHS[@]} -eq 0 ]; then
+        echo "ERROR: '$1' does not exist"
+    else
+        $BUSYBOX grep -s '' $PATHS
+    fi
+}
+
+################################################################################
 # Main Function Dispatcher
 ################################################################################
 
@@ -235,6 +251,9 @@ cgroups_freezer_set_state)
 	;;
 ftrace_get_function_stats)
     ftrace_get_function_stats
+    ;;
+read_tree_values)
+	read_tree_values $*
     ;;
 *)
     echo "Command [$CMD] not supported"
