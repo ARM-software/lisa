@@ -149,6 +149,12 @@ class Target(object):
         else:
             return None
 
+    @property
+    def shutils(self):
+        if self._shutils is None:
+            self._setup_shutils()
+        return self._shutils
+
     def __init__(self,
                  connection_settings=None,
                  platform=None,
@@ -189,6 +195,7 @@ class Target(object):
         self._installed_modules = {}
         self._cache = {}
         self._connections = {}
+        self._shutils = None
         self.busybox = None
 
         if load_default_modules:
@@ -229,20 +236,7 @@ class Target(object):
         self.execute('mkdir -p {}'.format(self.executables_directory))
         self.busybox = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, self.abi, 'busybox'))
 
-        # Setup shutils script for the target
-        shutils_ifile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils.in')
-        shutils_ofile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils')
-        shell_path = '/bin/sh'
-        if self.os == 'android':
-            shell_path = '/system/bin/sh'
-        with open(shutils_ifile) as fh:
-            lines = fh.readlines()
-        with open(shutils_ofile, 'w') as ofile:
-            for line in lines:
-                line = line.replace("__DEVLIB_SHELL__", shell_path)
-                line = line.replace("__DEVLIB_BUSYBOX__", self.busybox)
-                ofile.write(line)
-        self.shutils = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils'))
+        self._setup_shutils()
 
         for host_exe in (executables or []):  # pylint: disable=superfluous-parens
             self.install(host_exe)
@@ -621,6 +615,21 @@ class Target(object):
         self.execute('sleep {}'.format(duration), timeout=timeout)
 
     # internal methods
+
+    def _setup_shutils(self):
+        shutils_ifile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils.in')
+        shutils_ofile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils')
+        shell_path = '/bin/sh'
+        if self.os == 'android':
+            shell_path = '/system/bin/sh'
+        with open(shutils_ifile) as fh:
+            lines = fh.readlines()
+        with open(shutils_ofile, 'w') as ofile:
+            for line in lines:
+                line = line.replace("__DEVLIB_SHELL__", shell_path)
+                line = line.replace("__DEVLIB_BUSYBOX__", self.busybox)
+                ofile.write(line)
+        self._shutils = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils'))
 
     def _execute_util(self, command, timeout=None, check_exit_code=True, as_root=False):
         command = '{} {}'.format(self.shutils, command)
