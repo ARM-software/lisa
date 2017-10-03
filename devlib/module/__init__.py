@@ -56,7 +56,7 @@ class Module(object):
 
     def __init__(self, target):
         self.target = target
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = logging.getLogger(self.name)
 
 
 class HardRestModule(Module):  # pylint: disable=R0921
