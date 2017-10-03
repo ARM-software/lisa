@@ -26,7 +26,6 @@ import android.support.test.uiautomator.UiWatcher;
 import android.util.Log;
 
 import com.arm.wa.uiauto.BaseUiAutomation;
-import com.arm.wa.uiauto.UxPerfUiAutomation;
 
 import org.junit.Test;
 import org.junit.Before;
@@ -42,19 +41,18 @@ public class UiAutomation extends BaseUiAutomation {
     public static ArrayList<String> scores = new ArrayList();
     public static Boolean wasError = false;
 
-    protected UxPerfUiAutomation uxPerf;
-
-    Bundle parameters;
-    String version;
-    Boolean browser;
-    Boolean metal;
-    Boolean multicore;
-    Integer browserToUse;
+    protected Bundle parameters;
+    protected String version;
+    protected Boolean browser;
+    protected Boolean metal;
+    protected Boolean multicore;
+    protected Integer browserToUse;
+    protected String packageID;
 
     @Before
     public void initialize(){
-        uxPerf = new UxPerfUiAutomation();
         parameters = getParams();
+        packageID = getPackageID(parameters);
         version = parameters.getString("version");
         browser = parameters.getBoolean("browser");
         metal = parameters.getBoolean("metal");
@@ -81,7 +79,7 @@ public class UiAutomation extends BaseUiAutomation {
             startTest();
             dismissNetworkConnectionDialogIfNecessary();
             dismissExplanationDialogIfNecessary();
-            waitForTestCompletion(15 * 60, "com.quicinc.vellamo:id/act_ba_results_btn_no");
+            waitForTestCompletion(15 * 60, packageID + "act_ba_results_btn_no");
         } else {
              if (browser) {
                  startBrowserTest(browserToUse, version);
@@ -166,7 +164,7 @@ public class UiAutomation extends BaseUiAutomation {
     public void startTestV3(int run, String version) throws Exception {
         UiSelector selector = new UiSelector();
 
-        UiObject thirdRunButton = mDevice.findObject(selector.resourceId("com.quicinc.vellamo:id/card_launcher_run_button").instance(2));
+        UiObject thirdRunButton = mDevice.findObject(selector.resourceId(packageID + "card_launcher_run_button").instance(2));
         if (!thirdRunButton.waitForExists(TimeUnit.SECONDS.toMillis(5))) {
             if (!thirdRunButton.exists()) {
                 throw new UiObjectNotFoundException("Could not find three \"Run\" buttons.");
@@ -174,7 +172,7 @@ public class UiAutomation extends BaseUiAutomation {
         }
 
         //Run benchmarks
-        UiObject runButton = mDevice.findObject(selector.resourceId("com.quicinc.vellamo:id/card_launcher_run_button").instance(run));
+        UiObject runButton = mDevice.findObject(selector.resourceId(packageID + "card_launcher_run_button").instance(run));
         if (!runButton.waitForExists(TimeUnit.SECONDS.toMillis(5))) {
             if (!runButton.exists()) {
                 throw new UiObjectNotFoundException("Could not find correct \"Run\" button.");
@@ -209,12 +207,12 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void proccessTest(String metric) throws Exception{
-        waitForTestCompletion(15 * 60, "com.quicinc.vellamo:id/button_no");
+        waitForTestCompletion(15 * 60, packageID + "button_no");
 
         //Remove watcher
         mDevice.removeWatcher("stoppedWorkingDialogWatcher");
 
-        getScore(metric, "com.quicinc.vellamo:id/card_score_score");
+        getScore(metric, packageID + "card_score_score");
         mDevice.pressBack();
         mDevice.pressBack();
         mDevice.pressBack();
@@ -279,7 +277,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     public void dismissArrow() throws Exception {
         UiSelector selector = new UiSelector();
-        UiObject cardContainer = mDevice.findObject(selector.resourceId("com.quicinc.vellamo:id/cards_container")) ;
+        UiObject cardContainer = mDevice.findObject(selector.resourceId(packageID + "cards_container")) ;
         if (!cardContainer.waitForExists(TimeUnit.SECONDS.toMillis(5))) {
             if (!cardContainer.exists()) {
                 throw new UiObjectNotFoundException("Could not find vellamo main screen");

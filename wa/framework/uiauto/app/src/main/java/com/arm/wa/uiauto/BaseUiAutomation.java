@@ -79,6 +79,12 @@ public class BaseUiAutomation {
         SystemClock.sleep(second * 1000);
     }
 
+    //Generate a package ID
+    public String getPackageID(Bundle parameters) {
+        String packageName = parameters.getString("package_name");
+        return packageName + ":id/";
+    }
+
     public boolean takeScreenshot(String name) {
         Bundle params = getArguments();
         String png_dir = params.getString("workdir");
