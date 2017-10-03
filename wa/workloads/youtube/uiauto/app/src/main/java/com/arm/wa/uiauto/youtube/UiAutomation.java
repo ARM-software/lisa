@@ -25,7 +25,6 @@ import android.support.test.uiautomator.UiSelector;
 
 import com.arm.wa.uiauto.BaseUiAutomation;
 import com.arm.wa.uiauto.ActionLogger;
-import com.arm.wa.uiauto.UxPerfUiAutomation;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -46,16 +45,14 @@ public class UiAutomation extends BaseUiAutomation {
     public static final int VIDEO_SLEEP_SECONDS = 3;
     public static final int LIST_SWIPE_COUNT = 5;
 
-    protected UxPerfUiAutomation uxPerf;
 
     protected Bundle parameters;
     protected String packageID;
 
     @Before
     public void initilize() {
-        uxPerf = new UxPerfUiAutomation();
         parameters = getParams();
-        packageID = uxPerf.getPackageID(parameters);
+        packageID = getPackageID(parameters);
     }
 
     @Test
