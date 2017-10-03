@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import re
 from collections import defaultdict
 
@@ -78,16 +79,15 @@ class HwmonDevice(object):
             all_sensors.extend(sensors_of_kind.values())
         return all_sensors
 
-    def __init__(self, target, path):
+    def __init__(self, target, path, name, fields):
         self.target = target
         self.path = path
-        self.name = self.target.read_value(self.target.path.join(self.path, 'name'))
+        self.name = name
         self._sensors = defaultdict(dict)
         path = self.path
         if not path.endswith(self.target.path.sep):
             path += self.target.path.sep
-        for entry in self.target.list_directory(path,
-                                                as_root=self.target.is_rooted):
+        for entry in fields:
             match = HWMON_FILE_REGEX.search(entry)
             if match:
                 kind = match.group('kind')
@@ -117,14 +117,11 @@ class HwmonModule(Module):
 
     @staticmethod
     def probe(target):
-        if not target.file_exists(HWMON_ROOT):
-            return False
         try:
             target.list_directory(HWMON_ROOT, as_root=target.is_rooted)
         except TargetError:
-            # Probably no permissions
+            # Doesn't exist or no permissions
             return False
-
         return True
 
     @property
@@ -141,11 +138,13 @@ class HwmonModule(Module):
         self.scan()
 
     def scan(self):
-        for entry in self.target.list_directory(self.root,
-                                                as_root=self.target.is_rooted):
-            if entry.startswith('hwmon'):
-                entry_path = self.target.path.join(self.root, entry)
-                if self.target.file_exists(self.target.path.join(entry_path, 'name')):
-                    device = HwmonDevice(self.target, entry_path)
-                    self.devices.append(device)
+        values_tree = self.target.read_tree_values(self.root, depth=3)
+        for entry_id, fields in values_tree.iteritems():
+            path = self.target.path.join(self.root, entry_id)
+            name = fields.pop('name', None)
+            if name is None:
+                continue
+            self.logger.debug('Adding device {}'.format(name))
+            device = HwmonDevice(self.target, path, name, fields)
+            self.devices.append(device)
 
