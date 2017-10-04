@@ -106,6 +106,10 @@ class Geekbench(ApkUiautoWorkload):
     def package(self):
         return self.versions[self.version]['package']
 
+    @property
+    def package_names(self):
+        return [self.package]
+
     def __init__(self, *args, **kwargs):
         super(Geekbench, self).__init__(*args, **kwargs)
         self.gui.uiauto_params['version'] = self.version
