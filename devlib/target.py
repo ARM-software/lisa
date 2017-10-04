@@ -149,6 +149,12 @@ class Target(object):
         else:
             return None
 
+    @property
+    def shutils(self):
+        if self._shutils is None:
+            self._setup_shutils()
+        return self._shutils
+
     def __init__(self,
                  connection_settings=None,
                  platform=None,
@@ -189,6 +195,7 @@ class Target(object):
         self._installed_modules = {}
         self._cache = {}
         self._connections = {}
+        self._shutils = None
         self.busybox = None
 
         if load_default_modules:
@@ -229,20 +236,7 @@ class Target(object):
         self.execute('mkdir -p {}'.format(self.executables_directory))
         self.busybox = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, self.abi, 'busybox'))
 
-        # Setup shutils script for the target
-        shutils_ifile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils.in')
-        shutils_ofile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils')
-        shell_path = '/bin/sh'
-        if self.os == 'android':
-            shell_path = '/system/bin/sh'
-        with open(shutils_ifile) as fh:
-            lines = fh.readlines()
-        with open(shutils_ofile, 'w') as ofile:
-            for line in lines:
-                line = line.replace("__DEVLIB_SHELL__", shell_path)
-                line = line.replace("__DEVLIB_BUSYBOX__", self.busybox)
-                ofile.write(line)
-        self.shutils = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils'))
+        self._setup_shutils()
 
         for host_exe in (executables or []):  # pylint: disable=superfluous-parens
             self.install(host_exe)
@@ -620,7 +614,36 @@ class Target(object):
         timeout = duration + 10
         self.execute('sleep {}'.format(duration), timeout=timeout)
 
+    def read_tree_values_flat(self, path, depth=1, check_exit_code=True):
+        command = 'read_tree_values {} {}'.format(path, depth)
+        output = self._execute_util(command, as_root=self.is_rooted,
+                                    check_exit_code=check_exit_code)
+        result = {}
+        for entry in output.strip().split('\n'):
+            path, value = entry.strip().split(':', 1)
+            result[path] = value
+        return result
+
+    def read_tree_values(self, path, depth=1, dictcls=dict, check_exit_code=True):
+	value_map = self.read_tree_values_flat(path, depth, check_exit_code)
+	return _build_path_tree(value_map, path, self.path.sep, dictcls)
+
     # internal methods
+
+    def _setup_shutils(self):
+        shutils_ifile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils.in')
+        shutils_ofile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils')
+        shell_path = '/bin/sh'
+        if self.os == 'android':
+            shell_path = '/system/bin/sh'
+        with open(shutils_ifile) as fh:
+            lines = fh.readlines()
+        with open(shutils_ofile, 'w') as ofile:
+            for line in lines:
+                line = line.replace("__DEVLIB_SHELL__", shell_path)
+                line = line.replace("__DEVLIB_BUSYBOX__", self.busybox)
+                ofile.write(line)
+        self._shutils = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils'))
 
     def _execute_util(self, command, timeout=None, check_exit_code=True, as_root=False):
         command = '{} {}'.format(self.shutils, command)
@@ -1549,3 +1572,32 @@ def _get_part_name(section):
     if name is None:
         name = '{}/{}/{}'.format(implementer, part, variant)
     return name
+
+
+def _build_path_tree(path_map, basepath, sep=os.path.sep, dictcls=dict):
+    """
+    Convert a flat mapping of paths to values into a nested structure of
+    dict-line object (``dict``'s by default), mirroring the directory hierarchy
+    represented by the paths relative to ``basepath``.
+
+    """
+    def process_node(node, path, value):
+        parts = path.split(sep, 1)
+        if len(parts) == 1:   # leaf
+            node[parts[0]] = value
+        else:  # branch
+            if parts[0] not in node:
+                node[parts[0]] = dictcls()
+            process_node(node[parts[0]], parts[1], value)
+
+    relpath_map = {os.path.relpath(p, basepath): v
+                   for p, v in path_map.iteritems()}
+
+    if len(relpath_map) == 1 and relpath_map.keys()[0] == '.':
+        result = relpath_map.values()[0]
+    else:
+        result = dictcls()
+        for path, value in relpath_map.iteritems():
+            process_node(result, path, value)
+
+    return result

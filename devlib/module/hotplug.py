@@ -21,7 +21,8 @@ class HotplugModule(Module):
         return target.path.join(cls.base_path, cpu, 'online')
 
     def online_all(self):
-        self.online(*range(self.target.number_of_cpus))
+        self.target._execute_util('hotplug_online_all',
+                                  as_root=self.target.is_rooted)
 
     def online(self, *args):
         for cpu in args:

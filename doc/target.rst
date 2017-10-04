@@ -327,6 +327,32 @@ Target
        some sysfs entries silently failing to set the written value without
        returning an error code.
 
+.. method:: Target.read_tree_values(path, depth=1, dictcls=dict):
+
+   Read values of all sysfs (or similar) file nodes under ``path``, traversing
+   up to the maximum depth ``depth``.
+
+   Returns a nested structure of dict-like objects (``dict``\ s by default) that
+   follows the structure of the scanned sub-directory tree. The top-level entry
+   has a single item who's key is ``path``. If ``path`` points to a single file,
+   the value of the entry is the value ready from that file node. Otherwise, the
+   value is a dict-line object  with a key for every entry under ``path``
+   mapping onto its value or further dict-like objects as appropriate.
+
+   :param path: sysfs path to scan
+   :param depth: maximum depth to descend
+   :param dictcls: a dict-like type to be used for each level of the hierarchy.
+
+.. method:: Target.read_tree_values_flat(path, depth=1):
+
+   Read values of all sysfs (or similar) file nodes under ``path``, traversing
+   up to the maximum depth ``depth``.
+
+   Returns a dict mapping paths of file nodes to corresponding values.
+
+   :param path: sysfs path to scan
+   :param depth: maximum depth to descend
+
 .. method:: Target.reset()
 
    Soft reset the target. Typically, this means executing ``reboot`` on the

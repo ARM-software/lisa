@@ -41,50 +41,16 @@ class CpuidleState(object):
                 raise ValueError('invalid idle state name: "{}"'.format(self.id))
         return int(self.id[i:])
 
-    def __init__(self, target, index, path):
+    def __init__(self, target, index, path, name, desc, power, latency, residency):
         self.target = target
         self.index = index
         self.path = path
+        self.name = name
+        self.desc = desc
+        self.power = power
+        self.latency = latency
         self.id = self.target.path.basename(self.path)
         self.cpu = self.target.path.basename(self.target.path.dirname(path))
-
-    @property
-    @memoized
-    def desc(self):
-        return self.get('desc')
-
-    @property
-    @memoized
-    def name(self):
-        return self.get('name')
-
-    @property
-    @memoized
-    def latency(self):
-        """Exit latency in uS"""
-        return self.get('latency')
-
-    @property
-    @memoized
-    def power(self):
-        """Power usage in mW
-
-        ..note::
-
-            This value is not always populated by the kernel and may be garbage.
-        """
-        return self.get('power')
-
-    @property
-    @memoized
-    def target_residency(self):
-        """Target residency in uS
-
-        This is the amount of time in the state required to 'break even' on
-        power - the system should avoid entering the state for less time than
-        this.
-        """
-        return self.get('residency')
 
     def enable(self):
         self.set('disable', 0)
@@ -126,23 +92,47 @@ class Cpuidle(Module):
     def probe(target):
         return target.file_exists(Cpuidle.root_path)
 
-    def get_driver(self):
-        return self.target.read_value(self.target.path.join(self.root_path, 'current_driver'))
+    def __init__(self, target):
+        super(Cpuidle, self).__init__(target)
+        self._states = {}
 
-    def get_governor(self):
-        return self.target.read_value(self.target.path.join(self.root_path, 'current_governor_ro'))
+        basepath = '/sys/devices/system/cpu/'
+        values_tree = self.target.read_tree_values(basepath, depth=4, check_exit_code=False)
+        i = 0
+        cpu_id = 'cpu{}'.format(i)
+        while cpu_id in values_tree:
+            cpu_node = values_tree[cpu_id]
 
-    @memoized
+            if 'cpuidle' in cpu_node:
+                idle_node = cpu_node['cpuidle']
+                self._states[cpu_id] = []
+                j = 0
+                state_id = 'state{}'.format(j)
+                while state_id in idle_node:
+                    state_node = idle_node[state_id]
+                    state = CpuidleState(
+                        self.target,
+                        index=j,
+                        path=self.target.path.join(basepath, cpu_id, 'cpuidle', state_id),
+                        name=state_node['name'],
+                        desc=state_node['desc'],
+                        power=int(state_node['power']),
+                        latency=int(state_node['latency']),
+                        residency=int(state_node['residency']) if 'residency' in state_node else None,
+                    )
+                    msg = 'Adding {} state {}: {} {}'
+                    self.logger.debug(msg.format(cpu_id, j, state.name, state.desc))
+                    self._states[cpu_id].append(state)
+                    j += 1
+                    state_id = 'state{}'.format(j)
+
+            i += 1
+            cpu_id = 'cpu{}'.format(i)
+
     def get_states(self, cpu=0):
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
-        states_dir = self.target.path.join(self.target.path.dirname(self.root_path), cpu, 'cpuidle')
-        idle_states = []
-        for state in self.target.list_directory(states_dir):
-            if state.startswith('state'):
-                index = int(state[5:])
-                idle_states.append(CpuidleState(self.target, index, self.target.path.join(states_dir, state)))
-        return idle_states
+        return self._states.get(cpu)
 
     def get_state(self, state, cpu=0):
         if isinstance(state, int):
@@ -176,3 +166,9 @@ class Cpuidle(Module):
         """
         output = self.target._execute_util('cpuidle_wake_all_cpus')
         print(output)
+
+    def get_driver(self):
+        return self.target.read_value(self.target.path.join(self.root_path, 'current_driver'))
+
+    def get_governor(self):
+        return self.target.read_value(self.target.path.join(self.root_path, 'current_governor_ro'))
