@@ -191,6 +191,12 @@ You can now verify your installation and check that the probes are correctly det
 $ iio_info -n baylibre-acme.local
 ```
 
+If you have any issues, for example if `iio_info` hangs, or `iio-capture` reports "Unsupported write attribute 'in_oversampling_ratio'", try rebooting the ACME by SSH:
+
+```bash
+$ ssh root@baylibre-acme.local reboot        # (replace baylibre-acme.local if you changed the hostname)
+```
+
 #### LISA Target Configuration
 
 The target configuration for this instrument is:
