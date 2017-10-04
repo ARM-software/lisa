@@ -143,7 +143,7 @@ COMMON_TARGET_PARAMS = [
               If additional modules need to be loaded, they may be specified
               using this parameter.
 
-              Please see ``devlab`` documentation for information on the available
+              Please see ``devlib`` documentation for information on the available
               modules.
               '''),
     Parameter('load_default_modules', kind=bool, default=True,
