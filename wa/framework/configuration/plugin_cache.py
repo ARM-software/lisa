@@ -81,7 +81,7 @@ class PluginCache(object):
             msg = "Source '{}' has not been added to the plugin cache."
             raise RuntimeError(msg.format(source))
 
-        if (not self.loader.has_plugin(plugin_name) and 
+        if (not self.loader.has_plugin(plugin_name) and
                 plugin_name not in GENERIC_CONFIGS):
             msg = 'configuration provided for unknown plugin "{}"'
             raise ConfigError(msg.format(plugin_name))
@@ -158,7 +158,7 @@ class PluginCache(object):
         return params
 
     # pylint: disable=too-many-nested-blocks, too-many-branches
-    def _merge_using_priority_specificity(self, specific_name, 
+    def _merge_using_priority_specificity(self, specific_name,
                                           generic_name, merged_config, is_final=True):
         """
         WA configuration can come from various sources of increasing priority,
@@ -181,7 +181,7 @@ class PluginCache(object):
         :param generic_name: The name of the generic configuration
                              e.g ``device_config``
         :param merge_config: A dict of ``ConfigurationPoint``s to be used when
-                             merging configuration.  keys=config point name, 
+                             merging configuration.  keys=config point name,
                              values=config point
         :param is_final: if ``True`` (the default) make sure that mandatory
                          parameters are set.
