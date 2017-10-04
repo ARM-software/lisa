@@ -73,10 +73,7 @@ class PluginCache(object):
         if self.is_global_alias(plugin_name):
             self.add_global_alias(plugin_name, values, source)
             return
-        for name, value in values.iteritems():
-            self.add_config(plugin_name, name, value, source)
 
-    def add_config(self, plugin_name, name, value, source):
         if source not in self.sources:
             msg = "Source '{}' has not been added to the plugin cache."
             raise RuntimeError(msg.format(source))
@@ -86,12 +83,13 @@ class PluginCache(object):
             msg = 'configuration provided for unknown plugin "{}"'
             raise ConfigError(msg.format(plugin_name))
 
-        if (plugin_name not in GENERIC_CONFIGS and
-                name not in self.get_plugin_parameters(plugin_name)):
-            msg = "'{}' is not a valid parameter for '{}'"
-            raise ConfigError(msg.format(name, plugin_name))
+        for name, value in values.iteritems():
+            if (plugin_name not in GENERIC_CONFIGS and
+                    name not in self.get_plugin_parameters(plugin_name)):
+                msg = "'{}' is not a valid parameter for '{}'"
+                raise ConfigError(msg.format(name, plugin_name))
 
-        self.plugin_configs[plugin_name][source][name] = value
+            self.plugin_configs[plugin_name][source][name] = value
 
     def is_global_alias(self, name):
         return name in self._list_of_global_aliases
