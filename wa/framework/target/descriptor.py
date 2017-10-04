@@ -153,10 +153,10 @@ COMMON_TARGET_PARAMS = [
               ``True`` would suppress that, ensuring that only the base Target
               interface is initialized.
 
-              You may want to set this if there is a problem with one or more default
-              modules on your platform (e.g. your device is unrooted and cpufreq is
-              not accessible to unprivileged users), or if Target initialization is
-              taking too long for your platform.
+              You may want to set this to ``False`` if there is a problem with one
+              or more default modules on your platform (e.g. your device is
+              unrooted and cpufreq is not accessible to unprivileged users), or
+              if ``Target`` initialization is taking too long for your platform.
               '''),
 ]
 
