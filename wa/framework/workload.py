@@ -39,6 +39,17 @@ class Workload(TargetedPlugin):
 
     kind = 'workload'
 
+    phones_home = False
+    """
+    Set this to True to mark that this workload poses a risk of exposing
+    information to the outside world about the device it runs on. An example of
+    this would be a benchmark application that sends scores and device data to a
+    database owned by the maintainer.
+
+    The user can then set allow_phone_home=False in their configuration to
+    prevent this workload from being run accidentally.
+    """
+
     def init_resources(self, context):
         """
         This method may be used to perform early resource discovery and

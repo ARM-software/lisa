@@ -332,7 +332,7 @@ class Executor(object):
 
 class Runner(object):
     """
-    
+
     """
 
     def __init__(self, context, pm):
@@ -411,6 +411,13 @@ class Runner(object):
             self.check_job(job)
 
     def do_run_job(self, job, context):
+        rc = self.context.cm.run_config
+        if job.workload.phones_home and not rc.allow_phone_home:
+            self.logger.warning('Skipping job {} ({}) due to allow_phone_home=False'
+                                .format(job.id, job.workload.name))
+            job.set_status(Status.SKIPPED)
+            return
+
         job.set_status(Status.RUNNING)
         self.send(signal.JOB_STARTED)
 
@@ -419,7 +426,7 @@ class Runner(object):
 
         with signal.wrap('JOB_SETUP', self):
             job.setup(context)
-        
+
         try:
             with signal.wrap('JOB_EXECUTION', self):
                 job.run(context)
@@ -473,7 +480,7 @@ class Runner(object):
         retry_job.retries = job.retries + 1
         retry_job.set_status(Status.PENDING)
         self.context.job_queue.insert(0, retry_job)
-        
+
     def send(self, s):
         signal.send(s, self, self.context)
 

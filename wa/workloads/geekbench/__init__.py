@@ -98,6 +98,8 @@ class Geekbench(ApkUiautoWorkload):
 
     is_corporate = False
 
+    phones_home = True
+
     @property
     def activity(self):
         return self.versions[self.version]['activity']

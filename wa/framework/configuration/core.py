@@ -783,6 +783,19 @@ class RunConfiguration(Configuration):
             export the output to an exeternal location.
             ''',
         ),
+        ConfigurationPoint(
+            'allow_phone_home',
+            kind=bool, default=True,
+            description='''
+            Setting this to ``False`` prevents running any workloads that are marked
+            with 'phones_home', meaning they are at risk of exposing information
+            about the device to the outside world. For example, some benchmark
+            applications upload device data to a database owned by the
+            maintainers.
+
+            This can be used to minimise the risk of accidentally running such
+            workloads when testing confidential devices.
+            '''),
     ]
     configuration = {cp.name: cp for cp in config_points + meta_data}
 
