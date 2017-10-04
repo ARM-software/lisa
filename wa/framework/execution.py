@@ -332,7 +332,7 @@ class Executor(object):
 
 class Runner(object):
     """
-    
+
     """
 
     def __init__(self, context, pm):
@@ -419,7 +419,7 @@ class Runner(object):
 
         with signal.wrap('JOB_SETUP', self):
             job.setup(context)
-        
+
         try:
             with signal.wrap('JOB_EXECUTION', self):
                 job.run(context)
@@ -473,7 +473,7 @@ class Runner(object):
         retry_job.retries = job.retries + 1
         retry_job.set_status(Status.PENDING)
         self.context.job_queue.insert(0, retry_job)
-        
+
     def send(self, s):
         signal.send(s, self, self.context)
 
