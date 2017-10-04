@@ -37,7 +37,7 @@ class AcmeCapeInstrument(Instrument):
     mode = CONTINUOUS
 
     def __init__(self, target,
-                 iio_capture=which('iio_capture'),
+                 iio_capture=which('iio-capture'),
                  host='baylibre-acme.local',
                  iio_device='iio:device0',
                  buffer_size=256):
