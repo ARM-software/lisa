@@ -75,7 +75,7 @@ def instantiate_assistant(tdesc, params, target):
 
 class TargetDescription(object):
 
-    def __init__(self, name, source, description=None, target=None, platform=None, 
+    def __init__(self, name, source, description=None, target=None, platform=None,
                  conn=None, assistant=None, target_params=None, platform_params=None,
                  conn_params=None, assistant_params=None):
         self.name = name
@@ -122,7 +122,7 @@ class TargetDescriptor(Plugin):
 COMMON_TARGET_PARAMS = [
     Parameter('working_directory', kind=str,
               description='''
-              On-target working directory that will be used by WA. This 
+              On-target working directory that will be used by WA. This
               directory must be writable by the user WA logs in as without
               the need for privilege elevation.
               '''),
@@ -143,7 +143,7 @@ COMMON_TARGET_PARAMS = [
               If additional modules need to be loaded, they may be specified
               using this parameter.
 
-              Please see ``devlab`` documentation for information on the available
+              Please see ``devlib`` documentation for information on the available
               modules.
               '''),
     Parameter('load_default_modules', kind=bool, default=True,
@@ -153,10 +153,10 @@ COMMON_TARGET_PARAMS = [
               ``True`` would suppress that, ensuring that only the base Target
               interface is initialized.
 
-              You may want to set this if there is a problem with one or more default
-              modules on your platform (e.g. your device is unrooted and cpufreq is
-              not accessible to unprivileged users), or if Target initialization is
-              taking too long for your platform.
+              You may want to set this to ``False`` if there is a problem with one
+              or more default modules on your platform (e.g. your device is
+              unrooted and cpufreq is not accessible to unprivileged users), or
+              if ``Target`` initialization is taking too long for your platform.
               '''),
 ]
 
