@@ -77,17 +77,22 @@ class AcmeCapeInstrument(Instrument):
     def stop(self):
         self.process.terminate()
         timeout_secs = 10
+        output = ''
         for _ in xrange(timeout_secs):
             if self.process.poll() is not None:
                 break
             time.sleep(1)
         else:
-            output = _read_nonblock(self.process.stdout)
+            output += _read_nonblock(self.process.stdout)
             self.process.kill()
             self.logger.error('iio-capture did not terminate gracefully')
             if self.process.poll() is None:
                 msg = 'Could not terminate iio-capture:\n{}'
                 raise HostError(msg.format(output))
+        if self.process.returncode != 15: # iio-capture exits with 15 when killed
+            output += self.process.stdout.read()
+            raise HostError('iio-capture exited with an error ({}), output:\n{}'
+                            .format(self.process.returncode, output))
         if not os.path.isfile(self.raw_data_file):
             raise HostError('Output CSV not generated.')
 
