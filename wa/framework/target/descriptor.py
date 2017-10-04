@@ -75,7 +75,7 @@ def instantiate_assistant(tdesc, params, target):
 
 class TargetDescription(object):
 
-    def __init__(self, name, source, description=None, target=None, platform=None, 
+    def __init__(self, name, source, description=None, target=None, platform=None,
                  conn=None, assistant=None, target_params=None, platform_params=None,
                  conn_params=None, assistant_params=None):
         self.name = name
@@ -122,7 +122,7 @@ class TargetDescriptor(Plugin):
 COMMON_TARGET_PARAMS = [
     Parameter('working_directory', kind=str,
               description='''
-              On-target working directory that will be used by WA. This 
+              On-target working directory that will be used by WA. This
               directory must be writable by the user WA logs in as without
               the need for privilege elevation.
               '''),
