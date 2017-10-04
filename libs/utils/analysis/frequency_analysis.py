@@ -163,6 +163,127 @@ class FrequencyAnalysis(AnalysisModule):
 # Plotting Methods
 ###############################################################################
 
+    def plotPeripheralClock(self, title='Peripheral Frequency', clk='unknown'):
+        """
+        Produce graph plotting the frequency of a particular peripheral clock
+
+        :param title: The title for the chart
+        :type  title: str
+
+        :param clk: The clk name to chart
+        :type  clk: str
+
+        :raises: KeyError
+        """
+        if not self._trace.hasEvents('clock_set_rate'):
+            self._log.warning('Events [clock_set_rate] not found, plot DISABLED!')
+            return
+        rate_df = self._dfg_trace_event('clock_set_rate')
+        enable_df = self._dfg_trace_event('clock_enable')
+        disable_df = self._dfg_trace_event('clock_disable')
+        pd.options.mode.chained_assignment = None
+
+        rate_df = rate_df[rate_df.clk_name == clk]
+        rate_df['clock_setting'] = rate_df['rate']/1e6
+        rate_df['state'] = -1
+
+        pd.set_option('display.expand_frame_repr', False)
+
+        if not enable_df.empty:
+          enable_df = enable_df[enable_df.clk_name == clk]
+          enable_df['clock_setting'] = 1;
+        if not disable_df.empty:
+          disable_df = disable_df[disable_df.clk_name == clk]
+          disable_df['clock_setting'] = 0;
+
+        freq = pd.concat([rate_df, enable_df, disable_df])
+        freq.sort_index(inplace=True)
+
+        if freq.empty:
+            self._log.warning('No events for clock ' + clk + ' found in trace')
+            return
+
+        #this will extend the last frequency value to the end of the timerange.
+        last = freq.tail(n=1)
+        last.index = { self._trace.x_max }
+        freq = pd.concat([freq, last])
+        freq['timestamp'] = freq.index
+        freq['frequency'] = 0;
+
+        max_freq = 0
+        last_state = 1
+        last_freq = rate_df.iloc[0]['clock_setting']
+        for index, row in freq.iterrows():
+            if row.state == -1 :
+                last_freq = row.clock_setting
+                if max_freq < last_freq: max_freq = last_freq
+                if last_state == 0:
+                    freq.loc[index, 'frequency'] = 0
+                else:
+                    freq.loc[index, 'frequency'] = last_freq
+
+            if row.state == 1:
+                freq.loc[index, 'frequency'] = last_freq
+                last_state = row.state
+
+            if row.state == 0:
+                freq.loc[index, 'frequency'] = 0
+                last_state = row.state
+
+        gs = gridspec.GridSpec(5,1)
+        freq_axis = plt.subplot(gs[:4, 0])
+        state_axis = plt.subplot(gs[4:, 0])
+        plt.suptitle(title, y=.97, fontsize=16, horizontalalignment='center')
+
+        gs.update(hspace=1.7)
+
+        #plot frequency information
+        freq_axis.set_title("Clock frequency for " + clk)
+        freq_axis.set_ylim(0, max_freq * 1.1)
+        if len(freq) > 0:
+            freq['frequency'].plot(style=['b-'], ax=freq_axis, drawstyle='steps-post', alpha=0.4)
+        else:
+            self._log.warning('NO frequency events to plot')
+
+        freq_axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        freq_axis.set_ylabel('MHz')
+        freq_axis.set_xlabel('')
+        freq_axis.grid(True)
+
+        #figure out when clocks are on and off
+        onoff = freq.loc[freq.state != -1, :]
+        first_onoff = self._trace.x_max
+        if len(onoff):
+            #edge detect when the state changes
+            onoff['statechange'] = onoff['state'].diff()
+            onoff = onoff[onoff.statechange != 0]
+
+            #compute delta as the time period between state changes
+            onoff['delta'] = (onoff['timestamp'] - onoff['timestamp'].shift()).fillna(0).shift(-1)
+            onoff.iloc[-1, onoff.columns.get_loc('delta')] = self._trace.x_max - onoff.iloc[-1].timestamp
+
+            #plot state on as green and off as red
+            enable_events = onoff[onoff.state == 1]
+            disable_events = onoff[onoff.state == 0]
+            state_axis.hlines([0] * len(enable_events),
+                          enable_events['timestamp'], enable_events['timestamp'] + enable_events['delta'],
+                          linewidth = 10.0, label='clock on', color='green')
+            state_axis.hlines([0] * len(disable_events),
+                          disable_events['timestamp'], disable_events['timestamp'] + disable_events['delta'],
+                          linewidth = 10.0, label='clock off', color='red')
+            first_onoff = onoff.iloc[0].timestamp
+
+        #plot time period that the clock state was unknown from the trace
+        state_axis.hlines(0, 0, first_onoff, linewidth = 1.0, label='indeterminate clock state', linestyle='--')
+        state_axis.set_yticks([])
+        state_axis.set_xlabel('seconds')
+        state_axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        state_axis.legend(bbox_to_anchor=(0., 1.02, 1., 0.102), loc=3, ncol=3, mode='expand')
+
+        figname = '{}/{}{}.png'\
+                  .format(self._trace.plots_dir, self._trace.plots_prefix, clk)
+        pl.savefig(figname, bbox_inches='tight')
+
     def plotClusterFrequencies(self, title='Clusters Frequencies'):
         """
         Plot frequency trend for all clusters. If sched_overutilized events are
