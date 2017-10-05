@@ -138,6 +138,9 @@ class ExecutionContext(object):
         self.output.write_state()
         self.output.write_result()
 
+    def finalize(self):
+        self.tm.finalize()
+
     def start_job(self):
         if not self.job_queue:
             raise RuntimeError('No jobs to run')
@@ -296,6 +299,7 @@ class Executor(object):
         runner = Runner(context, pm)
         signal.send(signal.RUN_STARTED, self)
         runner.run()
+        context.finalize()
         self.execute_postamble(context, output)
         signal.send(signal.RUN_COMPLETED, self)
 
