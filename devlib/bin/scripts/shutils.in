@@ -223,7 +223,10 @@ read_tree_values() {
     PATHS=$($BUSYBOX find $BASEPATH -follow -maxdepth $MAXDEPTH)
     i=0
     for path in $PATHS; do
-            i=$(expr $i + 1)
+        i=$(expr $i + 1)
+        if [ $i -gt 1 ]; then
+            break;
+        fi
     done
     if [ $i -gt 1 ]; then
         $BUSYBOX grep -s '' $PATHS
