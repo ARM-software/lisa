@@ -221,9 +221,9 @@ read_tree_values() {
         exit 1
     fi
 
-    PATHS=$($BUSYBOX find $PATH -follow -maxdepth $MAXDEPTH)
+    PATHS=($($BUSYBOX find $PATH -follow -maxdepth $MAXDEPTH))
     if [ ${#PATHS[@]} -gt 1 ]; then
-        $BUSYBOX grep -s '' $PATHS
+        $BUSYBOX grep -s '' ${PATHS[@]}
     fi
 }
 
