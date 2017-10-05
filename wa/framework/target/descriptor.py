@@ -3,7 +3,8 @@ from copy import copy
 
 from devlib import (LinuxTarget, AndroidTarget, LocalLinuxTarget,
                     Platform, Juno, TC2, Gem5SimulationPlatform,
-                    AdbConnection, SshConnection, LocalConnection)
+                    AdbConnection, SshConnection, LocalConnection,
+                    Gem5Connection)
 
 from wa.framework import pluginloader
 from wa.framework.exception import PluginLoaderError
@@ -11,6 +12,7 @@ from wa.framework.plugin import Plugin, Parameter
 from wa.framework.target.assistant import LinuxAssistant, AndroidAssistant
 from wa.utils.types import list_of_strings, list_of_ints
 from wa.utils.misc import isiterable
+
 
 def get_target_descriptions(loader=pluginloader):
     targets = {}
@@ -26,7 +28,7 @@ def get_target_descriptions(loader=pluginloader):
     return targets.values()
 
 
-def instantiate_target(tdesc, params, connect=None):
+def instantiate_target(tdesc, params, connect=None, extra_platform_params=None):
     target_params = {p.name: p for p in tdesc.target_params}
     platform_params = {p.name: p for p in tdesc.platform_params}
     conn_params = {p.name: p for p in tdesc.conn_params}
@@ -51,6 +53,11 @@ def instantiate_target(tdesc, params, connect=None):
         else:
             msg = 'Unexpected parameter for {}: {}'
             raise ValueError(msg.format(tdesc.name, name))
+
+    for pname, pval in (extra_platform_params or {}).iteritems():
+        if pname in pp:
+            raise RuntimeError('Platform parameter clash: {}'.format(pname))
+        pp[pname] = pval
 
     tp['platform'] = (tdesc.platform or Platform)(**pp)
     if cp:
@@ -230,10 +237,6 @@ VEXPRESS_PLATFORM_PARAMS = [
 ]
 
 GEM5_PLATFORM_PARAMS = [
-    Parameter('host_output_dir', kind=str, mandatory=True,
-              description='''
-              Path on the host where gem5 output (e.g. stats file) will be placed.
-              '''),
     Parameter('gem5_bin', kind=str, mandatory=True,
               description='''
               Path to the gem5 binary
@@ -246,6 +249,10 @@ GEM5_PLATFORM_PARAMS = [
               description='''
               VirtIO device setup arguments to be passed to gem5. VirtIO is used
               to transfer files between the simulation and the host.
+              '''),
+    Parameter('name', kind=str, default='gem5',
+              description='''
+              The name for the gem5 "device".
               '''),
 ]
 
@@ -303,6 +310,32 @@ CONNECTION_PARAMS = {
                 to be run via sudo is to go.
                 """),
     ],
+    Gem5Connection: [
+        Parameter('host', kind=str, mandatory=False,
+                description="""
+                Host name or IP address of the target.
+                """),
+        Parameter('username', kind=str, default='root',
+                description="""
+                User name to connect to gem5 simulation.
+                """),
+        Parameter('password', kind=str,
+                description="""
+                Password to use.
+                """),
+        Parameter('port', kind=int,
+                description="""
+                The port SSH server is listening on on the target.
+                """),
+        Parameter('password_prompt', kind=str,
+                description="""
+                Password prompt to expect
+                """),
+        Parameter('original_prompt', kind=str,
+                description="""
+                Original shell prompt to expect.
+                """),
+    ],
     LocalConnection: [
         Parameter('password', kind=str,
                 description="""
@@ -342,24 +375,26 @@ ASSISTANTS = {
     'local': LinuxAssistant,
 }
 
-# name --> (platform_class, params_list, defaults)
+# name --> ((platform_class, conn_class), params_list, defaults)
+# Note: normally, connection is defined by the Target name, but
+#       platforms may choose to override it
 PLATFORMS = {
-    'generic': (Platform, COMMON_PLATFORM_PARAMS, None),
-    'juno': (Juno, COMMON_PLATFORM_PARAMS + VEXPRESS_PLATFORM_PARAMS,
+    'generic': ((Platform, None), COMMON_PLATFORM_PARAMS, None),
+    'juno': ((Juno, None), COMMON_PLATFORM_PARAMS + VEXPRESS_PLATFORM_PARAMS,
             {
                  'vemsd_mount': '/media/JUNO',
                  'baudrate': 115200,
                  'bootloader': 'u-boot',
                  'hard_reset_method': 'dtr',
             }),
-    'tc2': (TC2, COMMON_PLATFORM_PARAMS + VEXPRESS_PLATFORM_PARAMS,
+    'tc2': ((TC2, None), COMMON_PLATFORM_PARAMS + VEXPRESS_PLATFORM_PARAMS,
             {
                  'vemsd_mount': '/media/VEMSD',
                  'baudrate': 38400,
                  'bootloader': 'bootmon',
                  'hard_reset_method': 'reboottxt',
             }),
-    'gem5': (Gem5SimulationPlatform, GEM5_PLATFORM_PARAMS, None),
+    'gem5': ((Gem5SimulationPlatform, Gem5Connection), GEM5_PLATFORM_PARAMS, None),
 }
 
 
@@ -382,17 +417,23 @@ class DefaultTargetDescriptor(TargetDescriptor):
             assistant = ASSISTANTS[target_name]
             conn_params =  CONNECTION_PARAMS[conn]
             for platform_name, platform_tuple in PLATFORMS.iteritems():
-                platform, platform_params = self._get_item(platform_tuple)
+                (platform, plat_conn), platform_params = self._get_item(platform_tuple)
                 name = '{}_{}'.format(platform_name, target_name)
                 td = TargetDescription(name, self)
                 td.target = target
-                td.conn = conn
                 td.platform = platform
                 td.assistant = assistant
                 td.target_params = target_params
-                td.conn_params = conn_params
                 td.platform_params = platform_params
                 td.assistant_params = assistant.parameters
+
+                if plat_conn:
+                    td.conn = plat_conn
+                    td.conn_params =  CONNECTION_PARAMS[plat_conn]
+                else:
+                    td.conn = conn
+                    td.conn_params = conn_params
+
                 result.append(td)
         return result
 
