@@ -269,7 +269,8 @@ class Executor(object):
 
         self.logger.info('Connecting to target')
         self.target_manager = TargetManager(config.run_config.device,
-                                       config.run_config.device_config)
+                                       config.run_config.device_config,
+                                       output.basepath)
         output.write_target_info(self.target_manager.get_target_info())
 
         self.logger.info('Initializing execution context')
