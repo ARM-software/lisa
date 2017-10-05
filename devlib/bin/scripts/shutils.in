@@ -216,10 +216,13 @@ read_tree_values() {
     PATH=$1
     MAXDEPTH=$2
 
+    if [ ! -e $PATH ]; then
+        echo "ERROR: $PATH does not exist"
+        exit 1
+    fi
+
     PATHS=$($BUSYBOX find $PATH -follow -maxdepth $MAXDEPTH)
-    if [ ${#PATHS[@]} -eq 0 ]; then
-        echo "ERROR: '$1' does not exist"
-    else
+    if [ ${#PATHS[@]} -gt 1 ]; then
         $BUSYBOX grep -s '' $PATHS
     fi
 }
