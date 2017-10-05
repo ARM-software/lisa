@@ -282,9 +282,9 @@ CONNECTION_PARAMS = {
                 description="""
                 The port SSH server is listening on on the target.
                 """),
-        Parameter('telent', kind=bool, default=False,
+        Parameter('telnet', kind=bool, default=False,
                 description="""
-                If set to ``True``, a Telent connection, rather than
+                If set to ``True``, a Telnet connection, rather than
                 SSH will be used.
                 """),
         Parameter('password_prompt', kind=str,
