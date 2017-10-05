@@ -74,6 +74,9 @@ def init(verbosity=logging.INFO, color=True, indent_with=4,
     if not debug:
         logging.raiseExceptions = False
 
+    logger = logging.getLogger('CGroups')
+    logger.info = logger.debug
+
 
 def set_level(level):
     _console_handler.setLevel(level)
