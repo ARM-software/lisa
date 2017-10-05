@@ -200,8 +200,7 @@ cgroups_freezer_set_state() {
 ################################################################################
 
 hotplug_online_all() {
-    PATHS=(/sys/devices/system/cpu/cpu[0-9]*)
-    for path in "${PATHS[@]}"; do
+    for path in /sys/devices/system/cpu/cpu[0-9]*; do
         if [ $(cat $path/online) -eq 0 ]; then
             echo 1 > $path/online
         fi
@@ -213,17 +212,21 @@ hotplug_online_all() {
 ################################################################################
 
 read_tree_values() {
-    PATH=$1
+    BASEPATH=$1
     MAXDEPTH=$2
 
-    if [ ! -e $PATH ]; then
-        echo "ERROR: $PATH does not exist"
+    if [ ! -e $BASEPATH ]; then
+        echo "ERROR: $BASEPATH does not exist"
         exit 1
     fi
 
-    PATHS=($($BUSYBOX find $PATH -follow -maxdepth $MAXDEPTH))
-    if [ ${#PATHS[@]} -gt 1 ]; then
-        $BUSYBOX grep -s '' ${PATHS[@]}
+    PATHS=$($BUSYBOX find $BASEPATH -follow -maxdepth $MAXDEPTH)
+    i=0
+    for path in $PATHS; do
+            i=$(expr $i + 1)
+    done
+    if [ $i -gt 1 ]; then
+        $BUSYBOX grep -s '' $PATHS
     fi
 }
 
