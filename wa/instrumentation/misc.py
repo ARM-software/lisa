@@ -256,8 +256,8 @@ class InterruptStatsInstrument(Instrument):
 
     """
 
-    def __init__(self, device, **kwargs):
-        super(InterruptStatsInstrument, self).__init__(device, **kwargs)
+    def __init__(self, target, **kwargs):
+        super(InterruptStatsInstrument, self).__init__(target, **kwargs)
         self.before_file = None
         self.after_file = None
         self.diff_file = None
@@ -269,11 +269,11 @@ class InterruptStatsInstrument(Instrument):
 
     def start(self, context):
         with open(_f(self.before_file), 'w') as wfh:
-            wfh.write(self.device.execute('cat /proc/interrupts'))
+            wfh.write(self.target.execute('cat /proc/interrupts'))
 
     def stop(self, context):
         with open(_f(self.after_file), 'w') as wfh:
-            wfh.write(self.device.execute('cat /proc/interrupts'))
+            wfh.write(self.target.execute('cat /proc/interrupts'))
 
     def update_result(self, context):
         # If workload execution failed, the after_file may not have been created.
