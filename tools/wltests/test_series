@@ -602,7 +602,7 @@ flash_sha1() {
 
 	### Check that we are running the expected kernel
 	match_sha1 $COMMIT_SHA1; ERROR=$?
-	[ $ERROR -ne 0 ] || c_error "Failed to flash kernel [$COMMIT_DESC]!"
+	[ $ERROR -eq 0 ] || c_error "Failed to flash kernel [$COMMIT_DESC]!"
 	return $?
 }
 
