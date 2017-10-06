@@ -620,7 +620,7 @@ class Target(object):
                                     check_exit_code=check_exit_code)
         result = {}
         for entry in output.strip().split('\n'):
-            if not entry.strip():
+            if ':' not in entry:
                 continue
             path, value = entry.strip().split(':', 1)
             result[path] = value
