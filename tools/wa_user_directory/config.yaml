@@ -1,0 +1,17 @@
+device: generic_android
+
+# If you have multiple devices connected, set the ADB device ID here
+# device_config:
+#   device: 0123456789ABCDEF
+
+energy_measurement:
+  instrument: acme_cape
+  instrument_parameters:
+    host: 192.168.0.1
+    # Set channel name here (find using iio_info)
+    # iio-device: iio:device0
+    # If not in $PATH:
+    # iio-capture: /path/to/iio-capture
+
+# Disable re-trying things that go wrong
+max_retries: 0
