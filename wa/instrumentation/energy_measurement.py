@@ -16,6 +16,7 @@
 
 # pylint: disable=W0613,E1101
 from __future__ import division
+from collections import defaultdict
 import os
 
 from devlib import DerivedEnergyMeasurements
@@ -46,6 +47,14 @@ class EnergyInstrumentBackend(Plugin):
     def validate_parameters(self, params):
         pass
 
+    def get_instruments(self, target, **kwargs):
+        """
+        Get a dict mapping device keys to an Instruments
+
+        Typically there is just a single device/instrument, in which case the
+        device key is arbitrary.
+        """
+        return {None: self.instrument(target, **kwargs)}
 
 class DAQBackend(EnergyInstrumentBackend):
 
@@ -156,7 +165,8 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
                   description="""
                   Host name (or IP address) of the ACME cape board.
                   """),
-        Parameter('iio-device', default='iio:device0',
+        Parameter('iio-devices', default='iio:device0',
+                  kind=list_or_string,
                   description="""
                   """),
         Parameter('buffer-size', kind=int, default=256,
@@ -165,7 +175,30 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
                   """),
     ]
 
-    instrument = AcmeCapeInstrument
+    def get_instruments(self, target,
+                        iio_capture, host, iio_devices, buffer_size):
+
+        #
+        # Devlib's ACME instrument uses iio-capture under the hood, which can
+        # only capture data from one IIO device at a time. Devlib's instrument
+        # API expects to produce a single CSV file for the Instrument, with a
+        # single axis of sample timestamps. These two things cannot be correctly
+        # reconciled without changing the devlib Instrument API - get_data would
+        # need to be able to return two distinct sets of data.
+        #
+        # Instead, where required WA will instantiate the ACME instrument
+        # multiple times (once for each IIO device), producing two separate CSV
+        # files. Aggregated energy info _can_ be meaningfully combined from
+        # multiple IIO devices, so we will later sum the derived stats across
+        # each of the channels reported by the instruments.
+        #
+
+        ret = {}
+        for iio_device in iio_devices:
+            ret[iio_device] = AcmeCapeInstrument(
+                target, iio_capture=iio_capture, host=host,
+                iio_device=iio_device, buffer_size=buffer_size)
+        return ret
 
 
 class EnergyMeasurement(Instrument):
@@ -211,14 +244,10 @@ class EnergyMeasurement(Instrument):
     def __init__(self, target, loader=pluginloader, **kwargs):
         super(EnergyMeasurement, self).__init__(target, **kwargs)
         self.instrumentation = None
-        self.measurement_csv = None
+        self.measurement_csvs = {}
         self.loader = loader
         self.backend = self.loader.get_plugin(self.instrument)
         self.params = obj_dict()
-
-        if self.backend.instrument.mode != CONTINUOUS:
-            msg = '{} instrument does not support continuous measurement collection'
-            raise ConfigError(msg.format(self.instrument))
 
         supported_params = self.backend.get_parameters()
         for name, param in supported_params.iteritems():
@@ -227,30 +256,79 @@ class EnergyMeasurement(Instrument):
         self.backend.validate_parameters(self.params)
 
     def initialize(self, context):
-        self.instrumentation = self.backend.instrument(self.target, **self.params)
+        self.instruments = self.backend.get_instruments(self.target, **self.params)
+
+        for instrument in self.instruments.itervalues():
+            if instrument.mode != CONTINUOUS:
+                msg = '{} instrument does not support continuous measurement collection'
+                raise ConfigError(msg.format(self.instrument))
 
         for channel in self.channels or []:
-            if not self.instrumentation.get_channels(channel):
-                raise ConfigError('No channels found for "{}"'.format(channel))
+            # Check that the expeccted channels exist.
+            # If there are multiple Instruments, they were all constructed with
+            # the same channels param, so check them all.
+            for instrument in self.instruments.itervalues():
+                if not instrument.get_channels(channel):
+                    raise ConfigError('No channels found for "{}"'.format(channel))
 
     def setup(self, context):
-        self.instrumentation.reset(sites=self.sites,
-                                   kinds=self.kinds,
-                                   channels=self.channels)
+        for instrument in self.instruments.itervalues():
+            instrument.reset(sites=self.sites,
+                             kinds=self.kinds,
+                             channels=self.channels)
 
     def start(self, context):
-        self.instrumentation.start()
+        for instrument in self.instruments.itervalues():
+            instrument.start()
 
     def stop(self, context):
-        self.instrumentation.stop()
+        for instrument in self.instruments.itervalues():
+            instrument.stop()
 
     def update_result(self, context):
-        outfile = os.path.join(context.output_directory, 'energy_instrument_output.csv')
-        self.measurement_csv = self.instrumentation.get_data(outfile)
-        context.add_artifact('energy_instrument_output', outfile, 'data')
+        for device, instrument in self.instruments.iteritems():
+            # Append the device key to the filename and artifact name, unless
+            # it's None (as it will be for backends with only 1
+            # devce/instrument)
+            if device is not None:
+                name = 'energy_instrument_output_{}'.format(device)
+            else:
+                name = 'energy_instrument_output'
+
+            outfile = os.path.join(context.output_directory, '{}.csv'.format(name))
+            self.measurement_csvs[device] = instrument.get_data(outfile)
+            context.add_artifact(name, outfile, 'data',
+                                 classifiers={'device': device})
         self.extract_metrics(context)
 
     def extract_metrics(self, context):
-        derived_measurements = DerivedEnergyMeasurements.process(self.measurement_csv)
-        for meas in derived_measurements:
-            context.add_metric(meas.name, meas.value, meas.units)
+        metrics_by_name = defaultdict(list)
+
+        for device in self.instruments:
+            csv = self.measurement_csvs[device]
+            derived_measurements = DerivedEnergyMeasurements.process(csv)
+            for meas in derived_measurements:
+                # Append the device key to the metric name, unless it's None (as
+                # it will be for backends with only 1 devce/instrument)
+                if device is not None:
+                    metric_name = '{}_{}'.format(meas.name, device)
+                else:
+                    metric_name = meas.name
+                context.add_metric(metric_name, meas.value, meas.units,
+                                   classifiers={'device': device})
+
+                metrics_by_name[meas.name].append(meas)
+
+        # Where we have multiple instruments, add up all the metrics with the
+        # same name. For instance with ACME we may have multiple IIO devices
+        # each reporting 'device_energy' and 'device_power', so sum them up to
+        # produce aggregated energy and power metrics.
+        # (Note that metrics_by_name uses the metric name originally reported by
+        #  the devlib instrument, before we potentially appended a device key to
+        #  it)
+        if len(self.instruments) > 1:
+            for name, metrics in metrics_by_name.iteritems():
+                units = metrics[0].units
+                value = sum(m.value for m in metrics)
+                context.add_metric(name, value, units)
+
