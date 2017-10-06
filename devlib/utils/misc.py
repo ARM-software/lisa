@@ -474,8 +474,8 @@ def which(name):
             return None
 
 
-_bash_color_regex = re.compile('\x1b\\[[0-9;]+m')
-
+# This matches most ANSI escape sequences, not just colors
+_bash_color_regex = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
 
 def strip_bash_colors(text):
     return _bash_color_regex.sub('', text)
