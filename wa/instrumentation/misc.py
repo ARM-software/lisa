@@ -40,6 +40,7 @@ from devlib.utils.android import ApkInfo
 from wa import Instrument, Parameter, very_fast
 from wa.framework import signal
 from wa.framework.exception import ConfigError
+from wa.framework.instrumentation import slow
 from wa.utils.misc import diff_tokens, write_table, check_output, as_relative
 from wa.utils.misc import ensure_file_directory_exists as _f
 from wa.utils.misc import ensure_directory_exists as _d
@@ -127,7 +128,8 @@ class SysfsExtractor(Instrument):
                     self.target.execute('rm -rf  {}'.format(after_dir), as_root=True)
                 self.target.execute('mkdir -p {}'.format(after_dir), as_root=True)
 
-    def slow_start(self, context):
+    @slow
+    def start(self, context):
         if self.use_tmpfs:
             for d in self.paths:
                 dest_dir = self.target.path.join(self.on_device_before, as_relative(d))
@@ -139,7 +141,8 @@ class SysfsExtractor(Instrument):
             for dev_dir, before_dir, _, _ in self.device_and_host_paths:
                 self.target.pull(dev_dir, before_dir)
 
-    def slow_stop(self, context):
+    @slow
+    def stop(self, context):
         if self.use_tmpfs:
             for d in self.paths:
                 dest_dir = self.target.path.join(self.on_device_after, as_relative(d))
@@ -192,7 +195,7 @@ class SysfsExtractor(Instrument):
 
     def validate(self):
         if not self.tmpfs_mount_point:  # pylint: disable=access-member-before-definition
-            self.tmpfs_mount_point = self.target.path.join(self.target.working_directory, 'temp-fs')
+            self.tmpfs_mount_point = self.target.get_workpath('temp-fs')
 
     def _local_dir(self, directory):
         return os.path.dirname(as_relative(directory).replace(self.target.path.sep, os.sep))
@@ -302,7 +305,7 @@ class DynamicFrequencyInstrument(SysfsExtractor):
         super(DynamicFrequencyInstrument, self).setup(context)
 
     def validate(self):
-        # temp-fs would have been set in super's validate, if not explicitly specified.
+        super(DynamicFrequencyInstrument, self).validate()
         if not self.tmpfs_mount_point.endswith('-cpufreq'):  # pylint: disable=access-member-before-definition
             self.tmpfs_mount_point += '-cpufreq'
 
