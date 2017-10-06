@@ -29,7 +29,7 @@ from wa import Instrument, Parameter
 from wa.framework import pluginloader
 from wa.framework.plugin import Plugin
 from wa.framework.exception import ConfigError
-from wa.utils.types import list_of_strings, list_of_ints, list_or_string
+from wa.utils.types import list_of_strings, list_of_ints, list_or_string, obj_dict
 
 
 class EnergyInstrumentBackend(Plugin):
@@ -214,18 +214,16 @@ class EnergyMeasurement(Instrument):
         self.measurement_csv = None
         self.loader = loader
         self.backend = self.loader.get_plugin(self.instrument)
-        self.params = {}
+        self.params = obj_dict()
 
         if self.backend.instrument.mode != CONTINUOUS:
             msg = '{} instrument does not support continuous measurement collection'
             raise ConfigError(msg.format(self.instrument))
 
         supported_params = self.backend.get_parameters()
-        for name, value in supported_params.iteritems():
-            if name in self.instrument_parameters:
-                self.params[name] = self.instrument_parameters[name]
-            elif value.default:
-                self.params[name] = value.default
+        for name, param in supported_params.iteritems():
+            value = self.instrument_parameters.get(name)
+            param.set_value(self.params, value)
         self.backend.validate_parameters(self.params)
 
     def initialize(self, context):

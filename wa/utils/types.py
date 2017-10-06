@@ -107,6 +107,12 @@ def list_of(type_):
     def extend(self, other):
         list.extend(self, map(type_, other))
 
+    def from_pod(cls, pod):
+        return cls(map(type_, pod))
+
+    def _to_pod(self):
+        return self
+
     def __setitem__(self, idx, value):
         list.__setitem__(self, idx, type_(value))
 
@@ -116,6 +122,8 @@ def list_of(type_):
                     "__setitem__": __setitem__,
                     "append": append,
                     "extend": extend,
+                    "to_pod": _to_pod,
+                    "from_pod": classmethod(from_pod),
     })
 
 

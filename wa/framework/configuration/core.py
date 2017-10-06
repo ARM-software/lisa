@@ -118,6 +118,10 @@ class LoggingConfig(dict):
         'color': True,
     }
 
+    @staticmethod
+    def from_pod(pod):
+        return LoggingConfig(pod)
+
     def __init__(self, config=None):
         dict.__init__(self)
         if isinstance(config, dict):
@@ -135,6 +139,9 @@ class LoggingConfig(dict):
                 self[k] = v
         else:
             raise ValueError(config)
+
+    def to_pod(self):
+        return self
 
 
 def get_type_name(kind):
@@ -254,7 +261,7 @@ class ConfigurationPoint(object):
     def set_value(self, obj, value=None, check_mandatory=True):
         if value is None:
             if self.default is not None:
-                value = self.default
+                value = self.kind(self.default)
             elif check_mandatory and self.mandatory:
                 msg = 'No values specified for mandatory parameter "{}" in {}'
                 raise ConfigError(msg.format(self.name, obj.name))
