@@ -1,16 +1,22 @@
+# Skeleton global config.yaml for WA3
 device: generic_android
 
-# If you have multiple devices connected, set the ADB device ID here
-# device_config:
-#   device: 0123456789ABCDEF
+# Prevents Geekbench and other such workloads from being run by accident. For
+# devices where such workloads are safe (i.e. publicly-available devices),
+# override this in a per-device config file and pass it to wa with the
+# --config/-c option.
+allow_phone_home: false
 
+# Set up ACME
 energy_measurement:
   instrument: acme_cape
   instrument_parameters:
-    host: 192.168.0.1
-    # Set channel name here (find using iio_info)
-    # iio-device: iio:device0
-    # If not in $PATH:
+    host: baylibre-acme.local
+    # If collecting on multiple channels, or another channel than iio:device0,
+    # set them here:
+    iio_devices: ["iio:device0"]
+
+    # If iio-capture is not in your $PATH, uncomment this and set the path.
     # iio-capture: /path/to/iio-capture
 
 # Disable re-trying things that go wrong
