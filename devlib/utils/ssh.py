@@ -444,7 +444,7 @@ class Gem5Connection(TelnetConnection):
         self._check_ready()
 
         result = self._gem5_shell("ls {}".format(source))
-        files = result.split()
+        files = strip_bash_colors(result).split()
 
         for filename in files:
             dest_file = os.path.basename(filename)
