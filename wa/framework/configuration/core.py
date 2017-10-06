@@ -261,7 +261,7 @@ class ConfigurationPoint(object):
     def set_value(self, obj, value=None, check_mandatory=True):
         if value is None:
             if self.default is not None:
-                value = self.default
+                value = self.kind(self.default)
             elif check_mandatory and self.mandatory:
                 msg = 'No values specified for mandatory parameter "{}" in {}'
                 raise ConfigError(msg.format(self.name, obj.name))
