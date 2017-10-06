@@ -7,7 +7,7 @@ from wa.framework.target.runtime_config import (SysfileValuesRuntimeConfig,
                                                 CpufreqRuntimeConfig,
                                                 CpuidleRuntimeConfig,
                                                 AndroidRuntimeConfig)
-from wa.utils.types import obj_dict
+from wa.utils.types import obj_dict, caseless_string
 
 
 class RuntimeParameterManager(object):
@@ -74,13 +74,13 @@ class RuntimeParameterManager(object):
             cfg.set_defaults()
 
     def get_config_for_name(self, name):
-        for rp_name, rp in self.runtime_params.iteritems():
-            if re.search(name, rp_name):
-                return rp.rt_config
+        name = caseless_string(name)
+        if name in self.runtime_params:
+            return self.runtime_params[name].rt_config
         return None
 
     def get_cfg_point(self, name):
-        for rp_name, rp in self.runtime_params.iteritems():
-            if re.search(name, rp_name, re.IGNORECASE):
-                return rp.cfg_point
+        name = caseless_string(name)
+        if name in self.runtime_params:
+            return self.runtime_params[name].cfg_point
         raise ConfigError('Unknown Runtime Parameter: {}'.format(name))
