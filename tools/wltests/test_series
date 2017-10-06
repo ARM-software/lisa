@@ -1,0 +1,706 @@
+#!/bin/bash
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2015, ARM Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+################################################################################
+# Other internal configurations
+################################################################################
+BASE_DIR=$(dirname $(realpath $0))
+source "${BASE_DIR}/helpers"
+
+
+################################################################################
+# Builds configuration
+################################################################################
+
+PLATFORM=${PLATFORM:-'hikey960_android-4.4'}
+KERNEL_PATH=${KERNEL_PATH:-$BASE_DIR/kernel}
+SERIES=${SERIES:-''}
+TEST_CMD=${TEST_CMD:-'echo "Test DONE!"'}
+
+if [ -z $ANDROID_HOME ]; then
+	ADB=${ADB:-$(which adb)}
+	FASTBOOT=${FASTBOOT:-$(which fastboot)}
+else
+	ADB=${ADB:-$ANDROID_HOME/platform-tools/adb}
+	FASTBOOT=${FASTBOOT:-$ANDROID_HOME/platform-tools/fastboot}
+fi
+
+EMETER=${EMETER:-'ACME'}
+ACME_IP=${ACME_IP:-'192.168.0.1'}
+ACME_USB=${ACME_USB:-'device1'}
+
+DEVICE=${DEVICE:-''}
+REBOOT_TIMEOUT=${REBOOT_TIMEOUT:-180}
+
+DRYRUN=${DRYRUN:-0}
+
+
+################################################################################
+# Check configuration
+################################################################################
+
+usage() {
+	cat <<EOF
+
+Usage: [ENV]... $(basename $0) -p PLATFORM -k KERNEL_PATH -s SERIES -t TEST_CMD [OPTIONS]..."
+
+Checkout, compile, flash a predefined set of kernel COMMITS and run a custom
+SCRIPT for each of them.
+
+Mandatory arguments:
+
+    -p, --platform		the platform to target
+				available platforms are the subfolders of the
+				top level "platforms" folder.
+				default: PLATFORM=juno_android-4.4
+
+    -k, --kernel_path		the kernel source tree to use
+				default: KERNEL_PATH=../kernel
+
+    -s, --series		the series of commits to test
+				this is a list which can be generated with:
+
+				  git log --no-color --oneline <revision range>
+
+				Such a list can be enriched by adding an "ID:"
+				in front of each line.
+				If an "ID:" column is present, the commits will
+				be considered in progressive "ID:" order while
+				discarding those with ID=00:
+				default: SERIES=''
+
+    -t, --test_cmd PATH		The path of a custom test script to run for
+				each kernel.
+				default: TEST_CMD='echo >>> Testing SHA1: '
+
+Optional arguments:
+
+	--adb			the ADB binary to use
+				default: ADB=[ANDROID_HOME/platform-tools/adb|\$(which adb)]
+	--fastboot		the FASTBOOT binary to use
+				default: FASTBOOT=[ANDROID_HOME/platform-tools/fatboot|\$(which fatboot)]
+
+	--emeter		the Energy Meter used to power-cycle the device
+				default: EMETER=ACME
+	--acme_ip		the IP address of an ACME energy meter
+				default: ACME_IP=192.168.0.1
+	--acme_usb		the ACME channel used to control a USB
+				passthrought connetion
+				default ACME_USB=device1
+
+	--device		the Android device to target
+				default DEVICE=Default
+
+	--reboot_timeout	maximum number of seconds to wait for a device
+				to complete the boot.
+				default REBOOT_TIMEOUT=180
+
+	--dryrun		don't actually run any command
+				deafult: DRYRUN=0
+
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+	case $1 in
+		# Mandatory arguments
+		-p|--platform)
+			PLATFORM=$2
+			shift
+		;;
+		-k|--kernel_path)
+			KERNEL_PATH=$2
+			shift
+		;;
+		-s|--series)
+			SERIES=$2
+			shift
+		;;
+		-t|--test_cmd)
+			TEST_CMD=$2
+			shift
+		;;
+
+		# Tools
+		--adb)
+			ADB=$2
+			shift
+		;;
+		--fastboot)
+			FASTBOOT=$2
+			shift
+		;;
+
+		# Energy meter
+		--emeter)
+			EMETER=$2
+			shift
+		;;
+		--acme_ip)
+			ACME_IP=$2
+			shift
+		;;
+		--acme_usb)
+			ACME_USB=$2
+			shift
+		;;
+
+		# Target Device
+		--device)
+			DEVICE=$2
+			shift
+		;;
+
+		# Execution customization
+		--dryrun)
+			DRYRUN=1
+		;;
+
+		# Usage notes
+		-h|--help)
+			usage
+			exit $OK
+		;;
+		*)
+			c_error "Unknown option: $1"
+			usage
+			exit $EAGAIN
+		;;
+	esac
+	shift # past argument or value
+done
+
+# Prepare PLATFORM
+export PLATFORM_PATH=$BASE_DIR/platforms/$PLATFORM
+ASSETS_REQUIRED="definitions build_images flash_images"
+for ASSET in $ASSETS_REQUIRED; do
+if [ ! -f $PLATFORM_PATH/$ASSET ]; then
+	c_error "The specified PLATFORM=$PLATFORM is not supported, or it does not provide a [$ASSET] file"
+	# List all platforms which provides all the required assets
+	c_warning "Supported platforms are:"
+	ls $BASE_DIR/platforms | while read PLAT; do
+		RESULT=$OK
+		for ASSET in $ASSETS_REQUIRED; do
+			if [ ! -f $BASE_DIR/platforms/$PLAT/$ASSET ]; then
+				RESULT=$ENOENT; break;
+			fi
+		done
+		[ $RESULT == $OK ] || continue
+		c_warning " - $PLAT"
+	done
+	exit $EINVAL
+fi
+done
+export PLATFORM_OVERLAY_PATH=$PLATFORM_PATH
+
+# Prepare KERNEL
+export KERNEL_PATH=$(realpath -s $KERNEL_PATH)
+grep -E "mainmenu .* Kernel Configuration" $KERNEL_PATH/Kconfig &>/dev/null
+if [ $? -ne 0 ]; then
+	c_error "The KERNEL_PATH seems not pointing to a valid kernel source tree"
+	exit $EINVAL
+fi
+
+# Prepare SERIES
+if [ -z $SERIES ]; then
+	c_error "A valid commit series should be defined by SERIES"
+	exit $EINVAL
+fi
+if [ ! -f $SERIES ]; then
+	c_error "SERIES points to a non existing commit series"
+	exit $ENOENT
+fi
+
+
+# Prepare ADB and FASTBOOT commands to target the specified device
+if [ ! -f $ADB ]; then
+	c_error "ADB command [$ADB] not found"
+	exit $EINVAL
+fi
+if [ ! -f $FASTBOOT ]; then
+	c_error "FASTBOOT command [$FASTBOOT] not found"
+	exit $EINVAL
+fi
+if [ "x$DEVICE" != "x" ]; then
+	ADB="$ADB -s $DEVICE"
+	FASTBOOT="$FASTBOOT -s $DEVICE"
+fi
+export ADB
+export FASTBOOT
+
+# Prepare Energy Meter device
+case $EMETER in
+'ACME')
+	EMETER_CONF="ACME (ACME_USB: $ACME_USB @ ACME_IP: $ACME_IP)"
+	;;
+*)
+	c_error "Energy meter [EMETER=$EMETER] not supported"
+	exit $EINVAL
+	;;
+esac
+
+# Report current setup
+box_out \
+	"Mandatory conf" \
+	"   PLATFORM      : $PLATFORM" \
+	"   KERNEL_PATH   : $KERNEL_PATH" \
+	"   SERIES        : $SERIES" \
+	"   TEST_CMD      : $TEST_CMD" \
+	"" \
+	"Tools" \
+	"   ADB           : $ADB" \
+	"   FASTBOOT      : $FASTBOOT" \
+	"" \
+	"Energy meter" \
+	"   EMETER        : $EMETER_CONF" \
+	"   DEVICE        : $DEVICE" \
+	"" \
+	"Internals" \
+	"   Scripts dir   : $BASE_DIR" \
+	"   DRYRUN        : $DRYRUN"
+
+################################################################################
+# Device access via USB connection management
+################################################################################
+usb_disconnect() {
+	c_info "Disconnecting USB..."
+	if [ $DRYRUN ]; then return; fi
+	case $EMETER in
+	'ACME')
+		sh root@$ACME_IP \
+			"echo 0 > /sys/bus/iio/devices/iio:$ACME_USB/in_active"
+		;;
+	*)
+		c_error "Energy meter $EMETER not supported"
+		exit $EINVAL
+		;;
+	esac
+}
+
+usb_connect() {
+	c_info "Connecting USB..."
+	if [ $DRYRUN ]; then return; fi
+	case $EMETER in
+	'ACME')
+		ssh root@$ACME_IP \
+			"echo 1 > /sys/bus/iio/devices/iio:$ACME_USB/in_active"
+		;;
+	*)
+		c_error "Energy meter $EMETER not supported"
+		exit $EINVAL
+		;;
+	esac
+	sleep 5
+}
+
+################################################################################
+# FASTBOOT mode checking
+################################################################################
+device_in_fastboot() {
+	if [ "x$DEVICE" != "x" ]; then
+		[[ $($FASTBOOT devices | grep $DEVICE | wc -l) -gt 0 ]] || return $ENODEV
+	else
+		[[ $($FASTBOOT devices | wc -l) -gt 0 ]] || return $ENODEV
+	fi
+	return $OK
+}
+device_not_in_fastboot() {
+	device_in_fastboot || return $OK
+	return $EAGAIN
+}
+
+################################################################################
+# ADB mode checking
+################################################################################
+device_in_adb() {
+	if [ "x$DEVICE" != "x" ]; then
+		[[ $(adb devices | grep $DEVICE | wc -l) -gt 0 ]] || return $ENODEV
+	else
+		[[ $(adb devices | wc -l) -gt 2 ]] || return $ENODEV
+	fi
+	return $OK
+}
+device_not_in_adb() {
+	device_in_adb || return $OK
+	return $EAGAIN
+}
+
+################################################################################
+# DEVICE connection checks
+################################################################################
+device_connected() {
+	seconds=${1:-5}
+
+	[ $DRYRUN -eq 1 ] || \
+	while [[ true ]]; do
+		device_not_in_fastboot || return $OK
+		device_not_in_adb || return $OK
+
+		echo
+		c_warning "Device not in FASTBOOT nor in ADB mode"
+		let seconds--
+		if [[ $seconds -eq 0 ]]; then
+			c_error "device not connected"
+			return $ENODEV
+		fi
+		usb_disconnect
+		c_warning "Check again in 1s..."
+		sleep 1
+		usb_connect
+	done
+	return $OK
+}
+device_not_connected() {
+	device_connected || return $OK
+	return $EAGAIN
+}
+
+device_status() {
+	_CNT='NO'; device_connected || _CNT='NO'
+	_FBT='NO'; device_in_fastboot || _FBT='NO'
+	_ADB='NO'; device_in_adb || _ADB='NO'
+	c_info "Current device Status"
+	c_info "Reachable : $_CNT"
+	c_info "Fastboot  : $_FBT"
+	c_info "ADB Mode  : $_ADB"
+}
+
+################################################################################
+# DEVICE boot checks
+################################################################################
+reboot_timedout() {
+	[ $ELAPSED -lt $REBOOT_TIMEOUT ] || return $OK
+	return $EAGAIN
+}
+reboot_not_timedout() {
+	reboot_timedout || return $OK
+	return $EAGAIN
+}
+
+boot_completed() {
+	COMPLETED=$($ADB shell getprop sys.boot_completed)
+	[[ "x$COMPLETED" = x1* ]] || return $EAGAIN
+	return $OK
+}
+boot_not_completed() {
+	boot_completed || return $OK
+	return $EAGAIN
+}
+
+
+################################################################################
+# FASTBOOT mode
+################################################################################
+reboot_fastboot() {
+	seconds=$1
+
+	# Check device is connected
+	if device_not_connected; then
+		c_error "device not connected"
+		return $ENODEV
+	fi
+
+	# Already in fastboot mode: nothing to do
+	if device_in_fastboot; then
+		c_info "Device already in fastboot mode, continuing..."
+		return $OK
+	fi
+
+	c_info "Device in ADB mode"
+	c_info "Rebooting into bootloader..."
+	$ADB reboot bootloader
+
+	echo
+	c_info "Waiting for bootloader up to $REBOOT_TIMEOUT[s]..."
+	ELAPSED=0
+	sleep 5
+
+	# Wait for device to leave ADB mode
+	[ $DRYRUN -eq 1 ] || \
+	until device_not_in_adb || reboot_timedout; do
+		sleep 3; let ELAPSED+=3
+	done
+	echo
+	if reboot_timedout; then
+		c_error "device not leaving ADB mode"
+		d_notify "Bootloader enter TIMEOUT!" face-embarrassed
+		exit $EIO
+	fi
+
+	# Wait for device to enter FASTBOOT mode
+	[ $DRYRUN -eq 1 ] || \
+	while device_not_in_fastboot && reboot_not_timedout; do
+		usb_disconnect &>/dev/null
+		sleep 3; let ELAPSED+=3
+		usb_connect &>/dev/null
+	done
+	echo
+	if reboot_timedout; then
+		c_error "device not entering in FASTBOOT mode"
+		d_notify "Bootloader enter TIMEOUT!" face-embarrassed
+		exit $EIO
+	fi
+
+	return $OK
+}
+
+################################################################################
+# Build and test a specified SHA1 checkout
+################################################################################
+
+name_sha1() {
+	COMMIT_SHA1=${1:0:7}
+	MINLEN=12345
+
+	# In case the specified SHA1 has not a name, let's use the SHA1
+	COMMIT_NAME=$COMMIT_SHA1
+
+	# Find a name for each possible REF
+	mkfifo tmp_pipe &>/dev/null
+	git -C $KERNEL_PATH for-each-ref \
+			--sort=-committerdate \
+			--format='%(objectname:short) %(refname:short)' \
+			refs/heads/ refs/remotes/ refs/tags |
+	grep $COMMIT_SHA1 | awk '{print $2}' > tmp_pipe &
+	while IFS= read -r NAME; do
+		# Return the fist name starting by "test_"
+		if [[ $NAME = test_* ]]; then
+			COMMIT_NAME=${NAME//\//:}
+			break
+		fi
+		# Or the shorted name for a given SHA1
+		if [ ${#NAME} -lt $MINLEN ]; then
+			MINLEN=${#NAME}
+			COMMIT_NAME=${NAME//\//:}
+		fi
+	done < tmp_pipe
+	rm tmp_pipe
+}
+
+match_sha1() {
+	COMMIT_SHA1=$1
+
+	c_info "Current kernel: "
+	CURRENT=$($ADB shell 'uname -a')
+	c_info "   $CURRENT"
+
+	[[ $CURRENT = *$COMMIT_SHA1* ]] || return $EAGAIN
+
+	return $OK
+}
+
+build_sha1() {
+	COMMIT_SHA1=$1
+	COMMIT_DESC=$2
+
+	### Prepare KERNEL for build
+	pushd $KERNEL_PATH &>/dev/null
+	echo
+	c_info "Checkout kernel: $KERNEL_PATH @ $COMMIT_SHA1..."
+	git checkout $COMMIT_SHA1; ERROR=$?
+	if [ $ERROR -ne 0 ]; then
+		c_error "Failed to checkout [$COMMIT_SHA1]"
+		popd &>/dev/null
+		return $ERROR
+	fi
+	popd &>/dev/null
+
+	### Build all IMAGES
+	pushd $BASE_DIR &>/dev/null
+	$PLATFORM_PATH/build_images
+	RESULT=$?
+	popd &>/dev/null
+	if [ $RESULT -ne $OK ]; then
+		exit $ENOENT
+	fi
+	[ $RESULT -eq $OK ] || return $RESULT
+}
+
+flash_sha1() {
+	COMMIT_SHA1=$1
+	COMMIT_DESC=$2
+
+	build_sha1 "$COMMIT_SHA1" "$COMMIT_DESC"; RESULT=$?
+	[ $RESULT -eq $OK ] || return $RESULT
+
+	### Reboot device into BOOTLOADER
+	echo
+	c_info "Rebooting device into bootloader..."
+	attempts=3
+	[ $DRYRUN -eq 1 ] || reboot_fastboot
+	[ $DRYRUN -eq 1 ] || \
+	while [[ $? -eq $ERROR ]]; do
+		let attempts--
+		if [[ $attempts -eq 0 ]]; then
+			c_error "device not entering FASTBOOT mode"
+			exit $EIO
+		fi
+		c_warning "Failed entering FASTBOOT mode, $attempts remaining attempts..."
+		reboot_fastboot
+	done
+
+	### Flash generated IMAGES
+	pushd $PLATFORM_PATH/artifacts &>/dev/null
+	[ $DRYRUN -eq 1 ] || $PLATFORM_PATH/flash_images
+	RESULT=$?
+	popd &>/dev/null
+	[ $RESULT -eq $OK ] || return $RESULT
+
+	### Reboot into new kernel
+	echo
+	c_info "Reboot new kernel..."
+	d_notify "Rebooting device..." face-monkey
+	[ $DRYRUN -eq 1 ] || $FASTBOOT reboot
+
+	c_info "Waiting up to $REBOOT_TIMEOUT[s] for boot to complete..."
+	ELAPSED=0
+
+	#### Wait for device to reboot
+	[ $DRYRUN -eq 1 ] || \
+	until device_in_adb || reboot_timedout; do
+		usb_disconnect &>/dev/null
+		sleep 3; let ELAPSED+=3
+		usb_connect &>/dev/null
+	done
+	echo
+	if reboot_timedout; then
+		c_error "device not entering ADB mode"
+		d_notify "Device reboot TIMEOUT!" face-embarrassed
+		exit $EIO
+	fi
+	c_info "Device in ADB mode"
+
+	### Wait for boot to complete
+	[ $DRYRUN -eq 1 ] || \
+	until boot_not_completed || reboot_not_timedout; do
+		sleep 3; let ELAPSED+=3
+	done
+	echo
+	if reboot_timedout; then
+		c_error "device still booting?!?"
+		d_notify "Device boot completion TIMEOUT!" face-embarrassed
+		exit $EIO
+	fi
+	c_info "Boot completed, wait 10[s] more..."
+	sleep 10 # Add an additional safe margin
+
+	### Check that we are running the expected kernel
+	match_sha1 $COMMIT_SHA1; ERROR=$?
+	[ $ERROR -ne 0 ] || c_error "Failed to flash kernel [$COMMIT_DESC]!"
+	return $?
+}
+
+test_sha1() {
+	COMMIT_SHA1=$1
+	COMMIT_ID=$2
+	COMMITS_COUNT=$3
+	COMMIT_DESC="$(grep $COMMIT_SHA1 $SERIES)"
+
+	# Get a name (if any) for the specified SHA1
+	name_sha1 $COMMIT_SHA1
+	c_info "Testing kernel:"
+	c_info "   SeriesID   : $COMMIT_DESC"
+	c_info "   CommitID   : $COMMIT_SHA1 $COMMIT_NAME"
+
+	echo
+	c_info "Check current kernel..."
+	if device_in_adb; then
+		match_sha1 $COMMIT_SHA1
+		if [ $? -ne $OK ]; then
+			c_info "Kernel update required!"
+			flash_sha1 $COMMIT_SHA1 "$COMMIT_DESC"
+			if [[ $? -ne 0 ]]; then
+				c_warning "Skipping kernel [$COMMIT_DESC]"
+				return
+			fi
+		fi
+	else
+		c_warning "Device not connected via ADB, cannot check current kernel"
+		c_warning "Forcing: build, flashing and reboot selected kernel"
+		flash_sha1 $COMMIT_SHA1 "$COMMIT_DESC"
+		if [[ $? -ne 0 ]]; then
+			c_warning "Skipping kernel [$COMMIT_DESC]"
+			d_notify "Skipping kernel [$COMMIT_DESC]" face-sick
+			return
+		fi
+	fi
+
+	echo
+	c_info "Running tests for [$COMMIT_SHA1: $COMMIT_NAME]..."
+	d_notify "Testing kernel $COMMIT_ID/$COMMITS_COUNT:\n$COMMIT_SHA1: $COMMIT_NAME..." face-tired
+	[ $DRYRUN -eq 1 ] || (set -x; eval $TEST_CMD; set +x)
+}
+
+# Prepare list of commits to test
+SELECTED_LIST="$(realpath $SERIES).selected"
+FMT=$(grep -v "^#" $SERIES | grep -v "00: " | head -n1 | awk '{print $1}')
+if [[ $FMT = *: ]]; then
+	# Filter out disabled commits and sort based on progressive ID:
+	grep -E -v "^$|^#|00: " $SERIES | sort \
+		| awk '{$1=""; print $0}' > $SELECTED_LIST
+else
+	grep -E -v "^$|^#" $SERIES \
+		| awk '{print $0}' > $SELECTED_LIST
+fi
+
+# Report commits to be tested
+COMMIT_ID=0
+echo
+c_info "Commits selected for testing:"
+cat $SELECTED_LIST | \
+while read COMMIT; do
+	let COMMIT_ID++
+	STR=$(printf "  %3s %s\n" $COMMIT_ID "$COMMIT")
+	c_info "$STR"
+done
+
+# Extract total number of commits
+COMMITS_COUNT=$(wc -l $SELECTED_LIST)
+COMMITS_COUNT=${COMMITS_COUNT%% *}
+
+# Ensure USB is on at tests start
+usb_connect 1>/dev/null
+printf "\n%80s\n\n" | tr " " "="
+
+# If the target isn't connected at the start, bail out
+device_connected || exit 1
+
+# Test each commit
+COMMIT_ID=1
+# Here we read from an arbitrary file descriptor 10 to avoid overlaps with
+# stdin generated by the adb commands in the loop body
+while read -u10 COMMITS; do
+	# Extract SHA1 from commit description
+	COMMIT_SHA1=${COMMITS%% *}
+
+	box_out "PROGRESS : $COMMIT_ID/$COMMITS_COUNT" \
+		"COMMIT   : $COMMITS"
+	echo
+	device_status
+
+	echo
+	test_sha1 $COMMIT_SHA1 $COMMIT_ID $COMMITS_COUNT
+
+	let COMMIT_ID++
+	printf "\n%80s\n\n" | tr " " "="
+
+done 10<$SELECTED_LIST
+
+d_notify "Tests completed!" face-cool
+
