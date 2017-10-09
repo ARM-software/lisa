@@ -116,6 +116,10 @@ fi
 
 curr_commit=$(git rev-parse HEAD)
 remote_name=$(git remote -v | grep -i ARM-software/lisa | grep -m 1 fetch | awk '{print $1}')
+if [ -z "$remote_name" ]; then
+    echo "Couldn't find ARM-Software upstream remote, can't automatically update"
+    return 1
+fi
 git merge-base --is-ancestor $curr_commit $remote_name/master
 ret=$?
 if [ $ret -ne 0 ]; then
