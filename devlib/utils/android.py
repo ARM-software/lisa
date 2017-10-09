@@ -135,7 +135,11 @@ class ApkInfo(object):
         _check_env()
         command = [aapt, 'dump', 'badging', apk_path]
         logger.debug(' '.join(command))
-        output = subprocess.check_output(command)
+        try:
+            output = subprocess.check_output(command, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            raise HostError('Error parsing APK file {}. `aapt` says:\n{}'
+                            .format(apk_path, e.output))
         for line in output.split('\n'):
             if line.startswith('application-label:'):
                 self.label = line.split(':')[1].strip().replace('\'', '')
