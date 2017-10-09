@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 import pylab as pl
 import re
+import os
 
 from collections import namedtuple
 from analysis_module import AnalysisModule
@@ -783,6 +784,28 @@ class LatencyAnalysis(AnalysisModule):
         return stats_df.append(pd.DataFrame(
             stats.values(), columns=['running_time'], index=stats.keys()))
 
+    def plotTaskResidency(self, task):
+        """
+        Plot CPU residency of the specified task
+        This will show an overview of how much time that task spent being
+        active on each available CPU, in seconds.
+
+        :param task: the task to report runtimes for
+        :type task: int or str
+        """
+        df = self._dfg_task_residency(task)
+
+        ax = df.plot(kind='bar', figsize=(16, 6))
+        ax.set_title('CPU residency of task {}'.format(task))
+
+        figname = os.path.join(
+            self._trace.plots_dir,
+            '{}task_cpu_residency_{}.png'.format(
+                self._trace.plots_prefix, task
+            )
+        )
+
+        pl.savefig(figname, bbox_inches='tight')
 
 ###############################################################################
 # Utility Methods
