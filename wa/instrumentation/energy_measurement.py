@@ -29,7 +29,7 @@ from devlib.utils.misc import which
 from wa import Instrument, Parameter
 from wa.framework import pluginloader
 from wa.framework.plugin import Plugin
-from wa.framework.exception import ConfigError
+from wa.framework.exception import ConfigError, InstrumentError
 from wa.utils.types import list_of_strings, list_of_ints, list_or_string, obj_dict
 
 
@@ -296,8 +296,13 @@ class EnergyMeasurement(Instrument):
                 name = 'energy_instrument_output'
 
             outfile = os.path.join(context.output_directory, '{}.csv'.format(name))
-            self.measurement_csvs[device] = instrument.get_data(outfile)
-            context.add_artifact(name, outfile, 'data',
+            measurements = instrument.get_data(outfile)
+            if not measurements:
+                raise InstrumentError("Failed to collect energy data from {}"
+                                      .format(self.backend.name))
+
+            self.measurement_csvs[device] = measurements
+            context.add_artifact(name, measurements.path, 'data',
                                  classifiers={'device': device})
         self.extract_metrics(context)
 
