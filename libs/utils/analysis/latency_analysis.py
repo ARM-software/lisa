@@ -286,6 +286,42 @@ class LatencyAnalysis(AnalysisModule):
         run_df = run_df[run_df.next_state.isin(['S', 'x'])][['running_time']]
         return run_df
 
+    @memoized
+    def _dfg_task_residency(self, task):
+        """
+        DataFrame of a task's execution time on each CPU
+
+        The returned DataFrame index is the CPU indexes
+        The DataFrame has just one column:
+        - runtime: the time the task spent being active on a given CPU,
+          in seconds.
+
+        :param task: the task to report runtimes for
+        :type task: int or str
+        """
+        cpus = range(self._platform['cpus_count'])
+        runtimes = {cpu : 0.0 for cpu in cpus}
+
+        df = self._dfg_latency_df(task)
+
+        # Exclude sleep time
+        df = df[df.curr_state != 'S']
+
+        for time, data in df.iterrows():
+            cpu = data['__cpu']
+
+            # When waking up, '__cpu' is NaN but 'target_cpu' is populated instead
+            if np.isnan(cpu):
+                if data['curr_state'] == 'W':
+                    cpu = data['target_cpu']
+                else:
+                    raise RuntimeError('No CPU data for latency_df @{}'.format(time))
+
+            runtimes[cpu] += data['t_delta']
+
+        data = [(cpu, time) for  cpu, time in runtimes.iteritems()]
+        return pd.DataFrame(data, columns=['CPU', 'runtime']).set_index('CPU')
+
 ###############################################################################
 # Plotting Methods
 ###############################################################################
