@@ -146,6 +146,14 @@ class LatencyAnalysis(AnalysisModule):
             - task_latency_df['t_start']
         )
 
+        # Fix the last entry, which will have a NaN state duration
+        # Set duration to trace_end - last_event
+        task_latency_df.loc[task_latency_df.index[-1], 't_delta'] = (
+            self._trace.start_time +
+            self._trace.time_range -
+            task_latency_df.index[-1]
+        )
+
         return task_latency_df
 
 
