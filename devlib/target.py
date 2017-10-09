@@ -215,7 +215,9 @@ class Target(object):
         tid = id(threading.current_thread())
         self._connections[tid] = self.get_connection(timeout=timeout)
         self._resolve_paths()
-        self.busybox = self.get_installed('busybox')
+        self.execute('mkdir -p {}'.format(self.working_directory))
+        self.execute('mkdir -p {}'.format(self.executables_directory))
+        self.busybox = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, self.abi, 'busybox'))
         self.platform.update_from_target(self)
         self._update_modules('connected')
         if self.platform.big_core and self.load_default_modules:
@@ -232,10 +234,6 @@ class Target(object):
         return self.conn_cls(timeout=timeout, **self.connection_settings)  # pylint: disable=not-callable
 
     def setup(self, executables=None):
-        self.execute('mkdir -p {}'.format(self.working_directory))
-        self.execute('mkdir -p {}'.format(self.executables_directory))
-        self.busybox = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, self.abi, 'busybox'))
-
         self._setup_shutils()
 
         for host_exe in (executables or []):  # pylint: disable=superfluous-parens
