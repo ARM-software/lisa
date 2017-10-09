@@ -29,7 +29,7 @@ source "${BASE_DIR}/helpers"
 ################################################################################
 
 PLATFORM=${PLATFORM:-'hikey960_android-4.4'}
-KERNEL_PATH=${KERNEL_PATH:-$BASE_DIR/kernel}
+KERNEL_SRC=${KERNEL_SRC:-$BASE_DIR/kernel}
 SERIES=${SERIES:-''}
 TEST_CMD=${TEST_CMD:-'echo "Test DONE!"'}
 
@@ -58,7 +58,7 @@ DRYRUN=${DRYRUN:-0}
 usage() {
 	cat <<EOF
 
-Usage: [ENV]... $(basename $0) -p PLATFORM -k KERNEL_PATH -s SERIES -t TEST_CMD [OPTIONS]..."
+Usage: [ENV]... $(basename $0) -p PLATFORM -k KERNEL_SRC -s SERIES -t TEST_CMD [OPTIONS]..."
 
 Checkout, compile, flash a predefined set of kernel COMMITS and run a custom
 SCRIPT for each of them.
@@ -70,8 +70,8 @@ Mandatory arguments:
 				top level "platforms" folder.
 				default: PLATFORM=juno_android-4.4
 
-    -k, --kernel_path		the kernel source tree to use
-				default: KERNEL_PATH=../kernel
+    -k, --kernel_src PATH		The kernel source tree to use
+				Default: KERNEL_SRC=../kernel
 
     -s, --series		the series of commits to test
 				this is a list which can be generated with:
@@ -124,8 +124,8 @@ while [[ $# -gt 0 ]]; do
 			PLATFORM=$2
 			shift
 		;;
-		-k|--kernel_path)
-			KERNEL_PATH=$2
+		-k|--kernel_src)
+			KERNEL_SRC=$2
 			shift
 		;;
 		-s|--series)
@@ -209,11 +209,11 @@ fi
 done
 export PLATFORM_OVERLAY_PATH=$PLATFORM_PATH
 
-# Prepare KERNEL
-export KERNEL_PATH=$(realpath -s $KERNEL_PATH)
-grep -E "mainmenu .* Kernel Configuration" $KERNEL_PATH/Kconfig &>/dev/null
+# Prepare KERNEL_SRC
+export KERNEL_SRC=$(realpath -s $KERNEL_SRC)
+grep -E "mainmenu .* Kernel Configuration" $KERNEL_SRC/Kconfig &>/dev/null
 if [ $? -ne 0 ]; then
-	c_error "The KERNEL_PATH seems not pointing to a valid kernel source tree"
+	c_error "The KERNEL_SRC seems not to a valid kernel source tree path"
 	exit $EINVAL
 fi
 
@@ -259,7 +259,7 @@ esac
 box_out \
 	"Mandatory conf" \
 	"   PLATFORM      : $PLATFORM" \
-	"   KERNEL_PATH   : $KERNEL_PATH" \
+	"   KERNEL_SRC    : $KERNEL_SRC" \
 	"   SERIES        : $SERIES" \
 	"   TEST_CMD      : $TEST_CMD" \
 	"" \
@@ -473,7 +473,7 @@ name_sha1() {
 
 	# Find a name for each possible REF
 	mkfifo tmp_pipe &>/dev/null
-	git -C $KERNEL_PATH for-each-ref \
+	git -C $KERNEL_SRC for-each-ref \
 			--sort=-committerdate \
 			--format='%(objectname:short) %(refname:short)' \
 			refs/heads/ refs/remotes/ refs/tags |
@@ -509,10 +509,10 @@ build_sha1() {
 	COMMIT_SHA1=$1
 	COMMIT_DESC=$2
 
-	### Prepare KERNEL for build
-	pushd $KERNEL_PATH &>/dev/null
+	### Prepare KERNEL_SRC for build
+	pushd $KERNEL_SRC &>/dev/null
 	echo
-	c_info "Checkout kernel: $KERNEL_PATH @ $COMMIT_SHA1..."
+	c_info "Checkout kernel: $KERNEL_SRC @ $COMMIT_SHA1..."
 	git checkout $COMMIT_SHA1; ERROR=$?
 	if [ $ERROR -ne 0 ]; then
 		c_error "Failed to checkout [$COMMIT_SHA1]"

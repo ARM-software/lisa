@@ -220,11 +220,11 @@ NCPUS="$(( 2 * $(nproc) ))"
 ################################################################################
 
 if [ "${CLEAN_KERNEL}" -eq $YES ] || [ "${CLEAN_ALL}" -eq $YES ]; then
-	(cd "${KERNEL_PATH}";  make clean)
+	(cd "${KERNEL_SRC}";  make clean)
 fi
 
 if [ "${DISTCLEAN_KERNEL}" -eq $YES ] || [ "${CLEAN_ALL}" -eq $YES ]; then
-	(cd "${KERNEL_PATH}";  make distclean)
+	(cd "${KERNEL_SRC}";  make distclean)
 fi
 
 if [ "${MAKE_KEEPCONFIG}" -eq $YES ]; then
@@ -238,12 +238,12 @@ fi
 
 if [ ! -z "${CONFIG_CMD}" ] && [ "${MAKE_KEEPCONFIG}" -eq $NO ]; then
 	c_info "Running CONFIG_CMD..."
-	(set -x; cd "${KERNEL_PATH}"; ${CONFIG_CMD})
+	(set -x; cd "${KERNEL_SRC}"; ${CONFIG_CMD})
 fi
 
 if [ ! -z "${DEFCONFIG}" ] && [ "${MAKE_KEEPCONFIG}" -eq $NO ]; then
 	c_info "Running DEFCONFIG [$DEFCONFIG]..."
-	(set -x; cd "${KERNEL_PATH}"; make ${DEFCONFIG})
+	(set -x; cd "${KERNEL_SRC}"; make ${DEFCONFIG})
 fi
 
 if [ ! -z "${BUILD_CONFIG_LIST}" ]; then
@@ -254,8 +254,8 @@ if [ ! -z "${BUILD_CONFIG_LIST}" ]; then
 	for config in "${list_configs[@]}"; do
 		echo ${config} >> "${tmp_file}"
 	done
-	if [ -f "${KERNEL_PATH}/scripts/kconfig/merge_config.sh" ]; then
-		(set -x; cd "${KERNEL_PATH}"; \
+	if [ -f "${KERNEL_SRC}/scripts/kconfig/merge_config.sh" ]; then
+		(set -x; cd "${KERNEL_SRC}"; \
 			./scripts/kconfig/merge_config.sh -m \
 			.config ${tmp_file})
 	else
@@ -264,7 +264,7 @@ if [ ! -z "${BUILD_CONFIG_LIST}" ]; then
 	fi
 	rm -f ${tmp_file}
 	c_info "Running oldconfig after merge of configs"
-	(set -x; cd "${KERNEL_PATH}"; \
+	(set -x; cd "${KERNEL_SRC}"; \
 		yes "" 2>/dev/null | make oldconfig)
 fi
 
@@ -275,31 +275,31 @@ fi
 
 if [ ${BUILD_IMAGE} -eq $YES ]; then
 	c_info "Making [Image]..."
-	(set -x; cd "${KERNEL_PATH}"; make -j${NCPUS} "$KERNEL_IMAGE" >${OUT})
+	(set -x; cd "${KERNEL_SRC}"; make -j${NCPUS} "$KERNEL_IMAGE" >${OUT})
 fi
 
 if [ ${BUILD_DTBS} -eq $YES ]; then
 	c_info "Making [dtbs]..."
-	(set -x; cd "${KERNEL_PATH}"; make -j${NCPUS} dtbs >${OUT})
+	(set -x; cd "${KERNEL_SRC}"; make -j${NCPUS} dtbs >${OUT})
 fi
 
 if [ ${BUILD_MODULES} -eq $YES ]; then
 	c_info "Making [modules]..."
-	(set -x; cd "${KERNEL_PATH}";  make -j${NCPUS} modules >${OUT})
+	(set -x; cd "${KERNEL_SRC}";  make -j${NCPUS} modules >${OUT})
 fi
 
 if [ ${MAKE_MENUCONFIG} -eq $YES ]; then
 	c_info "Making [menuconfig]..."
-	(set -x; cd "${KERNEL_PATH}"; make menuconfig)
+	(set -x; cd "${KERNEL_SRC}"; make menuconfig)
 fi
 
 if [ ${MAKE_SAVEDEFCONFIG} -eq $YES ]; then
 	c_info "Making [savedefconfig]..."
-	(set -x; cd "${KERNEL_PATH}"; make savedefconfig)
+	(set -x; cd "${KERNEL_SRC}"; make savedefconfig)
 fi
 
 if [ ${BUILD_NOW} -eq $YES ]; then
 	c_info "Making default target..."
-	(set -x; cd "${KERNEL_PATH}" make -j${NCPUS} >${OUT})
+	(set -x; cd "${KERNEL_SRC}" make -j${NCPUS} >${OUT})
 fi
 
