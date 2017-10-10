@@ -14,6 +14,7 @@
 #
 
 import os
+import json
 import shutil
 import sys
 import unittest
@@ -107,24 +108,30 @@ class TestCaching(utils_tests.SetupDirectory):
         src = os.path.join(utils_tests.TESTS_DIRECTORY, "trace_sched.txt.cache")
         shutil.copytree(src, cache_path)
 
-        md5_path = os.path.join(cache_path, "md5sum")
-        def read_md5sum():
-            with open(md5_path) as f:
-                return f.read()
+        metadata_path = os.path.join(cache_path, "metadata.json")
+
+        def read_metadata():
+            with open(metadata_path, "r") as f:
+                return json.load(f)
+
+        def write_md5(md5):
+            metadata = read_metadata()
+            metadata["md5sum"] = md5
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f)
+
 
         # Change 1 character of the stored checksum
-        md5sum = read_md5sum()
-        # Sorry, I guess modifying strings in Python is kind of awkward?
-        md5sum_inc = "".join(list(md5sum[:-1]) + [chr(ord(md5sum[-1]) + 1)])
-        with open(md5_path, "w") as f:
-            f.write(md5sum_inc)
+        md5sum = read_metadata()["md5sum"]
+        md5sum_inc = md5sum[:-1] + chr(ord(md5sum[-1]) + 1)
+        write_md5(md5sum_inc)
 
         # Parse a trace, this should delete and overwrite the invalidated cache
         GenericFTrace.disable_cache = False
         trace = trappy.FTrace()
 
         # Check that the modified md5sum was overwritten
-        self.assertNotEqual(read_md5sum(), md5sum_inc,
+        self.assertNotEqual(read_metadata()["md5sum"], md5sum_inc,
                             "The invalid ftrace cache wasn't overwritten")
 
     def test_cache_dynamic_events(self):
@@ -200,7 +207,7 @@ class TestCaching(utils_tests.SetupDirectory):
         trace_dir = os.path.dirname(trace_path)
         trace_file = os.path.basename(trace_path)
         cache_dir = '.' + trace_file + '.cache'
-        number_of_trace_categories = 29
+        number_of_trace_categories = 27
         self.assertEquals(len(os.listdir(cache_dir)), number_of_trace_categories)
 
         os.remove(os.path.join(cache_dir, 'SchedWakeup.csv'))
