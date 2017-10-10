@@ -140,6 +140,9 @@ Additional arguments:
 
 Example command:
 
+  $> lisa-wltest-series --kernel_src /path/to/your/kernel/hikey-linaro \\
+	--series /path/to/your/series.sha1 --platform hikey960_android-4.4 \\
+	--wa_agenda /path/to/your/agenda.yaml
 
 EOF
 }
