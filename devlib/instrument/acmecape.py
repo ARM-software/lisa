@@ -37,7 +37,7 @@ class AcmeCapeInstrument(Instrument):
     mode = CONTINUOUS
 
     def __init__(self, target,
-                 iio_capture=which('iio_capture'),
+                 iio_capture=which('iio-capture'),
                  host='baylibre-acme.local',
                  iio_device='iio:device0',
                  buffer_size=256):
@@ -77,17 +77,25 @@ class AcmeCapeInstrument(Instrument):
     def stop(self):
         self.process.terminate()
         timeout_secs = 10
+        output = ''
         for _ in xrange(timeout_secs):
             if self.process.poll() is not None:
                 break
             time.sleep(1)
         else:
-            output = _read_nonblock(self.process.stdout)
+            output += _read_nonblock(self.process.stdout)
             self.process.kill()
             self.logger.error('iio-capture did not terminate gracefully')
             if self.process.poll() is None:
                 msg = 'Could not terminate iio-capture:\n{}'
                 raise HostError(msg.format(output))
+        if self.process.returncode != 15: # iio-capture exits with 15 when killed
+            output += self.process.stdout.read()
+            self.logger.info('ACME instrument encountered an error, '
+                             'you may want to try rebooting the ACME device:\n'
+                             '  ssh root@{} reboot'.format(self.host))
+            raise HostError('iio-capture exited with an error ({}), output:\n{}'
+                            .format(self.process.returncode, output))
         if not os.path.isfile(self.raw_data_file):
             raise HostError('Output CSV not generated.')
 
