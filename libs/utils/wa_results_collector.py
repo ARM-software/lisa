@@ -121,6 +121,9 @@ class WaResultsCollector(object):
         self.platform = platform
         self.use_cached_trace_metrics = use_cached_trace_metrics
 
+        if not wa_dirs:
+            raise ValueError('Invalid wa_dirs ({})'.format(wa_dirs))
+
         wa_dirs = [os.path.expanduser(p) for p in wa_dirs]
 
         df = pd.DataFrame()
