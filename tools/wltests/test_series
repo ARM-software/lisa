@@ -63,125 +63,138 @@ Usage: [ENV]... $(basename $0) -p PLATFORM -k KERNEL_SRC -s SERIES -t TEST_CMD [
 Checkout, compile, flash a predefined set of kernel COMMITS and run a custom
 SCRIPT for each of them.
 
-Mandatory arguments:
+Kernel to test:
 
-    -p, --platform		the platform to target
-				available platforms are the subfolders of the
-				top level "platforms" folder.
-				default: PLATFORM=juno_android-4.4
-
-    -k, --kernel_src PATH		The kernel source tree to use
+    -k, --kernel_src PATH	The kernel source tree to use.
 				Default: KERNEL_SRC=../kernel
 
-    -s, --series		the series of commits to test
-				this is a list which can be generated with:
+    -s, --series PATH		The series of commits to test.
+				This is the patch of the file containing a list
+				of patches to test. This list can be generated
+				with a command like:
 
 				  git log --no-color --oneline <revision range>
 
-				Such a list can be enriched by adding an "ID:"
-				in front of each line.
+				The list obtained by the previous command can
+				be enriched by adding an "ID:" in front of each
+				line.
 				If an "ID:" column is present, the commits will
 				be considered in progressive "ID:" order while
 				discarding those with ID=00:
-				default: SERIES=''
+				Default: SERIES=''
 
-    -t, --test_cmd PATH		The path of a custom test script to run for
-				each kernel.
-				default: TEST_CMD='echo >>> Testing SHA1: '
+Target device to use for kernel testing:
 
-Optional arguments:
+    -p, --platform		The platform to target.
+				Available platforms are the subfolders of the
+				top level "platforms" folder.
+				Default: PLATFORM=juno_android-4.4
 
-	--adb			the ADB binary to use
-				default: ADB=[ANDROID_HOME/platform-tools/adb|\$(which adb)]
-	--fastboot		the FASTBOOT binary to use
-				default: FASTBOOT=[ANDROID_HOME/platform-tools/fatboot|\$(which fatboot)]
+    -d, --device		The Android device to target.
+				Default DEVICE=Default
 
-	--emeter		the Energy Meter used to power-cycle the device
-				default: EMETER=ACME
-	--acme_ip		the IP address of an ACME energy meter
-				default: ACME_IP=192.168.0.1
-	--acme_usb		the ACME channel used to control a USB
-				passthrought connetion
-				default ACME_USB=device1
+Tests to run for each kernel tested on target:
 
-	--device		the Android device to target
-				default DEVICE=Default
+    -t, --test_cmd		The command line of A custom test script to run
+				for each kernel.
+				Default: TEST_CMD='echo "Test DONE!"'
 
-	--reboot_timeout	maximum number of seconds to wait for a device
+Additional arguments:
+
+	--adb			The ADB binary to use.
+				Default: ADB=[ANDROID_HOME/platform-tools/adb|\$(which adb)]
+	--fastboot		The FASTBOOT binary to use.
+				Default: FASTBOOT=[ANDROID_HOME/platform-tools/fatboot|\$(which fatboot)]
+
+	--emeter		The Energy Meter used to power-cycle the device.
+				Default: EMETER=ACME
+	--acme_ip		The IP address of an ACME energy meter.
+				Default: ACME_IP=192.168.0.1
+	--acme_usb		The ACME channel used to control a USB
+				assthrought connetion.
+				Default ACME_USB=device1
+
+	--reboot_timeout	Maximum number of seconds to wait for a device
 				to complete the boot.
-				default REBOOT_TIMEOUT=180
+				Default REBOOT_TIMEOUT=180
 
-	--dryrun		don't actually run any command
-				deafult: DRYRUN=0
+	--dryrun		Don't actually run any command
+				Deafult: DRYRUN=0
+
+Example command:
+
 
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
 	case $1 in
-		# Mandatory arguments
-		-p|--platform)
-			PLATFORM=$2
-			shift
-		;;
-		-k|--kernel_src)
-			KERNEL_SRC=$2
-			shift
-		;;
-		-s|--series)
-			SERIES=$2
-			shift
-		;;
-		-t|--test_cmd)
-			TEST_CMD=$2
-			shift
-		;;
 
-		# Tools
-		--adb)
-			ADB=$2
-			shift
-		;;
-		--fastboot)
-			FASTBOOT=$2
-			shift
-		;;
+	# Kernel options
+	-k|--kernel_src)
+		KERNEL_SRC=$2
+		shift
+	;;
+	-s|--series)
+		SERIES=$2
+		shift
+	;;
 
-		# Energy meter
-		--emeter)
-			EMETER=$2
-			shift
-		;;
-		--acme_ip)
-			ACME_IP=$2
-			shift
-		;;
-		--acme_usb)
-			ACME_USB=$2
-			shift
-		;;
+	# Platform options
+	-p|--platform)
+		PLATFORM=$2
+		shift
+	;;
+	-d|--device)
+		DEVICE=$2
+		shift
+	;;
+	# Tests options
+	-t|--test_cmd)
+		TEST_CMD=$2
+		shift
+	;;
 
-		# Target Device
-		--device)
-			DEVICE=$2
-			shift
-		;;
 
-		# Execution customization
-		--dryrun)
-			DRYRUN=1
-		;;
+	# Tools options
+	--adb)
+		ADB=$2
+		shift
+	;;
+	--fastboot)
+		FASTBOOT=$2
+		shift
+	;;
 
-		# Usage notes
-		-h|--help)
-			usage
-			exit $OK
-		;;
-		*)
-			c_error "Unknown option: $1"
-			usage
-			exit $EAGAIN
-		;;
+	# Energy meter options
+	--emeter)
+		EMETER=$2
+		shift
+	;;
+	--acme_ip)
+		ACME_IP=$2
+		shift
+	;;
+	--acme_usb)
+		ACME_USB=$2
+		shift
+	;;
+
+	# Execution customization
+	--dryrun)
+		DRYRUN=1
+	;;
+
+	# Usage notes
+	-h|--help)
+		usage
+		exit $OK
+	;;
+	*)
+		c_error "Unknown option: $1"
+		usage
+		exit $EAGAIN
+	;;
 	esac
 	shift # past argument or value
 done
@@ -213,17 +226,23 @@ export PLATFORM_OVERLAY_PATH=$PLATFORM_PATH
 export KERNEL_SRC=$(realpath -s $KERNEL_SRC)
 grep -E "mainmenu .* Kernel Configuration" $KERNEL_SRC/Kconfig &>/dev/null
 if [ $? -ne 0 ]; then
-	c_error "The KERNEL_SRC seems not to a valid kernel source tree path"
+	echo
+	c_error "The \$KERNEL_SRC|--kernel_src seems not to a valid kernel source tree path"
+	echo
 	exit $EINVAL
 fi
 
 # Prepare SERIES
 if [ -z $SERIES ]; then
-	c_error "A valid commit series should be defined by SERIES"
+	echo
+	c_error "A valid commit series should be defined by \$SERIES|--series"
+	echo
 	exit $EINVAL
 fi
 if [ ! -f $SERIES ]; then
-	c_error "SERIES points to a non existing commit series"
+	echo
+	c_error "\$SERIES|--series points to a non existing commit series"
+	echo
 	exit $ENOENT
 fi
 
