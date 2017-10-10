@@ -45,6 +45,7 @@ fi
 EMETER=${EMETER:-'ACME'}
 ACME_IP=${ACME_IP:-'192.168.0.1'}
 ACME_USB=${ACME_USB:-'device1'}
+ACME_CHANNELS=${ACME_CHANNELS:-'0'}
 
 RESULTS=${RESULTS:-$LISA_HOME/results/wltests}
 FORCE=${FORCE:-0}
@@ -125,6 +126,10 @@ Additional arguments:
 	--acme_usb		The ACME channel used to control a USB
 				assthrought connetion.
 				Default ACME_USB=device1
+	--acme_channels		A space separated list for channels ID to sample.
+				For example, "0 2" will enabled sampling on:
+				   iio:device0 and iio:device2
+				Default: ACME_CHANNELS="0"
 
 	--results PATH		The base path for all the generated result folders.
 				Default: RESULTS='$RESULTS'
@@ -246,6 +251,10 @@ while [[ $# -gt 0 ]]; do
 		ACME_USB=$2
 		shift
 	;;
+	--acme_channels)
+		ACME_CHANNELS=$2
+		shift
+	;;
 
 	# Execution customization
 	--results)
@@ -331,8 +340,25 @@ if [ ! -z $WA_AGENDA ]; then
 		list_available_agendas
 		exit $INVAL
 	fi
+	# Generate a WA configuration fragment for the ACME cape
+	IIO_DEVICES=""
+	for CH in $ACME_CHANNELS; do
+		IIO_DEVICES="$IIO_DEVICES \"iio:device$CH\", "
+	done
+	ACME_CONF=$RESULTS/config_acme.yaml
+	mkdir -p $RESULTS &>/dev/null
+	cat >$ACME_CONF <<EOF
+# Automatically generated ACME configuration based on test_series options
+energy_measurement:
+  instrument: acme_cape
+  instrument_parameters:
+    host: $ACME_IP
+    # If collecting on multiple channels, or another channel than iio:device0,
+    # set them here:
+    iio_devices: [$IIO_DEVICES]
+EOF
 	TEST_CMD_RESULTS="$RESULTS/wa.\${COMMIT_SHA1:0:7}_\${COMMIT_NAME}"
-	TEST_CMD="wa run -f -d \"$TEST_CMD_RESULTS\" \"$WA_AGENDA\""
+	TEST_CMD="wa run -f -d \"$TEST_CMD_RESULTS\" -c \"$ACME_CONF\" \"$WA_AGENDA\""
 fi
 
 # Prepare ADB and FASTBOOT commands to target the specified device
@@ -354,7 +380,7 @@ export FASTBOOT
 # Prepare Energy Meter device
 case $EMETER in
 'ACME')
-	EMETER_CONF="ACME (ACME_USB: $ACME_USB @ ACME_IP: $ACME_IP)"
+	EMETER_CONF="ACME (ACME_USB: $ACME_USB @ ACME_IP: $ACME_IP, ACME_CHANNELS: $ACME_CHANNELS)"
 	;;
 *)
 	c_error "Energy meter [EMETER=$EMETER] not supported"
