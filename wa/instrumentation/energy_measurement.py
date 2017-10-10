@@ -290,7 +290,7 @@ class EnergyMeasurement(Instrument):
             # Append the device key to the filename and artifact name, unless
             # it's None (as it will be for backends with only 1
             # devce/instrument)
-            if device is not None:
+            len(self.instruments) > 1:
                 name = 'energy_instrument_output_{}'.format(device)
             else:
                 name = 'energy_instrument_output'
@@ -310,7 +310,7 @@ class EnergyMeasurement(Instrument):
             for meas in derived_measurements:
                 # Append the device key to the metric name, unless it's None (as
                 # it will be for backends with only 1 devce/instrument)
-                if device is not None:
+                if len(self.instruments) > 1:
                     metric_name = '{}_{}'.format(meas.name, device)
                 else:
                     metric_name = meas.name
