@@ -49,7 +49,7 @@ ACME_CHANNELS=${ACME_CHANNELS:-'0'}
 
 RESULTS=${RESULTS:-$LISA_HOME/results/wltests}
 FORCE=${FORCE:-0}
-DEVICE=${DEVICE:-''}
+DEVICE=${DEVICE:-'C00010FFBAADA555'}
 REBOOT_TIMEOUT=${REBOOT_TIMEOUT:-180}
 
 DRYRUN=${DRYRUN:-0}
@@ -98,7 +98,9 @@ Target device to use for kernel testing:
 				are valid values for the -p parameter.
 
     -d, --device		The Android device to target.
-				Default DEVICE=Default
+				If ANDROID_DEVICE is set, its value will be used
+				as a default.
+				Default DEVICE=$ANDROID_DEVICE
 
 Tests to run for each kernel tested on target:
 
@@ -281,6 +283,23 @@ while [[ $# -gt 0 ]]; do
 	esac
 	shift # past argument or value
 done
+
+# Prepare DEVICE
+if [ "x$DEVICE" == "xC00010FFBAADA555" ]; then
+	if [ -z $ANDROID_DEVICE ]; then
+		echo
+		c_error "Target device not set"
+		echo
+		c_info "A target device must be specified by either"
+		c_info " - setting a value for \$ANDROID_SERIAL"
+		c_info " - setting a value for \$DEVICE"
+		c_info " - passing a --device option"
+		echo
+	else
+		DEVICE=$ANDROID_SERIAL
+	fi
+	exit $EINVAL
+fi
 
 # Prepare PLATFORM
 export PLATFORM_PATH=$BASE_DIR/platforms/$PLATFORM
