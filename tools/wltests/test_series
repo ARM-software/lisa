@@ -90,6 +90,9 @@ Target device to use for kernel testing:
 				top level "platforms" folder.
 				Default: PLATFORM=juno_android-4.4
 
+	--supported_platforms	Print a list of supported platforms which can
+				are valid values for the -p parameter.
+
     -d, --device		The Android device to target.
 				Default DEVICE=Default
 
@@ -127,6 +130,27 @@ Example command:
 EOF
 }
 
+ASSETS_REQUIRED="definitions build_images flash_images"
+list_supported_platforms() {
+	echo
+	echo "Supported platforms are:"
+	ls $BASE_DIR/platforms | while read PLAT; do
+		RESULT=$OK
+		for ASSET in $ASSETS_REQUIRED; do
+			if [ ! -f $BASE_DIR/platforms/$PLAT/$ASSET ]; then
+				RESULT=$ENOENT; break;
+			fi
+		done
+		[ $RESULT == $OK ] || continue
+		echo " - $PLAT"
+	done
+	echo
+	echo "New platforms can be added by copying and adapting one of the folder available"
+	echo "under the this base path:"
+	echo "   $BASE_DIR/platforms"
+	echo
+}
+
 while [[ $# -gt 0 ]]; do
 	case $1 in
 
@@ -149,6 +173,11 @@ while [[ $# -gt 0 ]]; do
 		DEVICE=$2
 		shift
 	;;
+	--supported_platforms)
+		list_supported_platforms
+		exit $OK
+	;;
+
 	# Tests options
 	-t|--test_cmd)
 		TEST_CMD=$2
@@ -201,22 +230,11 @@ done
 
 # Prepare PLATFORM
 export PLATFORM_PATH=$BASE_DIR/platforms/$PLATFORM
-ASSETS_REQUIRED="definitions build_images flash_images"
 for ASSET in $ASSETS_REQUIRED; do
 if [ ! -f $PLATFORM_PATH/$ASSET ]; then
+	echo
 	c_error "The specified PLATFORM=$PLATFORM is not supported, or it does not provide a [$ASSET] file"
-	# List all platforms which provides all the required assets
-	c_warning "Supported platforms are:"
-	ls $BASE_DIR/platforms | while read PLAT; do
-		RESULT=$OK
-		for ASSET in $ASSETS_REQUIRED; do
-			if [ ! -f $BASE_DIR/platforms/$PLAT/$ASSET ]; then
-				RESULT=$ENOENT; break;
-			fi
-		done
-		[ $RESULT == $OK ] || continue
-		c_warning " - $PLAT"
-	done
+	list_supported_platforms
 	exit $EINVAL
 fi
 done
