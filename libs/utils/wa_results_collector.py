@@ -354,11 +354,19 @@ class WaResultsCollector(object):
         if trace.hasEvents('thermal_temperature'):
             df = trace.data_frame.trace_event('thermal_temperature')
             for zone, zone_df in df.groupby('thermal_zone'):
-                metrics.append('tz_{}_start_temp'.format(
-                    thermal_zone, zone_df.iloc[0]['temp_prev'], 'milliCelcius'))
+                metrics.append(('tz_{}_start_temp'.format(zone),
+                                zone_df.iloc[0]['temp_prev'],
+                                'milliCelcius'))
 
-                avg_tmp = (area_under_curve(zone_df.temperature['temperature'])
-                           / (zone_df.index[-1] - zone_df.index[0]))
+                if len(zone_df == 1): # Avoid division by 0
+                    avg_tmp = zone_df['temp'].iloc[0]
+                else:
+                    avg_tmp = (area_under_curve(zone_df['temp'])
+                               / (zone_df.index[-1] - zone_df.index[0]))
+
+                metrics.append(('tz_{}_avg_temp'.format(zone),
+                                avg_tmp,
+                                'milliCelcius'))
 
         ret = pd.DataFrame(metrics, columns=['metric', 'value', 'units'])
         ret.to_csv(cache_path, index=False)
