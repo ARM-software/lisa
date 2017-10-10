@@ -59,16 +59,23 @@ class _LoadTrackingBase(LisaTest):
         super(_LoadTrackingBase, cls).runExperiments(*args, **kwargs)
 
     @classmethod
-    def get_wload(cls, cpu):
+    def get_wload(cls, cpu, duty_cycle_pct):
         """
-        Get a specification for a 10% rt-app workload, pinned to the given CPU
+        Get a specification for a rt-app workload with the specificied duty
+        cycle, pinned to the given CPU.
+
+        :param cpu: CPU where to pin the task
+        :type cpu: int
+
+        :param duty_cycle_pct: duty cycle of the workload
+        :type duty_cycle_pct: int
         """
         return {
             'type' : 'rt-app',
                 'conf' : {
                     'class' : 'periodic',
                     'params' : {
-                        'duty_cycle_pct': 10,
+                        'duty_cycle_pct': duty_cycle_pct,
                         'duration_s': 1,
                         'period_ms': 16,
                     },
@@ -197,7 +204,7 @@ class FreqInvarianceTest(_LoadTrackingBase):
                   key=lambda c: cls._get_cpu_capacity(test_env, c))
 
         wloads = {
-            'fie_10pct' : cls.get_wload(cpu)
+            'fie_10pct' : cls.get_wload(cpu, 10)
         }
 
         # Create a set of confs with different frequencies
@@ -291,7 +298,7 @@ class CpuInvarianceTest(_LoadTrackingBase):
                 # No need to test on every CPU, just one for each capacity value
                 continue
             tested_caps.add(cap)
-            wloads['cie_cpu{}'.format(cpu)] = cls.get_wload(cpu)
+            wloads['cie_cpu{}'.format(cpu)] = cls.get_wload(cpu, 10)
 
         conf = {
             'tag' : 'cie_conf',
