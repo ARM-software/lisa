@@ -1,4 +1,5 @@
 import logging
+import os
 
 from wa.framework import signal
 from wa.framework.plugin import Parameter
@@ -8,6 +9,7 @@ from wa.framework.target.descriptor import (get_target_descriptions,
 from wa.framework.target.info import TargetInfo
 from wa.framework.target.runtime_parameter_manager import RuntimeParameterManager
 
+from devlib import Gem5SimulationPlatform
 from devlib.utils.misc import memoized
 from devlib.exception import TargetError
 
@@ -25,7 +27,8 @@ class TargetManager(object):
                   """),
     ]
 
-    def __init__(self, name, parameters):
+    def __init__(self, name, parameters, outdir):
+        self.outdir = outdir
         self.logger = logging.getLogger('tm')
         self.target_name = name
         self.target = None
@@ -53,8 +56,8 @@ class TargetManager(object):
             self.rpm = RuntimeParameterManager(self.target)
 
     def finalize(self):
-        self.logger.info('Disconnecting from the device')
-        if self.disconnect:
+        if self.disconnect or isinstance(self.target.platform, Gem5SimulationPlatform):
+            self.logger.info('Disconnecting from the device')
             with signal.wrap('TARGET_DISCONNECT'):
                 self.target.disconnect()
 
@@ -85,8 +88,14 @@ class TargetManager(object):
         if self.target_name not in target_map:
             raise ValueError('Unknown Target: {}'.format(self.target_name))
         tdesc = target_map[self.target_name]
+
+        extra_plat_params={}
+        if tdesc.platform is Gem5SimulationPlatform:
+            extra_plat_params['host_output_dir'] = self.outdir
+
         self.logger.debug('Creating {} target'.format(self.target_name))
-        self.target = instantiate_target(tdesc, self.parameters, connect=False)
+        self.target = instantiate_target(tdesc, self.parameters, connect=False,
+                                         extra_platform_params=extra_plat_params)
 
         with signal.wrap('TARGET_CONNECT'):
             self.target.connect()
