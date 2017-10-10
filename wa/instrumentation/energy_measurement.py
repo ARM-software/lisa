@@ -30,7 +30,7 @@ from wa import Instrument, Parameter
 from wa.framework import pluginloader
 from wa.framework.plugin import Plugin
 from wa.framework.exception import ConfigError, InstrumentError
-from wa.utils.types import list_of_strings, list_of_ints, list_or_string, obj_dict
+from wa.utils.types import list_of_strings, list_of_ints, list_or_string, obj_dict, identifier
 
 
 class EnergyInstrumentBackend(Plugin):
@@ -249,10 +249,15 @@ class EnergyMeasurement(Instrument):
         self.backend = self.loader.get_plugin(self.instrument)
         self.params = obj_dict()
 
+        instrument_parameters = {identifier(k): v
+                                 for k, v in self.instrument_parameters.iteritems()}
         supported_params = self.backend.get_parameters()
         for name, param in supported_params.iteritems():
-            value = self.instrument_parameters.get(name)
+            value = instrument_parameters.pop(name, None)
             param.set_value(self.params, value)
+        if instrument_parameters:
+            msg = 'Unexpected parameters for backend "{}": {}'
+            raise ConfigError(msg.format(self.instrument, instrument_parameters))
         self.backend.validate_parameters(self.params)
 
     def initialize(self, context):
