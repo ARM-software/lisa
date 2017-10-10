@@ -83,6 +83,10 @@ class PluginCache(object):
             msg = 'configuration provided for unknown plugin "{}"'
             raise ConfigError(msg.format(plugin_name))
 
+        if not hasattr(values, 'iteritems'):
+            msg = 'Plugin configuration for "{}" not a dictionary ({} is {})'
+            raise ConfigError(msg.format(plugin_name, repr(values), type(values)))
+
         for name, value in values.iteritems():
             if (plugin_name not in GENERIC_CONFIGS and
                     name not in self.get_plugin_parameters(plugin_name)):
