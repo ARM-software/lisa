@@ -950,6 +950,7 @@ class AndroidTarget(Target):
                                             shell_prompt=shell_prompt,
                                             conn_cls=conn_cls)
         self.package_data_directory = package_data_directory
+        self.clear_logcat_lock = threading.Lock()
 
     def reset(self, fastboot=False):  # pylint: disable=arguments-differ
         try:
@@ -1182,7 +1183,8 @@ class AndroidTarget(Target):
         adb_command(self.adb_name, command, timeout=timeout)
 
     def clear_logcat(self):
-        adb_command(self.adb_name, 'logcat -c', timeout=30)
+        with self.clear_logcat_lock:
+            adb_command(self.adb_name, 'logcat -c', timeout=30)
 
     def get_logcat_monitor(self, regexps=None):
         return LogcatMonitor(self, regexps)
