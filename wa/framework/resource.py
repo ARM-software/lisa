@@ -72,6 +72,9 @@ class Resource(object):
         self.owner = owner
 
     def match(self, path):
+        return self.match_path(path)
+
+    def match_path(self, path):
         raise NotImplementedError()
 
     def __str__(self):
@@ -86,7 +89,7 @@ class File(Resource):
         super(File, self).__init__(owner)
         self.path = path
 
-    def match(self, path):
+    def match_path(self, path):
         return self.path == path
 
     def __str__(self):
@@ -102,7 +105,7 @@ class Executable(Resource):
         self.abi = abi
         self.filename = filename
 
-    def match(self, path):
+    def match_path(self, path):
         return self.filename == os.path.basename(path)
 
     def __str__(self):
@@ -118,7 +121,7 @@ class ReventFile(Resource):
         self.stage = stage
         self.target = target
 
-    def match(self, path):
+    def match_path(self, path):
         filename = os.path.basename(path)
         parts = filename.split('.')
         if len(parts) > 2:
@@ -133,7 +136,7 @@ class JarFile(Resource):
 
     kind = 'jar'
 
-    def match(self, path):
+    def match_path(self, path):
         # An owner always  has at most one jar file, so
         # always match
         return True
@@ -153,6 +156,10 @@ class ApkFile(Resource):
         self.uiauto = uiauto
         self.exact_abi = exact_abi
         self.supported_abi = supported_abi
+
+    def match_path(self, path):
+        ext = os.path.splitext(path)[1].lower()
+        return ext == '.apk'
 
     def match(self, path):
         name_matches = True
