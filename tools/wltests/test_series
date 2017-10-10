@@ -45,6 +45,8 @@ EMETER=${EMETER:-'ACME'}
 ACME_IP=${ACME_IP:-'192.168.0.1'}
 ACME_USB=${ACME_USB:-'device1'}
 
+RESULTS=${RESULTS:-$LISA_HOME/results/wltests}
+FORCE=${FORCE:-0}
 DEVICE=${DEVICE:-''}
 REBOOT_TIMEOUT=${REBOOT_TIMEOUT:-180}
 
@@ -116,6 +118,11 @@ Additional arguments:
 	--acme_usb		The ACME channel used to control a USB
 				assthrought connetion.
 				Default ACME_USB=device1
+
+	--results PATH		The base path for all the generated result folders.
+				Default: RESULTS='$RESULTS'
+
+	--force			Force execution with a non empty RESULTS folder.
 
 	--reboot_timeout	Maximum number of seconds to wait for a device
 				to complete the boot.
@@ -210,6 +217,13 @@ while [[ $# -gt 0 ]]; do
 	;;
 
 	# Execution customization
+	--results)
+		RESULTS=$2
+		shift
+	;;
+	--force)
+		FORCE=1
+	;;
 	--dryrun)
 		DRYRUN=1
 	;;
@@ -264,6 +278,20 @@ if [ ! -f $SERIES ]; then
 	exit $ENOENT
 fi
 
+# Prepare RESULTS
+if [ $FORCE -eq 0 -a \
+	-d $RESULTS -a \
+	"$(ls -A $RESULTS)" ]; then
+	echo
+	c_warning "The results folder:"
+	c_warning "   $RESULTS"
+	c_warning "already exists and is not empty."
+	echo
+	c_info "Use \$FORCE|--force if you want to override results in that same folder"
+	echo
+	exit $EINVAL
+fi
+
 
 # Prepare ADB and FASTBOOT commands to target the specified device
 if [ ! -f $ADB ]; then
@@ -298,7 +326,7 @@ box_out \
 	"   PLATFORM      : $PLATFORM" \
 	"   KERNEL_SRC    : $KERNEL_SRC" \
 	"   SERIES        : $SERIES" \
-	"   TEST_CMD      : $TEST_CMD" \
+	"   RESULTS       : $TEST_CMD_RESULTS" \
 	"" \
 	"Tools" \
 	"   ADB           : $ADB" \
