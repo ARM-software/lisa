@@ -31,6 +31,7 @@ source "${BASE_DIR}/helpers"
 PLATFORM=${PLATFORM:-'hikey960_android-4.4'}
 KERNEL_SRC=${KERNEL_SRC:-$BASE_DIR/kernel}
 SERIES=${SERIES:-''}
+WA_AGENDA=${WA_AGENDA:-''}
 TEST_CMD=${TEST_CMD:-'echo "Test DONE!"'}
 
 if [ -z $ANDROID_HOME ]; then
@@ -60,7 +61,7 @@ DRYRUN=${DRYRUN:-0}
 usage() {
 	cat <<EOF
 
-Usage: [ENV]... $(basename $0) -p PLATFORM -k KERNEL_SRC -s SERIES -t TEST_CMD [OPTIONS]..."
+Usage: [ENV]... $(basename $0) -k KERNEL_SRC -s SERIES -p PLATFORM [-a WA_AGENDA | -t TEST_CMD] [OPTIONS]..."
 
 Checkout, compile, flash a predefined set of kernel COMMITS and run a custom
 SCRIPT for each of them.
@@ -99,6 +100,12 @@ Target device to use for kernel testing:
 				Default DEVICE=Default
 
 Tests to run for each kernel tested on target:
+
+    -a, --wa_agenda PATH	The path of a WA agenda describing the experiments
+				to be executed for each test in SERIES.
+				Default: WA_AGENDA=''
+
+	--available_agendas	Print a list of available agendas.
 
     -t, --test_cmd		The command line of A custom test script to run
 				for each kernel.
@@ -158,6 +165,19 @@ list_supported_platforms() {
 	echo
 }
 
+list_available_agendas() {
+	echo
+	echo "Available agendas are: "
+	for AGENDA in $(ls $BASE_DIR/agendas/*.yaml); do
+		echo " - $(basename $AGENDA)"
+	done
+	echo
+	echo "New agendas can be added by copying and adapting one of those available"
+	echo "under the folder:"
+	echo "   $BASE_DIR/agendas"
+	echo
+}
+
 while [[ $# -gt 0 ]]; do
 	case $1 in
 
@@ -186,9 +206,17 @@ while [[ $# -gt 0 ]]; do
 	;;
 
 	# Tests options
+	-a|--wa_agenda)
+		WA_AGENDA=$2
+		shift
+	;;
 	-t|--test_cmd)
 		TEST_CMD=$2
 		shift
+	;;
+	--available_agendas)
+		list_available_agendas
+		exit $OK
 	;;
 
 
@@ -292,6 +320,17 @@ if [ $FORCE -eq 0 -a \
 	exit $EINVAL
 fi
 
+# Prepare WA_AGENDA (if specified it override the TEST_CMD)
+if [ ! -z $WA_AGENDA ]; then
+	if [ ! -f $WA_AGENDA ]; then
+		echo
+		c_error "The \$WA_AGENDA|--wa_agenda is not a valid path for a WA agenda"
+		list_available_agendas
+		exit $INVAL
+	fi
+	TEST_CMD_RESULTS="$RESULTS/wa.\${COMMIT_SHA1:0:7}_\${COMMIT_NAME}"
+	TEST_CMD="wa run -f -d \"$TEST_CMD_RESULTS\" \"$WA_AGENDA\""
+fi
 
 # Prepare ADB and FASTBOOT commands to target the specified device
 if [ ! -f $ADB ]; then
@@ -326,6 +365,7 @@ box_out \
 	"   PLATFORM      : $PLATFORM" \
 	"   KERNEL_SRC    : $KERNEL_SRC" \
 	"   SERIES        : $SERIES" \
+	"   WA_AGENDA     : $WA_AGENDA" \
 	"   RESULTS       : $TEST_CMD_RESULTS" \
 	"" \
 	"Tools" \
@@ -338,6 +378,7 @@ box_out \
 	"" \
 	"Internals" \
 	"   Scripts dir   : $BASE_DIR" \
+	"   FORCE         : $FORCE" \
 	"   DRYRUN        : $DRYRUN"
 
 ################################################################################
