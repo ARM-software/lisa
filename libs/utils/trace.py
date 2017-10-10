@@ -314,7 +314,7 @@ class Trace(object):
         self._log.debug('Collected events spans a %.3f [s] time interval',
                        self.time_range)
 
-        self.setXTimeRange(self.window[0], self.window[1])
+        self.setXTimeRange(max(self.start_time, self.window[0]), self.window[1])
 
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
         """
