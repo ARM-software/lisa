@@ -33,6 +33,7 @@ class VersatileExpressPlatform(Platform):
                  core_names=None,
                  core_clusters=None,
                  big_core=None,
+                 model=None,
                  modules=None,
 
                  # serial settings
@@ -61,6 +62,7 @@ class VersatileExpressPlatform(Platform):
                                                        core_names,
                                                        core_clusters,
                                                        big_core,
+                                                       model,
                                                        modules)
         self.serial_port = serial_port
         self.baudrate = baudrate
