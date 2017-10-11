@@ -76,7 +76,7 @@ class RunState(object):
     @property
     def num_completed_jobs(self):
         return sum(1 for js in self.jobs.itervalues()
-                   if js.status > Status.SKIPPED)
+                   if js.status > Status.RUNNING)
 
     def __init__(self):
         self.jobs = OrderedDict()

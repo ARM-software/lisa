@@ -312,7 +312,7 @@ class Executor(object):
 
         counter = context.run_state.get_status_counts()
         parts = []
-        for status in reversed(Status.values):
+        for status in reversed(Status.levels):
             if status in counter:
                 parts.append('{} {}'.format(counter[status], status))
         self.logger.info(status_summary + ', '.join(parts))
