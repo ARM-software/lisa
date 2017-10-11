@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict, OrderedDict
+from copy import copy
 
 from wa.framework.exception import ConfigError
 from wa.framework.plugin import Plugin, Parameter
@@ -255,16 +256,15 @@ class FreqValue(object):
             return value
         elif isinstance(value, basestring):
             value = caseless_string(value)
-            if value == 'max':
-                return self.values[-1]
-            elif value == 'min':
-                return self.values[0]
+            if value in ['min', 'max']:
+                return value
 
         msg = 'Invalid frequency value: {}; Must be in {}'
         raise ValueError(msg.format(value, self.values))
 
     def __str__(self):
         return 'valid frequency value: {}'.format(self.values)
+
 
 class CpufreqRuntimeConfig(RuntimeConfig):
 
@@ -311,35 +311,34 @@ class CpufreqRuntimeConfig(RuntimeConfig):
             return
 
         self._retrive_cpufreq_info()
-        common_freqs, common_gov = self._get_common_values()
+        all_freqs, common_freqs, common_gov = self._get_common_values()
 
         # Add common parameters if available.
-        if common_freqs:
-            freq_val = FreqValue(common_freqs)
-            param_name = 'frequency'
-            self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=freq_val,
-                          setter=self.set_frequency,
-                          setter_params={'core': None},
-                          description="""
-                          The desired frequency for all cores
-                          """)
-            param_name = 'max_frequency'
-            self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=freq_val,
-                          setter=self.set_max_frequency,
-                          setter_params={'core': None},
-                          description="""
-                          The maximum frequency for all cores
-                          """)
-            param_name = 'min_frequency'
-            self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=freq_val,
-                          setter=self.set_min_frequency,
-                          setter_params={'core': None},
-                          description="""
-                          The minimum frequency for all cores
-                          """)
+        freq_val = FreqValue(all_freqs)
+        param_name = 'frequency'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=freq_val,
+                        setter=self.set_frequency,
+                        setter_params={'core': None},
+                        description="""
+                        The desired frequency for all cores
+                        """)
+        param_name = 'max_frequency'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=freq_val,
+                        setter=self.set_max_frequency,
+                        setter_params={'core': None},
+                        description="""
+                        The maximum frequency for all cores
+                        """)
+        param_name = 'min_frequency'
+        self._runtime_params[param_name] = \
+            RuntimeParameter(param_name, kind=freq_val,
+                        setter=self.set_min_frequency,
+                        setter_params={'core': None},
+                        description="""
+                        The minimum frequency for all cores
+                        """)
 
         if common_gov:
             param_name = 'governor'
@@ -351,6 +350,7 @@ class CpufreqRuntimeConfig(RuntimeConfig):
                           description="""
                           The governor to be set for all cores
                           """)
+
         param_name = 'governor_tunables'
         self._runtime_params[param_name] = \
             RuntimeParameter(param_name, kind=dict,
@@ -544,8 +544,14 @@ class CpufreqRuntimeConfig(RuntimeConfig):
             self.configure_governor(cpu,
                                     config.get('governor'),
                                     config.get('governor_tunables'))
+
+            frequency = config.get('frequency')
+            if frequency == 'min':
+                frequency = self.target.cpufreq.get_min_frequency(cpu)
+            elif frequency == 'max':
+                frequency = self.target.cpufreq.get_max_frequency(cpu)
             self.configure_frequency(cpu,
-                                     config.get('frequency'),
+                                     frequency,
                                      config.get('min_frequency'),
                                      config.get('max_frequency'),
                                      config.get('governor'))
@@ -647,21 +653,20 @@ class CpufreqRuntimeConfig(RuntimeConfig):
         ''' Find common values for frequency and governors across all cores'''
         common_freqs = None
         common_gov = None
+        all_freqs = None
         initialized = False
         for cpu in resolve_unique_domain_cpus('all', self.target):
             if not initialized:
                 initialized = True
-                if self.supported_cpu_freqs.get(cpu):
-                    common_freqs = set(self.supported_cpu_freqs.get(cpu))
-                if self.supported_cpu_governors.get(cpu):
-                    common_gov = set(self.supported_cpu_governors.get(cpu))
+                common_freqs = set(self.supported_cpu_freqs.get(cpu) or [])
+                all_freqs = copy(common_freqs)
+                common_gov = set(self.supported_cpu_governors.get(cpu) or [])
             else:
-                if self.supported_cpu_freqs.get(cpu):
-                    common_freqs = common_freqs.intersection(self.supported_cpu_freqs.get(cpu))
-                if self.supported_cpu_governors.get(cpu):
-                    common_gov = common_gov.intersection(self.supported_cpu_governors.get(cpu))
+                common_freqs = common_freqs.intersection(self.supported_cpu_freqs.get(cpu) or set())
+                all_freqs = all_freqs.union(self.supported_cpu_freqs.get(cpu) or set())
+                common_gov = common_gov.intersection(self.supported_cpu_governors.get(cpu))
 
-        return common_freqs, common_gov
+        return all_freqs, common_freqs, common_gov
 
 class IdleStateValue(object):
 
