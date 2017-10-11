@@ -1252,9 +1252,11 @@ class AndroidTarget(Target):
         root_required = self.get_sdk_version() > 23
         if root_required and not self.is_rooted:
             raise TargetError('Root is required to toggle airplane mode on Android 7+')
+        mode = int(boolean(mode))
         cmd = 'settings put global airplane_mode_on {}'
-        self.execute(cmd.format(int(boolean(mode))))
-        self.execute('am broadcast -a android.intent.action.AIRPLANE_MODE', as_root=root_required)
+        self.execute(cmd.format(mode))
+        self.execute('am broadcast -a android.intent.action.AIRPLANE_MODE '
+                     '--ez state {}'.format(mode), as_root=root_required)
 
     def get_auto_rotation(self):
         cmd = 'settings get system accelerometer_rotation'
