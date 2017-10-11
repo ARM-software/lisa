@@ -290,7 +290,7 @@ class EnergyMeasurement(Instrument):
             # Append the device key to the filename and artifact name, unless
             # it's None (as it will be for backends with only 1
             # devce/instrument)
-            len(self.instruments) > 1:
+            if len(self.instruments) > 1:
                 name = 'energy_instrument_output_{}'.format(device)
             else:
                 name = 'energy_instrument_output'
