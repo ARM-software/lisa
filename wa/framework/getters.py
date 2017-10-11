@@ -71,6 +71,14 @@ def get_generic_resource(resource, files):
     return matches[0]
 
 
+def get_path_matches(resource, files):
+    matches = []
+    for f in files:
+        if resource.match_path(f):
+            matches.append(f)
+    return  matches
+
+
 def get_from_location(basepath, resource):
     if resource.kind == 'file':
         path = os.path.join(basepath, resource.path)
@@ -204,10 +212,15 @@ class Http(ResourceGetter):
             return  # TODO: add support for unowned resources
         if not self.index:
             self.index = self.fetch_index()
-        asset = self.resolve_resource(resource)
-        if not asset:
-            return
-        return self.download_asset(asset, resource.owner.name)
+        if resource.kind == 'apk':
+            # APKs must always be downloaded to run ApkInfo for version
+            # information.
+            return self.resolve_apk(resource)
+        else:
+            asset = self.resolve_resource(resource)
+            if not asset:
+                return
+            return self.download_asset(asset, resource.owner.name)
 
     def fetch_index(self):
         if not self.url:
@@ -251,6 +264,20 @@ class Http(ResourceGetter):
             auth = None
         return requests.get(url, auth=auth, stream=stream)
 
+    def resolve_apk(self, resource):
+        assets = self.index.get(resource.owner.name, {})
+        if not assets:
+            return None
+        asset_map = {a['path']: a for a in assets}
+        paths = get_path_matches(resource, asset_map.keys())
+        local_paths = []
+        for path in paths:
+            local_paths.append(self.download_asset(asset_map[path],
+                                                   resource.owner.name))
+        for path in local_paths:
+            if resource.match(path):
+                return path
+
     def resolve_resource(self, resource):
         # pylint: disable=too-many-branches,too-many-locals
         assets = self.index.get(resource.owner.name, {})
@@ -258,13 +285,7 @@ class Http(ResourceGetter):
             return {}
 
         asset_map = {a['path']: a for a in assets}
-        if resource.kind in ['apk', 'jar', 'revent']:
-            if resource.kind == 'apk' and resource.version:
-                # TODO: modify the index format to attach version info to the
-                #       APK entries.
-                msg = 'Versions of APKs cannot be fetched over HTTP at this time'
-                self.logger.warning(msg)
-                return {}
+        if resource.kind in ['jar', 'revent']:
             path = get_generic_resource(resource, asset_map.keys())
             if path:
                 return asset_map[path]
