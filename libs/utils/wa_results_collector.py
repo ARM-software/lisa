@@ -202,7 +202,7 @@ class WaResultsCollector(object):
             # If there's a 'tag' in the 'classifiers' object, use that to
             # identify the runtime configuration. If not, use a representation
             # of the full key=value pairs.
-            classifiers = job['classifiers']
+            classifiers = job['classifiers'] or {}
             rich_tag = ';'.join('{}={}'.format(k, v) for k, v in classifiers.iteritems())
             tag = classifiers.get('tag', rich_tag)
 
@@ -214,10 +214,10 @@ class WaResultsCollector(object):
 
             tag_map[job_id] = tag
 
-            if 'test' in job['classifiers']:
+            if 'test' in classifiers:
                 # If the workload spec has a 'test' classifier, use that to
                 # identify it.
-                test = job['classifiers']['test']
+                test = classifiers['test']
             elif 'test' in job['workload_parameters']:
                 # If not, some workloads have a 'test' workload_parameter, try
                 # using that
@@ -255,6 +255,8 @@ class WaResultsCollector(object):
                     continue
 
             extra_df = self._get_extra_job_metrics(job_dir, workload)
+            if extra_df.empty:
+                continue
 
             extra_df.loc[:, 'workload'] = workload
             extra_df.loc[:, 'iteration'] = iteration
