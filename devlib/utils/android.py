@@ -607,7 +607,7 @@ class LogcatMonitor(object):
             return [line for line in fh]
 
     def clear_log(self):
-        with open(self._logfile, 'w') as fh:
+        with open(self._logfile.name, 'w') as fh:
             pass
 
     def search(self, regexp):
