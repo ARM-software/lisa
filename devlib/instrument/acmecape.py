@@ -58,6 +58,12 @@ class AcmeCapeInstrument(Instrument):
         self.add_channel('device', 'current')
         self.add_channel('timestamp', 'time_ms')
 
+    def __del__(self):
+        if self.process and self.process.pid:
+            self.logger.warning('killing iio-capture process [%d]...',
+                                self.process.pid)
+            self.process.kill()
+
     def reset(self, sites=None, kinds=None, channels=None):
         super(AcmeCapeInstrument, self).reset(sites, kinds, channels)
         self.raw_data_file = tempfile.mkstemp('.csv')[1]
@@ -98,6 +104,7 @@ class AcmeCapeInstrument(Instrument):
                             .format(self.process.returncode, output))
         if not os.path.isfile(self.raw_data_file):
             raise HostError('Output CSV not generated.')
+        self.process = None
 
     def get_data(self, outfile):
         if os.stat(self.raw_data_file).st_size == 0:
