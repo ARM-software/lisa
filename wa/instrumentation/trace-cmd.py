@@ -199,6 +199,7 @@ class TraceCmdInstrument(Instrument):
     def start(self, context):
         self.collector.start()
 
+    @very_slow
     def stop(self, context):
         self.collector.stop()
 
