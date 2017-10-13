@@ -380,11 +380,17 @@ echo
 # LISA Workloads utility functions
 ################################################################################
 
+export WLTEST_VENV="$LISA_HOME/tools/wa_venv"
+
+function lisa-wltests-cleanup {
+[ ! -d $WLTEST_VENV ] || return 0
+rm -rf $WLTEST_VENV
+}
+
 function lisa-wltest-init {
 export WLTEST_HOME="$LISA_HOME/tools/wltests"
-export WLTEST_VENV="$LISA_HOME/tools/wa_venv"
-export WLTEST_WA="$LISA_HOME/tools/workload-automation"
 export WLTEST_DL="$LISA_HOME/libs/devlib"
+export WLTEST_WA="$LISA_HOME/tools/workload-automation"
 export WA_USER_DIRECTORY="$LISA_HOME/tools/wa_user_directory"
 
 # If the python virtual env existis:
