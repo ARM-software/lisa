@@ -47,6 +47,7 @@ usage() {
     -t, --dtbs                      make dtbs
     -x, --clean_all                 make distclean, remove toolchain
         --modules                   make modules
+        --dtbo_image                make dtbo.img
 
     -a, --use-ccache                prepend 'ccache' to CROSS_COMPILE
     -k, --keepconfig                keep exiting .config, i.e. no other config is applied
@@ -72,6 +73,7 @@ MAKE_MENUCONFIG=$NO
 MAKE_SAVEDEFCONFIG=$NO
 MAKE_KEEPCONFIG=$NO
 BUILD_DTBS=$NO
+BUILD_DTBO_IMAGE=$NO
 BUILD_MODULES=$NO
 BUILD_IMAGE=$NO
 CLEAN_KERNEL=$NO
@@ -114,6 +116,9 @@ while [[ $# -gt 0 ]]; do
 			;;
 		-t|--dtbs)
 			BUILD_DTBS=$YES
+			;;
+		--dtbo_image)
+			BUILD_DTBO_IMAGE=$YES
 			;;
 		-x|--clean_all)
 			CLEAN_ALL=$YES
@@ -164,6 +169,7 @@ c_info "   Keepconfig      : $(format_conf ${MAKE_KEEPCONFIG})"
 c_info "   Build full      : $(format_conf ${BUILD_NOW})"
 c_info "   Build Image     : $(format_conf ${BUILD_IMAGE})"
 c_info "   Build dtbs      : $(format_conf ${BUILD_DTBS})"
+c_info "   Build dtbo.img  : $(format_conf ${BUILD_DTBO_IMAGE})"
 c_info "   Build modules   : $(format_conf ${BUILD_MODULES})"
 c_info "   Clean           : $(format_conf ${CLEAN_KERNEL})"
 c_info "   Distclean       : $(format_conf ${DISTCLEAN_KERNEL})"
@@ -281,6 +287,11 @@ fi
 if [ ${BUILD_DTBS} -eq $YES ]; then
 	c_info "Making [dtbs]..."
 	(set -x; cd "${KERNEL_SRC}"; make -j${NCPUS} dtbs >${OUT})
+fi
+
+if [ ${BUILD_DTBO_IMAGE} -eq $YES ]; then
+	c_info "Making [dtbo.img]..."
+	(set -x; cd "${KERNEL_SRC}"; make -j${NCPUS} dtbo.img >${OUT})
 fi
 
 if [ ${BUILD_MODULES} -eq $YES ]; then
