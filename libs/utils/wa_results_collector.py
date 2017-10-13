@@ -658,11 +658,18 @@ class WaResultsCollector(object):
 
                     group_mean = group_results.mean()
                     mean_diff = group_mean - base_mean
-                    if base_mean:
+                    # Calculate percentage difference in mean metric value
+                    if base_mean != 0:
                         mean_diff_pct = mean_diff * 100. / base_mean
                     else:
-                        # umm..?
-                        mean_diff_pct = 100
+                        # base mean is 0, can't divide by that.
+                        if group_mean == 0:
+                            # Both are 0 so diff_pct is 0
+                            mean_diff_pct =0
+                        else:
+                            # Tricky one - base value was 0, new value isn't.
+                            # Let's just call it a 100% difference.
+                            mean_diff_pct = 100
 
                     if len(group_results) <= 1 or len(base_results) <= 1:
                         # Can't do ttest_ind if we only have one sample. There
