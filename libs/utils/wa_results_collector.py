@@ -501,6 +501,21 @@ class WaResultsCollector(object):
                            tag, kernel, test)
             return None
 
+        valid_workloads = df.workload.unique()
+        if workload not in valid_workloads:
+            self._log.warning("No data for [%s] workload", workload)
+            self._log.info("Workloads with data, for the specified filters, are:")
+            self._log.info(" %s", ','.join(valid_workloads))
+            return None
+
+        valid_metrics = df.metric.unique()
+        if metric not in valid_metrics:
+            self._log.warning("No metric [%s] collected for workload [%s]",
+                              metric, workload)
+            self._log.info("Metrics with data, for the specified filters, are:")
+            self._log.info("   %s", ', '.join(valid_metrics))
+            return None
+
         df = (df.groupby(['workload', 'metric'])
                 .get_group((workload, metric)))
 
