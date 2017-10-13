@@ -54,7 +54,6 @@ REBOOT_TIMEOUT=${REBOOT_TIMEOUT:-180}
 
 DRYRUN=${DRYRUN:-0}
 
-
 ################################################################################
 # Check configuration
 ################################################################################
@@ -305,6 +304,7 @@ if [ "x$DEVICE" == "xC00010FFBAADA555" ]; then
 	fi
 	exit $EINVAL
 fi
+export WA_LOCAL_CONF=$RESULTS/config_local.yaml
 
 # Prepare PLATFORM
 export PLATFORM_PATH=$BASE_DIR/platforms/$PLATFORM
@@ -355,6 +355,32 @@ if [ $FORCE -eq 0 -a \
 	echo
 	exit $EINVAL
 fi
+mkdir -p $RESULTS &>/dev/null
+cat >$WA_LOCAL_CONF <<EOF
+# Automatically generated ADB device configuration based on test_series options
+device_config:
+  device: $DEVICE
+
+EOF
+
+config_emeter_acme() {
+	# Generate a WA configuration fragment for the ACME cape and ADB
+	IIO_DEVICES=""
+	for CH in $ACME_CHANNELS; do
+		IIO_DEVICES="$IIO_DEVICES \"iio:device$CH\", "
+	done
+	cat >>$WA_LOCAL_CONF <<EOF
+# Automatically generated ACME configuration based on test_series options
+energy_measurement:
+  instrument: acme_cape
+  instrument_parameters:
+    host: $ACME_IP
+    # If collecting on multiple channels, or another channel than iio:device0,
+    # set them here:
+    iio_devices: [$IIO_DEVICES]
+
+EOF
+}
 
 # Prepare WA_AGENDA (if specified it override the TEST_CMD)
 if [ ! -z $WA_AGENDA ]; then
@@ -364,29 +390,18 @@ if [ ! -z $WA_AGENDA ]; then
 		list_available_agendas
 		exit $INVAL
 	fi
-	# Generate a WA configuration fragment for the ACME cape and ADB
-	IIO_DEVICES=""
-	for CH in $ACME_CHANNELS; do
-		IIO_DEVICES="$IIO_DEVICES \"iio:device$CH\", "
-	done
-	WA_LOCAL_CONF=$RESULTS/config_local.yaml
-	mkdir -p $RESULTS &>/dev/null
-	cat >$WA_LOCAL_CONF <<EOF
-# Automatically generated ADB device configuration based on test_series options
-device_config:
-  device: $DEVICE
-
-# Automatically generated ACME configuration based on test_series options
-energy_measurement:
-  instrument: acme_cape
-  instrument_parameters:
-    host: $ACME_IP
-    # If collecting on multiple channels, or another channel than iio:device0,
-    # set them here:
-    iio_devices: [$IIO_DEVICES]
-EOF
 	TEST_CMD_RESULTS="$RESULTS/wa.\${COMMIT_SHA1:0:7}_\${COMMIT_NAME}"
-	TEST_CMD="wa run -f -d \"$TEST_CMD_RESULTS\" -c \"$WA_LOCAL_CONF\" \"$WA_AGENDA\""
+
+	# Configure WA command
+	# Depending on the EnergyMeter in use, an auxiliary configuration file
+	# can be required.
+	if [ "x$EMETER" == "xACME" ]; then
+		config_emeter_acme
+		TEST_CMD="wa run -f -d \"$TEST_CMD_RESULTS\" -c \"$WA_LOCAL_CONF\" \"$WA_AGENDA\""
+	fi
+	if [ "x$EMETER" == "xMONSOON" ]; then
+		TEST_CMD="wa run -f -d \"$TEST_CMD_RESULTS\" -c \"$WA_LOCAL_CONF\" \"$WA_AGENDA\""
+	fi
 fi
 
 # Prepare ADB and FASTBOOT commands to target the specified device
@@ -405,6 +420,9 @@ export FASTBOOT="$FASTBOOT -s $DEVICE"
 case $EMETER in
 'ACME')
 	EMETER_CONF="ACME (ACME_USB: $ACME_USB @ ACME_IP: $ACME_IP, ACME_CHANNELS: $ACME_CHANNELS)"
+	;;
+'MONSOON')
+	EMETER_CONF="MONSOON (all defaults)"
 	;;
 *)
 	c_error "Energy meter [EMETER=$EMETER] not supported"
@@ -445,6 +463,10 @@ usb_disconnect() {
 		sh root@$ACME_IP \
 			"echo 0 > /sys/bus/iio/devices/iio:$ACME_USB/in_active"
 		;;
+	'MONSOON')
+		# not supported for now
+		c_warn "Energy meter $EMETER does not support usb_disconnect"
+		;;
 	*)
 		c_error "Energy meter $EMETER not supported"
 		exit $EINVAL
@@ -459,6 +481,10 @@ usb_connect() {
 	'ACME')
 		ssh root@$ACME_IP \
 			"echo 1 > /sys/bus/iio/devices/iio:$ACME_USB/in_active"
+		;;
+	'MONSOON')
+		# not supported for now
+		c_warn "Energy meter $EMETER does not support usb_connect"
 		;;
 	*)
 		c_error "Energy meter $EMETER not supported"
