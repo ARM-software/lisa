@@ -20,10 +20,13 @@ import numpy as np
 import os
 import pandas as pd
 import subprocess
+import logging
 
 from scipy.stats import ttest_ind
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
+
+from conf import LisaLogging
 
 from bart.common.Utils import area_under_curve
 from devlib.target import KernelVersion
@@ -118,6 +121,8 @@ class WaResultsCollector(object):
     """
     def __init__(self, wa_dirs, platform=None, kernel_repo_path=None,
                  use_cached_trace_metrics=True):
+        self._log = logging.getLogger('WaResultsCollector')
+
         self.platform = platform
         self.use_cached_trace_metrics = use_cached_trace_metrics
 
@@ -250,8 +255,8 @@ class WaResultsCollector(object):
             with open(os.path.join(job_dir, 'result.json')) as f:
                 job_result = json.load(f)
                 if job_result['status'] == 'FAILED':
-                    print 'Skipping failed iteration {} of job {}'.format(
-                        iteration, job_id)
+                    self._log.warning('Skipping failed iteration %s of job %s',
+                                      iteration, job_id)
                     continue
 
             extra_df = self._get_extra_job_metrics(job_dir, workload)
@@ -315,7 +320,8 @@ class WaResultsCollector(object):
 
                 df = trace.data_frame.cluster_frequency_residency(cluster)
                 if df is None or df.empty:
-                    print "Can't get cluster freq residency from {}".format(trace.data_dir)
+                    self._log.warning("Can't get cluster freq residency from %s",
+                                      trace.data_dir)
                 else:
                     df = df.reset_index()
                     avg_freq = (df.frequency * df.time).sum() / df.time.sum()
@@ -589,7 +595,7 @@ class WaResultsCollector(object):
             lines.append(ax.lines[-1])
             axes.axhline(y=cdf.below, linewidth=1,
                          linestyle='--', color=color)
-            print "%-32s: %-32s: %.1f" % (keys[2], keys[1], 100.*cdf.below)
+            self._log.info("%-32s: %-32s: %.1f", keys[2], keys[1], 100.*cdf.below)
 
         axes.grid(True)
         axes.legend(lines, labels)
@@ -639,8 +645,9 @@ class WaResultsCollector(object):
                 gb = wl_inv_results.groupby(by)['value']
 
                 if base_id not in gb.groups:
-                    print 'Skipping - No baseline results for workload [{}] {} [{}] metric [{}]'.format(
-                        workload, invariant, inv_id, metric)
+                    self._log.warning('Skipping - No baseline results for workload '
+                                      '[%s] %s [%s] metric [%s]',
+                                      workload, invariant, inv_id, metric)
                     continue
 
                 base_results = gb.get_group(base_id)
@@ -709,9 +716,9 @@ class WaResultsCollector(object):
         df = self.find_comparisons(base_id=base_id, by=by)
 
         if df.empty:
-            print 'No comparisons by {} found'.format(by)
+            self._log.error('No comparisons by %s found', by)
             if len(self.results_df[by].unique()) == 1:
-                print '... because there is only one {} in the results'.format(by)
+                self._log.warning('There is only one %s in the results', by)
             return
 
         # Separate plot for each test (e.g. one plot for Jankbench list_view)
