@@ -749,15 +749,8 @@ class WaResultsCollector(object):
             ret['trace-cmd-bin'] = os.path.join(job_dir, 'trace.dat')
         return ret
 
-    def get_artifacts(self, workload='.*', tag='.*', kernel='.*', test='.*',
+    def _find_job_dir(self, workload='.*', tag='.*', kernel='.*', test='.*',
                       iteration=1):
-        """
-        Get a dict mapping artifact names to file paths for a specific job.
-
-        artifact_name specifies the name of an artifact, e.g. 'trace_bin' to
-        find the ftrace file from the specific job run. The other parameters
-        should be used to uniquely identify a run of a job.
-        """
         df = self._select(tag, kernel, test)
         df = df[df['workload'].str.match(workload)]
 
@@ -776,6 +769,18 @@ class WaResultsCollector(object):
                 .format(workload, tag, kernel, test, iteration))
 
         [job_dir] = job_dirs
+        return job_dir
+
+    def get_artifacts(self, workload='.*', tag='.*', kernel='.*', test='.*',
+                      iteration=1):
+        """
+        Get a dict mapping artifact names to file paths for a specific job.
+
+        artifact_name specifies the name of an artifact, e.g. 'trace_bin' to
+        find the ftrace file from the specific job run. The other parameters
+        should be used to uniquely identify a run of a job.
+        """
+        job_dir = self._find_job_dir(workload, tag, kernel, test, iteration)
         return self._read_artifacts(job_dir)
 
     def get_artifact(self, artifact_name, workload='.*',
@@ -788,10 +793,11 @@ class WaResultsCollector(object):
         find the ftrace file from the specific job run. The other parameters
         should be used to uniquely identify a run of a job.
         """
-        artifacts = self.get_artifacts(workload, tag, kernel, test, iteration)
+        job_dir = self._find_job_dir(workload, tag, kernel, test, iteration)
+        artifacts = self._read_artifacts(job_dir)
 
         if not artifact_name in artifacts:
-            raise ValueError("No '{}' artifact found in {}".format(
-                artifact_name, job_dir))
+            raise ValueError("No '{}' artifact found in {} (have {})".format(
+                artifact_name, job_dir, artifacts.keys()))
 
         return artifacts[artifact_name]
