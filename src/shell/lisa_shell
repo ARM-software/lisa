@@ -424,6 +424,9 @@ source $WLTEST_VENV/bin/activate
 _lisa-update-submodules
 pip install -e $WLTEST_WA
 pip install -e $WLTEST_DL
+
+# Leave the virtualenv once setup completed
+deactivate
 }
 
 function lisa-wltest-series {
@@ -465,6 +468,9 @@ echo $PATH | grep wa_venv &>/dev/null
 
 # Run the build's provided test_series
 $WLTEST_HOME/test_series "$@"
+
+# Leave the virtualenv once tests completed
+deactivate
 }
 
 ################################################################################
