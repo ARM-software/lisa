@@ -549,10 +549,11 @@ class WaResultsCollector(object):
         # Plot boxes sorted by mean
         fig, axes = plt.subplots(figsize=(16,8))
         _df.boxplot(ax=axes, vert=False, showmeans=True)
-        fig.suptitle('"{}" for workload "{}"'.format(metric, workload))
+        fig.suptitle('')
         if xlim:
             axes.set_xlim(xlim)
         axes.set_xlabel('{} [{}]'.format(metric, units))
+        axes.set_title('{}:{}'.format(workload, metric))
         plt.show()
 
     CDF = namedtuple('CDF', ['df', 'threshold', 'above', 'below'])
