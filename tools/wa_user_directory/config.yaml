@@ -19,5 +19,9 @@ energy_measurement:
     # If iio-capture is not in your $PATH, uncomment this and set the path.
     # iio-capture: /path/to/iio-capture
 
+trace_cmd:
+        buffer_size: 102400
+        report: false
+
 # Disable re-trying things that go wrong
 max_retries: 0
