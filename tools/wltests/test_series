@@ -801,6 +801,25 @@ test_sha1() {
 	[ $DRYRUN -eq 1 ] || (set -x; eval $TEST_CMD; set +x)
 }
 
+report() {
+
+if [[ $TEST_CMD = *"wa run"* ]]; then
+	# Check for ERRORs reported in WorkloadAutomation log files
+	c_info "Looking for WA errors..."
+	ERRORS=$(find $RESULTS -name run.log \
+		 -exec grep "WARNING    executor: Please see" \{\} \;)
+	if [ -z $ERRORS ]; then
+		c_info "No Errors reported in WA logfiles"
+	else
+		c_warning "WA reported these errors:"
+		echo $ERRORS | while read ERR; do
+			c_warning "   $(echo $ERR | awk '{print $7}')";
+		done
+	fi
+fi
+
+}
+
 # Prepare list of commits to test
 SELECTED_LIST="$(realpath $SERIES).selected"
 FMT=$(grep -v "^#" $SERIES | grep -v "00: " | head -n1 | awk '{print $1}')
@@ -855,6 +874,9 @@ while read -u10 COMMITS; do
 	printf "\n%80s\n\n" | tr " " "="
 
 done 10<$SELECTED_LIST
+
+# Generate reports
+report
 
 d_notify "Tests completed!" face-cool
 
