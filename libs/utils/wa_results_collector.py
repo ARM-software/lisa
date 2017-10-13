@@ -446,9 +446,9 @@ class WaResultsCollector(object):
 
     def _select(self, tag='.*', kernel='.*', test='.*'):
         _df = self.results_df
-        _df = _df[_df.tag.str.match(tag)]
-        _df = _df[_df.kernel.str.match(kernel)]
-        _df = _df[_df.test.str.match(test)]
+        _df = _df[_df.tag.str.contains(tag)]
+        _df = _df[_df.kernel.str.contains(kernel)]
+        _df = _df[_df.test.str.contains(test)]
         return _df
 
     @property
