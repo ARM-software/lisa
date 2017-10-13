@@ -714,23 +714,46 @@ class WaResultsCollector(object):
                 print '... because there is only one {} in the results'.format(by)
             return
 
-        for test, workload_comparisons in df.groupby('test'):
-            fig, ax = plt.subplots(figsize=(15, len(workload_comparisons) / 2.))
+        # Separate plot for each test (e.g. one plot for Jankbench list_view)
+        for test, test_comparisons in df.groupby('test'):
+            # Vertical size of plot depends on how many metrics we're comparing
+            # and how many things (kernels/tags) we're comparing metrics for.
+            # a.k.a the total length of the comparisons df.
+            fig, ax = plt.subplots(figsize=(15, len(test_comparisons) / 2.))
 
-            thickness= 0.6 / len(workload_comparisons.groupby('new_id'))
-            pos = np.arange(len(workload_comparisons['metric'].unique()))
+            # pos is used as the Y-axis. The y-axis is a descrete axis with a
+            # point for each of the metrics we're comparing
+            num_metrics = len(test_comparisons['metric'].unique())
+            pos = np.arange(num_metrics)
+
+            # At each point on the discrete y-axis we'll have one bar for each
+            # comparison: one per kernel/tag (depending on the `by` param), minus
+            # one for the baseline.
+            # If there are more bars we'll need to make them thinner so they
+            # fit. The sum of the bars' thicknesses should be 60% of a tick on
+            # the 'y-axis'.
+            thickness= 0.6 / len(test_comparisons.groupby('new_id'))
+
+            # TODO: something is up with the calculations above, because there's
+            # always a bit of empty space at the bottom of the axes.
+
             colors = ['r', 'g', 'b']
-            for i, (group, gdf) in enumerate(workload_comparisons.groupby('new_id')):
-
+            for i, (group, gdf) in enumerate(test_comparisons.groupby('new_id')):
+                # For each of the things we're comparing we'll plot a bar chart
+                # but slightly shifted. That's how we get multiple bars on each
+                # y-axis point.
                 bars = ax.barh(bottom=pos + (i * thickness), width=gdf['diff_pct'],
                             height=thickness, label=group,
                             color=colors[i % len(colors)], align='center')
+                # Decrease the opacity for comparisons with a high p-value
+                # TODO: This also decreases the opacity on the legend. I don't
+                #       really know what to do about that.
                 for bar, pvalue in zip(bars, gdf['pvalue']):
                     bar.set_alpha(1 - (min(pvalue * 10, 0.95)))
 
-            # add some text for labels, title and axes ticks
+            # Add some text for labels, title and axes ticks
             ax.set_xlabel('Percent difference')
-            [baseline] = workload_comparisons['base_id'].unique()
+            [baseline] = test_comparisons['base_id'].unique()
             ax.set_title('{}: Percent difference compared to {} \nopacity depicts p-value'
                          .format(test, baseline))
             ax.set_yticklabels(gdf['metric'])
@@ -739,7 +762,6 @@ class WaResultsCollector(object):
             ax.legend(loc='best')
 
             ax.grid(True)
-            # ax.set_xticklabels(('G1', 'G2', 'G3', 'G4', 'G5'))
 
         plt.show()
 
