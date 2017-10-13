@@ -563,6 +563,10 @@ class WaResultsCollector(object):
         axes.set_title('{}:{}'.format(workload, metric))
         plt.show()
 
+        stats_df = _df.describe(percentiles=[0.75, 0.95, 0.99])\
+                .T.sort_values(['mean'])
+        return stats_df
+
     CDF = namedtuple('CDF', ['df', 'threshold', 'above', 'below'])
 
     def _get_cdf(self, data, threshold):
