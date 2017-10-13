@@ -717,7 +717,7 @@ class WaResultsCollector(object):
         for test, workload_comparisons in df.groupby('test'):
             fig, ax = plt.subplots(figsize=(15, len(workload_comparisons) / 2.))
 
-            thickness=0.3
+            thickness= 0.6 / len(workload_comparisons.groupby('new_id'))
             pos = np.arange(len(workload_comparisons['metric'].unique()))
             colors = ['r', 'g', 'b']
             for i, (group, gdf) in enumerate(workload_comparisons.groupby('new_id')):
