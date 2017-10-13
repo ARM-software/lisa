@@ -22,6 +22,7 @@ import os
 import pandas as pd
 import subprocess
 import logging
+import warnings
 
 from scipy.stats import ttest_ind
 import matplotlib.cm as cm
@@ -494,9 +495,14 @@ class WaResultsCollector(object):
         :param by: List of identifiers to group output as in DataFrame.groupby.
         """
 
-        df = (self._select(tag, kernel, test)
-              .groupby(['workload', 'metric'])
-              .get_group((workload, metric)))
+        df = self._select(tag, kernel, test)
+        if df.empty:
+            self._log.warn("No data to plot for (tag: %s, kernel: %s, test: %s)",
+                           tag, kernel, test)
+            return None
+
+        df = (df.groupby(['workload', 'metric'])
+                .get_group((workload, metric)))
 
         units = df['units'].unique()
         if len(units) > 1:
@@ -582,9 +588,14 @@ class WaResultsCollector(object):
         :param by: List of identifiers to group output as in DataFrame.groupby.
         """
 
-        df = (self._select(tag, kernel, test)
-              .groupby(['workload', 'metric'])
-              .get_group((workload, metric)))
+        df = self._select(tag, kernel, test)
+        if df.empty:
+            self._log.warning("No data to plot for (tag: %s, kernel: %s, test: %s)",
+                              tag, kernel, test)
+            return None
+
+        df = (df.groupby(['workload', 'metric'])
+                .get_group((workload, metric)))
 
         units = df['units'].unique()
         if len(units) > 1:
