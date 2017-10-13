@@ -17,6 +17,7 @@ from collections import namedtuple, defaultdict
 import csv
 import json
 import numpy as np
+import re
 import os
 import pandas as pd
 import subprocess
@@ -76,7 +77,14 @@ class WaResultsCollector(object):
     Aside from the provided helper attributes, all metrics are exposed in a
     DataFrame as the ``results_df`` attribute.
 
-    :param wa_dirs:  List of paths to WA3 output directories
+    :param wa_dirs: List of paths to WA3 output directories or a regexp of WA3
+                    output directories names to consider starting from the
+                    specified base_path
+    :type wa_dirs: str
+
+    :param base_dir: The path of a directory containing a collection of WA3
+                     output directories
+    :type base_dir: str
 
     :param platform: Optional LISA platform description. If provided, used to
                      enrich extra metrics gleaned from trace analysis.
@@ -93,17 +101,31 @@ class WaResultsCollector(object):
                      cached in the provided output directories. Set this param
                      to False to disable this caching.
     """
-    def __init__(self, wa_dirs, platform=None, kernel_repo_path=None,
-                 use_cached_trace_metrics=True):
+    def __init__(self, base_dir=None, wa_dirs=".*", platform=None,
+                 kernel_repo_path=None, use_cached_trace_metrics=True):
+
         self._log = logging.getLogger('WaResultsCollector')
+
+        if base_dir:
+            base_dir = os.path.expanduser(base_dir)
+            if not isinstance(wa_dirs, basestring):
+                raise ValueError(
+                    'If base_dir is provided, wa_dirs should be a regexp')
+            regex = wa_dirs
+            wa_dirs = self._list_wa_dirs(base_dir, regex)
+            if not wa_dirs:
+                raise ValueError("Couldn't find any WA results matching '{}' in {}"
+                                 .format(regex, base_dir))
+        else:
+            if not hasattr(wa_dirs, '__iter__'):
+                raise ValueError(
+                    'if base_dir is not provided, wa_dirs should be a list of paths')
+
+
+        wa_dirs = [os.path.expanduser(p) for p in wa_dirs]
 
         self.platform = platform
         self.use_cached_trace_metrics = use_cached_trace_metrics
-
-        if not wa_dirs:
-            raise ValueError('Invalid wa_dirs ({})'.format(wa_dirs))
-
-        wa_dirs = [os.path.expanduser(p) for p in wa_dirs]
 
         df = pd.DataFrame()
         for wa_dir in wa_dirs:
@@ -123,6 +145,26 @@ class WaResultsCollector(object):
         df['kernel'] = df['kernel_sha1'].replace(kernel_refs)
 
         self.results_df = df
+
+    def _list_wa_dirs(self, base_dir, wa_dirs_re):
+        dirs = []
+        self._log.info("Processing WA3 dirs matching [%s], rooted at %s",
+                       wa_dirs_re, base_dir)
+        wa_dirs_re = re.compile(wa_dirs_re)
+
+        for subdir in os.listdir(base_dir):
+            dir = os.path.join(base_dir, subdir)
+            if not os.path.isdir(dir) or not wa_dirs_re.search(subdir):
+                continue
+
+            # WA3 results dirs contains a __meta directory at the top level.
+            if '__meta' not in os.listdir(dir):
+                self.log.warning('Ignoring {}, does not contain __meta directory')
+                continue
+
+            dirs.append(dir)
+
+        return dirs
 
     def _read_wa_dir(self, wa_dir):
         """
