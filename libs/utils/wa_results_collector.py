@@ -33,33 +33,7 @@ from devlib.target import KernelVersion
 from trappy.utils import handle_duplicate_index
 
 from trace import Trace
-
-def git_find_shortest_symref(repo_path, sha1_in):
-    """
-    Find the shortest symbolic reference (branch/tag) to a Git SHA1
-
-    Returns None if nothing points to the requested SHA1
-    """
-    repo_path = os.path.expanduser(repo_path)
-    possibles = []
-    # Can't use git for-each-ref --points-at because it only came in in Git 2.7
-    # which is not in Ubuntu 14.04 - check by hand instead.
-    branches = subprocess.check_output(
-        "git for-each-ref --sort=-committerdate "
-        "--format='%(objectname:short) %(refname:short)' "
-        "refs/heads/ refs/remotes/ refs/tags",
-        cwd=repo_path, shell=True)
-    for line in branches.splitlines():
-        try:
-            sha1_out, name = line.strip().split()
-        except:
-            continue
-        if sha1_out[:7] == sha1_in[:7]:
-            possibles.append(name)
-    if not possibles:
-        return None
-
-    return min(possibles, key=len)
+from git import Git
 
 class WaResultsCollector(object):
     """
@@ -138,7 +112,7 @@ class WaResultsCollector(object):
         kernel_refs = {}
         if kernel_repo_path:
             for sha1 in df['kernel_sha1'].unique():
-                ref = git_find_shortest_symref(kernel_repo_path, sha1)
+                ref = Git.find_shortest_symref(kernel_repo_path, sha1)
                 if ref:
                     kernel_refs[sha1] = ref
 
