@@ -152,6 +152,8 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         self.window = window
         self.abs_window = abs_window
 
+        self._do_parse()
+
     @classmethod
     def register_parser(cls, cobject, scope):
         """Register the class as an Event. This function
@@ -191,10 +193,32 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             if cobject == obj:
                 del scope_classes[name]
 
-    def _do_parse(self):
-        params = {'window': self.window, 'abs_window': self.abs_window}
-        if not self.__class__.disable_cache and self._check_trace_cache(params):
-            # Read csv into frames
+    def _get_params_to_cache(self):
+        return {'window': self.window, 'abs_window': self.abs_window}
+
+    def _update_cache(self):
+        params = self._get_params_to_cache()
+
+        try:
+            # Recreate basic cache directories only if nothing cached
+            if not any([c.cached for c in self.trace_classes]):
+                self._create_trace_cache(params)
+
+            # Write out only events that weren't cached before
+            for trace_class in self.trace_classes:
+                if trace_class.cached:
+                    continue
+                csv_file = self._get_csv_path(trace_class)
+                trace_class.write_csv(csv_file)
+        except OSError as err:
+            warnings.warn(
+                "TRAPpy: Cache not created due to OS error: {0}".format(err))
+
+    def _load_cache(self):
+        params = self._get_params_to_cache()
+
+        if self._check_trace_cache(params):
+             # Read csv into frames
             for trace_class in self.trace_classes:
                 try:
                     csv_file = self._get_csv_path(trace_class)
@@ -204,33 +228,35 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                     warnstr = "TRAPpy: Couldn't read {} from cache, reading it from trace".format(trace_class)
                     warnings.warn(warnstr)
 
-        if all([c.cached for c in self.trace_classes]):
-            if self.normalize_time:
-                self._normalize_time()
-            return
+    def _do_parse(self):
+        if not self.__class__.disable_cache:
+            self._load_cache()
+
+            # Check if cache data is enough
+            if all([c.cached for c in self.trace_classes]):
+                if self.normalize_time:
+                    self._normalize_time()
+                return
+
+        self._parsing_setup()
 
         self.__parse_trace_file(self.trace_path)
-
         self.finalize_objects()
 
+        # Update (or create) cache directory
         if not self.__class__.disable_cache:
-            try:
-                # Recreate basic cache directories only if nothing cached
-                if not any([c.cached for c in self.trace_classes]):
-                    self._create_trace_cache(params)
-
-                # Write out only events that weren't cached before
-                for trace_class in self.trace_classes:
-                    if trace_class.cached:
-                        continue
-                    csv_file = self._get_csv_path(trace_class)
-                    trace_class.write_csv(csv_file)
-            except OSError as err:
-                warnings.warn(
-                    "TRAPpy: Cache not created due to OS error: {0}".format(err))
+            self._update_cache()
 
         if self.normalize_time:
-            self._normalize_time()
+             self._normalize_time()
+
+        self._parsing_teardown()
+
+    def _parsing_setup(self):
+        pass
+
+    def _parsing_teardown(self):
+        pass
 
     def __add_events(self, events):
         """Add events to the class_definitions
@@ -644,12 +670,18 @@ class FTrace(GenericFTrace):
 
     def __init__(self, path=".", name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
-        super(FTrace, self).__init__(name, normalize_time, scope, events,
-                                     window, abs_window)
+
         self.raw_events = []
         self.trace_path = self.__process_path(path)
+
+        super(FTrace, self).__init__(name, normalize_time, scope, events,
+                                     window, abs_window)
+
+    def _parsing_setup(self):
+        super(FTrace, self)._parsing_setup()
+
+        self.__generate_trace_txt(self.trace_path)
         self.__populate_metadata()
-        self._do_parse()
 
     def __warn_about_txt_trace_files(self, trace_dat, raw_txt, formatted_txt):
         self.__get_raw_event_list()
@@ -680,14 +712,21 @@ class FTrace(GenericFTrace):
             # Warn users if raw.txt files are present
             if os.path.isfile(trace_raw_txt):
                 self.__warn_about_txt_trace_files(trace_dat, trace_raw_txt, trace_txt)
-            # TXT traces must always be generated
-            if not os.path.isfile(trace_txt):
-                self.__run_trace_cmd_report(trace_dat)
-            # TXT traces must match the most recent binary trace
-            elif os.path.getmtime(trace_txt) < os.path.getmtime(trace_dat):
-                self.__run_trace_cmd_report(trace_dat)
 
         return trace_txt
+
+    def __generate_trace_txt(self, trace_txt):
+        trace_dat = os.path.splitext(trace_txt)[0] + ".dat"
+
+        if not os.path.isfile(trace_dat):
+            return
+
+        # TXT traces must always be generated
+        if not os.path.isfile(trace_txt):
+            self.__run_trace_cmd_report(trace_dat)
+        # TXT traces must match the most recent binary trace
+        elif os.path.getmtime(trace_txt) < os.path.getmtime(trace_dat):
+            self.__run_trace_cmd_report(trace_dat)
 
     def __get_raw_event_list(self):
         self.raw_events = []

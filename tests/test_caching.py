@@ -21,38 +21,42 @@ import unittest
 import utils_tests
 import trappy
 from trappy.ftrace import GenericFTrace
+from trappy.systrace import SysTrace
 
 class TestCaching(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         super(TestCaching, self).__init__(
             [("trace_sched.txt", "trace.txt"),
-             ("trace_sched.txt", "trace.raw.txt")],
+             ("trace_sched.txt", "trace.raw.txt"),
+             ("trace_systrace.html", "trace.html")],
             *args,
             **kwargs)
 
     def test_cache_created(self):
         """Test cache creation when enabled"""
         GenericFTrace.disable_cache = False
-        trace = trappy.FTrace()
+        traces = (trappy.FTrace(), trappy.SysTrace(path='./trace.html'))
 
-        trace_path = os.path.abspath(trace.trace_path)
-        trace_dir = os.path.dirname(trace_path)
-        trace_file = os.path.basename(trace_path)
-        cache_dir = '.' + trace_file + '.cache'
+        for trace in traces:
+            trace_path = os.path.abspath(trace.trace_path)
+            trace_dir = os.path.dirname(trace_path)
+            trace_file = os.path.basename(trace_path)
+            cache_dir = '.' + trace_file + '.cache'
 
-        self.assertTrue(cache_dir in os.listdir(trace_dir))
+            self.assertTrue(cache_dir in os.listdir(trace_dir))
 
     def test_cache_not_created(self):
         """Test that cache should not be created when disabled """
         GenericFTrace.disable_cache = True
-        trace = trappy.FTrace()
+        traces = (trappy.FTrace(), trappy.SysTrace(path='./trace.html'))
 
-        trace_path = os.path.abspath(trace.trace_path)
-        trace_dir = os.path.dirname(trace_path)
-        trace_file = os.path.basename(trace_path)
-        cache_dir = '.' + trace_file + '.cache'
+        for trace in traces:
+            trace_path = os.path.abspath(trace.trace_path)
+            trace_dir = os.path.dirname(trace_path)
+            trace_file = os.path.basename(trace_path)
+            cache_dir = '.' + trace_file + '.cache'
 
-        self.assertFalse(cache_dir in os.listdir(trace_dir))
+            self.assertFalse(cache_dir in os.listdir(trace_dir))
 
     def test_compare_cached_vs_uncached(self):
         """ Test that the cached and uncached traces are same """
