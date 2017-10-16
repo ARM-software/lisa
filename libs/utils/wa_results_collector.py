@@ -795,8 +795,8 @@ class WaResultsCollector(object):
                 # but slightly shifted. That's how we get multiple bars on each
                 # y-axis point.
                 bars = ax.barh(bottom=pos + (i * thickness), width=gdf['diff_pct'],
-                            height=thickness, label=group,
-                            color=colors[i % len(colors)], align='center')
+                               height=thickness, label=group,
+                               color=colors[i % len(colors)], align='center')
                 # Decrease the opacity for comparisons with a high p-value
                 # TODO: This also decreases the opacity on the legend. I don't
                 #       really know what to do about that.
