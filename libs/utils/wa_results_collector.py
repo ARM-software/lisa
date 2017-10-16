@@ -34,6 +34,8 @@ from bart.common.Utils import area_under_curve
 from devlib.target import KernelVersion
 from trappy.utils import handle_duplicate_index
 
+from IPython.display import display
+
 from trace import Trace
 from git import Git
 
@@ -507,9 +509,9 @@ class WaResultsCollector(object):
 
         return df
 
-    def do_boxplots(self, workload, metric,
-                    tag='.*', kernel='.*', test='.*',
-                    by=['test', 'tag', 'kernel'], xlim=None):
+    def boxplot(self, workload, metric,
+                tag='.*', kernel='.*', test='.*',
+                by=['test', 'tag', 'kernel'], xlim=None):
         """
         Display boxplots of a certain metric
 
@@ -562,9 +564,73 @@ class WaResultsCollector(object):
         axes.set_title('{}:{}'.format(workload, metric))
         plt.show()
 
-        stats_df = _df.describe(percentiles=[0.75, 0.95, 0.99])\
-                .T.sort_values(['mean'])
-        return stats_df
+        return axes
+
+    def describe(self, workload, metric,
+                 tag='.*', kernel='.*', test='.*',
+                 by=['test', 'tag', 'kernel']):
+        """
+        Return a DataFrame of statistics for a certain metric
+
+        Compute mean, std, min, max and [50, 75, 95, 99] percentiles for
+        the values collected on each iteration of the specified metric.
+
+        Check ``workloads`` and ``workload_available_metrics`` to find the
+        available workloads and metrics.
+        Check ``tags``, ``tests`` and ``kernels`` to find the names that
+        results can be filtered against.
+
+        :param workload: Name of workload to display metrics for
+        :param metric: Name of metric to display
+
+        :param tag: regular expression to filter tags that should be plotted
+        :param kernel: regular expression to filter kernels that should be plotted
+        :param tag: regular expression to filter tags that should be plotted
+
+        :param by: List of identifiers to group output as in DataFrame.groupby.
+        """
+        df = self._get_metric_df(workload, metric, tag, kernel, test)
+        if df is None:
+            return
+
+        grouped = df.groupby(by)['value']
+        stats_df = pd.DataFrame(
+            grouped.describe(percentiles=[0.75, 0.95, 0.99]))
+        stats_df.rename(columns={'value': metric}, inplace=True)
+        stats_df = stats_df.unstack()
+
+        return stats_df.sort_values(by=[(metric, 'mean')], ascending=True)
+
+    def report(self, workload, metric,
+               tag='.*', kernel='.*', test='.*',
+               by=['test', 'tag', 'kernel'], xlim=None):
+        """
+        Report a boxplot and a set of statistics for a certain metrick
+
+        This is a convenience method to call both ``boxplot`` and ``describe``
+        at the same time to get a consistent graphical and numerical
+        representation of the values for the specified metric.
+
+        Check ``workloads`` and ``workload_available_metrics`` to find the
+        available workloads and metrics.
+        Check ``tags``, ``tests`` and ``kernels`` to find the names that
+        results can be filtered against.
+
+        :param workload: Name of workload to display metrics for
+        :param metric: Name of metric to display
+
+        :param tag: regular expression to filter tags that should be plotted
+        :param kernel: regular expression to filter kernels that should be plotted
+        :param tag: regular expression to filter tags that should be plotted
+
+        :param by: List of identifiers to group output as in DataFrame.groupby.
+        """
+        axes = self.boxplot(workload, metric, tag, kernel, test, by, xlim)
+        stats_df = self.describe(workload, metric, tag, kernel, test, by)
+        display(stats_df)
+
+        return (axes, stats_df)
+
 
     CDF = namedtuple('CDF', ['df', 'threshold', 'above', 'below'])
 
