@@ -532,7 +532,6 @@ class WaResultsCollector(object):
         if df is None:
             return
 
-        # Sort groups by mean duration - this will be the order of the plots
         gb = df.groupby(by)
 
         # Convert the groupby into a DataFrame with a column for each group
