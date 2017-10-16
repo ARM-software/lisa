@@ -765,7 +765,7 @@ class WaResultsCollector(object):
             return
 
         # Separate plot for each test (e.g. one plot for Jankbench list_view)
-        for test, test_comparisons in df.groupby('test'):
+        for (test, inv_id), test_comparisons in df.groupby(('test', 'inv_id')):
             # Vertical size of plot depends on how many metrics we're comparing
             # and how many things (kernels/tags) we're comparing metrics for.
             # a.k.a the total length of the comparisons df.
@@ -804,8 +804,8 @@ class WaResultsCollector(object):
             # Add some text for labels, title and axes ticks
             ax.set_xlabel('Percent difference')
             [baseline] = test_comparisons['base_id'].unique()
-            ax.set_title('{}: Percent difference compared to {} \nopacity depicts p-value'
-                         .format(test, baseline))
+            ax.set_title('{} ({}): Percent difference compared to {} \nopacity depicts p-value'
+                         .format(test, inv_id, baseline))
             ax.set_yticklabels(gdf['metric'])
             ax.set_yticks(pos + thickness / 2)
             # ax.set_xlim((-50, 50))
