@@ -225,21 +225,11 @@ class WaResultsCollector(object):
             # identify the runtime configuration. If not, use a representation
             # of the full key=value pairs.
             classifiers = job['classifiers'] or {}
-            rich_tag = ';'.join('{}={}'.format(k, v) for k, v in classifiers.iteritems())
-            tag = classifiers.get('tag', rich_tag)
-
-            if job_id in tag_map:
-                # Double check I didn't do a stupid
-                if tag_map[job_id] != tag:
-                    raise RuntimeError('Multiple tags ({}, {}) found for job ID {}'
-                                       .format(tag, tag_map[job_id], job_id))
-
-            tag_map[job_id] = tag
 
             if 'test' in classifiers:
                 # If the workload spec has a 'test' classifier, use that to
                 # identify it.
-                test = classifiers['test']
+                test = classifiers.pop('test')
             elif 'test' in job['workload_parameters']:
                 # If not, some workloads have a 'test' workload_parameter, try
                 # using that
@@ -250,12 +240,21 @@ class WaResultsCollector(object):
                 # different workload parameters will be amalgamated.
                 test = workload
 
+            rich_tag = ';'.join('{}={}'.format(k, v) for k, v in classifiers.iteritems())
+            tag = classifiers.get('tag', rich_tag)
+
+            if job_id in tag_map:
+                # Double check I didn't do a stupid
+                if tag_map[job_id] != tag:
+                    raise RuntimeError('Multiple tags ({}, {}) found for job ID {}'
+                                       .format(tag, tag_map[job_id], job_id))
+            tag_map[job_id] = tag
+
             if job_id in test_map:
                 # Double check I didn't do a stupid
                 if test_map[job_id] != test:
                     raise RuntimeError('Multiple tests ({}, {}) found for job ID {}'
                                        .format(test, test_map[job_id], job_id))
-
             test_map[job_id] = test
 
             iteration = next_iteration[job_id]
