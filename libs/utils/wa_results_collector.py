@@ -622,7 +622,7 @@ class WaResultsCollector(object):
             lines.append(ax.lines[-1])
             axes.axhline(y=cdf.below, linewidth=1,
                          linestyle='--', color=color)
-            self._log.info("%-32s: %-32s: %.1f", keys[2], keys[1], 100.*cdf.below)
+            self._log.debug("%-32s: %-32s: %.1f", keys[2], keys[1], 100.*cdf.below)
 
         axes.grid(True)
         axes.legend(lines, labels)
