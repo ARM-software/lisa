@@ -787,8 +787,10 @@ class WaResultsCollector(object):
             # TODO: something is up with the calculations above, because there's
             # always a bit of empty space at the bottom of the axes.
 
-            colors = ['r', 'g', 'b']
-            for i, (group, gdf) in enumerate(test_comparisons.groupby('new_id')):
+
+            gb = test_comparisons.groupby('new_id')
+            colors = cm.rainbow(np.linspace(0, 1, len(gb)))
+            for i, (group, gdf) in enumerate(gb):
                 # For each of the things we're comparing we'll plot a bar chart
                 # but slightly shifted. That's how we get multiple bars on each
                 # y-axis point.
