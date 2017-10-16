@@ -56,7 +56,7 @@ class WaResultsCollector(object):
     - 'workload' is the general name of a workload such as 'jankbench' or
       'youtube'.
 
-    - 'test' is as more specific identification for workload - for example this
+    - 'test' is a more specific identification for workload - for example this
       might identify one of Jankbench's sub-benchmarks, or specifically playing
       a certain video on Youtube for 30s.
 
