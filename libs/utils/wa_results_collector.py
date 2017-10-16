@@ -772,9 +772,14 @@ class WaResultsCollector(object):
             fig, ax = plt.subplots(figsize=(15, len(test_comparisons) / 2.))
 
             # pos is used as the Y-axis. The y-axis is a descrete axis with a
-            # point for each of the metrics we're comparing
+            # point for each of the metrics we're comparing. matplotlib needs
+            # that in numerical form.
+            # We also have one more tick on the Y-axis than we actually need -
+            # this is a terrible hack which is necessary because when we set the
+            # opacity of the first bar, it sets the opacity of the legend. So we
+            # introduce a dummy bar with a value of 0 and an opacity of 1.
             num_metrics = len(test_comparisons['metric'].unique())
-            pos = np.arange(num_metrics)
+            pos = np.arange(-1, num_metrics)
 
             # At each point on the discrete y-axis we'll have one bar for each
             # comparison: one per kernel/tag (depending on the `by` param), minus
@@ -794,13 +799,18 @@ class WaResultsCollector(object):
                 # For each of the things we're comparing we'll plot a bar chart
                 # but slightly shifted. That's how we get multiple bars on each
                 # y-axis point.
-                bars = ax.barh(bottom=pos + (i * thickness), width=gdf['diff_pct'],
+                bars = ax.barh(bottom=pos + (i * thickness),
+                               # Add a dummy [0] entry so we can fix the opacity
+                               # of the legend
+                               width=[0] + gdf['diff_pct'].tolist(),
                                height=thickness, label=group,
                                color=colors[i % len(colors)], align='center')
                 # Decrease the opacity for comparisons with a high p-value
-                # TODO: This also decreases the opacity on the legend. I don't
-                #       really know what to do about that.
-                for bar, pvalue in zip(bars, gdf['pvalue']):
+                # We add a dummy [0] (which means opacity=1.0) as a terrible
+                # workaround for the fact that the first bar's opacity also sets
+                # the opacity for that bar in the legend, which makes it hard to
+                # read.
+                for bar, pvalue in zip(bars, [0] + gdf['pvalue'].tolist()):
                     bar.set_alpha(1 - (min(pvalue * 10, 0.95)))
 
             # Add some text for labels, title and axes ticks
@@ -808,7 +818,9 @@ class WaResultsCollector(object):
             [baseline] = test_comparisons['base_id'].unique()
             ax.set_title('{} ({}): Percent difference compared to {} \nopacity depicts p-value'
                          .format(test, inv_id, baseline))
-            ax.set_yticklabels(gdf['metric'])
+            # The '' label is for the dummy first bar, which we used as a
+            # workaround for setting the opacity of the legend
+            ax.set_yticklabels([''] + gdf['metric'].tolist())
             ax.set_yticks(pos + thickness / 2)
             # ax.set_xlim((-50, 50))
             ax.legend(loc='best')
