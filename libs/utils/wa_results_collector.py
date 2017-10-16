@@ -474,6 +474,40 @@ class WaResultsCollector(object):
                 .groupby('workload').get_group(workload)
                 ['metric'].unique())
 
+    def _get_metric_df(self, workload, metric, tag, kernel, test):
+        """
+        Common helper for getting results to plot for a given metric
+        """
+        df = self._select(tag, kernel, test)
+        if df.empty:
+            self._log.warn("No data to plot for (tag: %s, kernel: %s, test: %s)",
+                           tag, kernel, test)
+            return None
+
+        valid_workloads = df.workload.unique()
+        if workload not in valid_workloads:
+            self._log.warning("No data for [%s] workload", workload)
+            self._log.info("Workloads with data, for the specified filters, are:")
+            self._log.info(" %s", ','.join(valid_workloads))
+            return None
+        df = df[df['workload'] == workload]
+
+        valid_metrics = df.metric.unique()
+        if metric not in valid_metrics:
+            self._log.warning("No metric [%s] collected for workoad [%s]",
+                              metric, workload)
+            self._log.info("Metrics with data, for the specied filters, are:")
+            self._log.info("   %s", ', '.join(valid_metrics))
+            return None
+        df = df[df['metric'] == metric]
+
+        units = df['units'].unique()
+        if len(units) > 1:
+            raise RuntimError('Found different units for workload "{}" metric "{}": {}'
+                              .format(workload, metric, units))
+
+        return df
+
     def do_boxplots(self, workload, metric,
                     tag='.*', kernel='.*', test='.*',
                     by=['test', 'tag', 'kernel'], xlim=None):
@@ -494,36 +528,9 @@ class WaResultsCollector(object):
 
         :param by: List of identifiers to group output as in DataFrame.groupby.
         """
-
-        df = self._select(tag, kernel, test)
-        if df.empty:
-            self._log.warn("No data to plot for (tag: %s, kernel: %s, test: %s)",
-                           tag, kernel, test)
-            return None
-
-        valid_workloads = df.workload.unique()
-        if workload not in valid_workloads:
-            self._log.warning("No data for [%s] workload", workload)
-            self._log.info("Workloads with data, for the specified filters, are:")
-            self._log.info(" %s", ','.join(valid_workloads))
-            return None
-
-        valid_metrics = df.metric.unique()
-        if metric not in valid_metrics:
-            self._log.warning("No metric [%s] collected for workload [%s]",
-                              metric, workload)
-            self._log.info("Metrics with data, for the specified filters, are:")
-            self._log.info("   %s", ', '.join(valid_metrics))
-            return None
-
-        df = (df.groupby(['workload', 'metric'])
-                .get_group((workload, metric)))
-
-        units = df['units'].unique()
-        if len(units) > 1:
-            raise RuntimError('Found different units for workload "{}" metric "{}": {}'
-                              .format(workload, metric, units))
-        [units] = units
+        df = self._get_metric_df(workload, metric, tag, kernel, test)
+        if df is None:
+            return
 
         # Sort groups by mean duration - this will be the order of the plots
         gb = df.groupby(by)
@@ -552,6 +559,7 @@ class WaResultsCollector(object):
         fig.suptitle('')
         if xlim:
             axes.set_xlim(xlim)
+        [units] = df['units'].unique()
         axes.set_xlabel('{} [{}]'.format(metric, units))
         axes.set_title('{}:{}'.format(workload, metric))
         plt.show()
@@ -603,21 +611,9 @@ class WaResultsCollector(object):
 
         :param by: List of identifiers to group output as in DataFrame.groupby.
         """
-
-        df = self._select(tag, kernel, test)
-        if df.empty:
-            self._log.warning("No data to plot for (tag: %s, kernel: %s, test: %s)",
-                              tag, kernel, test)
-            return None
-
-        df = (df.groupby(['workload', 'metric'])
-                .get_group((workload, metric)))
-
-        units = df['units'].unique()
-        if len(units) > 1:
-            raise RuntimError('Found different units for workload "{}" metric "{}": {}'
-                              .format(workload, metric, units))
-        [units] = units
+        df = self._get_metric_df(workload, metric, tag, kernel, test)
+        if df is None:
+            return
 
         test_cnt = len(df.groupby(['test', 'tag', 'kernel']))
         colors = iter(cm.rainbow(np.linspace(0, 1, test_cnt+1)))
@@ -631,6 +627,7 @@ class WaResultsCollector(object):
             labels.append("{:16s}: {:32s}".format(keys[2], keys[1]))
             color = next(colors)
             cdf = self._get_cdf(df['value'], threshold)
+            [units] = df['units'].unique()
             ax = cdf.df.plot(ax=axes, legend=False, xlim=(0,None), figsize=(16, 6),
                              title='Total duration CDF ({:.1f}% within {} [{}] threshold)'\
                              .format(100. * cdf.below, threshold, units),
