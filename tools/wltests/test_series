@@ -34,7 +34,7 @@ SERIES=${SERIES:-''}
 WA_AGENDA=${WA_AGENDA:-''}
 TEST_CMD=${TEST_CMD:-'echo "Test DONE!"'}
 
-if [ -z $ANDROID_HOME ]; then
+if [ -z "$ANDROID_HOME" ]; then
 	ADB=${ADB:-$(which adb)}
 	FASTBOOT=${FASTBOOT:-$(which fastboot)}
 else
@@ -286,7 +286,7 @@ done
 
 # Prepare DEVICE
 if [ "x$DEVICE" == "xC00010FFBAADA555" ]; then
-	if [ -z $ANDROID_DEVICE ]; then
+	if [ -z "$ANDROID_DEVICE" ]; then
 		echo
 		c_error "Target device not set"
 		echo
@@ -324,7 +324,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Prepare SERIES
-if [ -z $SERIES ]; then
+if [ -z "$SERIES" ]; then
 	echo
 	c_error "A valid commit series should be defined by \$SERIES|--series"
 	echo
@@ -808,7 +808,7 @@ if [[ $TEST_CMD = *"wa run"* ]]; then
 	c_info "Looking for WA errors..."
 	ERRORS=$(find $RESULTS -name run.log \
 		 -exec grep "WARNING    executor: Please see" \{\} \;)
-	if [ -z $ERRORS ]; then
+	if [ -z "$ERRORS" ]; then
 		c_info "No Errors reported in WA logfiles"
 	else
 		c_warning "WA reported these errors:"
