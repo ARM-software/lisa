@@ -657,7 +657,7 @@ class WaResultsCollector(object):
 
         # I dunno why I wrote this with a namedtuple instead of just a dict or
         # whatever, but it works fine
-        Comparison = namedtuple('Comparison', ['metric', 'test',
+        Comparison = namedtuple('Comparison', ['metric', 'test', 'inv_id',
                                                'base_id', 'base_mean', 'base_std',
                                                'new_id', 'new_mean', 'new_std',
                                                'diff', 'diff_pct', 'pvalue'])
@@ -684,13 +684,13 @@ class WaResultsCollector(object):
             # depending on the `by` param.
             # So wl_inv_results will be the results entries for that workload on
             # that kernel/tag
-            for (workload, inv_id), wl_inv_results in metric_results.groupby(['test', invariant]):
+            for (test, inv_id), wl_inv_results in metric_results.groupby(['test', invariant]):
                 gb = wl_inv_results.groupby(by)['value']
 
                 if base_id not in gb.groups:
-                    self._log.warning('Skipping - No baseline results for workload '
+                    self._log.warning('Skipping - No baseline results for test '
                                       '[%s] %s [%s] metric [%s]',
-                                      workload, invariant, inv_id, metric)
+                                      test, invariant, inv_id, metric)
                     continue
 
                 base_results = gb.get_group(base_id)
@@ -702,9 +702,9 @@ class WaResultsCollector(object):
 
                     # group_id is now a kernel id or a tag (depending on
                     # `by`). group_results is a slice of all the rows of self.results_df
-                    # for a given metric, workload, tag/workload tuple. We
+                    # for a given metric, test, tag/test tuple. We
                     # create comparison object to show how that metric changed
-                    # wrt. to the base tag/workload.
+                    # wrt. to the base tag/test.
 
                     group_mean = group_results.mean()
                     mean_diff = group_mean - base_mean
@@ -740,7 +740,7 @@ class WaResultsCollector(object):
                         pvalue =  ttest_ind(group_results, base_results, equal_var=False).pvalue
 
                     comparisons.append(Comparison(
-                        metric, '_'.join([workload, str(inv_id)]),
+                        metric, test, inv_id,
                         base_id, base_mean, base_results.std(),
                         group_id, group_mean, group_results.std(),
                         mean_diff, mean_diff_pct, pvalue))
