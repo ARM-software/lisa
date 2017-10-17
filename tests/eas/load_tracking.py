@@ -15,18 +15,21 @@
 # limitations under the License.
 #
 
-from bart.common.Utils import select_window, area_under_curve
-from devlib.utils.misc import memoized
-from trappy.stats.grammar import Parser
 import pandas as pd
 
+from bart.common.Utils import select_window, area_under_curve
+from bart.sched import pelt
+from devlib.utils.misc import memoized
 from test import LisaTest, experiment_test
+from trappy.stats.grammar import Parser
 
 UTIL_SCALE = 1024
 # Time in seconds to allow for util_avg to converge (i.e. ignored time)
 UTIL_AVG_CONVERGENCE_TIME = 0.3
 # Allowed margin between expected and observed util_avg value
 ERROR_MARGIN_PCT = 15
+# PELT half-life value in ms
+HALF_LIFE_MS = 32
 
 class _LoadTrackingBase(LisaTest):
     """Base class for shared functionality of load tracking tests"""
@@ -76,7 +79,7 @@ class _LoadTrackingBase(LisaTest):
                     'class' : 'periodic',
                     'params' : {
                         'duty_cycle_pct': duty_cycle_pct,
-                        'duration_s': 1,
+                        'duration_s': 2,
                         'period_ms': 16,
                     },
                     'tasks' : 1,
@@ -171,6 +174,25 @@ class _LoadTrackingBase(LisaTest):
         signal = self.get_sched_task_signals(experiment, [signal])[signal]
         signal = select_window(signal, window)
         return area_under_curve(signal) / (window[1] - window[0])
+
+    def get_simulated_pelt(self, experiment, task, init_value):
+        """
+        Get simulated PELT signal and the periodic task used to model it.
+
+        :returns: tuple of
+            - :mod:`bart.sched.pelt.Simulator` the PELT simulator object
+            - :mod:`bart.sched.pelt.PeriodicTask` simulated periodic task
+            - :mod:`pandas.DataFrame` instance which reports the computed
+                    PELT values at each PELT sample interval.
+        """
+        phase = experiment.wload.params['profile'][task]['phases'][0]
+        pelt_task = pelt.PeriodicTask(period_samples=phase.period_ms,
+                                      duty_cycle_pct=phase.duty_cycle_pct)
+        peltsim = pelt.Simulator(init_value=init_value,
+                                 half_life_ms=HALF_LIFE_MS)
+        df = peltsim.getSignal(pelt_task, 0, phase.duration_s + 1)
+        return peltsim, pelt_task, df
+
 
 class FreqInvarianceTest(_LoadTrackingBase):
     """
@@ -330,3 +352,180 @@ class CpuInvarianceTest(_LoadTrackingBase):
         Test that the mean of the util_avg signal matched the expected value
         """
         return self._test_signal(experiment, tasks, 'util_avg')
+
+class PELTTasksTest(_LoadTrackingBase):
+    """
+    Goal
+    ====
+    Basic checks for tasks related PELT signals behaviour.
+
+    Detailed Description
+    ====================
+    This test runs a synthetic periodic task on a CPU in the system and
+    collects a trace from the target device. The util_avg values are extracted
+    from scheduler trace events and the behaviour of the signal is compared
+    against a simulated value of PELT.
+    This class runs the following tests:
+
+    - test_util_avg_range: test that util_avg's stable range matches with the
+        stable range of the simulated signal. In particular, this test compares
+        min, max and mean values of the two signals.
+
+    - test_util_avg_behaviour: check behaviour of util_avg against the simualted
+        PELT signal. This test assumes that PELT is configured with 32 ms half
+        life time and the samples are 1024 us. Also, it assumes that the first
+        trace event related to the task used for testing is generated 'after'
+        the task starts (hence, we compute the initial PELT value when the task
+        started).
+
+    Expected Behaviour
+    ==================
+    Simulated PELT signal and the signal extracted from the trace should have
+    very similar min, max and mean values in the stable range and the behaviour of
+    the signal should be very similar to simulated one.
+    """
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        # Run the 50% workload on a CPU with highest capacity
+        target_cpu = min(test_env.calibration(),
+                         key=test_env.calibration().get)
+
+        wloads = {
+            'pelt_behv' : cls.get_wload(target_cpu, 50)
+        }
+
+        conf = {
+            'tag' : 'pelt_behv_conf',
+            'flags' : ['ftrace', 'freeze_userspace'],
+            'cpufreq' : {'governor' : 'performance'},
+        }
+
+        return {
+            'wloads': wloads,
+            'confs': [conf],
+        }
+
+    def _test_range(self, experiment, tasks, signal_name):
+        [task] = tasks
+        signal_df = self.get_sched_task_signals(experiment, [signal_name])
+        # Get stats and stable range of the simulated PELT signal
+        start_time = self.get_task_start_time(experiment, task)
+        init_pelt = pelt.Simulator.estimateInitialPeltValue(
+            signal_df[signal_name].iloc[0], signal_df.index[0],
+            start_time, HALF_LIFE_MS
+        )
+        peltsim, pelt_task, sim_df = self.get_simulated_pelt(experiment,
+                                                             task,
+                                                             init_pelt)
+        sim_range = peltsim.stableRange(pelt_task)
+        stable_time = peltsim.stableTime(pelt_task)
+        window = (start_time + stable_time,
+                  start_time + stable_time + 0.5)
+        # Get signal statistics in a period of time where the signal is
+        # supposed to be stable
+        signal_stats = signal_df[window[0]:window[1]][signal_name].describe()
+
+        # Narrow down simulated PELT signal to stable period
+        sim_df = sim_df[window[0]:window[1]].pelt_value
+
+        # Check min
+        error_margin = sim_range.min_value * (ERROR_MARGIN_PCT / 100.)
+        msg = 'Stable range min value around {}, expected {}'.format(
+            signal_stats['min'], sim_range.min_value)
+        self.assertAlmostEqual(sim_range.min_value, signal_stats['min'],
+                               delta=error_margin, msg=msg)
+
+        # Check max
+        error_margin = sim_range.max_value * (ERROR_MARGIN_PCT / 100.)
+        msg = 'Stable range max value around {}, expected {}'.format(
+            signal_stats['max'], sim_range.max_value)
+        self.assertAlmostEqual(sim_range.max_value, signal_stats['max'],
+                               delta=error_margin, msg=msg)
+
+        # Check mean
+        sim_mean = sim_df.mean()
+        error_margin = sim_mean * (ERROR_MARGIN_PCT / 100.)
+        msg = 'Saw mean value of around {}, expected {}'.format(
+            signal_stats['mean'], sim_mean)
+        self.assertAlmostEqual(sim_mean, signal_stats['mean'],
+                               delta=error_margin, msg=msg)
+
+    def _test_behaviour(self, experiment, tasks, signal_name):
+        [task] = tasks
+        signal_df = self.get_sched_task_signals(experiment, [signal_name])
+        # Get instant of time when the task starts running
+        start_time = self.get_task_start_time(experiment, task)
+
+        # Get information about the task
+        phase = experiment.wload.params['profile'][task]['phases'][0]
+
+        # Create simulated PELT signal for a periodic task
+        init_pelt = pelt.Simulator.estimateInitialPeltValue(
+            signal_df[signal_name].iloc[0], signal_df.index[0],
+            start_time, HALF_LIFE_MS
+        )
+        peltsim, pelt_task, sim_df = self.get_simulated_pelt(
+            experiment, task, init_pelt
+        )
+
+        # Compare actual PELT signal with the simulated one
+        margin = 0.05
+        period_s = phase.period_ms / 1e3
+        sim_period_ms = phase.period_ms * (peltsim._sample_us / 1e6)
+        n_errors = 0
+        for entry in signal_df.iterrows():
+            trace_val = entry[1][signal_name]
+            timestamp = entry[0] - start_time
+            # Next two instructions map the trace timestamp to a simulated
+            # signal timestamp. This is due to the fact that the 1 ms is
+            # actually 1024 us in the simulated signal.
+            n_periods = timestamp / period_s
+            nearest_timestamp = n_periods * sim_period_ms
+            sim_val_loc = sim_df.index.get_loc(nearest_timestamp,
+                                               method='nearest')
+            sim_val = sim_df.pelt_value.iloc[sim_val_loc]
+            if trace_val > (sim_val * (1 + margin)) or \
+               trace_val < (sim_val * (1 - margin)):
+                self._log.debug("At {} trace shows {}={}"
+                                .format(entry[0], signal_name, trace_val))
+                self._log.debug("At ({}, {}) simulation shows {}={}"
+                                .format(sim_df.index[sim_val_loc],
+                                        signal_name,
+                                        sim_val_loc,
+                                        sim_val))
+                n_errors += 1
+
+        msg = "Total number of errors: {}/{}".format(n_errors, len(signal_df))
+        # Exclude possible outliers (these may be due to a kernel thread that
+        # for some reason gets coscheduled with our workload).
+        self.assertLess(n_errors/len(signal_df), margin, msg)
+
+    @experiment_test
+    def test_util_avg_range(self, experiment, tasks):
+        """
+        Test util_avg stable range for a 50% periodic task
+        """
+        return self._test_range(experiment, tasks, 'util_avg')
+
+    @experiment_test
+    def test_util_avg_behaviour(self, experiment, tasks):
+        """
+        Test util_avg behaviour for a 50% periodic task
+        """
+        return self._test_behaviour(experiment, tasks, 'util_avg')
+
+    @experiment_test
+    def test_load_avg_range(self, experiment, tasks):
+        """
+        Test load_avg stable range for a 50% periodic task
+        """
+        return self._test_range(experiment, tasks, 'load_avg')
+
+    @experiment_test
+    def test_load_avg_behaviour(self, experiment, tasks):
+        """
+        Test load_avg behaviour for a 50% periodic task
+        """
+        return self._test_behaviour(experiment, tasks, 'load_avg')
+
