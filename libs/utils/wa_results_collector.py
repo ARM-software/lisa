@@ -98,6 +98,11 @@ class WaResultsCollector(object):
                      references to replace SHA1s in data representation. This is
                      purely to make the output more manageable for humans.
 
+    :param parse_traces: This class uses LISA to parse and analyse ftrace files
+                         for extra metrics. With multiple/large traces this
+                         can take some time. Set this param to False to disable
+                         trace parsing.
+
     :param use_cached_trace_metrics: This class uses LISA to parse and analyse
                      ftrace files for extra metrics. With multiple/large traces
                      this can take some time, so the extracted metrics are
@@ -105,7 +110,8 @@ class WaResultsCollector(object):
                      to False to disable this caching.
     """
     def __init__(self, base_dir=None, wa_dirs=".*", platform=None,
-                 kernel_repo_path=None, use_cached_trace_metrics=True):
+                 kernel_repo_path=None, parse_traces=True,
+                 use_cached_trace_metrics=True):
 
         self._log = logging.getLogger('WaResultsCollector')
 
@@ -128,6 +134,9 @@ class WaResultsCollector(object):
         wa_dirs = [os.path.expanduser(p) for p in wa_dirs]
 
         self.platform = platform
+        self.parse_traces = parse_traces
+        if not self.parse_traces:
+            self._log.warning("Trace parsing disabled")
         self.use_cached_trace_metrics = use_cached_trace_metrics
 
         df = pd.DataFrame()
@@ -412,7 +421,7 @@ class WaResultsCollector(object):
         metrics_df = pd.DataFrame()
 
         artifacts = self._read_artifacts(job_dir)
-        if 'trace-cmd-bin' in artifacts:
+        if self.parse_traces and 'trace-cmd-bin' in artifacts:
             metrics_df = metrics_df.append(
                 self._get_trace_metrics(artifacts['trace-cmd-bin']))
 
