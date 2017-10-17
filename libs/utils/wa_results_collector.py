@@ -898,13 +898,6 @@ class WaResultsCollector(object):
         with open(os.path.join(job_dir, 'result.json')) as f:
             ret = {a['name']: os.path.join(job_dir, a['path'])
                    for a in json.load(f)['artifacts']}
-
-        # TODO: This is a workaround for a WA3 but that is now
-        # fixed (a65cffb705B1 - trace-cmd: add trace files as artificats)
-        # I'm just leaving it here so I can keep comparing data from runs before
-        # that fix went in. Once I don't need it any more, I'll remove it.
-        if 'trace.dat' in os.listdir(job_dir):
-            ret['trace-cmd-bin'] = os.path.join(job_dir, 'trace.dat')
         return ret
 
     def _find_job_dir(self, workload='.*', tag='.*', kernel='.*', test='.*',
