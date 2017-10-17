@@ -76,8 +76,8 @@ class PeriodicTask(object):
         """
 
         args = [period_samples, start_sample, pelt_sample_us, pelt_max]
-        invalid = any([True for param in args if
-                       not isinstance(param, int) or param < 0])
+        invalid = any(not isinstance(param, int) or param < 0
+                      for param in args)
         if invalid:
             raise ValueError('one of more parameters are not positive integers')
         if run_samples is None and duty_cycle_pct is None:
@@ -95,7 +95,7 @@ class PeriodicTask(object):
         self.period_samples = period_samples
         self.period_us = self.pelt_sample_us * period_samples
 
-        if duty_cycle_pct:
+        if duty_cycle_pct is not None:
             self.run_samples = period_samples * float(duty_cycle_pct) / 100
             self.duty_cycle_pct = duty_cycle_pct
         else:
@@ -162,7 +162,7 @@ class PELTStats(_PELTStats):
     end_s     : end time [s] used for PELT signal simulation
     pelt_avg  : expected average value of the PELT signal
     pelt_init : initial PELT value
-    halt_life : time [ms] of the PELT's halt-life parameter
+    half_life : time [ms] of the PELT's half-life parameter
     tmin      : start time [s] used for statistics computation
     tmax      : end time [s] used for statistics computation
     min       : minimum PELT value, within [tmin, tmax]
@@ -173,7 +173,7 @@ class PELTStats(_PELTStats):
     err_pct   : the avg error percentage, compared to the expected average (pelt_avg)
 
     :note: the [start_s, end_s] interval used for statistical computations can be
-           smaller than the timespan of the simulated PETL signal. For example, we
+           smaller than the timespan of the simulated PELT signal. For example, we
            can simulate a PELT signal for 3 [s] but compute statistics only for the
            last 1 [s]. This is allows for example to ignore the initial execution
            of a task while focusing for stats only on a timeframe in which the
@@ -182,12 +182,14 @@ class PELTStats(_PELTStats):
     pass
 
 _PELTRange = namedtuple('PELTRange', [
-    'min_value', 'max_value'])
+    'min_value', 'max_value', 'time'])
 class PELTRange(_PELTRange):
     """Stability range for the PELT signal of a given PeriodicTask
 
     Given a PeriodicTask and a specific PELT configuration the simulated PELT
     signal is expected to stabilize in the range [min_value, max_value].
+
+    Also, store the information about when the signal starts becoming stable.
     """
     pass
 
@@ -233,7 +235,7 @@ class Simulator(object):
         self.decay_cap_ms = decay_cap_ms
 
         self._geom_y = pow(0.5, 1./half_life_ms)
-        self._geom_u = float(Simulator._signal_max) * (1. - self._geom_y)
+        self._geom_u = float(self._signal_max) * (1. - self._geom_y)
 
         self.task = None
         self._df = None
@@ -244,7 +246,8 @@ class Simulator(object):
         desc += "  half life (HL)  [ms] : {}\n".format(self.half_life_ms)
         desc += "  decay capping @ [ms] : {}\n".format(self.decay_cap_ms)
         desc += "  y =    0.5^(1/HL)    : {:6.3f}\n".format(self._geom_y)
-        desc += "  u = {:5d}*(1 - y)    : {:6.3f}\n".format(Simulator._signal_max, self._geom_u)
+        desc += "  u = {:5d}*(1 - y)    : {:6.3f}\n".format(self._signal_max,
+                                                            self._geom_u)
         return desc
 
     def _geomSum(self, u_1, active_us=0):
@@ -270,7 +273,7 @@ class Simulator(object):
         - Min stable value: y^i * (1-y^r) / (1-y^p)
         Where:
             r is the run time of the task in number of PELT samples
-            p is the period of the task in number of PETL samples
+            p is the period of the task in number of PELT samples
             i is the idle time of the task in number of PELT samples,
               i.e. i = p - r
 
@@ -280,8 +283,8 @@ class Simulator(object):
         :type  task: PeriodicTask
 
         :return: :mod:`PELTRange` instance representing the minimum and maximum
-                 value of the PELT signal once stable.
-
+                 value of the PELT signal once stable along with the instant of
+                 time when the signal starts becoming stable.
         """
 
         # Validate input parameters
@@ -289,7 +292,7 @@ class Simulator(object):
             raise ValueError("Wrong time for task parameter")
 
         def _to_pelt_samples(time_us):
-            return float(time_us)/Simulator._sample_us
+            return float(time_us)/self._sample_us
 
         # Compute max value
         max_pelt  = (1. - pow(self._geom_y, _to_pelt_samples(task.run_us)))
@@ -299,8 +302,20 @@ class Simulator(object):
         min_pelt  = max_pelt
         min_pelt *= pow(self._geom_y, _to_pelt_samples(task.idle_us))
 
-        return PELTRange(Simulator._signal_max * min_pelt,
-                         Simulator._signal_max * max_pelt)
+        min_pelt *= self._signal_max
+        max_pelt *= self._signal_max
+
+        if self.init_value < max_pelt:
+            # Look for the max (with 0.1% tolerance)
+            cond = (self._df.pelt_value > max_pelt * 0.999) & \
+                   (self._df.pelt_value <= max_pelt)
+        else:
+            # Look for the min (with 0.1% tolerance)
+            cond = (self._df.pelt_value < min_pelt * 1.001) & \
+                   (self._df.pelt_value >= min_pelt)
+        stable_time = self._df[cond].index[0]
+
+        return PELTRange(min_pelt, max_pelt, stable_time)
 
 
     def getSignal(self, task, start_s=0, end_s=10):
@@ -338,8 +353,8 @@ class Simulator(object):
             raise ValueError("Wrong type for task parameter")
 
         # Intervals (in PELT samples) for the signal to compute
-        self.start_us = _s_to_us(start_s, Simulator._sample_us)
-        self.end_us = _s_to_us(end_s, Simulator._sample_us)
+        self.start_us = _s_to_us(start_s, self._sample_us, nearest_up=False)
+        self.end_us = _s_to_us(end_s, self._sample_us)
 
         # Add initial value to the generated signal
         pelt_value = self.init_value
@@ -348,7 +363,7 @@ class Simulator(object):
         samples.append(sample)
 
         # Compute following PELT samples
-        t_us = self.start_us + Simulator._sample_us
+        t_us = self.start_us + self._sample_us
         while t_us <= self.end_us:
 
             # Check if the task was running in the current PELT sample
@@ -357,10 +372,10 @@ class Simulator(object):
             # Keep track of sleep start and decay capping time
             if self.decay_cap_ms and running_prev and not running:
                 capping = t_us + _ms_to_us(self.decay_cap_ms,
-                                           Simulator._sample_us)
+                                           self._sample_us)
 
             # Assume the task was running for all the current PELT sample
-            active_us = Simulator._sample_us if running else 0
+            active_us = self._sample_us if running else 0
 
             # Always update utilization:
             # - when the task is running
@@ -373,12 +388,12 @@ class Simulator(object):
                 pelt_value = self._geomSum(pelt_value, active_us)
 
             # Append PELT sample
-            sample = (_us_to_s(t_us), t_us/Simulator._sample_us, running, pelt_value)
+            sample = (_us_to_s(t_us), t_us/self._sample_us, running, pelt_value)
             samples.append(sample)
 
             # Prepare for next sample computation
             running_prev = running
-            t_us += Simulator._sample_us
+            t_us += self._sample_us
 
         # Create DataFrame from computed samples
         self._df = DataFrame(samples, columns=['Time', 'PELT_Interval', 'Running', 'pelt_value'])
@@ -443,11 +458,11 @@ class Simulator(object):
 # Utility Functions
 ################################################################################
 
-def _s_to_us(time_s, interval_us=1e3):
-    """Convert [s] into the (not smaller) nearest [us]
+def _s_to_us(time_s, interval_us=1e3, nearest_up=True):
+    """Convert [s] into the (not smaller/greater) nearest [us]
 
     Translate a time expressed in [s] to the nearest time in [us]
-    which is a integer multiple of the specified interval_us and it is not
+    which is an integer multiple of the specified interval_us and it is not
     smaller than the original time_s.
 
     Example:
@@ -456,11 +471,24 @@ def _s_to_us(time_s, interval_us=1e3):
 
         _s_to_us(1.1)       => 1100000 [us]
         _s_to_us(1.1, 1024) => 1100800 [us]
-    """
-    return interval_us * int(math.ceil((1e6 * time_s) / interval_us))
 
-def _ms_to_us(time_ms, interval_us=1e3):
-    """Convert [ms] into the (not smaller) nearest [us]
+    :param time_s: time in seconds
+    :type time_s: float
+
+    :param interval_us: the result will be an integer multiple o this value
+        (default = 1e3)
+    :type time_ms: int
+
+    :param nearest_up: convert to not smaller nearest if True, to not greater
+        otherwise (default = True)
+    :type nearest_up: bool
+    """
+    if nearest_up:
+        return interval_us * int(math.ceil((1e6 * time_s) / interval_us))
+    return interval_us * int(math.floor((1e6 * time_s) / interval_us))
+
+def _ms_to_us(time_ms, interval_us=1e3, nearest_up=True):
+    """Convert [ms] into the (not smaller/greater) nearest [us]
 
     Translate a time expressed in [ms] to the nearest time in [us]
     which is a integer multiple of the specified interval_us and it is not
@@ -472,8 +500,21 @@ def _ms_to_us(time_ms, interval_us=1e3):
 
         _ms_to_us(1.1)       => 2000 [us]
         _ms_to_us(1.1, 1024) => 2048 [us]
+
+    :param time_ms: time in milliseconds
+    :type time_ms: float
+
+    :param interval_us: the result will be an integer multiple o this value
+        (default = 1e3)
+    :type time_ms: int
+
+    :param nearest_up: convert to not smaller nearest if True, to not greater
+        otherwise (default = True)
+    :type nearest_up: bool
     """
-    return interval_us * int(math.ceil((1e3 * time_ms) / interval_us))
+    if nearest_up:
+        return interval_us * int(math.ceil((1e3 * time_ms) / interval_us))
+    return interval_us * int(math.floor((1e3 * time_ms) / interval_us))
 
 def _us_to_s(time_us):
     """Convert [us] into (float) [s]
