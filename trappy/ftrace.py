@@ -92,6 +92,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         self.normalize_time = normalize_time
         self.window = window
         self.abs_window = abs_window
+        self.max_window = (0, None)
 
         self._do_parse()
 
@@ -134,6 +135,33 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             if cobject == obj:
                 del scope_classes[name]
 
+    def _calc_max_window(self):
+        """
+        Compute the maximum window of the 'window' & 'abs_window' intersection
+        """
+        max_window = [0, None]
+        max_window[0] = max(self.window[0] + self.basetime, self.abs_window[0])
+
+        if (self.window[1] is not None) and (self.abs_window[1] is not None):
+            max_window[1] = max(self.window[1] + self.basetime, self.abs_window[1])
+        elif self.window[1] is not None:
+            max_window[1] = self.window[1] + self.basetime
+        elif self.abs_window[1] is not None:
+            max_window[1] = self.abs_window[1]
+
+        return max_window
+
+    def _windowify_class(self, trace_class, window):
+        if len(trace_class.data_frame) < 1:
+            return
+
+        if window[1]:
+            trace_class.data_frame = trace_class.data_frame[
+                window[0]:window[1]]
+        elif window[0]:
+            trace_class.data_frame = trace_class.data_frame[
+                window[0]:]
+
     def _trace_cache_path(self):
         trace_file = self.trace_path
         cache_dir  = '.' +  os.path.basename(trace_file) + '.cache'
@@ -145,7 +173,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         path = self._trace_cache_path()
         return os.path.join(path, trace_class.__class__.__name__ + '.csv')
 
-    def _check_trace_cache(self, params):
+    def _check_trace_cache(self):
         cache_path = self._trace_cache_path()
         trace_metadata_path = os.path.join(cache_path, 'metadata.json')
 
@@ -167,16 +195,9 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             shutil.rmtree(cache_path)
             return False
 
-        # Check if cache can be used with given parameters
-        # Convert to a json string for comparison
-        if json.dumps(trace_metadata["params"]) != json.dumps(params):
-            warnstr = "Cached trace parameters differ from those given, invalidating cache."
-            warnings.warn(warnstr)
-            shutil.rmtree(cache_path)
-            return False
         return True
 
-    def _create_trace_cache(self, params):
+    def _create_trace_cache(self):
         cache_path = self._trace_cache_path()
         trace_metadata_path = os.path.join(cache_path, 'metadata.json')
 
@@ -188,21 +209,15 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
         trace_metadata["md5sum"] = hashlib.md5(open(self.trace_path, 'rb').read()).hexdigest()
         trace_metadata["basetime"] = self.basetime
-        trace_metadata["params"] = params
 
         with open(trace_metadata_path, 'w') as f:
             json.dump(trace_metadata, f)
 
-    def _get_params_to_cache(self):
-        return {'window': self.window, 'abs_window': self.abs_window}
-
     def _update_cache(self):
-        params = self._get_params_to_cache()
-
         try:
             # Recreate basic cache directories only if nothing cached
             if not any([c.cached for c in self.trace_classes]):
-                self._create_trace_cache(params)
+                self._create_trace_cache()
 
             # Write out only events that weren't cached before
             for trace_class in self.trace_classes:
@@ -215,9 +230,8 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                 "TRAPpy: Cache not created due to OS error: {0}".format(err))
 
     def _load_cache(self):
-        params = self._get_params_to_cache()
-
-        if self._check_trace_cache(params):
+        if self._check_trace_cache():
+            self.max_window = self._calc_max_window()
              # Read csv into frames
             for trace_class in self.trace_classes:
                 try:
@@ -228,14 +242,22 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                     warnstr = "TRAPpy: Couldn't read {} from cache, reading it from trace".format(trace_class)
                     warnings.warn(warnstr)
 
+    def _apply_user_parameters(self):
+        # Traces are read without any window consideration, so we apply
+        # the window after reading the cache or parsing the trace
+        for trace_class in self.trace_classes:
+            self._windowify_class(trace_class, self.max_window)
+
+        if self.normalize_time:
+            self._normalize_time()
+
     def _do_parse(self):
         if not self.__class__.disable_cache:
             self._load_cache()
 
             # Check if cache data is enough
             if all([c.cached for c in self.trace_classes]):
-                if self.normalize_time:
-                    self._normalize_time()
+                self._apply_user_parameters()
                 return
 
         self._parsing_setup()
@@ -247,8 +269,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         if not self.__class__.disable_cache:
             self._update_cache()
 
-        if self.normalize_time:
-             self._normalize_time()
+        self._apply_user_parameters()
 
         self._parsing_teardown()
 
@@ -332,15 +353,8 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
             if not self.basetime:
                 self.basetime = timestamp
-
-            if (timestamp < self.window[0] + self.basetime) or \
-               (timestamp < self.abs_window[0]):
-                self.lines += 1
-                continue
-
-            if (self.window[1] and timestamp > self.window[1] + self.basetime) or \
-               (self.abs_window[1] and timestamp > self.abs_window[1]):
-                return
+                # Now that we know the basetime, we can derive max_window
+                self.max_window = self._calc_max_window()
 
             # Remove empty arrays from the trace
             if "={}" in data_str:
