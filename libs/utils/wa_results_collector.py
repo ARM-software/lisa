@@ -524,9 +524,37 @@ class WaResultsCollector(object):
 
         return df
 
+
+    SortBy = namedtuple('SortBy', ['key', 'params', 'column'])
+
+    def _get_sort_params(self, sort_on):
+        """
+        Validate a sort criteria and return the parameters required by the
+        boxplot and report methods.
+        """
+        valid_sort = ['count', 'mean', 'std', 'min', 'max']
+
+        # Verify if valid percentile string has been required
+        match = re.match('^(?P<quantile>\d{1,3})\%$', sort_on)
+        if match:
+            quantile = int(match.group('quantile'))
+            if quantile < 1 or quantile > 100:
+                raise ValueError("Error sorting data: Quantile value out of range [1..100]")
+            return self.SortBy('quantile', {'q': quantile/100.}, sort_on)
+
+        # Otherwise, verify if it's a valid Pandas::describe()'s column name
+        if sort_on in valid_sort:
+            return self.SortBy(sort_on, {}, sort_on)
+
+        raise ValueError(
+            "sort_on={} not supported, allowed values are percentile or {}"
+            .format(sort_on, valid_sort))
+
     def boxplot(self, workload, metric,
                 tag='.*', kernel='.*', test='.*',
-                by=['test', 'tag', 'kernel'], xlim=None):
+                by=['test', 'tag', 'kernel'],
+                sort_on='mean', ascending=False,
+                xlim=None):
         """
         Display boxplots of a certain metric
 
@@ -534,6 +562,9 @@ class WaResultsCollector(object):
         ``workloads`` and ``workload_available_metrics`` to find the available
         workloads and metrics. Check ``tags``, ``tests`` and ``kernels``
         to find the names that results can be filtered against.
+
+        By default, the box with the lowest mean value is plotted at the top of
+        the graph, this can be customized with ``sort_on`` and ``ascending``.
 
         :param workload: Name of workload to display metrics for
         :param metric: Name of metric to display
@@ -543,11 +574,21 @@ class WaResultsCollector(object):
         :param tag: regular expression to filter tags that should be plotted
 
         :param by: List of identifiers to group output as in DataFrame.groupby.
+
+        :param sort_on: Name of the statistic to order data for.
+                        Supported values are: count, mean, std, min, max.
+                        You may alternatively specify a percentile to sort on,
+                        this should be an integer in the range [1..100]
+                        formatted as a percentage, e.g. 95% is the 95th
+                        percentile.
+        :param ascending: When True, boxplots are plotted by increasing values
+                          (lowest-valued boxplot at the top of the graph) of the
+                          specified `sort_on` statistic.
         """
+        sp = self._get_sort_params(sort_on)
         df = self._get_metric_df(workload, metric, tag, kernel, test)
         if df is None:
             return
-
         gb = df.groupby(by)
 
         # Convert the groupby into a DataFrame with a column for each group
@@ -562,11 +603,15 @@ class WaResultsCollector(object):
             col.index = np.arange(max_group_size)
             _df[group_name] = col
 
-        # Sort the columns so that the groups with the lowest mean get plotted
-        # at the top
-        avgs = _df.mean()
-        avgs = avgs.sort_values(ascending=False)
-        _df = _df[avgs.index]
+        # Sort the columns
+        # With default params this puts the box with the lowest mean at the
+        # bottom.
+        # NOTE: the not(ascending) condition is required to keep these plots
+        # aligned with the way describe() reports the stats corresponding to
+        # each boxplot
+        sorted_df = getattr(_df, sp.key)(**sp.params)
+        sorted_df = sorted_df.sort_values(ascending=not(ascending))
+        _df = _df[sorted_df.index]
 
         # Plot boxes sorted by mean
         fig, axes = plt.subplots(figsize=(16,8))
@@ -583,7 +628,8 @@ class WaResultsCollector(object):
 
     def describe(self, workload, metric,
                  tag='.*', kernel='.*', test='.*',
-                 by=['test', 'tag', 'kernel']):
+                 by=['test', 'tag', 'kernel'],
+                 sort_on='mean', ascending=False):
         """
         Return a DataFrame of statistics for a certain metric
 
@@ -603,24 +649,44 @@ class WaResultsCollector(object):
         :param tag: regular expression to filter tags that should be plotted
 
         :param by: List of identifiers to group output as in DataFrame.groupby.
+
+        :param sort_on: Name of the statistic to order data for.
+                        Supported values are: count, mean, std, min, max.
+                        It's also supported at the usage of a percentile value,
+                        which has to be an integer in the range [1..100] and
+                        formatted as a percentage,
+                        e.g. 95% is the 95th percentile.
+        :param ascending: When True, the statistics are reported by increasing values
+                          of the specified `sort_on` column
         """
+        sp = self._get_sort_params(sort_on)
         df = self._get_metric_df(workload, metric, tag, kernel, test)
         if df is None:
             return
 
+        # Add the eventually required additional percentile
+        percentiles = [0.75, 0.95, 0.99]
+        if sp.params and 'q' in sp.params:
+            percentiles.append(sp.params['q'])
+            percentiles = sorted(list(set(percentiles)))
+
         grouped = df.groupby(by)['value']
         stats_df = pd.DataFrame(
-            grouped.describe(percentiles=[0.75, 0.95, 0.99]))
-        stats_df.rename(columns={'value': metric}, inplace=True)
+            grouped.describe(percentiles=percentiles))
         stats_df = stats_df.unstack()
+        stats_df.sort_values(by=[('value', sp.column)],
+                             ascending=ascending, inplace=True)
+        stats_df.rename(columns={'value': metric}, inplace=True)
 
-        return stats_df.sort_values(by=[(metric, 'mean')], ascending=True)
+        return stats_df
 
     def report(self, workload, metric,
                tag='.*', kernel='.*', test='.*',
-               by=['test', 'tag', 'kernel'], xlim=None):
+               by=['test', 'tag', 'kernel'],
+               sort_on='mean', ascending=False,
+               xlim=None):
         """
-        Report a boxplot and a set of statistics for a certain metrick
+        Report a boxplot and a set of statistics for a certain metric
 
         This is a convenience method to call both ``boxplot`` and ``describe``
         at the same time to get a consistent graphical and numerical
@@ -640,8 +706,10 @@ class WaResultsCollector(object):
 
         :param by: List of identifiers to group output as in DataFrame.groupby.
         """
-        axes = self.boxplot(workload, metric, tag, kernel, test, by, xlim)
-        stats_df = self.describe(workload, metric, tag, kernel, test, by)
+        axes = self.boxplot(workload, metric, tag, kernel, test,
+                            by, sort_on, ascending, xlim)
+        stats_df = self.describe(workload, metric, tag, kernel, test,
+                                 by, sort_on, ascending)
         display(stats_df)
 
         return (axes, stats_df)
@@ -932,8 +1000,7 @@ class WaResultsCollector(object):
         job_dirs = df['_job_dir'].unique()
 
         if len(job_dirs) > 1:
-            raise ValueError(
-                "Params for get_artifacts don't uniquely identify a job. "
+            raise ValueError("Params for get_artifacts don't uniquely identify a job. "
                 "for workload='{}' tag='{}' kernel='{}' test='{}' iteration={}, "
                 "found:\n{}" .format(
                     workload, tag, kernel, test, iteration, '\n'.join(job_dirs)))
