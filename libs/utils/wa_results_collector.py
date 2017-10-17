@@ -875,21 +875,18 @@ class WaResultsCollector(object):
                 # Ensure the comparisons are in the same order for each group
                 gdf = gdf.reindex(all_metrics)
 
+                # Append the dummy row we're using to fix the legend opacity
+                gdf = get_dummy_row('').append(gdf)
+
                 # For each of the things we're comparing we'll plot a bar chart
                 # but slightly shifted. That's how we get multiple bars on each
                 # y-axis point.
                 bars = ax.barh(bottom=pos + (i * thickness),
-                               # Add a dummy [0] entry so we can fix the opacity
-                               # of the legend
-                               width=[0] + gdf['diff_pct'].tolist(),
+                               width=gdf['diff_pct'],
                                height=thickness, label=group,
                                color=colors[i % len(colors)], align='center')
                 # Decrease the opacity for comparisons with a high p-value
-                # We add a dummy [0] (which means opacity=1.0) as a terrible
-                # workaround for the fact that the first bar's opacity also sets
-                # the opacity for that bar in the legend, which makes it hard to
-                # read.
-                for bar, pvalue in zip(bars, [0] + gdf['pvalue'].tolist()):
+                for bar, pvalue in zip(bars, gdf['pvalue']):
                     bar.set_alpha(1 - (min(pvalue * 10, 0.95)))
 
             # Add some text for labels, title and axes ticks
@@ -897,9 +894,7 @@ class WaResultsCollector(object):
             [baseline] = test_comparisons['base_id'].unique()
             ax.set_title('{} ({}): Percent difference compared to {} \nopacity depicts p-value'
                          .format(test, inv_id, baseline))
-            # The '' label is for the dummy first bar, which we used as a
-            # workaround for setting the opacity of the legend
-            ax.set_yticklabels([''] + gdf.index.tolist())
+            ax.set_yticklabels(gdf.index.tolist())
             ax.set_yticks(pos + thickness / 2)
             # ax.set_xlim((-50, 50))
             ax.legend(loc='best')
