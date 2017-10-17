@@ -42,3 +42,28 @@
            <...>-13777 [005]  3844.042801: ext4_da_write_begin:  dev 8,13 ino 3539230 pos 0 len 4096 flags 0
            <...>-13777 [005]  3844.042805: ext4_da_write_end:    dev 8,13 ino 3539230 pos 0 len 4096 copied 4096
            <...>-13777 [005]  3844.042809: ext4_da_write_begin:  dev 8,13 ino 3539230 pos 12288 len 4096 flags 0
+              ld-29972 [002]  6903.095463: f2fs_write_end:       dev = (7,0), ino = 121, pos = 0, len = 64, copied = 64
+              ld-29972 [002]  6903.095472: f2fs_write_begin:     dev = (7,0), ino = 121, pos = 4520, len = 1920, flags = 0
+              ld-29972 [002]  6903.095472: f2fs_write_end:       dev = (7,0), ino = 121, pos = 4520, len = 1920, copied = 1920
+              ld-29972 [002]  6903.095502: f2fs_write_begin:     dev = (7,0), ino = 121, pos = 628, len = 36, flags = 0
+              ld-29972 [002]  6903.095503: f2fs_write_end:       dev = (7,0), ino = 121, pos = 628, len = 36, copied = 36
+           a.out-29974 [001]  6903.794358: f2fs_write_begin:     dev = (7,0), ino = 8, pos = 0, len = 1024, flags = 0
+           a.out-29974 [001]  6903.794394: f2fs_write_end:       dev = (7,0), ino = 8, pos = 0, len = 1024, copied = 1024
+           a.out-29974 [001]  6903.795601: f2fs_sync_file_enter: dev = (7,0), ino = 8, pino = 3, i_mode = 0x81a0, i_size = 1024, i_nlink = 1, i_blocks = 2, i_advise = 0x0
+           a.out-29974 [001]  6903.804500: f2fs_sync_file_exit:  dev = (7,0), ino = 8, checkpoint is not needed, datasync = 0, ret = 0
+           a.out-29975 [001]  6905.238992: f2fs_write_begin:     dev = (7,0), ino = 8, pos = 0, len = 1024, flags = 0
+           a.out-29975 [001]  6905.239008: f2fs_write_end:       dev = (7,0), ino = 8, pos = 0, len = 1024, copied = 1024
+           a.out-29975 [001]  6905.240194: f2fs_sync_file_enter: dev = (7,0), ino = 8, pino = 3, i_mode = 0x81a0, i_size = 1024, i_nlink = 1, i_blocks = 2, i_advise = 0x0
+           a.out-29975 [003]  6905.248805: f2fs_sync_file_exit:  dev = (7,0), ino = 8, checkpoint is not needed, datasync = 0, ret = 0
+           a.out-29976 [000]  6905.572975: f2fs_write_begin:     dev = (7,0), ino = 8, pos = 0, len = 1024, flags = 0
+           a.out-29976 [000]  6905.573009: f2fs_write_end:       dev = (7,0), ino = 8, pos = 0, len = 1024, copied = 1024
+           a.out-29976 [000]  6905.574177: f2fs_sync_file_enter: dev = (7,0), ino = 8, pino = 3, i_mode = 0x81a0, i_size = 1024, i_nlink = 1, i_blocks = 2, i_advise = 0x0
+           a.out-29976 [002]  6905.582361: f2fs_sync_file_exit:  dev = (7,0), ino = 8, checkpoint is not needed, datasync = 0, ret = 0
+           a.out-29977 [003]  6905.912703: f2fs_write_begin:     dev = (7,0), ino = 8, pos = 0, len = 1024, flags = 0
+           a.out-29977 [003]  6905.912720: f2fs_write_end:       dev = (7,0), ino = 8, pos = 0, len = 1024, copied = 1024
+           a.out-29977 [003]  6905.913849: f2fs_sync_file_enter: dev = (7,0), ino = 8, pino = 3, i_mode = 0x81a0, i_size = 1024, i_nlink = 1, i_blocks = 2, i_advise = 0x0
+           a.out-29977 [000]  6905.922074: f2fs_sync_file_exit:  dev = (7,0), ino = 8, checkpoint is not needed, datasync = 0, ret = 0
+           a.out-29978 [001]  6906.213524: f2fs_write_begin:     dev = (7,0), ino = 8, pos = 0, len = 1024, flags = 0
+           a.out-29978 [001]  6906.213540: f2fs_write_end:       dev = (7,0), ino = 8, pos = 0, len = 1024, copied = 1024
+           a.out-29978 [001]  6906.214669: f2fs_sync_file_enter: dev = (7,0), ino = 8, pino = 3, i_mode = 0x81a0, i_size = 1024, i_nlink = 1, i_blocks = 2, i_advise = 0x0
+           a.out-29978 [001]  6906.217418: f2fs_sync_file_exit:  dev = (7,0), ino = 8, checkpoint is not needed, datasync = 0, ret = 0
