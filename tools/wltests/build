@@ -47,6 +47,7 @@ usage() {
     -t, --dtbs                      make dtbs
     -x, --clean_all                 make distclean, remove toolchain
         --modules                   make modules
+        --modules_install           make modules_install to INSTALL_MOD_PATH
         --dtbo_image                make dtbo.img
 
     -a, --use-ccache                prepend 'ccache' to CROSS_COMPILE
@@ -75,6 +76,7 @@ MAKE_KEEPCONFIG=$NO
 BUILD_DTBS=$NO
 BUILD_DTBO_IMAGE=$NO
 BUILD_MODULES=$NO
+BUILD_MODULES_INSTALL=$NO
 BUILD_IMAGE=$NO
 CLEAN_KERNEL=$NO
 DISTCLEAN_KERNEL=$NO
@@ -126,7 +128,9 @@ while [[ $# -gt 0 ]]; do
 		--modules)
 			BUILD_MODULES=$YES
 			;;
-
+		--modules_install)
+			BUILD_MODULES_INSTALL=$YES
+			;;
 		-a|--use-ccache)
 			USE_CCACHE=$YES
 			;;
@@ -163,18 +167,19 @@ format_conf() {
 # Print information about behavior
 echo
 c_info "Build configuration:"
-c_info "   Menuconfig      : $(format_conf ${MAKE_MENUCONFIG})"
-c_info "   Savedefconfig   : $(format_conf ${MAKE_SAVEDEFCONFIG})"
-c_info "   Keepconfig      : $(format_conf ${MAKE_KEEPCONFIG})"
-c_info "   Build full      : $(format_conf ${BUILD_NOW})"
-c_info "   Build Image     : $(format_conf ${BUILD_IMAGE})"
-c_info "   Build dtbs      : $(format_conf ${BUILD_DTBS})"
-c_info "   Build dtbo.img  : $(format_conf ${BUILD_DTBO_IMAGE})"
-c_info "   Build modules   : $(format_conf ${BUILD_MODULES})"
-c_info "   Clean           : $(format_conf ${CLEAN_KERNEL})"
-c_info "   Distclean       : $(format_conf ${DISTCLEAN_KERNEL})"
-c_info "   Clean all       : $(format_conf ${CLEAN_ALL})"
-c_info "   Use ccache      : $(format_conf ${USE_CCACHE})"
+c_info "   Menuconfig            : $(format_conf ${MAKE_MENUCONFIG})"
+c_info "   Savedefconfig         : $(format_conf ${MAKE_SAVEDEFCONFIG})"
+c_info "   Keepconfig            : $(format_conf ${MAKE_KEEPCONFIG})"
+c_info "   Build full            : $(format_conf ${BUILD_NOW})"
+c_info "   Build Image           : $(format_conf ${BUILD_IMAGE})"
+c_info "   Build dtbs            : $(format_conf ${BUILD_DTBS})"
+c_info "   Build dtbo.img        : $(format_conf ${BUILD_DTBO_IMAGE})"
+c_info "   Build modules         : $(format_conf ${BUILD_MODULES})"
+c_info "   Build modules_install : $(format_conf ${BUILD_MODULES_INSTALL})"
+c_info "   Clean                 : $(format_conf ${CLEAN_KERNEL})"
+c_info "   Distclean             : $(format_conf ${DISTCLEAN_KERNEL})"
+c_info "   Clean all             : $(format_conf ${CLEAN_ALL})"
+c_info "   Use ccache            : $(format_conf ${USE_CCACHE})"
 
 # Load platform definitions
 source "${DEFINITIONS_PATH}"
@@ -182,11 +187,12 @@ source "${DEFINITIONS_PATH}"
 # Print information about platform
 echo
 c_info "Platform configuration:"
-c_info "   PLATFORM_NAME      : ${PLATFORM_NAME}"
-c_info "   DEFCONFIG          : ${DEFCONFIG}"
-c_info "   CONFIG_CMD         : ${CONFIG_CMD}"
-c_info "   ARCH               : ${ARCH}"
-c_info "   CROSS_COMPILE      : ${CROSS_COMPILE}"
+c_info "   PLATFORM_NAME         : ${PLATFORM_NAME}"
+c_info "   DEFCONFIG             : ${DEFCONFIG}"
+c_info "   CONFIG_CMD            : ${CONFIG_CMD}"
+c_info "   ARCH                  : ${ARCH}"
+c_info "   CROSS_COMPILE         : ${CROSS_COMPILE}"
+c_info "   MODULES_INSTALL_DIR   : ${INSTALL_MOD_PATH}"
 
 
 ################################################################################
@@ -297,6 +303,11 @@ fi
 if [ ${BUILD_MODULES} -eq $YES ]; then
 	c_info "Making [modules]..."
 	(set -x; cd "${KERNEL_SRC}";  make -j${NCPUS} modules >${OUT})
+fi
+
+if [ ${BUILD_MODULES_INSTALL} -eq $YES ]; then
+	c_info "Making [modules_install] to [${INSTALL_MOD_PATH}] ..."
+	(set -x; cd "${KERNEL_SRC}";  make -j${NCPUS} modules_install >${OUT})
 fi
 
 if [ ${MAKE_MENUCONFIG} -eq $YES ]; then
