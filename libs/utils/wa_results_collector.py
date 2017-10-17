@@ -843,8 +843,8 @@ class WaResultsCollector(object):
             # this is a terrible hack which is necessary because when we set the
             # opacity of the first bar, it sets the opacity of the legend. So we
             # introduce a dummy bar with a value of 0 and an opacity of 1.
-            num_metrics = len(test_comparisons['metric'].unique())
-            pos = np.arange(-1, num_metrics)
+            all_metrics = test_comparisons['metric'].unique()
+            pos = np.arange(-1, len(all_metrics))
 
             # At each point on the discrete y-axis we'll have one bar for each
             # comparison: one per kernel/tag (depending on the `by` param), minus
@@ -861,6 +861,20 @@ class WaResultsCollector(object):
             gb = test_comparisons.groupby('new_id')
             colors = cm.rainbow(np.linspace(0, 1, len(gb)))
             for i, (group, gdf) in enumerate(gb):
+                def get_dummy_row(metric):
+                    return pd.DataFrame({col: 0 for col in gdf.columns}, index=[metric])
+
+                missing_metrics = set(all_metrics) - set(gdf['metric'].unique())
+                gdf = gdf.set_index('metric')
+                for missing_metric in missing_metrics:
+                    self._log.warning(
+                        "Data missing, can't compare metric [{}] for {} [{}]"
+                        .format(missing_metric, by, group))
+                    gdf = gdf.append(get_dummy_row(missing_metric))
+
+                # Ensure the comparisons are in the same order for each group
+                gdf = gdf.reindex(all_metrics)
+
                 # For each of the things we're comparing we'll plot a bar chart
                 # but slightly shifted. That's how we get multiple bars on each
                 # y-axis point.
@@ -885,7 +899,7 @@ class WaResultsCollector(object):
                          .format(test, inv_id, baseline))
             # The '' label is for the dummy first bar, which we used as a
             # workaround for setting the opacity of the legend
-            ax.set_yticklabels([''] + gdf['metric'].tolist())
+            ax.set_yticklabels([''] + gdf.index.tolist())
             ax.set_yticks(pos + thickness / 2)
             # ax.set_xlim((-50, 50))
             ax.legend(loc='best')
