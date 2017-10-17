@@ -836,7 +836,7 @@ class WaResultsCollector(object):
             # a.k.a the total length of the comparisons df.
             fig, ax = plt.subplots(figsize=(15, len(test_comparisons) / 2.))
 
-            # pos is used as the Y-axis. The y-axis is a descrete axis with a
+            # pos is used as the Y-axis. The y-axis is a discrete axis with a
             # point for each of the metrics we're comparing. matplotlib needs
             # that in numerical form.
             # We also have one more tick on the Y-axis than we actually need -
