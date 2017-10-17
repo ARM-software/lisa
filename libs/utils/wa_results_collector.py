@@ -220,6 +220,9 @@ class WaResultsCollector(object):
         # isn't necessary).
         next_iteration = defaultdict(lambda: 1)
 
+        # Keep track of which jobs we skipped for each iteration
+        skipped_jobs = defaultdict(lambda: [])
+
         # Dicts mapping job IDs to things determined about the job - this will
         # be used to add extra columns to the DataFrame (that aren't reported
         # directly in WA's results.csv)
@@ -282,8 +285,7 @@ class WaResultsCollector(object):
             with open(os.path.join(job_dir, 'result.json')) as f:
                 job_result = json.load(f)
                 if job_result['status'] == 'FAILED':
-                    self._log.warning('Skipping failed iteration %s of job %s',
-                                      iteration, job_id)
+                    skipped_jobs[iteration].append(job_id)
                     continue
 
             extra_df = self._get_extra_job_metrics(job_dir, workload)
@@ -297,6 +299,10 @@ class WaResultsCollector(object):
             extra_df.loc[:, 'test'] = test
 
             df = df.append(extra_df)
+
+        for iteration, job_ids in skipped_jobs.iteritems():
+            self._log.warning("Skipped failed iteration %d for jobs:", iteration)
+            self._log.warning("   %s", ', '.join(job_ids))
 
         df['tag'] = df['id'].replace(tag_map)
         df['test'] = df['id'].replace(test_map)
