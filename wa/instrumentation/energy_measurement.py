@@ -24,6 +24,7 @@ from devlib.instrument import CONTINUOUS
 from devlib.instrument.energy_probe import EnergyProbeInstrument
 from devlib.instrument.daq import DaqInstrument
 from devlib.instrument.acmecape import AcmeCapeInstrument
+from devlib.instrument.monsoon import MonsoonInstrument
 from devlib.utils.misc import which
 
 from wa import Instrument, Parameter
@@ -200,6 +201,25 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
                 iio_device=iio_device, buffer_size=buffer_size)
         return ret
 
+class MonsoonBackend(EnergyInstrumentBackend):
+
+    name = 'monsoon'
+
+    parameters = [
+        Parameter('monsoon_bin', default=which('monsoon.py'),
+                  description="""
+                  Path to monsoon.py executable. If not provided,
+                  ``$PATH`` is searched.
+                  """),
+        Parameter('tty_device', default='/dev/ttyACM0',
+                  description="""
+                  TTY device to use to communicate with the Power
+                  Monitor. If not provided, /dev/ttyACM0 is used.
+                  """)
+    ]
+
+    instrument = MonsoonInstrument
+
 
 class EnergyMeasurement(Instrument):
 
@@ -212,7 +232,7 @@ class EnergyMeasurement(Instrument):
 
     parameters = [
         Parameter('instrument', kind=str, mandatory=True,
-                  allowed_values=['daq', 'energy_probe', 'acme_cape'],
+                  allowed_values=['daq', 'energy_probe', 'acme_cape', 'monsoon'],
                   description="""
                   Specify the energy instrumentation to be enabled.
                   """),
