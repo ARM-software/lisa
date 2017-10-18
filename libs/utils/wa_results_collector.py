@@ -432,11 +432,8 @@ class WaResultsCollector(object):
             metrics_df = metrics_df.append(
                 self._get_trace_metrics(artifacts['trace-cmd-bin']))
 
-        # The "proper" way to do this would be to use WA's 'artifacts'
-        # mechanism, but for now just expecting a fixed filename is fine.
-
-        if workload == 'jankbench':
-            df = pd.read_csv(os.path.join(job_dir, 'jankbench_frames.csv'))
+        if 'jankbench_results_csv' in artifacts:
+            df = pd.read_csv(artifacts['jankbench_results_csv'])
             df = pd.DataFrame({'value': df['total_duration']})
             df.loc[:, 'metric'] = 'frame_total_duration'
             df.loc[:, 'units'] = 'ms'
