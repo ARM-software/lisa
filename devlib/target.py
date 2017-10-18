@@ -1280,7 +1280,7 @@ class AndroidTarget(Target):
 
     def get_rotation(self):
         cmd = 'settings get system user_rotation'
-        return self.execute(cmd).strip()
+        return int(self.execute(cmd).strip())
 
     def set_rotation(self, rotation):
         if not 0 <= rotation <= 3:
