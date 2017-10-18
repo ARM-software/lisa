@@ -28,6 +28,10 @@ from test import LisaTest, experiment_test
 from trace import Trace
 from unittest import SkipTest
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pylab as pl
+import os
 
 WORKLOAD_PERIOD_MS =  16
 SET_IS_BIG_LITTLE = True
@@ -236,6 +240,10 @@ class _EnergyModelTest(LisaTest):
         :meth:EnergyModel.estimate_from_cpu_util to get a DataFrame showing the
         estimated power usage over time under ideal EAS behaviour.
 
+        :meth:get_optimal_placements returns several optimal placements. They
+        are usually equivalent, but can be drastically different in some cases.
+        Currently only one of those placements is used (the first in the list).
+
         :param experiment: The :class:Experiment to examine
         :returns: A Pandas DataFrame with a column each node in the energy model
                   (keyed with a tuple of the CPUs contained by that node) and a
@@ -243,17 +251,78 @@ class _EnergyModelTest(LisaTest):
                   estimated *optimal* power over time.
         """
         task_utils_df = self.get_task_utils_df(experiment)
-
         nrg_model = self.te.nrg_model
+
+        data = []
+        index = []
 
         def exp_power(row):
             task_utils = row.to_dict()
-            expected_utils = nrg_model.get_optimal_placements(task_utils)
-            power = nrg_model.estimate_from_cpu_util(expected_utils[0])
+            expected_utils = nrg_model.get_optimal_placements(task_utils)[0]
+            power = nrg_model.estimate_from_cpu_util(expected_utils)
             columns = power.keys()
+
+            # Assemble a dataframe to plot the expected utilization
+            data.append(expected_utils)
+            index.append(row.name)
+
             return pd.Series([power[c] for c in columns], index=columns)
-        return self._sort_power_df_columns(
+
+        res_df = self._sort_power_df_columns(
             task_utils_df.apply(exp_power, axis=1))
+
+        self.plot_expected_util(experiment, pd.DataFrame(data, index=index))
+
+        return res_df
+
+    def plot_expected_util(self, experiment, util_df):
+        """
+        Create a plot of the expected per-CPU utilization for the experiment
+        The plot is then outputted to the test results directory.
+
+        :param experiment: The :class:Experiment to examine
+        :param util_df: A Pandas Dataframe with a column per CPU giving their
+                        (expected) utilization at each timestamp.
+        """
+
+        nrg_model = self.te.nrg_model
+        trace = self.get_trace(experiment)
+        fig, ax = plt.subplots(len(nrg_model.cpus), 1, figsize=(16, 1.8 * len(nrg_model.cpus)))
+
+        # Check if big.LITTLE data is available for a more detailled plot
+        if trace.has_big_little:
+            little_cap = self.te.platform['nrg_model']['little']['cpu']['cap_max']
+            little_cpus = self.te.platform['clusters']['little']
+
+        for cpu in nrg_model.cpus:
+            tdf = util_df[cpu]
+
+            # big.LITTLE-specific beautifying
+            if trace.has_big_little and cpu in little_cpus:
+                ax[cpu].set_ylim((0, little_cap))
+                color = 'blue'
+            else:
+                ax[cpu].set_ylim((0, 1024))
+                color = 'red'
+
+            tdf.plot(ax=ax[cpu], drawstyle='steps-post', title="CPU{}".format(cpu), color=color)
+            ax[cpu].fill_between(tdf.index, tdf, 0, step='post', color=color)
+            ax[cpu].set_ylabel('Expected utilization')
+
+            # Grey-out areas where utilization == 0
+            ffill = False
+            prev = 0.0
+            for time, util in tdf.iteritems():
+                if ffill:
+                    ax[cpu].axvspan(prev, time, facecolor='gray', alpha=0.1, linewidth=0.0)
+                    ffill = False
+                if util == 0.0:
+                    ffill = True
+
+                prev = time
+
+        figname = os.path.join(experiment.out_dir, 'expected_placement.png')
+        pl.savefig(figname, bbox_inches='tight')
 
     def _test_slack(self, experiment, tasks):
         """
