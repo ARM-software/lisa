@@ -671,8 +671,25 @@ class WaResultsCollector(object):
             percentiles = sorted(list(set(percentiles)))
 
         grouped = df.groupby(by)['value']
-        stats_df = grouped.describe(percentiles=percentiles)
-        stats_df.sort_values(by=sp.column,
+        stats_df = pd.DataFrame(
+            grouped.describe(percentiles=percentiles))
+
+        # Use a consistent formatting independently from the PANDAs version
+        if 'value' in stats_df.columns:
+            # We must be running on a pre-0.20.0 version of pandas.
+            # unstack will convert the old output format to the new.
+            #    http://pandas.pydata.org/pandas-docs/version/0.20/whatsnew.html#groupby-describe-formatting
+            # Main difference is that here we have a top-level column
+            # named 'value'
+            stats_df = stats_df.unstack()
+        else:
+            # Let's add a top-level column named 'value' which will be replaced
+            # by the actual metric name by the following code
+            stats_df.columns = pd.MultiIndex.from_product(
+                [['value'], stats_df.columns])
+
+        # Sort entries by the required metric and order value
+        stats_df.sort_values(by=[('value', sp.column)],
                              ascending=ascending, inplace=True)
         stats_df.rename(columns={'value': metric}, inplace=True)
 
