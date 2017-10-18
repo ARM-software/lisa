@@ -100,6 +100,8 @@ class Geekbench(ApkUiautoWorkload):
 
     phones_home = True
 
+    requires_network = True
+
     @property
     def activity(self):
         return self.versions[self.version]['activity']
@@ -402,6 +404,7 @@ class GBScoreCalculator(object):
 class GeekbenchCorproate(Geekbench):
     name = "geekbench-corporate"
     is_corporate = True
+    requires_network = False
 
     versions = ['4.1.0']
 
