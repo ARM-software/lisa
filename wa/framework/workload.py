@@ -50,6 +50,12 @@ class Workload(TargetedPlugin):
     prevent this workload from being run accidentally.
     """
 
+    requires_network = False
+    """
+    Set this to ``True`` to mark the the workload will fail without a network
+    connection, this enables it to fail early with a clear message.
+    """
+
     def init_resources(self, context):
         """
         This method may be used to perform early resource discovery and
@@ -77,7 +83,11 @@ class Workload(TargetedPlugin):
         This is also the place to perform any on-device checks prior to
         attempting to execute the workload.
         """
-        pass
+        if self.requires_network and not self.target.is_network_connected():
+            raise WorkloadError(
+                'Workload "{}" requires internet. Target does not appear '
+                'to be connected to the internet.'.format(self.name))
+
 
     def run(self, context):
         """
@@ -193,6 +203,7 @@ class ApkWorkload(Workload):
                                                      self.apk.activity)
 
     def setup(self, context):
+        super(ApkWorkload, self).setup(context)
         self.apk.setup(context)
         time.sleep(self.loading_time)
 
