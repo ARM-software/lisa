@@ -440,13 +440,46 @@ class WaResultsCollector(object):
 
             metrics_df = metrics_df.append(df)
 
-        if 'energy_instrument_output' in artifacts:
-            df = pd.read_csv(artifacts['energy_instrument_output'])
-            df = pd.DataFrame({'value': df['device_power']})
-            df.loc[:, 'metric'] = 'device_power_sample'
-            df.loc[:, 'units'] = 'watts'
+        # WA's metrics model just exports overall energy metrics, not individual
+        # samples. We're going to extend that with individual samples so if you
+        # want to you can see how much variation there was in energy usage.
+        # So we'll look for the actual CSV files and parse that by hand.
+        # The parsing necessary is specific to the energy measurement backend
+        # that was used, which WA doesn't currently report directly.
+        # TODO: once WA's reporting of this data has been cleaned up a bit I
+        # think we can simplify this.
+        for artifact_name, path in artifacts.iteritems():
+            if artifact_name.startswith('energy_instrument_output'):
+                df = pd.read_csv(path)
 
-            metrics_df = metrics_df.append(df)
+                if 'device_power' in df.columns:
+                    # Looks like this is from an ACME
+
+                    df = pd.DataFrame({'value': df['device_power']})
+
+                    # Figure out what to call the sample metrics. If the
+                    # artifact name has something extra, that will be the
+                    # channel (IIO device) name. Use that to differentiate where
+                    # the samples came from. If not just call it
+                    # 'device_power_sample'.
+                    device_name = artifact_name[len('energy_instrument_output') + 1:]
+                    name_extra = device_name or 'device'
+                    df.loc[:, 'metric'] = '{}_power_sample'.format(name_extra)
+
+                    df.loc[:, 'units'] = 'watts'
+
+                    metrics_df = metrics_df.append(df)
+                elif 'output_power' in df.columns and 'USB_power' in df.columns:
+                    # Looks like this is from a Monsoon
+                    # For monsoon the USB and device power are collected
+                    # together with the same timestamps, so we can just add them
+                    # up.
+                    power_samples = df['output_power'] + df['USB_power']
+                    df = pd.DataFrame({'value': power_samples})
+                    df.loc[:, 'metric'] = 'device_power_sample'
+                    df.loc[:, 'units'] = 'watts'
+
+                    metrics_df = metrics_df.append(df)
 
         return metrics_df
 
