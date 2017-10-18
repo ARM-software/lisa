@@ -480,6 +480,13 @@ Target
     bzip2), the path to the decompressed file is returned; for archives, the
     path to the directory with the archive's contents is returned.
 
+.. method:: Target.is_network_connected()
+   Checks for internet connectivity on the device. This doesn't actually
+   guarantee that the internet connection is "working" (which is rather
+   nebulous), it's intended just for failing early when definitively _not_
+   connected to the internet.
+
+   :returns: ``True`` if internet seems available, ``False`` otherwise.
 
 Android Target
 ---------------
