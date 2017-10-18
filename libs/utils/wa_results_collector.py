@@ -27,6 +27,7 @@ import warnings
 from scipy.stats import ttest_ind
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
+from matplotlib.colors import to_hex
 
 from conf import LisaLogging
 
@@ -797,10 +798,11 @@ class WaResultsCollector(object):
             ax = cdf.df.plot(ax=axes, legend=False, xlim=(0,None), figsize=(16, 6),
                              title='Total duration CDF ({:.1f}% within {} [{}] threshold)'\
                              .format(100. * cdf.below, threshold, units),
-                             label=test, color=color)
+                             label=test,
+                             color=to_hex(color))
             lines.append(ax.lines[-1])
             axes.axhline(y=cdf.below, linewidth=1,
-                         linestyle='--', color=color)
+                         linestyle='--', color=to_hex(color))
             self._log.debug("%-32s: %-32s: %.1f", keys[2], keys[1], 100.*cdf.below)
 
         axes.grid(True)
