@@ -62,6 +62,8 @@ workloads:
 
   - name: geekbench
     id: geekbench
+    runtime_parameters:
+      airplane_mode: false
 
   # We need one entry for each of the Jankbench sub-benchmarks
   - name: jankbench
