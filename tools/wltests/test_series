@@ -493,6 +493,21 @@ device_not_in_adb() {
 }
 
 ################################################################################
+# Utility Android commands
+################################################################################
+device_wake() {
+	device_in_adb || return $EAGAIN
+	$ADB shell input keyevent KEYCODE_MENU
+	sleep 3
+	$ADB shell input keyevent KEYCODE_MENU
+	return $OK
+}
+device_not_wake() {
+	device_wake || return $OK
+	return $EAGAIN
+}
+
+################################################################################
 # DEVICE connection checks
 ################################################################################
 device_connected() {
@@ -793,6 +808,15 @@ test_sha1() {
 	fi
 
 	echo
+
+	c_info "Wakeup the device"
+	if device_not_wake; then
+		c_warning "Device not awake, cannot test current kernel"
+		c_warning "Skipping kernel [$COMMIT_DESC]"
+		d_notify "Skipping kernel [$COMMIT_DESC]" face-sick
+		return
+	fi
+
 	c_info "Running tests for [$COMMIT_SHA1: $COMMIT_NAME]..."
 	d_notify "Testing kernel $COMMIT_ID/$COMMITS_COUNT:\n$COMMIT_SHA1: $COMMIT_NAME..." face-tired
 	[ $DRYRUN -eq 1 ] || (set -x; eval $TEST_CMD; set +x)
