@@ -1,4 +1,5 @@
 import logging
+import time
 from collections import defaultdict, OrderedDict
 
 from wa.framework.exception import ConfigError
@@ -888,7 +889,18 @@ class AndroidRuntimeConfig(RuntimeConfig):
 
     def commit(self):
         if 'airplane_mode' in self.config:
-            self.target.set_airplane_mode(self.config['airplane_mode'])
+            new_airplane_mode = self.config['airplane_mode']
+            old_airplane_mode = self.target.get_airplane_mode()
+            self.target.set_airplane_mode(new_airplane_mode)
+
+            # If we've just switched airplane mode off, wait a few seconds to
+            # enable the network state to stabilise. That's helpful if we're
+            # about to run a workload that is going to check for network
+            # connectivity.
+            if old_airplane_mode and not new_airplane_mode:
+                self.logger.info('Disabled airplane mode, waiting 5 seconds for network setup')
+                time.sleep(5)
+
         if 'brightness' in self.config:
             self.target.set_brightness(self.config['brightness'])
         if 'rotation' in self.config:
