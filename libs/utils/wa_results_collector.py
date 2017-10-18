@@ -671,10 +671,8 @@ class WaResultsCollector(object):
             percentiles = sorted(list(set(percentiles)))
 
         grouped = df.groupby(by)['value']
-        stats_df = pd.DataFrame(
-            grouped.describe(percentiles=percentiles))
-        stats_df = stats_df.unstack()
-        stats_df.sort_values(by=[('value', sp.column)],
+        stats_df = grouped.describe(percentiles=percentiles)
+        stats_df.sort_values(by=sp.column,
                              ascending=ascending, inplace=True)
         stats_df.rename(columns={'value': metric}, inplace=True)
 
