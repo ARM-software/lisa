@@ -55,23 +55,23 @@ class Job(object):
             self.workload = self._workload_cache[self.id]
 
     def initialize(self, context):
-        self.logger.info('Initializing job {}'.format(self.id))
+        self.logger.info('Initializing job {} [{}]'.format(self.id, self.iteration))
         with signal.wrap('WORKLOAD_INITIALIZED', self, context):
             self.workload.initialize(context)
         self.set_status(Status.PENDING)
         context.update_job_state(self)
 
     def configure_target(self, context):
-        self.logger.info('Configuring target for job {}'.format(self.id))
+        self.logger.info('Configuring target for job {} [{}]'.format(self.id, self.iteration))
         context.tm.commit_runtime_parameters(self.spec.runtime_parameters)
 
     def setup(self, context):
-        self.logger.info('Setting up job {}'.format(self.id))
+        self.logger.info('Setting up job {} [{}]'.format(self.id, self.iteration))
         with signal.wrap('WORKLOAD_SETUP', self, context):
             self.workload.setup(context)
 
     def run(self, context):
-        self.logger.info('Running job {}'.format(self.id))
+        self.logger.info('Running job {} [{}]'.format(self.id, self.iteration))
         with signal.wrap('WORKLOAD_EXECUTION', self, context):
             start_time = datetime.utcnow()
             try:
@@ -80,7 +80,7 @@ class Job(object):
                 self.run_time = datetime.utcnow() - start_time
 
     def process_output(self, context):
-        self.logger.info('Processing output for job {}'.format(self.id))
+        self.logger.info('Processing output for job {} [{}]'.format(self.id, self.iteration))
         with signal.wrap('WORKLOAD_RESULT_EXTRACTION', self, context):
             self.workload.extract_results(context)
             context.extract_results()
@@ -88,12 +88,12 @@ class Job(object):
             self.workload.update_output(context)
 
     def teardown(self, context):
-        self.logger.info('Tearing down job {}'.format(self.id))
+        self.logger.info('Tearing down job {} [{}]'.format(self.id, self.iteration))
         with signal.wrap('WORKLOAD_TEARDOWN', self, context):
             self.workload.teardown(context)
 
     def finalize(self, context):
-        self.logger.info('Finalizing job {}'.format(self.id))
+        self.logger.info('Finalizing job {} [{}]'.format(self.id, self.iteration))
         with signal.wrap('WORKLOAD_FINALIZED', self, context):
             self.workload.finalize(context)
 
