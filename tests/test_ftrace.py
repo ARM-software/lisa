@@ -387,6 +387,12 @@ class TestFTrace(BaseTestThermal):
                           "TRACE_MARKER_START")
         self.assertEquals(len(trace.tracing_mark_write.data_frame), 1)
 
+    def test_ftrace_metadata(self):
+        """FTrace class correctly populates metadata"""
+        trace = trappy.FTrace()
+
+        self.assertEquals(int(trace._version), 6)
+        self.assertEquals(int(trace._cpus), 6)
 
 @unittest.skipUnless(utils_tests.trace_cmd_installed(),
                      "trace-cmd not installed")

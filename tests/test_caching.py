@@ -203,6 +203,20 @@ class TestCaching(utils_tests.SetupDirectory):
 
         self.assertEqual(len(trace1.sched_wakeup.data_frame), 2)
 
+    def test_ftrace_metadata(self):
+        """Test that caching keeps trace metadata"""
+        GenericFTrace.disable_cache = False
+
+        self.test_cache_created()
+
+        trace = trappy.FTrace()
+
+        version = int(trace._version)
+        cpus = int(trace._cpus)
+
+        self.assertEquals(version, 6)
+        self.assertEquals(cpus, 6)
+
     def test_cache_delete_single(self):
         GenericFTrace.disable_cache = False
         trace = trappy.FTrace()

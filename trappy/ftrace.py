@@ -173,74 +173,108 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         path = self._trace_cache_path()
         return os.path.join(path, trace_class.__class__.__name__ + '.csv')
 
-    def _check_trace_cache(self):
+    def _get_cache_metadata(self):
         cache_path = self._trace_cache_path()
-        trace_metadata_path = os.path.join(cache_path, 'metadata.json')
+        metadata_path = os.path.join(cache_path, 'metadata.json')
 
-        if not os.path.exists(trace_metadata_path):
-            return False
+        metadata = {}
+        with open(metadata_path) as f:
+            metadata = json.load(f)
 
-        with open(trace_metadata_path) as f:
-            trace_metadata = json.load(f)
+        return metadata
+
+    def _is_cache_valid(self, cache_metadata):
+        for key in ["md5sum", "basetime"]:
+            if key not in cache_metadata.keys():
+                warnstr = "Cache metadata is erroneous, invalidating cache"
+                warnings.warn(warnstr)
+                return False
 
         with open(self.trace_path, 'rb') as f:
             trace_md5sum = hashlib.md5(f.read()).hexdigest()
 
-        self.basetime = float(trace_metadata["basetime"])
-
-        # Check if cache is valid
-        if trace_metadata["md5sum"] != trace_md5sum:
+        if cache_metadata["md5sum"] != trace_md5sum:
             warnstr = "Cached data is from another trace, invalidating cache."
             warnings.warn(warnstr)
-            shutil.rmtree(cache_path)
             return False
 
         return True
 
-    def _create_trace_cache(self):
+    def _prepare_cache_dir(self):
         cache_path = self._trace_cache_path()
-        trace_metadata_path = os.path.join(cache_path, 'metadata.json')
 
         if os.path.exists(cache_path):
             shutil.rmtree(cache_path)
         os.mkdir(cache_path)
 
-        trace_metadata = {}
-
-        trace_metadata["md5sum"] = hashlib.md5(open(self.trace_path, 'rb').read()).hexdigest()
-        trace_metadata["basetime"] = self.basetime
-
-        with open(trace_metadata_path, 'w') as f:
-            json.dump(trace_metadata, f)
-
     def _update_cache(self):
         try:
             # Recreate basic cache directories only if nothing cached
             if not any([c.cached for c in self.trace_classes]):
-                self._create_trace_cache()
+                self._prepare_cache_dir()
 
-            # Write out only events that weren't cached before
+                # Write cache metadata
+                metadata_path = os.path.join(self._trace_cache_path(), 'metadata.json')
+
+                metadata = self._get_metadata_to_cache()
+
+                with open(metadata_path, 'w') as f:
+                    json.dump(metadata, f)
+
+            # Cache trace data
             for trace_class in self.trace_classes:
+                # Write out only events that weren't cached before
                 if trace_class.cached:
                     continue
+
                 csv_file = self._get_csv_path(trace_class)
                 trace_class.write_csv(csv_file)
         except OSError as err:
             warnings.warn(
                 "TRAPpy: Cache not created due to OS error: {0}".format(err))
 
+    def _get_metadata_to_cache(self):
+        # By default, some amount of metadata is saved in metadata.json
+        # Additionnal metadata can be saved by overriding this method
+        metadata = {}
+
+        metadata["md5sum"] = hashlib.md5(
+            open(self.trace_path, 'rb').read()
+        ).hexdigest()
+        metadata["basetime"] = self.basetime
+
+        return metadata
+
     def _load_cache(self):
-        if self._check_trace_cache():
-            self.max_window = self._calc_max_window()
-             # Read csv into frames
-            for trace_class in self.trace_classes:
-                try:
-                    csv_file = self._get_csv_path(trace_class)
-                    trace_class.read_csv(csv_file)
-                    trace_class.cached = True
-                except:
-                    warnstr = "TRAPpy: Couldn't read {} from cache, reading it from trace".format(trace_class)
-                    warnings.warn(warnstr)
+        cache_path = self._trace_cache_path()
+        if not os.path.exists(cache_path):
+            return
+
+        metadata = self._get_cache_metadata()
+
+        if not self._is_cache_valid(metadata):
+            shutil.rmtree(cache_path)
+            return
+
+        # Load metadata
+        self._load_metadata_from_cache(metadata)
+        self.max_window = self._calc_max_window()
+
+        # Load trace data
+        for trace_class in self.trace_classes:
+            try:
+                csv_file = self._get_csv_path(trace_class)
+                trace_class.read_csv(csv_file)
+                trace_class.cached = True
+            except:
+                warnstr = "TRAPpy: Couldn't read {} from cache, reading it from trace".format(trace_class)
+                warnings.warn(warnstr)
+
+    def _load_metadata_from_cache(self, metadata):
+        # By default, some amount of metadata is loaded from metadata.json
+        # Additionnal metadata can be loaded by overriding this method,
+        # providing it has been saved by overriding _get_extra_data_to_cache
+        self.basetime = metadata["basetime"]
 
     def _apply_user_parameters(self):
         # Traces are read without any window consideration, so we apply
@@ -695,7 +729,19 @@ class FTrace(GenericFTrace):
         super(FTrace, self)._parsing_setup()
 
         self.__generate_trace_txt(self.trace_path)
-        self.__populate_metadata()
+        self.__populate_trace_metadata(self.__get_trace_metadata())
+
+    def _load_metadata_from_cache(self, metadata):
+        super(FTrace, self)._load_metadata_from_cache(metadata)
+
+        self.__populate_trace_metadata(metadata["ftrace"])
+
+    def _get_metadata_to_cache(self):
+        res = super(FTrace, self)._get_metadata_to_cache()
+
+        res["ftrace"] = self.metadata
+
+        return res
 
     def __warn_about_txt_trace_files(self, trace_dat, raw_txt, formatted_txt):
         self.__get_raw_event_list()
@@ -790,12 +836,10 @@ class FTrace(GenericFTrace):
         with open(trace_output, "w") as fout:
             fout.write(out)
 
-
-    def __populate_metadata(self):
-        """Populates trace metadata"""
-
+    def __get_trace_metadata(self):
         # Meta Data as expected to be found in the parsed trace header
         metadata_keys = ["version", "cpus"]
+        res = {}
 
         for key in metadata_keys:
             setattr(self, "_" + key, None)
@@ -803,15 +847,21 @@ class FTrace(GenericFTrace):
         with open(self.trace_path) as fin:
             for line in fin:
                 if not metadata_keys:
-                    return
+                    return res
 
                 metadata_pattern = r"^\b(" + "|".join(metadata_keys) + \
                                    r")\b\s*=\s*([0-9]+)"
                 match = re.search(metadata_pattern, line)
                 if match:
-                    setattr(self, "_" + match.group(1), match.group(2))
+                    res[match.group(1)] = match.group(2)
                     metadata_keys.remove(match.group(1))
 
                 if SPECIAL_FIELDS_RE.match(line):
                     # Reached a valid trace line, abort metadata population
-                    return
+                    return res
+
+    def __populate_trace_metadata(self, metadata):
+        self.metadata = metadata
+
+        for key, value in metadata.iteritems():
+            setattr(self, "_" + key, value)
