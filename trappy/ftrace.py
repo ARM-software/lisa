@@ -68,65 +68,6 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
     disable_cache = True
 
-    def _trace_cache_path(self):
-        trace_file = self.trace_path
-        cache_dir  = '.' +  os.path.basename(trace_file) + '.cache'
-        tracefile_dir = os.path.dirname(os.path.abspath(trace_file))
-        cache_path = os.path.join(tracefile_dir, cache_dir)
-        return cache_path
-
-    def _check_trace_cache(self, params):
-        cache_path = self._trace_cache_path()
-        trace_metadata_path = os.path.join(cache_path, 'metadata.json')
-
-        if not os.path.exists(trace_metadata_path):
-            return False
-
-        with open(trace_metadata_path) as f:
-            trace_metadata = json.load(f)
-
-        with open(self.trace_path, 'rb') as f:
-            trace_md5sum = hashlib.md5(f.read()).hexdigest()
-
-        self.basetime = float(trace_metadata["basetime"])
-
-        # Check if cache is valid
-        if trace_metadata["md5sum"] != trace_md5sum:
-            warnstr = "Cached data is from another trace, invalidating cache."
-            warnings.warn(warnstr)
-            shutil.rmtree(cache_path)
-            return False
-
-        # Check if cache can be used with given parameters
-        # Convert to a json string for comparison
-        if json.dumps(trace_metadata["params"]) != json.dumps(params):
-            warnstr = "Cached trace parameters differ from those given, invalidating cache."
-            warnings.warn(warnstr)
-            shutil.rmtree(cache_path)
-            return False
-        return True
-
-    def _create_trace_cache(self, params):
-        cache_path = self._trace_cache_path()
-        trace_metadata_path = os.path.join(cache_path, 'metadata.json')
-
-        if os.path.exists(cache_path):
-            shutil.rmtree(cache_path)
-        os.mkdir(cache_path)
-
-        trace_metadata = {}
-
-        trace_metadata["md5sum"] = hashlib.md5(open(self.trace_path, 'rb').read()).hexdigest()
-        trace_metadata["basetime"] = self.basetime
-        trace_metadata["params"] = params
-
-        with open(trace_metadata_path, 'w') as f:
-            json.dump(trace_metadata, f)
-
-    def _get_csv_path(self, trace_class):
-        path = self._trace_cache_path()
-        return os.path.join(path, trace_class.__class__.__name__ + '.csv')
-
     def __init__(self, name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
         super(GenericFTrace, self).__init__(name)
@@ -192,6 +133,65 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         for name, obj, scope_classes in known_events:
             if cobject == obj:
                 del scope_classes[name]
+
+    def _trace_cache_path(self):
+        trace_file = self.trace_path
+        cache_dir  = '.' +  os.path.basename(trace_file) + '.cache'
+        tracefile_dir = os.path.dirname(os.path.abspath(trace_file))
+        cache_path = os.path.join(tracefile_dir, cache_dir)
+        return cache_path
+
+    def _get_csv_path(self, trace_class):
+        path = self._trace_cache_path()
+        return os.path.join(path, trace_class.__class__.__name__ + '.csv')
+
+    def _check_trace_cache(self, params):
+        cache_path = self._trace_cache_path()
+        trace_metadata_path = os.path.join(cache_path, 'metadata.json')
+
+        if not os.path.exists(trace_metadata_path):
+            return False
+
+        with open(trace_metadata_path) as f:
+            trace_metadata = json.load(f)
+
+        with open(self.trace_path, 'rb') as f:
+            trace_md5sum = hashlib.md5(f.read()).hexdigest()
+
+        self.basetime = float(trace_metadata["basetime"])
+
+        # Check if cache is valid
+        if trace_metadata["md5sum"] != trace_md5sum:
+            warnstr = "Cached data is from another trace, invalidating cache."
+            warnings.warn(warnstr)
+            shutil.rmtree(cache_path)
+            return False
+
+        # Check if cache can be used with given parameters
+        # Convert to a json string for comparison
+        if json.dumps(trace_metadata["params"]) != json.dumps(params):
+            warnstr = "Cached trace parameters differ from those given, invalidating cache."
+            warnings.warn(warnstr)
+            shutil.rmtree(cache_path)
+            return False
+        return True
+
+    def _create_trace_cache(self, params):
+        cache_path = self._trace_cache_path()
+        trace_metadata_path = os.path.join(cache_path, 'metadata.json')
+
+        if os.path.exists(cache_path):
+            shutil.rmtree(cache_path)
+        os.mkdir(cache_path)
+
+        trace_metadata = {}
+
+        trace_metadata["md5sum"] = hashlib.md5(open(self.trace_path, 'rb').read()).hexdigest()
+        trace_metadata["basetime"] = self.basetime
+        trace_metadata["params"] = params
+
+        with open(trace_metadata_path, 'w') as f:
+            json.dump(trace_metadata, f)
 
     def _get_params_to_cache(self):
         return {'window': self.window, 'abs_window': self.abs_window}
