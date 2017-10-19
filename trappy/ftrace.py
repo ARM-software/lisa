@@ -68,7 +68,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
     dynamic_classes = {}
 
-    disable_cache = True
+    disable_cache = False
 
     def __init__(self, name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
