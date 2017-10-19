@@ -389,12 +389,8 @@ if [ ! -f $FASTBOOT ]; then
 	c_error "FASTBOOT command [$FASTBOOT] not found"
 	exit $EINVAL
 fi
-if [ "x$DEVICE" != "x" ]; then
-	ADB="$ADB -s $DEVICE"
-	FASTBOOT="$FASTBOOT -s $DEVICE"
-fi
-export ADB
-export FASTBOOT
+export ADB="$ADB -s $DEVICE"
+export FASTBOOT="$FASTBOOT -s $DEVICE"
 
 # Prepare Energy Meter device
 case $EMETER in
@@ -467,11 +463,7 @@ usb_connect() {
 # FASTBOOT mode checking
 ################################################################################
 device_in_fastboot() {
-	if [ "x$DEVICE" != "x" ]; then
-		[[ $($FASTBOOT devices | grep $DEVICE | wc -l) -gt 0 ]] || return $ENODEV
-	else
-		[[ $($FASTBOOT devices | wc -l) -gt 0 ]] || return $ENODEV
-	fi
+	[[ $($FASTBOOT devices | grep $DEVICE | wc -l) -gt 0 ]] || return $ENODEV
 	return $OK
 }
 device_not_in_fastboot() {
@@ -483,11 +475,7 @@ device_not_in_fastboot() {
 # ADB mode checking
 ################################################################################
 device_in_adb() {
-	if [ "x$DEVICE" != "x" ]; then
-		[[ $(adb devices | grep $DEVICE | wc -l) -gt 0 ]] || return $ENODEV
-	else
-		[[ $(adb devices | wc -l) -gt 2 ]] || return $ENODEV
-	fi
+	[[ $(adb devices | grep -e $DEVICE | wc -l) -gt 0 ]] || return $ENODEV
 	return $OK
 }
 device_not_in_adb() {
