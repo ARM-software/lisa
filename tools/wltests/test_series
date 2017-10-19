@@ -463,7 +463,7 @@ usb_connect() {
 # FASTBOOT mode checking
 ################################################################################
 device_in_fastboot() {
-	[[ $($FASTBOOT devices | grep $DEVICE | wc -l) -gt 0 ]] || return $ENODEV
+	[[ $(fastboot devices | grep -e "$DEVICE.*fastboot" | wc -l) -gt 0 ]] || return $ENODEV
 	return $OK
 }
 device_not_in_fastboot() {
@@ -475,7 +475,7 @@ device_not_in_fastboot() {
 # ADB mode checking
 ################################################################################
 device_in_adb() {
-	[[ $(adb devices | grep -e $DEVICE | wc -l) -gt 0 ]] || return $ENODEV
+	[[ $(adb devices | grep -e "$DEVICE.*device" | wc -l) -gt 0 ]] || return $ENODEV
 	return $OK
 }
 device_not_in_adb() {
