@@ -114,10 +114,9 @@ class PcMark(Workload):
         remote_zip_path = re.match(self.regexps['result'], self.output).group('path')
         local_zip_path = os.path.join(context.output_directory,
                                       self.target.path.basename(remote_zip_path))
-        print 'pulling {} -> {}'.format(remote_zip_path, local_zip_path)
+        self.logger.info('pulling {} -> {}'.format(remote_zip_path, local_zip_path))
         self.target.pull(remote_zip_path, local_zip_path, as_root=True)
 
-        print 'extracting'
         with ZipFile(local_zip_path, 'r') as archive:
             archive.extractall(context.output_directory)
 
@@ -127,10 +126,7 @@ class PcMark(Workload):
             for line in f:
                 match = score_regex.match(line)
                 if match:
-                    print 'MATCH'
                     metric_name = 'pcmark_{}'.format(match.group('name'))
-                    print(metric_name)
-                    print(match.group('score'))
                     context.add_metric(metric_name, match.group('score'))
 
 
