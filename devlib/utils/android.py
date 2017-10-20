@@ -575,7 +575,7 @@ class LogcatMonitor(object):
         :type outfile: str
         """
         if outfile:
-            self._logfile = open(outfile)
+            self._logfile = open(outfile, 'w')
         else:
             self._logfile = tempfile.NamedTemporaryFile()
 
