@@ -23,13 +23,6 @@ from zipfile import ZipFile
 from wa import Parameter, Workload
 from wa.framework.exception import WorkloadError
 
-REGEXPS = {
-    'start'  : '.*START.*com.futuremark.pcmark.android.benchmark',
-    'end'    : '.*onWebViewReady.*view_scoredetails.html',
-    'result' : '.*received result for correct code, result file in (?P<path>.*\.zip)',
-    'score'  : '\s*<result_Pcma(?P<name>.*)Score>(?P<score>[0-9]*)<'
-}
-
 INSTALL_INSTRUCTIONS="""
 This workload has incomplete automation support. Please download the APK from
 http://www.futuremark.com/downloads/pcmark-android.apk
@@ -62,6 +55,12 @@ class PcMark(Workload):
                   description='PCMark sub-benchmark to run'),
     ]
 
+
+    regexps = {
+        'start'  : '.*START.*com.futuremark.pcmark.android.benchmark',
+        'result': '.*received result for correct code, result file in (?P<path>.*\.zip)'
+    }
+
     def initialize(self, context):
         super(PcMark, self).initialize(context)
 
@@ -93,7 +92,7 @@ class PcMark(Workload):
         self.target.execute('input keyevent KEYCODE_TAB')
         self.target.execute('input keyevent KEYCODE_TAB')
 
-        self.monitor = self.target.get_logcat_monitor()
+        self.monitor = self.target.get_logcat_monitor(self.regexps.values())
         # Store the filtered logcat in a file. We don't add this as an artifact,
         # there's already one created by the WA framework. This is just for
         # debugging the PCMark workload.
@@ -103,14 +102,16 @@ class PcMark(Workload):
 
     def run(self, context):
         self.target.execute('input keyevent KEYCODE_ENTER')
-        # Wait for page animations to end
-        time.sleep(10)
 
-        [self.output] = self.monitor.wait_for(REGEXPS['result'], timeout=600)
+        self.monitor.wait_for('.*START.*com.futuremark.pcmark.android.benchmark',
+                              timeout=20)
+        self.logger.info('Detected PCMark start')
+
+        [self.output] = self.monitor.wait_for(self.regexps['result'], timeout=600)
 
     def extract_results(self, context):
         # TODO should this be an artifact?
-        remote_zip_path = re.match(REGEXPS['result'], self.output).group('path')
+        remote_zip_path = re.match(self.regexps['result'], self.output).group('path')
         local_zip_path = os.path.join(context.output_directory,
                                       self.target.path.basename(remote_zip_path))
         print 'pulling {} -> {}'.format(remote_zip_path, local_zip_path)
