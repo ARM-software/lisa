@@ -110,7 +110,6 @@ class PcMark(Workload):
         [self.output] = self.monitor.wait_for(self.regexps['result'], timeout=600)
 
     def extract_results(self, context):
-        # TODO should this be an artifact?
         remote_zip_path = re.match(self.regexps['result'], self.output).group('path')
         local_zip_path = os.path.join(context.output_directory,
                                       self.target.path.basename(remote_zip_path))
@@ -120,9 +119,14 @@ class PcMark(Workload):
         with ZipFile(local_zip_path, 'r') as archive:
             archive.extractall(context.output_directory)
 
+        xml_path = os.path.join(context.output_directory, 'Result.xml')
+        if not os.path.exists(xml_path):
+            raise WorkloadError("PCMark results .zip didn't contain Result.xml")
+        context.add_artifact('pcmark_result_xml', xml_path, 'data')
+
         # Fetch workloads names and scores
         score_regex = re.compile('\s*<result_Pcma(?P<name>.*)Score>(?P<score>[0-9]*)<')
-        with open(os.path.join(context.output_directory, 'Result.xml')) as f:
+        with open(xml_path) as f:
             for line in f:
                 match = score_regex.match(line)
                 if match:
