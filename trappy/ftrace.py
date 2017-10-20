@@ -26,6 +26,8 @@ import hashlib
 import shutil
 import warnings
 
+from tempfile import NamedTemporaryFile
+
 from trappy.bare_trace import BareTrace
 from trappy.utils import listify
 
@@ -296,7 +298,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
         self._parsing_setup()
 
-        self.__parse_trace_file(self.trace_path)
+        self.__parse_trace_file(self.file_to_parse)
         self.finalize_objects()
 
         # Update (or create) cache directory
@@ -308,7 +310,10 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         self._parsing_teardown()
 
     def _parsing_setup(self):
-        pass
+        # By default, the file pointed by trace_path is parsed. However, an
+        # intermediate file could be required. Subclasses can override this
+        # method and set the file_to_parse parameter to something else.
+        self.file_to_parse = self.trace_path
 
     def _parsing_teardown(self):
         pass
@@ -728,8 +733,20 @@ class FTrace(GenericFTrace):
     def _parsing_setup(self):
         super(FTrace, self)._parsing_setup()
 
-        self.__generate_trace_txt(self.trace_path)
+        if self.read_from_dat:
+            self.file_to_parse = self.__generate_trace_txt(self.trace_path)
+
+        # file_to_parse is already set to trace_path in the superclass,
+        # so no "else" is needed here
+
         self.__populate_trace_metadata(self.__get_trace_metadata())
+
+    def _parsing_teardown(self):
+        super(FTrace, self)._parsing_teardown()
+
+        # Remove the .txt trace if it was generated from a .dat
+        if self.read_from_dat:
+            os.remove(self.file_to_parse)
 
     def _load_metadata_from_cache(self, metadata):
         super(FTrace, self)._load_metadata_from_cache(metadata)
@@ -743,21 +760,8 @@ class FTrace(GenericFTrace):
 
         return res
 
-    def __warn_about_txt_trace_files(self, trace_dat, raw_txt, formatted_txt):
-        self.__get_raw_event_list()
-        warn_text = ( "You appear to be parsing both raw and formatted "
-                      "trace files. TRAPpy now uses a unified format. "
-                      "If you have the {} file, remove the .txt files "
-                      "and try again. If not, you can manually move "
-                      "lines with the following events from {} to {} :"
-                      ).format(trace_dat, raw_txt, formatted_txt)
-        for raw_event in self.raw_events:
-            warn_text = warn_text+" \"{}\"".format(raw_event)
-
-        raise RuntimeError(warn_text)
-
     def __process_path(self, basepath):
-        """Process the path and return the path to the trace text file"""
+        """Process the path and return the path to the file to parse"""
 
         if os.path.isfile(basepath):
             trace_name = os.path.splitext(basepath)[0]
@@ -768,39 +772,33 @@ class FTrace(GenericFTrace):
         trace_raw_txt = trace_name + ".raw.txt"
         trace_dat = trace_name + ".dat"
 
+        trace_to_read = None
+        self.read_from_dat = False
+
         if os.path.isfile(trace_dat):
-            # Warn users if raw.txt files are present
-            if os.path.isfile(trace_raw_txt):
-                self.__warn_about_txt_trace_files(trace_dat, trace_raw_txt, trace_txt)
+            trace_to_read = trace_dat
+            self.read_from_dat = True
+        elif os.path.isfile(trace_txt):
+            # Warn users if txt file is all we have
+            warnstr = (
+                "Reading from .txt file, .dat is preferred. Not only do " +
+                ".txt files occupy more disk space, it is also not possible " +
+                "to determine the format of the traces contained within them."
+            )
+            warnings.warn(warnstr)
+            trace_to_read = trace_txt
+        elif os.path.isfile(trace_raw_txt):
+            # Warn users if raw.txt file is all we have
+            warnstr = ".raw.txt trace format is no longer supported"
+            raise RuntimeError(warnstr)
+        else:
+            warnstr = "Could not find any trace file in {}".format(basepath)
+            raise IOError(warnstr)
 
-        return trace_txt
+        return trace_to_read
 
-    def __generate_trace_txt(self, trace_txt):
-        trace_dat = os.path.splitext(trace_txt)[0] + ".dat"
-
-        if not os.path.isfile(trace_dat):
-            return
-
-        # TXT traces must always be generated
-        if not os.path.isfile(trace_txt):
-            self.__run_trace_cmd_report(trace_dat)
-        # TXT traces must match the most recent binary trace
-        elif os.path.getmtime(trace_txt) < os.path.getmtime(trace_dat):
-            self.__run_trace_cmd_report(trace_dat)
-
-    def __get_raw_event_list(self):
-        self.raw_events = []
-        # Generate list of events which need to be parsed in raw format
-        for event_class in (self.thermal_classes, self.sched_classes, self.dynamic_classes):
-            for trace_class in event_class.itervalues():
-                raw = getattr(trace_class, 'parse_raw', None)
-                if raw:
-                    name = getattr(trace_class, 'name', None)
-                    if name:
-                        self.raw_events.append(name)
-
-    def __run_trace_cmd_report(self, fname):
-        """Run "trace-cmd report [ -r raw_event ]* fname > fname.txt"
+    def __generate_trace_txt(self, trace_dat):
+        """Run "trace-cmd report [ -r raw_event ]* trace_dat > tempfile"
 
         The resulting trace is stored in files with extension ".txt". If
         fname is "my_trace.dat", the trace is stored in "my_trace.txt". The
@@ -814,16 +812,15 @@ class FTrace(GenericFTrace):
 
         cmd = ["trace-cmd", "report"]
 
-        if not os.path.isfile(fname):
-            raise IOError("No such file or directory: {}".format(fname))
+        if not os.path.isfile(trace_dat):
+            raise IOError("No such file or directory: {}".format(trace_dat))
 
-        trace_output = os.path.splitext(fname)[0] + ".txt"
         # Ask for the raw event list and request them unformatted
         self.__get_raw_event_list()
         for raw_event in self.raw_events:
             cmd.extend([ '-r', raw_event ])
 
-        cmd.append(fname)
+        cmd.append(trace_dat)
 
         with open(os.devnull) as devnull:
             try:
@@ -833,8 +830,23 @@ class FTrace(GenericFTrace):
                     raise OSError(2, "trace-cmd not found in PATH, is it installed?")
                 else:
                     raise
-        with open(trace_output, "w") as fout:
+
+        tempf = NamedTemporaryFile(delete=False)
+        with tempf as fout:
             fout.write(out)
+
+        return tempf.name
+
+    def __get_raw_event_list(self):
+        self.raw_events = []
+        # Generate list of events which need to be parsed in raw format
+        for event_class in (self.thermal_classes, self.sched_classes, self.dynamic_classes):
+            for trace_class in event_class.itervalues():
+                raw = getattr(trace_class, 'parse_raw', None)
+                if raw:
+                    name = getattr(trace_class, 'name', None)
+                    if name:
+                        self.raw_events.append(name)
 
     def __get_trace_metadata(self):
         # Meta Data as expected to be found in the parsed trace header
@@ -844,7 +856,7 @@ class FTrace(GenericFTrace):
         for key in metadata_keys:
             setattr(self, "_" + key, None)
 
-        with open(self.trace_path) as fin:
+        with open(self.file_to_parse) as fin:
             for line in fin:
                 if not metadata_keys:
                     return res

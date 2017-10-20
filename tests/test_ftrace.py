@@ -449,6 +449,13 @@ class TestFTraceRawBothTxt(utils_tests.SetupDirectory):
         self.assertTrue(hasattr(trace, "sched_switch"))
         self.assertTrue(len(trace.sched_switch.data_frame) > 0)
 
+    def test_keep_txt(self):
+        """Do not delete trace.txt if trace.dat isn't there"""
+        self.assertFalse(os.path.isfile("trace.dat"))
+        self.assertTrue(os.path.isfile("trace.txt"))
+        trace = trappy.FTrace()
+        self.assertTrue(os.path.isfile("trace.txt"))
+
 class TestFTraceSched(utils_tests.SetupDirectory):
     """Tests using a trace with only sched info and no (or partial) thermal"""
 
@@ -512,13 +519,14 @@ class TestTraceDat(utils_tests.SetupDirectory):
 
         self.assertTrue(found)
 
-    def test_do_txt_if_not_there(self):
-        """Create trace.txt if it's not there"""
+    def test_do_not_txt(self):
+        """Do not create trace.txt if trace.dat is there"""
+        self.assertTrue(os.path.isfile("trace.dat"))
         self.assertFalse(os.path.isfile("trace.txt"))
 
         trappy.FTrace()
 
-        self.assert_thermal_in_trace("trace.txt")
+        self.assertFalse(os.path.isfile("trace.txt"))
 
     def test_ftrace_arbitrary_trace_dat(self):
         """FTrace() works if asked to parse a binary trace with a filename other than trace.dat"""
@@ -527,27 +535,5 @@ class TestTraceDat(utils_tests.SetupDirectory):
 
         dfr = trappy.FTrace(arbitrary_trace_name).thermal.data_frame
 
-        self.assertTrue(os.path.exists("my_trace.txt"))
         self.assertTrue(len(dfr) > 0)
         self.assertFalse(os.path.exists("trace.dat"))
-        self.assertFalse(os.path.exists("trace.txt"))
-
-    def test_regenerate_txt_if_outdated(self):
-        """Regenerate the trace.txt if it's older than the trace.dat"""
-
-        trappy.FTrace()
-
-        # Empty the trace.txt
-        with open("trace.txt", "w") as fout:
-            fout.write("")
-
-        # Set access and modified time of trace.txt to 10 seconds ago
-        now = time.time()
-        os.utime("trace.txt", (now - 10, now - 10))
-
-        # touch trace.dat
-        os.utime("trace.dat", None)
-
-        trappy.FTrace()
-
-        self.assert_thermal_in_trace("trace.txt")
