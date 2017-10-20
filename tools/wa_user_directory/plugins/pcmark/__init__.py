@@ -33,8 +33,9 @@ REGEXPS = {
 INSTALL_INSTRUCTIONS="""
 This workload has incomplete automation support. Please download the APK from
 http://www.futuremark.com/downloads/pcmark-android.apk
-and install it on the device. Then open the app on the device, and hit the
-'install' button to set up the 'Work v2' benchmark.
+and install it on the device. Connect the device to the internet, then open the
+app on the device, and hit the 'install' button to set up the 'Work v2'
+benchmark.
 """
 
 class PcMark(Workload):
