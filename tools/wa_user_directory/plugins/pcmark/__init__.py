@@ -94,7 +94,12 @@ class PcMark(Workload):
         self.target.execute('input keyevent KEYCODE_TAB')
 
         self.monitor = self.target.get_logcat_monitor()
-        self.monitor.start()
+        # Store the filtered logcat in a file. We don't add this as an artifact,
+        # there's already one created by the WA framework. This is just for
+        # debugging the PCMark workload.
+        logcat_path = os.path.join(context.output_directory,
+                                   'pcmark_logcat.log')
+        self.monitor.start(logcat_path)
 
     def run(self, context):
         self.target.execute('input keyevent KEYCODE_ENTER')
