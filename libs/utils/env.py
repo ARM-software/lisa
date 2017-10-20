@@ -828,7 +828,7 @@ class TestEnv(ShareState):
         if not force and self._calib:
             return self._calib
 
-        required = force or 'rt-app' in self.__installed_tools
+        required = force or 'rt-app' in self.__installed_tools or 'ftrace' in self.test_conf
 
         if not required:
             self._log.debug('No RT-App workloads, skipping calibration')
