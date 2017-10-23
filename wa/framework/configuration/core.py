@@ -780,6 +780,19 @@ class RunConfiguration(Configuration):
             ''',
         ),
         ConfigurationPoint(
+            'bail_on_init_failure',
+            kind=bool,
+            default=True,
+            description='''
+            When jobs fail during their main setup and run phases, WA will
+            continue attempting to run the remaining jobs. However, by default,
+            if they fail during their early initialization phase, the entire run
+            will end without continuing to run jobs. Setting this to ``False``
+            means that WA will instead skip all the jobs from the job spec that
+            failed, but continue attempting to run others.
+            '''
+        ),
+        ConfigurationPoint(
             'result_processors',
             kind=toggle_set,
             default=['csv', 'status'],

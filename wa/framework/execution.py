@@ -31,7 +31,7 @@ from wa.framework import instrumentation, pluginloader
 from wa.framework.configuration.core import settings, Status
 from wa.framework.exception import (WAError, ConfigError, TimeoutError,
                                     InstrumentError, TargetError, HostError,
-                                    TargetNotRespondingError)
+                                    TargetNotRespondingError, WorkloadError)
 from wa.framework.job import Job
 from wa.framework.output import init_job_output
 from wa.framework.plugin import Artifact
@@ -174,12 +174,15 @@ class ExecutionContext(object):
         self.run_state.update_job(job)
         self.run_output.write_state()
 
+    def skip_job(self, job):
+        job.status = Status.SKIPPED
+        self.run_state.update_job(job)
+        self.completed_jobs.append(job)
+
     def skip_remaining_jobs(self):
         while self.job_queue:
             job = self.job_queue.pop(0)
-            job.status = Status.SKIPPED
-            self.run_state.update_job(job)
-            self.completed_jobs.append(job)
+            self.skip_job(job)
         self.write_state()
 
     def write_state(self):
@@ -225,6 +228,34 @@ class ExecutionContext(object):
 
     def add_event(self, message):
         self.output.add_event(message)
+
+    def initialize_jobs(self):
+        new_queue = []
+        failed_ids = []
+        for job in self.job_queue:
+            if job.id in failed_ids:
+                # Don't try to initialize a job if another job with the same ID
+                # (i.e. same job spec) has failed - we can assume it will fail
+                # too.
+                self.skip_job(job)
+                continue
+
+            try:
+                job.initialize(self)
+            except WorkloadError as e:
+                job.set_status(Status.FAILED)
+                self.add_event(e.message)
+                if not getattr(e, 'logged', None):
+                    log.log_error(e, self.logger)
+                    e.logged = True
+                failed_ids.append(job.id)
+
+                if self.cm.run_config.bail_on_init_failure:
+                    raise
+            else:
+                new_queue.append(job)
+
+        self.job_queue = new_queue
 
 
 class Executor(object):
@@ -375,8 +406,7 @@ class Runner(object):
         self.context.start_run()
         self.pm.initialize()
         log.indent()
-        for job in self.context.job_queue:
-            job.initialize(self.context)
+        self.context.initialize_jobs()
         log.dedent()
         self.context.write_state()
 
@@ -421,7 +451,7 @@ class Runner(object):
         if job.workload.phones_home and not rc.allow_phone_home:
             self.logger.warning('Skipping job {} ({}) due to allow_phone_home=False'
                                 .format(job.id, job.workload.name))
-            job.set_status(Status.SKIPPED)
+            self.context.skip_job(job)
             return
 
         job.set_status(Status.RUNNING)
