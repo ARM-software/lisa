@@ -159,9 +159,9 @@ def log_error(e, logger, critical=False):
 
     :e: the error to log. should be an instance of ``Exception``
     :logger: logger to be used.
-    :critical: if ``True``,  this error will be logged at ``logging.CRITICAL`` 
+    :critical: if ``True``,  this error will be logged at ``logging.CRITICAL``
                level, otherwise it will be logged as ``logging.ERROR``.
-    
+
     """
     if critical:
         log_func = logger.critical
