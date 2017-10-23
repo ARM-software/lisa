@@ -44,8 +44,8 @@ class DmesgInstrument(Instrument):
 
     def setup(self, context):
         if self.loglevel:
-            self.old_loglevel = self.target.get_sysfile_value(self.loglevel_file)
-            self.target.set_sysfile_value(self.loglevel_file, self.loglevel, verify=False)
+            self.old_loglevel = self.target.read_int(self.loglevel_file)
+            self.target.write_value(self.loglevel_file, self.loglevel, verify=False)
         self.before_file = _f(os.path.join(context.output_directory, 'dmesg', 'before'))
         self.after_file = _f(os.path.join(context.output_directory, 'dmesg', 'after'))
 
@@ -57,6 +57,7 @@ class DmesgInstrument(Instrument):
         if self.target.is_rooted:
             self.target.execute('dmesg -c', as_root=True)
 
+    @slow
     def stop(self, context):
         with open(self.after_file, 'w') as wfh:
             wfh.write(self.target.execute('dmesg', as_root=self.need_root))
@@ -64,4 +65,4 @@ class DmesgInstrument(Instrument):
 
     def teardown(self, context):  # pylint: disable=unused-argument
         if self.loglevel:
-            self.target.set_sysfile_value(self.loglevel_file, self.old_loglevel, verify=False)
+            self.target.write_value(self.loglevel_file, self.old_loglevel, verify=False)
