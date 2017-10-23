@@ -287,7 +287,7 @@ class ManagedCallback(object):
 _callbacks = []
 
 
-def install(instrument):
+def install(instrument, context):
     """
     This will look for methods (or any callable members) with specific names
     in the instrument and hook them up to the corresponding signals.
@@ -328,6 +328,7 @@ def install(instrument):
         _callbacks.append(mc)
         signal.connect(mc, SIGNAL_MAP[attr_name], priority=priority.value)
 
+    instrument.logger.context = context
     installed.append(instrument)
 
 

@@ -33,10 +33,11 @@ class ProcessorManager(object):
         self.logger = logging.getLogger('processor')
         self.processors = []
 
-    def install(self, processor):
+    def install(self, processor, context):
         if not isinstance(processor, ResultProcessor):
             processor = self.loader.get_result_processor(processor)
         self.logger.debug('Installing {}'.format(processor.name))
+        processor.logger.context = context
         self.processors.append(processor)
 
     def validate(self):
