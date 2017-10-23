@@ -57,6 +57,7 @@ class DmesgInstrument(Instrument):
         if self.target.is_rooted:
             self.target.execute('dmesg -c', as_root=True)
 
+    @slow
     def stop(self, context):
         with open(self.after_file, 'w') as wfh:
             wfh.write(self.target.execute('dmesg', as_root=self.need_root))
