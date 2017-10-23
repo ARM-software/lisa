@@ -286,13 +286,13 @@ class Executor(object):
 
         self.logger.info('Installing instrumentation')
         for instrument in config_manager.get_instruments(self.target_manager.target):
-            instrumentation.install(instrument)
+            instrumentation.install(instrument, context)
         instrumentation.validate()
 
         self.logger.info('Installing result processors')
         pm = ProcessorManager()
         for proc in config_manager.get_processors():
-            pm.install(proc)
+            pm.install(proc, context)
         pm.validate()
 
         self.logger.info('Starting run')
@@ -342,6 +342,7 @@ class Runner(object):
 
     def __init__(self, context, pm):
         self.logger = logging.getLogger('runner')
+        self.logger.context = context
         self.context = context
         self.pm = pm
         self.output = self.context.output

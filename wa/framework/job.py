@@ -57,6 +57,7 @@ class Job(object):
     def initialize(self, context):
         self.logger.info('Initializing job {} [{}]'.format(self.id, self.iteration))
         with signal.wrap('WORKLOAD_INITIALIZED', self, context):
+            self.workload.logger.context = context
             self.workload.initialize(context)
         self.set_status(Status.PENDING)
         context.update_job_state(self)
