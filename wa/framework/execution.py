@@ -174,12 +174,15 @@ class ExecutionContext(object):
         self.run_state.update_job(job)
         self.run_output.write_state()
 
+    def skip_job(self, job):
+        job.status = Status.SKIPPED
+        self.run_state.update_job(job)
+        self.completed_jobs.append(job)
+
     def skip_remaining_jobs(self):
         while self.job_queue:
             job = self.job_queue.pop(0)
-            job.status = Status.SKIPPED
-            self.run_state.update_job(job)
-            self.completed_jobs.append(job)
+            self.skip_job(job)
         self.write_state()
 
     def write_state(self):
@@ -421,7 +424,7 @@ class Runner(object):
         if job.workload.phones_home and not rc.allow_phone_home:
             self.logger.warning('Skipping job {} ({}) due to allow_phone_home=False'
                                 .format(job.id, job.workload.name))
-            job.set_status(Status.SKIPPED)
+            self.context.skip_job(job)
             return
 
         job.set_status(Status.RUNNING)
