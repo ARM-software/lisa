@@ -44,6 +44,28 @@ _indent_width = 4
 _console_handler = None
 
 
+class ContextLogger(logging.Logger):
+
+    def __init__(self, name, context=None):
+        super(ContextLogger, self).__init__(name)
+        self.context = context
+
+    def warning(self, message):
+        if self.context:
+            self.context.add_event(message)
+        super(ContextLogger, self).warning(message)
+
+    def warn(self, message):
+        if self.context:
+            self.context.add_event(message)
+        super(ContextLogger, self).warn(message)
+
+    def error(self, message):
+        if self.context:
+            self.context.add_event(message)
+        super(ContextLogger, self).error(message)
+
+
 def init(verbosity=logging.INFO, color=True, indent_with=4,
          regular_fmt='%(levelname)-8s %(message)s',
          verbose_fmt='%(asctime)s %(levelname)-8s %(name)10.10s: %(message)s',
@@ -51,6 +73,7 @@ def init(verbosity=logging.INFO, color=True, indent_with=4,
     global _indent_width, _console_handler
     _indent_width = indent_with
     signal.log_error_func = lambda m: log_error(m, signal.logger)
+    logging.setLoggerClass(ContextLogger)
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
