@@ -129,7 +129,8 @@ Additional arguments:
 				assthrought connetion.
 				Default ACME_USB=device1
 	--acme_channels		A space separated list for channels ID to sample.
-				For example, "0 2" will enabled sampling on:
+				For example, --acme_channels "0 2" will enabled
+				sampling on:
 				   iio:device0 and iio:device2
 				Default: ACME_CHANNELS="0"
 
