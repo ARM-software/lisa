@@ -715,7 +715,8 @@ class Target(object):
         # We'll use our own retrying mechanism (rather than just using ping's -c
         # to send multiple packets) so that we don't slow things down in the
         # 'good' case where the first packet gets echoed really quickly.
-        for _ in range(5):
+        attempts = 5
+        for _ in range(attempts):
             try:
                 self.execute(command)
                 return True
@@ -736,6 +737,10 @@ class Target(object):
                     # Something else went wrong, we don't know what, raise an
                     # error.
                     raise
+
+        self.logger.debug('Failed to ping {} after {} attempts'.format(
+            GOOGLE_DNS_SERVER_ADDRESS, attempts))
+        return False
 
 class LinuxTarget(Target):
 
