@@ -31,6 +31,8 @@ KVERSION_REGEX =re.compile(
     r'(?P<version>\d+)(\.(?P<major>\d+)(\.(?P<minor>\d+)(-rc(?P<rc>\d+))?)?)?(.*-g(?P<sha1>[0-9a-fA-F]{7,}))?'
 )
 
+GOOGLE_DNS_SERVER_ADDRESS = '8.8.8.8'
+
 
 class Target(object):
 
@@ -701,6 +703,39 @@ class Target(object):
     def _resolve_paths(self):
         raise NotImplementedError()
 
+    def is_network_connected(self):
+        self.logger.debug('Checking for internet connectivity...')
+
+        timeout_s = 5
+        # It would be nice to use busybox for this, but that means we'd need
+        # root (ping is usually setuid so it can open raw sockets to send ICMP)
+        command = 'ping -q -c 1 -w {} {} 2>&1'.format(timeout_s,
+                                                      GOOGLE_DNS_SERVER_ADDRESS)
+
+        # We'll use our own retrying mechanism (rather than just using ping's -c
+        # to send multiple packets) so that we don't slow things down in the
+        # 'good' case where the first packet gets echoed really quickly.
+        for _ in range(5):
+            try:
+                self.execute(command)
+                return True
+            except TargetError as e:
+                err = str(e).lower()
+                if '100% packet loss' in err:
+                    # We sent a packet but got no response.
+                    # Try again - we don't want this to fail just because of a
+                    # transient drop in connection quality.
+                    self.logger.debug('No ping response from {} after {}s'
+                                      .format(GOOGLE_DNS_SERVER_ADDRESS, timeout_s))
+                    continue
+                elif 'network is unreachable' in err:
+                    # No internet connection at all, we can fail straight away
+                    self.logger.debug('Network unreachable')
+                    return False
+                else:
+                    # Something else went wrong, we don't know what, raise an
+                    # error.
+                    raise
 
 class LinuxTarget(Target):
 
