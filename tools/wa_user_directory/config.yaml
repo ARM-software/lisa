@@ -8,8 +8,8 @@ device: generic_android
 allow_phone_home: false
 
 trace_cmd:
-        buffer_size: 102400
-        report: false
+  buffer_size: 102400
+  report: false
 
 # Disable re-trying things that go wrong
 max_retries: 0
