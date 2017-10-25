@@ -153,7 +153,7 @@ class Geekbench(ApkUiautoWorkload):
                                                                          as_root=True).split('\n') if f]
         for i, on_target_output_file in enumerate(on_target_output_files):
             host_temp_file = tempfile.mktemp()
-            self.target.pull(on_target_output_file, host_temp_file)
+            self.target.pull(on_target_output_file, host_temp_file, as_root=True)
             host_output_file = os.path.join(context.output_directory, os.path.basename(on_target_output_file))
             with open(host_temp_file) as fh:
                 data = json.load(fh)
@@ -175,7 +175,7 @@ class Geekbench(ApkUiautoWorkload):
                                                                          as_root=True).split('\n') if f]
         for i, on_target_output_file in enumerate(on_target_output_files):
             host_temp_file = tempfile.mktemp()
-            self.target.pull(on_target_output_file, host_temp_file)
+            self.target.pull(on_target_output_file, host_temp_file, as_root=True)
             host_output_file = os.path.join(context.output_directory, os.path.basename(on_target_output_file))
             with open(host_temp_file) as fh:
                 data = json.load(fh)
