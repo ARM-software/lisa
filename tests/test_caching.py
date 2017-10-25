@@ -14,44 +14,49 @@
 #
 
 import os
+import json
 import shutil
 import sys
 import unittest
 import utils_tests
 import trappy
 from trappy.ftrace import GenericFTrace
+from trappy.systrace import SysTrace
 
 class TestCaching(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         super(TestCaching, self).__init__(
             [("trace_sched.txt", "trace.txt"),
-             ("trace_sched.txt", "trace.raw.txt")],
+             ("trace_sched.txt", "trace.raw.txt"),
+             ("trace_systrace.html", "trace.html")],
             *args,
             **kwargs)
 
     def test_cache_created(self):
         """Test cache creation when enabled"""
         GenericFTrace.disable_cache = False
-        trace = trappy.FTrace()
+        traces = (trappy.FTrace(), trappy.SysTrace(path='./trace.html'))
 
-        trace_path = os.path.abspath(trace.trace_path)
-        trace_dir = os.path.dirname(trace_path)
-        trace_file = os.path.basename(trace_path)
-        cache_dir = '.' + trace_file + '.cache'
+        for trace in traces:
+            trace_path = os.path.abspath(trace.trace_path)
+            trace_dir = os.path.dirname(trace_path)
+            trace_file = os.path.basename(trace_path)
+            cache_dir = '.' + trace_file + '.cache'
 
-        self.assertTrue(cache_dir in os.listdir(trace_dir))
+            self.assertTrue(cache_dir in os.listdir(trace_dir))
 
     def test_cache_not_created(self):
         """Test that cache should not be created when disabled """
         GenericFTrace.disable_cache = True
-        trace = trappy.FTrace()
+        traces = (trappy.FTrace(), trappy.SysTrace(path='./trace.html'))
 
-        trace_path = os.path.abspath(trace.trace_path)
-        trace_dir = os.path.dirname(trace_path)
-        trace_file = os.path.basename(trace_path)
-        cache_dir = '.' + trace_file + '.cache'
+        for trace in traces:
+            trace_path = os.path.abspath(trace.trace_path)
+            trace_dir = os.path.dirname(trace_path)
+            trace_file = os.path.basename(trace_path)
+            cache_dir = '.' + trace_file + '.cache'
 
-        self.assertFalse(cache_dir in os.listdir(trace_dir))
+            self.assertFalse(cache_dir in os.listdir(trace_dir))
 
     def test_compare_cached_vs_uncached(self):
         """ Test that the cached and uncached traces are same """
@@ -107,24 +112,30 @@ class TestCaching(utils_tests.SetupDirectory):
         src = os.path.join(utils_tests.TESTS_DIRECTORY, "trace_sched.txt.cache")
         shutil.copytree(src, cache_path)
 
-        md5_path = os.path.join(cache_path, "md5sum")
-        def read_md5sum():
-            with open(md5_path) as f:
-                return f.read()
+        metadata_path = os.path.join(cache_path, "metadata.json")
+
+        def read_metadata():
+            with open(metadata_path, "r") as f:
+                return json.load(f)
+
+        def write_md5(md5):
+            metadata = read_metadata()
+            metadata["md5sum"] = md5
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f)
+
 
         # Change 1 character of the stored checksum
-        md5sum = read_md5sum()
-        # Sorry, I guess modifying strings in Python is kind of awkward?
-        md5sum_inc = "".join(list(md5sum[:-1]) + [chr(ord(md5sum[-1]) + 1)])
-        with open(md5_path, "w") as f:
-            f.write(md5sum_inc)
+        md5sum = read_metadata()["md5sum"]
+        md5sum_inc = md5sum[:-1] + chr(ord(md5sum[-1]) + 1)
+        write_md5(md5sum_inc)
 
         # Parse a trace, this should delete and overwrite the invalidated cache
         GenericFTrace.disable_cache = False
         trace = trappy.FTrace()
 
         # Check that the modified md5sum was overwritten
-        self.assertNotEqual(read_md5sum(), md5sum_inc,
+        self.assertNotEqual(read_metadata()["md5sum"], md5sum_inc,
                             "The invalid ftrace cache wasn't overwritten")
 
     def test_cache_dynamic_events(self):
@@ -192,6 +203,20 @@ class TestCaching(utils_tests.SetupDirectory):
 
         self.assertEqual(len(trace1.sched_wakeup.data_frame), 2)
 
+    def test_ftrace_metadata(self):
+        """Test that caching keeps trace metadata"""
+        GenericFTrace.disable_cache = False
+
+        self.test_cache_created()
+
+        trace = trappy.FTrace()
+
+        version = int(trace._version)
+        cpus = int(trace._cpus)
+
+        self.assertEquals(version, 6)
+        self.assertEquals(cpus, 6)
+
     def test_cache_delete_single(self):
         GenericFTrace.disable_cache = False
         trace = trappy.FTrace()
@@ -200,7 +225,7 @@ class TestCaching(utils_tests.SetupDirectory):
         trace_dir = os.path.dirname(trace_path)
         trace_file = os.path.basename(trace_path)
         cache_dir = '.' + trace_file + '.cache'
-        number_of_trace_categories = 29
+        number_of_trace_categories = 27
         self.assertEquals(len(os.listdir(cache_dir)), number_of_trace_categories)
 
         os.remove(os.path.join(cache_dir, 'SchedWakeup.csv'))

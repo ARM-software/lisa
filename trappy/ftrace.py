@@ -26,6 +26,8 @@ import hashlib
 import shutil
 import warnings
 
+from tempfile import NamedTemporaryFile
+
 from trappy.bare_trace import BareTrace
 from trappy.utils import listify
 
@@ -66,66 +68,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
     dynamic_classes = {}
 
-    disable_cache = True
-
-    def _trace_cache_path(self):
-        trace_file = self.trace_path
-        cache_dir  = '.' +  os.path.basename(trace_file) + '.cache'
-        tracefile_dir = os.path.dirname(os.path.abspath(trace_file))
-        cache_path = os.path.join(tracefile_dir, cache_dir)
-        return cache_path
-
-    def _check_trace_cache(self, params):
-        cache_path = self._trace_cache_path()
-        md5file = os.path.join(cache_path, 'md5sum')
-        basetime_path = os.path.join(cache_path, 'basetime')
-        params_path = os.path.join(cache_path, 'params.json')
-
-        for path in [cache_path, md5file, params_path]:
-            if not os.path.exists(path):
-                return False
-
-        with open(md5file) as f:
-            cache_md5sum = f.read()
-        with open(basetime_path) as f:
-            self.basetime = float(f.read())
-        with open(self.trace_path, 'rb') as f:
-            trace_md5sum = hashlib.md5(f.read()).hexdigest()
-        with open(params_path) as f:
-            cache_params = json.dumps(json.load(f))
-
-        # Convert to a json string for comparison
-        params = json.dumps(params)
-
-        # check if cache is valid
-        if cache_md5sum != trace_md5sum or cache_params != params:
-            shutil.rmtree(cache_path)
-            return False
-        return True
-
-    def _create_trace_cache(self, params):
-        cache_path = self._trace_cache_path()
-        md5file = os.path.join(cache_path, 'md5sum')
-        basetime_path = os.path.join(cache_path, 'basetime')
-        params_path = os.path.join(cache_path, 'params.json')
-
-        if os.path.exists(cache_path):
-            shutil.rmtree(cache_path)
-        os.mkdir(cache_path)
-
-        md5sum = hashlib.md5(open(self.trace_path, 'rb').read()).hexdigest()
-        with open(md5file, 'w') as f:
-            f.write(md5sum)
-
-        with open(basetime_path, 'w') as f:
-            f.write(str(self.basetime))
-
-        with open(params_path, 'w') as f:
-            json.dump(params, f)
-
-    def _get_csv_path(self, trace_class):
-        path = self._trace_cache_path()
-        return os.path.join(path, trace_class.__class__.__name__ + '.csv')
+    disable_cache = False
 
     def __init__(self, name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
@@ -151,6 +94,9 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         self.normalize_time = normalize_time
         self.window = window
         self.abs_window = abs_window
+        self.max_window = (0, None)
+
+        self._do_parse()
 
     @classmethod
     def register_parser(cls, cobject, scope):
@@ -191,46 +137,186 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             if cobject == obj:
                 del scope_classes[name]
 
-    def _do_parse(self):
-        params = {'window': self.window, 'abs_window': self.abs_window}
-        if not self.__class__.disable_cache and self._check_trace_cache(params):
-            # Read csv into frames
-            for trace_class in self.trace_classes:
-                try:
-                    csv_file = self._get_csv_path(trace_class)
-                    trace_class.read_csv(csv_file)
-                    trace_class.cached = True
-                except:
-                    warnstr = "TRAPpy: Couldn't read {} from cache, reading it from trace".format(trace_class)
-                    warnings.warn(warnstr)
+    def _calc_max_window(self):
+        """
+        Compute the maximum window of the 'window' & 'abs_window' intersection
+        """
+        max_window = [0, None]
+        max_window[0] = max(self.window[0] + self.basetime, self.abs_window[0])
 
-        if all([c.cached for c in self.trace_classes]):
-            if self.normalize_time:
-                self._normalize_time()
+        if (self.window[1] is not None) and (self.abs_window[1] is not None):
+            max_window[1] = max(self.window[1] + self.basetime, self.abs_window[1])
+        elif self.window[1] is not None:
+            max_window[1] = self.window[1] + self.basetime
+        elif self.abs_window[1] is not None:
+            max_window[1] = self.abs_window[1]
+
+        return max_window
+
+    def _windowify_class(self, trace_class, window):
+        if len(trace_class.data_frame) < 1:
             return
 
-        self.__parse_trace_file(self.trace_path)
+        if window[1]:
+            trace_class.data_frame = trace_class.data_frame[
+                window[0]:window[1]]
+        elif window[0]:
+            trace_class.data_frame = trace_class.data_frame[
+                window[0]:]
 
-        self.finalize_objects()
+    def _trace_cache_path(self):
+        trace_file = self.trace_path
+        cache_dir  = '.' +  os.path.basename(trace_file) + '.cache'
+        tracefile_dir = os.path.dirname(os.path.abspath(trace_file))
+        cache_path = os.path.join(tracefile_dir, cache_dir)
+        return cache_path
 
-        if not self.__class__.disable_cache:
-            try:
-                # Recreate basic cache directories only if nothing cached
-                if not any([c.cached for c in self.trace_classes]):
-                    self._create_trace_cache(params)
+    def _get_csv_path(self, trace_class):
+        path = self._trace_cache_path()
+        return os.path.join(path, trace_class.__class__.__name__ + '.csv')
 
+    def _get_cache_metadata(self):
+        cache_path = self._trace_cache_path()
+        metadata_path = os.path.join(cache_path, 'metadata.json')
+
+        metadata = {}
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+
+        return metadata
+
+    def _is_cache_valid(self, cache_metadata):
+        for key in ["md5sum", "basetime"]:
+            if key not in cache_metadata.keys():
+                warnstr = "Cache metadata is erroneous, invalidating cache"
+                warnings.warn(warnstr)
+                return False
+
+        with open(self.trace_path, 'rb') as f:
+            trace_md5sum = hashlib.md5(f.read()).hexdigest()
+
+        if cache_metadata["md5sum"] != trace_md5sum:
+            warnstr = "Cached data is from another trace, invalidating cache."
+            warnings.warn(warnstr)
+            return False
+
+        return True
+
+    def _prepare_cache_dir(self):
+        cache_path = self._trace_cache_path()
+
+        if os.path.exists(cache_path):
+            shutil.rmtree(cache_path)
+        os.mkdir(cache_path)
+
+    def _update_cache(self):
+        try:
+            # Recreate basic cache directories only if nothing cached
+            if not any([c.cached for c in self.trace_classes]):
+                self._prepare_cache_dir()
+
+                # Write cache metadata
+                metadata_path = os.path.join(self._trace_cache_path(), 'metadata.json')
+
+                metadata = self._get_metadata_to_cache()
+
+                with open(metadata_path, 'w') as f:
+                    json.dump(metadata, f)
+
+            # Cache trace data
+            for trace_class in self.trace_classes:
                 # Write out only events that weren't cached before
-                for trace_class in self.trace_classes:
-                    if trace_class.cached:
-                        continue
-                    csv_file = self._get_csv_path(trace_class)
-                    trace_class.write_csv(csv_file)
-            except OSError as err:
-                warnings.warn(
-                    "TRAPpy: Cache not created due to OS error: {0}".format(err))
+                if trace_class.cached:
+                    continue
+
+                csv_file = self._get_csv_path(trace_class)
+                trace_class.write_csv(csv_file)
+        except OSError as err:
+            warnings.warn(
+                "TRAPpy: Cache not created due to OS error: {0}".format(err))
+
+    def _get_metadata_to_cache(self):
+        # By default, some amount of metadata is saved in metadata.json
+        # Additionnal metadata can be saved by overriding this method
+        metadata = {}
+
+        metadata["md5sum"] = hashlib.md5(
+            open(self.trace_path, 'rb').read()
+        ).hexdigest()
+        metadata["basetime"] = self.basetime
+
+        return metadata
+
+    def _load_cache(self):
+        cache_path = self._trace_cache_path()
+        if not os.path.exists(cache_path):
+            return
+
+        metadata = self._get_cache_metadata()
+
+        if not self._is_cache_valid(metadata):
+            shutil.rmtree(cache_path)
+            return
+
+        # Load metadata
+        self._load_metadata_from_cache(metadata)
+        self.max_window = self._calc_max_window()
+
+        # Load trace data
+        for trace_class in self.trace_classes:
+            try:
+                csv_file = self._get_csv_path(trace_class)
+                trace_class.read_csv(csv_file)
+                trace_class.cached = True
+            except:
+                warnstr = "TRAPpy: Couldn't read {} from cache, reading it from trace".format(trace_class)
+                warnings.warn(warnstr)
+
+    def _load_metadata_from_cache(self, metadata):
+        # By default, some amount of metadata is loaded from metadata.json
+        # Additionnal metadata can be loaded by overriding this method,
+        # providing it has been saved by overriding _get_extra_data_to_cache
+        self.basetime = metadata["basetime"]
+
+    def _apply_user_parameters(self):
+        # Traces are read without any window consideration, so we apply
+        # the window after reading the cache or parsing the trace
+        for trace_class in self.trace_classes:
+            self._windowify_class(trace_class, self.max_window)
 
         if self.normalize_time:
             self._normalize_time()
+
+    def _do_parse(self):
+        if not self.__class__.disable_cache:
+            self._load_cache()
+
+            # Check if cache data is enough
+            if all([c.cached for c in self.trace_classes]):
+                self._apply_user_parameters()
+                return
+
+        self._parsing_setup()
+
+        self.__parse_trace_file(self.file_to_parse)
+        self.finalize_objects()
+
+        # Update (or create) cache directory
+        if not self.__class__.disable_cache:
+            self._update_cache()
+
+        self._apply_user_parameters()
+
+        self._parsing_teardown()
+
+    def _parsing_setup(self):
+        # By default, the file pointed by trace_path is parsed. However, an
+        # intermediate file could be required. Subclasses can override this
+        # method and set the file_to_parse parameter to something else.
+        self.file_to_parse = self.trace_path
+
+    def _parsing_teardown(self):
+        pass
 
     def __add_events(self, events):
         """Add events to the class_definitions
@@ -306,15 +392,8 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
             if not self.basetime:
                 self.basetime = timestamp
-
-            if (timestamp < self.window[0] + self.basetime) or \
-               (timestamp < self.abs_window[0]):
-                self.lines += 1
-                continue
-
-            if (self.window[1] and timestamp > self.window[1] + self.basetime) or \
-               (self.abs_window[1] and timestamp > self.abs_window[1]):
-                return
+                # Now that we know the basetime, we can derive max_window
+                self.max_window = self._calc_max_window()
 
             # Remove empty arrays from the trace
             if "={}" in data_str:
@@ -644,28 +723,45 @@ class FTrace(GenericFTrace):
 
     def __init__(self, path=".", name="", normalize_time=True, scope="all",
                  events=[], window=(0, None), abs_window=(0, None)):
-        super(FTrace, self).__init__(name, normalize_time, scope, events,
-                                     window, abs_window)
+
         self.raw_events = []
         self.trace_path = self.__process_path(path)
-        self.__populate_metadata()
-        self._do_parse()
 
-    def __warn_about_txt_trace_files(self, trace_dat, raw_txt, formatted_txt):
-        self.__get_raw_event_list()
-        warn_text = ( "You appear to be parsing both raw and formatted "
-                      "trace files. TRAPpy now uses a unified format. "
-                      "If you have the {} file, remove the .txt files "
-                      "and try again. If not, you can manually move "
-                      "lines with the following events from {} to {} :"
-                      ).format(trace_dat, raw_txt, formatted_txt)
-        for raw_event in self.raw_events:
-            warn_text = warn_text+" \"{}\"".format(raw_event)
+        super(FTrace, self).__init__(name, normalize_time, scope, events,
+                                     window, abs_window)
 
-        raise RuntimeError(warn_text)
+    def _parsing_setup(self):
+        super(FTrace, self)._parsing_setup()
+
+        if self.read_from_dat:
+            self.file_to_parse = self.__generate_trace_txt(self.trace_path)
+
+        # file_to_parse is already set to trace_path in the superclass,
+        # so no "else" is needed here
+
+        self.__populate_trace_metadata(self.__get_trace_metadata())
+
+    def _parsing_teardown(self):
+        super(FTrace, self)._parsing_teardown()
+
+        # Remove the .txt trace if it was generated from a .dat
+        if self.read_from_dat:
+            os.remove(self.file_to_parse)
+
+    def _load_metadata_from_cache(self, metadata):
+        super(FTrace, self)._load_metadata_from_cache(metadata)
+
+        self.__populate_trace_metadata(metadata["ftrace"])
+
+    def _get_metadata_to_cache(self):
+        res = super(FTrace, self)._get_metadata_to_cache()
+
+        res["ftrace"] = self.metadata
+
+        return res
 
     def __process_path(self, basepath):
-        """Process the path and return the path to the trace text file"""
+        """Process the path and return the path to the file to parse"""
 
         if os.path.isfile(basepath):
             trace_name = os.path.splitext(basepath)[0]
@@ -676,32 +772,33 @@ class FTrace(GenericFTrace):
         trace_raw_txt = trace_name + ".raw.txt"
         trace_dat = trace_name + ".dat"
 
+        trace_to_read = None
+        self.read_from_dat = False
+
         if os.path.isfile(trace_dat):
-            # Warn users if raw.txt files are present
-            if os.path.isfile(trace_raw_txt):
-                self.__warn_about_txt_trace_files(trace_dat, trace_raw_txt, trace_txt)
-            # TXT traces must always be generated
-            if not os.path.isfile(trace_txt):
-                self.__run_trace_cmd_report(trace_dat)
-            # TXT traces must match the most recent binary trace
-            elif os.path.getmtime(trace_txt) < os.path.getmtime(trace_dat):
-                self.__run_trace_cmd_report(trace_dat)
+            trace_to_read = trace_dat
+            self.read_from_dat = True
+        elif os.path.isfile(trace_txt):
+            # Warn users if txt file is all we have
+            warnstr = (
+                "Reading from .txt file, .dat is preferred. Not only do " +
+                ".txt files occupy more disk space, it is also not possible " +
+                "to determine the format of the traces contained within them."
+            )
+            warnings.warn(warnstr)
+            trace_to_read = trace_txt
+        elif os.path.isfile(trace_raw_txt):
+            # Warn users if raw.txt file is all we have
+            warnstr = ".raw.txt trace format is no longer supported"
+            raise RuntimeError(warnstr)
+        else:
+            warnstr = "Could not find any trace file in {}".format(basepath)
+            raise IOError(warnstr)
 
-        return trace_txt
+        return trace_to_read
 
-    def __get_raw_event_list(self):
-        self.raw_events = []
-        # Generate list of events which need to be parsed in raw format
-        for event_class in (self.thermal_classes, self.sched_classes, self.dynamic_classes):
-            for trace_class in event_class.itervalues():
-                raw = getattr(trace_class, 'parse_raw', None)
-                if raw:
-                    name = getattr(trace_class, 'name', None)
-                    if name:
-                        self.raw_events.append(name)
-
-    def __run_trace_cmd_report(self, fname):
-        """Run "trace-cmd report [ -r raw_event ]* fname > fname.txt"
+    def __generate_trace_txt(self, trace_dat):
+        """Run "trace-cmd report [ -r raw_event ]* trace_dat > tempfile"
 
         The resulting trace is stored in files with extension ".txt". If
         fname is "my_trace.dat", the trace is stored in "my_trace.txt". The
@@ -715,16 +812,15 @@ class FTrace(GenericFTrace):
 
         cmd = ["trace-cmd", "report"]
 
-        if not os.path.isfile(fname):
-            raise IOError("No such file or directory: {}".format(fname))
+        if not os.path.isfile(trace_dat):
+            raise IOError("No such file or directory: {}".format(trace_dat))
 
-        trace_output = os.path.splitext(fname)[0] + ".txt"
         # Ask for the raw event list and request them unformatted
         self.__get_raw_event_list()
         for raw_event in self.raw_events:
             cmd.extend([ '-r', raw_event ])
 
-        cmd.append(fname)
+        cmd.append(trace_dat)
 
         with open(os.devnull) as devnull:
             try:
@@ -734,31 +830,50 @@ class FTrace(GenericFTrace):
                     raise OSError(2, "trace-cmd not found in PATH, is it installed?")
                 else:
                     raise
-        with open(trace_output, "w") as fout:
+
+        tempf = NamedTemporaryFile(delete=False)
+        with tempf as fout:
             fout.write(out)
 
+        return tempf.name
 
-    def __populate_metadata(self):
-        """Populates trace metadata"""
+    def __get_raw_event_list(self):
+        self.raw_events = []
+        # Generate list of events which need to be parsed in raw format
+        for event_class in (self.thermal_classes, self.sched_classes, self.dynamic_classes):
+            for trace_class in event_class.itervalues():
+                raw = getattr(trace_class, 'parse_raw', None)
+                if raw:
+                    name = getattr(trace_class, 'name', None)
+                    if name:
+                        self.raw_events.append(name)
 
+    def __get_trace_metadata(self):
         # Meta Data as expected to be found in the parsed trace header
         metadata_keys = ["version", "cpus"]
+        res = {}
 
         for key in metadata_keys:
             setattr(self, "_" + key, None)
 
-        with open(self.trace_path) as fin:
+        with open(self.file_to_parse) as fin:
             for line in fin:
                 if not metadata_keys:
-                    return
+                    return res
 
                 metadata_pattern = r"^\b(" + "|".join(metadata_keys) + \
                                    r")\b\s*=\s*([0-9]+)"
                 match = re.search(metadata_pattern, line)
                 if match:
-                    setattr(self, "_" + match.group(1), match.group(2))
+                    res[match.group(1)] = match.group(2)
                     metadata_keys.remove(match.group(1))
 
                 if SPECIAL_FIELDS_RE.match(line):
                     # Reached a valid trace line, abort metadata population
-                    return
+                    return res
+
+    def __populate_trace_metadata(self, metadata):
+        self.metadata = metadata
+
+        for key, value in metadata.iteritems():
+            setattr(self, "_" + key, value)
