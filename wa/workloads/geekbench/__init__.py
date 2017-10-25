@@ -122,9 +122,11 @@ class Geekbench(ApkUiautoWorkload):
 
     def initialize(self, context):
         super(Geekbench, self).initialize(context)
-        if not self.target.is_rooted:
+        if not self.disable_update_result and not self.target.is_rooted:
             raise WorkloadError(
-                'Geekbench workload requires root to collect results')
+                'Geekbench workload requires root to collect results. '
+                'You can set disable_update_result=True in the workload params '
+                'to run without collecting results.')
 
     def setup(self, context):
         super(Geekbench, self).setup(context)
