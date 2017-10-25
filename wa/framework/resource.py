@@ -93,7 +93,7 @@ class File(Resource):
         return self.path == path
 
     def __str__(self):
-        return '<{}\'s {} {}>'.format(self.owner, self.kind, self.path)
+        return '<{}\'s {} {} file>'.format(self.owner, self.kind, self.path)
 
 
 class Executable(Resource):
@@ -109,7 +109,7 @@ class Executable(Resource):
         return self.filename == os.path.basename(path)
 
     def __str__(self):
-        return '<{}\'s {} {}>'.format(self.owner, self.abi, self.filename)
+        return '<{}\'s {} {} executable>'.format(self.owner, self.abi, self.filename)
 
 
 class ReventFile(Resource):
