@@ -132,6 +132,9 @@ class PluginCache(object):
         kwargs = dict(config.items() + kwargs.items())
         return self.loader.get_plugin(name, kind=kind, *args, **kwargs)
 
+    def get_plugin_class(self, name, kind=None):
+        return self.loader.get_plugin_class(name, kind)
+
     @memoized
     def get_plugin_parameters(self, name):
         if name in self.targets:
