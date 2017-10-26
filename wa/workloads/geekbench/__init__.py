@@ -122,9 +122,11 @@ class Geekbench(ApkUiautoWorkload):
 
     def initialize(self, context):
         super(Geekbench, self).initialize(context)
-        if not self.target.is_rooted:
+        if not self.disable_update_result and not self.target.is_rooted:
             raise WorkloadError(
-                'Geekbench workload requires root to collect results')
+                'Geekbench workload requires root to collect results. '
+                'You can set disable_update_result=True in the workload params '
+                'to run without collecting results.')
 
     def setup(self, context):
         super(Geekbench, self).setup(context)
@@ -153,7 +155,7 @@ class Geekbench(ApkUiautoWorkload):
                                                                          as_root=True).split('\n') if f]
         for i, on_target_output_file in enumerate(on_target_output_files):
             host_temp_file = tempfile.mktemp()
-            self.target.pull(on_target_output_file, host_temp_file)
+            self.target.pull(on_target_output_file, host_temp_file, as_root=True)
             host_output_file = os.path.join(context.output_directory, os.path.basename(on_target_output_file))
             with open(host_temp_file) as fh:
                 data = json.load(fh)
@@ -175,7 +177,7 @@ class Geekbench(ApkUiautoWorkload):
                                                                          as_root=True).split('\n') if f]
         for i, on_target_output_file in enumerate(on_target_output_files):
             host_temp_file = tempfile.mktemp()
-            self.target.pull(on_target_output_file, host_temp_file)
+            self.target.pull(on_target_output_file, host_temp_file, as_root=True)
             host_output_file = os.path.join(context.output_directory, os.path.basename(on_target_output_file))
             with open(host_temp_file) as fh:
                 data = json.load(fh)
