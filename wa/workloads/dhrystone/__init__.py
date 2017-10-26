@@ -82,7 +82,8 @@ class Dhrystone(Workload):
         else: 
             execution_mode = '-r {}'.format(self.duration)
         if self.taskset_mask:
-            taskset_string = 'busybox taskset 0x{:x} '.format(self.taskset_mask)
+            taskset_string = '{} taskset 0x{:x} '.format(self.target.busybox,
+                                                         self.taskset_mask)
         else:
             taskset_string = ''
         self.command = '{}{} {} -t {} -d {}'.format(taskset_string,
