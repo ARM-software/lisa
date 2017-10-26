@@ -1,0 +1,13 @@
+# Skeleton global config.yaml for WA3
+device: generic_android
+
+trace_cmd:
+  buffer_size: 102400
+  report: false
+
+# Disable re-trying things that go wrong
+max_retries: 0
+
+# If any of the workloads fail during the initialization phase, don't bail out
+# on the rest of the run
+bail_on_init_failure: false
