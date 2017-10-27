@@ -903,8 +903,17 @@ class AndroidRuntimeConfig(RuntimeConfig):
             # about to run a workload that is going to check for network
             # connectivity.
             if old_airplane_mode and not new_airplane_mode:
-                self.logger.info('Disabled airplane mode, waiting 5 seconds for network setup')
-                time.sleep(5)
+                self.logger.info('Disabled airplane mode, waiting up to 20 seconds for network setup')
+                network_is_ready = False
+                for _ in range(4):
+                    time.sleep(5)
+                    network_is_ready = self.target.is_network_connected()
+                    if network_is_ready:
+                        break
+                if network_is_ready:
+                    self.logger.info("Found a network")
+                else:
+                    self.logger.warning("Network unreachable")
 
         if 'brightness' in self.config:
             self.target.set_brightness(self.config['brightness'])
