@@ -21,14 +21,17 @@ Machine based installation](https://github.com/ARM-software/lisa/wiki/Installati
 	# Install optional tools required for some notebooks and tests
 	$ sudo apt-get install nmap net-tools tree
 
-	# Install required python packages
-	$ sudo apt-get install python-matplotlib python-numpy libfreetype6-dev libpng12-dev python-nose
+	# Install required libraries packages
+	$ sudo apt-get install libfreetype6-dev libpng12-dev
 
 	# Install the Python package manager
 	$ sudo apt-get install python-pip python-dev
 
 	# Update the Python package manager (some distribution may have an outdated version)
 	$ pip install --upgrade pip
+
+	# Install (upgrade) required python packages
+	$ sudo pip install --upgrade matplotlib numpy nose
 
 	# Install (upgrade) required Python libraries
 	$ sudo pip install --upgrade Cython trappy bart-py devlib psutil wrapt
