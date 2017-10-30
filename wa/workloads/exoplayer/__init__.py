@@ -40,6 +40,7 @@ DOWNLOAD_URLS = {
     'mp4_1080p': 'http://distribution.bbb3d.renderfarming.net/video/mp4/bbb_sunflower_1080p_30fps_normal.mp4',
     'mov_720p':  'http://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_720p_h264.mov',
     'mov_480p':  'http://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_480p_h264.mov',
+    'ogg_128kbps': 'http://upload.wikimedia.org/wikipedia/commons/c/ca/Tchaikovsky_-_Romeo_and_Juliet_Ouverture_-_Antal_Dorati_(1959).ogg',
 }
 
 
