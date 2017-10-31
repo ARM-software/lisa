@@ -603,6 +603,36 @@ class LogcatMonitor(object):
         """
         Return the list of lines found by the monitor
         """
+        # Unless we tell pexect to 'expect' something, it won't read from
+        # logcat's buffer or write into our logfile. We'll need to force it to
+        # read any pending logcat output.
+        while True:
+            try:
+                read_size = 1024 * 8
+                # This will read up to read_size bytes, but only those that are
+                # already ready (i.e. it won't block). If there aren't any bytes
+                # already available it raises pexpect.TIMEOUT.
+                buf = self._logcat.read_nonblocking(read_size, timeout=0)
+
+                # We can't just keep calling read_nonblocking until we get a
+                # pexpect.TIMEOUT (i.e. until we don't find any available
+                # bytes), because logcat might be writing bytes the whole time -
+                # in that case we might never return from this function. In
+                # fact, we only care about bytes that were written before we
+                # entered this function. So, if we read read_size bytes (as many
+                # as we were allowed to), then we'll assume there are more bytes
+                # that have already been sitting in the output buffer of the
+                # logcat command. If not, we'll assume we read everything that
+                # had already been written.
+                if len(buf) == read_size:
+                    continue
+                else:
+                    break
+            except pexpect.TIMEOUT:
+                # No available bytes to read. No prob, logcat just hasn't
+                # printed anything since pexpect last read from its buffer.
+                break
+
         with open(self._logfile.name) as fh:
             return [line for line in fh]
 
