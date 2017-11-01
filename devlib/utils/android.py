@@ -182,18 +182,6 @@ class AdbConnection(object):
     def name(self):
         return self.device
 
-    @property
-    @memoized
-    def newline_separator(self):
-        output = adb_command(self.device,
-                             "shell '({}); echo \"\n$?\"'".format(self.ls_command), adb_server=self.adb_server)
-        if output.endswith('\r\n'):
-            return '\r\n'
-        elif output.endswith('\n'):
-            return '\n'
-        else:
-            raise DevlibError("Unknown line ending")
-
     # Again, we need to handle boards where the default output format from ls is
     # single column *and* boards where the default output is multi-column.
     # We need to do this purely because the '-1' option causes errors on older
@@ -250,7 +238,7 @@ class AdbConnection(object):
     def execute(self, command, timeout=None, check_exit_code=False,
                 as_root=False, strip_colors=True):
         return adb_shell(self.device, command, timeout, check_exit_code,
-                         as_root, self.newline_separator,adb_server=self.adb_server)
+                         as_root, adb_server=self.adb_server)
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         return adb_background_shell(self.device, command, stdout, stderr, as_root)
@@ -367,7 +355,7 @@ def _ping(device):
 
 
 def adb_shell(device, command, timeout=None, check_exit_code=False,
-              as_root=False, newline_separator='\r\n', adb_server=None):  # NOQA
+              as_root=False, adb_server=None):  # NOQA
     _check_env()
     if as_root:
         command = 'echo \'{}\' | su'.format(escape_single_quotes(command))
@@ -387,9 +375,9 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
     raw_output, error = check_output(actual_command, timeout, shell=False)
     if raw_output:
         try:
-            output, exit_code, _ = raw_output.rsplit(newline_separator, 2)
+            output, exit_code, _ = raw_output.replace('\r\n', '\n').replace('\r', '\n').rsplit('\n', 2)
         except ValueError:
-            exit_code, _ = raw_output.rsplit(newline_separator, 1)
+            exit_code, _ = raw_output.replace('\r\n', '\n').replace('\r', '\n').rsplit('\n', 1)
             output = ''
     else:  # raw_output is empty
         exit_code = '969696'  # just because
