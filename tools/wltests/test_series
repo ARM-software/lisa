@@ -264,6 +264,10 @@ while [[ $# -gt 0 ]]; do
 		RESULTS=$2
 		shift
 	;;
+	--reboot_timeout)
+		REBOOT_TIMEOUT=$2
+		shift
+	;;
 	--force)
 		FORCE=1
 	;;
