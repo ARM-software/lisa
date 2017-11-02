@@ -10,20 +10,20 @@
     "nrg_model": {
         "big": {
             "cluster": {
-                "nrg_max": 413
+                "nrg_max": 433
             },
             "cpu": {
-                "cap_max": 1023,
-                "nrg_max": 1214
+                "cap_max": 1024,
+                "nrg_max": 2848
             }
         },
         "little": {
             "cluster": {
-                "nrg_max": 84
+                "nrg_max": 144
             },
             "cpu": {
-                "cap_max": 402,
-                "nrg_max": 242
+                "cap_max": 462,
+                "nrg_max": 502
             }
         }
     },
