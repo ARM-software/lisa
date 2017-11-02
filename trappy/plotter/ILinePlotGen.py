@@ -243,12 +243,12 @@ class ILinePlotGen(object):
 
         self._check_add_scatter(fig_params)
 
-        if "group" in self._attr:
-            fig_params["syncGroup"] = self._attr["group"]
-            if "sync_zoom" in self._attr:
-                fig_params["syncZoom"] = self._attr["sync_zoom"]
-            else:
-                fig_params["syncZoom"] = AttrConf.DEFAULT_SYNC_ZOOM
+        # Use a hash of this object as a default for the sync group, so that if
+        # 'sync_zoom=True' then by default (i.e. if 'group' is not specified),
+        # all the plots in a figure are synced.
+        fig_params["syncGroup"] = self._attr.get("group", str(hash(self)))
+        fig_params["syncZoom"] = self._attr.get("sync_zoom",
+                                                AttrConf.DEFAULT_SYNC_ZOOM)
 
         if "ylim" in self._attr:
             fig_params["valueRange"] = self._attr["ylim"]
