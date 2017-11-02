@@ -182,7 +182,7 @@ class PELTStats(_PELTStats):
     pass
 
 _PELTRange = namedtuple('PELTRange', [
-    'min_value', 'max_value', 'time'])
+    'min_value', 'max_value'])
 class PELTRange(_PELTRange):
     """Stability range for the PELT signal of a given PeriodicTask
 
@@ -283,8 +283,7 @@ class Simulator(object):
         :type  task: PeriodicTask
 
         :return: :mod:`PELTRange` instance representing the minimum and maximum
-                 value of the PELT signal once stable along with the instant of
-                 time when the signal starts becoming stable.
+                 value of the PELT signal once stable.
         """
 
         # Validate input parameters
@@ -305,6 +304,23 @@ class Simulator(object):
         min_pelt *= self._signal_max
         max_pelt *= self._signal_max
 
+        return PELTRange(min_pelt, max_pelt)
+
+    def stableTime(self, task):
+        """
+        Compute instant of time after which the signal can be considered to be
+        stable.
+
+        :returns: float - time after which the signal is stable
+        """
+        stable_range = self.stableRange(task)
+        min_pelt = stable_range.min_value
+        max_pelt = stable_range.max_value
+
+        # Validate input parameters
+        if self._df is None:
+            raise ValueError("no signal computed, run getSignal before")
+
         if self.init_value < max_pelt:
             # Look for the max (with 0.1% tolerance)
             cond = (self._df.pelt_value > max_pelt * 0.999) & \
@@ -313,10 +329,7 @@ class Simulator(object):
             # Look for the min (with 0.1% tolerance)
             cond = (self._df.pelt_value < min_pelt * 1.001) & \
                    (self._df.pelt_value >= min_pelt)
-        stable_time = self._df[cond].index[0]
-
-        return PELTRange(min_pelt, max_pelt, stable_time)
-
+        return self._df[cond].index[0]
 
     def getSignal(self, task, start_s=0, end_s=10):
         """Compute the PELT signal for the specified task and interval.
@@ -452,6 +465,65 @@ class Simulator(object):
             _pelt_avg, _pelt_init, _half_life,
             _tmin, _tmax, _min, _max,
             _avg, _std, _err, _err_pct)
+
+    @classmethod
+    def estimateInitialPeltValue(cls, first_val, first_event_time_s,
+                                 start_time_s, half_life_ms):
+        """
+        There will typically be a delay between the time when a task starts,
+        and the first trace event that logs PELT signals for that task. During
+        this time the signal will change from its initial value. This method
+        takes the time at which a task starts running and the timestamp and
+        value of the first PELT trace event related to that task. It returns an
+        estimate for the value the PELT signal had the task started. Example:
+
+            +---------------------+      Task is RUNNING
+            |              E      |
+
+          --+--------------+------+--------- Time --->
+            ^              ^
+        task_start     first PELT event logged for the task
+
+        This method estimates the value of the PELT signal at task_start,
+        assuming the task was running in the interval of time between
+        task_start and the first PELT event logged of the task.
+
+        :param first_val: value of the very first event realted to the
+            task that shows PELT info
+        :type first_val: int
+
+        :param first_event_time_s: instant of time in seconds when the first
+            PELT event related to the task was generated
+        :type first_event_time_s: float
+
+        :param start_time_s: instant of time in seconds when the task starts
+            running for the first time
+        :type start_time_s: float
+
+        :param half_life_ms: the [ms] interval required by a signal to
+                             increased/decreased by half of its range
+        :type  half_life_ms: int
+
+        :returns: int - Estimated value of PELT signal when the task starts
+        """
+        geom_y = pow(0.5, 1./half_life_ms)
+        geom_u = float(cls._signal_max) * (1. - geom_y)
+
+        # Compute period of time between when the task started and when the
+        # first sched_load_avg_task event was generated
+        time_since_start = first_event_time_s - start_time_s
+
+        if time_since_start < 0:
+            raise ValueError('First sched_load_avg_* event '
+                             'happens before the task starts')
+        # Compute number of times the simulated PELT would be updated in this
+        # period of time
+        updates_since_start = int(time_since_start / (cls._sample_us / 1e6))
+        pelt_val = first_val
+        for i in range(updates_since_start):
+            pelt_val = (pelt_val - geom_u) / geom_y
+
+        return pelt_val
 
 
 ################################################################################
