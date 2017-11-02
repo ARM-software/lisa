@@ -70,27 +70,28 @@ class TestCaching(utils_tests.SetupDirectory):
         cached_trace = trappy.FTrace(uncached_trace.trace_path)
         cached_dfr = cached_trace.sched_wakeup.data_frame
 
-        # Test whether timestamps are the same:
-        # The cached/uncached versions of the timestamps are slightly
-        # different due to floating point precision errors due to converting
-        # back and forth CSV and DataFrame. For all purposes this is not relevant
-        # since such rounding doesn't effect the end result.
-        # Here's an example of the error, the actual normalized time when
-        # calculated by hand is 0.081489, however following is what's stored
-        # in the CSV for sched_wakeup events in this trace.
-        # When converting the index to strings (and also what's in the CSV)
-        # cached: ['0.0814890000001', '1.981491']
-        # uncached: ['0.0814890000001', '1.981491']
+        # By default, the str to float conversion done when reading from csv is
+        # different from the one used when reading from the trace.txt file.
         #
-        # Keeping index as numpy.float64
-        # cached: [0.081489000000100009, 1.9814909999999999]
-        # uncached: [0.081489000000146916, 1.9814909999995507]
+        # Here's an example:
+        # - trace.txt string timestamps:
+        #   [76.402065, 80.402065, 80.001337]
+        # - parsed dataframe timestamps:
+        #   [76.402065000000007, 80.402065000000007, 82.001337000000007]
         #
-        # To make it possible to test, lets just convert the timestamps to strings
-        # and compare them below.
+        # - csv string timestamps:
+        #   [76.402065, 80.402065, 80.001337]
+        # - cached dataframe timestamps:
+        #   [76.402064999999993, 80.402064999999993, 82.001337000000007]
+        #
+        # To fix this, the timestamps read from the cache are converted using
+        # the same conversion method as the trace.txt parser, which results in
+        # cache-read timestamps being identical to trace-read timestamps.
+        #
+        # This test ensures that this stays true.
 
-        cached_times = [str(r[0]) for r in cached_dfr.iterrows()]
-        uncached_times = [str(r[0]) for r in uncached_dfr.iterrows()]
+        cached_times = [r[0] for r in cached_dfr.iterrows()]
+        uncached_times = [r[0] for r in uncached_dfr.iterrows()]
 
         self.assertTrue(cached_times == uncached_times)
 
@@ -182,7 +183,7 @@ class TestCaching(utils_tests.SetupDirectory):
         self.assertEqual(trace2.cpu_frequency.data_frame.index[0],
                          first_freq_event_time - start_time)
 
-    def test_cache_window(self):
+    def test_cache_window_broad(self):
         """Test that caching doesn't break the 'window' parameter"""
         GenericFTrace.disable_cache = False
 
@@ -202,6 +203,28 @@ class TestCaching(utils_tests.SetupDirectory):
             window=(0, None))
 
         self.assertEqual(len(trace1.sched_wakeup.data_frame), 2)
+
+    def test_cache_window_narrow(self):
+        """
+        Test that applying a window to a cached trace returns EXACTLY what is expected
+        """
+        # As described in test_compare_cache_vs_uncached, reading from cache
+        # results in slightly different timestamps
+        #
+        # This test verifies that applying windows results in identical
+        # dataframes whether cache is used or not.
+        GenericFTrace.disable_cache = False
+
+        uncached_trace = trappy.FTrace()
+
+        trace = trappy.FTrace(uncached_trace.trace_path,
+                              normalize_time=False,
+                              abs_window=(6550.100000, 6552.000002))
+
+        self.assertAlmostEquals(trace.get_duration(), 1.900002)
+
+        self.assertEquals(len(trace.sched_wakeup.data_frame), 2)
+        self.assertEquals(len(trace.sched_wakeup_new.data_frame), 1)
 
     def test_ftrace_metadata(self):
         """Test that caching keeps trace metadata"""

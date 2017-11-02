@@ -284,7 +284,13 @@ class Base(object):
         :param fname: The name of the CSV file
         :type fname: str
         """
-        self.data_frame = pd.read_csv(fname, index_col = 0)
+        self.data_frame = pd.read_csv(
+            fname,
+            index_col=0,
+            # This ensures cached vs parsed timestamps are converted using the
+            # same method, aka python's float() and not numpy's
+            converters={'Time' : float}
+        )
 
     def normalize_time(self, basetime):
         """Substract basetime from the Time of the data frame
