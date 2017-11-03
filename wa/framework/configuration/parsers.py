@@ -207,7 +207,7 @@ def _load_file(filepath, error_name):
 
 
 def merge_result_processors_instruments(raw):
-    instr_config = JobSpec.configuration['instrumentation']
+    instr_config = JobSpec.configuration['augmentations']
     instruments = toggle_set(pop_aliased_param(instr_config, raw, default=[]))
     result_processors = toggle_set(raw.pop('result_processors', []))
     if instruments and result_processors:
@@ -217,7 +217,7 @@ def merge_result_processors_instruments(raw):
                   'conflicting entries: {}'
             entires = ', '.join('"{}"'.format(c.strip("~")) for c in conflicts)
             raise ConfigError(msg.format(entires))
-    raw['instrumentation'] = instruments.merge_with(result_processors)
+    raw['augmentations'] = instruments.merge_with(result_processors)
 
 
 def _pop_aliased(d, names, entry_id):
@@ -257,8 +257,8 @@ def _construct_valid_entry(raw, seen_ids, prefix, jobs_config):
             cfg_point.validate_value(name, value)
             workload_entry[name] = value
 
-    if "instrumentation" in workload_entry:
-        jobs_config.update_enabled_instruments(workload_entry["instrumentation"])
+    if "augmentations" in workload_entry:
+        jobs_config.update_enabled_augmentations(workload_entry["augmentations"])
 
     # error if there are unknown workload_entry
     if raw:

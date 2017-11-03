@@ -894,11 +894,15 @@ class JobSpec(Configuration):
                            name. For example, the csv result processor will put
                            the label in the "workload" column of the CSV file.
                            '''),
-        ConfigurationPoint('instrumentation', kind=toggle_set, merge=True,
-                           aliases=["instruments"],
+        ConfigurationPoint('augmentations', kind=toggle_set, merge=True,
+                           aliases=["instruments", "processors", "instrumentation",
+                                    "result_processors", "augment"],
                            description='''
-                           The instruments to enable (or disabled using a ~)
-                           during this workload spec.
+                           The instruments and result processors to enable (or
+                           disabled using a ~) during this workload spec. This combines the
+                           "instrumentation" and "result_processors" from
+                           previous versions of WA (the old entries are now
+                           aliases for this).
                            '''),
         ConfigurationPoint('flash', kind=dict, merge=True,
                            description='''
@@ -1039,7 +1043,7 @@ class JobGenerator(object):
     def set_global_value(self, name, value):
         JobSpec.configuration[name].set_value(self.job_spec_template, value,
                                               check_mandatory=False)
-        if name == "instrumentation":
+        if name == "augmentations":
             self.update_enabled_instruments(value)
 
     def add_section(self, section, workloads):
@@ -1090,7 +1094,7 @@ class JobGenerator(object):
 
 
 def create_job_spec(workload_entry, sections, target_manager, plugin_cache,
-                    disabled_instruments):
+                    disabled_augmentations):
     job_spec = JobSpec()
 
     # PHASE 2.1: Merge general job spec configuration
@@ -1105,8 +1109,8 @@ def create_job_spec(workload_entry, sections, target_manager, plugin_cache,
     job_spec.merge_runtime_parameters(plugin_cache, target_manager)
     target_manager.validate_runtime_parameters(job_spec.runtime_parameters)
 
-    # PHASE 2.4: Disable globally disabled instrumentation
-    job_spec.set("instrumentation", disabled_instruments)
+    # PHASE 2.4: Disable globally disabled augmentations
+    job_spec.set("augmentations", disabled_augmentations)
     job_spec.finalize()
 
     return job_spec
