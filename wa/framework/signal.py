@@ -110,10 +110,10 @@ BEFORE_WORKLOAD_EXECUTION = Signal('before-workload-execution', invert_priority=
 SUCCESSFUL_WORKLOAD_EXECUTION = Signal('successful-workload-execution')
 AFTER_WORKLOAD_EXECUTION = Signal('after-workload-execution')
 
-BEFORE_WORKLOAD_RESULT_EXTRACTION = Signal('before-workload-result-exptracton',
+BEFORE_WORKLOAD_RESULT_EXTRACTION = Signal('before-workload-result-extracton',
                                        invert_priority=True)
-SUCCESSFUL_WORKLOAD_RESULT_EXTRACTION = Signal('successful-workload-result-exptracton')
-AFTER_WORKLOAD_RESULT_EXTRACTION = Signal('after-workload-result-exptracton')
+SUCCESSFUL_WORKLOAD_RESULT_EXTRACTION = Signal('successful-workload-result-extracton')
+AFTER_WORKLOAD_RESULT_EXTRACTION = Signal('after-workload-result-extracton')
 
 BEFORE_WORKLOAD_OUTPUT_UPDATE = Signal('before-workload-output-update',
                                        invert_priority=True)
