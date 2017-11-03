@@ -339,8 +339,7 @@ class WaResultsCollector(object):
                   'sched_load_cfs_rq', 'sched_load_avg_task', 'thermal_temperature']
         trace = Trace(self.platform, trace_path, events)
 
-        if hasattr(trace.data_frame, 'cpu_wakeups'): # Not merged in LISA yet
-            metrics.append(('cpu_wakeup_count', len(trace.data_frame.cpu_wakeups()), None))
+        metrics.append(('cpu_wakeup_count', len(trace.data_frame.cpu_wakeups()), None))
 
         # Helper to get area under curve of multiple CPU active signals
         def get_cpu_time(trace, cpus):
