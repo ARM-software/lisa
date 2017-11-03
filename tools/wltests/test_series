@@ -735,7 +735,7 @@ flash_sha1() {
 
 	### Wait for boot to complete
 	[ $DRYRUN -eq 1 ] || \
-	until boot_not_completed || reboot_not_timedout; do
+	until boot_completed || reboot_timedout; do
 		sleep 3; let ELAPSED+=3
 	done
 	echo
