@@ -359,7 +359,7 @@ class prioritylist(object):
 
 class toggle_set(set):
     """
-    A list that contains items to enable or disable something.
+    A set that contains items to enable or disable something.
 
     A prefix of ``~`` is used to denote disabling something, for example
     the list ['apples', '~oranges', 'cherries'] enables both ``apples``
