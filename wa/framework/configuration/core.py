@@ -1022,13 +1022,20 @@ class JobGenerator(object):
         self._read_enabled_instruments = True
         return self._enabled_instruments
 
+    @property
+    def enabled_processors(self):
+        self._read_enabled_processors = True
+        return self._enabled_processors
+
     def __init__(self, plugin_cache):
         self.plugin_cache = plugin_cache
         self.ids_to_run = []
         self.sections = []
         self.workloads = []
         self._enabled_instruments = set()
+        self._enabled_processors = set()
         self._read_enabled_instruments = False
+        self._read_enabled_processors = False
         self.disabled_instruments = []
 
         self.job_spec_template = obj_dict(not_in_dict=['name'])

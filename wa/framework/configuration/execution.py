@@ -46,6 +46,10 @@ class ConfigManager(object):
         return self.jobs_config.enabled_instruments
 
     @property
+    def enabled_processors(self):
+        return self.jobs_config.enabled_processors
+
+    @property
     def job_specs(self):
         if not self._jobs_generated:
             msg = 'Attempting to access job specs before '\
@@ -96,7 +100,7 @@ class ConfigManager(object):
 
     def get_processors(self):
         processors = []
-        for name in self.run_config.result_processors:
+        for name in self.enabled_processors:
             try:
                 proc = self.plugin_cache.get_plugin(name, kind='result_processor')
             except NotFoundError:
