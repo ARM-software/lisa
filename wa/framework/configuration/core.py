@@ -1051,7 +1051,7 @@ class JobGenerator(object):
         JobSpec.configuration[name].set_value(self.job_spec_template, value,
                                               check_mandatory=False)
         if name == "augmentations":
-            self.update_enabled_instruments(value)
+            self.update_augmentations(value)
 
     def add_section(self, section, workloads):
         new_node = self.root_node.add_section(section)
@@ -1065,11 +1065,22 @@ class JobGenerator(object):
         #TODO: Validate
         self.disabled_instruments = ["~{}".format(i) for i in instruments]
 
-    def update_enabled_instruments(self, value):
-        if self._read_enabled_instruments:
-            msg = "'enabled_instruments' cannot be updated after it has been accessed"
-            raise RuntimeError(msg)
-        self._enabled_instruments.update(value)
+    def update_augmentations(self, value):
+        for entry in value:
+            entry_cls = self.plugin_cache.get_plugin_class(entry)
+            if entry_cls.kind == 'instrument':
+                if self._read_enabled_instruments:
+                    msg = "'enabled_instruments' cannot be updated after it has been accessed"
+                    raise RuntimeError(msg)
+                self._enabled_instruments.add(entry)
+            elif entry_cls.kind == 'result_processor':
+                if self._read_enabled_processors:
+                    msg = "'enabled_processors' cannot be updated after it has been accessed"
+                    raise RuntimeError(msg)
+                self._enabled_processors.add(entry)
+            else:
+                msg = 'Unknown augmentation type: {}'
+                raise ConfigError(msg.format(entry_cls.kind))
 
     def only_run_ids(self, ids):
         if isinstance(ids, str):
@@ -1095,7 +1106,7 @@ class JobGenerator(object):
                             break
                     else:
                         continue
-                self.update_enabled_instruments(job_spec.instrumentation.values())
+                self.update_augmentations(job_spec.augmentations.values())
                 specs.append(job_spec)
         return specs
 
