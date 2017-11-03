@@ -1036,7 +1036,7 @@ class JobGenerator(object):
         self._enabled_processors = set()
         self._read_enabled_instruments = False
         self._read_enabled_processors = False
-        self.disabled_instruments = []
+        self.disabled_augmentations = []
 
         self.job_spec_template = obj_dict(not_in_dict=['name'])
         self.job_spec_template.name = "globally specified job spec configuration"
@@ -1061,9 +1061,9 @@ class JobGenerator(object):
     def add_workload(self, workload):
         self.root_node.add_workload(workload)
 
-    def disable_instruments(self, instruments):
+    def disable_augmentations(self, augmentations):
         #TODO: Validate
-        self.disabled_instruments = ["~{}".format(i) for i in instruments]
+        self.disabled_augmentations = ["~{}".format(i) for i in augmentations]
 
     def update_augmentations(self, value):
         for entry in value:
@@ -1099,7 +1099,7 @@ class JobGenerator(object):
             for workload_entry in workload_entries:
                 job_spec = create_job_spec(deepcopy(workload_entry), sections,
                                            target_manager, self.plugin_cache,
-                                           self.disabled_instruments)
+                                           self.disabled_augmentations)
                 if self.ids_to_run:
                     for job_id in self.ids_to_run:
                         if job_id in job_spec.id:

@@ -72,17 +72,18 @@ class RunCommand(Command):
                                  workloads in the agenda will be ignored. This
                                  option may be used to specify multiple IDs.
                                  """)
-        self.parser.add_argument('--disable', action='append', dest='instruments_to_disable',
+        self.parser.add_argument('--disable', action='append', dest='augmentations_to_disable',
                                  default=[],
                                  metavar='INSTRUMENT', help="""
-                                 Specify an instrument to disable from the
-                                 command line. This equivalent to adding
-                                 "~{metavar}" to the instrumentation list in
-                                 the agenda. This can be used to temporarily
-                                 disable a troublesome instrument for a
-                                 particular run without introducing permanent
-                                 change to the config (which one might then
-                                 forget to revert).  This option may be
+                                 Specify an instrument or result processor to
+                                 disable from the command line. This equivalent
+                                 to adding "~{metavar}" to the instrumentation
+                                 list in the agenda. This can be used to
+                                 temporarily disable a troublesome instrument
+                                 for a particular run without introducing
+                                 permanent change to the config (which one
+                                 might then forget to revert).  This option may
+                                 be
         specified multiple times.
                                  """)
 
@@ -93,9 +94,9 @@ class RunCommand(Command):
         self.logger.debug('Version: {}'.format(get_wa_version()))
         self.logger.debug('Command Line: {}'.format(' '.join(sys.argv)))
 
-        disabled_instruments = toggle_set(["~{}".format(i) 
-                                           for i in args.instruments_to_disable])
-        config.jobs_config.disable_instruments(disabled_instruments)
+        disabled_augmentations = toggle_set(["~{}".format(i)
+                                           for i in args.augmentations_to_disable])
+        config.jobs_config.disable_augmentations(disabled_augmentations)
         config.jobs_config.only_run_ids(args.only_run_ids)
 
         parser = AgendaParser()
