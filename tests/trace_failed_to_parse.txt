@@ -1,0 +1,11 @@
+     kworker/5:2-1497  [005]   454.414591: thermal_temperature:  thermal_zone=cls0 id=0 temp_prev=62357 temp=79553
+     kworker/5:2-1497  [005]   454.414603: thermal_power_cpu_get_power: [FAILED TO PARSE] cpumask=ARRAY[0f, 00, 00, 00, 00, 00, 00, 00] freq=0x82208 load=ARRAY[02, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00] load_len=4 dynamic_power=0 static_power=0
+     kworker/5:2-1497  [005]   454.414607: thermal_power_cpu_get_power: [FAILED TO PARSE] cpumask=ARRAY[f0, 00, 00, 00, 00, 00, 00, 00] freq=0x240a90 load=ARRAY[02, 00, 00, 00, 02, 00, 00, 00, 02, 00, 00, 00, 02, 00, 00, 00] load_len=4 dynamic_power=125 static_power=0
+     kworker/5:2-1497  [005]   454.414610: thermal_power_allocator_pid: thermal_zone_id=0 err=-4553 err_integral=-4553 p=-2046 i=-45 d=0 output=2410
+     kworker/5:2-1497  [005]   454.414615: thermal_power_cpu_limit: cpus=00000000,0000000f freq=533000 cdev_state=4 power=0
+     kworker/5:2-1497  [005]   454.414623: thermal_power_cpu_limit: cpus=00000000,000000f0 freq=2362000 cdev_state=0 power=2410
+     kworker/5:2-1497  [005]   454.414625: thermal_power_allocator: [FAILED TO PARSE] tz_id=0 req_power=ARRAY[00, 00, 00, 00, 7d, 00, 00, 00] total_req_power=125 granted_power=ARRAY[00, 00, 00, 00, 6a, 09, 00, 00] total_granted_power=2410 num_actors=2 power_range=2410 max_allocatable_power=7264 current_temp=79553 delta_temp=-4553
+     kworker/5:2-1497  [005]   454.414629: sched_load_avg_cpu:   cpu=5 load_avg=253 util_avg=1007 util_avg_pelt=1007 util_avg_walt=0
+     kworker/5:2-1497  [005]   454.414630: sched_load_avg_task:  comm=kworker/5:2 pid=1497 cpu=5 load_avg=0 util_avg=0 util_avg_pelt=0 util_avg_walt=0 load_sum=47104 util_sum=47058 period_contrib=602
+     kworker/5:2-1497  [005]   454.414630: sched_tune_tasks_update: pid=1497 comm=kworker/5:2 cpu=5 tasks=1 idx=0 boost=0 max_boost=0
+     kworker/5:2-1497  [005]   454.414632: sched_load_avg_task:  comm=big-max5 pid=5274 cpu=5 load_avg=1021 util_avg=1020 util_avg_pelt=1020 util_avg_walt=0 load_sum=48813227 util_sum=48718500 period_contrib=919

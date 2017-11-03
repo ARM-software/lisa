@@ -29,9 +29,10 @@ import warnings
 from tempfile import NamedTemporaryFile
 
 from trappy.bare_trace import BareTrace
+from trappy.exception import TrappyParseError
 from trappy.utils import listify
 
-class FTraceParseError(Exception):
+class FTraceParseError(TrappyParseError):
     pass
 
 def _plot_freq_hists(allfreqs, what, axis, title):

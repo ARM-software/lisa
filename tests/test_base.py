@@ -19,7 +19,9 @@ import sys
 import unittest
 import utils_tests
 import trappy
+import warnings
 from trappy.base import trace_parser_explode_array
+from trappy import TrappyParseError
 
 sys.path.append(os.path.join(utils_tests.TESTS_DIRECTORY, "..", "trappy"))
 
@@ -75,7 +77,8 @@ class TestBase(utils_tests.SetupDirectory):
     def __init__(self, *args, **kwargs):
         super(TestBase, self).__init__(
              [("../doc/trace.txt", "trace.txt"),
-              ("trace_equals.txt", "trace_equals.txt")],
+              ("trace_equals.txt", "trace_equals.txt"),
+              ("trace_failed_to_parse.txt", "trace_failed_to_parse.txt")],
              *args,
              **kwargs)
 
@@ -238,3 +241,10 @@ class TestBase(utils_tests.SetupDirectory):
         self.assertListEqual(df["my_field"].tolist(),
                              ["foo", "foo=bar", "foo=bar=baz", 1,
                               "1=2", "1=foo", "1foo=2"])
+    def test_failed_to_parse(self):
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            trace = trappy.FTrace("trace_failed_to_parse.txt",
+                                  events=['thermal_power_cpu_get_power'])
+        self.assertGreater(len(caught_warnings), 0)
+        for caught_warning in caught_warnings:
+            self.assertIn('trace-cmd', str(caught_warning.message))
