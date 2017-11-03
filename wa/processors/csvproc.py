@@ -54,7 +54,7 @@ class CsvReportProcessor(ResultProcessor):
 
     def process_run_result(self, output, target_info):
         self.results_so_far.append(output.result)
-        self._write_results(self.rsults_so_far, output)
+        self._write_results(self.results_so_far, output)
         if not self.artifact_added:
             output.add_artifact('run_result_csv', 'results.csv', 'export')
             self.artifact_added = True
