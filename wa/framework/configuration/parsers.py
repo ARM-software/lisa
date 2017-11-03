@@ -41,7 +41,7 @@ class ConfigParser(object):
             if 'id' in raw:
                 raise ConfigError('"id" cannot be set globally')
 
-            merge_result_processors_instruments(raw)
+            merge_augmentations(raw)
 
             # Get WA core configuration
             for cfg_point in state.settings.configuration.itervalues():
@@ -206,18 +206,37 @@ def _load_file(filepath, error_name):
     return raw
 
 
-def merge_result_processors_instruments(raw):
-    instr_config = JobSpec.configuration['augmentations']
-    instruments = toggle_set(pop_aliased_param(instr_config, raw, default=[]))
-    result_processors = toggle_set(raw.pop('result_processors', []))
-    if instruments and result_processors:
-        conflicts = instruments.conflicts_with(result_processors)
-        if conflicts:
-            msg = '"instrumentation" and "result_processors" have '\
-                  'conflicting entries: {}'
-            entires = ', '.join('"{}"'.format(c.strip("~")) for c in conflicts)
-            raise ConfigError(msg.format(entires))
-    raw['augmentations'] = instruments.merge_with(result_processors)
+def merge_augmentations(raw):
+    """
+    Since, from configuration perspective, result processors and instrumens are
+    handled identically, the configuration entries are now interchangeable. E.g. it is
+    now valid to specify a result processor in instrumentation list. This is to make things
+    eassier for the users, as, from their perspective, the distinction is somewhat arbitrary.
+
+    For backwards compatibility, both entries are still valid, and this
+    function merges them together into a single "augmentations" set, ensuring
+    that there are no conflicts between the entries.
+
+    """
+    cfg_point = JobSpec.configuration['augmentations']
+    names = [cfg_point.name,] + cfg_point.aliases
+
+    entries = [toggle_set(raw.pop(n)) for n in names if n in raw]
+
+    # Make sure none of the specified aliases conflict with each other
+    to_check = [e for e in entries]
+    while len(to_check) > 1:
+        check_entry = to_check.pop()
+        for e in to_check:
+            conflicts = check_entry.conflicts_with(e)
+            if conflicts:
+                msg = '"{}" and "{}" have conflicting entries: {}'
+                conflict_string  = ', '.join('"{}"'.format(c.strip("~"))
+                                             for c in conflicts)
+                raise ConfigError(msg.format(check_entry, e, conflict_string))
+
+    if entries:
+        raw['augmentations'] = reduce(lambda x, y: x.merge_with(y), entries)
 
 
 def _pop_aliased(d, names, entry_id):
@@ -247,7 +266,7 @@ def _construct_valid_entry(raw, seen_ids, prefix, jobs_config):
         workload_entry['id'] = raw.pop('id')
 
     # Process instrumentation
-    merge_result_processors_instruments(raw)
+    merge_augmentations(raw)
 
     # Validate all workload_entry
     for name, cfg_point in JobSpec.configuration.iteritems():
