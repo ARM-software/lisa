@@ -81,7 +81,7 @@ class CsvReportProcessor(ResultProcessor):
                 header = [o.id, o.label, o.iteration]
                 for metric in o.result.metrics:
                     row = (header + [metric.name] +
-                           [str(metric.classifiers.get(c, '')) 
+                           [str(metric.classifiers.get(c, ''))
                             for c in extra_columns] +
                            [str(metric.value), metric.units or ''])
                     writer.writerow(row)
