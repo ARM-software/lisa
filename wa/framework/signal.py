@@ -81,7 +81,7 @@ RUN_COMPLETED = Signal('run-completed', 'set upon completion of the run (regardl
 JOB_STARTED = Signal('job-started', 'set when a a new job has been started')
 JOB_ABORTED = Signal('job-aborted',
                      description='''
-                     sent if a job has been aborted due to a keyboard interrupt. 
+                     sent if a job has been aborted due to a keyboard interrupt.
 
                      .. note:: While the status of every job that has not had a
                                chance to run due to being interrupted will be
@@ -301,11 +301,11 @@ def send(signal, sender=dispatcher.Anonymous, *args, **kwargs):
 log_error_func = logger.error
 
 
-def safe_send(signal, sender=dispatcher.Anonymous, 
+def safe_send(signal, sender=dispatcher.Anonymous,
               propagate=[KeyboardInterrupt], *args, **kwargs):
     """
     Same as ``send``, except this will catch and log all exceptions raised
-    by handlers, except those specified in ``propagate`` argument (defaults 
+    by handlers, except those specified in ``propagate`` argument (defaults
     to just ``[KeyboardInterrupt]``).
     """
     try:
