@@ -537,3 +537,19 @@ class TestTraceDat(utils_tests.SetupDirectory):
 
         self.assertTrue(len(dfr) > 0)
         self.assertFalse(os.path.exists("trace.dat"))
+
+class TestTraceTxtNoTrailingLine(utils_tests.SetupDirectory):
+    """Test that we don't produce garbage when trace.txt has no trailing line"""
+    def __init__(self, *args, **kwargs):
+        super(TestTraceTxtNoTrailingLine, self).__init__(
+             [("trace_no_trailing_line.txt", "trace.txt")],
+             *args,
+             **kwargs)
+
+    def test_no_trailing_line(self):
+        ftrace = trappy.FTrace()
+
+        self.assertSetEqual(
+            set(ftrace.cpu_idle.data_frame['cpu_id'].unique()),
+            set([0, 3]))
+

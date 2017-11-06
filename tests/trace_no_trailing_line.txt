@@ -1,0 +1,10 @@
+          <idle>-0     [000] d..2  1136.097253: cpu_idle: state=0 cpu_id=0
+          <idle>-0     [000] d..2  1136.097346: cpu_idle: state=4294967295 cpu_id=0
+          chrome-2804  [003] d..3  1136.097350: sched_switch: prev_comm=chrome prev_pid=2804 prev_prio=112 prev_state=S ==> next_comm=swapper/3 next_pid=0 next_prio=120
+          <idle>-0     [003] d..2  1136.097366: cpu_idle: state=0 cpu_id=3
+          <idle>-0     [000] d..2  1136.097378: cpu_idle: state=0 cpu_id=0
+          <idle>-0     [000] d..2  1136.097471: cpu_idle: state=4294967295 cpu_id=0
+          <idle>-0     [000] d..2  1136.097503: cpu_idle: state=0 cpu_id=0
+          <idle>-0     [000] d..2  1136.097596: cpu_idle: state=4294967295 cpu_id=0
+          <idle>-0     [000] d..2  1136.097629: cpu_idle: state=0 cpu_id=0
+          <idle>-0     [000] d..2  1136.097721: cpu_idle: state=4294967295 cpu_id=0
