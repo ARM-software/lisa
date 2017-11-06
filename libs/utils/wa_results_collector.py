@@ -172,7 +172,7 @@ class WaResultsCollector(object):
 
             # WA3 results dirs contains a __meta directory at the top level.
             if '__meta' not in os.listdir(dir):
-                self.log.warning('Ignoring {}, does not contain __meta directory')
+                self._log.warning('Ignoring {}, does not contain __meta directory')
                 continue
 
             dirs.append(dir)
