@@ -373,7 +373,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                 self.lines += 1
                 continue
 
-            line = line[:-1]
+            line = line.rstrip()
 
             fields_match = SPECIAL_FIELDS_RE.match(line)
             if not fields_match:
