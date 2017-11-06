@@ -511,8 +511,8 @@ class Configuration(object):
     def from_pod(cls, pod):
         instance = cls()
         for cfg_point in cls.config_points:
-            if name in pod:
-                value = pod.pop(name)
+            if cfg_point.name in pod:
+                value = pod.pop(cfg_point.name)
                 if hasattr(cfg_point.kind, 'from_pod'):
                     value = cfg_point.kind.from_pod(value)
                 cfg_point.set_value(instance, value)
@@ -922,7 +922,7 @@ class JobSpec(Configuration):
     def from_pod(cls, pod):
         job_id = pod.pop('id')
         instance = super(JobSpec, cls).from_pod(pod)
-        instance['id'] = job_id
+        instance.id = job_id
         return instance
 
     @property
