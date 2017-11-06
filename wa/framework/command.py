@@ -23,7 +23,7 @@ from wa.utils.doc import format_body
 
 def init_argument_parser(parser):
     parser.add_argument('-c', '--config', action='append', default=[],
-                        help='specify an additional config.py')
+                        help='specify an additional config.yaml')
     parser.add_argument('-v', '--verbose', action='count',
                         help='The scripts will produce verbose output.')
     parser.add_argument('--version', action='version',
