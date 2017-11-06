@@ -26,7 +26,7 @@ def init_argument_parser(parser):
                         help='specify an additional config.py')
     parser.add_argument('-v', '--verbose', action='count',
                         help='The scripts will produce verbose output.')
-    parser.add_argument('--version', action='version', 
+    parser.add_argument('--version', action='version',
                         version='%(prog)s {}'.format(get_wa_version()))
     return parser
 
@@ -73,7 +73,7 @@ class SubCommand(object):
         :state: An initialized ``ConfigManager`` that contains the current state of
                 WA exeuction up to that point (processed configuraition, loaded
                 plugins, etc).
-        :args: An ``argparse.Namespace`` containing command line arguments (as 
+        :args: An ``argparse.Namespace`` containing command line arguments (as
                returned by ``argparse.ArgumentParser.parse_args()``. This would
                usually be the result of invoking ``self.parser``.
 
