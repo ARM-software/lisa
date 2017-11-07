@@ -811,7 +811,7 @@ class CpuidleRuntimeConfig(RuntimeConfig):
         '''Find common values for cpu idle states across all cores'''
         common_idle_states = []
         for cpu in range(self.target.number_of_cpus):
-            for state in self.supported_idle_states.get(cpu):
+            for state in self.supported_idle_states.get(cpu) or []:
                 if state.name not in common_idle_states:
                     common_idle_states.append(state)
         return common_idle_states
