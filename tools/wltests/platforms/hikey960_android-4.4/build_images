@@ -12,9 +12,29 @@ source "${PLATFORM_PATH}/definitions"
 ./build --image --dtbs --silent; ERROR=$?
 [ $ERROR -eq 0 ] || exit $ERROR
 
-./android/create_boot_img.sh; ERROR=$?
-[ $ERROR -eq 0 ] || exit $ERROR
+build_fastboot_image() {
+	./android/create_boot_img.sh; ERROR=$?
+	[ $ERROR -eq 0 ] || exit $ERROR
 
-./android/create_dt_img.sh; ERROR=$?
-[ $ERROR -eq 0 ] || exit $ERROR
+	./android/create_dt_img.sh; ERROR=$?
+	[ $ERROR -eq 0 ] || exit $ERROR
+}
 
+build_uefi_image() {
+	./android/create_aboot_img.sh; ERROR=$?
+	[ $ERROR -eq 0 ] || exit $ERROR
+}
+
+case $BOOTLOADER in
+"fastboot")
+	build_fastboot_image; ERROR=$?
+	;;
+"uefi")
+	build_uefi_image; ERROR=$?
+	;;
+*)
+	c_error "Bootloader $BOOTLOADER not supported"
+	exit $EINVAL
+	;;
+esac
+[ $ERROR -eq 0 ] || exit $ERROR
