@@ -65,3 +65,48 @@ class FilesystemExt4SyncFileExit(FilesystemExt4Base):
     """The unique word that will be matched in a trace line"""
 
 register_ftrace_parser(FilesystemExt4SyncFileExit)
+
+class FilesystemF2FSBase(Base):
+    def generate_data_dict(self, data_str):
+        data_str = data_str.replace(" = ", "=")
+        data_str = data_str.replace(",", " ")
+        return super(FilesystemF2FSBase, self).generate_data_dict(data_str)
+
+    def finalize_object(self):
+        self.data_frame.rename(columns={'ino':'inode'}, inplace=True)
+
+class FilesystemF2FSWriteBegin(FilesystemF2FSBase):
+    """Corresponds to Linux kernel trace event f2fs_write_begin"""
+
+    unique_word = "f2fs_write_begin:"
+    """The unique word that will be matched in a trace line"""
+
+register_ftrace_parser(FilesystemF2FSWriteBegin)
+
+class FilesystemF2FSWriteEnd(FilesystemF2FSBase):
+    """Corresponds to Linux kernel trace event f2fs_write_end"""
+
+    unique_word = "f2fs_write_end:"
+    """The unique word that will be matched in a trace line"""
+
+register_ftrace_parser(FilesystemF2FSWriteEnd)
+
+class FilesystemF2FSSyncFileEnter(FilesystemF2FSBase):
+    """Corresponds to Linux kernel trace event f2fs_sync_file_enter"""
+
+    unique_word = "f2fs_sync_file_enter:"
+    """The unique word that will be matched in a trace line"""
+
+register_ftrace_parser(FilesystemF2FSSyncFileEnter)
+
+class FilesystemF2FSSyncFileExit(FilesystemF2FSBase):
+    """Corresponds to Linux kernel trace event f2fs_sync_file_exit"""
+
+    unique_word = "f2fs_sync_file_exit:"
+    """The unique word that will be matched in a trace line"""
+
+    def generate_data_dict(self, data_str):
+        data_str = data_str.replace("checkpoint is ", "checkpoint = ")
+        return super(FilesystemF2FSSyncFileExit, self).generate_data_dict(data_str)
+
+register_ftrace_parser(FilesystemF2FSSyncFileExit)
