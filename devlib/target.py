@@ -1200,6 +1200,17 @@ class AndroidTarget(Target):
         else:
             raise TargetError('Can\'t install {}: unsupported format.'.format(filepath))
 
+    def grant_package_permission(self, package, permission):
+        try:
+            return self.execute('pm grant {} {}'.format(package, permission))
+        except TargetError as e:
+            if 'is not a changeable permission type' in e.message:
+                pass # Ignore if unchangeable
+            elif 'Unknown permission' in e.message:
+                pass # Ignore if unknown
+            else:
+                raise
+
     def install_executable(self, filepath, with_name=None):
         self._ensure_executables_directory_is_writable()
         executable_name = with_name or os.path.basename(filepath)
