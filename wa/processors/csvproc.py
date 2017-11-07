@@ -42,28 +42,28 @@ class CsvReportProcessor(ResultProcessor):
             raise ConfigError(msg)
 
     def initialize(self):
-        self.results_so_far = []  # pylint: disable=attribute-defined-outside-init
+        self.outputs_so_far = []  # pylint: disable=attribute-defined-outside-init
         self.artifact_added = False
 
     def process_job_output(self, output, target_info, run_output):
-        self.results_so_far.append(output)
-        self._write_results(self.results_so_far, run_output)
+        self.outputs_so_far.append(output)
+        self._write_outputs(self.outputs_so_far, run_output)
         if not self.artifact_added:
             run_output.add_artifact('run_result_csv', 'results.csv', 'export')
             self.artifact_added = True
 
     def process_run_output(self, output, target_info):
-        self.results_so_far.append(output.result)
-        self._write_results(self.results_so_far, output)
+        self.outputs_so_far.append(output)
+        self._write_outputs(self.outputs_so_far, output)
         if not self.artifact_added:
             output.add_artifact('run_result_csv', 'results.csv', 'export')
             self.artifact_added = True
 
-    def _write_results(self, results, output):
+    def _write_outputs(self, outputs, output):
         if self.use_all_classifiers:
             classifiers = set([])
-            for result in results:
-                for metric in result.metrics:
+            for output in outputs:
+                for metric in output.metrics:
                     classifiers.update(metric.classifiers.keys())
             extra_columns = list(classifiers)
         elif self.extra_columns:
@@ -77,8 +77,18 @@ class CsvReportProcessor(ResultProcessor):
             writer.writerow(['id', 'workload', 'iteration', 'metric', ] +
                             extra_columns + ['value', 'units'])
 
-            for o in results:
-                header = [o.id, o.label, o.iteration]
+            for o in outputs:
+                if o.kind == 'job':
+                    header = [o.id, o.label, o.iteration]
+                elif o.kind == 'run':
+                    # Should be a RunOutput. Run-level metrics aren't attached
+                    # to any job so we leave 'id' and 'iteration' blank, and use
+                    # the run name for the 'label' field.
+                    header = [None, o.info.run_name, None]
+                else:
+                    raise RuntimeError(
+                        'Output of kind "{}" unrecognised by csvproc'.format(o.kind))
+
                 for metric in o.result.metrics:
                     row = (header + [metric.name] +
                            [str(metric.classifiers.get(c, ''))
