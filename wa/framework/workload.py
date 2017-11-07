@@ -39,6 +39,15 @@ class Workload(TargetedPlugin):
 
     kind = 'workload'
 
+    parameters = [
+        Parameter('cleanup_assets', kind=bool,
+                  default=True,
+                  description="""
+                  If ``True``, if assets are deployed as part of the workload they
+                  will be removed again from the device as part of finalize.
+                  """)
+    ]
+
     phones_home = False
     """
     Set this to True to mark that this workload poses a risk of exposing
@@ -56,6 +65,19 @@ class Workload(TargetedPlugin):
     connection, this enables it to fail early with a clear message.
     """
 
+    asset_directory = None
+    """
+    Set this to specify a custom directory for assets to be pushed to, if unset
+    the working directory will be used.
+    """
+
+    deployable_assets = []
+    asset_files = []
+    deployed_assets = []
+    """
+    Used to store information about workload assets.
+    """
+
     def init_resources(self, context):
         """
         This method may be used to perform early resource discovery and
@@ -67,13 +89,15 @@ class Workload(TargetedPlugin):
         """
         pass
 
+    @once_per_instance
     def initialize(self, context):
         """
         This method should be used to perform once-per-run initialization of a
         workload instance, i.e., unlike ``setup()`` it will not be invoked on
         each iteration.
         """
-        pass
+        if self.deployable_assets:
+            self.deploy_assets()
 
     def setup(self, context):
         """
@@ -114,8 +138,27 @@ class Workload(TargetedPlugin):
         """ Perform any final clean up for the Workload. """
         pass
 
+    @once_per_instance
     def finalize(self, context):
-        pass
+        if self.cleanup_assets:
+            self.remove_assets(context)
+
+    def deploy_assets(self, context):
+        """ Deploy assets if avaliable to the target """
+        if not self.asset_directory:
+            self.asset_directory = self.target.working_directory
+        else:
+            self.target.execute('mkdir -p {}'.format(self.asset_directory))
+
+        for i, asset in enumerate(self.deployable_assets):
+            self.target.push(self.asset_files[i], self.asset_directory)
+            self.deployed_assets.append(self.target.path.join(self.asset_directory,
+                                                              asset))
+
+    def remove_assets(self, context):
+        """ Cleanup assets deployed to the target """
+        for asset in self.deployed_assets:
+            self.target.remove(asset)
 
     def __str__(self):
         return '<Workload {}>'.format(self.name)
@@ -193,11 +236,13 @@ class ApkWorkload(Workload):
                                   exact_abi=self.exact_abi)
 
     def init_resources(self, context):
-        pass
+        for asset in self.deployable_assets:
+            self.asset_files.append(context.resolver.get(File(self, asset)))
 
     @once_per_instance
     def initialize(self, context):
         self.apk.initialize(context)
+        self.deploy_assets(context)
         if self.view is None:
             self.view = 'SurfaceView - {}/{}'.format(self.apk.package,
                                                      self.apk.activity)
@@ -219,6 +264,10 @@ class ApkWorkload(Workload):
     @once_per_instance
     def finalize(self, context):
         pass
+
+    def deploy_assets(self, context):
+        super(ApkWorkload, self).deploy_assets(context)
+        self.target.refresh_files(self.deployed_assets)
 
 
 class ApkUIWorkload(ApkWorkload):
