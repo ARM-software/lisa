@@ -5,11 +5,13 @@
 
 PLATFORM_NAME="Hikey960_Android"
 
+BOOT_UEFI="${BOOT_UEFI:-YES}"
+
 ################################################################################
 # Boot Image Configuration
 ################################################################################
 
-KERNEL_IMAGE="${KERNEL_IMAGE:-Image.gz}"
+KERNEL_IMAGE="${KERNEL_IMAGE:-Image}"
 KERNEL_CMDLINE="${KERNEL_CMDLINE:-\
  loglevel=15\
  androidboot.hardware=hikey960\
@@ -17,7 +19,7 @@ KERNEL_CMDLINE="${KERNEL_CMDLINE:-\
  firmware_class.path=/system/etc/firmware\
  buildvariant=userdebug\
 }"
-RAMDISK_IMAGE="${RAMDISK_IMAGE:-ramdisk.gz}"
+RAMDISK_IMAGE="${RAMDISK_IMAGE:-ramdisk.img}"
 KERNEL_DTB="${KERNEL_DTB:-hisilicon/hi3660-hikey960.dtb}"
 
 ANDROID_BOOT_IMAGE="${ANDROID_BOOT_IMAGE:-boot.img}"
@@ -28,6 +30,9 @@ ANDROID_OS_PATCH_LEVEL="${ANDROID_OS_PATCH_LEVEL:-2017-04-05}"
 ANDROID_TAGS_OFFSET="${ANDROID_TAGS_OFFSET:-0x07A00000}"
 ANDROID_KERNEL_OFFSET="${ANDROID_KERNEL_OFFSET:-0x00080000}"
 ANDROID_RAMDISK_OFFSET="${ANDROID_RAMDISK_OFFSET:-0x07C00000}"
+ANDROID_BOOT_SIZE="${ANDROID_BOOT_SIZE:-0x01500000}"
+ANDROID_PAGE_SIZE="${ANDROID_PAGE_SIZE:-0x00000800}"
+ANDROID_SECOND_SIZE="${ANDROID_SECOND_SIZE:-0x00F00000}"
 
 ################################################################################
 # Device Tree Configuration
