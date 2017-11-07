@@ -594,7 +594,7 @@ class PackageHandler(object):
             else:
                 if len(installed_versions) == 1:
                     self.package_name = installed_versions[0]
-                else:
+                elif len(installed_versions) > 1:
                     msg = 'Package version not set and multiple versions found on device'
                     raise WorkloadError(msg)
 
