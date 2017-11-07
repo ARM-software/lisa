@@ -630,6 +630,10 @@ class PackageHandler(object):
             self.install_apk(context)
         else:
             self.reset(context)
+            if self.apk_info.permissions:
+                self.logger.debug('Granting runtime permissions')
+                for permission in self.apk_info.permissions:
+                    self.target.grant_package_permission(self.apk_info.package, permission)
         self.apk_version = host_version
 
     def start_activity(self):
