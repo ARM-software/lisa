@@ -177,7 +177,7 @@ produced - see the example below.
 # Minimal command line to run a Workload Automation agenda
 [LISAShell lisa] \> lisa-wltest-series \
 			--platform hikey960_android-4.4 \
-			--kernel_path /path/to/your/kernel/hikey-linaro \
+			--kernel_src /path/to/your/kernel/hikey-linaro \
 			--series /path/to/your/series.sha1 \
 			--wa_agenda /path/to/your/agenda.yaml
 ```
