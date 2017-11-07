@@ -17,12 +17,15 @@ package com.arm.wa.uiauto;
 
 import android.app.Instrumentation;
 import android.content.Context;
+import android.graphics.Point;
+import android.graphics.Rect;
 import android.os.SystemClock;
 import android.support.test.InstrumentationRegistry;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject;
 import android.support.test.uiautomator.UiObjectNotFoundException;
 import android.support.test.uiautomator.UiSelector;
+import android.support.test.uiautomator.UiWatcher;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -38,12 +41,13 @@ import java.util.concurrent.TimeoutException;
 
 public class BaseUiAutomation {
 
-    public enum FindByCriteria {BY_ID, BY_TEXT, BY_DESC}
+    public enum FindByCriteria { BY_ID, BY_TEXT, BY_DESC };
+    public enum Direction { UP, DOWN, LEFT, RIGHT, NULL };
+    public enum ScreenOrientation { RIGHT, NATURAL, LEFT };
+    public enum PinchType { IN, OUT, NULL };
 
     // Time in milliseconds
     public long uiAutoTimeout = 4 * 1000;
-
-    public enum Direction { UP, DOWN, LEFT, RIGHT, NULL };
 
     public static final int CLICK_REPEAT_INTERVAL_MINIMUM = 5;
     public static final int CLICK_REPEAT_INTERVAL_DEFAULT = 50;
@@ -157,6 +161,44 @@ public class BaseUiAutomation {
         }
     }
 
+    public void registerWatcher(String name, UiWatcher watcher) {
+        mDevice.registerWatcher(name, watcher);
+    }
+
+    public void runWatchers() {
+        mDevice.runWatchers();
+    }
+
+    public void removeWatcher(String name) {
+        mDevice.removeWatcher(name);
+    }
+
+    public void setScreenOrientation(ScreenOrientation orientation) throws Exception {
+        switch (orientation) {
+            case RIGHT:
+                mDevice.setOrientationRight();
+                break;
+            case NATURAL:
+                mDevice.setOrientationNatural();
+                break;
+            case LEFT:
+                mDevice.setOrientationLeft();
+                break;
+            default:
+                throw new Exception("No orientation specified");
+        }
+    }
+
+    public void unsetScreenOrientation() throws Exception {
+        mDevice.unfreezeRotation();
+    }
+
+    public void uiObjectPerformLongClick(UiObject view, int steps) throws Exception {
+        Rect rect = view.getBounds();
+        mDevice.swipe(rect.centerX(), rect.centerY(),
+                      rect.centerX(), rect.centerY(), steps);
+    }
+
     public int getDisplayHeight() {
         return mDevice.getDisplayHeight();
     }
@@ -171,6 +213,108 @@ public class BaseUiAutomation {
 
     public int getDisplayCentreHeight() {
         return getDisplayHeight() / 2;
+    }
+
+    public void tapDisplayCentre() {
+        tapDisplay(getDisplayCentreWidth(),  getDisplayCentreHeight());
+    }
+
+    public void tapDisplay(int x, int y) {
+        mDevice.click(x, y);
+    }
+
+    public void pressEnter() {
+        mDevice.pressEnter();
+    }
+
+    public void pressHome() {
+        mDevice.pressHome();
+    }
+
+    public void pressBack() {
+        mDevice.pressBack();
+    }
+
+    public void uiObjectSwipe(UiObject view, Direction direction, int steps) throws Exception {
+        switch (direction) {
+            case UP:
+                view.swipeUp(steps);
+                break;
+            case DOWN:
+                view.swipeDown(steps);
+                break;
+            case LEFT:
+                view.swipeLeft(steps);
+                break;
+            case RIGHT:
+                view.swipeRight(steps);
+                break;
+            case NULL:
+                throw new Exception("No direction specified");
+            default:
+                break;
+        }
+    }
+
+        public void uiObjectVertPinchIn(UiObject view, int steps, int percent) throws Exception {
+        final int FINGER_TOUCH_HALF_WIDTH = 20;
+
+        // Make value between 1 and 100
+        int nPercent = (percent < 0) ? 1 : (percent > 100) ? 100 : percent;
+        float percentage = nPercent / 100f;
+
+        Rect rect = view.getVisibleBounds();
+
+        if (rect.width() <= FINGER_TOUCH_HALF_WIDTH * 2) {
+            throw new IllegalStateException("Object width is too small for operation");
+        }
+
+        // Start at the top-center and bottom-center of the control
+        Point startPoint1 = new Point(rect.centerX(), rect.centerY()
+                          + (int) ((rect.height() / 2) * percentage));
+        Point startPoint2 = new Point(rect.centerX(), rect.centerY()
+                          - (int) ((rect.height() / 2) * percentage));
+
+        // End at the same point at the center of the control
+        Point endPoint1 = new Point(rect.centerX(), rect.centerY() + FINGER_TOUCH_HALF_WIDTH);
+        Point endPoint2 = new Point(rect.centerX(), rect.centerY() - FINGER_TOUCH_HALF_WIDTH);
+
+        view.performTwoPointerGesture(startPoint1, startPoint2, endPoint1, endPoint2, steps);
+    }
+
+    public void uiObjectVertPinchOut(UiObject view, int steps, int percent) throws Exception {
+        final int FINGER_TOUCH_HALF_WIDTH = 20;
+
+        // Make value between 1 and 100
+        int nPercent = (percent < 0) ? 1 : (percent > 100) ? 100 : percent;
+        float percentage = nPercent / 100f;
+
+        Rect rect = view.getVisibleBounds();
+
+        if (rect.width() <= FINGER_TOUCH_HALF_WIDTH * 2) {
+            throw new IllegalStateException("Object width is too small for operation");
+        }
+
+        // Start from the same point at the center of the control
+        Point startPoint1 = new Point(rect.centerX(), rect.centerY() + FINGER_TOUCH_HALF_WIDTH);
+        Point startPoint2 = new Point(rect.centerX(), rect.centerY() - FINGER_TOUCH_HALF_WIDTH);
+
+        // End at the top-center and bottom-center of the control
+        Point endPoint1 = new Point(rect.centerX(), rect.centerY()
+                        + (int) ((rect.height() / 2) * percentage));
+        Point endPoint2 = new Point(rect.centerX(), rect.centerY()
+                        - (int) ((rect.height() / 2) * percentage));
+
+        view.performTwoPointerGesture(startPoint1, startPoint2, endPoint1, endPoint2, steps);
+    }
+
+    public void uiObjectVertPinch(UiObject view, PinchType direction,
+                                  int steps, int percent) throws Exception {
+        if (direction.equals(PinchType.IN)) {
+            uiObjectVertPinchIn(view, steps, percent);
+        } else if (direction.equals(PinchType.OUT)) {
+            uiObjectVertPinchOut(view, steps, percent);
+        }
     }
 
     public void uiDeviceSwipeUp(int steps) {
