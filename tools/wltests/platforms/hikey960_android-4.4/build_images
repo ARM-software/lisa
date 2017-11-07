@@ -12,9 +12,15 @@ source "${PLATFORM_PATH}/definitions"
 ./build --image --dtbs --silent; ERROR=$?
 [ $ERROR -eq 0 ] || exit $ERROR
 
-./android/create_boot_img.sh; ERROR=$?
-[ $ERROR -eq 0 ] || exit $ERROR
+if [ "x${BOOT_UEFI}"=="xYES" ]; then
 
-./android/create_dt_img.sh; ERROR=$?
-[ $ERROR -eq 0 ] || exit $ERROR
+	./android/create_aboot_img.sh; ERROR=$?
+	[ $ERROR -eq 0 ] || exit $ERROR
 
+else
+	./android/create_boot_img.sh; ERROR=$?
+	[ $ERROR -eq 0 ] || exit $ERROR
+
+	./android/create_dt_img.sh; ERROR=$?
+	[ $ERROR -eq 0 ] || exit $ERROR
+fi
