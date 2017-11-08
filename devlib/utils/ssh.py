@@ -605,7 +605,7 @@ class Gem5Connection(TelnetConnection):
             try:
                 # Try and force a prompt to be shown
                 self.conn.send('\n')
-                self.conn.expect([r'# ', self.conn.UNIQUE_PROMPT, r'\[PEXPECT\][\\\$\#]+ '], timeout=60)
+                self.conn.expect([r'# ', r'\$ ', self.conn.UNIQUE_PROMPT, r'\[PEXPECT\][\\\$\#]+ '], timeout=60)
                 prompt_found = True
             except TIMEOUT:
                 pass
