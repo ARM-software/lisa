@@ -45,6 +45,22 @@ def load_commands(subparsers):
     return commands
 
 
+# ArgumentParser.parse_known_args() does not correctly deal with concatenated
+# single character options. See https://bugs.python.org/issue16142 for the
+# description of the issue (with a fix attached since 2013!). To get around
+# this problem, this will pre-process sys.argv to detect such joined options
+# and split them.
+def split_joined_options(argv):
+    output = []
+    for part in argv:
+        if len(part) > 1 and part[0] == '-' and part[1] != '-':
+            for c in part[1:]:
+                output.append('-' + c)
+        else:
+            output.append(part)
+    return output
+
+
 def main():
     if not os.path.exists(settings.user_directory):
         init_user_directory()
@@ -64,13 +80,14 @@ def main():
         # to be enabled for that, which requires the verbosity setting; however
         # full argument parse cannot be complted until the commands are loaded; so
         # parse just the base args for know so we can get verbosity.
-        args, _ = parser.parse_known_args()
+        argv = split_joined_options(sys.argv[1:])
+        args, _ = parser.parse_known_args(argv)
         settings.set("verbosity", args.verbose)
         log.init(settings.verbosity)
 
         # each command will add its own subparser
         commands = load_commands(parser.add_subparsers(dest='command'))  
-        args = parser.parse_args()
+        args = parser.parse_args(argv)
 
         config = ConfigManager()
         config.load_config_file(settings.user_config_file)
