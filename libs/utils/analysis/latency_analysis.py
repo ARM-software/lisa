@@ -829,21 +829,21 @@ class LatencyAnalysis(AnalysisModule):
                                       ','.join(self._trace.getTaskByPid(pid)))
                 self._log.warning('Returning stats only for PID: %d',
                                   task_pid)
-            task_names = self._trace.getTaskByPid(task_pid)
+            task_name = self._trace.getTaskByPid(task_pid)
 
         # Get task name
         elif isinstance(task, int):
             task_pid = task
-            task_names = self._trace.getTaskByPid(task_pid)
-            if len(task_names) == 0:
+            task_name = self._trace.getTaskByPid(task_pid)
+            if task_name is None:
                 self._log.warning('No tasks found with name [%s]', task)
                 return None
 
         else:
             raise ValueError("Task must be either an int or str")
 
-        task_label = "{}: {}".format(task_pid, ', '.join(task_names))
-        return TaskData(task_pid, task_names, task_label)
+        task_label = "{}: {}".format(task_pid, task_name)
+        return TaskData(task_pid, task_name, task_label)
 
     @memoized
     def _taskState(self, state):
