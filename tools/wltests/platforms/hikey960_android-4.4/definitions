@@ -29,6 +29,8 @@ ANDROID_TAGS_OFFSET="${ANDROID_TAGS_OFFSET:-0x07A00000}"
 ANDROID_KERNEL_OFFSET="${ANDROID_KERNEL_OFFSET:-0x00080000}"
 ANDROID_RAMDISK_OFFSET="${ANDROID_RAMDISK_OFFSET:-0x07C00000}"
 
+BOOTLOADER=${BOOTLOADER:-fastboot}
+
 ################################################################################
 # Device Tree Configuration
 ################################################################################
