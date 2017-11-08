@@ -34,7 +34,8 @@ else:
 from pexpect import EOF, TIMEOUT, spawn
 
 from devlib.exception import HostError, TargetError, TimeoutError
-from devlib.utils.misc import which, strip_bash_colors, escape_single_quotes, check_output
+from devlib.utils.misc import which, strip_bash_colors, check_output
+from devlib.utils.misc import escape_single_quotes, escape_double_quotes
 from devlib.utils.types import boolean
 
 
@@ -694,6 +695,9 @@ class Gem5Connection(TelnetConnection):
             self._sync_gem5_shell()
 
         gem5_logger.debug("gem5_shell command: {}".format(command))
+
+        if as_root:
+            command = 'echo "{}" | su'.format(escape_double_quotes(command))
 
         # Send the actual command
         self.conn.send("{}\n".format(command))
