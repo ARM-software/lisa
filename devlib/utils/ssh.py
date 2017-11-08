@@ -757,9 +757,9 @@ class Gem5Connection(TelnetConnection):
         """
         gem5_logger.info("Mounting VirtIO device in simulated system")
 
-        self._gem5_shell('su -c "mkdir -p {}" root'.format(self.gem5_input_dir))
+        self._gem5_shell('mkdir -p {}'.format(self.gem5_input_dir), as_root=True)
         mount_command = "mount -t 9p -o trans=virtio,version=9p2000.L,aname={} gem5 {}".format(self.gem5_interact_dir, self.gem5_input_dir)
-        self._gem5_shell(mount_command)
+        self._gem5_shell(mount_command, as_root=True)
 
     def _move_to_temp_dir(self, source):
         """
