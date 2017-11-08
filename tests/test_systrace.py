@@ -126,8 +126,8 @@ class TestLegacySystrace(utils_tests.SetupDirectory):
         self.assertTrue("target_cpu" in trace.sched_wakeup.data_frame.columns)
 
         self.assertTrue(hasattr(trace, "sched_contrib_scale_f"))
-        self.assertEquals(len(trace.sched_contrib_scale_f.data_frame), 2)
-        self.assertTrue("freq_scale_factor" in trace.sched_contrib_scale_f.data_frame.columns)
+        self.assertEquals(len(trace.sched_contrib_scale_factor.data_frame), 2)
+        self.assertTrue("freq_scale_factor" in trace.sched_contrib_scale_factor.data_frame.columns)
 
     def test_cpu_counting(self):
         """In a legacy SysTrace trace, trappy gets the number of cpus"""

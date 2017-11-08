@@ -346,7 +346,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             for cls in known_events.itervalues():
                 if (event_name == cls.unique_word) or \
                    (event_name + ":" == cls.unique_word):
-                    self.class_definitions[event_name] = cls
+                    self.class_definitions[cls.name] = cls
                     break
             else:
                 kwords = {
