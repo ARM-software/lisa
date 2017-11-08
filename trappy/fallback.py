@@ -13,20 +13,21 @@
 # limitations under the License.
 #
 
-"""This module contains the class for representing a tracing_mark_write
-trace_event used for ftrace events injected from userspace.
+"""
+This module contains the class for representing fallback events used for ftrace
+events injected from userspace, which are free-form and could contain any
+string.
 """
 
 from trappy.base import Base
 from trappy.dynamic import register_ftrace_parser
 
-class TracingMarkWrite(Base):
-    """Parse tracing_mark_write events that couldn't be matched with more specific unique words
-       This class is always used as a fallback if nothing more specific could match the particular
-       tracing_mark_write event.
+class FallbackEvent(Base):
     """
-
-    unique_word = "tracing_mark_write"
+    Parse free-form events that couldn't be matched with more specific unique
+    words. This class is always used as a fallback if nothing more specific
+    could match the particular event.
+    """
 
     def generate_data_dict(self, data_str):
         if self.tracer:
@@ -34,10 +35,19 @@ class TracingMarkWrite(Base):
             if data_dict:
                 return data_dict
 
-        data_dict = { 'string': data_str }
-        return data_dict
+        return { 'string': data_str }
+
 
     def __init__(self):
-        super(TracingMarkWrite, self).__init__(fallback=True)
+        super(FallbackEvent, self).__init__(fallback=True)
+
+class TracingMarkWrite(FallbackEvent):
+    unique_word = "tracing_mark_write:"
 
 register_ftrace_parser(TracingMarkWrite)
+
+class Print(FallbackEvent):
+    unique_word = "print:"
+    name = 'print_' # To avoid keyword collision
+
+register_ftrace_parser(Print)
