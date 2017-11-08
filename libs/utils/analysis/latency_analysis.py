@@ -775,7 +775,7 @@ class LatencyAnalysis(AnalysisModule):
         else:
             raise ValueError("Task must be either an int or str")
 
-        task_label = "{}: {}".format(task_pid, ', '.join(task_names))
+        task_label = "{}: {}".format(task_pid, task_names)
         return TaskData(task_pid, task_names, task_label)
 
     @memoized
