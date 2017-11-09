@@ -471,6 +471,32 @@ is part of the trace.
             raise ValueError('Failed to parse ftrace file {}:\n{}'.format(
                 trace_file, str(e)))
 
+    def __getattr__(self, attr):
+        """Raises useful exception when trying to access deprecated
+        attributes."""
+        for name, cls in self.class_definitions.iteritems():
+            # We used to have a bug where when you had a known event whose
+            # 'name' attribute != its 'unique_word', and you specified it
+            # explicitly in the 'events' param, we had two attributes - one for
+            # the 'name' and one for the 'unique_word', and it was undefined
+            # which would be populated.  Now we just have the attribute from
+            # the 'name'. If there is any code out there that was relying on
+            # this bug (i.e. accessing the 'unique_word' atribute), this will
+            # tell them what they need to do to fix their code.
+            unique_word = cls.unique_word.rstrip(':')
+            if attr == unique_word:
+                if name == unique_word:
+                    break
+                raise AttributeError(
+                    'You are trying to access "{owner}.{attr}", instead you should '
+                    'access "{owner}.{name}". A bug in TRAPpy used to make this work '
+                    'non-deterministically, but that has now been fixed.'.format(
+                        owner=self,
+                        attr=attr,
+                        name=name
+                    ))
+        return super(GenericFTrace, self).__getattribute__(attr)
+
     # TODO: Move thermal specific functionality
 
     def get_all_freqs_data(self, map_label):

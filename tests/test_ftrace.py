@@ -553,3 +553,23 @@ class TestTraceTxtNoTrailingLine(utils_tests.SetupDirectory):
             set(ftrace.cpu_idle.data_frame['cpu_id'].unique()),
             set([0, 3]))
 
+
+class TestHelpfulAttributeError(utils_tests.SetupDirectory):
+    def __init__(self, *args, **kwargs):
+        super(TestHelpfulAttributeError, self).__init__(
+            [("trace.dat", "trace.dat")],
+            *args, **kwargs)
+
+    def test_helpful_error(self):
+        trace = trappy.FTrace(events=['sched_contrib_scale_f'])
+
+        with self.assertRaises(AttributeError) as assert_raises:
+            df = trace.sched_contrib_scale_f.data_frame
+
+        exception = assert_raises.exception
+        regex = (r'.*\.sched_contrib_scale_f", instead'
+                 r'.*\.sched_contrib_scale_factor"..*')
+
+        self.assertRegexpMatches(str(exception), regex)
+
+
