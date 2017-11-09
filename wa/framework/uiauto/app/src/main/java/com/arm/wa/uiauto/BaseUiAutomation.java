@@ -15,29 +15,31 @@
 
 package com.arm.wa.uiauto;
 
+import android.os.Bundle;
+import android.os.SystemClock;
 import android.app.Instrumentation;
 import android.content.Context;
 import android.graphics.Point;
 import android.graphics.Rect;
-import android.os.SystemClock;
+
 import android.support.test.InstrumentationRegistry;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject;
 import android.support.test.uiautomator.UiObjectNotFoundException;
 import android.support.test.uiautomator.UiSelector;
 import android.support.test.uiautomator.UiWatcher;
+import android.support.test.uiautomator.UiScrollable;
 
 import org.junit.Before;
 import org.junit.Test;
-import static android.support.test.InstrumentationRegistry.getArguments;
-
-import android.os.Bundle;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static android.support.test.InstrumentationRegistry.getArguments;
 
 public class BaseUiAutomation {
 
@@ -494,6 +496,47 @@ public class BaseUiAutomation {
             throw new UiObjectNotFoundException("Could not find view with text: " + text);
         }
         return object;
+    }
+
+    // Helper to select a folder in the gallery
+    public void selectGalleryFolder(String directory) throws Exception {
+        UiObject workdir =
+                mDevice.findObject(new UiSelector().text(directory)
+                                                   .className("android.widget.TextView"));
+        UiScrollable scrollView =
+                new UiScrollable(new UiSelector().scrollable(true));
+
+        // If the folder is not present wait for a short time for
+        // the media server to refresh its index.
+        boolean discovered = workdir.waitForExists(TimeUnit.SECONDS.toMillis(10));
+        if (!discovered && scrollView.exists()) {
+            // First check if the directory is visible on the first
+            // screen and if not scroll to the bottom of the screen to look for it.
+            discovered = scrollView.scrollIntoView(workdir);
+
+            // If still not discovered scroll back to the top of the screen and
+            // wait for a longer amount of time for the media server to refresh
+            // its index.
+            if (!discovered) {
+                // scrollView.scrollToBeggining() doesn't work for this
+                // particular scrollable view so use device method instead
+                for (int i = 0; i < 10; i++) {
+                    uiDeviceSwipeUp(20);
+                }
+                discovered = workdir.waitForExists(TimeUnit.SECONDS.toMillis(60));
+
+                // Scroll to the bottom of the screen one last time
+                if (!discovered) {
+                    discovered = scrollView.scrollIntoView(workdir);
+                }
+            }
+        }
+
+        if (discovered) {
+            workdir.clickAndWaitForNewWindow();
+        } else {
+            throw new UiObjectNotFoundException("Could not find folder : " + directory);
+        }
     }
 
     // Override getParams function to decode a url encoded parameter bundle before
