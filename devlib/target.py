@@ -15,8 +15,9 @@ from devlib.platform import Platform
 from devlib.exception import TargetError, TargetNotRespondingError, TimeoutError
 from devlib.utils.ssh import SshConnection
 from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect
-from devlib.utils.misc import memoized, isiterable, convert_new_lines, merge_lists
-from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list, escape_double_quotes
+from devlib.utils.misc import memoized, isiterable, convert_new_lines
+from devlib.utils.misc import commonprefix, escape_double_quotes, merge_lists
+from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string
 
 
@@ -1212,6 +1213,33 @@ class AndroidTarget(Target):
                 pass # Ignore if not requested
             else:
                 raise
+
+    def refresh_files(self, file_list):
+        """
+        Depending on the android version and root status, determine the
+        appropriate method of forcing a re-index of the mediaserver cache for a given
+        list of files.
+        """
+        if self.is_rooted or self.get_sdk_version() < 24:  # MM and below
+            common_path = commonprefix(file_list, sep=self.path.sep)
+            self.broadcast_media_mounted(common_path, self.is_rooted)
+        else:
+            for f in file_list:
+                self.broadcast_media_scan_file(f)
+
+    def broadcast_media_scan_file(self, filepath):
+        """
+        Force a re-index of the mediaserver cache for the specified file.
+        """
+        command = 'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://'
+        self.execute(command + filepath)
+
+    def broadcast_media_mounted(self, dirpath, as_root=False):
+        """
+        Force a re-index of the mediaserver cache for the specified directory.
+        """
+        command = 'am broadcast -a  android.intent.action.MEDIA_MOUNTED -d file://'
+        self.execute(command + dirpath, as_root=as_root)
 
     def install_executable(self, filepath, with_name=None):
         self._ensure_executables_directory_is_writable()
