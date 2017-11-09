@@ -451,6 +451,12 @@ is part of the trace.
                 continue
 
             unique_word = trace_class.unique_word
+            if unique_word in cls_for_unique_word:
+                # This means TRAPpy has a nasty bug, like the one fixed in
+                # https://github.com/ARM-software/trappy/pull/276
+                raise RuntimeError('Found two parsers for unique word "{}" ({}, {})'
+                                   .format(unique_word, trace_class,
+                                           cls_for_unique_word[unique_word]))
             cls_for_unique_word[unique_word] = trace_class
 
         if len(cls_for_unique_word) == 0:
