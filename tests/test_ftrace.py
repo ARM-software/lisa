@@ -573,3 +573,24 @@ class TestHelpfulAttributeError(utils_tests.SetupDirectory):
         self.assertRegexpMatches(str(exception), regex)
 
 
+class DummyEvent(trappy.base.Base):
+    unique_word = 'dummy_unique_word'
+    name = 'dummy_name'
+
+class TestDynamicDoesntOverwrite(utils_tests.SetupDirectory):
+    def __init__(self, *args, **kwargs):
+        super(TestDynamicDoesntOverwrite, self).__init__(
+            [("trace.dat", "trace.dat")],
+            *args, **kwargs)
+
+    def setUp(self):
+        super(TestDynamicDoesntOverwrite, self).setUp()
+        trappy.register_ftrace_parser(DummyEvent)
+
+    def tearDown(self):
+        super(TestDynamicDoesntOverwrite, self).tearDown()
+        trappy.unregister_ftrace_parser(DummyEvent)
+
+    def test_not_overwritten(self):
+        trace = trappy.FTrace(events=['dummy_name'])
+        self.assertIsInstance(trace.dummy_name, DummyEvent)
