@@ -258,7 +258,15 @@ public class BaseUiAutomation {
         }
     }
 
-        public void uiObjectVertPinchIn(UiObject view, int steps, int percent) throws Exception {
+    public void uiDeviceSwipeVertical(int startY, int endY, int xCoordinate, int steps) {
+        mDevice.swipe(startY, xCoordinate, endY, xCoordinate, steps);
+    }
+
+    public void uiDeviceSwipeHorizontal(int startX, int endX, int yCoordinate, int steps) {
+        mDevice.swipe(startX, yCoordinate, endX, yCoordinate, steps);
+    }
+
+    public void uiObjectVertPinchIn(UiObject view, int steps, int percent) throws Exception {
         final int FINGER_TOUCH_HALF_WIDTH = 20;
 
         // Make value between 1 and 100
