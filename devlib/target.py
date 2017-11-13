@@ -1381,7 +1381,7 @@ class AndroidTarget(Target):
 
     def _resolve_paths(self):
         if self.working_directory is None:
-            self.working_directory = '/data/local/tmp/devlib-target'
+            self.working_directory = self.path.join(self.external_storage, 'devlib-target')
         self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
         if self.executables_directory is None:
             self.executables_directory = '/data/local/tmp/bin'
