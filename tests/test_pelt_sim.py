@@ -103,3 +103,17 @@ class TestSimulator(TestBART):
         latest_start = end_s + (sim._sample_us / 1.e6)
         self.assertLessEqual(signal.index[-1], latest_start)
 
+    @given(periodic_task_args(), simulator_args())
+    def test_signal_mean_value(self, task_args, sim_args):
+        """Test that the mean value of the signal corresponds to the duty cycle
+        percentage of the maximum capacity (1024)."""
+        task = PeriodicTask(*task_args)
+        sim = Simulator(*sim_args)
+
+        signal = sim.getSignal(task)
+        stats = sim.getStats()
+
+        expected_mean = (task.duty_cycle_pct * 1024) / 100
+
+        self.assertEqual(stats.pelt_avg, expected_mean)
+
