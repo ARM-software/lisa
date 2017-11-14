@@ -15,8 +15,9 @@ from devlib.platform import Platform
 from devlib.exception import TargetError, TargetNotRespondingError, TimeoutError
 from devlib.utils.ssh import SshConnection
 from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect
-from devlib.utils.misc import memoized, isiterable, convert_new_lines, merge_lists
-from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list, escape_double_quotes
+from devlib.utils.misc import memoized, isiterable, convert_new_lines
+from devlib.utils.misc import commonprefix, escape_double_quotes, merge_lists
+from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string
 
 
@@ -486,7 +487,7 @@ class Target(object):
         raise IOError('No usable temporary filename found')
 
     def remove(self, path, as_root=False):
-        self.execute('rm -rf {}'.format(path), as_root=as_root)
+        self.execute('rm -rf "{}"'.format(escape_double_quotes(path)), as_root=as_root)
 
     # misc
     def core_cpus(self, core):
@@ -959,6 +960,11 @@ class AndroidTarget(Target):
 
     @property
     @memoized
+    def external_storage(self):
+        return self.execute('echo $EXTERNAL_STORAGE').strip()
+
+    @property
+    @memoized
     def screen_resolution(self):
         output = self.execute('dumpsys window')
         match = ANDROID_SCREEN_RESOLUTION_REGEX.search(output)
@@ -1194,6 +1200,46 @@ class AndroidTarget(Target):
             return adb_command(self.adb_name, "install {} '{}'".format(' '.join(flags), filepath), timeout=timeout)
         else:
             raise TargetError('Can\'t install {}: unsupported format.'.format(filepath))
+
+    def grant_package_permission(self, package, permission):
+        try:
+            return self.execute('pm grant {} {}'.format(package, permission))
+        except TargetError as e:
+            if 'is not a changeable permission type' in e.message:
+                pass # Ignore if unchangeable
+            elif 'Unknown permission' in e.message:
+                pass # Ignore if unknown
+            elif 'has not requested permission' in e.message:
+                pass # Ignore if not requested
+            else:
+                raise
+
+    def refresh_files(self, file_list):
+        """
+        Depending on the android version and root status, determine the
+        appropriate method of forcing a re-index of the mediaserver cache for a given
+        list of files.
+        """
+        if self.is_rooted or self.get_sdk_version() < 24:  # MM and below
+            common_path = commonprefix(file_list, sep=self.path.sep)
+            self.broadcast_media_mounted(common_path, self.is_rooted)
+        else:
+            for f in file_list:
+                self.broadcast_media_scan_file(f)
+
+    def broadcast_media_scan_file(self, filepath):
+        """
+        Force a re-index of the mediaserver cache for the specified file.
+        """
+        command = 'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://'
+        self.execute(command + filepath)
+
+    def broadcast_media_mounted(self, dirpath, as_root=False):
+        """
+        Force a re-index of the mediaserver cache for the specified directory.
+        """
+        command = 'am broadcast -a  android.intent.action.MEDIA_MOUNTED -d file://'
+        self.execute(command + dirpath, as_root=as_root)
 
     def install_executable(self, filepath, with_name=None):
         self._ensure_executables_directory_is_writable()

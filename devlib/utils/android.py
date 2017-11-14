@@ -121,6 +121,7 @@ class ApkInfo(object):
 
     version_regex = re.compile(r"name='(?P<name>[^']+)' versionCode='(?P<vcode>[^']+)' versionName='(?P<vname>[^']+)'")
     name_regex = re.compile(r"name='(?P<name>[^']+)'")
+    permission_regex = re.compile(r"name='(?P<permission>[^']+)'")
 
     def __init__(self, path=None):
         self.path = path
@@ -130,6 +131,7 @@ class ApkInfo(object):
         self.version_name = None
         self.version_code = None
         self.native_code = None
+        self.permissions = []
         self.parse(path)
 
     def parse(self, apk_path):
@@ -166,6 +168,10 @@ class ApkInfo(object):
                     if not found:
                         mapped_abis.append(apk_abi)
                 self.native_code = mapped_abis
+            elif line.startswith('uses-permission:'):
+                match = self.permission_regex.search(line)
+                if match:
+                    self.permissions.append(match.group('permission'))
             else:
                 pass  # not interested
 
