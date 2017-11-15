@@ -102,7 +102,7 @@ class Controller(object):
                     .format(self.kind))
         if name not in self._cgroups:
             self._cgroups[name] = CGroup(self, name, create=False)
-        return self._cgroups[name].existe()
+        return self._cgroups[name].exists()
 
     def list_all(self):
         self.logger.debug('Listing groups for %s controller', self.kind)
