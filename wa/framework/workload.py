@@ -97,7 +97,7 @@ class Workload(TargetedPlugin):
         each iteration.
         """
         if self.deployable_assets:
-            self.deploy_assets()
+            self.deploy_assets(context)
 
     def setup(self, context):
         """
@@ -241,8 +241,8 @@ class ApkWorkload(Workload):
 
     @once_per_instance
     def initialize(self, context):
+        super(ApkWorkload, self).initialize(context)
         self.apk.initialize(context)
-        self.deploy_assets(context)
         if self.view is None:
             self.view = 'SurfaceView - {}/{}'.format(self.apk.package,
                                                      self.apk.activity)
