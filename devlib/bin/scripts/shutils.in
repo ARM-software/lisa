@@ -131,7 +131,7 @@ cgroups_run_into() {
 	  fi
 
 	  $FIND $CGMOUNT -type d -mindepth 1 | \
-	  $GREP "$CGP" | \
+	  $GREP -e "^$CGMOUNT$CGP$" | \
 	  while read CGPATH; do
 		  # Move this shell into that control group
 		  echo $$ > $CGPATH/cgroup.procs
