@@ -85,7 +85,7 @@ public class BaseUiAutomation {
         SystemClock.sleep(second * 1000);
     }
 
-    //Generate a package ID
+    // Generate a package ID
     public String getPackageID(Bundle parameters) {
         String packageName = parameters.getString("package_name");
         return packageName + ":id/";
