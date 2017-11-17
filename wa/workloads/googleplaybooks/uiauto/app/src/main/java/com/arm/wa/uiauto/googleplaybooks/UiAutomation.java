@@ -28,7 +28,9 @@ import android.util.Log;
 import com.arm.wa.uiauto.UxPerfUiAutomation.GestureTestParams;
 import com.arm.wa.uiauto.UxPerfUiAutomation.GestureType;
 import com.arm.wa.uiauto.BaseUiAutomation;
+import com.arm.wa.uiauto.ApplaunchInterface;
 import com.arm.wa.uiauto.ActionLogger;
+import com.arm.wa.uiauto.UiAutoUtils;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -46,7 +48,7 @@ import static com.arm.wa.uiauto.BaseUiAutomation.FindByCriteria.BY_TEXT;
 
 
 @RunWith(AndroidJUnit4.class)
-public class UiAutomation extends BaseUiAutomation {
+public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface {
 
     private int viewTimeoutSecs = 10;
     private long viewTimeout =  TimeUnit.SECONDS.toMillis(viewTimeoutSecs);
@@ -77,7 +79,7 @@ public class UiAutomation extends BaseUiAutomation {
     @Test
     public void setup() throws Exception {
         setScreenOrientation(ScreenOrientation.NATURAL);
-        runApplicationInitialization();
+        runApplicationSetup();
 
         searchForBook(searchBookTitle);
         addToLibrary();
@@ -107,12 +109,33 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     // Get application parameters and clear the initial run dialogues of the application launch.
-    public void runApplicationInitialization() throws Exception {
+    public void runApplicationSetup() throws Exception {
         String account = parameters.getString("account");
         chooseAccount(account);
         clearFirstRunDialogues();
         dismissSendBooksAsGiftsDialog();
         dismissSync();
+    }
+
+    // Returns the launch command for the application.
+    public String getLaunchCommand() {
+        String launch_command;
+        launch_command = UiAutoUtils.createLaunchCommand(parameters);
+        return launch_command;
+    }
+
+    // Pass the workload parameters, used for applaunch
+    public void setWorkloadParameters(Bundle workload_parameters) {
+        parameters = workload_parameters;
+        packageID = getPackageID(parameters);
+    }
+
+    // Sets the UiObject that marks the end of the application launch.
+    public UiObject getLaunchEndObject() {
+        UiObject launchEndObject = mDevice.findObject(new UiSelector()
+                                         .className("android.widget.TextView")
+                                         .textContains("Library"));
+        return launchEndObject;
     }
 
     // If the device has more than one account setup, a prompt appears
