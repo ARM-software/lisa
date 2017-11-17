@@ -138,7 +138,7 @@ class Workload(TargetedPlugin):
             self.remove_assets(context)
 
     def deploy_assets(self, context):
-        """ Deploy assets if avaliable to the target """
+        """ Deploy assets if available to the target """
         if not self.asset_directory:
             self.asset_directory = self.target.working_directory
         else:
