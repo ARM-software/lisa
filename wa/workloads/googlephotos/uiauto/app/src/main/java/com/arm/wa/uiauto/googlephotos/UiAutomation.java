@@ -26,6 +26,8 @@ import android.support.test.uiautomator.UiSelector;
 import com.arm.wa.uiauto.UxPerfUiAutomation.GestureTestParams;
 import com.arm.wa.uiauto.UxPerfUiAutomation.GestureType;
 import com.arm.wa.uiauto.BaseUiAutomation;
+import com.arm.wa.uiauto.ApplaunchInterface;
+import com.arm.wa.uiauto.UiAutoUtils;
 import com.arm.wa.uiauto.ActionLogger;
 
 import org.junit.Before;
@@ -43,7 +45,7 @@ import static com.arm.wa.uiauto.BaseUiAutomation.FindByCriteria.BY_ID;
 import static com.arm.wa.uiauto.BaseUiAutomation.FindByCriteria.BY_TEXT;
 
 @RunWith(AndroidJUnit4.class)
-public class UiAutomation extends BaseUiAutomation {
+public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface {
 
     private long viewTimeout = TimeUnit.SECONDS.toMillis(10);
 
@@ -58,12 +60,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     @Test
     public void setup() throws Exception{
-        sleep(5); // Pause while splash screen loads
-        setScreenOrientation(ScreenOrientation.NATURAL);
-
-        // Clear the initial run dialogues of the application launch.
-        dismissWelcomeView();
-        closePromotionPopUp();
+        runApplicationSetup();
     }
 
     @Test
@@ -94,6 +91,37 @@ public class UiAutomation extends BaseUiAutomation {
     @Test
     public void teardown() throws Exception {
         unsetScreenOrientation();
+    }
+
+
+     // Get application parameters and clear the initial run dialogues of the application launch.
+    public void runApplicationSetup() throws Exception {
+        sleep(5); // Pause while splash screen loads
+        setScreenOrientation(ScreenOrientation.NATURAL);
+
+        // Clear the initial run dialogues of the application launch.
+        dismissWelcomeView();
+        closePromotionPopUp();
+    }
+
+    // Returns the launch command for the application.
+    public String getLaunchCommand() {
+        String launch_command;
+        launch_command = UiAutoUtils.createLaunchCommand(parameters);
+        return launch_command;
+    }
+
+    // Pass the workload parameters, used for applaunch
+    public void setWorkloadParameters(Bundle workload_parameters) {
+        parameters = workload_parameters;
+        packageID = getPackageID(parameters);
+    }
+
+    // Sets the UiObject that marks the end of the application launch.
+    public UiObject getLaunchEndObject() {
+        UiObject launchEndObject = mDevice.findObject(new UiSelector().textContains("Photos")
+                                          .className("android.widget.TextView"));
+        return launchEndObject;
     }
 
     public void dismissWelcomeView() throws Exception {
