@@ -22,10 +22,12 @@ import android.support.test.uiautomator.UiObject;
 import android.support.test.uiautomator.UiObjectNotFoundException;
 import android.support.test.uiautomator.UiSelector;
 
+import com.arm.wa.uiauto.ApplaunchInterface;
 import com.arm.wa.uiauto.UxPerfUiAutomation.GestureTestParams;
 import com.arm.wa.uiauto.UxPerfUiAutomation.GestureType;
 import com.arm.wa.uiauto.BaseUiAutomation;
 import com.arm.wa.uiauto.ActionLogger;
+import com.arm.wa.uiauto.UiAutoUtils;
 
 
 import org.junit.Before;
@@ -43,7 +45,7 @@ import static com.arm.wa.uiauto.BaseUiAutomation.FindByCriteria.BY_TEXT;
 
 
 @RunWith(AndroidJUnit4.class)
-public class UiAutomation extends BaseUiAutomation {
+public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface {
 
     private long networkTimeout =  TimeUnit.SECONDS.toMillis(20);
     private long searchTimeout =  TimeUnit.SECONDS.toMillis(20);
@@ -63,9 +65,8 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     @Test
-    public void setup() throws Exception{
-        setScreenOrientation(ScreenOrientation.NATURAL);
-        dismissWelcomeView();
+    public void setup() throws Exception {
+        runApplicationSetup();
     }
 
     @Test
@@ -77,9 +78,36 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     @Test
-    public void teardown() throws Exception{
+    public void teardown() throws Exception {
         unsetScreenOrientation();
     }
+
+    public void runApplicationSetup() throws Exception {
+        setScreenOrientation(ScreenOrientation.NATURAL);
+        dismissWelcomeView();
+    }
+
+    // Returns the launch command for the application.
+    public String getLaunchCommand() {
+        String launch_command;
+        launch_command = UiAutoUtils.createLaunchCommand(parameters);
+        return launch_command;
+    }
+
+    // Pass the workload parameters, used for applaunch
+    public void setWorkloadParameters(Bundle workload_parameters) {
+        parameters = workload_parameters;
+        packageID = getPackageID(parameters);
+    }
+
+    // Sets the UiObject that marks the end of the application launch.
+    public UiObject getLaunchEndObject() {
+        UiObject launchEndObject =
+            mDevice.findObject(new UiSelector().textContains("RECENT")
+                                               .className("android.widget.TextView"));
+        return launchEndObject;
+    }
+
 
     private void dismissWelcomeView() throws Exception {
         UiObject welcomeView = getUiObjectByResourceId("android:id/content",
