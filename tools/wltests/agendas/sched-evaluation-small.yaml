@@ -12,9 +12,9 @@ global:
   # Collect energy data, ftrace files, and dmesg
   # You may want to edit your config.yaml to set up the energy_measurement
   # instrument (an example configuration is provided in this repo).
-  instrumentation: [energy_measurement, dmesg]
+  instrumentation: [energy_measurement, trace-cmd, dmesg]
   # Do everything 5 times, if not otherwise specified by the specific workload
-  iterations: 5
+  iterations: 2
 
   # To aid reproducibility and try to reduce noise in power measurements,
   # minimise the screen brightness and set airplane mode on.
@@ -41,9 +41,9 @@ workloads:
 # Sit on the homescreen for 15 seconds
   - name: homescreen
     classifiers:
-       tag: sit_15s
+       tag: sit_3s
     workload_parameters:
-      duration: 15
+      duration: 3
 
 ################################################################################
 # Exoplayer
@@ -53,72 +53,72 @@ workloads:
 # performance on devices where running the real app is impractical.
   - name: exoplayer
     classifiers:
-       tag: mov_720p_30s
+       tag: mov_720p_3s
     workload_parameters:
       format: "mov_720p"
-      duration: 30
+      duration: 3
 
 # Play 30 seconds of a OGG Vorbis audio with Exoplayer
   - name: exoplayer
     classifiers:
-       tag: ogg_128kbps_30s
+       tag: ogg_128kbps_3s
     workload_parameters:
       format: "ogg_128kbps"
-      duration: 30
+      duration: 3
 
 ################################################################################
 # PCMark
 
   - name: pcmark
     classifiers:
-       tag: single
-    iterations: 10
+       tag: iter_5
+    iterations: 5
 
 ################################################################################
 # Geekbench
 
   - name: geekbench
     classifiers:
-       tag: iter_30
+       tag: iter_3
     runtime_parameters:
       airplane_mode: false
-    iterations: 10
+    iterations: 3
 
 ################################################################################
 # Jankbench
 
   - name: jankbench
     classifiers:
-      tag: iter_30
+      tag: iter_3
     workload_parameters:
       test: list_view
-    iterations: 30
+    iterations: 3
 
   - name: jankbench
     classifiers:
-      tag: iter_30
+      tag: iter_3
     workload_parameters:
       test: image_list_view
-    iterations: 30
+    iterations: 3
 
   - name: jankbench
     classifiers:
-      tag: iter_30
+      tag: iter_3
     workload_parameters:
       test: shadow_grid
-    iterations: 30
+    iterations: 3
 
   - name: jankbench
     classifiers:
-      tag: iter_30
+      tag: iter_3
     workload_parameters:
       test: low_hitrate_text
-    iterations: 30
+    iterations: 3
 
   - name: jankbench
     classifiers:
-      tag: iter_30
+      tag: iter_3
     workload_parameters:
       test: edit_text
-    iterations: 30
+    iterations: 3
 

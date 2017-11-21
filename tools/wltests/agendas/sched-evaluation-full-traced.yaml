@@ -12,7 +12,7 @@ global:
   # Collect energy data, ftrace files, and dmesg
   # You may want to edit your config.yaml to set up the energy_measurement
   # instrument (an example configuration is provided in this repo).
-  instrumentation: [energy_measurement, dmesg]
+  instrumentation: [energy_measurement, trace-cmd, dmesg]
   # Do everything 5 times, if not otherwise specified by the specific workload
   iterations: 5
 
