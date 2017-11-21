@@ -305,12 +305,24 @@ class ApkUiautoWorkload(ApkUIWorkload):
 
     platform = 'android'
 
+    parameters = [
+        Parameter('markers_enabled', kind=bool, default=False,
+                  description="""
+                  If set to ``True``, workloads will insert markers into logs
+                  at various points during execution. These markes may be used
+                  by other plugins or post-processing scripts to provide
+                  measurments or statistics for specific parts of the workload
+                  execution.
+                  """),
+    ]
+
     def __init__(self, target, **kwargs):
         super(ApkUiautoWorkload, self).__init__(target, **kwargs)
         self.gui = UiAutomatorGUI(self)
 
     def setup(self, context):
         self.gui.uiauto_params['package_name'] = self.apk.apk_info.package
+        self.gui.uiauto_params['markers_enabled'] = self.markers_enabled
         self.gui.init_commands()
         super(ApkUiautoWorkload, self).setup(context)
 
