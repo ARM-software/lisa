@@ -72,7 +72,7 @@ workloads:
   - name: pcmark
     classifiers:
        tag: single
-    iterations: 5
+    iterations: 10
 
 ################################################################################
 # Geekbench
