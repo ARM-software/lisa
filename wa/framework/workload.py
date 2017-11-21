@@ -66,8 +66,11 @@ class Workload(TargetedPlugin):
 
     # Used to store information about workload assets.
     deployable_assets = []
-    asset_files = []
-    deployed_assets = []
+
+    def __init__(self, target, **kwargs):
+        super(Workload, self).__init__(target, **kwargs)
+        self.asset_files = []
+        self.deployed_assets = []
 
     def init_resources(self, context):
         """
