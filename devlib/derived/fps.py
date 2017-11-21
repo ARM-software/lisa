@@ -177,11 +177,13 @@ class DerivedSurfaceFlingerStats(DerivedFpsStats):
             janks = 0
             not_at_vsync = 0
 
+        janks_pc =  0 if frame_count == 0 else janks * 100 / frame_count
+
         return [DerivedMetric('fps', fps, 'fps'),
                 DerivedMetric('total_frames', frame_count, 'frames'),
                 MeasurementsCsv(csv_file),
                 DerivedMetric('janks', janks, 'count'),
-                DerivedMetric('janks_pc', janks * 100 / frame_count, 'percent'),
+                DerivedMetric('janks_pc', janks_pc, 'percent'),
                 DerivedMetric('missed_vsync', not_at_vsync, 'count')]
 
     def _process_without_pandas(self, measurements_csv):
