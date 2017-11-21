@@ -1238,8 +1238,9 @@ class AndroidTarget(Target):
         """
         Force a re-index of the mediaserver cache for the specified directory.
         """
-        command = 'am broadcast -a  android.intent.action.MEDIA_MOUNTED -d file://'
-        self.execute(command + dirpath, as_root=as_root)
+        command = 'am broadcast -a  android.intent.action.MEDIA_MOUNTED -d file://{} '\
+                  '-n com.android.providers.media/.MediaScannerReceiver'
+        self.execute(command.format(dirpath), as_root=as_root)
 
     def install_executable(self, filepath, with_name=None):
         self._ensure_executables_directory_is_writable()
