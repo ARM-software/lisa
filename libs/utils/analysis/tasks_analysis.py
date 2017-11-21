@@ -450,14 +450,10 @@ class TasksAnalysis(AnalysisModule):
 
             # Get per cluster wakeup events
             df = self._dfg_trace_event('sched_wakeup_new')
-            big_frequent = (
-                    (df.target_cpu.isin(self._big_cpus))
-                    )
+            big_frequent = df.target_cpu.isin(self._big_cpus)
             ntbc = df[big_frequent]
             ntbc_count = len(ntbc)
-            little_frequent = (
-                    (df.target_cpu.isin(self._little_cpus))
-                    )
+            little_frequent = df.target_cpu.isin(self._little_cpus)
             ntlc = df[little_frequent];
             ntlc_count = len(ntlc)
 
@@ -567,14 +563,11 @@ class TasksAnalysis(AnalysisModule):
         # Add column of expected cluster depending on:
         # a) task utilization value
         # b) capacity of the selected cluster
-        bu_bc = ( \
-                (df['util_avg'] > self._little_cap) & \
-                (df['cpu'].isin(self._big_cpus))
-            )
-        su_lc = ( \
-                (df['util_avg'] <= self._little_cap) & \
-                (df['cpu'].isin(self._little_cpus))
-            )
+        bu_bc = ((df['util_avg'] > self._little_cap) &
+                 (df['cpu'].isin(self._big_cpus)))
+        su_lc = ((df['util_avg'] <= self._little_cap) &
+                 (df['cpu'].isin(self._little_cpus)))
+
         # The Cluster CAPacity Matches the UTILization (ccap_mutil) iff:
         # - tasks with util_avg  > little_cap are running on a BIG cpu
         # - tasks with util_avg <= little_cap are running on a LITTLe cpu
@@ -699,16 +692,19 @@ class TasksAnalysis(AnalysisModule):
         :type is_last: bool
         """
         util_df = self._dfg_trace_event('sched_load_avg_task')
-        data = util_df[util_df.pid == tid][['cluster', 'cpu']]
-        for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
-            cdata = data[data.cluster == clabel]
-            if len(cdata) > 0:
-                cdata.plot(ax=axes, style=[ccolor+'+'], legend=False)
+
+        if 'cluster' in util_df:
+            data = util_df[util_df.pid == tid][['cluster', 'cpu']]
+            for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
+                cdata = data[data.cluster == clabel]
+                if len(cdata) > 0:
+                    cdata.plot(ax=axes, style=[ccolor+'+'], legend=False)
+
         # Y Axis - placeholders for legend, acutal CPUs. topmost empty lane
         cpus = [str(n) for n in range(self._platform['cpus_count'])]
         ylabels = [''] + cpus
         axes.set_yticklabels(ylabels)
-        axes.set_ylim(-1, self._platform['cpus_count'])
+        axes.set_ylim(-1, len(cpus))
         axes.set_ylabel('CPUs')
         # X Axis
         axes.set_xlim(self._trace.x_min, self._trace.x_max)

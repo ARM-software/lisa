@@ -31,4 +31,6 @@ from report import Report
 from analysis_register import AnalysisRegister
 from analysis_module import AnalysisModule
 
+from git import Git
+
 import android

@@ -21,8 +21,6 @@ import matplotlib.pyplot as plt
 import pylab as pl
 import pandas as pd
 
-from trappy.utils import listify
-
 from analysis_module import AnalysisModule
 
 
@@ -63,6 +61,32 @@ class CpusAnalysis(AnalysisModule):
         ctx_sw_df.index.name = 'cpu'
         return ctx_sw_df
 
+    def _dfg_cpu_wakeups(self, cpus=None):
+        """"
+        Get a DataFrame showing when a CPU was woken from idle
+
+        :param cpus: List of CPUs to find wakeups for. If None, all CPUs.
+        :type cpus: list(int) or None
+
+        :returns: :mod:`pandas.DataFrame` with one column ``cpu``, where each
+                  row shows a time when the given ``cpu`` was woken up from
+                  idle.
+        """
+        if not self._trace.hasEvents('cpu_idle'):
+            self._log.warning('Events [cpu_idle] not found, cannot '
+                              'get CPU wakeup events.')
+            return None
+
+        cpus = cpus or range(self._trace.platform['cpus_count'])
+
+        sr = pd.Series()
+        for cpu in cpus:
+            cpu_sr = self._trace.getCPUActiveSignal(cpu)
+            cpu_sr = cpu_sr[cpu_sr == 1]
+            cpu_sr = cpu_sr.replace(1, cpu)
+            sr = sr.append(cpu_sr)
+
+        return pd.DataFrame({'cpu': sr}).sort_index()
 
 ###############################################################################
 # Plotting Methods
@@ -82,17 +106,15 @@ class CpusAnalysis(AnalysisModule):
 
         # Filter on specified cpus
         if cpus is None:
-            cpus = sorted(self._platform['clusters']['little'] +
-                          self._platform['clusters']['big'])
-        cpus = listify(cpus)
+            cpus = sorted(self._big_cpus + self._little_cpus)
 
         # Plot: big CPUs
-        bcpus = set(cpus) & set(self._platform['clusters']['big'])
+        bcpus = set(cpus).intersection(self._big_cpus)
         if bcpus:
             self._plotCPU(bcpus, "big")
 
         # Plot: LITTLE CPUs
-        lcpus = set(cpus) & set(self._platform['clusters']['little'])
+        lcpus = set(cpus).intersection(self._little_cpus)
         if lcpus:
             self._plotCPU(lcpus, "LITTLE")
 

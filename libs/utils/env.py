@@ -407,7 +407,7 @@ class TestEnv(ShareState):
         # Setup board default if not specified by configuration
         self.nrg_model = None
         platform = None
-        self.__modules = ['cpufreq']
+        self.__modules = ['cpufreq', 'cpuidle']
         if 'board' not in self.conf:
             self.conf['board'] = 'UNKNOWN'
 

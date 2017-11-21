@@ -10,3 +10,6 @@
 [submodule "wiki"]
 	path = wiki
 	url = https://github.com/ARM-Software/lisa.wiki.git
+[submodule "tools/workload-automation"]
+	path = tools/workload-automation
+	url = https://github.com/ARM-software/workload-automation.git

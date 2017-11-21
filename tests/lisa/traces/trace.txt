@@ -494,6 +494,7 @@ cpus=6
           <idle>-0     [002]    76.402047: sched_wakeup:          comm=rcu_preempt pid=8 prio=120 success=1 target_cpu=2
           <idle>-0     [002]    76.402053: sched_switch:          prev_comm=swapper/2 prev_pid=0 prev_prio=120 prev_state=0 next_comm=rcu_preempt next_pid=8 next_prio=120
      rcu_preempt-8     [002]    76.402060: sched_switch:          prev_comm=rcu_preempt prev_pid=8 prev_prio=120 prev_state=1 next_comm=swapper/2 next_pid=0 next_prio=120
+          <idle>-0     [001]    76.402065: sched_overutilized:    overutilized=1
           <idle>-0     [002]    76.521978: sched_wakeup:          comm=sshd pid=1639 prio=120 success=1 target_cpu=2
           <idle>-0     [002]    76.521983: sched_switch:          prev_comm=swapper/2 prev_pid=0 prev_prio=120 prev_state=0 next_comm=sshd next_pid=1639 next_prio=120
             sshd-1639  [002]    76.522040: sched_wakeup:          comm=kworker/u12:1 pid=46 prio=120 success=1 target_cpu=2
@@ -1751,6 +1752,7 @@ cpus=6
           <idle>-0     [005]    80.390135: sched_switch:          prev_comm=swapper/5 prev_pid=0 prev_prio=120 prev_state=0 next_comm=watchdog/5 next_pid=39 next_prio=0
       watchdog/5-39    [005]    80.390145: sched_switch:          prev_comm=watchdog/5 prev_pid=39 prev_prio=0 prev_state=1 next_comm=swapper/5 next_pid=0 next_prio=120
             ramp-1706  [004]    80.393096: sched_switch:          prev_comm=ramp prev_pid=1706 prev_prio=120 prev_state=1 next_comm=swapper/4 next_pid=0 next_prio=120
+          <idle>-0     [001]    80.402065: sched_overutilized:    overutilized=0	  
           <idle>-0     [002]    80.406317: sched_wakeup:          comm=ramp pid=1706 prio=120 success=1 target_cpu=2
           <idle>-0     [002]    80.406334: sched_switch:          prev_comm=swapper/2 prev_pid=0 prev_prio=120 prev_state=0 next_comm=ramp next_pid=1706 next_prio=120
             ramp-1706  [002]    80.410068: sched_wakeup:          comm=kworker/2:1 pid=479 prio=120 success=1 target_cpu=2
@@ -2058,6 +2060,7 @@ cpus=6
           <idle>-0     [001]    81.958070: sched_switch:          prev_comm=swapper/1 prev_pid=0 prev_prio=120 prev_state=0 next_comm=jbd2/sda2-8 next_pid=1383 next_prio=120
      jbd2/sda2-8-1383  [001]    81.958077: sched_switch:          prev_comm=jbd2/sda2-8 prev_pid=1383 prev_prio=120 prev_state=2 next_comm=kworker/1:0 next_pid=18 next_prio=120
      kworker/1:0-18    [001]    81.958087: sched_switch:          prev_comm=kworker/1:0 prev_pid=18 prev_prio=120 prev_state=1 next_comm=swapper/1 next_pid=0 next_prio=120
+          <idle>-0     [001]    82.001337: sched_overutilized:    overutilized=1
           <idle>-0     [000]    82.192002: sched_wakeup:          comm=usb-storage pid=1343 prio=120 success=1 target_cpu=0
           <idle>-0     [000]    82.192013: sched_switch:          prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=0 next_comm=usb-storage next_pid=1343 next_prio=120
      usb-storage-1343  [000]    82.192053: sched_switch:          prev_comm=usb-storage prev_pid=1343 prev_prio=120 prev_state=1 next_comm=swapper/0 next_pid=0 next_prio=120

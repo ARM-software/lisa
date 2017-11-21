@@ -861,7 +861,7 @@ class EnergyModel(object):
         remaining_cpus = set(cpus)
         while remaining_cpus:
             cpu = next(iter(remaining_cpus))
-            dom = target.cpufreq.get_domain_cpus(cpu)
+            dom = target.cpufreq.get_related_cpus(cpu)
             freq_domains.append(dom)
             remaining_cpus = remaining_cpus.difference(dom)
 

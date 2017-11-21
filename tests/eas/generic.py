@@ -442,7 +442,7 @@ class RampUp(_EnergyModelTest):
                             "start_pct" :  5,
                             "end_pct"   : 70,
                             "delta_pct" :  5,
-                            "time_s"    :  2,
+                            "time_s"    : .5,
                          },
                     },
                 },
@@ -461,7 +461,6 @@ class RampDown(_EnergyModelTest):
     """
     Test EAS for a task ramping from 70% down to 5% over 2 seconds
     """
-
     # The main purpose of this test is to ensure that as it reduces in load, a
     # task is migrated from big to LITTLE CPUs on a big.LITTLE system.
     # This migration naturally happens some time _after_ it could possibly be
@@ -482,7 +481,7 @@ class RampDown(_EnergyModelTest):
                             "start_pct" : 70,
                             "end_pct"   :  5,
                             "delta_pct" :  5,
-                            "time_s"    :  2,
+                            "time_s"    : .5,
                          },
                     },
                 },

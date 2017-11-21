@@ -43,7 +43,7 @@ class Trace(object):
 
     :param platform: a dictionary containing information about the target
         platform
-    :type platform: dict
+    :type platform: dict or None
 
     :param data_dir: folder containing all trace data
     :type data_dir: str
@@ -77,7 +77,7 @@ class Trace(object):
                  plots_prefix=''):
 
         # The platform used to run the experiments
-        self.platform = platform
+        self.platform = platform or {}
 
         # TRAPpy Trace object
         self.ftrace = None
@@ -87,6 +87,9 @@ class Trace(object):
 
         # The time window used to limit trace parsing to
         self.window = window
+
+        # Whether trace timestamps are normalized or not
+        self.normalize_time = normalize_time
 
         # Dynamically registered TRAPpy events
         self.trappy_cls = {}
@@ -115,7 +118,7 @@ class Trace(object):
 
         # Folder containing trace
         if not os.path.isdir(data_dir):
-            self.data_dir = os.path.dirname(data_dir)
+            self.data_dir = os.path.dirname(data_dir) or '.'
         else:
             self.data_dir = data_dir
 
@@ -126,21 +129,17 @@ class Trace(object):
         self.plots_prefix = plots_prefix
 
         self.__registerTraceEvents(events)
-        self.__parseTrace(data_dir, window, normalize_time,
-                          trace_format)
-        self.__computeTimeSpan()
-
-        # Minimum and Maximum x_time to use for all plots
-        self.x_min = 0
-        self.x_max = self.time_range
-
-        # Reset x axis time range to full scale
-        t_min = self.window[0]
-        t_max = self.window[1]
-        self.setXTimeRange(t_min, t_max)
+        self.__parseTrace(data_dir, window, trace_format)
 
         self.data_frame = TraceData()
         self._registerDataFrameGetters(self)
+
+        # If we don't know the number of CPUs, check the trace for the
+        # highest-numbered CPU that traced an event.
+        if 'cpus_count' not in self.platform:
+            max_cpu = max(int(self.data_frame.trace_event(e)['__cpu'].max())
+                          for e in self.available_events)
+            self.platform['cpus_count'] = max_cpu + 1
 
         self.analysis = AnalysisRegister(self)
 
@@ -171,14 +170,9 @@ class Trace(object):
         :param t_max: upper bound
         :type t_max: int or float
         """
-        if t_min is None:
-            self.x_min = 0
-        else:
-            self.x_min = t_min
-        if t_max is None:
-            self.x_max = self.time_range
-        else:
-            self.x_max = t_max
+        self.x_min = t_min if t_min is not None else self.start_time
+        self.x_max = t_max if t_max is not None else self.start_time + self.time_range
+
         self._log.debug('Set plots time range to (%.6f, %.6f)[s]',
                        self.x_min, self.x_max)
 
@@ -199,7 +193,7 @@ class Trace(object):
         if 'cpu_frequency' in events:
             self.events.append('cpu_frequency_devlib')
 
-    def __parseTrace(self, path, window, normalize_time, trace_format):
+    def __parseTrace(self, path, window, trace_format):
         """
         Internal method in charge of performing the actual parsing of the
         trace.
@@ -209,9 +203,6 @@ class Trace(object):
 
         :param window: time window to consider when parsing the trace
         :type window: tuple(int, int)
-
-        :param normalize_time: normalize trace time stamps
-        :type normalize_time: bool
 
         :param trace_format: format of the trace. Possible values are:
             - FTrace
@@ -231,8 +222,16 @@ class Trace(object):
         else:
             raise ValueError("Unknown trace format {}".format(trace_format))
 
+        # If using normalized time, we should use
+        # TRAPpy's `abs_window` instead of `window`
+        window_kw = {}
+        if self.normalize_time:
+            window_kw['window'] = window
+        else:
+            window_kw['abs_window'] = window
+
         self.ftrace = trace_class(path, scope="custom", events=self.events,
-                                  window=window, normalize_time=normalize_time)
+                                  normalize_time=self.normalize_time, **window_kw)
 
         # Load Functions profiling data
         has_function_stats = self._loadFunctionsStats(path)
@@ -249,8 +248,9 @@ class Trace(object):
         # Index PIDs and Task names
         self.__loadTasksNames()
 
-        # Setup internal data reference to interesting events/dataframes
+        self.__computeTimeSpan()
 
+        # Setup internal data reference to interesting events/dataframes
         self._sanitize_SchedLoadAvgCpu()
         self._sanitize_SchedLoadAvgTask()
         self._sanitize_SchedCpuCapacity()
@@ -259,16 +259,6 @@ class Trace(object):
         self._sanitize_SchedEnergyDiff()
         self._sanitize_SchedOverutilized()
         self._sanitize_CpuFrequency()
-
-        # Compute plot window
-        if not normalize_time:
-            start = self.window[0]
-            if self.window[1]:
-                duration = min(self.ftrace.get_duration(), self.window[1])
-            else:
-                duration = self.ftrace.get_duration()
-            self.window = (self.ftrace.basetime + start,
-                           self.ftrace.basetime + duration)
 
     def __checkAvailableEvents(self, key=""):
         """
@@ -319,30 +309,12 @@ class Trace(object):
         """
         Compute time axis range, considering all the parsed events.
         """
-        ts = sys.maxint
-        te = 0
-
-        for events in self.available_events:
-            df = self._dfg_trace_event(events)
-            if len(df) == 0:
-                continue
-            if (df.index[0]) < ts:
-                ts = df.index[0]
-            if (df.index[-1]) > te:
-                te = df.index[-1]
-            self.time_range = te - ts
-
+        self.start_time = 0 if self.normalize_time else self.ftrace.basetime
+        self.time_range = self.ftrace.get_duration()
         self._log.debug('Collected events spans a %.3f [s] time interval',
                        self.time_range)
 
-        # Build a stat on trace overutilization
-        if self.hasEvents('sched_overutilized'):
-            df = self._dfg_trace_event('sched_overutilized')
-            self.overutilized_time = df[df.overutilized == 1].len.sum()
-            self.overutilized_prc = 100. * self.overutilized_time / self.time_range
-
-            self._log.debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
-                           self.overutilized_time, self.overutilized_prc)
+        self.setXTimeRange(max(self.start_time, self.window[0]), self.window[1])
 
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
         """
@@ -482,14 +454,21 @@ class Trace(object):
 ###############################################################################
 # Trace Events Sanitize Methods
 ###############################################################################
+    @property
+    def has_big_little(self):
+        return ('clusters' in self.platform
+                and 'big' in self.platform['clusters']
+                and 'little' in self.platform['clusters']
+                and 'nrg_model' in self.platform)
 
     def _sanitize_SchedCpuCapacity(self):
         """
         Add more columns to cpu_capacity data frame if the energy model is
-        available.
+        available and the platform is big.LITTLE.
         """
         if not self.hasEvents('cpu_capacity') \
-           or 'nrg_model' not in self.platform:
+           or 'nrg_model' not in self.platform \
+           or not self.has_big_little:
             return
 
         df = self._dfg_trace_event('cpu_capacity')
@@ -532,9 +511,17 @@ class Trace(object):
             df.rename(columns={'avg_period': 'period_contrib'}, inplace=True)
             df.rename(columns={'runnable_avg_sum': 'load_sum'}, inplace=True)
             df.rename(columns={'running_avg_sum': 'util_sum'}, inplace=True)
+
+        if not self.has_big_little:
+            return
+
         df['cluster'] = np.select(
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 ['LITTLE'], 'big')
+
+        if 'nrg_model' not in self.platform:
+            return
+
         # Add a column which represents the max capacity of the smallest
         # clustre which can accomodate the task utilization
         little_cap = self.platform['nrg_model']['little']['cpu']['cap_max']
@@ -580,7 +567,8 @@ class Trace(object):
         Also convert between existing field name formats for sched_energy_diff
         """
         if not self.hasEvents('sched_energy_diff') \
-           or 'nrg_model' not in self.platform:
+           or 'nrg_model' not in self.platform \
+           or not self.has_big_little:
             return
         nrg_model = self.platform['nrg_model']
         em_lcluster = nrg_model['little']['cluster']
@@ -628,6 +616,18 @@ class Trace(object):
         df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
         df.drop('start', axis=1, inplace=True)
 
+        # Fix the last event, which will have a NaN duration
+        # Set duration to trace_end - last_event
+        df.loc[df.index[-1], 'len'] = self.start_time + self.time_range - df.index[-1]
+
+        # Build a stat on trace overutilization
+        df = self._dfg_trace_event('sched_overutilized')
+        self.overutilized_time = df[df.overutilized == 1].len.sum()
+        self.overutilized_prc = 100. * self.overutilized_time / self.time_range
+
+        self._log.debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
+                        self.overutilized_time, self.overutilized_prc)
+
     def _chunker(self, seq, size):
         """
         Given a data frame or a series, generate a sequence of chunks of the
@@ -646,7 +646,8 @@ class Trace(object):
         Verify that all platform reported clusters are frequency coherent (i.e.
         frequency scaling is performed at a cluster level).
         """
-        if not self.hasEvents('cpu_frequency_devlib'):
+        if not self.hasEvents('cpu_frequency_devlib') \
+           or 'clusters' not in self.platform:
             return
 
         devlib_freq = self._dfg_trace_event('cpu_frequency_devlib')
@@ -846,6 +847,10 @@ class Trace(object):
             )
 
         active.fillna(method='ffill', inplace=True)
+        # There might be NaNs in the signal where we got data from some CPUs
+        # before others. That will break the .astype(int) below, so drop rows
+        # with NaN in them.
+        active.dropna(inplace=True)
 
         # Cluster active is the OR between the actives on each CPU
         # belonging to that specific cluster

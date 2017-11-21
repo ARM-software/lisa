@@ -133,13 +133,13 @@ class FrequencyAnalysis(AnalysisModule):
 
         # Extract LITTLE and big clusters frequencies
         # and scale them to [MHz]
-        if len(self._platform['clusters']['little']):
-            lfreq = df[df.cpu == self._platform['clusters']['little'][-1]]
+        if self._little_cpus:
+            lfreq = df[df.cpu == self._little_cpus[-1]]
             lfreq['frequency'] = lfreq['frequency']/1e3
         else:
             lfreq = []
-        if len(self._platform['clusters']['big']):
-            bfreq = df[df.cpu == self._platform['clusters']['big'][-1]]
+        if self._big_cpus:
+            bfreq = df[df.cpu == self._big_cpus[-1]]
             bfreq['frequency'] = bfreq['frequency']/1e3
         else:
             bfreq = []
@@ -263,7 +263,7 @@ class FrequencyAnalysis(AnalysisModule):
             avg_freq = 0
             if len(_df) > 1:
                 timespan = _df.index[-1] - _df.index[0]
-                avg_freq = area_under_curve(_df['frequency']) / timespan
+                avg_freq = area_under_curve(_df['frequency'], method='rect') / timespan
 
             # Store DF for plotting
             freq[cpu_id] = {
@@ -296,14 +296,17 @@ class FrequencyAnalysis(AnalysisModule):
             axes.axhline(_avg, color='r', linestyle='--', linewidth=2)
 
             # Set plot limit based on CPU min/max frequencies
-            for cluster,cpus in self._platform['clusters'].iteritems():
-                if cpu_id not in cpus:
-                    continue
-                axes.set_ylim(
-                        (self._platform['freqs'][cluster][0] - 100000)/1e3,
-                        (self._platform['freqs'][cluster][-1] + 100000)/1e3
-                )
-                break
+            if 'clusters' in self._platform:
+                for cluster,cpus in self._platform['clusters'].iteritems():
+                    if cpu_id not in cpus:
+                        continue
+                    freqs = self._platform['freqs'][cluster]
+                    break
+            else:
+                freqs = df['frequency'].unique()
+
+            axes.set_ylim((min(freqs) - 100000) / 1e3,
+                          (max(freqs) + 100000) / 1e3)
 
             # Plot CPU frequency transitions
             _df['frequency'].plot(style=['r-'], ax=axes,
@@ -367,9 +370,8 @@ class FrequencyAnalysis(AnalysisModule):
 
         # Split between big and LITTLE CPUs ordered from higher to lower ID
         _cpus.reverse()
-        big_cpus = [c for c in _cpus if c in self._platform['clusters']['big']]
-        little_cpus = [c for c in _cpus if c in
-                       self._platform['clusters']['little']]
+        big_cpus = [c for c in _cpus if c in self._big_cpus]
+        little_cpus = [c for c in _cpus if c in self._little_cpus]
         _cpus = big_cpus + little_cpus
 
         # Precompute active and total time for each CPU
@@ -412,6 +414,9 @@ class FrequencyAnalysis(AnalysisModule):
             return
         if not self._trace.hasEvents('cpu_idle'):
             self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
+            return
+        if 'clusters' not in self._platform:
+            self._log.warning('No platform cluster info. Plot DISABLED!')
             return
 
         # Assumption: all CPUs in a cluster run at the same frequency, i.e. the

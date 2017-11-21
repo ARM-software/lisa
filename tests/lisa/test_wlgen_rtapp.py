@@ -20,7 +20,7 @@ import json
 import os
 
 from perf_analysis import PerfAnalysis
-from wlgen import RTA, Periodic, Ramp
+from wlgen import RTA, Periodic, Ramp, Step
 
 from test_wlgen import WlgenSelfBase
 
@@ -64,39 +64,26 @@ class RTABase(WlgenSelfBase):
         self.assertSetEqual(set(exp_tasks), set(pa.tasks()))
 
 class TestRTAProfile(RTABase):
-    def test_profile_periodic_smoke(self):
-        """
-        Smoketest Periodic rt-app workload
-
-        Creates a workload using Periodic, tests that the JSON has the expected
-        content, then tests that it can be run.
-        """
+    def _do_test(self, task, exp_phases):
         rtapp = RTA(self.target, name='test', calibration=self.calibration)
 
         rtapp.conf(
             kind = 'profile',
-            params = {
-                'task_p20': Periodic(
-                    period_ms      = 100,
-                    duty_cycle_pct = 20,
-                    duration_s     = 1,
-                ).get(),
-            },
+            params = {'my_task': task.get()},
             run_dir=self.target_run_dir
         )
 
         with open(rtapp.json) as f:
-            conf = json.load(f)
+            conf = json.load(f, object_pairs_hook=OrderedDict)
 
-        [phase] = conf['tasks']['task_p20']['phases'].values()
-        self.assertDictEqual(phase, {
-            'loop': 10,
-            'run': 20000,
-            'timer': {
-                'period': 100000,
-                'ref': 'task_p20'
-            }
-        })
+        # Check that the configuration looks like we expect it to
+        phases = conf['tasks']['my_task']['phases'].values()
+        self.assertEqual(len(phases), len(exp_phases), 'Wrong number of phases')
+        for phase, exp_phase in zip(phases, exp_phases):
+            self.assertDictEqual(phase, exp_phase)
+
+        # Try running the workload and check that it produces the expected log
+        # files
         rtapp.run(out_dir=self.host_out_dir)
 
         rtapp_cmds = [c for c in self.target.executed_commands if 'rt-app' in c]
@@ -104,10 +91,55 @@ class TestRTAProfile(RTABase):
 
         self.assert_output_file_exists('output.log')
         self.assert_output_file_exists('test_00.json')
-        self.assert_output_file_exists('rt-app-task_p20-0.log')
-        self.assert_can_read_logfile(exp_tasks=['task_p20'])
+        self.assert_output_file_exists('rt-app-my_task-0.log')
+        self.assert_can_read_logfile(exp_tasks=['my_task'])
 
-class TestRTAComposition(RTABase):
+    def test_profile_periodic_smoke(self):
+        """
+        Smoketest Periodic rt-app workload
+
+        Creates a workload using Periodic, tests that the JSON has the expected
+        content, then tests that it can be run.
+        """
+
+        task = Periodic(period_ms=100, duty_cycle_pct=20, duration_s=1)
+
+        exp_phases = [
+            {
+                'loop': 10,
+                'run': 20000,
+                'timer': {
+                    'period': 100000,
+                    'ref': 'my_task'
+                }
+            }
+        ]
+
+        self._do_test(task, exp_phases)
+
+    def test_profile_step_smoke(self):
+        """
+        Smoketest Step rt-app workload
+
+        Creates a workload using Step, tests that the JSON has the expected
+        content, then tests that it can be run.
+        """
+
+        task = Step(start_pct=100, end_pct=0, time_s=1)
+
+        exp_phases = [
+            {
+                'run': 1000000,
+                'loop': 1
+            },
+            {
+                'sleep': 1000000,
+                'loop': 1
+            },
+        ]
+
+        self._do_test(task, exp_phases)
+
     def test_composition(self):
         """
         Test RTA task composition with __add__
@@ -115,8 +147,6 @@ class TestRTAComposition(RTABase):
         Creates a composed workload by +-ing RTATask objects, tests that the
         JSON has the expected content, then tests running the workload
         """
-        rtapp = RTA(self.target, name='test', calibration=self.calibration)
-
         light  = Periodic(duty_cycle_pct=10, duration_s=1.0, period_ms=10)
 
         start_pct = 10
@@ -128,20 +158,7 @@ class TestRTAComposition(RTABase):
 
         heavy = Periodic(duty_cycle_pct=90, duration_s=0.1, period_ms=100)
 
-        lrh_task = light + ramp + heavy
-
-        rtapp.conf(
-            kind = 'profile',
-            params = {
-                'task_ramp': lrh_task.get()
-            },
-            run_dir=self.target_run_dir
-        )
-
-        with open(rtapp.json) as f:
-            conf = json.load(f, object_pairs_hook=OrderedDict)
-
-        phases = conf['tasks']['task_ramp']['phases'].values()
+        task = light + ramp + heavy
 
         exp_phases = [
             # Light phase:
@@ -150,7 +167,7 @@ class TestRTAComposition(RTABase):
                 "run": 1000,
                 "timer": {
                     "period": 10000,
-                    "ref": "task_ramp"
+                    "ref": "my_task"
                 }
             },
             # Ramp phases:
@@ -159,7 +176,7 @@ class TestRTAComposition(RTABase):
                 "run": 5000,
                 "timer": {
                     "period": 50000,
-                    "ref": "task_ramp"
+                    "ref": "my_task"
                 }
             },
             {
@@ -167,7 +184,7 @@ class TestRTAComposition(RTABase):
                 "run": 15000,
                 "timer": {
                     "period": 50000,
-                    "ref": "task_ramp"
+                    "ref": "my_task"
                 }
             },
             {
@@ -175,7 +192,7 @@ class TestRTAComposition(RTABase):
                 "run": 25000,
                 "timer": {
                     "period": 50000,
-                    "ref": "task_ramp"
+                    "ref": "my_task"
                 }
             },
             {
@@ -183,7 +200,7 @@ class TestRTAComposition(RTABase):
                 "run": 35000,
                 "timer": {
                     "period": 50000,
-                    "ref": "task_ramp"
+                    "ref": "my_task"
                 }
             },
             {
@@ -191,7 +208,7 @@ class TestRTAComposition(RTABase):
                 "run": 45000,
                 "timer": {
                     "period": 50000,
-                    "ref": "task_ramp"
+                    "ref": "my_task"
                 }
             },
             # Heavy phase:
@@ -200,21 +217,12 @@ class TestRTAComposition(RTABase):
                 "run": 90000,
                 "timer": {
                     "period": 100000,
-                    "ref": "task_ramp"
+                    "ref": "my_task"
                 }
             }]
 
-        self.assertListEqual(phases, exp_phases)
 
-        rtapp.run(out_dir=self.host_out_dir)
-
-        rtapp_cmds = [c for c in self.target.executed_commands if 'rt-app' in c]
-        self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
-
-        self.assert_output_file_exists('output.log')
-        self.assert_output_file_exists('test_00.json')
-        self.assert_output_file_exists('rt-app-task_ramp-0.log')
-        self.assert_can_read_logfile(exp_tasks=['task_ramp'])
+        self._do_test(task, exp_phases)
 
     def test_invalid_composition(self):
         """Test that you can't compose tasks with a delay in the second task"""
