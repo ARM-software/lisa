@@ -48,35 +48,26 @@ class Workload(TargetedPlugin):
                   """)
     ]
 
+    # Set this to True to mark that this workload poses a risk of exposing
+    # information to the outside world about the device it runs on. An example of
+    # this would be a benchmark application that sends scores and device data to a
+    # database owned by the maintainer.
+    # The user can then set allow_phone_home=False in their configuration to
+    # prevent this workload from being run accidentally.
     phones_home = False
-    """
-    Set this to True to mark that this workload poses a risk of exposing
-    information to the outside world about the device it runs on. An example of
-    this would be a benchmark application that sends scores and device data to a
-    database owned by the maintainer.
 
-    The user can then set allow_phone_home=False in their configuration to
-    prevent this workload from being run accidentally.
-    """
-
+    # Set this to ``True`` to mark the the workload will fail without a network
+    # connection, this enables it to fail early with a clear message.
     requires_network = False
-    """
-    Set this to ``True`` to mark the the workload will fail without a network
-    connection, this enables it to fail early with a clear message.
-    """
 
+    # Set this to specify a custom directory for assets to be pushed to, if unset
+    # the working directory will be used.
     asset_directory = None
-    """
-    Set this to specify a custom directory for assets to be pushed to, if unset
-    the working directory will be used.
-    """
 
+    # Used to store information about workload assets.
     deployable_assets = []
     asset_files = []
     deployed_assets = []
-    """
-    Used to store information about workload assets.
-    """
 
     def init_resources(self, context):
         """
