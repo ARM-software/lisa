@@ -333,6 +333,7 @@ class Gem5Connection(TelnetConnection):
                  timeout=None,
                  password_prompt=None,
                  original_prompt=None,
+                 strip_echoed_commands=False,
                  ):
         if host is not None:
             host_system = socket.gethostname()
@@ -349,6 +350,8 @@ class Gem5Connection(TelnetConnection):
         self.is_rooted = True
         self.password = None
         self.port = None
+        # Flag to indicate whether commands are echoed by the simulated system
+        self.strip_echoed_commands = strip_echoed_commands
         # Long timeouts to account for gem5 being slow
         # Can be overriden if the given timeout is longer
         self.default_timeout = 3600
