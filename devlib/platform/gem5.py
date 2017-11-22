@@ -200,9 +200,7 @@ class Gem5SimulationPlatform(Platform):
         """
         Deploy m5 if not yet installed
         """
-        m5_path = target.get_installed('m5')
-        if m5_path is None:
-            m5_path = self._deploy_m5(target)
+        m5_path = self._deploy_m5(target)
         target.conn.m5_path = m5_path
 
         # Set the terminal settings for the connection to gem5
