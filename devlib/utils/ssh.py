@@ -727,11 +727,11 @@ class Gem5Connection(TelnetConnection):
 
         output = output[command_index + len(command):].strip()
 
-        # It is possible that gem5 will echo the command. Therefore, we need to
-        # remove that too!
-        command_index = output.find(command)
-        if command_index != -1:
-            output = output[command_index + len(command):].strip()
+        # If the gem5 system echoes the executed command, we need to remove that too!
+        if self.strip_echoed_commands:
+            command_index = output.find(command)
+            if command_index != -1:
+                output = output[command_index + len(command):].strip()
 
         gem5_logger.debug("gem5_shell output: {}".format(output))
 
