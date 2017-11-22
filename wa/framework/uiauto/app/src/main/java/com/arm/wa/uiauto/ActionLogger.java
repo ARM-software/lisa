@@ -48,13 +48,13 @@ import android.util.Log;
 
         public void start() {
             if (enabled) {
-                Log.d("UX_PERF", testTag + "_start " + System.nanoTime());
+                Log.d("UX_PERF", testTag + " start " + System.nanoTime());
             }
         }
 
         public void stop() throws Exception {
             if (enabled) {
-                Log.d("UX_PERF", testTag + "_end " + System.nanoTime());
+                Log.d("UX_PERF", testTag + " end " + System.nanoTime());
             }
         }
     }
