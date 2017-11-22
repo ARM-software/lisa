@@ -1,0 +1,24 @@
+#!/bin/bash
+#
+# This script rebuilds all uiauto APKs as well as the base uiauto.arr. This is
+# useful when changes have been made to the base uiautomation classes and so
+# all automation needs to be rebuilt to link against the updated uiauto.arr.
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$SCRIPT_DIR/../wa/framework/uiauto"
+WORKLOADS_DIR="$SCRIPT_DIR/../wa/workloads"
+
+pushd $BASE_DIR > /dev/null
+echo "building $(pwd)"
+./build.sh
+popd > /dev/null
+
+for uiauto_dir in $(find $WORKLOADS_DIR -type d -name uiauto); do
+    pushd $uiauto_dir > /dev/null
+    if [ -f build.sh ]; then
+        echo "building $(pwd)"
+        ./build.sh
+    fi
+    popd > /dev/null
+done

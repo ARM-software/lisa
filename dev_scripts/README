@@ -21,3 +21,6 @@ Scripts
 :pylint: Runs pylint (must be installed) over wlauto with the correct settings
          for WA.
 
+:rebuild_all_uiauto: Rebuild UIAutomator APKs for workloads that have them. This
+                     is useful to make sure they're all using the latest
+                     uiauto.arr after the latter has been updated.
