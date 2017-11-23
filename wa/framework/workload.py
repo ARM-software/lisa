@@ -558,6 +558,10 @@ class PackageHandler(object):
         self.target.clear_logcat()
 
     def resolve_package(self, context):
+        if not self.owner.package_names and not self.package_name:
+            msg = 'Cannot Resolve package; No package name(s) specified'
+            raise WorkloadError(msg)
+
         self.apk_file = context.resolver.get(ApkFile(self.owner,
                                                      variant=self.variant,
                                                      version=self.version,
@@ -575,9 +579,6 @@ class PackageHandler(object):
                     msg = 'Multiple matching packages found for {}; host version: {}, device version: {}'
                     raise WorkloadError(msg.format(self.owner, host_version, installed_version))
         else:
-            if not self.owner.package_names and not self.package_name:
-                msg = 'No package name(s) specified and no matching APK file found on host'
-                raise WorkloadError(msg)
             self.resolve_package_from_target(context)
 
     def resolve_package_from_target(self, context):
