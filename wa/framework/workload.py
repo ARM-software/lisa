@@ -562,13 +562,29 @@ class PackageHandler(object):
             msg = 'Cannot Resolve package; No package name(s) specified'
             raise WorkloadError(msg)
 
-        self.apk_file = context.resolver.get(ApkFile(self.owner,
-                                                     variant=self.variant,
-                                                     version=self.version,
-                                                     package=self.package_name,
-                                                     exact_abi=self.exact_abi,
-                                                     supported_abi=self.supported_abi),
-                                             strict=self.strict)
+        if self.package_name:
+            self.apk_file = context.resolver.get(ApkFile(self.owner,
+                                                         variant=self.variant,
+                                                         version=self.version,
+                                                         package=self.package_name,
+                                                         exact_abi=self.exact_abi,
+                                                         supported_abi=self.supported_abi),
+                                                 strict=self.strict)
+        else:
+            available_packages = []
+            for package in self.owner.package_names:
+                available_packages.append(context.resolver.get(ApkFile(self.owner,
+                                                                       variant=self.variant,
+                                                                       version=self.version,
+                                                                       package=package,
+                                                                       exact_abi=self.exact_abi,
+                                                                       supported_abi=self.supported_abi),
+                                                               strict=self.strict))
+            if len(available_packages) == 1:
+                self.apk_file = available_packages[0]
+            elif len(available_packages) > 1:
+                msg = 'Multiple matching packages found for "{}" on host: {}'
+                raise WorkloadError(msg.format(self.owner, available_packages))
         if self.apk_file:
             self.apk_info = ApkInfo(self.apk_file)
             if self.version:
