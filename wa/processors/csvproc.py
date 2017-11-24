@@ -62,8 +62,8 @@ class CsvReportProcessor(ResultProcessor):
     def _write_outputs(self, outputs, output):
         if self.use_all_classifiers:
             classifiers = set([])
-            for output in outputs:
-                for metric in output.metrics:
+            for out in outputs:
+                for metric in out.metrics:
                     classifiers.update(metric.classifiers.keys())
             extra_columns = list(classifiers)
         elif self.extra_columns:
