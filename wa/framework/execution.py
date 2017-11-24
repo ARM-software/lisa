@@ -464,28 +464,30 @@ class Runner(object):
             job.setup(context)
 
         try:
-            with signal.wrap('JOB_EXECUTION', self):
-                job.run(context)
 
             try:
-                with signal.wrap('JOB_OUTPUT_PROCESSED', self):
-                    job.process_output(context)
-                self.pm.process_job_output(context)
-                self.pm.export_job_output(context)
-            except Exception:
-                job.set_status(Status.PARTIAL)
-                raise
+                with signal.wrap('JOB_EXECUTION', self):
+                    job.run(context)
+            except Exception as e:
+                job.set_status(Status.FAILED)
+                if not getattr(e, 'logged', None):
+                    log.log_error(e, self.logger)
+                    e.logged = True
+                raise e
+            finally:
+                try:
+                    with signal.wrap('JOB_OUTPUT_PROCESSED', self):
+                        job.process_output(context)
+                    self.pm.process_job_output(context)
+                    self.pm.export_job_output(context)
+                except Exception:
+                    job.set_status(Status.PARTIAL)
+                    raise
 
         except KeyboardInterrupt:
             job.set_status(Status.ABORTED)
             self.logger.info('Got CTRL-C. Aborting.')
             raise
-        except Exception as e:
-            job.set_status(Status.FAILED)
-            if not getattr(e, 'logged', None):
-                log.log_error(e, self.logger)
-                e.logged = True
-            raise e
         finally:
             # If setup was successfully completed, teardown must
             # run even if the job failed
