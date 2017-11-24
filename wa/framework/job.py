@@ -82,11 +82,12 @@ class Job(object):
 
     def process_output(self, context):
         self.logger.info('Processing output for job {} [{}]'.format(self.id, self.iteration))
-        with signal.wrap('WORKLOAD_RESULT_EXTRACTION', self, context):
-            self.workload.extract_results(context)
-            context.extract_results()
-        with signal.wrap('WORKLOAD_OUTPUT_UPDATE', self, context):
-            self.workload.update_output(context)
+        if self.status != Status.FAILED:
+            with signal.wrap('WORKLOAD_RESULT_EXTRACTION', self, context):
+                self.workload.extract_results(context)
+                context.extract_results()
+            with signal.wrap('WORKLOAD_OUTPUT_UPDATE', self, context):
+                self.workload.update_output(context)
 
     def teardown(self, context):
         self.logger.info('Tearing down job {} [{}]'.format(self.id, self.iteration))
