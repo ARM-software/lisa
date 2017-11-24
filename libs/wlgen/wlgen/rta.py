@@ -108,29 +108,26 @@ class RTA(Workload):
 
         target.cpufreq.set_all_governors('performance')
 
+        # Create calibration task
+        max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
+        log.debug('Max RT prio: %d', max_rtprio)
+        if max_rtprio > 10:
+            max_rtprio = 10
+
+        calib_task = Periodic(period_ms=100,
+                              duty_cycle_pct=50,
+                              duration_s=1,
+                              sched={
+                                  'policy': 'FIFO',
+                                  'prio': max_rtprio
+                              }).get()
+        rta = RTA(target, 'rta_calib')
+
         for cpu in target.list_online_cpus():
 
             log.info('CPU%d calibration...', cpu)
 
-            max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
-            log.debug('Max RT prio: %d', max_rtprio)
-            if max_rtprio > 10:
-                max_rtprio = 10
-
-            rta = RTA(target, 'rta_calib')
-            rta.conf(kind='profile',
-                    params = {
-                        'task1': Periodic(
-                            period_ms=100,
-                            duty_cycle_pct=50,
-                            duration_s=1,
-                            sched={
-                                'policy': 'FIFO',
-                                'prio' : max_rtprio
-                            }
-                        ).get()
-                    },
-                    cpus=[cpu])
+            rta.conf(kind='profile', params={'task1': calib_task}, cpus=[cpu])
             rta.run(as_root=True)
 
             for line in rta.getOutput().split('\n'):
