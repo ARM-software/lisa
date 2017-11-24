@@ -44,7 +44,7 @@ class LogcatParser(object):
 
     def parse_line(self, line):
         line = line.strip()
-        if not line or line.startswith('-') or ':' not in line:
+        if not line or line.startswith('-') or ': ' not in line:
             return None
 
         metadata, message = line.split(': ', 1)
