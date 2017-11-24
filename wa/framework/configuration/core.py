@@ -970,8 +970,8 @@ class JobSpec(Configuration):
 
         cfg_points = plugin_cache.get_plugin_parameters(self.workload_name)
         for source in self._sources:
-            config = self.to_merge["workload_parameters"].get(source)
-            if config is None:
+            config = dict(self.to_merge["workload_parameters"].get(source, {}))
+            if not config:
                 continue
 
             for name, cfg_point in cfg_points.iteritems():
