@@ -243,18 +243,10 @@ class ApkWorkload(Workload):
         self.apk.setup(context)
         time.sleep(self.loading_time)
 
-    def run(self, context):
-        pass
-
-    def extract_results(self, context):
-        pass
-
     def teardown(self, context):
+        super(ApkWorkload, self).teardown(context)
         self.apk.teardown()
 
-    @once_per_instance
-    def finalize(self, context):
-        pass
 
     def deploy_assets(self, context):
         super(ApkWorkload, self).deploy_assets(context)
