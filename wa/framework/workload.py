@@ -81,7 +81,8 @@ class Workload(TargetedPlugin):
         validated.
 
         """
-        pass
+        for asset in self.deployable_assets:
+            self.asset_files.append(context.resolver.get(File(self, asset)))
 
     @once_per_instance
     def initialize(self, context):
@@ -228,10 +229,6 @@ class ApkWorkload(Workload):
                                   install_timeout=self.install_timeout,
                                   uninstall=self.uninstall,
                                   exact_abi=self.exact_abi)
-
-    def init_resources(self, context):
-        for asset in self.deployable_assets:
-            self.asset_files.append(context.resolver.get(File(self, asset)))
 
     @once_per_instance
     def initialize(self, context):
