@@ -44,7 +44,7 @@ wheezy will probably be too old.
 #### Install required python packages
 
     $ sudo apt install libfreetype6-dev libpng12-dev python-nose
-    $ sudo pip install numpy matplotlib pandas ipython[all]
+    $ sudo pip install hypothesis numpy matplotlib pandas ipython[all]
     $ sudo pip install --upgrade trappy
 
 `ipython[all]` will install [IPython
