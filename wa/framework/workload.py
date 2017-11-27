@@ -91,7 +91,7 @@ class Workload(TargetedPlugin):
         workload instance, i.e., unlike ``setup()`` it will not be invoked on
         each iteration.
         """
-        if self.deployable_assets:
+        if self.asset_files:
             self.deploy_assets(context)
 
     def setup(self, context):
@@ -145,8 +145,8 @@ class Workload(TargetedPlugin):
         else:
             self.target.execute('mkdir -p {}'.format(self.asset_directory))
 
-        for i, asset in enumerate(self.deployable_assets):
-            self.target.push(self.asset_files[i], self.asset_directory)
+        for asset in self.asset_files:
+            self.target.push(asset, self.asset_directory)
             self.deployed_assets.append(self.target.path.join(self.asset_directory,
                                                               asset))
 
