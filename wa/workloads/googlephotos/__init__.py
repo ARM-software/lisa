@@ -70,7 +70,7 @@ class Googlephotos(ApkUiautoWorkload):
             if os.path.splitext(image.lower())[1] not in ['.jpg', '.jpeg', '.png']:
                 raise ValidationError('{} must be a JPEG or PNG file'.format(image))
 
-    def deploy_assets(self, context, directory=None):
+    def deploy_assets(self, context):
         super(Googlephotos, self).deploy_assets(context)
         # Create a subfolder for each test_image named ``wa-[1-4]``
         # Move each image into its subfolder
