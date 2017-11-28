@@ -3,6 +3,7 @@ from collections import OrderedDict
 
 from wa import ComplexCommand, SubCommand, pluginloader
 from wa.framework.target.descriptor import get_target_descriptions
+from wa.framework.exception import ConfigError
 
 from wa.utils.serializer import yaml
 
@@ -40,7 +41,7 @@ class CreateAgendaSubcommand(SubCommand):
                 agenda['config']['device'] = name
                 agenda['config']['device_config'] = target_desc.get_default_config()
                 continue
-                
+
             extcls = pluginloader.get_plugin_class(name)
             config = pluginloader.get_default_config(name)
 
