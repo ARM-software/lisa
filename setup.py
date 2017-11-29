@@ -31,6 +31,7 @@ to assert behaviours using the FTrace output from the kernel
 
 REQUIRES = [
     "TRAPpy>=3.0",
+    "hypothesis>=3.0",
 ]
 
 setup(name='bart-py',
