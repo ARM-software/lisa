@@ -261,6 +261,7 @@ GEM5_PLATFORM_PARAMS = [
 CONNECTION_PARAMS = {
     AdbConnection: [
         Parameter('device', kind=str,
+                aliases=['adb_name'],
                 description="""
                 ADB device name
                 """),
