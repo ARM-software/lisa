@@ -194,7 +194,7 @@ class ApkWorkload(Workload):
         Parameter('strict', kind=bool,
                   default=False,
                   description="""
-                  Whether to throw and error if the specified package cannot be found
+                  Whether to throw an error if the specified package cannot be found
                   on host.
                   """),
         Parameter('force_install', kind=bool,
@@ -212,7 +212,7 @@ class ApkWorkload(Workload):
                   default=False,
                   description="""
                   If ``True``, workload will check that the APK matches the target
-                        device ABI, otherwise any suitable APK found will be used.
+                  device ABI, otherwise any suitable APK found will be used.
                   """)
     ]
 
