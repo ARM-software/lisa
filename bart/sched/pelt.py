@@ -21,9 +21,10 @@ Tracking (PELT) machinery used by the Linux kernel to track the CPU bandwidth
 demand of scheduling entities.
 
 This model is based on some simplification assumptions:
-1) it supports only periodic tasks, which have a constant period and duty-cycle
-2) all the time metrics are defined using "PELT samples" (1024us by default) as
-   fundamental unit of measure
+
+* It supports only periodic tasks, which have a constant period and duty-cycle.
+* All the time metrics are defined using "PELT samples" (1024us by default) as
+  fundamental unit of measure
 
 The simulator is composed of two main components: a PeriodicTask model and a signal
 Simulator. Both classes have configuration parameters to defined their specific
@@ -37,9 +38,9 @@ from collections import namedtuple as namedtuple
 from pandas import DataFrame as DataFrame
 
 
-################################################################################
+##########################################################################
 # PeriodicTask Model
-################################################################################
+##########################################################################
 
 class PeriodicTask(object):
 
@@ -79,7 +80,8 @@ class PeriodicTask(object):
         invalid = any(not isinstance(param, int) or param < 0
                       for param in args)
         if invalid:
-            raise ValueError('one of more parameters are not positive integers')
+            raise ValueError(
+                'one of more parameters are not positive integers')
         if run_samples is None and duty_cycle_pct is None:
             raise ValueError('undefined run_samples or duty_cycle_pct')
         if period_samples == 0:
@@ -88,10 +90,10 @@ class PeriodicTask(object):
             raise ValueError('run_samples bigger than period_samples')
 
         self.pelt_sample_us = pelt_sample_us
-        self.pelt_max       = pelt_max
+        self.pelt_max = pelt_max
 
         self.start_sample = start_sample
-        self.start_us  = self.pelt_sample_us * start_sample
+        self.start_us = self.pelt_sample_us * start_sample
         self.period_samples = period_samples
         self.period_us = self.pelt_sample_us * period_samples
 
@@ -101,16 +103,17 @@ class PeriodicTask(object):
         else:
             self.run_samples = run_samples
             self.duty_cycle_pct = int(100. * run_samples / period_samples)
-        self.run_us    = self.pelt_sample_us * self.run_samples
+        self.run_us = self.pelt_sample_us * self.run_samples
 
-        self.idle_us   = self.period_us - self.run_us
-        self.pelt_avg =  int(float(self.pelt_max) * self.duty_cycle_pct / 100)
+        self.idle_us = self.period_us - self.run_us
+        self.pelt_avg = int(float(self.pelt_max) * self.duty_cycle_pct / 100)
 
     def isRunning(self, time_ms):
-        """Return wheter the task is running in the specified time instant.
+        """Return whether the task is running in the specified time instant.
 
         The current implementation provide support only for periodic tasks
         which have the following (abstract) execution model:
+        ::
 
             +----+    +----+      Task is RUNNING
             |    |    |    |
@@ -140,37 +143,46 @@ class PeriodicTask(object):
     def __str__(self):
         return "PeriodicTask(start: {:.3f} [ms], period: {:.3f} [ms], run: {:.3f} [ms], "\
                "duty_cycle: {:.3f} [%], pelt_avg: {:d})"\
-                .format(self.start_us/1e3, self.period_us/1e3,
-                        self.run_us/1e3, self.duty_cycle_pct,
-                        self.pelt_avg)
+            .format(self.start_us / 1e3, self.period_us / 1e3,
+                    self.run_us / 1e3, self.duty_cycle_pct,
+                    self.pelt_avg)
 
 
-################################################################################
+##########################################################################
 # PELT Model
-################################################################################
+##########################################################################
 
 _PELTStats = namedtuple('PELTStats', [
     'start_s', 'end_s',
     'pelt_avg', 'pelt_init', 'half_life',
     'tmin', 'tmax', 'min', 'max', 'avg', 'std',
     'err', 'err_pct'])
+
+
 class PELTStats(_PELTStats):
-    """Statistic of a computed PELT signal
+    """Statistics of a computed PELT signal
 
     This is a collection of metrics computed on a simulated PELT signal:
-    start_s   : start time [s] used for PELT signal simulation
-    end_s     : end time [s] used for PELT signal simulation
-    pelt_avg  : expected average value of the PELT signal
-    pelt_init : initial PELT value
-    half_life : time [ms] of the PELT's half-life parameter
-    tmin      : start time [s] used for statistics computation
-    tmax      : end time [s] used for statistics computation
-    min       : minimum PELT value, within [tmin, tmax]
-    max       : maximum PELT value, within [tmin, tmax]
-    avg       : average of the PELT values, within [tmin, tmax]
-    std       : standard deviation of the PELT value, within [tmin, tmax]
-    err       : difference between pelt_avg and avg
-    err_pct   : the avg error percentage, compared to the expected average (pelt_avg)
+
+
+
+    =============   ================================================================
+     Metric         Description
+    =============   ================================================================
+    ``start_s``     Start time [s] used for PELT signal simulation
+    ``end_s``       End time [s] used for PELT signal simulation
+    ``pelt_avg``    Expected average value of the PELT signal
+    ``pelt_init``   Initial PELT value
+    ``half_life``   End time [ms] of the PELT's half-life parameter
+    ``tmin``        Start time [s] used for statistics computation
+    ``tmax``        End time [s] used for statistics computation
+    ``min``         Minimum PELT value, within [tmin, tmax]
+    ``max``         Maximum PELT value, within [tmin, tmax]
+    ``avg``         Average of the PELT values, within [tmin, tmax]
+    ``std``         Standard deviation of the PELT value, within [tmin, tmax]
+    ``err``         Difference between pelt_avg and avg
+    ``err_pct``     The avg error percentage, compared to the expected average (pelt_avg)
+    =============   ================================================================
 
     :note: the [start_s, end_s] interval used for statistical computations can be
            smaller than the timespan of the simulated PELT signal. For example, we
@@ -183,6 +195,8 @@ class PELTStats(_PELTStats):
 
 _PELTRange = namedtuple('PELTRange', [
     'min_value', 'max_value'])
+
+
 class PELTRange(_PELTRange):
     """Stability range for the PELT signal of a given PeriodicTask
 
@@ -192,6 +206,7 @@ class PELTRange(_PELTRange):
     Also, store the information about when the signal starts becoming stable.
     """
     pass
+
 
 class Simulator(object):
     """A simple PELT simulator
@@ -234,14 +249,14 @@ class Simulator(object):
         self.half_life_ms = half_life_ms
         self.decay_cap_ms = decay_cap_ms
 
-        self._geom_y = pow(0.5, 1./half_life_ms)
+        self._geom_y = pow(0.5, 1. / half_life_ms)
         self._geom_u = float(self._signal_max) * (1. - self._geom_y)
 
         self.task = None
         self._df = None
 
     def __str__(self):
-        desc  = "PELT Simulator configured with\n"
+        desc = "PELT Simulator configured with\n"
         desc += "  initial value        : {}\n".format(self.init_value)
         desc += "  half life (HL)  [ms] : {}\n".format(self.half_life_ms)
         desc += "  decay capping @ [ms] : {}\n".format(self.decay_cap_ms)
@@ -268,14 +283,21 @@ class Simulator(object):
         """Compute the PELT's signal stability ranges for the specified task
 
         Here we use:
-        - Decay factor:       y = 0.5^(1/half_life)
-        - Max stable value:       (1-y^r) / (1-y^p)
-        - Min stable value: y^i * (1-y^r) / (1-y^p)
+
+        =====================  ======================================
+         Value                  Definition
+        =====================  ======================================
+        Half Like              :math:`\lambda`
+        Decay factor           :math:`y = 0.5^{(1/\lambda)}`
+        Max stable value       :math:`(1-y^r) / (1-y^p)`
+        Min stable value       :math:`y^i \\times (1-y^r) / (1-y^p)`
+        =====================  ======================================
+
         Where:
-            r is the run time of the task in number of PELT samples
-            p is the period of the task in number of PELT samples
-            i is the idle time of the task in number of PELT samples,
-              i.e. i = p - r
+
+            * :math:`r` is the run time of the task in number of PELT samples
+            * :math:`p` is the period of the task in number of PELT samples.
+            * :math:`i` is the idle time of the task in number of PELT samples i.e. :math:`i = p - r`
 
         :param task: the task we want to simulate the PELT signal for, by
                      default is the task used to initialize the Simulator
@@ -291,14 +313,14 @@ class Simulator(object):
             raise ValueError("Wrong time for task parameter")
 
         def _to_pelt_samples(time_us):
-            return float(time_us)/self._sample_us
+            return float(time_us) / self._sample_us
 
         # Compute max value
-        max_pelt  = (1. - pow(self._geom_y, _to_pelt_samples(task.run_us)))
+        max_pelt = (1. - pow(self._geom_y, _to_pelt_samples(task.run_us)))
         max_pelt /= (1. - pow(self._geom_y, _to_pelt_samples(task.period_us)))
 
         # Compute min value, by decaying the maximum value
-        min_pelt  = max_pelt
+        min_pelt = max_pelt
         min_pelt *= pow(self._geom_y, _to_pelt_samples(task.idle_us))
 
         min_pelt *= self._signal_max
@@ -346,13 +368,18 @@ class Simulator(object):
         :type  end_s: float
 
         :return: :mod:`pandas.DataFrame` instance which reports the computed
-        PELT values at each PELT sample interval. The returned columns are:
-        - Time          : the PELT sample time
-        - PELT_Interval : the PELT sample number
-        - Running       : a boolean reporting if the task was RUNNING in that
-                          PELT interval
-        - pelt_value      : the compute PELT signal value at the end of that PELT
-                          interval
+                 PELT values at each PELT sample interval. The returned columns are:
+
+                 ================= ==============================================
+                 Column             Description
+                 ================= ==============================================
+                 Time              The PELT sample time
+                 PELT_Interval     The PELT sample number
+                 Running           A boolean reporting if the task was RUNNING in that
+                                   PELT interval
+                 pelt_value        The computed PELT signal value at the end of that PELT
+                                   interval
+                 ================= ==============================================
         """
 
         # Computed PELT samples
@@ -401,7 +428,8 @@ class Simulator(object):
                 pelt_value = self._geomSum(pelt_value, active_us)
 
             # Append PELT sample
-            sample = (_us_to_s(t_us), t_us/self._sample_us, running, pelt_value)
+            sample = (_us_to_s(t_us), t_us /
+                      self._sample_us, running, pelt_value)
             samples.append(sample)
 
             # Prepare for next sample computation
@@ -409,7 +437,8 @@ class Simulator(object):
             t_us += self._sample_us
 
         # Create DataFrame from computed samples
-        self._df = DataFrame(samples, columns=['Time', 'PELT_Interval', 'Running', 'pelt_value'])
+        self._df = DataFrame(
+            samples, columns=['Time', 'PELT_Interval', 'Running', 'pelt_value'])
         self._df.set_index('Time', inplace=True)
 
         # Keep track of the last task we computed the signal for
@@ -427,9 +456,9 @@ class Simulator(object):
         :param stats_end_s: the end of signal portion to build the stats for
         :type  stats_end_s: float
 
-        :return: :mod:`PELTStats' instance reporting the metrics of the PELT
+        :return: :mod:`PELTStats` instance reporting the metrics of the PELT
                  signal computed for the task specified in the last execution
-                 of getSignal.
+                 of `getSignal`
         """
 
         # Validate input parameters
@@ -469,20 +498,22 @@ class Simulator(object):
     @classmethod
     def estimateInitialPeltValue(cls, first_val, first_event_time_s,
                                  start_time_s, half_life_ms):
-        """
-        There will typically be a delay between the time when a task starts,
+        """There will typically be a delay between the time when a task starts,
         and the first trace event that logs PELT signals for that task. During
         this time the signal will change from its initial value. This method
         takes the time at which a task starts running and the timestamp and
         value of the first PELT trace event related to that task. It returns an
-        estimate for the value the PELT signal had the task started. Example:
+        estimate for the value the PELT signal had the task started.
+
+        Example:
+        ::
 
             +---------------------+      Task is RUNNING
             |              E      |
 
           --+--------------+------+--------- Time --->
             ^              ^
-        task_start     first PELT event logged for the task
+          task_start     first PELT event logged for the task
 
         This method estimates the value of the PELT signal at task_start,
         assuming the task was running in the interval of time between
@@ -506,7 +537,7 @@ class Simulator(object):
 
         :returns: int - Estimated value of PELT signal when the task starts
         """
-        geom_y = pow(0.5, 1./half_life_ms)
+        geom_y = pow(0.5, 1. / half_life_ms)
         geom_u = float(cls._signal_max) * (1. - geom_y)
 
         # Compute period of time between when the task started and when the
@@ -526,9 +557,9 @@ class Simulator(object):
         return pelt_val
 
 
-################################################################################
+##########################################################################
 # Utility Functions
-################################################################################
+##########################################################################
 
 def _s_to_us(time_s, interval_us=1e3, nearest_up=True):
     """Convert [s] into the (not smaller/greater) nearest [us]
@@ -538,6 +569,7 @@ def _s_to_us(time_s, interval_us=1e3, nearest_up=True):
     smaller than the original time_s.
 
     Example:
+    ::
         _s_to_us(1.0)       => 1000000 [us]
         _s_to_us(1.0, 1024) => 1000448 [us]
 
@@ -559,6 +591,7 @@ def _s_to_us(time_s, interval_us=1e3, nearest_up=True):
         return interval_us * int(math.ceil((1e6 * time_s) / interval_us))
     return interval_us * int(math.floor((1e6 * time_s) / interval_us))
 
+
 def _ms_to_us(time_ms, interval_us=1e3, nearest_up=True):
     """Convert [ms] into the (not smaller/greater) nearest [us]
 
@@ -567,6 +600,7 @@ def _ms_to_us(time_ms, interval_us=1e3, nearest_up=True):
     smaller than the original time_s.
 
     Example:
+    ::
         _ms_to_us(1.0)       => 1000 [us]
         _ms_to_us(1.0, 1024) => 1024 [us]
 
@@ -588,18 +622,20 @@ def _ms_to_us(time_ms, interval_us=1e3, nearest_up=True):
         return interval_us * int(math.ceil((1e3 * time_ms) / interval_us))
     return interval_us * int(math.floor((1e3 * time_ms) / interval_us))
 
+
 def _us_to_s(time_us):
     """Convert [us] into (float) [s]
     """
-    return (float(time_us)/1e6)
+    return (float(time_us) / 1e6)
+
 
 def _us_to_ms(time_us):
     """Convert [us] into (float) [ms]
     """
-    return (float(time_us)/1e3)
+    return (float(time_us) / 1e3)
+
 
 def _ms_to_s(time_ms):
     """Convert [ms] into (float) [s]
     """
-    return (float(time_ms)/1e3)
-
+    return (float(time_ms) / 1e3)
