@@ -1,7 +1,7 @@
 # Skeleton global config.yaml for WA3
 device: generic_android
 
-trace_cmd:
+trace-cmd:
   buffer_size: 102400
   report: false
 
