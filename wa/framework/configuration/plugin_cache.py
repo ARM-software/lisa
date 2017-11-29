@@ -19,6 +19,7 @@ from itertools import chain
 from devlib.utils.misc import memoized
 
 from wa.framework import pluginloader
+from wa.framework.configuration.core import get_config_point_map
 from wa.framework.exception import ConfigError
 from wa.framework.target.descriptor import get_target_descriptions
 from wa.utils.types import obj_dict
@@ -140,7 +141,7 @@ class PluginCache(object):
         if name in self.targets:
             return self._get_target_params(name)
         params = self.loader.get_plugin_class(name).parameters
-        return {param.name: param for param in params}
+        return get_config_point_map(params)
 
     def _set_plugin_defaults(self, plugin_name, config):
         cfg_points = self.get_plugin_parameters(plugin_name)
@@ -158,9 +159,7 @@ class PluginCache(object):
 
     def _get_target_params(self, name):
         td = self.targets[name]
-        params = {p.name: p for p in chain(td.target_params, td.platform_params, td.conn_params)}
-        #params['connection_settings'] = {p.name: p for p in td.conn_params}
-        return params
+        return get_config_point_map(chain(td.target_params, td.platform_params, td.conn_params))
 
     # pylint: disable=too-many-nested-blocks, too-many-branches
     def _merge_using_priority_specificity(self, specific_name,
