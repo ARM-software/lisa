@@ -1134,4 +1134,13 @@ def create_job_spec(workload_entry, sections, target_manager, plugin_cache,
     return job_spec
 
 
+def get_config_point_map(params):
+    pmap = {}
+    for p in params:
+        pmap[p.name] = p
+        for alias in p.aliases:
+            pmap[alias] = p
+    return pmap
+
+
 settings = MetaConfiguration(os.environ)
