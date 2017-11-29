@@ -364,14 +364,18 @@ if [ ! -z $WA_AGENDA ]; then
 		list_available_agendas
 		exit $INVAL
 	fi
-	# Generate a WA configuration fragment for the ACME cape
+	# Generate a WA configuration fragment for the ACME cape and ADB
 	IIO_DEVICES=""
 	for CH in $ACME_CHANNELS; do
 		IIO_DEVICES="$IIO_DEVICES \"iio:device$CH\", "
 	done
-	ACME_CONF=$RESULTS/config_acme.yaml
+	WA_LOCAL_CONF=$RESULTS/config_local.yaml
 	mkdir -p $RESULTS &>/dev/null
-	cat >$ACME_CONF <<EOF
+	cat >$WA_LOCAL_CONF <<EOF
+# Automatically generated ADB device configuration based on test_series options
+device_config:
+  device: $DEVICE
+
 # Automatically generated ACME configuration based on test_series options
 energy_measurement:
   instrument: acme_cape
@@ -382,7 +386,7 @@ energy_measurement:
     iio_devices: [$IIO_DEVICES]
 EOF
 	TEST_CMD_RESULTS="$RESULTS/wa.\${COMMIT_SHA1:0:7}_\${COMMIT_NAME}"
-	TEST_CMD="wa run -f -d \"$TEST_CMD_RESULTS\" -c \"$ACME_CONF\" \"$WA_AGENDA\""
+	TEST_CMD="wa run -f -d \"$TEST_CMD_RESULTS\" -c \"$WA_LOCAL_CONF\" \"$WA_AGENDA\""
 fi
 
 # Prepare ADB and FASTBOOT commands to target the specified device
