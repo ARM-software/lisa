@@ -7,6 +7,7 @@ from devlib import (LinuxTarget, AndroidTarget, LocalLinuxTarget,
                     Gem5Connection)
 
 from wa.framework import pluginloader
+from wa.framework.configuration.core import get_config_point_map
 from wa.framework.exception import PluginLoaderError
 from wa.framework.plugin import Plugin, Parameter
 from wa.framework.target.assistant import LinuxAssistant, AndroidAssistant
@@ -29,16 +30,16 @@ def get_target_descriptions(loader=pluginloader):
 
 
 def instantiate_target(tdesc, params, connect=None, extra_platform_params=None):
-    target_params = {p.name: p for p in tdesc.target_params}
-    platform_params = {p.name: p for p in tdesc.platform_params}
-    conn_params = {p.name: p for p in tdesc.conn_params}
-    assistant_params = {p.name: p for p in tdesc.assistant_params}
+    target_params = get_config_point_map(tdesc.target_params)
+    platform_params = get_config_point_map(tdesc.platform_params)
+    conn_params = get_config_point_map(tdesc.conn_params)
+    assistant_params = get_config_point_map(tdesc.assistant_params)
 
     tp, pp, cp = {}, {}, {}
 
     for supported_params, new_params in (target_params, tp), (platform_params, pp), (conn_params, cp):
         for name, value in supported_params.iteritems():
-            if value.default:
+            if value.default and name == value.name:
                 new_params[name] = value.default
 
     for name, value in params.iteritems():
