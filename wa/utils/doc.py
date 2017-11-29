@@ -267,9 +267,9 @@ def format_literal(lit):
         return '``{}``'.format(lit)
 
 
-def get_params_rst(ext):
+def get_params_rst(parameters):
     text = ''
-    for param in ext.parameters:
+    for param in parameters:
         text += '{} : {} {}\n'.format(param.name, get_type_name(param.kind),
                                       param.mandatory and '(mandatory)' or ' ')
         desc = strip_inlined_text(param.description or '')
@@ -300,7 +300,7 @@ def get_rst_from_extension(ext):
     else:
         desc = ''
     text += desc + '\n\n'
-    params_rst = get_params_rst(ext)
+    params_rst = get_params_rst(ext.parameters)
     if params_rst:
         text += underline('parameters', '~') + params_rst
     return text + '\n'
