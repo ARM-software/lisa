@@ -316,7 +316,7 @@ class ApkUiautoWorkload(ApkUIWorkload):
         super(ApkUiautoWorkload, self).setup(context)
 
 
-class ReventWorkload(ApkUIWorkload):
+class ApkReventWorkload(ApkUIWorkload):
 
     # May be optionally overwritten by subclasses
     # Times are in seconds
@@ -326,7 +326,7 @@ class ReventWorkload(ApkUIWorkload):
     teardown_timeout = 5 * 60
 
     def __init__(self, target, **kwargs):
-        super(ReventWorkload, self).__init__(target, **kwargs)
+        super(ApkReventWorkload, self).__init__(target, **kwargs)
         self.apk = PackageHandler(self)
         self.gui = ReventGUI(self, target,
                              self.setup_timeout,

@@ -14,10 +14,10 @@
 #
 
 
-from wa import ReventWorkload
+from wa import ApkReventWorkload
 
 
-class AngryBirdsRio(ReventWorkload):
+class AngryBirdsRio(ApkReventWorkload):
 
     name = 'angrybirds_rio'
     description = """

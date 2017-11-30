@@ -14,10 +14,10 @@
 #
 
 
-from wa import ReventWorkload
+from wa import ApkReventWorkload
 
 
-class TempleRun2(ReventWorkload):
+class TempleRun2(ApkReventWorkload):
 
     name = 'templerun2'
     description = """
