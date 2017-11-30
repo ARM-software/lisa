@@ -334,6 +334,86 @@ class ApkReventWorkload(ApkUIWorkload):
                              self.extract_results_timeout,
                              self.teardown_timeout)
 
+class UIWorkload(Workload):
+
+    def __init__(self, target, **kwargs):
+        super(UIWorkload, self).__init__(target, **kwargs)
+        self.gui = None
+
+    def init_resources(self, context):
+        super(UIWorkload, self).init_resources(context)
+        self.gui.init_resources(context.resolver)
+
+    @once_per_instance
+    def initialize(self, context):
+        super(UIWorkload, self).initialize(context)
+
+    def setup(self, context):
+        super(UIWorkload, self).setup(context)
+        self.gui.deploy()
+        self.gui.setup()
+
+    def run(self, context):
+        super(UIWorkload, self).run(context)
+        self.gui.run()
+
+    def extract_results(self, context):
+        super(UIWorkload, self).extract_results(context)
+        self.gui.extract_results()
+
+    def teardown(self, context):
+        self.gui.teardown()
+        super(UIWorkload, self).teardown(context)
+
+    @once_per_instance
+    def finalize(self, context):
+        super(UIWorkload, self).finalize(context)
+        self.gui.remove()
+
+
+class UiautoWorkload(UIWorkload):
+
+    platform = 'android'
+
+    parameters = [
+        Parameter('markers_enabled', kind=bool, default=False,
+                  description="""
+                  If set to ``True``, workloads will insert markers into logs
+                  at various points during execution. These markes may be used
+                  by other plugins or post-processing scripts to provide
+                  measurments or statistics for specific parts of the workload
+                  execution.
+                  """),
+    ]
+
+    def __init__(self, target, **kwargs):
+        super(UiautoWorkload, self).__init__(target, **kwargs)
+        self.gui = UiAutomatorGUI(self)
+
+    def setup(self, context):
+        self.gui.uiauto_params['markers_enabled'] = self.markers_enabled
+        self.gui.init_commands()
+        super(UiautoWorkload, self).setup(context)
+
+
+class ReventWorkload(UIWorkload):
+
+    # May be optionally overwritten by subclasses
+    # Times are in seconds
+    setup_timeout = 5 * 60
+    run_timeout = 10 * 60
+    extract_results_timeout = 5 * 60
+    teardown_timeout = 5 * 60
+
+    def __init__(self, target, **kwargs):
+        super(ReventWorkload, self).__init__(target, **kwargs)
+        self.gui = ReventGUI(self, target,
+                             self.setup_timeout,
+                             self.run_timeout,
+                             self.extract_results_timeout,
+                             self.teardown_timeout)
+
+
 
 class UiAutomatorGUI(object):
 
