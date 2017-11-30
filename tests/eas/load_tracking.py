@@ -15,13 +15,20 @@
 # limitations under the License.
 #
 
+import os
 import pandas as pd
+import logging
 
 from bart.common.Utils import select_window, area_under_curve
 from bart.sched import pelt
 from devlib.utils.misc import memoized
+from env import TestEnv
+from executor import Executor
 from test import LisaTest, experiment_test
+from time import sleep
+from trace import Trace
 from trappy.stats.grammar import Parser
+from wlgen.utils import SchedEntity, Task, Taskgroup
 
 UTIL_SCALE = 1024
 # Time in seconds to allow for util_avg to converge (i.e. ignored time)
@@ -41,7 +48,8 @@ class _LoadTrackingBase(LisaTest):
                 'sched_load_avg_task',
                 'sched_load_avg_cpu',
                 'sched_pelt_se',
-                'sched_load_se'
+                'sched_load_se',
+                'sched_load_cfs_rq',
             ],
         },
         # cgroups required by freeze_userspace flag
@@ -528,4 +536,365 @@ class PELTTasksTest(_LoadTrackingBase):
         Test load_avg behaviour for a 50% periodic task
         """
         return self._test_behaviour(experiment, tasks, 'load_avg')
+
+class _PELTTaskGroupsTest(LisaTest):
+    """
+    Abstract base class for generic tests on PELT taskgroups signals
+
+    Subclasses should provide:
+    - .tasks_conf member to generate the rt-app synthetics.
+    - .target_cpu CPU where the tasks should run
+    - .trace object where to save the parsed trace
+    """
+    test_conf = {
+        'tools'    : [ 'rt-app' ],
+        'ftrace' : {
+            'events' : [
+                'sched_switch',
+                'sched_load_avg_task',
+                'sched_load_avg_cpu',
+                'sched_pelt_se',
+                'sched_load_se',
+                'sched_load_cfs_rq',
+            ],
+        },
+        # cgroups required by freeze_userspace flag
+        'modules': ['cpufreq', 'cgroups'],
+    }
+    # Allowed error margin
+    allowed_util_margin = 0.02
+
+    @classmethod
+    def runExperiments(cls):
+        """
+        Set up logging and trigger running experiments
+        """
+        cls._log = logging.getLogger('LisaTest')
+
+        cls._log.info('Setup tests execution engine...')
+        te = TestEnv(test_conf=cls._getTestConf())
+
+        experiments_conf = cls._getExperimentsConf(te)
+        test_dir = os.path.join(te.res_dir, experiments_conf['confs'][0]['tag'])
+        os.makedirs(test_dir)
+
+        # Setting cpufreq governor to performance
+        te.target.cpufreq.set_all_governors('performance')
+
+        # Creating cgroups hierarchy
+        cpuset_cnt = te.target.cgroups.controller('cpuset')
+        cpu_cnt = te.target.cgroups.controller('cpu')
+
+        max_duration = 0
+        for se in cls.root_group.iter_nodes():
+            if se.is_task:
+                max_duration = max(max_duration, se.duration_s)
+
+        # Freeze userspace tasks
+        cls._log.info('Freezing userspace tasks')
+        te.target.cgroups.freeze(Executor.critical_tasks[te.target.os])
+
+        cls._log.info('FTrace events collection enabled')
+        te.ftrace.start()
+
+        # Run tasks
+        cls._log.info('Running the tasks')
+        # Run all tasks in background and wait for completion
+        for se in cls.root_group.iter_nodes():
+            if se.is_task:
+                # Run tasks
+                se.wload.run(out_dir=test_dir, cpus=se.cpus,
+                             cgroup=se.parent.name, background=True)
+        sleep(max_duration)
+
+        te.ftrace.stop()
+
+        trace_file = os.path.join(test_dir, 'trace.dat')
+        te.ftrace.get_trace(trace_file)
+        cls._log.info('Collected FTrace binary trace: %s', trace_file)
+
+        # Un-freeze userspace tasks
+        cls._log.info('Un-freezing userspace tasks')
+        te.target.cgroups.freeze(thaw=True)
+
+        # Extract trace
+        cls.trace = Trace(None, test_dir, te.ftrace.events)
+
+    def _test_group_util(self, group):
+        if 'sched_load_se' not in self.trace.available_events:
+            raise ValueError('No sched_load_se events. '
+                             'Does the kernel support them?')
+        if 'sched_load_cfs_rq' not in self.trace.available_events:
+            raise ValueError('No sched_load_cfs_rq events. '
+                             'Does the kernel support them?')
+        if 'sched_switch' not in self.trace.available_events:
+            raise ValueError('No sched_switch events. '
+                             'Does the kernel support them?')
+
+        task_util_df = self.trace.data_frame.trace_event('sched_load_se')
+        tg_util_df = self.trace.data_frame.trace_event('sched_load_cfs_rq')
+        sw_df = self.trace.data_frame.trace_event('sched_switch')
+
+        tg = None
+        for se in self.root_group.iter_nodes():
+            if se.name == group:
+                tg = se
+
+        if tg is None:
+            raise ValueError('{} taskgroup does not exist.'.format(group))
+
+        # Only consider the time interval where the signal should be stable
+        tasks_names = [se.name for se in tg.iter_nodes() if se.is_task]
+        tasks_sw_df = sw_df[sw_df.next_comm.isin(tasks_names)]
+        start = tasks_sw_df.index[0] + UTIL_AVG_CONVERGENCE_TIME
+        end = tasks_sw_df.index[-1] - UTIL_AVG_CONVERGENCE_TIME
+        task_util_df = task_util_df[start:end]
+        tg_util_df = tg_util_df[start:end]
+
+        # Compute mean util of the taskgroup and its children
+        util_tg = tg_util_df[(tg_util_df.path == group) &
+                             (tg_util_df.cpu == self.target_cpu)].util
+        util_mean_tg = area_under_curve(util_tg) / (end - start)
+
+        msg = 'Saw util {} for {} cgroup, expected {}'
+        expected_trace_util = 0.0
+        for child in tg.children:
+            if child.is_task:
+                util_s = task_util_df[task_util_df.comm == child.name].util
+            else:
+                util_s = tg_util_df[(tg_util_df.path == child.name) &
+                                    (tg_util_df.cpu == self.target_cpu)].util
+
+            util_mean = area_under_curve(util_s) / (end - start)
+            # Make sure the trace utilization of children entities matches the
+            # expected utilization (i.e. duty cycle for tasks, sum of utils for
+            # taskgroups)
+            expected = child.get_expected_util()
+            error_margin = expected * (ERROR_MARGIN_PCT / 100.)
+            self.assertAlmostEqual(util_mean, expected,
+                                   delta=error_margin,
+                                   msg=msg.format(util_mean,
+                                                  child.name,
+                                                  expected))
+
+            expected_trace_util += util_mean
+
+        error_margin = expected_trace_util * self.allowed_util_margin
+        self.assertAlmostEqual(util_mean_tg, expected_trace_util,
+                               delta=error_margin,
+                               msg=msg.format(util_mean_tg,
+                                              group,
+                                              expected_trace_util))
+
+class TwoGroupsCascade(_PELTTaskGroupsTest):
+    """
+    Test PELT utilization for task groups on the following hierarchy:
+
+                           +-----+
+                           | "/" |
+                           +-----+
+                           /     \
+                          /       \
+                      +------+   t0_1
+                      |"/tg1"|
+                      +------+
+                       /     \
+                      /       \
+                    t1_1   +------------+
+                           |"/tg1/tg1_1"|
+                           +------------+
+                              /      \
+                             /        \
+                           t2_1      t2_2
+
+    """
+    target_cpu = 0
+    root_group = None
+    trace = None
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        # Run all workloads on a CPU with highest capacity
+        cls.target_cpu = min(test_env.calibration(),
+                             key=test_env.calibration().get)
+
+        # Create taskgroups
+        cpus = test_env.target.list_online_cpus()
+        mems = 0
+        cls.root_group = Taskgroup("/", cpus, mems, test_env)
+        tg1 = Taskgroup("/tg1", cpus, mems, test_env)
+        tg1_1 = Taskgroup("/tg1/tg1_1", cpus, mems, test_env)
+
+        # Create tasks
+        period_ms = 16
+        duty_cycle_pct = 10
+        duration_s = 3
+        cpus = [cls.target_cpu]
+        t2_1 = Task("t2_1", test_env,
+                    cpus, period_ms=period_ms,
+                    duty_cycle_pct=duty_cycle_pct, duration_s=duration_s)
+        t2_2 = Task("t2_2", test_env,
+                    cpus, period_ms=period_ms,
+                    duty_cycle_pct=duty_cycle_pct, duration_s=duration_s)
+        t1_1 = Task("t1_1", test_env,
+                    cpus, period_ms=period_ms,
+                    duty_cycle_pct=duty_cycle_pct, duration_s=duration_s)
+        t0_1 = Task("t0_1", test_env,
+                    cpus, period_ms=period_ms,
+                    duty_cycle_pct=duty_cycle_pct, duration_s=duration_s)
+
+        # Link nodes to the hierarchy tree
+        cls.root_group.add_children([t0_1, tg1])
+        tg1.add_children([tg1_1, t1_1])
+        tg1_1.add_children([t2_1, t2_2])
+
+        conf = {
+            'tag' : 'cgp_cascade',
+            'flags' : ['ftrace', 'freeze_userspace'],
+            'cpufreq' : {'governor' : 'performance'},
+        }
+
+        return {
+            'wloads': {},
+            'confs': [conf],
+        }
+
+    @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        super(TwoGroupsCascade, cls).runExperiments(*args, **kwargs)
+
+    def test_util_root_group(self):
+        """
+        Test utilization propagation to cgroup root
+        """
+        return self._test_group_util('/')
+
+    def test_util_tg1_group(self):
+        """
+        Test utilization propagation to cgroup /tg1
+        """
+        return self._test_group_util('/tg1')
+
+    def test_util_tg1_1_group(self):
+        """
+        Test utilization propagation to cgroup /tg1/tg1_1
+        """
+        return self._test_group_util('/tg1/tg1_1')
+
+class UnbalancedHierarchy(_PELTTaskGroupsTest):
+    """
+    Test PELT utilization for task groups on the following hierarchy:
+
+                                       +-----+
+                                       | "/" |
+                                       +-----+
+                                       /     \
+                                      /       \
+                                  +------+   t0_1
+                                  |"/tg1"|
+                                  +------+
+                                   /
+                                  /
+                           +----------+
+                           |"/tg1/tg2"|
+                           +----------+
+                            /         \
+                           /           \
+                   +--------------+   t2_1
+                   |"/tg1/tg2/tg3"|
+                   +--------------+
+                    /
+                   /
+           +------------------+
+           |"/tg1/tg2/tg3/tg4"|
+           +------------------+
+            /
+           /
+        t4_1
+
+    """
+    target_cpu = 0
+    root_group = None
+    trace = None
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        # Run all workloads on a CPU with highest capacity
+        cls.target_cpu = min(test_env.calibration(),
+                             key=test_env.calibration().get)
+
+        # Create taskgroups
+        cpus = test_env.target.list_online_cpus()
+        mems = 0
+        cls.root_group = Taskgroup("/", cpus, mems, test_env)
+        tg1 = Taskgroup("/tg1", cpus, mems, test_env)
+        tg2 = Taskgroup("/tg1/tg2", cpus, mems, test_env)
+        tg3 = Taskgroup("/tg1/tg2/tg3", cpus, mems, test_env)
+        tg4 = Taskgroup("/tg1/tg2/tg3/tg4", cpus, mems, test_env)
+
+        # Create tasks
+        period_ms = 16
+        duty_cycle_pct = 10
+        duration_s = 3
+        cpus = [cls.target_cpu]
+        t0_1 = Task("t0_1", test_env,
+                    cpus, period_ms=period_ms,
+                    duty_cycle_pct=duty_cycle_pct, duration_s=duration_s)
+        t2_1 = Task("t2_1", test_env,
+                    cpus, period_ms=period_ms,
+                    duty_cycle_pct=duty_cycle_pct, duration_s=duration_s)
+        t4_1 = Task("t4_1", test_env,
+                    cpus, period_ms=period_ms,
+                    duty_cycle_pct=duty_cycle_pct, duration_s=duration_s)
+
+        cls.root_group.add_children([t0_1, tg1])
+        tg1.add_children([tg2])
+        tg2.add_children([t2_1, tg3])
+        tg3.add_children([tg4])
+        tg4.add_children([t4_1])
+
+        conf = {
+            'tag' : 'cgp_unbalanced',
+            'flags' : ['ftrace', 'freeze_userspace'],
+            'cpufreq' : {'governor' : 'performance'},
+        }
+
+        return {
+            'wloads': {},
+            'confs': [conf],
+        }
+
+    @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        super(UnbalancedHierarchy, cls).runExperiments(*args, **kwargs)
+
+    def test_util_root_group(self):
+        """
+        Test utilization propagation to cgroup root
+        """
+        return self._test_group_util('/')
+
+    def test_util_tg1_group(self):
+        """
+        Test utilization propagation to cgroup /tg1
+        """
+        return self._test_group_util('/tg1')
+
+    def test_util_tg2_group(self):
+        """
+        Test utilization propagation to cgroup /tg1/tg2
+        """
+        return self._test_group_util('/tg1/tg2')
+
+    def test_util_tg3_group(self):
+        """
+        Test utilization propagation to cgroup /tg1/tg2/tg3
+        """
+        return self._test_group_util('/tg1/tg2/tg3')
+
+    def test_util_tg4_group(self):
+        """
+        Test utilization propagation to cgroup /tg1/tg2/tg3/tg4
+        """
+        return self._test_group_util('/tg1/tg2/tg3/tg4')
 
