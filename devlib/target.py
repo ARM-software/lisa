@@ -248,6 +248,8 @@ class Target(object):
         # Initialize modules which requires Buxybox (e.g. shutil dependent tasks)
         self._update_modules('setup')
 
+        self.execute('mkdir -p {}'.format(self._file_transfer_cache))
+
     def reboot(self, hard=False, connect=True, timeout=180):
         if hard:
             if not self.has('hard_reset'):
@@ -275,11 +277,24 @@ class Target(object):
 
     # file transfer
 
-    def push(self, source, dest, timeout=None):
-        return self.conn.push(source, dest, timeout=timeout)
+    def push(self, source, dest, as_root=False, timeout=None):  # pylint: disable=arguments-differ
+        if not as_root:
+            self.conn.push(source, dest, timeout=timeout)
+        else:
+            device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
+            self.execute("mkdir -p '{}'".format(self.path.dirname(device_tempfile)))
+            self.conn.push(source, device_tempfile, timeout=timeout)
+            self.execute("cp '{}' '{}'".format(device_tempfile, dest), as_root=True)
 
-    def pull(self, source, dest, timeout=None):
-        return self.conn.pull(source, dest, timeout=timeout)
+    def pull(self, source, dest, as_root=False, timeout=None):  # pylint: disable=arguments-differ
+        if not as_root:
+            self.conn.pull(source, dest, timeout=timeout)
+        else:
+            device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
+            self.execute("mkdir -p '{}'".format(self.path.dirname(device_tempfile)))
+            self.execute("cp '{}' '{}'".format(source, device_tempfile), as_root=True)
+            self.execute("chmod 0644 '{}'".format(device_tempfile), as_root=True)
+            self.conn.pull(device_tempfile, dest, timeout=timeout)
 
     def get_directory(self, source_dir, dest):
         """ Pull a directory from the device, after compressing dir """
@@ -882,6 +897,7 @@ class LinuxTarget(Target):
                 self.working_directory = '/root/devlib-target'
             else:
                 self.working_directory = '/home/{}/devlib-target'.format(self.user)
+        self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
         if self.executables_directory is None:
             self.executables_directory = self.path.join(self.working_directory, 'bin')
 
@@ -1031,10 +1047,6 @@ class AndroidTarget(Target):
         if check_boot_completed:
             self.wait_boot_complete(timeout)
 
-    def setup(self, executables=None):
-        super(AndroidTarget, self).setup(executables)
-        self.execute('mkdir -p {}'.format(self._file_transfer_cache))
-
     def kick_off(self, command, as_root=None):
         """
         Like execute but closes adb session and returns immediately, leaving the command running on the
@@ -1115,25 +1127,6 @@ class AndroidTarget(Target):
         self.execute('screencap -p  {}'.format(on_device_file))
         self.pull(on_device_file, filepath)
         self.remove(on_device_file)
-
-    def push(self, source, dest, as_root=False, timeout=None):  # pylint: disable=arguments-differ
-        if not as_root:
-            self.conn.push(source, dest, timeout=timeout)
-        else:
-            device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute("mkdir -p '{}'".format(self.path.dirname(device_tempfile)))
-            self.conn.push(source, device_tempfile, timeout=timeout)
-            self.execute("cp '{}' '{}'".format(device_tempfile, dest), as_root=True)
-
-    def pull(self, source, dest, as_root=False, timeout=None):  # pylint: disable=arguments-differ
-        if not as_root:
-            self.conn.pull(source, dest, timeout=timeout)
-        else:
-            device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute("mkdir -p '{}'".format(self.path.dirname(device_tempfile)))
-            self.execute("cp '{}' '{}'".format(source, device_tempfile), as_root=True)
-            self.execute("chmod 0644 '{}'".format(device_tempfile), as_root=True)
-            self.conn.pull(device_tempfile, dest, timeout=timeout)
 
     # Android-specific
 
