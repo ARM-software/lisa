@@ -202,21 +202,23 @@ Target
         operations during reboot process to detect if the reboot has failed and
         the device has hung.
 
-.. method:: Target.push(source, dest [, timeout])
+.. method:: Target.push(source, dest [,as_root , timeout])
 
    Transfer a file from the host machine to the target device.
 
    :param source: path of to the file on the host
    :param dest: path of to the file on the target
+   :param as_root: whether root is required. Defaults to false.
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
        not  complete within this period, an exception will be raised.
 
-.. method:: Target.pull(source, dest [, timeout])
+.. method:: Target.pull(source, dest [, as_root, timeout])
 
    Transfer a file from the target device to the host machine.
 
    :param source: path of to the file on the target
    :param dest: path of to the file on the host
+   :param as_root: whether root is required. Defaults to false.
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
        not  complete within this period, an exception will be raised.
 
