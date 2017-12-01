@@ -81,7 +81,15 @@ def main():
         # full argument parse cannot be complted until the commands are loaded; so
         # parse just the base args for know so we can get verbosity.
         argv = split_joined_options(sys.argv[1:])
-        args, _ = parser.parse_known_args(argv)
+
+        # 'Parse_known_args' automatically displays the default help and exits
+        # if '-h' is detected, we want our custom help messages so ensure this
+        # is never passed as a parameter.
+        filtered_argv = list(argv)
+        if '-h' in filtered_argv:
+            filtered_argv.remove('-h')
+
+        args, _ = parser.parse_known_args(filtered_argv)
         settings.set("verbosity", args.verbose)
         log.init(settings.verbosity)
 
