@@ -488,7 +488,7 @@ class Runner(object):
         if job.status in rc.retry_on_status:
             if job.retries < rc.max_retries:
                 msg = 'Job {} iteration {} completed with status {}. retrying...'
-                self.logger.error(msg.format(job.id, job.status, job.iteration))
+                self.logger.error(msg.format(job.id, job.iteration, job.status))
                 self.retry_job(job)
                 self.context.move_failed(job)
                 self.context.write_state()
