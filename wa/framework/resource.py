@@ -12,24 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import glob
-import inspect
 import logging
 import os
 import re
-import shutil
-import sys
-from collections import defaultdict
 
 from devlib.utils.android import ApkInfo
 
 from wa.framework import pluginloader
-from wa.framework.plugin import Plugin, Parameter
+from wa.framework.plugin import Plugin
 from wa.framework.exception import ResourceError
 from wa.framework.configuration import settings
 from wa.utils import log
-from wa.utils.misc import ensure_directory_exists as _d, get_object_name
-from wa.utils.types import boolean, prioritylist, enum, list_or_string
+from wa.utils.misc import get_object_name
+from wa.utils.types import enum, list_or_string, prioritylist
 
 
 

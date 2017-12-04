@@ -16,7 +16,7 @@
 import os
 
 from wa import ApkUiautoWorkload, Parameter
-from wa.utils.types import list_of_strs, numeric
+from wa.utils.types import list_of_strs
 from wa.framework.exception import ValidationError
 
 

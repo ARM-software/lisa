@@ -38,10 +38,9 @@ from devlib.exception import TargetError
 from devlib.utils.android import ApkInfo
 
 from wa import Instrument, Parameter, very_fast
-from wa.framework import signal
 from wa.framework.exception import ConfigError
 from wa.framework.instrumentation import slow
-from wa.utils.misc import diff_tokens, write_table, check_output, as_relative
+from wa.utils.misc import as_relative, diff_tokens, write_table
 from wa.utils.misc import ensure_file_directory_exists as _f
 from wa.utils.misc import ensure_directory_exists as _d
 from wa.utils.types import list_of_strings

@@ -14,16 +14,13 @@
 #
 
 import os
-import logging
 import json
 import re
 
 from HTMLParser import HTMLParser
-from collections import defaultdict, OrderedDict
-from distutils.version import StrictVersion
 
 from wa import ApkUiautoWorkload, Parameter
-from wa.utils.types import list_of_strs, numeric
+from wa.utils.types import list_of_strs
 from wa.framework.exception import WorkloadError
 
 

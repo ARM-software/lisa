@@ -1,5 +1,4 @@
 from devlib import AndroidTarget
-from devlib.exception import TargetError
 from devlib.target import KernelConfig, KernelVersion, Cpuinfo
 from devlib.utils.android import AndroidProperties
 

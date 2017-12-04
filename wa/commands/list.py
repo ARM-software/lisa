@@ -13,9 +13,8 @@
 # limitations under the License.
 #
 
-from wa import Command, settings
+from wa import Command
 from wa.framework import pluginloader
-from wa.framework.plugin import PluginLoader
 from wa.framework.target.descriptor import get_target_descriptions
 from wa.utils.doc import get_summary
 from wa.utils.formatter import DescriptionListFormatter

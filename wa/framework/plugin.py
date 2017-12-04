@@ -31,7 +31,7 @@ from wa.framework.exception import (NotFoundError, PluginLoaderError, TargetErro
 from wa.utils import log
 from wa.utils.misc import (ensure_directory_exists as _d, walk_modules, load_class, 
                            merge_dicts_simple, get_article)
-from wa.utils.types import identifier, boolean
+from wa.utils.types import identifier
 
 
 MODNAME_TRANS = string.maketrans(':/\\.', '____')

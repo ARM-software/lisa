@@ -25,19 +25,15 @@ import re
 import math
 import imp
 import string
-import threading
-import signal
 import subprocess
-import pkgutil
 import traceback
 import logging
 import random
 import hashlib
 from datetime import datetime, timedelta
-from operator import mul, itemgetter
+from operator import mul
 from StringIO import StringIO
-from itertools import cycle, groupby, chain
-from functools import partial
+from itertools import chain, cycle
 from distutils.spawn import find_executable
 
 import yaml

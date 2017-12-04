@@ -1,4 +1,3 @@
-import os
 
 from wa import ResultProcessor
 from wa.utils.android import LogcatParser

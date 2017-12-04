@@ -27,7 +27,6 @@ from wa.utils.revent import ReventRecorder
 from wa.utils.exec_control import once_per_instance
 
 from devlib.utils.android import ApkInfo
-from devlib.exception import TargetError
 
 
 class Workload(TargetedPlugin):

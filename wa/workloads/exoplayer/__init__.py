@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-from collections import defaultdict
 import re
 import os
 import time

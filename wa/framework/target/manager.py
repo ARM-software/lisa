@@ -1,5 +1,4 @@
 import logging
-import os
 
 from wa.framework import signal
 from wa.framework.plugin import Parameter

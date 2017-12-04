@@ -19,17 +19,14 @@ This module contains the standard set of resource getters used by Workload Autom
 
 """
 import httplib
-import inspect
 import json
 import logging
 import os
-import re
 import shutil
 import sys
 
 import requests
 
-from devlib.utils.android import ApkInfo
 
 from wa import Parameter, settings, __file__ as _base_filepath
 from wa.framework.resource import ResourceGetter, SourcePriority, NO_ONE 

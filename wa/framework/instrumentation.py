@@ -107,7 +107,7 @@ from wa.framework.plugin import Plugin
 from wa.framework.exception import (WAError, TargetNotRespondingError, TimeoutError,
                                     WorkloadError)
 from wa.utils.log import log_error
-from wa.utils.misc import get_traceback, isiterable
+from wa.utils.misc import isiterable
 from wa.utils.types import identifier, enum, level
 
 

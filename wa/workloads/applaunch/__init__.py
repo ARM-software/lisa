@@ -13,14 +13,10 @@
 # limitations under the License.
 #
 # pylint: disable=attribute-defined-outside-init
-import os
 
-from wa import Workload, ApkUiautoWorkload, Parameter, ApkWorkload
-from wa import ApkFile, settings
+from wa import ApkUiautoWorkload, Parameter
 from wa.framework import pluginloader
-from wa.framework.exception import ConfigError, ResourceError
 
-from devlib.utils.android import ApkInfo
 
 
 class Applaunch(ApkUiautoWorkload):

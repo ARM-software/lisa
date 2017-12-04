@@ -1,4 +1,3 @@
-import re
 from collections import namedtuple
 
 from wa.framework.exception import ConfigError

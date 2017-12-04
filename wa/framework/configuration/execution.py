@@ -1,17 +1,13 @@
 import random
-import logging
 from itertools import izip_longest, groupby, chain
 
-from wa.framework import pluginloader
 from wa.framework.configuration.core import (MetaConfiguration, RunConfiguration,
                                              JobGenerator, Status, settings)
 from wa.framework.configuration.parsers import ConfigParser
 from wa.framework.configuration.plugin_cache import PluginCache
 from wa.framework.exception import NotFoundError
 from wa.framework.job import Job
-from wa.framework.run import JobState
 from wa.utils import log
-from wa.utils.types import enum
 
 
 class CombinedConfig(object):

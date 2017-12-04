@@ -1,11 +1,8 @@
 import logging
 import os
 import shutil
-import string
-import sys
-import uuid
 from copy import copy
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from wa.framework.configuration.core import JobSpec, Status
 from wa.framework.configuration.execution import ConfigManager

@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import uuid
-import logging
 from collections import OrderedDict, Counter
 from copy import copy
 from datetime import datetime, timedelta

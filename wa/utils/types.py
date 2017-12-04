@@ -27,10 +27,8 @@ fact that Python is not the best language to use for configuration.
 """
 import os
 import re
-import math
 import numbers
 import shlex
-import string
 from bisect import insort
 from urllib import quote, unquote
 from collections import defaultdict, MutableMapping
@@ -38,7 +36,7 @@ from copy import copy
 
 from devlib.utils.types import identifier, boolean, integer, numeric, caseless_string
 
-from wa.utils.misc import isiterable, to_identifier
+from wa.utils.misc import isiterable
 
 
 def list_of_strs(value):

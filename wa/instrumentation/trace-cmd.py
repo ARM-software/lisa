@@ -17,16 +17,13 @@
 # pylint: disable=W0613,E1101
 from __future__ import division
 import os
-import time
-import subprocess
-from collections import defaultdict
 
 from devlib import FtraceCollector
 
-from wa import Instrument, Parameter, Executable
+from wa import Instrument, Parameter
 from wa.framework import signal
 from wa.framework.instrumentation import very_slow
-from wa.framework.exception import InstrumentError, ConfigError, TargetError
+from wa.framework.exception import InstrumentError
 from wa.utils.types import list_of_strings
 from wa.utils.misc import which
 

@@ -342,8 +342,6 @@ def wrapped(signal_name, sender=dispatcher.Anonymous, safe=False):
     """A decorator for wrapping function in signal dispatch."""
     @wrapt.decorator
     def signal_wrapped(wrapped, instance, args, kwargs):
-        func_id = repr(wrapped)
-
         def signal_wrapper(*args, **kwargs):
             with wrap(signal_name, sender, safe):
                 return wrapped(*args, **kwargs)

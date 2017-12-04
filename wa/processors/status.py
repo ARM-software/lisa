@@ -15,7 +15,6 @@
 
 
 # pylint: disable=R0201
-import os
 import time
 from collections import Counter
 

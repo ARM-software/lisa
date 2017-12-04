@@ -18,7 +18,6 @@ import sys
 import argparse
 import logging
 import os
-import subprocess
 import warnings
 
 from wa.framework import pluginloader
@@ -26,10 +25,9 @@ from wa.framework.command import init_argument_parser
 from wa.framework.configuration import settings
 from wa.framework.configuration.execution import ConfigManager
 from wa.framework.host import init_user_directory
-from wa.framework.exception import WAError, DevlibError, ConfigError
+from wa.framework.exception import ConfigError
 from wa.utils import log
 from wa.utils.doc import format_body
-from wa.utils.misc import get_traceback
 
 warnings.filterwarnings(action='ignore', category=UserWarning, module='zope')
 
