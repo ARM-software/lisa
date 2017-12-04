@@ -22,17 +22,14 @@ from datetime import datetime
 import wa.framework.signal as signal
 from wa.framework import instrumentation
 from wa.framework.configuration.core import Status
-from wa.framework.exception import (WAError, ConfigError, TimeoutError,
-                                    InstrumentError, TargetError, HostError,
-                                    TargetNotRespondingError, WorkloadError)
+from wa.framework.exception import HostError, WorkloadError
 from wa.framework.job import Job
 from wa.framework.output import init_job_output
 from wa.framework.processor import ProcessorManager
 from wa.framework.resource import ResourceResolver
 from wa.framework.target.manager import TargetManager
 from wa.utils import log
-from wa.utils.misc import (ensure_directory_exists as _d, merge_config_values,
-                           get_traceback, format_duration)
+from wa.utils.misc import merge_config_values, format_duration
 
 
 class ExecutionContext(object):
