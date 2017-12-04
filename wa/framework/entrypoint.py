@@ -38,7 +38,7 @@ logger = logging.getLogger('command_line')
 def load_commands(subparsers):
     commands = {}
     for command in pluginloader.list_commands():
-        commands[command.name] = pluginloader.get_command(command.name, 
+        commands[command.name] = pluginloader.get_command(command.name,
                                                           subparsers=subparsers)
     return commands
 
@@ -92,7 +92,7 @@ def main():
         log.init(settings.verbosity)
 
         # each command will add its own subparser
-        commands = load_commands(parser.add_subparsers(dest='command'))  
+        commands = load_commands(parser.add_subparsers(dest='command'))
         args = parser.parse_args(argv)
 
         config = ConfigManager()
