@@ -512,4 +512,3 @@ class Runner(object):
 
     def __str__(self):
         return 'runner'
-

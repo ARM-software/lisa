@@ -17,4 +17,3 @@ from wa.framework.resource import (NO_ONE, JarFile, ApkFile, ReventFile, File,
 from wa.framework.workload import (Workload, ApkWorkload, ApkUiautoWorkload,
                                    ApkReventWorkload, UIWorkload, UiautoWorkload,
                                    ReventWorkload)
-
