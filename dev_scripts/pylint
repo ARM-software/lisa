@@ -1,8 +1,7 @@
 #!/bin/bash
 
 DEFAULT_DIRS=(
-	wlauto
-	wlauto/external/daq_server/src/daqpower
+	wa
 )
 
 target=$1
