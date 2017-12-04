@@ -417,7 +417,7 @@ class Runner(object):
         except KeyboardInterrupt:
             job.set_status(Status.ABORTED)
             raise
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
             job.set_status(Status.FAILED)
             context.add_event(e.message)
             if not getattr(e, 'logged', None):
