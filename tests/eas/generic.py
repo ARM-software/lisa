@@ -15,23 +15,21 @@
 # limitations under the License.
 #
 
-from math import isnan
-
+import os
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import pylab as pl
+
+from math import isnan
+
+from test import LisaTest, experiment_test
+from unittest import SkipTest
+from trace import Trace
 
 from bart.common.Utils import area_under_curve
-
 from energy_model import EnergyModel, EnergyModelCapacityError
 from perf_analysis import PerfAnalysis
-from test import LisaTest, experiment_test
-from trace import Trace
-from unittest import SkipTest
-
-import matplotlib.pyplot as plt
-import numpy as np
-import pylab as pl
-import os
 
 WORKLOAD_PERIOD_MS =  16
 SET_IS_BIG_LITTLE = True
