@@ -285,7 +285,9 @@ class _EnergyModelTest(LisaTest):
 
         nrg_model = self.te.nrg_model
         trace = self.get_trace(experiment)
+
         fig, ax = plt.subplots(len(nrg_model.cpus), 1, figsize=(16, 1.8 * len(nrg_model.cpus)))
+        fig.suptitle('Per-CPU expected utilization')
 
         # Check if big.LITTLE data is available for a more detailled plot
         if trace.has_big_little:
@@ -305,7 +307,7 @@ class _EnergyModelTest(LisaTest):
 
             tdf.plot(ax=ax[cpu], drawstyle='steps-post', title="CPU{}".format(cpu), color=color)
             ax[cpu].fill_between(tdf.index, tdf, 0, step='post', color=color)
-            ax[cpu].set_ylabel('Expected utilization')
+            ax[cpu].set_ylabel('Utilization')
 
             # Grey-out areas where utilization == 0
             ffill = False
