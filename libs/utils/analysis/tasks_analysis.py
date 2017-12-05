@@ -40,7 +40,7 @@ class TasksAnalysis(AnalysisModule):
         super(TasksAnalysis, self).__init__(trace)
 
         self.supported_events = [
-            'sched_load_avg_task', 'sched_load_se',
+            'sched_load_avg_task', 'sched_load_se', 'sched_util_est_task',
         ]
         self._task_event = None
 
@@ -81,7 +81,10 @@ class TasksAnalysis(AnalysisModule):
 
         # Get utilization samples >= min_utilization
         df = self._dfg_trace_event(self._task_event)
-        big_tasks_events = df[df.util_avg > min_utilization]
+        if 'util_est' in df.columns:
+            big_tasks_events = df[df.util_est > min_utilization]
+        else:
+            big_tasks_events = df[df.util_avg > min_utilization]
         if not len(big_tasks_events):
             self._log.warning('No tasks with with utilization samples > %d',
                               min_utilization)
@@ -239,10 +242,11 @@ class TasksAnalysis(AnalysisModule):
         :type signals: list(str)
         """
         if not signals:
-            signals = ['load_avg', 'util_avg', 'boosted_util',
+            signals = ['load_avg', 'util_avg', 'boosted_util', 'util_est',
                        'sched_overutilized',
                        'load_sum', 'util_sum', 'period_contrib',
-                       'residencies']
+                       'residencies'
+            ]
 
         if self._task_event is None:
             self._log.warning('Required events [%s] not found, '
@@ -277,6 +281,12 @@ class TasksAnalysis(AnalysisModule):
             load_signals = {
                 'load', 'runnable_load_avg',
             }
+        elif self._task_event == 'sched_util_est_task':
+            utilization_signals = {
+                'util_avg', 'util_runnable',
+            }
+            residency_signals = {'residencies'}
+            load_signals = None
 
         # Compute number of plots to produce
         plots_count = 0
