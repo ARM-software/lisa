@@ -39,6 +39,21 @@ class TasksAnalysis(AnalysisModule):
     def __init__(self, trace):
         super(TasksAnalysis, self).__init__(trace)
 
+        self.supported_events = [
+            'sched_load_avg_task',
+        ]
+        self._task_event = None
+
+        # Check for the minimum required signals to be available
+        for event in self.supported_events:
+            if self._trace.hasEvents(event):
+                self._log.info("Using task signals from [%s] trace events", event)
+                self._task_event = event
+                break
+        else:
+            self._log.warning('Required events [%s] not found, '
+                              'tasks signals not available',
+                              self.supported_events)
 
 ###############################################################################
 # DataFrame Getter Methods
@@ -56,15 +71,16 @@ class TasksAnalysis(AnalysisModule):
             default: capacity of a little cluster
         :type min_utilization: int
         """
-        if not self._trace.hasEvents('sched_load_avg_task'):
-            self._log.warning('Events [sched_load_avg_task] not found')
+        if self._task_event is None:
+            self._log.warning('Required events [%s] not  available',
+                              self.supported_events)
             return None
 
         if min_utilization is None:
             min_utilization = self._little_cap
 
         # Get utilization samples >= min_utilization
-        df = self._dfg_trace_event('sched_load_avg_task')
+        df = self._dfg_trace_event(self._task_event)
         big_tasks_events = df[df.util_avg > min_utilization]
         if not len(big_tasks_events):
             self._log.warning('No tasks with with utilization samples > %d',
@@ -228,10 +244,9 @@ class TasksAnalysis(AnalysisModule):
                        'load_sum', 'util_sum', 'period_contrib',
                        'residencies']
 
-        # Check for the minimum required signals to be available
-        if not self._trace.hasEvents('sched_load_avg_task'):
-            self._log.warning('Events [sched_load_avg_task] not found, '
-                              'plot DISABLED!')
+        if self._task_event is None:
+            self._log.warning('Required events [%s] not found, '
+                              'plot DISABLED!', self.supported_events)
             return
 
         # Defined list of tasks to plot
@@ -245,19 +260,31 @@ class TasksAnalysis(AnalysisModule):
         else:
             raise ValueError('No tasks to plot specified')
 
+        # Signals to use for each plot, depending on available events
+        if self._task_event == 'sched_load_avg_task':
+            utilization_signals = {
+                'load_avg', 'util_avg', 'boosted_util',
+            }
+            residency_signals = {'residencies'}
+            load_signals = {
+                'load_sum', 'util_sum', 'period_contrib',
+            }
+
         # Compute number of plots to produce
         plots_count = 0
         plots_signals = [
                 # Fist plot: task's utilization
-                {'load_avg', 'util_avg', 'boosted_util'},
+                utilization_signals,
                 # Second plot: task residency
-                {'residencies'},
+                residency_signals,
                 # Third plot: tasks's load
-                {'load_sum', 'util_sum', 'period_contrib'}
+                load_signals,
         ]
         hr = []
         ysize = 0
         for plot_id, signals_to_plot in enumerate(plots_signals):
+            if signals_to_plot is None:
+                continue
             signals_to_plot = signals_to_plot.intersection(signals)
             if len(signals_to_plot):
                 plots_count = plots_count + 1
@@ -292,8 +319,9 @@ class TasksAnalysis(AnalysisModule):
                          y=.94, fontsize=16, horizontalalignment='center')
 
             # Plot load and utilization
-            signals_to_plot = {'load_avg', 'util_avg', 'boosted_util'}
-            signals_to_plot = list(signals_to_plot.intersection(signals))
+            signals_to_plot = utilization_signals
+            signals_to_plot = list(signals_to_plot.intersection(signals)) \
+                              if utilization_signals else []
             if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id, 0])
                 axes.set_title('Task [{0:d}:{1:s}] Signals'
@@ -304,8 +332,9 @@ class TasksAnalysis(AnalysisModule):
                 savefig = True
 
             # Plot CPUs residency
-            signals_to_plot = {'residencies'}
-            signals_to_plot = list(signals_to_plot.intersection(signals))
+            signals_to_plot = residency_signals
+            signals_to_plot = list(signals_to_plot.intersection(signals)) \
+                              if residency_signals else []
             if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id, 0])
                 axes.set_title(
@@ -320,8 +349,9 @@ class TasksAnalysis(AnalysisModule):
                 savefig = True
 
             # Plot PELT signals
-            signals_to_plot = {'load_sum', 'util_sum', 'period_contrib'}
-            signals_to_plot = list(signals_to_plot.intersection(signals))
+            signals_to_plot = load_signals
+            signals_to_plot = list(signals_to_plot.intersection(signals)) \
+                              if load_signals else []
             if len(signals_to_plot) > 0:
                 axes = plt.subplot(gs[plot_id, 0])
                 axes.set_title('Task [{0:d}:{1:s}] PELT Signals'
@@ -362,6 +392,10 @@ class TasksAnalysis(AnalysisModule):
             default: capacity of a little cluster
         :type min_utilization: int
         """
+        if self._task_event is None:
+            self._log.warning('Required events [%s] not  available',
+                              self.supported_events)
+            return None
 
         # Get PID of big tasks
         big_frequent_task_df = self._dfg_top_big_tasks(
@@ -376,7 +410,7 @@ class TasksAnalysis(AnalysisModule):
             return
 
         # Get the list of events for all big frequent tasks
-        df = self._dfg_trace_event('sched_load_avg_task')
+        df = self._dfg_trace_event(self._task_event)
         big_frequent_tasks_events = df[df.pid.isin(big_frequent_task_pids)]
 
         # Define axes for side-by-side plottings
@@ -528,9 +562,9 @@ class TasksAnalysis(AnalysisModule):
         :param big_cluster:
         :type big_cluster: bool
         """
-
-        if not self._trace.hasEvents('sched_load_avg_task'):
-            self._log.warning('Events [sched_load_avg_task] not found')
+        if self._task_event is None:
+            self._log.warning('Required events [%s] not found, '
+                              'plot DISABLED!', self.supported_events)
             return
         if not self._trace.hasEvents('cpu_frequency'):
             self._log.warning('Events [cpu_frequency] not found')
@@ -544,7 +578,7 @@ class TasksAnalysis(AnalysisModule):
             cpus = self._little_cpus
 
         # Get all utilization update events
-        df = self._dfg_trace_event('sched_load_avg_task')
+        df = self._dfg_trace_event(self._task_event)
 
         # Keep events of defined big tasks
         big_task_pids = self._dfg_top_big_tasks(
@@ -628,7 +662,7 @@ class TasksAnalysis(AnalysisModule):
         :type is_last: bool
         """
         # Get dataframe for the required task
-        util_df = self._dfg_trace_event('sched_load_avg_task')
+        util_df = self._dfg_trace_event(self._task_event)
 
         # Plot load and util
         signals_to_plot = set(signals).difference({'boosted_util'})
@@ -691,7 +725,7 @@ class TasksAnalysis(AnalysisModule):
         :param is_last: if True this is the last plot
         :type is_last: bool
         """
-        util_df = self._dfg_trace_event('sched_load_avg_task')
+        util_df = self._dfg_trace_event(self._task_event)
 
         if 'cluster' in util_df:
             data = util_df[util_df.pid == tid][['cluster', 'cpu']]
@@ -729,10 +763,8 @@ class TasksAnalysis(AnalysisModule):
         :param signals: signals to be plot
         :param signals: list(str)
         """
-        util_df = self._dfg_trace_event('sched_load_avg_task')
-        data = util_df[util_df.pid == tid][['load_sum',
-                                            'util_sum',
-                                            'period_contrib']]
+        util_df = self._dfg_trace_event(self._task_event)
+        data = util_df[util_df.pid == tid][signals_to_plot]
         data.plot(ax=axes, drawstyle='steps-post')
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
         axes.ticklabel_format(style='scientific', scilimits=(0, 0),
