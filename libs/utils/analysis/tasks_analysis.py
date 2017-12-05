@@ -40,7 +40,7 @@ class TasksAnalysis(AnalysisModule):
         super(TasksAnalysis, self).__init__(trace)
 
         self.supported_events = [
-            'sched_load_avg_task',
+            'sched_load_avg_task', 'sched_load_se',
         ]
         self._task_event = None
 
@@ -268,6 +268,14 @@ class TasksAnalysis(AnalysisModule):
             residency_signals = {'residencies'}
             load_signals = {
                 'load_sum', 'util_sum', 'period_contrib',
+            }
+        elif self._task_event == 'sched_load_se':
+            utilization_signals = {
+                'util_avg', 'boosted_util',
+            }
+            residency_signals = {'residencies'}
+            load_signals = {
+                'load', 'runnable_load_avg',
             }
 
         # Compute number of plots to produce

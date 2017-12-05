@@ -253,6 +253,7 @@ class Trace(object):
         # Setup internal data reference to interesting events/dataframes
         self._sanitize_SchedLoadAvgCpu()
         self._sanitize_SchedLoadAvgTask()
+        self._sanitize_SchedLoadSe()
         self._sanitize_SchedCpuCapacity()
         self._sanitize_SchedBoostCpu()
         self._sanitize_SchedBoostTask()
@@ -515,6 +516,29 @@ class Trace(object):
         if not self.has_big_little:
             return
 
+        df['cluster'] = np.select(
+                [df.cpu.isin(self.platform['clusters']['little'])],
+                ['LITTLE'], 'big')
+
+        if 'nrg_model' not in self.platform:
+            return
+
+        # Add a column which represents the max capacity of the smallest
+        # clustre which can accomodate the task utilization
+        little_cap = self.platform['nrg_model']['little']['cpu']['cap_max']
+        big_cap = self.platform['nrg_model']['big']['cpu']['cap_max']
+        df['min_cluster_cap'] = df.util_avg.map(
+            lambda util_avg: big_cap if util_avg > little_cap else little_cap
+        )
+
+    def _sanitize_SchedLoadSe(self):
+        if not self.hasEvents('sched_load_se'):
+            return
+
+        if not self.has_big_little:
+            return
+
+        df = self._dfg_trace_event('sched_load_se')
         df['cluster'] = np.select(
                 [df.cpu.isin(self.platform['clusters']['little'])],
                 ['LITTLE'], 'big')
