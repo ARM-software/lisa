@@ -211,6 +211,7 @@ class JobOutput(Output):
 
     kind = 'job'
 
+    # pylint: disable=redefined-builtin
     def __init__(self, path, id, label, iteration, retry):
         super(JobOutput, self).__init__(path)
         self.id = id
@@ -233,6 +234,7 @@ class Result(object):
         return instance
 
     def __init__(self):
+        # pylint: disable=no-member
         self.status = Status.NEW
         self.metrics = []
         self.artifacts = []
