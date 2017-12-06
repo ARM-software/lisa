@@ -1,4 +1,5 @@
 import os
+import shutil
 
 from wa.framework.configuration.core import settings
 
