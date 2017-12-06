@@ -21,7 +21,6 @@ import json
 
 from wa import ApkUiautoWorkload, Parameter
 from wa.framework.exception import ConfigError, WorkloadError
-from wa.framework.plugin import Artifact
 from wa.utils.misc import capitalize
 
 class Geekbench(ApkUiautoWorkload):

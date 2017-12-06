@@ -34,7 +34,6 @@ from wa.framework.exception import (WAError, ConfigError, TimeoutError,
                                     TargetNotRespondingError, WorkloadError)
 from wa.framework.job import Job
 from wa.framework.output import init_job_output
-from wa.framework.plugin import Artifact
 from wa.framework.processor import ProcessorManager
 from wa.framework.resource import ResourceResolver
 from wa.framework.run import RunState
