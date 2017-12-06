@@ -2,6 +2,9 @@ import os
 
 from wa.framework.configuration.core import settings
 
+# Have to disable this due to dynamic attributes
+# pylint: disable=no-member
+
 def init_user_directory(overwrite_existing=False):  # pylint: disable=R0914
     """
     Initialise a fresh user directory.
