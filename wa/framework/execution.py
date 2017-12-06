@@ -353,7 +353,11 @@ class Executor(object):
 
 class Runner(object):
     """
+    Triggers running jobs and processing results
 
+    Takes pre-initialized ExcecutionContext and ProcessorManager. Handles
+    actually running the jobs, and triggers the ProcessorManager to handle
+    processing job and run results.
     """
 
     def __init__(self, context, pm):
