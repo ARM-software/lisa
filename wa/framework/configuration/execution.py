@@ -30,10 +30,10 @@ class CombinedConfig(object):
 
 class ConfigManager(object):
     """
-    Represents run-time state of WA. Mostly used as a container for loaded 
+    Represents run-time state of WA. Mostly used as a container for loaded
     configuration and discovered plugins.
 
-    This exists outside of any command or run and is associated with the running 
+    This exists outside of any command or run and is associated with the running
     instance of wA itself.
     """
 
@@ -87,7 +87,7 @@ class ConfigManager(object):
         instruments = []
         for name in self.enabled_instruments:
             try:
-                instruments.append(self.get_plugin(name, kind='instrument', 
+                instruments.append(self.get_plugin(name, kind='instrument',
                                                    target=target))
             except NotFoundError:
                 msg = 'Instrument "{}" not found'
@@ -134,7 +134,7 @@ def permute_by_job(specs):
     for spec in specs:
         for i in range(1, spec.iterations + 1):
             yield (spec, i)
- 
+
 
 def permute_by_iteration(specs):
     """
@@ -156,7 +156,7 @@ def permute_by_iteration(specs):
 
     all_tuples = []
     for spec in chain(*groups):
-        all_tuples.append([(spec, i + 1) 
+        all_tuples.append([(spec, i + 1)
                            for i in xrange(spec.iterations)])
     for t in chain(*map(list, izip_longest(*all_tuples))):
         if t is not None:
@@ -182,12 +182,12 @@ def permute_by_section(specs):
 
     all_tuples = []
     for spec in chain(*groups):
-        all_tuples.append([(spec, i + 1) 
+        all_tuples.append([(spec, i + 1)
                            for i in xrange(spec.iterations)])
     for t in chain(*map(list, izip_longest(*all_tuples))):
         if t is not None:
             yield t
- 
+
 
 def permute_randomly(specs):
     """
