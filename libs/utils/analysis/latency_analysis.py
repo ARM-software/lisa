@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 import pylab as pl
 import re
+import os
 
 from collections import namedtuple
 from analysis_module import AnalysisModule
@@ -144,6 +145,14 @@ class LatencyAnalysis(AnalysisModule):
         task_latency_df['t_delta'] = (
               task_latency_df['t_start'].shift(-1)
             - task_latency_df['t_start']
+        )
+
+        # Fix the last entry, which will have a NaN state duration
+        # Set duration to trace_end - last_event
+        task_latency_df.loc[task_latency_df.index[-1], 't_delta'] = (
+            self._trace.start_time +
+            self._trace.time_range -
+            task_latency_df.index[-1]
         )
 
         return task_latency_df
@@ -277,6 +286,42 @@ class LatencyAnalysis(AnalysisModule):
         # each time the task blocks or terminate
         run_df = run_df[run_df.next_state.isin(['S', 'x'])][['running_time']]
         return run_df
+
+    @memoized
+    def _dfg_task_residency(self, task):
+        """
+        DataFrame of a task's execution time on each CPU
+
+        The returned DataFrame index is the CPU indexes
+        The DataFrame has just one column:
+        - runtime: the time the task spent being active on a given CPU,
+          in seconds.
+
+        :param task: the task to report runtimes for
+        :type task: int or str
+        """
+        cpus = range(self._platform['cpus_count'])
+        runtimes = {cpu : 0.0 for cpu in cpus}
+
+        df = self._dfg_latency_df(task)
+
+        # Exclude sleep time
+        df = df[df.curr_state != 'S']
+
+        for time, data in df.iterrows():
+            cpu = data['__cpu']
+
+            # When waking up, '__cpu' is NaN but 'target_cpu' is populated instead
+            if np.isnan(cpu):
+                if data['curr_state'] == 'W':
+                    cpu = data['target_cpu']
+                else:
+                    raise RuntimeError('No CPU data for latency_df @{}'.format(time))
+
+            runtimes[cpu] += data['t_delta']
+
+        data = [(cpu, time) for  cpu, time in runtimes.iteritems()]
+        return pd.DataFrame(data, columns=['CPU', 'runtime']).set_index('CPU')
 
 ###############################################################################
 # Plotting Methods
@@ -739,6 +784,28 @@ class LatencyAnalysis(AnalysisModule):
         return stats_df.append(pd.DataFrame(
             stats.values(), columns=['running_time'], index=stats.keys()))
 
+    def plotTaskResidency(self, task):
+        """
+        Plot CPU residency of the specified task
+        This will show an overview of how much time that task spent being
+        active on each available CPU, in seconds.
+
+        :param task: the task to report runtimes for
+        :type task: int or str
+        """
+        df = self._dfg_task_residency(task)
+
+        ax = df.plot(kind='bar', figsize=(16, 6))
+        ax.set_title('CPU residency of task {}'.format(task))
+
+        figname = os.path.join(
+            self._trace.plots_dir,
+            '{}task_cpu_residency_{}.png'.format(
+                self._trace.plots_prefix, task
+            )
+        )
+
+        pl.savefig(figname, bbox_inches='tight')
 
 ###############################################################################
 # Utility Methods
