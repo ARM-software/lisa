@@ -18,9 +18,13 @@
 from collections import OrderedDict
 import unittest
 from unittest import TestCase
+import os
+import shutil
+from tempfile import mkdtemp
 
 from energy_model import (EnergyModel, ActiveState, EnergyModelCapacityError,
                           EnergyModelNode, EnergyModelRoot, PowerDomain)
+from trace import Trace
 
 # Import these just to test that they can be constructed
 from libs.utils.platforms.juno_energy import juno_energy
@@ -36,6 +40,7 @@ from libs.utils.platforms.hikey_energy import hikey_energy
 
 little_cluster_active_states = OrderedDict([
     (1000, ActiveState(power=10)),
+    (1500, ActiveState(power=15)),
     (2000, ActiveState(power=20)),
 ])
 
@@ -302,3 +307,120 @@ class TestGetCpuCapacity(TestCase):
             for freq, active_state in node.active_states.iteritems():
                 self.assertEqual(em.get_cpu_capacity(cpu, freq),
                                  active_state.capacity)
+
+class TestEstimateFromTrace(TestCase):
+    def test_estimate_from_trace(self):
+        trace_data = (
+            # Set all CPUs at lowest freq
+            """
+            <idle>-0  [000] 0000.0001: cpu_frequency:   state=1000 cpu_id=0
+            <idle>-0  [000] 0000.0001: cpu_frequency:   state=1000 cpu_id=1
+            <idle>-0  [000] 0000.0001: cpu_frequency:   state=3000 cpu_id=2
+            <idle>-0  [000] 0000.0001: cpu_frequency:   state=3000 cpu_id=3
+            """ # Set all CPUs in deepest CPU-level idle state
+            """
+            <idle>-0  [000] 0000.0002: cpu_idle:        state=1 cpu_id=0
+            <idle>-0  [000] 0000.0002: cpu_idle:        state=1 cpu_id=1
+            <idle>-0  [000] 0000.0002: cpu_idle:        state=1 cpu_id=2
+            <idle>-0  [000] 0000.0002: cpu_idle:        state=1 cpu_id=3
+            """ # Wake up cpu 0
+            """
+            <idle>-0  [000] 0000.0005: cpu_idle:        state=4294967295 cpu_id=0
+            """ # Ramp up everybody's freqs to 2nd OPP
+            """
+            <idle>-0  [000] 0000.0010: cpu_frequency:   state=1500 cpu_id=0
+            <idle>-0  [000] 0000.0010: cpu_frequency:   state=1500 cpu_id=1
+            <idle>-0  [000] 0000.0010: cpu_frequency:   state=4000 cpu_id=2
+            <idle>-0  [000] 0000.0010: cpu_frequency:   state=4000 cpu_id=3
+            """ # Wake up the other CPUs one by one
+            """
+            <idle>-0  [000] 0000.0011: cpu_idle:        state=4294967295 cpu_id=1
+            <idle>-0  [000] 0000.0012: cpu_idle:        state=4294967295 cpu_id=2
+            <idle>-0  [000] 0000.0013: cpu_idle:        state=4294967295 cpu_id=3
+            """ # Put CPU2 into "cluster sleep" (note CPU3 is still awake)
+            """
+            <idle>-0  [000] 0000.0020: cpu_idle:        state=2 cpu_id=2
+            """
+        )
+
+        dir = mkdtemp()
+        path = os.path.join(dir, 'trace.txt')
+        with open(path, 'w') as f:
+            f.write(trace_data)
+        trace = Trace(None, path, ['cpu_idle', 'cpu_frequency'],
+                      normalize_time=False)
+        shutil.rmtree(dir)
+
+        energy_df = em.estimate_from_trace(trace)
+
+        exp_entries = [
+            # Everybody idle
+            (0.0002, {
+                '0': 0.0,
+                '1': 0.0,
+                '2': 0.0,
+                '3': 0.0,
+                '0-1': 5.0,
+                '2-3': 8.0,
+            }),
+            # CPU0 wakes up
+            (0.0005, {
+                '0': 100.0, # CPU 0 now active
+                '1': 0.0,
+                '2': 0.0,
+                '3': 0.0,
+                '0-1': 10.0, # little cluster now active
+                '2-3': 8.0,
+            }),
+            # Ramp freqs up to 2nd OPP
+            (0.0010, {
+                '0': 150.0,
+                '1': 0.0,
+                '2': 0.0,
+                '3': 0.0,
+                '0-1': 15.0,
+                '2-3': 8.0,
+            }),
+            # Wake up CPU1
+            (0.0011, {
+                '0': 150.0,
+                '1': 150.0,
+                '2': 0.0,
+                '3': 0.0,
+                '0-1': 15.0,
+                '2-3': 8.0,
+            }),
+            # Wake up CPU2
+            (0.0012, {
+                '0': 150.0,
+                '1': 150.0,
+                '2': 400.0,
+                '3': 0.0,
+                '0-1': 15.0,
+                '2-3': 40.0, # big cluster now active
+            }),
+            # Wake up CPU3
+            (0.0013, {
+                '0': 150.0,
+                '1': 150.0,
+                '2': 400.0,
+                '3': 400.0,
+                '0-1': 15.0,
+                '2-3': 40.0,
+            }),
+        ]
+
+
+        # We don't know the exact index that will come out of the parsing
+        # (because of handle_duplicate_index). Furthermore the value of the
+        # energy estimation will change for infinitessimal moments between each
+        # cpu_frequency event, and we don't care about that - we only care about
+        # the stable value. So we'll take the value of the returned signal at
+        # 0.01ms after each set of events, and assert based on that.
+        df = energy_df.reindex([e[0] + 0.00001 for e in exp_entries],
+                               method='ffill')
+
+        for i, (exp_index, exp_values) in enumerate(exp_entries):
+            row = df.iloc[i]
+            self.assertAlmostEqual(row.name, exp_index, places=4)
+            self.assertDictEqual(row.to_dict(), exp_values)

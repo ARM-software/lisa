@@ -26,6 +26,7 @@ import numpy as np
 
 from devlib.utils.misc import memoized, mask_to_list
 from devlib import TargetError
+from trappy.stats.grammar import Parser
 
 """Classes for modeling and estimating energy usage of CPU systems"""
 
@@ -177,8 +178,13 @@ class EnergyModelNode(_CpuTree):
                     'Active states powers are expected to be '
                     'monotonically increasing. Values: {}'.format(power_vals))
 
-        # Sanity check for idle_states powers
         if idle_states:
+            # This is needed for idle_state_by_idx to work.
+            if not isinstance(idle_states, OrderedDict):
+                f = 'idle_states is {}, must be collections.OrderedDict'
+                raise ValueError(f.format(type(self.idle_states)))
+
+            # Sanity check for idle_states powers
             power_vals = idle_states.values()
             if not is_monotonic(power_vals, decreasing=True):
                 self._log.warning(
@@ -196,6 +202,15 @@ class EnergyModelNode(_CpuTree):
     def max_capacity(self):
         """Compute capacity at highest frequency"""
         return max(s.capacity for s in self.active_states.values())
+
+    def idle_state_by_idx(self, idx):
+        """Return the idle state with index ``idx``"""
+        # NB self.idle_states must be ordered for this to work. __init__
+        # enforces that it is an OrderedDict
+        if self.idle_states and idx < len(self.idle_states):
+            return self.idle_states.keys()[idx]
+
+        raise KeyError('No idle state with index {}'.format(idx))
 
 class EnergyModelRoot(EnergyModelNode):
     """
@@ -411,17 +426,21 @@ class EnergyModel(object):
                 groups.append([node.cpu])
         return groups
 
-    def _guess_idle_states(self, cpus_active):
+    def _deepest_idle_idxs(self, cpus_active):
         def find_deepest(pd):
-            if not any(cpus_active[c] for c in pd.cpus):
-                if pd.parent:
-                    parent_state = find_deepest(pd.parent)
-                    if parent_state:
-                        return parent_state
-                return pd.idle_states[-1] if len(pd.idle_states) else None
-            return None
-
+            if any(cpus_active[c] for c in pd.cpus):
+                return -1
+            if pd.parent:
+                parent_idx = find_deepest(pd.parent)
+            else:
+                parent_idx = -1
+            ret = parent_idx + len(pd.idle_states)
+            return ret
         return [find_deepest(pd) for pd in self.cpu_pds]
+
+    def _guess_idle_states(self, cpus_active):
+        idxs = self._deepest_idle_idxs(cpus_active)
+        return [n.idle_state_by_idx(max(i, 0)) for n, i in zip(self.cpu_nodes, idxs)]
 
     def get_cpu_capacity(self, cpu, freq=None):
         """Convenience method to get the capacity of a CPU at a given frequency
@@ -551,7 +570,6 @@ class EnergyModel(object):
             # For now we assume topology nodes with energy models do not overlap
             # with frequency domains
             freq = freqs[cpus[0]]
-            assert all(freqs[c] == freq for c in cpus[1:])
 
             # The active time of a node is estimated as the max of the active
             # times of its children.
@@ -878,3 +896,99 @@ class EnergyModel(object):
         return cls(root_node=root,
                    root_power_domain=root_pd,
                    freq_domains=freq_domains)
+
+    def estimate_from_trace(self, trace):
+        """
+        Estimate the energy consumption of the system by looking at a trace
+
+        Usese the EAS energy model data, and the idle and DVFS conditions
+        reported in the trace, to estimate the energy usage of the system at
+        every given moment.
+
+        Takes into account knowledge of power domains - where cpuidle makes
+        impossible claims about idle states (e.g. a CPU in 'cluster sleep' while
+        its cluster siblings are running), the states will be minimised.
+
+        The accuracy of this is otherwise totally dependent on the accuracy of
+        the EAS energy model and the kernel's information. This does not take
+        into account cost of idle state of DVFS transitions, nor any other
+        conditions that are invisible to the kernel. The effect any power
+        decisions that the platform makes independently of the kernel cannot be
+        seen in this data. Examples of this _might_ include firmware thermal
+        management invisibly restricting CPU frequencies, or secure-world
+        software with real-time constraints preventing deep CPU idle states.
+
+        :param trace: The trace
+        :type trace: Trace
+
+        :returns: A DataFrame with a column for each node in the energy model,
+                  labelled with the CPU members of the node joined by  '-'s.
+                  Shows the energy use by each node at each given moment.
+                  If you don't care about those details, call ``.sum(axis=1)` on
+                  the returned DataFrame to get a Series that shows overall
+                  estimated power usage over time.
+        """
+        if not trace.hasEvents('cpu_idle') or not trace.hasEvents('cpu_frequency'):
+            raise ValueError('Requires cpu_idle and cpu_frequency trace events')
+
+        idle = Parser(trace.ftrace).solve('cpu_idle:state')
+        freqs = Parser(trace.ftrace).solve('cpu_frequency:frequency')
+
+        columns = ['-'.join(str(c) for c in n.cpus)
+                   for n in self.root.iter_nodes()
+                   if n.active_states and n.idle_states]
+
+        inputs = pd.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()
+
+        # Drop stuff at the beginning where we don't have the inputs
+        # (e.g. where we have had our first cpu_idle event but no cpu_frequency)
+        inputs = inputs.dropna()
+        # Convert to int wholesale so we can do things like use the values in
+        # the inputs DataFrame as list indexes. The only reason we had floats
+        # was to make room for NaN, but we've just dropped all the NaNs, so
+        # that's fine.
+        inputs = inputs.astype(int)
+        # Drop consecutive duplicates (optimisation)
+        inputs = inputs[(inputs.shift() != inputs).any(axis=1)]
+
+        memo_cache = {}
+
+        def f(input_row):
+            # The code in this module is slow. Try not to call it too much.
+            memo_key = tuple(input_row)
+            if memo_key in memo_cache:
+                return memo_cache[memo_key]
+
+            # cpuidle doesn't understand shared resources so it will claim to
+            # put a CPU into e.g. 'cluster sleep' while its cluster siblings are
+            # active. Rectify those false claims.
+            cpus_active = input_row['idle'] == -1
+            deepest_possible = self._deepest_idle_idxs(cpus_active)
+            idle_idxs = [min(i, j) for i, j in zip(deepest_possible,
+                                                        input_row['idle'])]
+
+            # Convert indexes to state names
+            idle_states = [n.idle_state_by_idx(max(i, 0))
+                           for n, i in zip(self.cpu_nodes, idle_idxs)]
+
+            # We don't use tracked load, we just treat a CPU as active or idle,
+            # so set util to 0 or 100%.
+            utils = cpus_active * self.capacity_scale
+
+            nrg = self.estimate_from_cpu_util(cpu_utils=utils,
+                                              idle_states=idle_states,
+                                              freqs=input_row['freq'])
+
+            # nrg is a dict mapping CPU group tuples to energy values.
+            # Unfortunately tuples don't play nicely as pandas column labels
+            # because parts of its API treat that as nested indexing
+            # (i.e. df[(0, 1)] sometimes means df[0][1]). So we'll give them
+            # awkward names.
+
+            nrg = {'-'.join(str(c) for c in k): v for k, v in nrg.iteritems()}
+
+            ret = pd.Series(nrg)
+            memo_cache[memo_key] = ret
+            return ret
+
+        return inputs.apply(f, axis=1)
