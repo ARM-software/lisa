@@ -44,6 +44,7 @@ class AgendaEntry(object):
     def __str__(self):
         name = self.__class__.__name__.split('.')[-1]
         if hasattr(self, 'id'):
+            # pylint: disable=no-member
             return '{}({})'.format(name, self.id)
         else:
             return name
