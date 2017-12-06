@@ -44,7 +44,7 @@ class Output(object):
 
     @status.setter
     def status(self, value):
-        self.result.status =  value
+        self.result.status = value
 
     @property
     def metrics(self):
@@ -286,7 +286,7 @@ class Artifact(object):
     which also helps WA decide how it should be handled. Currently supported
     kinds are:
 
-        :log: A log file. Not part of "results" as such but contains 
+        :log: A log file. Not part of "results" as such but contains
               information about the run/workload execution that be useful for
               diagnostics/meta analysis.
         :meta: A file containing metadata. This is not part of "results", but
@@ -512,4 +512,4 @@ def _save_raw_config(meta_dir, state):
         basename = os.path.basename(source)
         dest_path = os.path.join(raw_config_dir, 'cfg{}-{}'.format(i, basename))
         shutil.copy(source, dest_path)
-                                     
+
