@@ -311,17 +311,21 @@ class TasksAnalysis(AnalysisModule):
             signals_to_plot = {'residencies'}
             signals_to_plot = list(signals_to_plot.intersection(signals))
             if len(signals_to_plot) > 0:
-                axes = plt.subplot(gs[plot_id, 0])
-                axes.set_title(
-                    'Task [{0:d}:{1:s}] Residency (green: LITTLE, red: big)'
-                    .format(tid, task_name)
-                )
-                plot_id = plot_id + 1
-                is_last = (plot_id == plots_count)
-                if 'sched_overutilized' in signals:
-                    signals_to_plot.append('sched_overutilized')
-                self._plotTaskResidencies(axes, tid, signals_to_plot, is_last)
-                savefig = True
+                if not self._trace.has_big_little:
+                    self._log.warning(
+                        'No big.LITTLE platform data, residencies plot disabled')
+                else:
+                    axes = plt.subplot(gs[plot_id, 0])
+                    axes.set_title(
+                        'Task [{0:d}:{1:s}] Residency (green: LITTLE, red: big)'
+                        .format(tid, task_name)
+                    )
+                    plot_id = plot_id + 1
+                    is_last = (plot_id == plots_count)
+                    if 'sched_overutilized' in signals:
+                        signals_to_plot.append('sched_overutilized')
+                    self._plotTaskResidencies(axes, tid, signals_to_plot, is_last)
+                    savefig = True
 
             # Plot PELT signals
             signals_to_plot = {'load_sum', 'util_sum', 'period_contrib'}
