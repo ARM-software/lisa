@@ -31,6 +31,8 @@ from wa.utils.doc import format_body
 
 warnings.filterwarnings(action='ignore', category=UserWarning, module='zope')
 
+# Disable this to avoid false positive from dynamically-created attributes.
+# pylint: disable=no-member
 
 logger = logging.getLogger('command_line')
 
