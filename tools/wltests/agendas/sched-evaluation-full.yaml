@@ -40,6 +40,7 @@ workloads:
 # Homescreen
 # Sit on the homescreen for 15 seconds
   - name: homescreen
+    id: homescreen
     classifiers:
        tag: sit_15s
     workload_parameters:
@@ -52,6 +53,7 @@ workloads:
 # YouTube app, so it's hoped that this is a decent proxy for Youtube
 # performance on devices where running the real app is impractical.
   - name: exoplayer
+    id: exoplayer-mov720_30s
     classifiers:
        tag: mov_720p_30s
     workload_parameters:
@@ -60,6 +62,7 @@ workloads:
 
 # Play 30 seconds of a OGG Vorbis audio with Exoplayer
   - name: exoplayer
+    id: exoplayer-ogg_128kbps_30s
     classifiers:
        tag: ogg_128kbps_30s
     workload_parameters:
@@ -70,6 +73,7 @@ workloads:
 # PCMark
 
   - name: pcmark
+    id: pcmark
     classifiers:
        tag: single
     iterations: 10
@@ -78,6 +82,7 @@ workloads:
 # Geekbench
 
   - name: geekbench
+    id: geekbench
     classifiers:
        tag: iter_30
     runtime_parameters:
@@ -88,6 +93,7 @@ workloads:
 # Jankbench
 
   - name: jankbench
+    id: jankbench-list_view
     classifiers:
       tag: iter_30
     workload_parameters:
@@ -95,6 +101,7 @@ workloads:
     iterations: 30
 
   - name: jankbench
+    id: jankbench-image_list_view
     classifiers:
       tag: iter_30
     workload_parameters:
@@ -102,6 +109,7 @@ workloads:
     iterations: 30
 
   - name: jankbench
+    id: jankbench-shadow_grid
     classifiers:
       tag: iter_30
     workload_parameters:
@@ -109,6 +117,7 @@ workloads:
     iterations: 30
 
   - name: jankbench
+    id: jankbench-low_hitrate_text
     classifiers:
       tag: iter_30
     workload_parameters:
@@ -116,6 +125,7 @@ workloads:
     iterations: 30
 
   - name: jankbench
+    id: jankbench-edit_text
     classifiers:
       tag: iter_30
     workload_parameters:
