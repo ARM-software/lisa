@@ -357,6 +357,60 @@ class System(object):
                 target.execute('input keyevent KEYCODE_VOLUME_DOWN')
 
     @staticmethod
+    def tab(target):
+        """
+        Emulate TAB key keyboard input
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_TAB')
+
+    @staticmethod
+    def enter(target):
+        """
+        Emulate ENTER key keyboard input
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_ENTER')
+
+    @staticmethod
+    def dpad_down(target):
+        """
+        Emulate DPAD_DOWN input
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_DPAD_DOWN')
+
+    @staticmethod
+    def dpad_up(target):
+        """
+        Emulate DPAD_UP key input
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_DPAD_UP')
+
+    @staticmethod
+    def dpad_left(target):
+        """
+        Emulate DPAD_LEFT key input
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_DPAD_LEFT')
+
+    @staticmethod
+    def dpad_right(target):
+        """
+        Emulate DPAD_RIGHT key input
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('input keyevent KEYCODE_DPAD_RIGHT')
+
+    @staticmethod
     def gfxinfo_reset(target, apk_name):
         """
         Reset gfxinfo frame statistics for a given app.
