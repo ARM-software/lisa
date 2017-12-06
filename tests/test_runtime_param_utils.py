@@ -19,7 +19,7 @@ class TestRuntimeParameterUtils(unittest.TestCase):
             return [0, 1, 2]
         def mock_offline_cpus():
             return [3]
-        def mock_domain_cpus(core):
+        def mock_related_cpus(core):
             if core in [0, 1]:
                 return [0, 1]
             elif core in [2, 3]:
@@ -29,7 +29,7 @@ class TestRuntimeParameterUtils(unittest.TestCase):
         mock.list_offline_cpus = mock_offline_cpus
         mock.core_cpus = mock_core_cpus
         mock.core_cpus = mock_core_cpus
-        mock.cpufreq.get_domain_cpus = mock_domain_cpus
+        mock.cpufreq.get_related_cpus = mock_related_cpus
 
         # Check retrieving cpus from a given prefix
         assert_equal(resolve_cpus('A72', mock), [0, 1])
