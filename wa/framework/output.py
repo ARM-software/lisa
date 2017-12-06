@@ -85,9 +85,6 @@ class Output(object):
             raise HostError(msg.format(path))
         path = os.path.relpath(path, self.basepath)
 
-        if isinstance(kind, basestring):
-            kind = ArtifactType(kind)
-
         self.result.add_artifact(name, path, kind, description, classifiers)
 
     def add_event(self, message):
@@ -276,7 +273,8 @@ class Result(object):
         )
 
 
-ArtifactType = enum(['log', 'meta', 'data', 'export', 'raw'])
+ARTIFACT_TYPES = ['log', 'meta', 'data', 'export', 'raw']
+ArtifactType = enum(ARTIFACT_TYPES)
 
 
 class Artifact(object):
@@ -356,7 +354,7 @@ class Artifact(object):
             self.kind = ArtifactType(kind)
         except ValueError:
             msg = 'Invalid Artifact kind: {}; must be in {}'
-            raise ValueError(msg.format(kind, self.valid_kinds))
+            raise ValueError(msg.format(kind, ARTIFACT_TYPES))
         self.description = description
         self.classifiers = classifiers or {}
 
