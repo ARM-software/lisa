@@ -43,7 +43,7 @@ ignore=external
 #        https://bitbucket.org/logilab/pylint/issue/232/wrong-hanging-indentation-false-positive
 # TODO:  disabling no-value-for-parameter and logging-format-interpolation, as they appear to be broken
 #        in version 1.4.1 and return a lot of false postives; should be re-enabled once fixed.
-disable=C0301,C0103,C0111,W0142,R0903,R0904,R0922,W0511,W0141,I0011,R0921,W1401,C0330,no-value-for-parameter,logging-format-interpolation
+disable=C0301,C0103,C0111,W0142,R0903,R0904,R0922,W0511,W0141,I0011,R0921,W1401,C0330,no-value-for-parameter,logging-format-interpolation,no-else-return
 
 [FORMAT]
 max-module-lines=4000
