@@ -29,7 +29,7 @@ from wa.framework.configuration.core import settings, ConfigurationPoint as Para
 from wa.framework.exception import (NotFoundError, PluginLoaderError, TargetError,
                                     ValidationError, ConfigError, HostError)
 from wa.utils import log
-from wa.utils.misc import (ensure_directory_exists as _d, walk_modules, load_class, 
+from wa.utils.misc import (ensure_directory_exists as _d, walk_modules, load_class,
                            merge_dicts_simple, get_article)
 from wa.utils.types import identifier
 
@@ -400,7 +400,7 @@ class PluginLoader(object):
 
     """
 
-    def __init__(self, packages=None, paths=None, ignore_paths=None, 
+    def __init__(self, packages=None, paths=None, ignore_paths=None,
                  keep_going=False):
         """
         params::
