@@ -65,6 +65,7 @@ class AttributeCollection(object):
                     if v is not None:
                         setattr(newp, a, v)
                 if not hasattr(newp, "_overridden"):
+                    # pylint: disable=protected-access
                     newp._overridden = p._owner
                 self._attrs[p.name] = newp
             else:
@@ -113,6 +114,7 @@ class AliasCollection(AttributeCollection):
     def _to_attrcls(self, p):
         if isinstance(p, (list, tuple)):
             # must be in the form (name, {param: value, ...})
+            # pylint: disable=protected-access
             p = self._attrcls(p[1], **p[1])
         elif not isinstance(p, self._attrcls):
             raise ValueError('Invalid parameter value: {}'.format(p))
