@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 
 from wa.framework.configuration.core import Status
 
+# Because of use of Enum (dynamic attrs)
+# pylint: disable=no-member
 
 class RunInfo(object):
     """
@@ -119,6 +121,7 @@ class JobState(object):
         return '{}-{}-{}'.format(self.id, self.label, self.iteration)
 
     def __init__(self, id, label, iteration, status):
+        # pylint: disable=redefined-builtin
         self.id = id
         self.label = label
         self.iteration = iteration
