@@ -19,8 +19,8 @@ import time
 
 from wa import Parameter
 from wa.framework.plugin import TargetedPlugin
-from wa.framework.resource import (ApkFile, JarFile, ReventFile, NO_ONE,
-                                   Executable, File, loose_version_matching)
+from wa.framework.resource import (ApkFile, ReventFile,
+                                   File, loose_version_matching)
 from wa.framework.exception import WorkloadError
 from wa.utils.types import ParameterDict
 from wa.utils.revent import ReventRecorder
