@@ -37,9 +37,6 @@ class ConfigManager(object):
     instance of wA itself.
     """
 
-    def from_pod(self, pod):
-        return None # TODO
-
     @property
     def enabled_instruments(self):
         return self.jobs_config.enabled_instruments
