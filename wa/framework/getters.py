@@ -29,9 +29,9 @@ import requests
 
 
 from wa import Parameter, settings, __file__ as _base_filepath
-from wa.framework.resource import ResourceGetter, SourcePriority, NO_ONE 
+from wa.framework.resource import ResourceGetter, SourcePriority, NO_ONE
 from wa.framework.exception import ResourceError
-from wa.utils.misc import (ensure_directory_exists as _d, 
+from wa.utils.misc import (ensure_directory_exists as _d,
                            ensure_file_directory_exists as _f, sha256, urljoin)
 from wa.utils.types import boolean, caseless_string
 
@@ -113,7 +113,7 @@ class Package(ResourceGetter):
             basepath = os.path.join(os.path.dirname(_base_filepath), 'assets')
         else:
             modname = resource.owner.__module__
-            basepath  = os.path.dirname(sys.modules[modname].__file__)
+            basepath = os.path.dirname(sys.modules[modname].__file__)
         return get_from_location(basepath, resource)
 
 
