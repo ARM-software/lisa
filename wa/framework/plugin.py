@@ -83,7 +83,7 @@ class AttributeCollection(object):
     def _to_attrcls(self, p):
         if not isinstance(p, self._attrcls):
             raise ValueError('Invalid attribute value: {}; must be a {}'.format(p, self._attrcls))
-        if (p.name in self._attrs and not p.override):
+        if p.name in self._attrs and not p.override:
             raise ValueError('Attribute {} has already been defined.'.format(p.name))
         return p
 
@@ -111,7 +111,7 @@ class AliasCollection(AttributeCollection):
         super(AliasCollection, self).__init__(Alias)
 
     def _to_attrcls(self, p):
-        if isinstance(p, tuple) or isinstance(p, list):
+        if isinstance(p, (list, tuple)):
             # must be in the form (name, {param: value, ...})
             p = self._attrcls(p[1], **p[1])
         elif not isinstance(p, self._attrcls):
