@@ -195,6 +195,7 @@ class Executor():
         # Initialize globals
         self._default_cgroup = None
         self._cgroup = None
+        self._old_selinux_mode = None
 
         # Setup logging
         self._log = logging.getLogger('Executor')
@@ -249,10 +250,6 @@ class Executor():
         self._log.info('Results will be collected under:')
         self._log.info('      %s', self.te.res_dir)
 
-        if any(wl['type'] == 'rt-app'
-               for wl in self._experiments_conf['wloads'].values()):
-            self._log.info('rt-app workloads found, installing tool on target')
-            self.te.install_tools(['rt-app'])
 
     def run(self):
         self._print_section('Experiments execution')
@@ -335,26 +332,30 @@ class Executor():
         self._log.debug('Setup RT-App run folder [%s]...', self.te.run_dir)
         self.target.execute('[ -d {0} ] || mkdir {0}'\
                 .format(self.te.run_dir))
-        self.target.execute(
+
+        if self.target.is_rooted:
+            self.target.execute(
                 'grep schedtest /proc/mounts || '\
                 '  mount -t tmpfs -o size=1024m {} {}'\
                 .format('schedtest', self.te.run_dir),
                 as_root=True)
-        # tmpfs mounts have an SELinux context with "tmpfs" as the type (while
-        # other files we create have "shell_data_file"). That prevents non-root
-        # users from creating files in tmpfs mounts. For now, just put SELinux
-        # in permissive mode to get around that.
-        try:
-            # First, save the old SELinux mode
-            self._old_selinux_mode = self.target.execute('getenforce')
-            self._log.warning('Setting target SELinux in permissive mode')
-            self.target.execute('setenforce 0', as_root=True)
-        except TargetError:
-            # Probably the target doesn't have SELinux, or there are no
-            # contexts set up. No problem.
-            self._log.warning("Couldn't set SELinux in permissive mode. "
-                                "This is probably fine.")
-            self._old_selinux_mode = None
+
+            # tmpfs mounts have an SELinux context with "tmpfs" as the type
+            # (while other files we create have "shell_data_file"). That
+            # prevents non-root users from creating files in tmpfs mounts. For
+            # now, just put SELinux in permissive mode to get around that.
+            try:
+                # First, save the old SELinux mode
+                self._old_selinux_mode = self.target.execute('getenforce')
+            except TargetError:
+                # Probably the target doesn't have SELinux. No problem.
+                pass
+            else:
+
+                self._log.warning('Setting target SELinux in permissive mode')
+                self.target.execute('setenforce 0', as_root=True)
+        else:
+            self._log.warning('Not mounting tempfs because no root')
 
     def _setup_cpufreq(self, tc):
         if 'cpufreq' not in tc:
@@ -643,7 +644,12 @@ class Executor():
 
         # Configure the test workload
         wlspec = self._experiments_conf['wloads'][wl_idx]
-        wload = self._wload_conf(wl_idx, wlspec)
+        if type(wlspec) == dict:
+            wload = self._wload_conf(wl_idx, wlspec)
+        else:
+            wload = wlspec
+
+        self.te.install_tools([wload.executor])
 
         # Keep track of platform configuration
         test_dir = '{}/{}:{}:{}'\

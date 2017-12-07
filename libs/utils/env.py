@@ -532,7 +532,8 @@ class TestEnv(ShareState):
             self.target = devlib.LocalLinuxTarget(
                     platform = platform,
                     load_default_modules = False,
-                    modules = self.__modules)
+                    modules = self.__modules,
+                    connection_settings = {'unrooted': True})
         else:
             raise ValueError('Config error: not supported [platform] type {}'\
                     .format(platform_type))
@@ -825,24 +826,17 @@ class TestEnv(ShareState):
                   force=False and we have not installed rt-app.
         """
 
-        if not force and self._calib:
-            return self._calib
-
-        required = force or 'rt-app' in self.__installed_tools
-
-        if not required:
-            self._log.debug('No RT-App workloads, skipping calibration')
-            return
-
-        if not force and 'rtapp-calib' in self.conf:
-            self._log.warning('Using configuration provided RTApp calibration')
-            self._calib = {
+        if not force and 'rt-app' not in self.__installed_tools:
+            if not self._calib and 'rtapp-calib' in self.conf:
+                self._log.warning('Using configuration provided RTApp calibration')
+                self._calib = {
                     int(key): int(value)
                     for key, value in self.conf['rtapp-calib'].items()
                 }
-        else:
-            self._log.info('Calibrating RTApp...')
-            self._calib = RTA.calibrate(self.target)
+            return self._calib
+
+        self._log.info('Calibrating RTApp...')
+        self._calib = RTA.calibrate(self.target)
 
         self._log.info('Using RT-App calibration values:')
         self._log.info('   %s',

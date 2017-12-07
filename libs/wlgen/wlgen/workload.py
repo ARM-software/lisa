@@ -41,7 +41,13 @@ class Workload(object):
 
     def __init__(self,
                  target,
-                 name):
+                 name,
+                 profile=None,
+                 custom_conf=None,
+                 *args, **kwargs):
+
+        if custom_conf and profile_conf:
+            raise ValueError('Provide only one of custom_conf and profile_conf')
 
         # Target device confguration
         self.target = target
@@ -95,6 +101,11 @@ class Workload(object):
         self._log = logging.getLogger('Workload')
 
         self._log.info('Setup new workload %s', self.name)
+
+        if profile:
+            self.conf('profile', profile, *args, **kwargs)
+        elif custom_conf:
+            self.conf('custom', custom_conf, *args, **kwargs)
 
     def __callback(self, step, **kwords):
         if step not in self.steps.keys():
