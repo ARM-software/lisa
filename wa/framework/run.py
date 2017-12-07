@@ -135,4 +135,3 @@ class JobState(object):
             retries=0,
             timestamp=self.timestamp,
         )
-
