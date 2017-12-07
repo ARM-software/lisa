@@ -181,8 +181,15 @@ class CpufreqModule(Module):
             # On some devices scaling_frequencies  is not generated.
             # http://adrynalyne-teachtofish.blogspot.co.uk/2011/11/how-to-enable-scalingavailablefrequenci.html
             # Fall back to parsing stats/time_in_state
-            cmd = 'cat /sys/devices/system/cpu/{}/cpufreq/stats/time_in_state'.format(cpu)
-            out_iter = iter(self.target.execute(cmd).strip().split())
+            path = '/sys/devices/system/cpu/{}/cpufreq/stats/time_in_state'.format(cpu)
+            try:
+                out_iter = iter(self.target.read_value(path).split())
+            except TargetError:
+                if not self.target.file_exists(path):
+                    # Probably intel_pstate. Can't get available freqs.
+                    return []
+                raise
+
             available_frequencies = map(int, reversed([f for f, _ in zip(out_iter, out_iter)]))
         return available_frequencies
 
