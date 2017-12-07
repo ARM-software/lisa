@@ -4,6 +4,8 @@ from datetime import datetime
 from wa.framework import pluginloader, signal
 from wa.framework.configuration.core import Status
 
+# Because of use of Enum (dynamic attrs)
+# pylint: disable=no-member
 
 class Job(object):
 
