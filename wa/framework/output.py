@@ -512,4 +512,3 @@ def _save_raw_config(meta_dir, state):
         basename = os.path.basename(source)
         dest_path = os.path.join(raw_config_dir, 'cfg{}-{}'.format(i, basename))
         shutil.copy(source, dest_path)
-
