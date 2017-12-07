@@ -101,6 +101,7 @@ class Workload(TargetedPlugin):
         This is also the place to perform any on-device checks prior to
         attempting to execute the workload.
         """
+        # pylint: disable=unused-argument
         if self.requires_network and not self.target.is_network_connected():
             raise WorkloadError(
                 'Workload "{}" requires internet. Target does not appear '
@@ -139,6 +140,7 @@ class Workload(TargetedPlugin):
 
     def deploy_assets(self, context):
         """ Deploy assets if available to the target """
+        # pylint: disable=unused-argument
         if not self.asset_directory:
             self.asset_directory = self.target.working_directory
         else:
@@ -151,6 +153,7 @@ class Workload(TargetedPlugin):
 
     def remove_assets(self, context):
         """ Cleanup assets deployed to the target """
+        # pylint: disable=unused-argument
         for asset in self.deployed_assets:
             self.target.remove(asset)
 
@@ -745,6 +748,7 @@ class PackageHandler(object):
         self.target.execute('pm clear {}'.format(self.apk_info.package))
 
     def install_apk(self, context):
+        # pylint: disable=unused-argument
         output = self.target.install_apk(self.apk_file, self.install_timeout,
                                          replace=True, allow_downgrade=True)
         if 'Failure' in output:
