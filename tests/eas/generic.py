@@ -323,6 +323,7 @@ class _EnergyModelTest(LisaTest):
 
         figname = os.path.join(experiment.out_dir, 'expected_placement.png')
         pl.savefig(figname, bbox_inches='tight')
+        plt.close()
 
     def _test_slack(self, experiment, tasks):
         """
