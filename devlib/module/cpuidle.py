@@ -165,7 +165,6 @@ class Cpuidle(Module):
         Momentarily wake each CPU. Ensures cpu_idle events in trace file.
         """
         output = self.target._execute_util('cpuidle_wake_all_cpus')
-        print(output)
 
     def get_driver(self):
         return self.target.read_value(self.target.path.join(self.root_path, 'current_driver'))
