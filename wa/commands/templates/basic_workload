@@ -31,7 +31,7 @@ class ${class_name}(Workload):
         # workload instance.
 
     def validate(self):
-        super(${class_name}, self).validate(context)
+        super(${class_name}, self).validate()
         # Validate inter-parameter assumptions etc
 
     def setup(self, context):
