@@ -414,6 +414,11 @@ def escape_double_quotes(text):
     return re.sub(r'\\("|\')', r'\\\\\1', text).replace('\"', '\\\"')
 
 
+def escape_spaces(text):
+    """Escape spaces in the specified text"""
+    return text.replace(' ', '\ ')
+
+
 def getch(count=1):
     """Read ``count`` characters from standard input."""
     if os.name == 'nt':
