@@ -18,6 +18,7 @@ import logging
 import collections
 
 from devlib.utils.types import numeric
+from devlib.utils.types import identifier
 
 
 # Channel modes describe what sort of measurement the instrument supports.
@@ -172,7 +173,8 @@ class MeasurementsCsv(object):
         if self.channels is None:
             self._load_channels()
         headings = [chan.label for chan in self.channels]
-        self.data_tuple = collections.namedtuple('csv_entry', headings)
+        self.data_tuple = collections.namedtuple('csv_entry',
+                                                 map(identifier, headings))
 
     def measurements(self):
         return list(self.iter_measurements())
