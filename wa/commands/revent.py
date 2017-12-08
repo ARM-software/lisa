@@ -184,9 +184,11 @@ class RecordCommand(Command):
 
         self.logger.info('Deploying {}'.format(args.workload))
         workload = pluginloader.get_workload(args.workload, self.target)
-        workload.apk.initialize(context)
-        workload.apk.setup(context)
-        sleep(workload.loading_time)
+        # Setup apk if android workload
+        if hasattr(workload, 'apk'):
+            workload.apk.initialize(context)
+            workload.apk.setup(context)
+            sleep(workload.loading_time)
 
         output_path = os.path.join(workload.dependencies_directory,
                                    'revent_files')
