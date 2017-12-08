@@ -242,3 +242,38 @@ class ThreeSmallTasks(_CpuHotplugTest):
         '''Test that the system doesn't crash while under hotplug stress'''
         self._test_target_is_alive()
 
+class Torture(_CpuHotplugTest):
+    """
+    Torture hotplug with 5 15% tasks over 5 minutes
+    """
+    workloads = {
+        'cpuhp_five_small' : {
+            'type' : 'rt-app',
+            'conf' : {
+                'class' : 'periodic',
+                'params' : {
+                    'duty_cycle_pct': 15,
+                    'duration_s': 300,
+                    'period_ms': 16,
+                },
+                'tasks' : 5,
+                'prefix' : 'many',
+            },
+        },
+    }
+
+    hp_stress = {
+        'seed' : None,                  # Seed of the random number generator
+        'sequence_len' : 100,           # Number of operations in the sequence
+        'sleep' : {
+            'min_ms' : -1,              # Min sleep duration between hotplugs
+            'max_ms' : -1,              # Max sleep duration between hotplugs
+        },                              #   max_ms <= 0 will encode 'no sleep'
+        'max_cpus_off' : sys.maxint,    # Max number of CPUs plugged-off
+    }
+
+    @experiment_test
+    def test_random_hotplugs(self, experiment, tasks):
+        '''Test that the system doesn't crash while under hotplug stress'''
+        self._test_target_is_alive()
+
