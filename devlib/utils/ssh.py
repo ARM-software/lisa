@@ -35,7 +35,8 @@ from pexpect import EOF, TIMEOUT, spawn
 
 from devlib.exception import HostError, TargetError, TimeoutError
 from devlib.utils.misc import which, strip_bash_colors, check_output
-from devlib.utils.misc import escape_single_quotes, escape_double_quotes
+from devlib.utils.misc import (escape_single_quotes, escape_double_quotes,
+                               escape_spaces)
 from devlib.utils.types import boolean
 
 
@@ -177,11 +178,15 @@ class SshConnection(object):
         self.conn = ssh_get_shell(host, username, password, self.keyfile, port, timeout, False, None)
 
     def push(self, source, dest, timeout=30):
-        dest = '{}@{}:{}'.format(self.username, self.host, dest)
+        dest = '"{}"@"{}":"{}"'.format(escape_double_quotes(self.username),
+                                       escape_spaces(escape_double_quotes(self.host)),
+                                       escape_spaces(escape_double_quotes(dest)))
         return self._scp(source, dest, timeout)
 
     def pull(self, source, dest, timeout=30):
-        source = '{}@{}:{}'.format(self.username, self.host, source)
+        source = '"{}"@"{}":"{}"'.format(escape_double_quotes(self.username),
+                                         escape_spaces(escape_double_quotes(self.host)),
+                                         escape_spaces(escape_double_quotes(source)))
         return self._scp(source, dest, timeout)
 
     def execute(self, command, timeout=None, check_exit_code=True,
