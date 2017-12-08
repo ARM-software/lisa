@@ -567,12 +567,15 @@ run_dhrystone(int duration, int num_threads, long num_loops, int delay) {
 		sleep(delay);
 	}
 
-	run_for_duration(duration - delay * (num_threads - 1), loops_per_thread);
+	actual_duration = duration - delay * (num_threads - 1);
+	if (actual_duration < 0)
+		actual_duration = 0;
+	run_for_duration(actual_duration, loops_per_thread);
 
 	for (i = 0; i < num_threads; i++) {
 		int status, w;
 		do {
-			w= wait(&status);
+			w = wait(&status);
 		} while (w != -1 && (!WIFEXITED(status) && !WIFSIGNALED(status)));
 	}
 
@@ -584,6 +587,7 @@ run_dhrystone(int duration, int num_threads, long num_loops, int delay) {
 
 run_for_duration(int duration, long num_loops) {
 	clock_t end = clock() + duration * CLOCKS_PER_SEC;
+
 	do {
 		Proc0(num_loops, duration == 0);
 	} while (clock() < end);
