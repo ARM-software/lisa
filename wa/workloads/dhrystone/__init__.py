@@ -80,8 +80,8 @@ class Dhrystone(Workload):
 
     def setup(self, context):
         if self.mloops:
-            execution_mode = '-l {}'.format(self.mloops) 
-        else: 
+            execution_mode = '-l {}'.format(self.mloops)
+        else:
             execution_mode = '-r {}'.format(self.duration)
         if self.taskset_mask:
             taskset_string = '{} taskset 0x{:x} '.format(self.target.busybox,
@@ -101,8 +101,8 @@ class Dhrystone(Workload):
 
     def run(self, context):
         try:
-            self.output = self.target.execute(self.command, 
-                                              timeout=self.timeout, 
+            self.output = self.target.execute(self.command,
+                                              timeout=self.timeout,
                                               check_exit_code=False)
         except KeyboardInterrupt:
             self.target.killall('dhrystone')
