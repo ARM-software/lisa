@@ -32,6 +32,14 @@ from pexpect import EOF, TIMEOUT  # NOQA pylint: disable=W0611
 from devlib.exception import HostError
 
 
+class SerialLogger(Logger):
+
+    write = Logger.debug
+
+    def flush(self):
+        pass
+
+
 def pulse_dtr(conn, state=True, duration=0.1):
     """Set the DTR line of the specified serial connection to the specified state
     for the specified duration (note: the initial state of the line is *not* checked."""
@@ -40,7 +48,7 @@ def pulse_dtr(conn, state=True, duration=0.1):
     conn.setDTR(not state)
 
 
-def get_connection(timeout, init_dtr=None, logcls=Logger,
+def get_connection(timeout, init_dtr=None, logcls=SerialLogger,
                    *args, **kwargs):
     if init_dtr is not None:
         kwargs['dsrdtr'] = True
@@ -83,7 +91,7 @@ def write_characters(conn, line, delay=0.05):
 
 @contextmanager
 def open_serial_connection(timeout, get_conn=False, init_dtr=None,
-                           logcls=Logger, *args, **kwargs):
+                           logcls=SerialLogger, *args, **kwargs):
     """
     Opens a serial connection to a device.
 
