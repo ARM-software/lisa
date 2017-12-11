@@ -245,9 +245,11 @@ class JunoEnergyInstrument(Instrument):
     def setup(self):
         self.binary = self.target.install(os.path.join(PACKAGE_BIN_DIRECTORY,
                                                        self.target.abi, self.binname))
+        self.command = '{} -o {}'.format(self.binary, self.on_target_file)
+        self.command2 = '{}'.format(self.binary)
 
-    def reset(self, sites=None, kinds=None):
-        super(JunoEnergyInstrument, self).reset(sites, kinds)
+    def reset(self, sites=None, kinds=None, channels=None):
+        super(JunoEnergyInstrument, self).reset(sites, kinds, channels)
         self.target.killall(self.binname, as_root=True)
 
     def start(self):
@@ -282,7 +284,7 @@ class JunoEnergyInstrument(Instrument):
                     write_row = [row[c] for c in select_columns]
                     writer.writerow(write_row)
 
-        return MeasurementsCsv(output_file, self.active_channels)
+        return MeasurementsCsv(output_file, self.active_channels, sample_rate_hz=10)
 
     def take_measurement(self):
         result = []
