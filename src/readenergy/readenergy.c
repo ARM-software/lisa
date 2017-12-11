@@ -254,10 +254,10 @@ void emeter_init(struct emeter *this, char *outfile)
 	}
 
 	if(this->out) {
-		fprintf(this->out, "sys_curr,a57_curr,a53_curr,gpu_curr,"
-				   "sys_volt,a57_volt,a53_volt,gpu_volt,"
-				   "sys_pow,a57_pow,a53_pow,gpu_pow,"
-				   "sys_cenr,a57_cenr,a53_cenr,gpu_cenr\n");
+		fprintf(this->out, "sys_current,a57_current,a53_current,gpu_current,"
+				   "sys_voltage,a57_voltage,a53_voltage,gpu_voltage,"
+				   "sys_power,a57_power,a53_power,gpu_power,"
+				   "sys_energy,a57_energy,a53_energy,gpu_energy\n");
 	}
 }
 
