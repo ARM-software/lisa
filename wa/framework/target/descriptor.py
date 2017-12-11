@@ -5,13 +5,14 @@ from devlib import (LinuxTarget, AndroidTarget, LocalLinuxTarget,
                     Platform, Juno, TC2, Gem5SimulationPlatform,
                     AdbConnection, SshConnection, LocalConnection,
                     Gem5Connection)
+from devlib.target import DEFAULT_SHELL_PROMPT
 
 from wa.framework import pluginloader
 from wa.framework.configuration.core import get_config_point_map
 from wa.framework.exception import PluginLoaderError
 from wa.framework.plugin import Plugin, Parameter
 from wa.framework.target.assistant import LinuxAssistant, AndroidAssistant
-from wa.utils.types import list_of_strings, list_of_ints
+from wa.utils.types import list_of_strings, list_of_ints, regex
 from wa.utils.misc import isiterable
 
 
@@ -165,6 +166,10 @@ COMMON_TARGET_PARAMS = [
               or more default modules on your platform (e.g. your device is
               unrooted and cpufreq is not accessible to unprivileged users), or
               if ``Target`` initialization is taking too long for your platform.
+              '''),
+    Parameter('shell_prompt', kind=regex, default=DEFAULT_SHELL_PROMPT,
+              description='''
+              A regex that matches the shell prompt on the target.
               '''),
 ]
 
