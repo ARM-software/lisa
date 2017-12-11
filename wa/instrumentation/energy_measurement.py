@@ -25,6 +25,7 @@ from devlib.instrument.energy_probe import EnergyProbeInstrument
 from devlib.instrument.daq import DaqInstrument
 from devlib.instrument.acmecape import AcmeCapeInstrument
 from devlib.instrument.monsoon import MonsoonInstrument
+from devlib.platform.arm import JunoEnergyInstrument
 from devlib.utils.misc import which
 
 from wa import Instrument, Parameter
@@ -152,6 +153,7 @@ class EnergyProbeBackend(EnergyInstrumentBackend):
                 msg = 'Number of Energy Probe port labels does not match the number of resistor values.'
                 raise ConfigError(msg)
 
+
 class AcmeCapeBackend(EnergyInstrumentBackend):
 
     name = 'acme_cape'
@@ -221,6 +223,12 @@ class MonsoonBackend(EnergyInstrumentBackend):
     instrument = MonsoonInstrument
 
 
+class JunoEnergyBackend(EnergyInstrumentBackend):
+
+    name = 'juno_readenergy'
+    instrument = JunoEnergyInstrument
+
+
 class EnergyMeasurement(Instrument):
 
     name = 'energy_measurement'
@@ -232,7 +240,7 @@ class EnergyMeasurement(Instrument):
 
     parameters = [
         Parameter('instrument', kind=str, mandatory=True,
-                  allowed_values=['daq', 'energy_probe', 'acme_cape', 'monsoon'],
+                  allowed_values=['daq', 'energy_probe', 'acme_cape', 'monsoon', 'juno_readenergy'],
                   description="""
                   Specify the energy instrumentation to be enabled.
                   """),
@@ -284,9 +292,10 @@ class EnergyMeasurement(Instrument):
         self.instruments = self.backend.get_instruments(self.target, **self.params)
 
         for instrument in self.instruments.itervalues():
-            if instrument.mode != CONTINUOUS:
+            if not (instrument.mode & CONTINUOUS):
                 msg = '{} instrument does not support continuous measurement collection'
                 raise ConfigError(msg.format(self.instrument))
+            instrument.setup()
 
         for channel in self.channels or []:
             # Check that the expeccted channels exist.
