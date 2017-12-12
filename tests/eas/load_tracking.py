@@ -24,6 +24,7 @@ from bart.sched import pelt
 from devlib.utils.misc import memoized
 from env import TestEnv
 from executor import Executor
+from math import ceil
 from test import LisaTest, experiment_test
 from time import sleep
 from trace import Trace
@@ -440,7 +441,8 @@ class PELTTasksTest(_LoadTrackingBase):
                   start_time + stable_time + 0.5)
         # Get signal statistics in a period of time where the signal is
         # supposed to be stable
-        signal_stats = signal_df[window[0]:window[1]][signal_name].describe()
+        signal_df = signal_df[window[0]:window[1]]
+        signal_stats = signal_df[signal_name].describe()
 
         # Narrow down simulated PELT signal to stable period
         sim_df = sim_df[window[0]:window[1]].pelt_value
@@ -460,11 +462,13 @@ class PELTTasksTest(_LoadTrackingBase):
                                delta=error_margin, msg=msg)
 
         # Check mean
-        sim_mean = sim_df.mean()
+        window_range = window[1] - window[0]
+        sim_mean = area_under_curve(sim_df) / window_range
+        signal_mean = area_under_curve(signal_df[signal_name]) / window_range
         error_margin = sim_mean * (ERROR_MARGIN_PCT / 100.)
         msg = 'Saw mean value of around {}, expected {}'.format(
-            signal_stats['mean'], sim_mean)
-        self.assertAlmostEqual(sim_mean, signal_stats['mean'],
+            signal_mean, sim_mean)
+        self.assertAlmostEqual(sim_mean, signal_mean,
                                delta=error_margin, msg=msg)
 
     def _test_behaviour(self, experiment, tasks, signal_name):
@@ -544,6 +548,105 @@ class PELTTasksTest(_LoadTrackingBase):
         Test load_avg behaviour for a 50% periodic task
         """
         return self._test_behaviour(experiment, tasks, 'load_avg')
+
+class PELTSchedutilTests(_LoadTrackingBase):
+    """
+    Goal
+    ====
+    Basic checks for tasks related PELT signals using the schedutil cpufreq
+    governor.
+
+    Detailed Description
+    ====================
+    This test runs a set of synthetic periodic tasks on a CPU in the system and
+    collects a trace from the target device. Each task is created in such a way
+    that its utilization should fit excatly in a subset of the available OPPs
+    of the target CPU. Then, util_avg values are extracted from scheduler trace
+    events and min and max values of the signal in the stable range are
+    compared against the simulated values of PELT.
+
+    Expected Behaviour
+    ==================
+    Simulated PELT signal and the signal extracted from the trace should have
+    very similar min and max.
+    """
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        target_cpu = min(test_env.calibration(),
+                         key=test_env.calibration().get)
+
+        max_freq = 0
+        for cpu in xrange(test_env.target.number_of_cpus):
+            max_freq = max(max_freq,
+                           test_env.target.cpufreq.get_max_frequency(cpu))
+
+        cpu_freqs = test_env.target.cpufreq.list_frequencies(target_cpu)
+        duty_cycles = [f * 100. / max_freq for f in
+                       cpu_freqs[::len(cpu_freqs)/8 + 1]]
+
+        wloads = {}
+        prev_dc = 0.0
+        for i, dc in enumerate(duty_cycles):
+            duty_cycles[i] = int(ceil((prev_dc + (dc - prev_dc)/2) * 0.9))
+            prev_dc = dc
+
+            wload_name = 'lt_{}pct'.format(duty_cycles[i])
+            wloads[wload_name] = cls.get_wload(target_cpu, duty_cycles[i], 16)
+
+        conf = {
+            'tag' : 'pelt_schedutil_conf',
+            'flags' : ['ftrace', 'freeze_userspace'],
+            'cpufreq' : {'governor' : 'schedutil'},
+        }
+
+        return {
+            'wloads': wloads,
+            'confs': [conf],
+        }
+
+    @experiment_test
+    def test_util_min_max(self, experiment, tasks):
+        """
+        Test util_avg min/max for periodic tasks using schedutil
+        """
+        signal_name = 'util_avg'
+        for task in tasks:
+            signal_df = self.get_sched_task_signals(experiment,
+                                                    [signal_name],
+                                                    task)
+            # Get stats and stable range of the simulated PELT signal
+            start_time = self.get_task_start_time(experiment, task)
+            init_pelt = pelt.Simulator.estimateInitialPeltValue(
+                signal_df[signal_name].iloc[0], signal_df.index[0],
+                start_time, HALF_LIFE_MS
+            )
+            peltsim, pelt_task, sim_df = self.get_simulated_pelt(experiment,
+                                                                 task,
+                                                                 init_pelt)
+            sim_range = peltsim.stableRange(pelt_task)
+            window = (start_time + UTIL_AVG_CONVERGENCE_TIME,
+                      start_time + UTIL_AVG_CONVERGENCE_TIME + 0.5)
+            # Get signal statistics in a period of time where the signal is
+            # supposed to be stable
+            signal_df = signal_df[window[0]:window[1]]
+            signal_stats = signal_df[signal_name].describe()
+
+            # Narrow down simulated PELT signal to stable period
+            sim_df = sim_df[window[0]:window[1]].pelt_value
+
+            # Check min
+            error_margin = sim_range.min_value * (ERROR_MARGIN_PCT / 100.)
+            msg = 'Stable range min value around {}, expected {}'.format(
+                  signal_stats['min'], sim_range.min_value)
+            self.assertAlmostEqual(sim_range.min_value, signal_stats['min'],
+                                   delta=error_margin, msg=msg)
+
+            # Check max
+            error_margin = sim_range.max_value * (ERROR_MARGIN_PCT / 100.)
+            msg = 'Stable range max value around {}, expected {}'.format(
+                signal_stats['max'], sim_range.max_value)
+            self.assertAlmostEqual(sim_range.max_value, signal_stats['max'],
+                                   delta=error_margin, msg=msg)
 
 class _PELTTaskGroupsTest(LisaTest):
     """
