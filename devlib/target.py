@@ -1034,7 +1034,7 @@ class AndroidTarget(Target):
         if not boot_completed:
             raise TargetError('Connected but Android did not fully boot.')
 
-    def connect(self, timeout=10, check_boot_completed=True):  # pylint: disable=arguments-differ
+    def connect(self, timeout=30, check_boot_completed=True):  # pylint: disable=arguments-differ
         device = self.connection_settings.get('device')
         if device and ':' in device:
             # ADB does not automatically remove a network device from it's
