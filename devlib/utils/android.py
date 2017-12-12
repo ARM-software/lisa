@@ -351,7 +351,7 @@ def adb_disconnect(device):
 def _ping(device):
     _check_env()
     device_string = ' -s {}'.format(device) if device else ''
-    command = "adb{} shell \"ls / > /dev/null\"".format(device_string)
+    command = "adb{} shell \"ls /data/local/tmp > /dev/null\"".format(device_string)
     logger.debug(command)
     result = subprocess.call(command, stderr=subprocess.PIPE, shell=True)
     if not result:
