@@ -650,7 +650,7 @@ class Target(object):
 
     def _setup_shutils(self):
         shutils_ifile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils.in')
-        shutils_ofile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils')
+        shutils_ofile = os.path.join(tempfile.gettempdir(), 'shutils')
         shell_path = '/bin/sh'
         if self.os == 'android':
             shell_path = '/system/bin/sh'
@@ -661,7 +661,8 @@ class Target(object):
                 line = line.replace("__DEVLIB_SHELL__", shell_path)
                 line = line.replace("__DEVLIB_BUSYBOX__", self.busybox)
                 ofile.write(line)
-        self._shutils = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils'))
+        self._shutils = self.install(shutils_ofile)
+        os.remove(shutils_ofile)
 
     def _execute_util(self, command, timeout=None, check_exit_code=True, as_root=False):
         command = '{} {}'.format(self.shutils, command)
