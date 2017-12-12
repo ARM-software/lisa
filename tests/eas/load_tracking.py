@@ -70,7 +70,7 @@ class _LoadTrackingBase(LisaTest):
         super(_LoadTrackingBase, cls).runExperiments(*args, **kwargs)
 
     @classmethod
-    def get_wload(cls, cpu, duty_cycle_pct):
+    def get_wload(cls, cpu, duty_cycle_pct, period_ms):
         """
         Get a specification for a rt-app workload with the specificied duty
         cycle, pinned to the given CPU.
@@ -80,6 +80,9 @@ class _LoadTrackingBase(LisaTest):
 
         :param duty_cycle_pct: duty cycle of the workload
         :type duty_cycle_pct: int
+
+        :param period_ms: period of the task in ms
+        :type period_ms: int
         """
         return {
             'type' : 'rt-app',
@@ -88,7 +91,7 @@ class _LoadTrackingBase(LisaTest):
                     'params' : {
                         'duty_cycle_pct': duty_cycle_pct,
                         'duration_s': 2,
-                        'period_ms': 16,
+                        'period_ms': period_ms,
                     },
                     'tasks' : 1,
                     'prefix' : 'lt_test',
@@ -128,7 +131,7 @@ class _LoadTrackingBase(LisaTest):
 
         return UTIL_SCALE * (duty_cycle_pct / 100.) * scaling_factor
 
-    def get_sched_task_signals(self, experiment, signals):
+    def get_sched_task_signals(self, experiment, signals, task):
         """
         Get a pandas.DataFrame with the sched signals for the workload task
 
@@ -137,12 +140,17 @@ class _LoadTrackingBase(LisaTest):
         includes these events.
 
         :param experiment: Experiment to get trace for
+
         :param signals: List of load tracking signals to extract. Probably a
                         subset of ``['util_avg', 'load_avg']``
+        :type signals: list(str)
+
+        :param task: task name
+        :type task: str
+
         :returns: :class:`pandas.DataFrame` with a column for each signal for
                   the experiment's workload task
         """
-        [task] = experiment.wload.tasks.keys()
         trace = self.get_trace(experiment)
 
         # There are two different scheduler trace events that expose the load
@@ -169,7 +177,7 @@ class _LoadTrackingBase(LisaTest):
         df = select_window(df, self.get_window(experiment))
         return df.rename(columns=dict(zip(signal_fields, signals)))
 
-    def get_signal_mean(self, experiment, signal,
+    def get_signal_mean(self, experiment, signal, task,
                         ignore_first_s=UTIL_AVG_CONVERGENCE_TIME):
         """
         Get the mean of a scheduler signal for the experiment's task
@@ -179,7 +187,7 @@ class _LoadTrackingBase(LisaTest):
         (wload_start, wload_end) = self.get_window(experiment)
         window = (wload_start + ignore_first_s, wload_end)
 
-        signal = self.get_sched_task_signals(experiment, [signal])[signal]
+        signal = self.get_sched_task_signals(experiment, [signal], task)[signal]
         signal = select_window(signal, window)
         return area_under_curve(signal) / (window[1] - window[0])
 
@@ -234,7 +242,7 @@ class FreqInvarianceTest(_LoadTrackingBase):
                   key=lambda c: cls._get_cpu_capacity(test_env, c))
 
         wloads = {
-            'fie_10pct' : cls.get_wload(cpu, 10)
+            'fie_10pct' : cls.get_wload(cpu, 10, 16),
         }
 
         # Create a set of confs with different frequencies
@@ -263,7 +271,7 @@ class FreqInvarianceTest(_LoadTrackingBase):
     def _test_signal(self, experiment, tasks, signal_name):
         [task] = tasks
         exp_util = self.get_expected_util_avg(experiment)
-        signal_mean = self.get_signal_mean(experiment, signal_name)
+        signal_mean = self.get_signal_mean(experiment, signal_name, task)
 
         error_margin = exp_util * (ERROR_MARGIN_PCT / 100.)
         [freq] = experiment.conf['cpufreq']['freqs'].values()
@@ -328,7 +336,7 @@ class CpuInvarianceTest(_LoadTrackingBase):
                 # No need to test on every CPU, just one for each capacity value
                 continue
             tested_caps.add(cap)
-            wloads['cie_cpu{}'.format(cpu)] = cls.get_wload(cpu, 10)
+            wloads['cie_cpu{}'.format(cpu)] = cls.get_wload(cpu, 10, 16)
 
         conf = {
             'tag' : 'cie_conf',
@@ -344,7 +352,7 @@ class CpuInvarianceTest(_LoadTrackingBase):
     def _test_signal(self, experiment, tasks, signal_name):
         [task] = tasks
         exp_util = self.get_expected_util_avg(experiment)
-        signal_mean = self.get_signal_mean(experiment, signal_name)
+        signal_mean = self.get_signal_mean(experiment, signal_name, task)
 
         error_margin = exp_util * (ERROR_MARGIN_PCT / 100.)
         [cpu] = experiment.wload.cpus
@@ -400,7 +408,7 @@ class PELTTasksTest(_LoadTrackingBase):
                          key=test_env.calibration().get)
 
         wloads = {
-            'pelt_behv' : cls.get_wload(target_cpu, 50)
+            'pelt_behv' : cls.get_wload(target_cpu, 50, 16)
         }
 
         conf = {
@@ -416,7 +424,7 @@ class PELTTasksTest(_LoadTrackingBase):
 
     def _test_range(self, experiment, tasks, signal_name):
         [task] = tasks
-        signal_df = self.get_sched_task_signals(experiment, [signal_name])
+        signal_df = self.get_sched_task_signals(experiment, [signal_name], task)
         # Get stats and stable range of the simulated PELT signal
         start_time = self.get_task_start_time(experiment, task)
         init_pelt = pelt.Simulator.estimateInitialPeltValue(
@@ -461,7 +469,7 @@ class PELTTasksTest(_LoadTrackingBase):
 
     def _test_behaviour(self, experiment, tasks, signal_name):
         [task] = tasks
-        signal_df = self.get_sched_task_signals(experiment, [signal_name])
+        signal_df = self.get_sched_task_signals(experiment, [signal_name], task)
         # Get instant of time when the task starts running
         start_time = self.get_task_start_time(experiment, task)
 
