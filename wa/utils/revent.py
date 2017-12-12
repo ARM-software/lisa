@@ -21,6 +21,9 @@ from datetime import datetime
 from collections import namedtuple
 
 from wa.framework.resource import Executable, NO_ONE, ResourceResolver
+from wa.utils.exec_control import once_per_class
+
+from devlib.utils.misc import memoized
 
 GENERAL_MODE = 0
 GAMEPAD_MODE = 1
@@ -270,21 +273,28 @@ def get_revent_binary(abi):
 
 class ReventRecorder(object):
 
+    # Share location of target excutable across all instances
+    target_executable = None
+
     def __init__(self, target):
         self.target = target
-        self.executable = self.target.get_installed('revent')
+        if not ReventRecorder.target_executable:
+            ReventRecorder.target_executable = self._get_target_path(self.target)
 
+    @once_per_class
     def deploy(self):
-        if not self.executable:
-            host_executable = get_revent_binary(self.target.abi)
-            self.executable = self.target.install(host_executable)
+        if not ReventRecorder.target_executable:
+            ReventRecorder.target_executable = self.target.get_installed('revent')
+        host_executable = get_revent_binary(self.target.abi)
+        ReventRecorder.target_executable = self.target.install(host_executable)
 
+    @once_per_class
     def remove(self):
-        if self.executable:
+        if ReventRecorder.target_executable:
             self.target.uninstall('revent')
 
     def start_record(self, revent_file):
-        command = '{} record -s {}'.format(self.executable, revent_file)
+        command = '{} record -s {}'.format(ReventRecorder.target_executable, revent_file)
         self.target.kick_off(command, self.target.is_rooted)
 
     def stop_record(self):
@@ -292,5 +302,10 @@ class ReventRecorder(object):
 
     def replay(self, revent_file, timeout=None):
         self.target.killall('revent')
-        command = "{} replay {}".format(self.executable, revent_file)
+        command = "{} replay {}".format(ReventRecorder.target_executable, revent_file)
         self.target.execute(command, timeout=timeout)
+
+    @memoized
+    @staticmethod
+    def _get_target_path(target):
+        return target.get_installed('revent')
