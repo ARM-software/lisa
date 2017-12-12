@@ -1638,6 +1638,7 @@ class LocalLinuxTarget(LinuxTarget):
     def _resolve_paths(self):
         if self.working_directory is None:
             self.working_directory = '/tmp'
+        self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
         if self.executables_directory is None:
             self.executables_directory = '/tmp'
 
