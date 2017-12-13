@@ -312,8 +312,8 @@ CONNECTION_PARAMS = {
         Parameter('sudo_cmd', kind=str,
                 default="sudo -- sh -c '{}'",
                 description="""
-                Sudo command to use. Must have ``"{}"``` specified
-                somewher in the string it indicate where the command
+                Sudo command to use. Must have ``"{}"`` specified
+                somewhere in the string it indicate where the command
                 to be run via sudo is to go.
                 """),
     ],
