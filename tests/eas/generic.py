@@ -306,7 +306,6 @@ class _EnergyModelTest(LisaTest):
                 color = 'red'
 
             tdf.plot(ax=ax[cpu], drawstyle='steps-post', title="CPU{}".format(cpu), color=color)
-            ax[cpu].fill_between(tdf.index, tdf, 0, step='post', color=color)
             ax[cpu].set_ylabel('Utilization')
 
             # Grey-out areas where utilization == 0
