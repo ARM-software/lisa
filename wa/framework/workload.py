@@ -149,7 +149,7 @@ class Workload(TargetedPlugin):
         for asset in self.asset_files:
             self.target.push(asset, self.asset_directory)
             self.deployed_assets.append(self.target.path.join(self.asset_directory,
-                                                              asset))
+                                                              os.path.basename(asset)))
 
     def remove_assets(self, context):
         """ Cleanup assets deployed to the target """
