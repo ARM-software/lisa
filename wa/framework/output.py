@@ -159,9 +159,15 @@ class RunOutput(Output):
         super(RunOutput, self).reload()
         self.info = RunInfo.from_pod(read_pod(self.infofile))
         self.state = RunState.from_pod(read_pod(self.statefile))
-        # TODO: propulate the jobs from info in the state
         if os.path.isfile(self.targetfile):
             self.target_info = TargetInfo.from_pod(read_pod(self.targetfile))
+
+        for job_state in self.state.jobs.itervalues():
+            job_path = os.path.join(self.basepath, job_state.output_name)
+            job = JobOutput(job_path, job_state.id,
+                            job_state.label, job_state.iteration,
+                            job_state.retries)
+            self.jobs.append(job)
 
     def write_info(self):
         write_pod(self.info.to_pod(), self.infofile)
