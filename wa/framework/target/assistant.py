@@ -6,7 +6,7 @@ import tempfile
 import threading
 import time
 
-from wa import Parameter
+from wa.framework.plugin import Parameter
 from wa.framework.exception import WorkerThreadError
 from wa.utils.misc import touch
 
