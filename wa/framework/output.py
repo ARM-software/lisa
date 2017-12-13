@@ -507,6 +507,12 @@ def init_job_output(run_output, job):
     return job_output
 
 
+def discover_wa_outputs(path):
+    for root, dirs, files in os.walk(path):
+        if '__meta' in dirs:
+            yield  RunOutput(root)
+
+
 def _save_raw_config(meta_dir, state):
     raw_config_dir = os.path.join(meta_dir, 'raw_config')
     os.makedirs(raw_config_dir)
