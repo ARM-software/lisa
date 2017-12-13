@@ -3,6 +3,45 @@ from devlib.target import KernelConfig, KernelVersion, Cpuinfo
 from devlib.utils.android import AndroidProperties
 
 
+def cpuinfo_from_pod(pod):
+    cpuinfo = Cpuinfo('')
+    cpuinfo.sections = pod['cpuinfo']
+    lines = []
+    for section in cpuinfo.sections:
+        for key, value in section.iteritems():
+            line = '{}: {}'.format(key, value)
+            lines.append(line)
+        lines.append('')
+    cpuinfo.text = '\n'.join(lines)
+    return cpuinfo
+
+
+def kernel_version_from_pod(pod):
+    release_string = pod['kernel_release']
+    version_string = pod['kernel_version']
+    if release_string:
+        if version_string:
+            kernel_string = '{} #{}'.format(release_string, version_string)
+        else:
+            kerne_string = release_string
+    else:
+        kernel_string = '#{}'.format(version_string)
+    return KernelVersion(kernel_string)
+
+
+def kernel_config_from_pod(pod):
+    config = KernelConfig('')
+    config._config = pod['kernel_config']
+    lines = []
+    for key, value in config._config.iteritems():
+        if value == 'n':
+            lines.append('# {} is not set'.format(key))
+        else:
+            lines.append('{}={}'.format(key, value))
+    config.text = '\n'.join(lines)
+    return config
+
+
 class TargetInfo(object):
 
     @staticmethod
@@ -10,14 +49,13 @@ class TargetInfo(object):
         instance = TargetInfo()
         instance.target = pod['target']
         instance.abi = pod['abi']
-        instance.cpuinfo = Cpuinfo(pod['cpuinfo'])
+        instance.cpuinfo = cpuinfo_from_pod(pod)
         instance.os = pod['os']
         instance.os_version = pod['os_version']
         instance.abi = pod['abi']
         instance.is_rooted = pod['is_rooted']
-        instance.kernel_version = KernelVersion(pod['kernel_release'], 
-                                                pod['kernel_version'])
-        instance.kernel_config = KernelConfig(pod['kernel_config'])
+        instance.kernel_version = kernel_version_from_pod(pod)
+        instance.kernel_config = kernel_config_from_pod(pod)
 
         if pod["target"] == "AndroidTarget":
             instance.screen_resolution = pod['screen_resolution']
