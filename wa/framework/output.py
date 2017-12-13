@@ -147,6 +147,7 @@ class RunOutput(Output):
         self.info = None
         self.state = None
         self.result = None
+        self.target_info = None
         self.jobs = []
         if (not os.path.isfile(self.statefile) or
                 not os.path.isfile(self.infofile)):
@@ -159,6 +160,8 @@ class RunOutput(Output):
         self.info = RunInfo.from_pod(read_pod(self.infofile))
         self.state = RunState.from_pod(read_pod(self.statefile))
         # TODO: propulate the jobs from info in the state
+        if os.path.isfile(self.targetfile):
+            self.target_info = TargetInfo.from_pod(read_pod(self.targetfile))
 
     def write_info(self):
         write_pod(self.info.to_pod(), self.infofile)
@@ -174,13 +177,9 @@ class RunOutput(Output):
             return None
         return ConfigManager.from_pod(read_pod(self.configfile))
 
-    def write_target_info(self, ti):
+    def set_target_info(self, ti):
+        self.target_info = ti
         write_pod(ti.to_pod(), self.targetfile)
-
-    def read_target_config(self):
-        if not os.path.isfile(self.targetfile):
-            return None
-        return TargetInfo.from_pod(read_pod(self.targetfile))
 
     def write_job_specs(self, job_specs):
         job_specs[0].to_pod()

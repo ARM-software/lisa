@@ -290,7 +290,7 @@ class Executor(object):
         self.target_manager = TargetManager(config.run_config.device,
                                        config.run_config.device_config,
                                        output.basepath)
-        output.write_target_info(self.target_manager.get_target_info())
+        output.set_target_info(self.target_manager.get_target_info())
 
         self.logger.info('Initializing execution context')
         context = ExecutionContext(config_manager, self.target_manager, output)
