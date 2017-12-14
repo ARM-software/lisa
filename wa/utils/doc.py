@@ -291,17 +291,16 @@ def underline(text, symbol='='):
     return '{}\n{}\n\n'.format(text, symbol * len(text))
 
 
-def get_rst_from_extension(ext):
-    text = underline(ext.name, '-')
-    if hasattr(ext, 'description'):
-        desc = strip_inlined_text(ext.description or '')
-    elif ext.__doc__:
-        desc = strip_inlined_text(ext.__doc__)
+def get_rst_from_plugin(plugin):
+    text = underline(plugin.name, '-')
+    if hasattr(plugin, 'description'):
+        desc = strip_inlined_text(plugin.description or '')
+    elif plugin.__doc__:
+        desc = strip_inlined_text(plugin.__doc__)
     else:
         desc = ''
     text += desc + '\n\n'
-    params_rst = get_params_rst(ext.parameters)
+    params_rst = get_params_rst(plugin.parameters)
     if params_rst:
         text += underline('parameters', '~') + params_rst
     return text + '\n'
-
