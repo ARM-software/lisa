@@ -15,23 +15,21 @@
 # limitations under the License.
 #
 
-from math import isnan
-
+import os
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import pylab as pl
+
+from math import isnan
+
+from test import LisaTest, experiment_test
+from unittest import SkipTest
+from trace import Trace
 
 from bart.common.Utils import area_under_curve
-
 from energy_model import EnergyModel, EnergyModelCapacityError
 from perf_analysis import PerfAnalysis
-from test import LisaTest, experiment_test
-from trace import Trace
-from unittest import SkipTest
-
-import matplotlib.pyplot as plt
-import numpy as np
-import pylab as pl
-import os
 
 WORKLOAD_PERIOD_MS =  16
 SET_IS_BIG_LITTLE = True
@@ -287,7 +285,9 @@ class _EnergyModelTest(LisaTest):
 
         nrg_model = self.te.nrg_model
         trace = self.get_trace(experiment)
+
         fig, ax = plt.subplots(len(nrg_model.cpus), 1, figsize=(16, 1.8 * len(nrg_model.cpus)))
+        fig.suptitle('Per-CPU expected utilization')
 
         # Check if big.LITTLE data is available for a more detailled plot
         if trace.has_big_little:
@@ -306,8 +306,7 @@ class _EnergyModelTest(LisaTest):
                 color = 'red'
 
             tdf.plot(ax=ax[cpu], drawstyle='steps-post', title="CPU{}".format(cpu), color=color)
-            ax[cpu].fill_between(tdf.index, tdf, 0, step='post', color=color)
-            ax[cpu].set_ylabel('Expected utilization')
+            ax[cpu].set_ylabel('Utilization')
 
             # Grey-out areas where utilization == 0
             ffill = False
@@ -323,6 +322,7 @@ class _EnergyModelTest(LisaTest):
 
         figname = os.path.join(experiment.out_dir, 'expected_placement.png')
         pl.savefig(figname, bbox_inches='tight')
+        plt.close()
 
     def _test_slack(self, experiment, tasks):
         """

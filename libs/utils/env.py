@@ -40,7 +40,6 @@ from platforms.pixel_energy import pixel_energy
 
 USERNAME_DEFAULT = 'root'
 PASSWORD_DEFAULT = ''
-WORKING_DIR_DEFAULT = '/data/local/schedtest'
 FTRACE_EVENTS_DEFAULT = ['sched:*']
 FTRACE_BUFSIZE_DEFAULT = 10240
 OUT_PREFIX = 'results'
@@ -164,7 +163,7 @@ class TestEnv(ShareState):
         self.test_conf = {}
         self.target = None
         self.ftrace = None
-        self.workdir = WORKING_DIR_DEFAULT
+        self.workdir = None
         self.__installed_tools = set()
         self.__modules = []
         self.__connection_settings = None
@@ -490,6 +489,11 @@ class TestEnv(ShareState):
         if platform_type.lower() == 'android':
             self.__connection_settings = None
             device = 'DEFAULT'
+
+            # Workaround for ARM-software/devlib#225
+            if not self.workdir:
+                self.workdir = '/data/local/tmp/devlib-target'
+
             if 'device' in self.conf:
                 device = self.conf['device']
                 self.__connection_settings = {'device' : device}
@@ -518,6 +522,7 @@ class TestEnv(ShareState):
             self.target = devlib.LinuxTarget(
                     platform = platform,
                     connection_settings = self.__connection_settings,
+                    working_directory = self.workdir,
                     load_default_modules = False,
                     modules = self.__modules)
         elif platform_type.lower() == 'android':
@@ -525,12 +530,14 @@ class TestEnv(ShareState):
             self.target = devlib.AndroidTarget(
                     platform = platform,
                     connection_settings = self.__connection_settings,
+                    working_directory = self.workdir,
                     load_default_modules = False,
                     modules = self.__modules)
         elif platform_type.lower() == 'host':
             self._log.debug('Setup HOST target...')
             self.target = devlib.LocalLinuxTarget(
                     platform = platform,
+                    working_directory = self.workdir,
                     load_default_modules = False,
                     modules = self.__modules,
                     connection_settings = {'unrooted': True})
