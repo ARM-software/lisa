@@ -489,6 +489,11 @@ class TestEnv(ShareState):
         if platform_type.lower() == 'android':
             self.__connection_settings = None
             device = 'DEFAULT'
+
+            # Workaround for ARM-software/devlib#225
+            if not self.workdir:
+                self.workdir = '/data/local/tmp/devlib-target'
+
             if 'device' in self.conf:
                 device = self.conf['device']
                 self.__connection_settings = {'device' : device}
