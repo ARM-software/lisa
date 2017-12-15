@@ -16,7 +16,7 @@ from wa.utils.types import list_of_strings, list_of_ints, regex
 from wa.utils.misc import isiterable
 
 
-def get_target_descriptions(loader=pluginloader):
+def list_target_descriptions(loader=pluginloader):
     targets = {}
     for cls in loader.list_target_descriptors():
         descriptor = cls()

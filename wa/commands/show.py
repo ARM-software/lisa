@@ -17,7 +17,7 @@ from subprocess import call, Popen, PIPE
 from wa import Command
 from wa.framework import pluginloader
 from wa.framework.exception import NotFoundError
-from wa.framework.target.descriptor import get_target_descriptions
+from wa.framework.target.descriptor import list_target_descriptions
 from wa.utils.doc import (strip_inlined_text, get_rst_from_plugin,
                           get_params_rst, underline)
 from wa.utils.misc import which
@@ -71,7 +71,7 @@ def get_plugin(name):
 
 
 def get_target_description(name):
-    targets = get_target_descriptions()
+    targets = list_target_descriptions()
     for target in targets:
         if name == target.name:
             return target

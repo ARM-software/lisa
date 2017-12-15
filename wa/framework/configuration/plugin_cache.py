@@ -21,7 +21,7 @@ from devlib.utils.misc import memoized
 from wa.framework import pluginloader
 from wa.framework.configuration.core import get_config_point_map
 from wa.framework.exception import ConfigError
-from wa.framework.target.descriptor import get_target_descriptions
+from wa.framework.target.descriptor import list_target_descriptions
 from wa.utils.types import obj_dict
 
 GENERIC_CONFIGS = ["device_config", "workload_parameters",
@@ -42,7 +42,7 @@ class PluginCache(object):
         self.sources = []
         self.plugin_configs = defaultdict(lambda: defaultdict(dict))
         self.global_alias_values = defaultdict(dict)
-        self.targets = {td.name: td for td in get_target_descriptions()}
+        self.targets = {td.name: td for td in list_target_descriptions()}
 
         # Generate a mapping of what global aliases belong to
         self._global_alias_map = defaultdict(dict)

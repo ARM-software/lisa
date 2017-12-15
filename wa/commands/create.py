@@ -6,7 +6,7 @@ from collections import OrderedDict
 from distutils.dir_util import copy_tree
 
 from wa import ComplexCommand, SubCommand, pluginloader, settings
-from wa.framework.target.descriptor import get_target_descriptions
+from wa.framework.target.descriptor import list_target_descriptions
 from wa.framework.exception import ConfigError, CommandError
 from wa.utils.misc import (ensure_directory_exists as _d, capitalize,
                            ensure_file_directory_exists as _f)
@@ -41,7 +41,7 @@ class CreateAgendaSubcommand(SubCommand):
         agenda['workloads'] = []
         target_desc = None
 
-        targets = {td.name: td for td in get_target_descriptions()}
+        targets = {td.name: td for td in list_target_descriptions()}
 
         for name in args.plugins:
             if name in targets:

@@ -15,7 +15,7 @@
 
 from wa import Command
 from wa.framework import pluginloader
-from wa.framework.target.descriptor import get_target_descriptions
+from wa.framework.target.descriptor import list_target_descriptions
 from wa.utils.doc import get_summary
 from wa.utils.formatter import DescriptionListFormatter
 
@@ -65,7 +65,7 @@ def get_kinds():
 
 
 def list_targets():
-    targets = get_target_descriptions()
+    targets = list_target_descriptions()
     targets = sorted(targets, key=lambda x: x.name)
 
     output = DescriptionListFormatter()
