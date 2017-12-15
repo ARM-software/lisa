@@ -2,7 +2,7 @@ import logging
 
 from wa.framework import signal
 from wa.framework.plugin import Parameter
-from wa.framework.target.descriptor import (list_target_descriptions,
+from wa.framework.target.descriptor import (get_target_description,
                                             instantiate_target,
                                             instantiate_assistant)
 from wa.framework.target.info import TargetInfo
@@ -83,10 +83,7 @@ class TargetManager(object):
         self.rpm.commit_runtime_parameters(parameters)
 
     def _init_target(self):
-        target_map = {td.name: td for td in list_target_descriptions()}
-        if self.target_name not in target_map:
-            raise ValueError('Unknown Target: {}'.format(self.target_name))
-        tdesc = target_map[self.target_name]
+        tdesc = get_target_description(self.target_name)
 
         extra_plat_params={}
         if tdesc.platform is Gem5SimulationPlatform:
