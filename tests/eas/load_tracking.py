@@ -28,8 +28,7 @@ from math import ceil
 from test import LisaTest, experiment_test
 from time import sleep
 from trace import Trace
-from trappy.stats.grammar import Parser
-from wlgen.utils import SchedEntity, Task, Taskgroup
+from wlgen.utils import SchedEntity, Task, Taskgroup, RTA, Periodic
 
 UTIL_SCALE = 1024
 # Time in seconds to allow for util_avg to converge (i.e. ignored time)
@@ -51,6 +50,7 @@ class _LoadTrackingBase(LisaTest):
                 'sched_pelt_se',
                 'sched_load_se',
                 'sched_load_cfs_rq',
+                'sched_migrate_task',
             ],
         },
         # cgroups required by freeze_userspace flag
@@ -174,7 +174,52 @@ class _LoadTrackingBase(LisaTest):
                              'Does the kernel support them?')
 
         df = getattr(trace.ftrace, event).data_frame
-        df = df[df['comm'] == task][signal_fields]
+        df = df[df['comm'] == task]
+        df = select_window(df, self.get_window(experiment))
+        return df.rename(columns=dict(zip(signal_fields, signals)))
+
+    def get_sched_rq_signals(self, experiment, signals, cpus=None):
+        """
+        Get a pandas.DataFrame with the sched signals for the specified CPUs
+
+        This examines scheduler load tracking trace events, supporting either
+        sched_load_avg_cpu or sched_load_cfs_rq. You will need a target kernel that
+        includes these events.
+
+        :param experiment: Experiment to get trace for
+
+        :param signals: List of load tracking signals to extract. Probably a
+                        subset of ``['util_avg', 'load_avg']``
+        :type signals: list(str)
+
+        :param cpus: list of CPUs. Default to None means all CPUs
+        :type cpus: list(int)
+
+        :returns: :class:`pandas.DataFrame` with a column for each signal for
+                  the specified CPUs
+        """
+        trace = self.get_trace(experiment)
+
+        # There are two different scheduler trace events that expose the load
+        # tracking signals. Neither of them is in mainline. Eventually they
+        # should be unified but for now we'll just check for both types of
+        # event.
+        # TODO: Add support for this parsing in Trappy and/or tasks_analysis
+        signal_fields = signals
+        if 'sched_load_avg_cpu' in trace.available_events:
+            event = 'sched_load_avg_cpu'
+        elif 'sched_load_cfs_rq' in trace.available_events:
+            event = 'sched_load_cfs_rq'
+            # sched_load_cfs_rq uses 'util' and 'load' instead of 'util_avg'
+            # and 'load_avg'
+            signal_fields = [s.replace('_avg', '') for s in signals]
+        else:
+            raise ValueError('No sched_load_avg_cpu or sched_load_cfs_rq events. '
+                             'Does the kernel support them?')
+
+        df = getattr(trace.ftrace, event).data_frame
+        if cpus is not None:
+            df = df[df['cpu'].isin(cpus)]
         df = select_window(df, self.get_window(experiment))
         return df.rename(columns=dict(zip(signal_fields, signals)))
 
@@ -1008,4 +1053,147 @@ class UnbalancedHierarchy(_PELTTaskGroupsTest):
         Test utilization propagation to cgroup /tg1/tg2/tg3/tg4
         """
         return self._test_group_util('/tg1/tg2/tg3/tg4')
+
+class PELTRunqueueTest(_LoadTrackingBase):
+    """
+    Goal
+    ====
+    Basic checks for CFS runqueues related PELT signals behaviour.
+
+    Detailed Description
+    ====================
+    This test runs three synthetic periodic tasks on two CPUs with maximum
+    capacity:
+
+    - 2 real-time tasks, each one pinned to one CPU
+    - 1 fair task with CPU affinity set to both CPUs
+
+    The tasks are designed in such a way that the difference in phase of the
+    real-time tasks makes the fair task jump from one CPU to the other one. In
+    fact, the CPU it is currently running on will be occupied by the real-time
+    task, while the other one will be empty, therefore causing a migration.
+
+    A trace is then collected from the target device to check that the
+    utilization is correctly migrated from one CPU to the other one.
+
+    Expected Behaviour
+    ==================
+    At each migration, the utilization of the destination CPU should be updated
+    with the task utilization.
+    """
+    cpus = None
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        # Pick two CPUs with max capacity
+        calib = test_env.calibration()
+        min_calib = min(calib.values())
+        cls.cpus = [cpu for cpu in calib.keys() if calib[cpu] == min_calib][:2]
+
+        # Create two RT tasks, each one pinned to one of the target CPUs and a
+        # jumper task that will migrate from one CPU to other one
+        T_jumper = 16
+        T_rt = T_jumper * 2
+        rta = RTA(test_env.target, 'force_migration', test_env.calibration())
+        rta.conf(kind='profile',
+                 params={
+                     'jumper': Periodic(
+                         duty_cycle_pct=10,
+                         period_ms=T_jumper,
+                         duration_s=3,
+                         delay_s=0.2 + (T_rt*3/2.)/1000.,
+                         cpus=cls.cpus
+                     ).get(),
+                     'rt_1': Periodic(
+                         duty_cycle_pct=50,
+                         period_ms=T_rt,
+                         duration_s=3,
+                         delay_s=0.2,
+                         sched={'policy': 'FIFO'},
+                         cpus=[cls.cpus[0]]
+                     ).get(),
+                     'rt_2': Periodic(
+                         duty_cycle_pct=50,
+                         period_ms=T_rt,
+                         duration_s=3,
+                         delay_s=0.2 + (T_rt/2.)/1000.,
+                         sched={'policy': 'FIFO'},
+                         cpus=[cls.cpus[1]]
+                     ).get(),
+                 },
+                 run_dir=os.path.join(test_env.target.working_directory,
+                                      'run_dir'))
+
+        rta_path = os.path.join('./', rta.json)
+        wloads = {
+            'pelt_rq' : {
+                'type': 'rt-app',
+                'conf': {
+                    'class': 'custom',
+                    'json': rta_path,
+                    'duration': 3,
+                },
+            }
+        }
+
+        conf = {
+            'tag' : 'pelt_rq_conf',
+            'flags' : ['ftrace', 'freeze_userspace'],
+            'cpufreq' : {'governor' : 'performance'},
+        }
+
+        return {
+            'wloads': wloads,
+            'confs': [conf],
+        }
+
+    @experiment_test
+    def test_util_avg_migration(self, experiment, tasks):
+        """
+        Test that util_avg is correctly migrated between two runqueues
+        """
+        trace = self.get_trace(experiment)
+        if 'sched_migrate_task' not in trace.available_events:
+            raise ValueError('No sched_migrate_task events. '
+                             'Does the kernel support them?')
+        migrate_df = trace.data_frame.trace_event('sched_migrate_task')
+
+        task = 'jumper'
+        signal_name = 'util_avg'
+        task_load_df = self.get_sched_task_signals(experiment,
+                                                   [signal_name],
+                                                   task)
+        rq_load_df = self.get_sched_rq_signals(experiment,
+                                               [signal_name],
+                                               self.cpus)
+        start_time = self.get_task_start_time(experiment, task)
+        window = (start_time + UTIL_AVG_CONVERGENCE_TIME,
+                  start_time + UTIL_AVG_CONVERGENCE_TIME + 0.5)
+        # Narrow signals down to convergence window
+        migrate_df = migrate_df[window[0]:window[1]]
+        task_load_df = task_load_df[window[0]:window[1]]
+        rq_load_df = rq_load_df[window[0]:window[1]]
+
+        migrate_df = migrate_df[migrate_df.comm == task]
+        task_load_df = task_load_df[task_load_df['__comm'] == task]
+        rq_load_df = rq_load_df[rq_load_df['__comm'] == task]
+
+        for timestamp, row in migrate_df.iterrows():
+            orig_cpu = row.orig_cpu
+            dest_cpu = row.dest_cpu
+            dest_rq_df = rq_load_df[rq_load_df.cpu == dest_cpu]
+
+            rq_idx = dest_rq_df.index.unique().get_loc(
+                timestamp, method='nearest')
+            task_util_idx = task_load_df.index.unique().get_loc(
+                timestamp, method='nearest')
+
+            rq_util = dest_rq_df.iloc[rq_idx][signal_name]
+            task_util = task_load_df.iloc[task_util_idx][signal_name]
+
+            error_margin = task_util * (ERROR_MARGIN_PCT / 100.)
+            msg = 'Runqueue util around {}, expected {}'.format(
+                rq_util, task_util)
+            self.assertAlmostEqual(task_util, rq_util,
+                                   delta=error_margin, msg=msg)
 
