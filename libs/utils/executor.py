@@ -183,7 +183,10 @@ class Executor():
             # We don't actually need this task but on Google Pixel it apparently
             # cannot be frozen, so the cgroup state gets stuck in FREEZING if we
             # try to freeze it.
-            'thermal-engine'
+            'thermal-engine',
+            # Similar issue with HiKey960, the board will crash if this is frozen
+            # for too long.
+            'watchdogd',
         ]
     }
     """
