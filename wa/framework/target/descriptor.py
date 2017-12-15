@@ -30,6 +30,13 @@ def list_target_descriptions(loader=pluginloader):
     return targets.values()
 
 
+def get_target_description(name, loader=pluginloader):
+    for tdesc in list_target_descriptions(loader):
+        if tdesc.name == name:
+            return tdesc
+    raise ValueError('Could not find target descriptor "{}"'.format(name))
+
+
 def instantiate_target(tdesc, params, connect=None, extra_platform_params=None):
     target_params = get_config_point_map(tdesc.target_params)
     platform_params = get_config_point_map(tdesc.platform_params)
