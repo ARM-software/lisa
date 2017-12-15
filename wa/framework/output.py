@@ -5,7 +5,7 @@ from copy import copy
 from datetime import datetime
 
 from wa.framework.configuration.core import JobSpec, Status
-from wa.framework.configuration.execution import ConfigManager
+from wa.framework.configuration.execution import CombinedConfig
 from wa.framework.exception import HostError
 from wa.framework.run import RunState, RunInfo
 from wa.framework.target.info import TargetInfo
@@ -181,7 +181,7 @@ class RunOutput(Output):
     def read_config(self):
         if not os.path.isfile(self.configfile):
             return None
-        return ConfigManager.from_pod(read_pod(self.configfile))
+        return CombinedConfig.from_pod(read_pod(self.configfile))
 
     def set_target_info(self, ti):
         self.target_info = ti
