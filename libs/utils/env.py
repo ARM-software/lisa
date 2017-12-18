@@ -795,7 +795,10 @@ class TestEnv(ShareState):
             self.platform['nrg_model'] = self.conf['nrg_model']
         # Try to load the default energy model (if available)
         else:
-            self.platform['nrg_model'] = self._load_em(self.conf['board'])
+            nrg_model = self._load_em(self.conf['board'])
+            # We shouldn't have an 'nrg_model' key if there is no energy model data
+            if nrg_model:
+                self.platform['nrg_model'] = nrg_model
 
         # Adding topology information
         self.platform['topology'] = self.topology.get_level("cluster")
