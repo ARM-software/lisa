@@ -1,0 +1,52 @@
+{
+	"tasks" : {
+		"thread1" : {
+			"instance" : 1,
+			"loop" : -1,
+			"phases" : {
+				"light" : {
+					"loop" : 300,
+					"run" : 1000,
+					"timer" : { "ref" : "unique", "period" : 10000 }
+				},
+				"heavy" : {
+					"loop" : 300,
+					"run" : 7000,
+					"timer" : { "ref" : "unique", "period" : 10000 }
+				}
+			}
+		},
+		"thread2" : {
+			"instance" : 1,
+			"loop" : -1,
+			"phases" : {
+				"light1" : {
+					"loop" : 900,
+					"run" : 1000,
+					"timer" : { "ref" : "unique", "period" : 10000 }
+				},
+				"heavy1" : {
+					"loop" : 600,
+					"run" : 7000,
+					"timer" : { "ref" : "unique", "period" : 10000 }
+				},
+                                "light2" : {
+                                        "loop" : 300,
+                                        "run" : 1000,
+                                        "timer" : { "ref" : "unique", "period" : 10000 }
+                                },
+                                "heavy1" : {
+                                        "loop" : 600,
+                                        "run" : 7000,
+                                        "timer" : { "ref" : "unique", "period" : 10000 }
+                                },
+			}
+		}
+	},
+	"global" : {
+		"duration" : 60,
+		"default_policy" : "SCHED_OTHER",
+		"calibration" : "CPU0"
+	}
+}
+

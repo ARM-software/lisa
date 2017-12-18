@@ -1,0 +1,236 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import getopt
+import subprocess
+import signal
+import re
+
+def check_unikid_json(infile, outfile, verbose=0):
+    if not os.path.exists(infile):
+        print "WARN: %s does not exist", infile
+
+    try:
+        fi = open(infile, "r")
+    except IOError:
+        print "WARN: Unable to open %s", infile
+        sys.exit(2)
+
+    lines = fi.readlines()
+    fi.close()
+
+    try:
+        fo = open(outfile, "w+")
+    except IOError:
+        print "WARN: Unable to open %s", f
+        sys.exit(2)
+
+    curid = 1
+    refcount = 0
+    idlist = {}
+    myid = []
+    for myline in lines:
+        if "{" in myline:
+            refcount += 1
+            myid.append(curid)
+            curid = 1
+            idlist[refcount] = {}
+
+        if "}" in myline:
+            del idlist[refcount]
+            curid = myid.pop()
+            refcount -= 1
+
+        try:
+            key_id, value = myline.split(":", 1)
+        except ValueError:
+            fo.write(myline)
+            continue
+
+        key_id = key_id.strip('\"\t\n\r ')
+        value = value.strip(',\"\t\n\r ')
+
+        if key_id in idlist[refcount]:
+            newkey_id = key_id + str(curid)
+            while newkey_id in idlist[refcount]:
+                curid += 1
+                newkey_id = key_id + str(curid)
+
+            if verbose:
+                print "level ", refcount, " : key ", key_id, " changed into ", newkey_id
+
+            myline = myline.replace(key_id, newkey_id, 1)
+            key_id = newkey_id
+
+        idlist[refcount][key_id] = value
+        fo.write(myline)
+
+    fo.close()
+
+    return
+
+def check_suspend_json(infile, outfile, verbose=0):
+    if not os.path.exists(infile):
+        print "WARN: %s does not exist", infile
+
+    try:
+        fi = open(infile, "r")
+    except IOError:
+        print "WARN: Unable to open %s", infile
+        sys.exit(2)
+
+    lines = fi.readlines()
+    fi.close()
+
+    try:
+        fo = open(outfile, "w+")
+    except IOError:
+        print "WARN: Unable to open %s", f
+        sys.exit(2)
+
+
+    taskobj = 0
+    curid = ""
+    for myline in lines:
+
+        exception = 0
+        key_id = "exception"
+
+        try:
+            key_id, value = myline.split(":", 1)
+        except ValueError:
+            if "suspend" in myline:
+                key_id = "suspend"
+                exception = 1
+
+        key_id = key_id.strip('\"\t\n\r ')
+
+        if not "tasks" in key_id and \
+           taskobj == 0:
+            fo.write(myline)
+            continue
+
+        if "{" in myline:
+            taskobj += 1
+            if taskobj == 2:
+                curid = key_id
+
+        if "}" in myline:
+            taskobj -= 1
+
+        if "suspend" in key_id and \
+           exception == 1:
+
+            if verbose:
+                print "value ", curid, " added to suspend key"
+
+            if "," in myline:
+                myline = myline.replace(",", " : " + "\"" + curid + "\",", 1)
+            else:
+                myline = myline.replace("\n", " : " + "\"" + curid + "\"\n", 1)
+
+        fo.write(myline)
+
+    fo.close()
+
+    return
+
+# remove trailing commas that may appear after closing
+# brackets and last entries in every section
+def remove_trailing_commas(outfile):
+    try:
+        f = open(outfile, 'r+')
+    except IOError:
+        print "WARN: Unable to open %s", f
+        sys.exit(2)
+
+    lines = f.read()
+    check_last_entry_regex = r'(.),(\n\s*})'
+    check_end_bracket_regex = r'(}),(\n\s*})'
+
+    lines = re.sub(check_last_entry_regex, r'\g<1>\g<2>', lines)
+    lines = re.sub(check_end_bracket_regex, r'\g<1>\g<2>', lines)
+
+    f.seek(0)
+    f.write(lines)
+    f.truncate()
+    f.close()
+
+    return
+
+
+# Search for comments to remove
+def comment_remover(text):
+    def replacer(match):
+        s = match.group(0)
+        if s.startswith('/'):
+            return " " # note: a space and not an empty string
+        else:
+            return s
+
+    pattern = re.compile(
+              r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
+                re.DOTALL | re.MULTILINE)
+
+    return re.sub(pattern, replacer, text)
+
+# Remove all comments inside the file
+def remove_all_comments(outfile):
+    try:
+        f = open(outfile, 'r+')
+    except IOError:
+        print "WARN: Unable to open %s", f
+        sys.exit(2)
+
+    lines = f.read()
+
+    lines = comment_remover(lines)
+    f.seek(0)
+    f.write(lines)
+    f.truncate()
+
+    f.close()
+
+    return
+
+if __name__ == '__main__':
+
+    def handleSigTERM(signum, frame):
+        sys.exit()
+
+    signal.signal(signal.SIGTERM, handleSigTERM)
+    signal.signal(signal.SIGINT, handleSigTERM)
+
+    outfile = "unikid.json"
+    selfupdate = 0
+    verbose = 0
+    dry_run = False
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "o:avd")
+    except getopt.GetoptError as err:
+        print str(err) # will print something like "option -a not recognized"
+        sys.exit(2)
+
+    for o, a in opts:
+        if o == "-o":
+            outfile = a
+        if o == "-a":
+            selfupdate = 1
+        if o == "-v":
+            verbose = 1
+        if o == "-d":
+            dry_run = True
+
+    for f in args:
+        if selfupdate:
+            outfile = f
+
+        check_suspend_json(f, outfile)
+        check_unikid_json(outfile, outfile)
+        remove_trailing_commas(outfile)
+        remove_all_comments(outfile)
+
+        if not dry_run:
+            subprocess.call(["rt-app", outfile])
