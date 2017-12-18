@@ -797,6 +797,9 @@ class TestEnv(ShareState):
         else:
             self.platform['nrg_model'] = self._load_em(self.conf['board'])
 
+        if self.platform['nrg_model'] is None:
+            del self.platform['nrg_model']
+
         # Adding topology information
         self.platform['topology'] = self.topology.get_level("cluster")
 
