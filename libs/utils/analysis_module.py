@@ -53,6 +53,9 @@ class AnalysisModule(object):
 
         if self._trace.has_big_little:
             self._little_cap = self._platform['nrg_model']['little']['cpu']['cap_max']
+
+        if ('big' in self._platform['clusters'] and
+            'little' in self._platform['clusters']):
             self._big_cpus = self._platform['clusters']['big']
             self._little_cpus = self._platform['clusters']['little']
 
