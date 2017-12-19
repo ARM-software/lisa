@@ -40,10 +40,14 @@ class ShowCommand(Command):
         plugin = get_plugin(name)
         if plugin:
             rst_output = get_rst_from_plugin(plugin)
+            plugin_name = plugin.name
+            kind = '{}:'.format(plugin.kind)
         else:
             target = get_target_description(name)
             if target:
                 rst_output = get_rst_from_target(target)
+                plugin_name = target.name
+                kind = 'target:'
 
         if not rst_output:
             raise NotFoundError('Could not find plugin or alias "{}"'.format(name))
@@ -51,10 +55,15 @@ class ShowCommand(Command):
         if which('pandoc'):
             p = Popen(['pandoc', '-f', 'rst', '-t', 'man'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
             output, _ = p.communicate(rst_output)
+
             # Make sure to double escape back slashes
             output = output.replace('\\', '\\\\\\')
-            # Correctly format the tile of the man page
-            output = output.replace('.SH', '.TH', 1)
+
+            # Correctly format the title and page number of the man page
+            title, body = output.split('\n', 1)
+            title = '.TH {}{} 1'.format(kind, plugin_name)
+            output = '\n'.join([title, body])
+
             call('echo "{}" | man -l -'.format(escape_double_quotes(output)), shell=True)
         else:
             print rst_output
