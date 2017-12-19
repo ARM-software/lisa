@@ -23,12 +23,12 @@ it was not specified explicitly by the user.
                           inferred from core names (cores with the same name are
                           assumed to be in a cluster).
     :param big_core: The name of the big core in a big.LITTLE system. If this is
-                     not specified it will be inferred (on systems with exactly 
-                     two clasters).
+                     not specified it will be inferred (on systems with exactly
+                     two clusters).
     :param model: Model name of the hardware system. If this is not specified it
                   will be queried at run time.
     :param modules: Modules with additional functionality supported by the
-                    platfrom (e.g. for handling flashing, rebooting, etc). These
+                    platform (e.g. for handling flashing, rebooting, etc). These
                     would be added to the Target's modules. (See :ref:`modules`\ ).
 
 
@@ -87,8 +87,8 @@ support additional configuration:
                        :uefi-shell: Boot by going via the UEFI shell.
                        :u-boot: Boot using Das U-Boot.
                        :bootmon: Boot directly via Versatile Express Bootmon
-                                 using the values provided for ``image``, 
-                                 ``initrd``, ``fdt``, and ``bootargs`` 
+                                 using the values provided for ``image``,
+                                 ``initrd``, ``fdt``, and ``bootargs``
                                  parameters.
 
                       This defaults to ``u-boot`` for :class:`Juno` and

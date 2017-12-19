@@ -1,7 +1,7 @@
 Overview
 ========
 
-A :class:`Target` instance serves as the main interface to the target device. 
+A :class:`Target` instance serves as the main interface to the target device.
 There currently three target interfaces:
 
 - :class:`LinuxTarget` for interacting with Linux devices over SSH.
@@ -20,7 +20,7 @@ Acquiring a Target
 To create an interface to your device, you just need to instantiate one of the
 :class:`Target` derivatives listed above, and pass it the right
 ``connection_settings``. Code snippet below gives a typical example of
-instantiating each of the three target types. 
+instantiating each of the three target types.
 
 .. code:: python
 
@@ -89,7 +89,7 @@ executed as root.
    from devlib import LocalLinuxTarget
    t = LocalLinuxTarget()
 
-   # Execute a command 
+   # Execute a command
    output = t.execute('echo $PWD')
 
    # Execute command via a subprocess and return the corresponding Popen object.
@@ -100,7 +100,7 @@ executed as root.
 
    # Run the command in the background on the device and return immediately.
    # This will not block the connection, allowing to immediately execute another
-   # command. 
+   # command.
    t.kick_off('echo $PWD')
 
    # This is used to invoke an executable binary on the device. This allows some
@@ -125,7 +125,7 @@ File Transfer
    t.pull('/path/to/target/file.txt', '/path/to/local/file.txt')
 
    # Install the specified binary on the target. This will deploy the file and
-   # ensure it's executable. This will *not* guarantee that the binary will be 
+   # ensure it's executable. This will *not* guarantee that the binary will be
    # in PATH. Instead the path to the binary will be returned; this should be
    # used to call the binary henceforth.
    target_bin = t.install('/path/to/local/bin.exe')
@@ -133,7 +133,7 @@ File Transfer
    output = t.execute('{} --some-option'.format(target_bin))
 
 The usual access permission constraints on the user account (both on the target
-and the host) apply. 
+and the host) apply.
 
 Process Control
 ~~~~~~~~~~~~~~~
@@ -173,7 +173,7 @@ Super User Privileges
 
 It is not necessary for the account logged in on the target to have super user
 privileges, however the functionality will obviously be diminished, if that is
-not the case. ``devilib`` will determine if the logged in user has root
+not the case. ``devlib`` will determine if the logged in user has root
 privileges and the correct way to invoke it. You should avoid including "sudo"
 directly in your commands, instead, specify ``as_root=True`` where needed. This
 will make your scripts portable across multiple devices and OS's.
@@ -193,7 +193,7 @@ working_directory
         by your script on the device and as the destination for all
         host-to-target file transfers. It may or may not permit execution so
         executables should not be run directly from here.
-        
+
 executables_directory
         This directory allows execution. This will be used by ``install()``.
 
@@ -249,7 +249,7 @@ You can collected traces (currently, just ftrace) using
 
    from devlib import AndroidTarget, FtraceCollector
    t = LocalLinuxTarget()
-  
+
    # Initialize a collector specifying the events you want to collect and
    # the buffer size to be used.
    trace = FtraceCollector(t, events=['power*'], buffer_size=40000)

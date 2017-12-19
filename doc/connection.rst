@@ -104,14 +104,14 @@ Connection Types
                    combination. To see connected devices, you can run ``adb
                    devices`` on the host.
     :param timeout: Connection timeout in seconds. If a connection to the device
-                    is not esblished within this period, :class:`HostError`
+                    is not established within this period, :class:`HostError`
                     is raised.
 
 
 .. class:: SshConnection(host, username, password=None, keyfile=None, port=None,\
                          timeout=None, password_prompt=None)
 
-    A connectioned to a device on the network over SSH.
+    A connection to a device on the network over SSH.
 
     :param host: SSH host to which to connect
     :param username: username for SSH login
@@ -160,12 +160,12 @@ Connection Types
                     raised.
     :param password_prompt: A string with the password prompt used by
                             ``sshpass``. Set this if your version of ``sshpass``
-                            uses somethin other than ``"[sudo] password"``.
+                            uses something other than ``"[sudo] password"``.
     :param original_prompt: A regex for the shell prompted presented in the Telenet
                             connection (the prompt will be reset to a
                             randomly-generated pattern for the duration of the
                             connection to reduce the possibility of clashes).
-                            This paramer is ignored for SSH connections.
+                            This parameter is ignored for SSH connections.
 
 
 .. class:: LocalConnection(keep_password=True, unrooted=False, password=None)
@@ -189,7 +189,7 @@ Connection Types
     A connection to a gem5 simulation using a local Telnet connection.
 
     .. note:: Some of the following input parameters are optional and will be ignored during
-              initialisation. They were kept to keep the anology with a :class:`TelnetConnection`
+              initialisation. They were kept to keep the analogy with a :class:`TelnetConnection`
               (i.e. ``host``, `username``, ``password``, ``port``,
               ``password_prompt`` and ``original_promp``)
 
@@ -220,7 +220,7 @@ Connection Types
 There are two classes that inherit from :class:`Gem5Connection`:
 :class:`AndroidGem5Connection` and :class:`LinuxGem5Connection`.
 They inherit *almost* all methods from the parent class, without altering them.
-The only methods discussed belows are those that will be overwritten by the
+The only methods discussed below are those that will be overwritten by the
 :class:`LinuxGem5Connection` and :class:`AndroidGem5Connection` respectively.
 
 .. class:: LinuxGem5Connection
