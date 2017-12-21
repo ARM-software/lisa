@@ -1,4 +1,4 @@
-from devlib.target import Target, LinuxTarget, AndroidTarget, LocalLinuxTarget
+from devlib.target import Target, LinuxTarget, AndroidTarget, LocalLinuxTarget, ChromeOsTarget
 from devlib.host import PACKAGE_BIN_DIRECTORY
 from devlib.exception import DevlibError, TargetError, HostError, TargetNotRespondingError
 

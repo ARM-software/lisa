@@ -1696,3 +1696,101 @@ def _build_path_tree(path_map, basepath, sep=os.path.sep, dictcls=dict):
             process_node(result, path, value)
 
     return result
+
+
+class ChromeOsTarget(LinuxTarget):
+
+    os = 'chromeos'
+
+    def __init__(self,
+                 connection_settings=None,
+                 platform=None,
+                 working_directory=None,
+                 executables_directory=None,
+                 android_working_directory=None,
+                 android_executables_directory=None,
+                 connect=True,
+                 modules=None,
+                 load_default_modules=True,
+                 shell_prompt=DEFAULT_SHELL_PROMPT,
+                 package_data_directory="/data/data",
+                 ):
+
+        self.supports_android = None
+        self.android_container = None
+
+        # Pull out ssh connection settings
+        ssh_conn_params = ['host', 'username', 'password', 'keyfile',
+                           'port', 'password_prompt', 'timeout', 'sudo_cmd']
+        self.ssh_connection_settings = {}
+        for setting in ssh_conn_params:
+            if connection_settings.get(setting, None):
+                self.ssh_connection_settings[setting] = connection_settings[setting]
+
+        super(ChromeOsTarget, self).__init__(connection_settings=self.ssh_connection_settings,
+                                             platform=platform,
+                                             working_directory=working_directory,
+                                             executables_directory=executables_directory,
+                                             connect=False,
+                                             modules=modules,
+                                             load_default_modules=load_default_modules,
+                                             shell_prompt=shell_prompt,
+                                             conn_cls=SshConnection)
+
+        # We can't determine if the target supports android until connected to the linux host so
+        # create unconditionally.
+        # Pull out adb connection settings
+        adb_conn_params = ['device', 'adb_server', 'timeout']
+        self.android_connection_settings = {}
+        for setting in adb_conn_params:
+            if connection_settings.get(setting, None):
+                self.android_connection_settings[setting] = connection_settings[setting]
+
+        # If adb device is not explicitly specified use same as ssh host
+        if not connection_settings.get('device', None):
+            self.android_connection_settings['device'] = connection_settings.get('host', None)
+
+        self.android_container = AndroidTarget(connection_settings=self.android_connection_settings,
+                                               platform=platform,
+                                               working_directory=android_working_directory,
+                                               executables_directory=android_executables_directory,
+                                               connect=False,
+                                               modules=[], # Only use modules with linux target
+                                               load_default_modules=False,
+                                               shell_prompt=shell_prompt,
+                                               conn_cls=AdbConnection,
+                                               package_data_directory=package_data_directory)
+        if connect:
+            self.connect()
+
+    def __getattr__(self, attr):
+        """
+        By default use the linux target methods and attributes however,
+        if not present, use android implementation if available.
+        """
+        try:
+            return super(ChromeOsTarget, self).__getattribute__(attr)
+        except AttributeError:
+            if hasattr(self.android_container, attr):
+                return getattr(self.android_container, attr)
+            else:
+                raise
+
+    def connect(self, timeout=30):
+        super(ChromeOsTarget, self).connect(timeout)
+
+        # Assume device supports android apps if container directory is present
+        if self.supports_android is None:
+            self.supports_android = self.directory_exists('/opt/google/containers/android/')
+
+        if self.supports_android:
+            self.android_container.connect(timeout)
+        else:
+            self.android_container = None
+
+    def _resolve_paths(self):
+        if self.working_directory is None:
+            self.working_directory = '/mnt/stateful_partition/devlib-target'
+        self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
+        if self.executables_directory is None:
+            self.executables_directory = self.path.join(self.working_directory, 'bin')
