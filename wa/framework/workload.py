@@ -21,7 +21,7 @@ from wa import Parameter
 from wa.framework.plugin import TargetedPlugin
 from wa.framework.resource import (ApkFile, ReventFile,
                                    File, loose_version_matching)
-from wa.framework.exception import WorkloadError
+from wa.framework.exception import WorkloadError, ConfigError
 from wa.utils.types import ParameterDict
 from wa.utils.revent import ReventRecorder
 from wa.utils.exec_control import once_per_instance
@@ -221,6 +221,12 @@ class ApkWorkload(Workload):
         return self.apk.package
 
     def __init__(self, target, **kwargs):
+        if target.os == 'chromeos':
+            if target.supports_android:
+                target = target.android_container
+            else:
+                raise ConfigError('Target does not appear to support Android')
+
         super(ApkWorkload, self).__init__(target, **kwargs)
         self.apk = PackageHandler(self,
                                   package_name=self.package_name,
@@ -389,6 +395,12 @@ class UiautoWorkload(UIWorkload):
     ]
 
     def __init__(self, target, **kwargs):
+        if target.os == 'chromeos':
+            if target.supports_android:
+                target = target.android_container
+            else:
+                raise ConfigError('Target does not appear to support Android')
+
         super(UiautoWorkload, self).__init__(target, **kwargs)
         self.gui = UiAutomatorGUI(self)
 
