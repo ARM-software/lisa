@@ -793,18 +793,78 @@ class TestEnv(ShareState):
 
         self.platform['cpus_count'] = len(self.target.core_clusters)
 
+    def _load_em_from_device(self):
+        em = {}
+
+        def _get_cluster(cpu):
+            if not self.nrg_model:
+                return 0
+            for cls_id, cls in enumerate(self.nrg_model.root.children):
+                    if cpu in cls.cpus:
+                        return cls_id
+            return None
+
+        def _nrg_data(cpu):
+            if cpu > len(self.target.core_names):
+                raise ValueError("CPU{} not available".format(cpu))
+            if not self.nrg_model:
+                return 0, 1024, 0
+            cluster = self.nrg_model.root.children[_get_cluster(cpu)]
+            cluster_pwr = cluster.active_states.values()[-1].power
+            cpu = cluster.children[0]
+            cpu_cap = cpu.active_states.values()[-1].capacity
+            cpu_pwr = cpu.active_states.values()[-1].power
+            return cluster_pwr, cpu_cap, cpu_pwr
+
+        def _cpu_data(cpu_id):
+            cls_pwr, cpu_cap, cpu_pwr = _nrg_data(cpu_id)
+            return {
+                    'cluster' : {
+                        'nrg_max' : cls_pwr,
+                    },
+                    'cpu' : {
+                        'cap_max' : cpu_cap,
+                        'nrg_max' : cpu_pwr,
+                    }
+            }
+
+        cluster_id = 0
+        if self.nrg_model and self.nrg_model.is_heterogeneous:
+            cluster_id = 'big'
+            # Load "little" cpu energy model data
+            cpu_id = self.nrg_model.littlest_cpus[0]
+            em['little'] = _cpu_data(cpu_id)
+        # Load "big" cpu energy model data
+        cpu_id = 0
+        if self.nrg_model:
+            cpu_id = self.nrg_model.biggest_cpus[0]
+        em[cluster_id] = _cpu_data(cpu_id)
+
+        return em
+
     def _load_em(self, board):
+        # Try building EM from device data:
+        em = self._load_em_from_device()
+        if em and em.items()[0][1]['cluster']['nrg_max'] != 0:
+            logging.info("Using EM loaded from device")
+            return em
+        else:
+            logging.warning("EM loaded from device missing energy data")
+        logging.debug("Loading EM from configuration file...")
+        # Load from configuration file
         em_path = os.path.join(basepath,
                 'libs/utils/platforms', board.lower() + '.json')
         self._log.debug('Trying to load default EM from %s', em_path)
         if not os.path.exists(em_path):
-            return None
+            logging.debug("EM not found in platform configuration file [%s]",
+                          em_path)
+            return em
         self._log.info('Loading default EM:')
         self._log.info('   %s', em_path)
         board = JsonConf(em_path)
         board.load()
         if 'nrg_model' not in board.json:
-            return None
+            return em
         return board.json['nrg_model']
 
     def _load_board(self, board):
@@ -837,15 +897,13 @@ class TestEnv(ShareState):
         else:
             self._init_platform_smp()
 
-        # Adding energy model information
-        if 'nrg_model' in self.conf:
+        # Try to load platform data  (EM) (if available)
+        nrg_model = self._load_em(self.conf['board'])
+        if nrg_model:
+            self.platform['nrg_model'] = nrg_model
+        # Otherwise, if provided, add the conf defined EM
+        elif 'nrg_model' in self.conf:
             self.platform['nrg_model'] = self.conf['nrg_model']
-        # Try to load the default energy model (if available)
-        else:
-            nrg_model = self._load_em(self.conf['board'])
-            # We shouldn't have an 'nrg_model' key if there is no energy model data
-            if nrg_model:
-                self.platform['nrg_model'] = nrg_model
 
         # Adding topology information
         self.platform['topology'] = self.topology.get_level("cluster")
