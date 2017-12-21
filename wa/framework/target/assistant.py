@@ -151,3 +151,30 @@ class LogcatPoller(threading.Thread):
         self.last_poll = time.time()
         self.target.dump_logcat(self.buffer_file, append=True, timeout=self.timeout)
         self.target.clear_logcat()
+
+
+class ChromeOsAssistant(LinuxAssistant):
+
+    parameters = LinuxAssistant.parameters + AndroidAssistant.parameters
+
+    def __init__(self, target, logcat_poll_period=None):
+        super(ChromeOsAssistant, self).__init__(target)
+        if target.supports_android:
+            self.android_assistant = AndroidAssistant(target.android_container, logcat_poll_period)
+        else:
+            self.android_assistant = None
+
+    def start(self):
+        super(ChromeOsAssistant, self).start()
+        if self.android_assistant:
+            self.android_assistant.start()
+
+    def extract_results(self, context):
+        super(ChromeOsAssistant, self).extract_results(context)
+        if self.android_assistant:
+            self.android_assistant.extract_results(context)
+
+    def stop(self):
+        super(ChromeOsAssistant, self).stop()
+        if self.android_assistant:
+            self.android_assistant.stop()
