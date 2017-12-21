@@ -2,7 +2,7 @@ from collections import OrderedDict
 from copy import copy
 
 from devlib import (LinuxTarget, AndroidTarget, LocalLinuxTarget,
-                    Platform, Juno, TC2, Gem5SimulationPlatform,
+                    ChromeOsTarget, Platform, Juno, TC2, Gem5SimulationPlatform,
                     AdbConnection, SshConnection, LocalConnection,
                     Gem5Connection)
 from devlib.target import DEFAULT_SHELL_PROMPT
@@ -11,7 +11,7 @@ from wa.framework import pluginloader
 from wa.framework.configuration.core import get_config_point_map
 from wa.framework.exception import PluginLoaderError
 from wa.framework.plugin import Plugin, Parameter
-from wa.framework.target.assistant import LinuxAssistant, AndroidAssistant
+from wa.framework.target.assistant import LinuxAssistant, AndroidAssistant, ChromeOsAssistant
 from wa.utils.types import list_of_strings, list_of_ints, regex
 from wa.utils.misc import isiterable
 
@@ -370,6 +370,10 @@ CONNECTION_PARAMS = {
     ],
 }
 
+CONNECTION_PARAMS['ChromeOsConnection'] = \
+        CONNECTION_PARAMS[AdbConnection] + CONNECTION_PARAMS[SshConnection]
+
+
 # name --> ((target_class, conn_class), params_list, defaults, assistant_class)
 TARGETS = {
     'linux': ((LinuxTarget, SshConnection), COMMON_TARGET_PARAMS, None),
@@ -379,6 +383,27 @@ TARGETS = {
                            Directory containing Android data
                            '''),
                 ], None),
+    'chromeos': ((ChromeOsTarget, 'ChromeOsConnection'), COMMON_TARGET_PARAMS +
+                [Parameter('package_data_directory', kind=str, default='/data/data',
+                           description='''
+                           Directory containing Android data
+                           '''),
+                Parameter('android_working_directory', kind=str,
+                          description='''
+                          On-target working directory that will be used by WA for the
+                          android container. This directory must be writable by the user
+                          WA logs in as without the need for privilege elevation.
+                          '''),
+                Parameter('android_executables_directory', kind=str,
+                          description='''
+                          On-target directory where WA will install its executable
+                          binaries for the android container. This location must allow execution.
+                          This location does *not* need to be writable by unprivileged users or
+                          rooted devices (WA will install with elevated privileges as necessary).
+                          directory must be writable by the user WA logs in as without
+                          the need for privilege elevation.
+                          '''),
+                ], None),
     'local': ((LocalLinuxTarget, LocalConnection), COMMON_TARGET_PARAMS, None),
 }
 
@@ -387,6 +412,7 @@ ASSISTANTS = {
     'linux': LinuxAssistant,
     'android': AndroidAssistant,
     'local': LinuxAssistant,
+    'chromeos': ChromeOsAssistant
 }
 
 # name --> ((platform_class, conn_class), params_list, defaults)
