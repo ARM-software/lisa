@@ -20,6 +20,7 @@ from wa import ApkReventWorkload
 class AngryBirdsRio(ApkReventWorkload):
 
     name = 'angrybirds_rio'
+    package_names = ['com.rovio.angrybirdsrio']
     description = """
     Angry Birds Rio game.
 
