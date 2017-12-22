@@ -626,7 +626,7 @@ class MetaConfiguration(Configuration):
     def user_config_file(self):
         return os.path.join(self.user_directory, 'config.yaml')
 
-    def __init__(self, environ):
+    def __init__(self, environ=os.environ):
         super(MetaConfiguration, self).__init__()
         user_directory = environ.pop('WA_USER_DIRECTORY', '')
         if user_directory:
