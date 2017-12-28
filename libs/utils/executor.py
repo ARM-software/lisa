@@ -167,7 +167,7 @@ class Executor():
             is 1.
     :type experiments_conf: dict
 
-    :ivar experiments: After calling `meth`:run:, the list of
+    :ivar experiments: After calling :func:`run`, the list of
                        :class:`Experiment` s that were run
 
     :ivar iterations: The number of iterations run for each wload/conf pair
