@@ -82,8 +82,7 @@ class RunCommand(Command):
                                  for a particular run without introducing
                                  permanent change to the config (which one
                                  might then forget to revert).  This option may
-                                 be
-        specified multiple times.
+                                 be specified multiple times.
                                  """)
 
     def execute(self, config, args):
