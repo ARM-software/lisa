@@ -140,7 +140,7 @@ class AgendaParser(object):
             _collect_valid_id(section.get("id"), seen_section_ids, "section")
             for workload in section["workloads"] if "workloads" in section else []:
                 workload = _get_workload_entry(workload)
-                _collect_valid_id(workload.get("id"), seen_workload_ids, 
+                _collect_valid_id(workload.get("id"), seen_workload_ids,
                                   "workload")
 
         return seen_section_ids, seen_workload_ids
@@ -166,7 +166,7 @@ class AgendaParser(object):
                     raise ConfigError(msg.format(json.dumps(section, indent=None)))
                 section['runtime_params'] = section.pop('params')
 
-            section = _construct_valid_entry(section, seen_sect_ids, 
+            section = _construct_valid_entry(section, seen_sect_ids,
                                              "s", state.jobs_config)
             state.jobs_config.add_section(section, workloads)
 
@@ -312,7 +312,7 @@ def _get_workload_entry(workload):
 
 def _process_workload_entry(workload, seen_workload_ids, jobs_config):
     workload = _get_workload_entry(workload)
-    workload = _construct_valid_entry(workload, seen_workload_ids, 
+    workload = _construct_valid_entry(workload, seen_workload_ids,
                                       "wk", jobs_config)
     return workload
 
