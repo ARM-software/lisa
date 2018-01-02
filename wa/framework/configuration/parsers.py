@@ -277,7 +277,7 @@ def _construct_valid_entry(raw, seen_ids, prefix, jobs_config):
             workload_entry[name] = value
 
     if "augmentations" in workload_entry:
-        jobs_config.update_enabled_augmentations(workload_entry["augmentations"])
+        jobs_config.update_augmentations(workload_entry["augmentations"])
 
     # error if there are unknown workload_entry
     if raw:
