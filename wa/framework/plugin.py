@@ -443,7 +443,7 @@ class PluginLoader(object):
 
     def clear(self):
         """ Clear all discovered items. """
-        self.plugins = []
+        self.plugins = {}
         self.kind_map.clear()
 
     def reload(self):
