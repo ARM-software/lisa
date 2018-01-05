@@ -363,3 +363,4 @@ class Filer(ResourceGetter):
         local_full_path = os.path.join(_d(local_path), os.path.basename(result))
         self.logger.debug('cp {} {}'.format(result, local_full_path))
         shutil.copy(result, local_full_path)
+        return result
