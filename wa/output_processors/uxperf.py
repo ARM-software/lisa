@@ -7,6 +7,14 @@ class UxperfProcessor(OutputProcessor):
 
     name = 'uxperf'
 
+    description = '''
+    Parse logcat for UX_PERF markers to produce performance metrics for
+    workload actions using specified instrumentation.
+    An action represents a series of UI interactions to capture.
+    NOTE: The UX_PERF markers are turned off by default and must be enabled in
+    a agenda file by setting ``markers_enabled`` for the workload to ``True``.
+    '''
+
     def process_job_output(self, output, target_info, job_output):
         logcat = output.get_artifact('logcat')
         if not logcat:
