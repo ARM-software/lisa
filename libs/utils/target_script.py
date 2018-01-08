@@ -93,24 +93,34 @@ class TargetScript(object):
         actions = ['#!{} sh'.format(self._target.busybox)] + actions
         actions = str.join('\n', actions)
 
-        self._remote_path = self._target.path.join(self._target.executables_directory,
-                                                   self._script_name)
-        self._local_path = os.path.join(self._env.res_dir, self._script_name)
-
         # Create script locally
+        self._local_path = os.path.join(self._env.res_dir, self._script_name)
         with open(self._local_path, 'w') as script:
             script.write(actions)
 
         # Push it on target
-        self._target.push(self._local_path, self._remote_path)
-        self._target.execute('chmod +x {}'.format(self._remote_path))
+        self._remote_path = self._target.install(self._local_path)
 
-    def run(self):
+    def run(self, as_root=False, background=False):
         """
         Run the previously pushed script
         """
-
         if self._target.file_exists(self._remote_path):
-            self._target.execute(self._remote_path)
+            self._run_as_root = as_root
+            self._bg_shell = None
+            if background:
+                self._bg_shell = self._target.background(self._remote_path, 
+                                                    as_root=self._run_as_root)
+            else:
+                self._target.execute(self._remote_path, as_root=self._run_as_root)
         else:
             raise IOError('Remote script was not found on target device')
+
+    def kill(self):
+        """
+        Kill a running script
+        """
+        cmd_pid = '$(pgrep {})'.format(self._script_name)
+        self._target.kill(cmd_pid, as_root=self._run_as_root)
+        if self._bg_shell:
+            self._bg_shell.kill()
