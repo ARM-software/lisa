@@ -292,7 +292,7 @@ class Target(object):
         else:
             device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
             self.execute("mkdir -p '{}'".format(self.path.dirname(device_tempfile)))
-            self.execute("cp '{}' '{}'".format(source, device_tempfile), as_root=True)
+            self.execute("cp -r '{}' '{}'".format(source, device_tempfile), as_root=True)
             self.execute("chmod 0644 '{}'".format(device_tempfile), as_root=True)
             self.conn.pull(device_tempfile, dest, timeout=timeout)
 
