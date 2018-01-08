@@ -295,6 +295,7 @@ class Target(object):
             self.execute("cp -r '{}' '{}'".format(source, device_tempfile), as_root=True)
             self.execute("chmod 0644 '{}'".format(device_tempfile), as_root=True)
             self.conn.pull(device_tempfile, dest, timeout=timeout)
+            self.execute("rm -r '{}'".format(device_tempfile), as_root=True)
 
     def get_directory(self, source_dir, dest):
         """ Pull a directory from the device, after compressing dir """
