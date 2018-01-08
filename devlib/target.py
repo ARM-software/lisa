@@ -317,8 +317,9 @@ class Target(object):
             self.logger.debug('Failed to run tar command on target! ' \
                               'Not pulling directory {}'.format(source_dir))
         # Pull the file
-        os.mkdir(outdir)
-        self.pull(tar_file_name, tempfile )
+        if not os.path.exists(dest):
+            os.mkdir(dest)
+        self.pull(tar_file_name, tempfile)
         # Decompress
         f = tarfile.open(tempfile, 'r')
         f.extractall(outdir)
