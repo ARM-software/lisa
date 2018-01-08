@@ -297,7 +297,7 @@ class Target(object):
             self.conn.pull(device_tempfile, dest, timeout=timeout)
             self.execute("rm -r '{}'".format(device_tempfile), as_root=True)
 
-    def get_directory(self, source_dir, dest):
+    def get_directory(self, source_dir, dest, as_root=False):
         """ Pull a directory from the device, after compressing dir """
         # Create all file names
         tar_file_name = source_dir.lstrip(self.path.sep).replace(self.path.sep, '.')
@@ -307,12 +307,16 @@ class Target(object):
         tar_file_name  = '{}.tar'.format(tar_file_name)
         tempfile = os.path.join(dest, tar_file_name)
 
+        # If root is required, use tmp location for tar creation.
+        if as_root:
+            tar_file_name = self.path.join(self._file_transfer_cache, tar_file_name)
+
         # Does the folder exist?
-        self.execute('ls -la {}'.format(source_dir))
+        self.execute('ls -la {}'.format(source_dir), as_root=as_root)
         # Try compressing the folder
         try:
             self.execute('{} tar -cvf {} {}'.format(self.busybox, tar_file_name,
-                                                     source_dir))
+                                                     source_dir), as_root=as_root)
         except TargetError:
             self.logger.debug('Failed to run tar command on target! ' \
                               'Not pulling directory {}'.format(source_dir))
