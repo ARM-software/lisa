@@ -19,6 +19,7 @@ import os
 import re
 
 from wa import Workload, Parameter, Executable
+from wa.utils.exec_control import once
 
 
 THIS_DIR = os.path.dirname(__file__)
@@ -58,7 +59,7 @@ class Memcpy(Workload):
                   all avaiable cores will be used.
                   '''),
     ]
-
+    @once
     def initialize(self, context):
         self.binary_name = 'memcpy'
         resource = Executable(self, self.target.abi, self.binary_name)
@@ -66,7 +67,7 @@ class Memcpy(Workload):
         Memcpy.target_exe = self.target.install_if_needed(host_binary)
 
     def setup(self, context):
-        self.command = '{} -i {} -s {}'.format(self.target_exe, self.iterations, self.buffer_size)
+        self.command = '{} -i {} -s {}'.format(Memcpy.target_exe, self.iterations, self.buffer_size)
         for c in (self.cpus or []):
             self.command += ' -c {}'.format(c)
         self.result = None
@@ -79,3 +80,7 @@ class Memcpy(Workload):
             match = RESULT_REGEX.search(self.result)
             context.add_metric('time', float(match.group(1)), 'seconds', lower_is_better=True)
             context.add_metric('bandwidth', float(match.group(2)), 'MB/s')
+
+    @once
+    def finalize(self, context):
+        self.target.uninstall('memcpy')
