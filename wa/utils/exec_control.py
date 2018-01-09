@@ -1,5 +1,3 @@
-from inspect import getmro
-
 # "environment" management:
 __environments = {}
 __active_environment = None
@@ -96,10 +94,7 @@ def once(method):
         if __active_environment is None:
             activate_environment('default')
 
-        func_id = repr(method.func_name)
-        # Store the least derived class, which isn't object, to account
-        # for subclasses.
-        func_id += repr(getmro(args[0].__class__)[-2])
+        func_id = repr(method.__code__)
 
         if func_id in __environments[__active_environment]:
             return
