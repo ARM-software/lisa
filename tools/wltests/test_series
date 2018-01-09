@@ -623,6 +623,9 @@ reboot_fastboot() {
 		exit $EIO
 	fi
 
+	# Ensure we are in Fatboot more, otheriwse we have to try again...
+	device_in_fastboot || return $EAGAIN
+
 	return $OK
 }
 
