@@ -25,8 +25,14 @@ from wa.utils.exec_control import (init_environment, reset_environment,
 
 class TestClass(object):
 
+    called = 0
+
     def __init__(self):
         self.count = 0
+
+    @once
+    def called_once(self):
+        TestClass.called += 1
 
     @once
     def initilize_once(self):
@@ -101,6 +107,27 @@ class AnotherClass(object):
         self.count += 1
 
 
+class AnotherSubClass(TestClass):
+
+    def __init__(self):
+        super(AnotherSubClass, self).__init__()
+
+    @once
+    def initilize_once(self):
+        super(AnotherSubClass, self).initilize_once()
+        self.count += 1
+
+    @once_per_class
+    def initilize_once_per_class(self):
+        super(AnotherSubClass, self).initilize_once_per_class()
+        self.count += 1
+
+    @once_per_instance
+    def initilize_once_per_instance(self):
+        super(AnotherSubClass, self).initilize_once_per_instance()
+        self.count += 1
+
+
 class EnvironmentManagementTest(TestCase):
 
     def test_duplicate_environment(self):
@@ -145,6 +172,17 @@ class EnvironmentManagementTest(TestCase):
         assert_equal(t1.count, 2)
 
 
+class ParentOnlyOnceEvironmentTest(TestCase):
+    def test_sub_classes(self):
+        sc = SubClass()
+        asc = AnotherSubClass()
+
+        sc.called_once()
+        assert_equal(sc.called, 1)
+        asc.called_once()
+        assert_equal(asc.called, 1)
+
+
 class OnlyOnceEnvironmentTest(TestCase):
 
     def setUp(self):
@@ -182,17 +220,22 @@ class OnlyOnceEnvironmentTest(TestCase):
         t1 = TestClass()
         sc = SubClass()
         ss = SubSubClass()
+        asc = AnotherSubClass()
 
         t1.initilize_once()
         assert_equal(t1.count, 1)
 
         sc.initilize_once()
         sc.initilize_once()
-        assert_equal(sc.count, 0)
+        assert_equal(sc.count, 1)
 
         ss.initilize_once()
         ss.initilize_once()
-        assert_equal(ss.count, 0)
+        assert_equal(ss.count, 1)
+
+        asc.initilize_once()
+        asc.initilize_once()
+        assert_equal(asc.count, 1)
 
 
 class OncePerClassEnvironmentTest(TestCase):
@@ -234,6 +277,7 @@ class OncePerClassEnvironmentTest(TestCase):
         sc2 = SubClass()
         ss1 = SubSubClass()
         ss2 = SubSubClass()
+        asc = AnotherSubClass()
 
         t1.initilize_once_per_class()
         assert_equal(t1.count, 1)
@@ -247,6 +291,9 @@ class OncePerClassEnvironmentTest(TestCase):
         ss2.initilize_once_per_class()
         assert_equal(ss1.count, 1)
         assert_equal(ss2.count, 0)
+
+        asc.initilize_once_per_class()
+        assert_equal(asc.count, 1)
 
 
 class OncePerInstanceEnvironmentTest(TestCase):
@@ -286,6 +333,7 @@ class OncePerInstanceEnvironmentTest(TestCase):
         t1 = TestClass()
         sc = SubClass()
         ss = SubSubClass()
+        asc = AnotherSubClass()
 
         t1.initilize_once_per_instance()
         assert_equal(t1.count, 1)
@@ -297,3 +345,7 @@ class OncePerInstanceEnvironmentTest(TestCase):
         ss.initilize_once_per_instance()
         ss.initilize_once_per_instance()
         assert_equal(ss.count, 3)
+
+        asc.initilize_once_per_instance()
+        asc.initilize_once_per_instance()
+        assert_equal(asc.count, 2)
