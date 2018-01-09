@@ -162,6 +162,8 @@ a WebView, which poses a challenge for automation with Android's API.
 
 ## Using the tool
 
+### Running workloads using different kernels
+
 You'll need to create a list of commits that you want to compare the performance
 of. This should be a file in the format produced by running
 `git log --no-color --oneline` in your kernel tree.
@@ -179,5 +181,45 @@ produced - see the example below.
 			--platform hikey960_android-4.4 \
 			--kernel_src /path/to/your/kernel/hikey-linaro \
 			--series /path/to/your/series.sha1 \
-			--wa_agenda /path/to/your/agenda.yaml
+			--wa_agenda /path/to/your/agenda.yaml \
+			--device <ADB_DEVICE_ID>
 ```
+
+*NOTE:* a complete set of results should include energy measurements.
+To collect energy measurements, wltests supports out-of-the box the
+[ACME EnergyMeter](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture---baylibre-acme-cape).
+For example, to collect energy measurements from channels 1 and 2, you can just add:
+`--acme_channels "1 2"` to the above command.
+
+For a more complete list of configuration options, please have a look at the output of:
+```bash
+[LISAShell lisa] \> lisa-wltest-series --help
+```
+
+### Collecting and comparing results from different kernels
+
+Once the workloads specified by the agenda have been executed for all the
+kernels specified by the series file, collected results can be post-processed
+and analyzed using a wltests companion notebook usually available under:
+
+   https://github.com/ARM-software/lisa/blob/master/ipynb/wltests
+
+An example of the report produced when comparing a kernel using WALT versus a
+kernel using PELT on Hikey960 is available here:
+
+   https://gist.github.com/derkling/3a8c3568676a29e608d6dcb15af06241
+
+
+## Using the tool to evaluate scheduler patches
+
+One of the main usages of the wltest suite is to compare the power and
+performance benefits/overheads for a set of proposed scheduler patches.
+To this purposed, wltests provides out-of-the box support to run a
+representative set of Android workloads on an hikey960 board while measuring
+energy using an
+[ACME Energymeter](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture---baylibre-acme-cape).
+
+For this kind of evaluation, please use:
+- agenda: [tools/wltests/agendas/sched-evaluation-full.yaml](https://github.com/ARM-software/lisa/blob/master/tools/wltests/agendas/sched-evaluation-full.yaml)
+- notebook: [ipynb/wltests/sched-evaluation-full.ipynb](https://github.com/ARM-software/lisa/blob/master/ipynb/wltests/sched-evaluation-full.ipynb)
+
