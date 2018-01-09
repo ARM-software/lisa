@@ -928,12 +928,12 @@ class JobSpec(Configuration):
     @property
     def section_id(self):
         if self.id is not None:
-            self.id.rsplit('-', 1)[0]
+            return self.id.rsplit('-', 1)[0]
 
     @property
     def workload_id(self):
         if self.id is not None:
-            self.id.rsplit('-', 1)[-1]
+            return self.id.rsplit('-', 1)[-1]
 
     def __init__(self):
         super(JobSpec, self).__init__()
