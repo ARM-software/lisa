@@ -765,7 +765,7 @@ class PackageHandler(object):
             message = 'Cannot retrieve "{}" as not installed on Target'
             raise WorkloadError(message.format(package))
         package_info = self.target.execute('pm list packages -f {}'.format(package))
-        apk_path = re.match('package:(.*)=', package_info).group(1)
+        apk_path = re.match('package:(.*)={}'.format(package), package_info).group(1)
         self.target.pull(apk_path, self.owner.dependencies_directory)
 
     def teardown(self):
