@@ -38,7 +38,7 @@ class Memcpy(Workload):
     of a specified size. Additionally, the affinity of the test can be set to
     one or more specific cores.
 
-    This workload is single-threaded. It genrates no scores or metrics by
+    This workload is single-threaded. It generates no scores or metrics by
     itself.
 
     """
@@ -56,7 +56,7 @@ class Memcpy(Workload):
                   description='''
                   A list of integers specifying ordinals of cores to which the
                   affinity of the test process should be set. If not specified,
-                  all avaiable cores will be used.
+                  all available cores will be used.
                   '''),
     ]
     @once
