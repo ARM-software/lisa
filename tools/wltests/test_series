@@ -573,7 +573,7 @@ boot_not_completed() {
 ################################################################################
 # FASTBOOT mode
 ################################################################################
-reboot_fastboot() {
+enter_fastboot() {
 	seconds=$1
 
 	# Check device is connected
@@ -590,7 +590,7 @@ reboot_fastboot() {
 
 	c_info "Device in ADB mode"
 	c_info "Rebooting into bootloader..."
-	$ADB reboot bootloader
+	[ $DRYRUN -eq 1 ] || $ADB reboot bootloader
 
 	echo
 	c_info "Waiting for bootloader up to $REBOOT_TIMEOUT[s]..."
@@ -623,10 +623,27 @@ reboot_fastboot() {
 		exit $EIO
 	fi
 
-	# Ensure we are in Fatboot more, otheriwse we have to try again...
+	# Ensure we are in FASTBOOT mode, otheriwse we have to try again...
+	[ $DRYRUN -eq 0 ] || return $OK
 	device_in_fastboot || return $EAGAIN
 
 	return $OK
+}
+
+reboot_fastboot() {
+	echo
+	c_info "Rebooting device into FASTBOOT..."
+	attempts=3
+	enter_fastboot; RESULT=$?
+	while [[ $RESULT -ne OK ]]; do
+		let attempts--
+		if [[ $attempts -eq 0 ]]; then
+			c_error "device not entering FASTBOOT mode"
+			exit $EIO
+		fi
+		c_warning "Failed entering FASTBOOT mode, $attempts remaining attempts..."
+		enter_fastboot; RESULT=$?
+	done
 }
 
 ################################################################################
@@ -708,21 +725,7 @@ flash_sha1() {
 	build_sha1 "$COMMIT_SHA1" "$COMMIT_DESC"; RESULT=$?
 	[ $RESULT -eq $OK ] || return $RESULT
 
-	### Reboot device into BOOTLOADER
-	echo
-	c_info "Rebooting device into bootloader..."
-	attempts=3
-	[ $DRYRUN -eq 1 ] || reboot_fastboot
-	[ $DRYRUN -eq 1 ] || \
-	while [[ $? -eq $ERROR ]]; do
-		let attempts--
-		if [[ $attempts -eq 0 ]]; then
-			c_error "device not entering FASTBOOT mode"
-			exit $EIO
-		fi
-		c_warning "Failed entering FASTBOOT mode, $attempts remaining attempts..."
-		reboot_fastboot
-	done
+	reboot_fastboot
 
 	### Flash generated IMAGES
 	pushd $PLATFORM_PATH/artifacts &>/dev/null
