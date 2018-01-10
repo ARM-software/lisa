@@ -87,7 +87,7 @@ class FilePoller(Instrument):
     def stop(self, context):
         self.target.killall('poller', signal='TERM', as_root=self.as_root)
 
-    def update_result(self, context):
+    def update_output(self, context):
         host_output_file = os.path.join(context.output_directory, 'poller.csv')
         self.target.pull(self.target_output_path, host_output_file)
         context.add_artifact('poller_output', host_output_file, kind='data')

@@ -176,7 +176,7 @@ class RtApp(Workload):
                                          timeout=self.timeout,
                                          as_root=True)
 
-    def update_result(self, context):
+    def update_output(self, context):
         self._pull_rt_app_logs(context)
         context.result.classifiers.update(dict(
             duration=self.duration,

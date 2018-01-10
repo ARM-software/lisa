@@ -122,7 +122,7 @@ class FpsInstrument(Instrument):
             return
         self.collector.stop()
 
-    def update_result(self, context):
+    def update_output(self, context):
         if not self._is_enabled:
             return
         outpath = os.path.join(context.output_directory, 'frames.csv')

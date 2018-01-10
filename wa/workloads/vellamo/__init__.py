@@ -87,7 +87,7 @@ class Vellamo(ApkUiautoWorkload):
         super(Vellamo, self).update_output(context)
 
         # Get total scores from logcat
-        self.non_root_update_result(context)
+        self.non_root_update_output(context)
 
         if not self.target.is_rooted:
             return
@@ -143,7 +143,7 @@ class Vellamo(ApkUiautoWorkload):
                     score = result['score']
                     context.add_metric(name, score)
 
-    def non_root_update_result(self, context):
+    def non_root_update_output(self, context):
         failed = []
         logcat_file = context.get_artifact_path('logcat')
         with open(logcat_file) as fh:

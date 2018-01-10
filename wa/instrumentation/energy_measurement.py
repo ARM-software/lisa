@@ -319,7 +319,7 @@ class EnergyMeasurement(Instrument):
         for instrument in self.instruments.itervalues():
             instrument.stop()
 
-    def update_result(self, context):
+    def update_output(self, context):
         for device, instrument in self.instruments.iteritems():
             # Append the device key to the filename and artifact name, unless
             # it's None (as it will be for backends with only 1

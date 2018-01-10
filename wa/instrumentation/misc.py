@@ -153,7 +153,7 @@ class SysfsExtractor(Instrument):
             for dev_dir, _, after_dir, _ in self.device_and_host_paths:
                 self.target.pull(dev_dir, after_dir)
 
-    def update_result(self, context):
+    def update_output(self, context):
         if self.use_tmpfs:
             on_device_tarball = self.target.path.join(self.target.working_directory, self.tarname)
             on_host_tarball = self.target.path.join(context.output_directory, self.tarname)
@@ -221,7 +221,7 @@ class ExecutionTimeInstrument(Instrument):
     def stop(self, context):
         self.end_time = time.time()
 
-    def update_result(self, context):
+    def update_output(self, context):
         execution_time = self.end_time - self.start_time
         context.add_metric('execution_time', execution_time, 'seconds')
 
@@ -244,7 +244,7 @@ class ApkVersion(Instrument):
         else:
             self.apk_info = None
 
-    def update_result(self, context):
+    def update_output(self, context):
         if self.apk_info:
             context.result.add_metric(self.name, self.apk_info.version_name)
 
@@ -277,7 +277,7 @@ class InterruptStatsInstrument(Instrument):
         with open(_f(self.after_file), 'w') as wfh:
             wfh.write(self.target.execute('cat /proc/interrupts'))
 
-    def update_result(self, context):
+    def update_output(self, context):
         # If workload execution failed, the after_file may not have been created.
         if os.path.isfile(self.after_file):
             _diff_interrupt_files(self.before_file, self.after_file, _f(self.diff_file))
