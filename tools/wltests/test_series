@@ -571,7 +571,7 @@ boot_not_completed() {
 
 
 ################################################################################
-# FASTBOOT mode
+# Reboot into different modes
 ################################################################################
 enter_fastboot() {
 	seconds=$1
@@ -643,6 +643,83 @@ reboot_fastboot() {
 		fi
 		c_warning "Failed entering FASTBOOT mode, $attempts remaining attempts..."
 		enter_fastboot; RESULT=$?
+	done
+}
+
+################################################################################
+# ADB mode
+################################################################################
+enter_adb() {
+
+	[ $DRYRUN -eq 0 ] || return $OK
+
+	# Check device is connected
+	if device_not_connected; then
+		c_error "device not connected"
+		return $ENODEV
+	fi
+
+	# Already in adb mode: nothing to do
+	if device_in_adb; then
+		c_info "Device already in adb mode, continuing..."
+		return $OK
+	fi
+
+	echo
+	c_info "Device in FASTBOOT mode"
+	c_info "Booting device..."
+	[ $DRYRUN -eq 1 ] || $FASTBOOT reboot
+
+	c_info "Waiting up to $REBOOT_TIMEOUT[s] for boot to complete..."
+	ELAPSED=0
+
+	#### Wait for device to reboot
+	[ $DRYRUN -eq 1 ] || \
+	until device_in_adb || reboot_timedout; do
+		usb_disconnect &>/dev/null
+		sleep 3; let ELAPSED+=3
+		usb_connect &>/dev/null
+	done
+	echo
+	if reboot_timedout; then
+		c_error "device not entering ADB mode"
+		d_notify "Device reboot TIMEOUT!" face-embarrassed
+		exit $EIO
+	fi
+	c_info "Device in ADB mode"
+
+	### Wait for boot to complete
+	[ $DRYRUN -eq 1 ] || \
+	until boot_completed || reboot_timedout; do
+		sleep 3; let ELAPSED+=3
+	done
+	echo
+	if reboot_timedout; then
+		c_error "device still booting?!?"
+		d_notify "Device boot completion TIMEOUT!" face-embarrassed
+		exit $EIO
+	fi
+
+	# Ensure we are in ADB mode, otheriwse we have to try again...
+	[ $DRYRUN -eq 0 ] || return $OK
+	device_in_adb || return $EAGAIN
+
+	return $OK
+}
+
+reboot_adb() {
+	echo
+	c_info "Rebooting device into ADB..."
+	attempts=3
+	enter_adb; RESULT=$?
+	while [[ $RESULT -ne $OK ]]; do
+		let attempts--
+		if [[ $attempts -eq 0 ]]; then
+			c_error "device not entering ADB mode"
+			exit $EIO
+		fi
+		c_warning "Failed entering ADB mode, $attempts remaining attempts..."
+		enter_adb; RESULT=$?
 	done
 }
 
@@ -734,41 +811,8 @@ flash_sha1() {
 	popd &>/dev/null
 	[ $RESULT -eq $OK ] || return $RESULT
 
-	### Reboot into new kernel
-	echo
-	c_info "Reboot new kernel..."
-	d_notify "Rebooting device..." face-monkey
-	[ $DRYRUN -eq 1 ] || $FASTBOOT reboot
 
-	c_info "Waiting up to $REBOOT_TIMEOUT[s] for boot to complete..."
-	ELAPSED=0
-
-	#### Wait for device to reboot
-	[ $DRYRUN -eq 1 ] || \
-	until device_in_adb || reboot_timedout; do
-		usb_disconnect &>/dev/null
-		sleep 3; let ELAPSED+=3
-		usb_connect &>/dev/null
-	done
-	echo
-	if reboot_timedout; then
-		c_error "device not entering ADB mode"
-		d_notify "Device reboot TIMEOUT!" face-embarrassed
-		exit $EIO
-	fi
-	c_info "Device in ADB mode"
-
-	### Wait for boot to complete
-	[ $DRYRUN -eq 1 ] || \
-	until boot_completed || reboot_timedout; do
-		sleep 3; let ELAPSED+=3
-	done
-	echo
-	if reboot_timedout; then
-		c_error "device still booting?!?"
-		d_notify "Device boot completion TIMEOUT!" face-embarrassed
-		exit $EIO
-	fi
+	reboot_adb
 	c_info "Boot completed, wait 10[s] more..."
 	sleep 10 # Add an additional safe margin
 
