@@ -802,17 +802,28 @@ flash_sha1() {
 	build_sha1 "$COMMIT_SHA1" "$COMMIT_DESC"; RESULT=$?
 	[ $RESULT -eq $OK ] || return $RESULT
 
-	reboot_fastboot
-
 	### Flash generated IMAGES
+	[ $DRYRUN -eq 0 ] || return $OK
 	pushd $PLATFORM_PATH/artifacts &>/dev/null
-	[ $DRYRUN -eq 1 ] || $PLATFORM_PATH/flash_images
-	RESULT=$?
-	popd &>/dev/null
+
+	# Before: flash images in ADB (e.g. push new modules)
+	c_info "Flash images from ADB mode..."
+	reboot_adb
+	[ $DRYRUN -eq 1 ] || \
+		$PLATFORM_PATH/flash_images ADB; RESULT=$?
 	[ $RESULT -eq $OK ] || return $RESULT
 
+	# Then: flash images in FASTBOOT mode (e.g. kernel and dtbo images)
+	c_info "Flash images from FASTBOOT mode..."
+	reboot_fastboot
+	[ $DRYRUN -eq 1 ] || \
+		$PLATFORM_PATH/flash_images FASTBOOT; RESULT=$?
+	[ $RESULT -eq $OK ] || return $RESULT
 
+	# Flashing completed, check for success...
+	popd &>/dev/null
 	reboot_adb
+
 	c_info "Boot completed, wait 10[s] more..."
 	sleep 10 # Add an additional safe margin
 

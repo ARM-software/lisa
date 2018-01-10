@@ -5,6 +5,9 @@ BASE_DIR="$SCRIPT_DIR/../.."
 source "${BASE_DIR}/helpers"
 source "${PLATFORM_PATH}/definitions"
 
+MODE=${$1:-FASTBOOT}
+[ $MODE == FASTBOOT ] || exit $OK
+
 ################################################################################
 # Build all images required to test a new kernel
 ################################################################################
