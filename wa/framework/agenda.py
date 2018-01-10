@@ -76,7 +76,7 @@ class AgendaWorkloadEntry(AgendaEntry):
         self.workload_parameters = get_aliased_param(kwargs,
                                                      ['workload_parameters', 'workload_params', 'params'],
                                                      default=OrderedDict())
-        self.instrumentation = kwargs.pop('instrumentation', [])
+        self.instruments = kwargs.pop('instruments', [])
         self.flash = kwargs.pop('flash', OrderedDict())
         self.classifiers = kwargs.pop('classifiers', OrderedDict())
         if kwargs:
@@ -103,7 +103,7 @@ class AgendaSectionEntry(AgendaEntry):
         self.workload_parameters = get_aliased_param(kwargs,
                                                      ['workload_parameters', 'workload_params'],
                                                      default=OrderedDict())
-        self.instrumentation = kwargs.pop('instrumentation', [])
+        self.instruments = kwargs.pop('instruments', [])
         self.flash = kwargs.pop('flash', OrderedDict())
         self.classifiers = kwargs.pop('classifiers', OrderedDict())
         self.workloads = []
@@ -136,7 +136,7 @@ class AgendaGlobalEntry(AgendaEntry):
         self.workload_parameters = get_aliased_param(kwargs,
                                                      ['workload_parameters', 'workload_params'],
                                                      default=OrderedDict())
-        self.instrumentation = kwargs.pop('instrumentation', [])
+        self.instruments = kwargs.pop('instruments', [])
         self.flash = kwargs.pop('flash', OrderedDict())
         self.classifiers = kwargs.pop('classifiers', OrderedDict())
         if kwargs:

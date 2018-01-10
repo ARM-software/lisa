@@ -2,7 +2,7 @@ import logging
 
 from wa.framework import pluginloader
 from wa.framework.exception import ConfigError
-from wa.framework.instrumentation import is_installed
+from wa.framework.instruments import is_installed
 from wa.framework.plugin import Plugin
 from wa.utils.log import log_error, indent, dedent
 

@@ -76,7 +76,7 @@ class RunCommand(Command):
                                  metavar='INSTRUMENT', help="""
                                  Specify an instrument or output processor to
                                  disable from the command line. This equivalent
-                                 to adding "~{metavar}" to the instrumentation
+                                 to adding "~{metavar}" to the instruments
                                  list in the agenda. This can be used to
                                  temporarily disable a troublesome instrument
                                  for a particular run without introducing

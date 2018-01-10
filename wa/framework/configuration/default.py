@@ -23,7 +23,7 @@ def _format_yaml_comment(param, short_description=False):
 
 def _format_instruments(output):
     plugin_cache = PluginCache()
-    output.write("instrumentation:\n")
+    output.write("instruments:\n")
     for plugin in DEFAULT_INSTRUMENTS:
         plugin_cls = plugin_cache.loader.get_plugin_class(plugin)
         output.writelines(_format_yaml_comment(plugin_cls, short_description=True))

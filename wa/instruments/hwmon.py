@@ -16,7 +16,7 @@
 from devlib import HwmonInstrument as _Instrument
 
 from wa import Instrument
-from wa.framework.instrumentation import fast
+from wa.framework.instruments import fast
 
 MOMENTARY_QUANTITIES = ['temperature', 'power', 'voltage', 'current', 'fps']
 CUMULATIVE_QUANTITIES = ['energy', 'tx', 'tx/rx', 'frames']

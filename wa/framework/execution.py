@@ -20,7 +20,7 @@ from copy import copy
 from datetime import datetime
 
 import wa.framework.signal as signal
-from wa.framework import instrumentation
+from wa.framework import instruments
 from wa.framework.configuration.core import Status
 from wa.framework.exception import HostError, WorkloadError
 from wa.framework.job import Job
@@ -300,10 +300,10 @@ class Executor(object):
         output.write_job_specs(config_manager.job_specs)
         output.write_state()
 
-        self.logger.info('Installing instrumentation')
+        self.logger.info('Installing instruments')
         for instrument in config_manager.get_instruments(self.target_manager.target):
-            instrumentation.install(instrument, context)
-        instrumentation.validate()
+            instruments.install(instrument, context)
+        instruments.validate()
 
         self.logger.info('Installing output processors')
         pm = ProcessorManager()

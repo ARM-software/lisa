@@ -557,7 +557,7 @@ class MetaConfiguration(Configuration):
         'wa.commands',
         'wa.framework.getters',
         'wa.framework.target.descriptor',
-        'wa.instrumentation',
+        'wa.instruments',
         'wa.output_processors',
         'wa.workloads',
     ]

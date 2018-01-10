@@ -18,7 +18,7 @@ import os
 
 from wa import Instrument, Parameter
 from wa.framework.exception import InstrumentError
-from wa.framework.instrumentation import slow
+from wa.framework.instruments import slow
 from wa.utils.misc import ensure_file_directory_exists as _f
 
 class DmesgInstrument(Instrument):

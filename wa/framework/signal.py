@@ -224,12 +224,12 @@ def connect(handler, signal, sender=dispatcher.Any, priority=0):
         :handler: This can be any callable that that takes the right arguments for
                   the signal. For most signals this means a single argument that
                   will be an ``ExecutionContext`` instance. But please see documentation
-                  for individual signals in the :ref:`signals reference <instrumentation_method_map>`.
+                  for individual signals in the :ref:`signals reference <instruments_method_map>`.
         :signal: The signal to which the handler will be subscribed. Please see
-                 :ref:`signals reference <instrumentation_method_map>` for the list of standard WA
+                 :ref:`signals reference <instruments_method_map>` for the list of standard WA
                  signals.
 
-                 .. note:: There is nothing that prevents instrumentation from sending their
+                 .. note:: There is nothing that prevents instruments from sending their
                            own signals that are not part of the standard set. However the signal
                            must always be an :class:`wa.core.signal.Signal` instance.
 
@@ -242,7 +242,7 @@ def connect(handler, signal, sender=dispatcher.Any, priority=0):
                    Defaults to 0.
 
                    .. note:: Priorities for some signals are inverted (so highest priority
-                             handlers get executed last). Please see :ref:`signals reference <instrumentation_method_map>`
+                             handlers get executed last). Please see :ref:`signals reference <instruments_method_map>`
                              for details.
 
     """
