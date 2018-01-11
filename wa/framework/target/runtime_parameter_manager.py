@@ -74,12 +74,14 @@ class RuntimeParameterManager(object):
 
     def get_config_for_name(self, name):
         name = caseless_string(name)
-        if name in self.runtime_params:
-            return self.runtime_params[name].rt_config
+        for k, v in self.runtime_params.iteritems():
+            if name == k:
+                return v.rt_config
         return None
 
     def get_cfg_point(self, name):
         name = caseless_string(name)
-        if name in self.runtime_params:
-            return self.runtime_params[name].cfg_point
-        raise ConfigError('Unknown Runtime Parameter: {}'.format(name))
+        for k, v in self.runtime_params.iteritems():
+            if name == k:
+                return v.cfg_point
+        raise ConfigError('Unknown runtime parameter: {}'.format(name))
