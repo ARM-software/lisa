@@ -264,7 +264,7 @@ class Target(object):
             self.reset()
             # Wait a fixed delay before starting polling to give the target time to
             # shut down, otherwise, might create the connection while it's still shutting
-            # down resulting in subsequenct connection failing.
+            # down resulting in subsequent connection failing.
             self.logger.debug('Waiting for target to power down...')
             reset_delay = 20
             time.sleep(reset_delay)
@@ -555,7 +555,7 @@ class Target(object):
                     if name in self.list_directory(path):
                         return self.path.join(path, name)
                 except TargetError:
-                    pass  # directory does not exist or no executable premssions
+                    pass  # directory does not exist or no executable permissions
 
     which = get_installed
 
@@ -601,19 +601,19 @@ class Target(object):
 
     def extract(self, path, dest=None):
         """
-        Extact the specified on-target file. The extraction method to be used
+        Extract the specified on-target file. The extraction method to be used
         (unzip, gunzip, bunzip2, or tar) will be based on the file's extension.
         If ``dest`` is specified, it must be an existing directory on target;
         the extracted contents will be placed there.
 
-        Note that, depending on the archive file format (and therfore the
+        Note that, depending on the archive file format (and therefore the
         extraction method used), the original archive file may or may not exist
         after the extraction.
 
         The return value is the path to the extracted contents.  In case of
         gunzip and bunzip2, this will be path to the extracted file; for tar
         and uzip, this will be the directory with the extracted file(s)
-        (``dest`` if it was specified otherwise, the directory that cotained
+        (``dest`` if it was specified otherwise, the directory that contained
         the archive).
 
         """
@@ -649,8 +649,8 @@ class Target(object):
         return result
 
     def read_tree_values(self, path, depth=1, dictcls=dict, check_exit_code=True):
-	value_map = self.read_tree_values_flat(path, depth, check_exit_code)
-	return _build_path_tree(value_map, path, self.path.sep, dictcls)
+        value_map = self.read_tree_values_flat(path, depth, check_exit_code)
+        return _build_path_tree(value_map, path, self.path.sep, dictcls)
 
     # internal methods
 
