@@ -595,3 +595,38 @@ Android Target
    can be supplied to specify in which direction the swipe should be
    performed. By default ``"diagonal"`` will be used to try and
    support the majority of newer devices.
+
+
+ChromeOS Target
+---------------
+
+.. class:: ChromeOsTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, android_working_directory=None, android_executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, package_data_directory="/data/data")
+
+    :class:`ChromeOsTarget` is a subclass of :class:`LinuxTarget` with
+    additional features specific to a device running ChromeOS for example,
+    if supported, its own android container which can be accessed via the
+    ``android_container`` attribute. When making calls to or accessing
+    properties and attributes of the ChromeOS target, by default they will
+    be applied to Linux target as this is where the majority of device
+    configuration will be performed and if not available, will fall back to
+    using the android container if available. This means that all the
+    available methods from
+    :class:`LinuxTarget` and :class:`AndroidTarget` are available for
+    :class:`ChromeOsTarget` if the device supports android otherwise only the
+    :class:`LinuxTarget` methods will be available.
+
+    :param working_directory: This is the location of the working
+        directory to be used for the Linux target container. If not specified will
+        default to ``"/mnt/stateful_partition/devlib-target"``.
+
+    :param android_working_directory: This is the location of the working
+        directory to be used for the android container. If not specified it will
+        use the working directory default for :class:`AndroidTarget.`.
+
+    :param android_executables_directory: This is the location of the
+        executables directory to be used for the android container. If not
+        specified will default to a ``bin`` subfolder in the
+        ``android_working_directory.``
+
+    :param package_data_directory: This is the location of the data stored
+        for installed Android packages on the device.
