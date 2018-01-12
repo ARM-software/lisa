@@ -25,7 +25,7 @@ from wa.framework.configuration.core import Status
 from wa.framework.exception import HostError, WorkloadError
 from wa.framework.job import Job
 from wa.framework.output import init_job_output
-from wa.framework.processor import ProcessorManager
+from wa.framework.output_processor import ProcessorManager
 from wa.framework.resource import ResourceResolver
 from wa.framework.target.manager import TargetManager
 from wa.utils import log
@@ -253,7 +253,7 @@ class Executor(object):
 
     The initial context set up involves combining configuration from various
     sources, loading of requided workloads, loading and installation of
-    instruments and result processors, etc. Static validation of the combined
+    instruments and output processors, etc. Static validation of the combined
     configuration is also performed.
 
     """
@@ -305,7 +305,7 @@ class Executor(object):
             instrumentation.install(instrument, context)
         instrumentation.validate()
 
-        self.logger.info('Installing result processors')
+        self.logger.info('Installing output processors')
         pm = ProcessorManager()
         for proc in config_manager.get_processors():
             pm.install(proc, context)

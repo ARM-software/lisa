@@ -208,9 +208,9 @@ def _load_file(filepath, error_name):
 
 def merge_augmentations(raw):
     """
-    Since, from configuration perspective, result processors and instrumens are
+    Since, from configuration perspective, output processors and instrumens are
     handled identically, the configuration entries are now interchangeable. E.g. it is
-    now valid to specify a result processor in instrumentation list. This is to make things
+    now valid to specify a output processor in instrumentation list. This is to make things
     eassier for the users, as, from their perspective, the distinction is somewhat arbitrary.
 
     For backwards compatibility, both entries are still valid, and this

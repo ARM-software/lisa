@@ -1,11 +1,11 @@
 import shutil
 import tarfile
 
-from wa import ResultProcessor, Parameter
+from wa import OutputProcessor, Parameter
 from wa.framework import signal
 
 
-class TargzProcessor(ResultProcessor):
+class TargzProcessor(OutputProcessor):
 
     name = 'targz'
 

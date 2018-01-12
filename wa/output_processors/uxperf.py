@@ -1,9 +1,9 @@
 
-from wa import ResultProcessor
+from wa import OutputProcessor
 from wa.utils.android import LogcatParser
 
 
-class UxperfProcessor(ResultProcessor):
+class UxperfProcessor(OutputProcessor):
 
     name = 'uxperf'
 

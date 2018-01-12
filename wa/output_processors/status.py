@@ -18,11 +18,11 @@
 import time
 from collections import Counter
 
-from wa import ResultProcessor, Status
+from wa import OutputProcessor, Status
 from wa.utils.misc import write_table
 
 
-class StatusTxtReporter(ResultProcessor):
+class StatusTxtReporter(OutputProcessor):
     name = 'status'
     description = """
     Outputs a txt file containing general status information about which runs

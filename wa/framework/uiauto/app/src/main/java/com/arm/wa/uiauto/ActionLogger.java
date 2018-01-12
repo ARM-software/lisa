@@ -22,7 +22,7 @@ import android.util.Log;
      * deliminating and timing actions. Markers are output to logcat with debug
      * priority. Actions represent a series of UI interactions to time.
      *
-     * The marker API provides a way for instruments and result processors to hook into
+     * The marker API provides a way for instruments and output processors to hook into
      * per-action timings by parsing logcat logs produced per workload iteration.
      *
      * The marker output consists of a logcat tag 'UX_PERF' and a message. The

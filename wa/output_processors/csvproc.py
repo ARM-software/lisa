@@ -1,11 +1,11 @@
 import csv
 
-from wa import ResultProcessor, Parameter
+from wa import OutputProcessor, Parameter
 from wa.framework.exception import ConfigError
 from wa.utils.types import list_of_strings
 
 
-class CsvReportProcessor(ResultProcessor):
+class CsvReportProcessor(OutputProcessor):
 
     name = 'csv'
     description = """

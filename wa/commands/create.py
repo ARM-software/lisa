@@ -36,7 +36,7 @@ class CreateAgendaSubcommand(SubCommand):
 
     def execute(self, state, args):
         agenda = OrderedDict()
-        agenda['config'] = OrderedDict(instrumentation=[], result_processors=[])
+        agenda['config'] = OrderedDict(instrumentation=[], output_processors=[])
         agenda['global'] = OrderedDict(iterations=args.iterations)
         agenda['workloads'] = []
         target_desc = None
@@ -65,8 +65,8 @@ class CreateAgendaSubcommand(SubCommand):
             else:
                 if extcls.kind == 'instrument':
                     agenda['config']['instrumentation'].append(name)
-                if extcls.kind == 'result_processor':
-                    agenda['config']['result_processors'].append(name)
+                if extcls.kind == 'output_processor':
+                    agenda['config']['output_processors'].append(name)
                 agenda['config'][name] = config
 
         if args.output:

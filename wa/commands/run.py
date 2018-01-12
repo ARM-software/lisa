@@ -74,7 +74,7 @@ class RunCommand(Command):
         self.parser.add_argument('--disable', action='append', dest='augmentations_to_disable',
                                  default=[],
                                  metavar='INSTRUMENT', help="""
-                                 Specify an instrument or result processor to
+                                 Specify an instrument or output processor to
                                  disable from the command line. This equivalent
                                  to adding "~{metavar}" to the instrumentation
                                  list in the agenda. This can be used to

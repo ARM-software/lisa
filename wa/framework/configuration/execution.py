@@ -98,9 +98,9 @@ class ConfigManager(object):
         processors = []
         for name in self.enabled_processors:
             try:
-                proc = self.plugin_cache.get_plugin(name, kind='result_processor')
+                proc = self.plugin_cache.get_plugin(name, kind='output_processor')
             except NotFoundError:
-                msg = 'Result processor "{}" not found'
+                msg = 'Output Processor "{}" not found'
                 raise NotFoundError(msg.format(name))
             processors.append(proc)
         return processors

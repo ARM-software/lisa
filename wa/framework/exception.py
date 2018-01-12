@@ -48,8 +48,8 @@ class InstrumentError(WAError):
     pass
 
 
-class ResultProcessorError(WAError):
-    """General ResultProcessor error."""
+class OutputProcessorError(WAError):
+    """General OutputProcessor error."""
     pass
 
 
@@ -135,7 +135,7 @@ class WorkerThreadError(WAError):
         orig = self.exc_info[1]
         orig_name = type(orig).__name__
         text = 'Exception of type {} occured on thread {}:\n{}\n{}: {}'
-        message = text.format(orig_name, thread, get_traceback(self.exc_info), 
+        message = text.format(orig_name, thread, get_traceback(self.exc_info),
                               orig_name, orig)
         super(WorkerThreadError, self).__init__(message)
 

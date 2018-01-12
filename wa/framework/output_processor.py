@@ -7,13 +7,13 @@ from wa.framework.plugin import Plugin
 from wa.utils.log import log_error, indent, dedent
 
 
-class ResultProcessor(Plugin):
+class OutputProcessor(Plugin):
 
-    kind = 'result_processor'
+    kind = 'output_processor'
     requires = []
 
     def validate(self):
-        super(ResultProcessor, self).validate()
+        super(OutputProcessor, self).validate()
         for instrument in self.requires:
             if not is_installed(instrument):
                 msg = 'Instrument "{}" is required by {}, but is not installed.'
@@ -34,8 +34,8 @@ class ProcessorManager(object):
         self.processors = []
 
     def install(self, processor, context):
-        if not isinstance(processor, ResultProcessor):
-            processor = self.loader.get_result_processor(processor)
+        if not isinstance(processor, OutputProcessor):
+            processor = self.loader.get_output_processor(processor)
         self.logger.debug('Installing {}'.format(processor.name))
         processor.logger.context = context
         self.processors.append(processor)

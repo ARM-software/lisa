@@ -558,7 +558,7 @@ class MetaConfiguration(Configuration):
         'wa.framework.getters',
         'wa.framework.target.descriptor',
         'wa.instrumentation',
-        'wa.processors',
+        'wa.output_processors',
         'wa.workloads',
     ]
 
@@ -793,7 +793,7 @@ class RunConfiguration(Configuration):
             '''
         ),
         ConfigurationPoint(
-            'result_processors',
+            'output_processors',
             kind=toggle_set,
             default=['csv', 'status'],
             description='''
@@ -891,14 +891,14 @@ class JobSpec(Configuration):
                            Similar to IDs but do not have the uniqueness restriction.
                            If specified, labels will be used by some result
                            processes instead of (or in addition to) the workload
-                           name. For example, the csv result processor will put
+                           name. For example, the csv output processor will put
                            the label in the "workload" column of the CSV file.
                            '''),
         ConfigurationPoint('augmentations', kind=toggle_set, merge=True,
                            aliases=["instruments", "processors", "instrumentation",
-                                    "result_processors", "augment"],
+                                    "output_processors", "augment", "result_processor"],
                            description='''
-                           The instruments and result processors to enable (or
+                           The instruments and output processors to enable (or
                            disabled using a ~) during this workload spec. This combines the
                            "instrumentation" and "result_processors" from
                            previous versions of WA (the old entries are now
@@ -1073,7 +1073,7 @@ class JobGenerator(object):
                     msg = "'enabled_instruments' cannot be updated after it has been accessed"
                     raise RuntimeError(msg)
                 self._enabled_instruments.add(entry)
-            elif entry_cls.kind == 'result_processor':
+            elif entry_cls.kind == 'output_processor':
                 if self._read_enabled_processors:
                     msg = "'enabled_processors' cannot be updated after it has been accessed"
                     raise RuntimeError(msg)
