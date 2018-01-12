@@ -117,7 +117,7 @@ workloads:
     iterations: 30
 
   - name: jankbench
-      test: jankbench_low_hitrate_text
+    id: jankbench_low_hitrate_text
     classifiers:
       tag: iter_30
     workload_parameters:
