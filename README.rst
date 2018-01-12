@@ -17,7 +17,7 @@ Installation
 Usage
 -----
 
-Please refer  to the "Overview" section of the documentation.
+Please refer  to the "Overview" section of the `documentation <http://devlib.readthedocs.io/en/latest/>`_.
 
 
 License
