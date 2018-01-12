@@ -851,8 +851,9 @@ test_sha1() {
 		match_sha1 $COMMIT_SHA1
 		if [ $? -ne $OK ]; then
 			c_info "Kernel update required!"
-			flash_sha1 $COMMIT_SHA1 "$COMMIT_DESC"
-			if [[ $? -ne 0 ]]; then
+			flash_sha1 $COMMIT_SHA1 "$COMMIT_DESC"; RESULT=$?
+			[[ $RESULT -ne $EIO ]] || exit $EIO
+			if [[ $RESULT -ne 0 ]]; then
 				c_warning "Skipping kernel [$COMMIT_DESC]"
 				return
 			fi
@@ -860,8 +861,9 @@ test_sha1() {
 	else
 		c_warning "Device not connected via ADB, cannot check current kernel"
 		c_warning "Forcing: build, flashing and reboot selected kernel"
-		flash_sha1 $COMMIT_SHA1 "$COMMIT_DESC"
-		if [[ $? -ne 0 ]]; then
+		flash_sha1 $COMMIT_SHA1 "$COMMIT_DESC"; RESULT=$?
+		[[ $RESULT -ne $EIO ]] || exit $EIO
+		if [[ $RESULT -ne 0 ]]; then
 			c_warning "Skipping kernel [$COMMIT_DESC]"
 			d_notify "Skipping kernel [$COMMIT_DESC]" face-sick
 			return
