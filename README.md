@@ -1,4 +1,3 @@
-
 *__NOTE__: This is still a work in progress project, suitable for:*
 *developers, contributors and testers.*
 *None of the provided tests have been extensively evaluated as of January 2017.*
@@ -63,8 +62,7 @@ The main goals of LISA are:
 * [Installation](https://github.com/ARM-software/lisa/wiki/Installation)
 * [Quickstart Tutorial](https://github.com/ARM-software/lisa/wiki/Quickstart-tutorial)
 
-More formal API documentation for LISA is a work in progress, however much of
-the API is currently described in the provided tutorial Jupyter notebooks.
+* [API Documentation](http://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/)
 
 # External Links
 * Linux Integrated System Analysis (LISA) & Friends
