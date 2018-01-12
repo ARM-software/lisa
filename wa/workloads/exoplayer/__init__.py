@@ -97,6 +97,11 @@ class ExoPlayer(ApkWorkload):
                   If true, video will always be pushed to device, regardless
                   of whether the file is already on the device.  Default is ``False``.
                   """),
+        Parameter('landscape', kind=boolean, default=False,
+                  description="""
+                  Configure the screen in landscape mode, otherwise ensure
+                  portrait orientation by default. Default is ``False``.
+                  """),
     ]
 
     def validate(self):
@@ -159,6 +164,9 @@ class ExoPlayer(ApkWorkload):
             self.logger.info('Copying {} to device.'.format(self.host_video_file))
             self.target.push(self.host_video_file, self.device_video_file, timeout=120)
 
+        self._original_orientation = self.target.get_rotation()
+        self.target.set_rotation(1 if self.landscape else 0)
+
         self.play_cmd = 'am start -a {} -d "file://{}"'.format(self.action,
                                                                self.device_video_file)
 
@@ -206,3 +214,4 @@ class ExoPlayer(ApkWorkload):
     def teardown(self, context):
         super(ExoPlayer, self).teardown(context)
         self.monitor.stop()
+        self.target.set_rotation(self._original_orientation)
