@@ -58,6 +58,7 @@ workloads:
        tag: mov_720p_30s
     workload_parameters:
       format: "mov_720p"
+      landscape: True
       duration: 30
 
 # Play 30 seconds of a OGG Vorbis audio with Exoplayer
