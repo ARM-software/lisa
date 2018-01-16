@@ -13,4 +13,4 @@ max_retries: 0
 bail_on_init_failure: false
 
 # Default result processors
-result_processors: ['csv', 'status']
+output_processors: ['csv', 'status']
