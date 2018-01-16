@@ -389,6 +389,16 @@ class toggle_set(set):
         other = copy(other)
         return toggle_set.merge(self, other)
 
+    def add(self, item):
+        if item not in self:
+            #Disable previously enabled item
+            if item.startswith('~') and item[1:] in self:
+                self.remove(item[1:])
+            #Enable previously disabled item
+            if not item.startswith('~') and ('~' + item) in self:
+                self.remove('~' + item)
+            super(toggle_set, self).add(item)
+
     def values(self):
         """
         returns a list of enabled items.
