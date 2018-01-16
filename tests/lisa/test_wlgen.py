@@ -36,6 +36,8 @@ class TestTarget(LocalLinuxTarget):
     def __init__(self):
         self.execute_calls = []
         super(TestTarget, self).__init__(platform=Platform(),
+                                         working_directory = '/tmp/devlib-target',
+                                         executables_directory = '/tmp/devlib-target/bin',
                                          load_default_modules=False,
                                          connection_settings={'unrooted': True})
 
