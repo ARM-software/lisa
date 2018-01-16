@@ -1020,23 +1020,23 @@ class JobGenerator(object):
     @property
     def enabled_instruments(self):
         self._read_enabled_instruments = True
-        return self._enabled_instruments
+        return self._enabled_instruments.values()
 
     @property
     def enabled_processors(self):
         self._read_enabled_processors = True
-        return self._enabled_processors
+        return self._enabled_processors.values()
 
     def __init__(self, plugin_cache):
         self.plugin_cache = plugin_cache
         self.ids_to_run = []
         self.sections = []
         self.workloads = []
-        self._enabled_instruments = set()
-        self._enabled_processors = set()
+        self._enabled_instruments = toggle_set()
+        self._enabled_processors = toggle_set()
         self._read_enabled_instruments = False
         self._read_enabled_processors = False
-        self.disabled_augmentations = []
+        self.disabled_augmentations = set()
 
         self.job_spec_template = obj_dict(not_in_dict=['name'])
         self.job_spec_template.name = "globally specified job spec configuration"
@@ -1062,12 +1062,19 @@ class JobGenerator(object):
         self.root_node.add_workload(workload)
 
     def disable_augmentations(self, augmentations):
-        #TODO: Validate
-        self.disabled_augmentations = ["~{}".format(i) for i in augmentations]
+        for entry in augmentations:
+            if entry.startswith('~'):
+                entry = entry[1:]
+            try:
+                self.plugin_cache.get_plugin_class(entry)
+            except NotFoundError:
+                raise ConfigError('Error disabling unknown augmentation: "{}"'.format(entry))
+        self.disabled_augmentations = self.disabled_augmentations.union(augmentations)
 
     def update_augmentations(self, value):
         for entry in value:
-            entry_cls = self.plugin_cache.get_plugin_class(entry)
+            entry_name = entry[1:] if entry.startswith('~') else entry
+            entry_cls = self.plugin_cache.get_plugin_class(entry_name)
             if entry_cls.kind == 'instrument':
                 if self._read_enabled_instruments:
                     msg = "'enabled_instruments' cannot be updated after it has been accessed"
@@ -1081,6 +1088,8 @@ class JobGenerator(object):
             else:
                 msg = 'Unknown augmentation type: {}'
                 raise ConfigError(msg.format(entry_cls.kind))
+        self._enabled_instruments = self._enabled_instruments.merge_with(self.disabled_augmentations)
+        self._enabled_processors = self._enabled_processors.merge_with(self.disabled_augmentations)
 
     def only_run_ids(self, ids):
         if isinstance(ids, str):
