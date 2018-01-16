@@ -1644,10 +1644,10 @@ class LocalLinuxTarget(LinuxTarget):
 
     def _resolve_paths(self):
         if self.working_directory is None:
-            self.working_directory = '/tmp'
+            self.working_directory = '/tmp/devlib-target'
         self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
         if self.executables_directory is None:
-            self.executables_directory = '/tmp'
+            self.executables_directory = '/tmp/devlib-target/bin'
 
 
 def _get_model_name(section):
