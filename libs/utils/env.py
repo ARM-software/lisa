@@ -537,7 +537,8 @@ class TestEnv(ShareState):
             self._log.debug('Setup HOST target...')
             self.target = devlib.LocalLinuxTarget(
                     platform = platform,
-                    working_directory = self.workdir,
+                    working_directory = '/tmp/devlib-target',
+                    executables_directory = '/tmp/devlib-target/bin',
                     load_default_modules = False,
                     modules = self.__modules,
                     connection_settings = {'unrooted': True})
