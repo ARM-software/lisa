@@ -168,7 +168,8 @@ class Gem5SimulationPlatform(Platform):
         while self.gem5_port is None:
             # Check that gem5 is running!
             if self.gem5.poll():
-                raise TargetError("The gem5 process has crashed with error code {}!".format(self.gem5.poll()))
+                message = "The gem5 process has crashed with error code {}!\n\tPlease see {} for details."
+                raise TargetError(message.format(self.gem5.poll(), self.stderr_file.name))
 
             # Open the stderr file
             with open(self.stderr_filename, 'r') as f:
