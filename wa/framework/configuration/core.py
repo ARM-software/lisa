@@ -896,7 +896,7 @@ class JobSpec(Configuration):
                            '''),
         ConfigurationPoint('augmentations', kind=toggle_set, merge=True,
                            aliases=["instruments", "processors", "instrumentation",
-                                    "output_processors", "augment", "result_processor"],
+                                    "output_processors", "augment", "result_processors"],
                            description='''
                            The instruments and output processors to enable (or
                            disabled using a ~) during this workload spec. This combines the
