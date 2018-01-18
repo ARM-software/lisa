@@ -554,6 +554,19 @@ class Gem5Connection(TelnetConnection):
 
         self.connect_gem5(port, gem5_simulation, gem5_interact_dir, gem5_out_dir)
 
+    # Handle the EOF exception raised by pexpect
+    def _gem5_EOF_handler(self, gem5_simulation, gem5_out_dir, err):
+        # If we have reached the "EOF", it typically means
+        # that gem5 crashed and closed the connection. Let's
+        # check and actually tell the user what happened here,
+        # rather than spewing out pexpect errors.
+        if gem5_simulation.poll():
+            message = "The gem5 process has crashed with error code {}!\n\tPlease see {} for details."
+            raise TargetError(message.format(gem5_simulation.poll(), gem5_out_dir))
+        else:
+            # Let's re-throw the exception in this case.
+            raise err
+
     # This function connects to the gem5 simulation
     def connect_gem5(self, port, gem5_simulation, gem5_interact_dir,
                       gem5_out_dir):
@@ -591,6 +604,8 @@ class Gem5Connection(TelnetConnection):
                 break
             except pxssh.ExceptionPxssh:
                 pass
+            except EOF, err:
+                self._gem5_EOF_handler(gem5_simulation, gem5_out_dir, err)
         else:
             gem5_simulation.kill()
             raise TargetError("Failed to connect to the gem5 telnet session.")
@@ -611,6 +626,9 @@ class Gem5Connection(TelnetConnection):
                 self._login_to_device()
             except TIMEOUT:
                 pass
+            except EOF, err:
+                self._gem5_EOF_handler(gem5_simulation, gem5_out_dir, err)
+
             try:
                 # Try and force a prompt to be shown
                 self.conn.send('\n')
@@ -618,6 +636,8 @@ class Gem5Connection(TelnetConnection):
                 prompt_found = True
             except TIMEOUT:
                 pass
+            except EOF, err:
+                self._gem5_EOF_handler(gem5_simulation, gem5_out_dir, err)
 
         gem5_logger.info("Successfully logged in")
         gem5_logger.info("Setting unique prompt...")
