@@ -516,10 +516,6 @@ class CpufreqRuntimeConfig(RuntimeConfig):
     def validate_parameters(self):
         '''Method to validate parameters against each other'''
         for cpu in self.config:
-            if cpu not in self.target.list_online_cpus():
-                msg = 'Cannot configure frequencies for {} as no CPUs are online.'
-                raise TargetError(msg.format(cpu))
-
             config = self.config[cpu]
             minf = config.get('min_frequency')
             maxf = config.get('max_frequency')
