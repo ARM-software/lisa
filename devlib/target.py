@@ -656,7 +656,8 @@ class Target(object):
 
     def _setup_shutils(self):
         shutils_ifile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils.in')
-        shutils_ofile = os.path.join(tempfile.gettempdir(), 'shutils')
+        tmp_dir = tempfile.mkdtemp()
+        shutils_ofile = os.path.join(tmp_dir, 'shutils')
         shell_path = '/bin/sh'
         if self.os == 'android':
             shell_path = '/system/bin/sh'
@@ -669,6 +670,7 @@ class Target(object):
                 ofile.write(line)
         self._shutils = self.install(shutils_ofile)
         os.remove(shutils_ofile)
+        os.rmdir(tmp_dir)
 
     def _execute_util(self, command, timeout=None, check_exit_code=True, as_root=False):
         command = '{} {}'.format(self.shutils, command)
