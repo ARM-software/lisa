@@ -153,7 +153,7 @@ class HotplugRuntimeConfig(RuntimeConfig):
                 self._runtime_params[param_name] = \
                         RuntimeParameter(param_name, kind=int,
                                          constraint=lambda x, cluster=cluster:
-                                                   0 < x <= len(resolve_cpus(cluster), self.target),
+                                                   0 < x <= len(resolve_cpus(cluster, self.target)),
                                          description="""
                                          The number of cores on the {} cluster to be online
                                          """.format(cluster),
