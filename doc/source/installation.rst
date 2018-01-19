@@ -2,9 +2,17 @@
 Installation
 ============
 
-.. module:: wlauto
+.. contents:: Contents
+   :depth: 2
+   :local:
 
-This page describes how to install Workload Automation 2.
+------------------------------------------------------------
+
+.. module:: wa
+
+This page describes the 3 methods of installing Workload Automation 3. The first
+option is to use :ref:`pip` which
+will install the latest release of WA, the latest development version from :ref:`github <github>` or via a :ref:`dockerfile`.
 
 
 Prerequisites
@@ -13,7 +21,7 @@ Prerequisites
 Operating System
 ----------------
 
-WA runs on a native Linux install. It was tested with Ubuntu 12.04,
+WA runs on a native Linux install. It was tested with Ubuntu 14.04,
 but any recent Linux distribution should work. It should run on either
 32-bit or 64-bit OS, provided the correct version of Android (see below)
 was installed. Officially, **other environments are not supported**. WA
@@ -43,7 +51,7 @@ to your ``PATH``.  To test that you've installed it properly, run ``adb
 version``. The output should be similar to this::
 
         adb version
-        Android Debug Bridge version 1.0.31
+        Android Debug Bridge version 1.0.39
 
 .. _here: https://developer.android.com/sdk/index.html
 
@@ -63,8 +71,9 @@ the install location of the SDK (i.e. ``<path_to_android_sdk>/sdk``).
 Python
 ------
 
-Workload Automation 2 requires Python 2.7 (Python 3 is not supported at the moment).
+Workload Automation 3 requires Python 2.7 (Python 3 is not supported at the moment).
 
+.. _pip:
 
 pip
 ---
@@ -87,25 +96,36 @@ similar distributions, this may be done with APT::
           If you do run  into this issue after already installing some packages,
           you can resolve it by running ::
 
-                  sudo chmod -R a+r /usr/local/lib/python2.7/dist-packagessudo 
+                  sudo chmod -R a+r /usr/local/lib/python2.7/dist-packagessudo
                   find /usr/local/lib/python2.7/dist-packages -type d -exec chmod a+x {} \;
 
           (The paths above will work for Ubuntu; they may need to be adjusted
           for other distros).
 
+
 Python Packages
 ---------------
 
 .. note:: pip should automatically download and install missing dependencies,
-          so if you're using pip, you can skip this section.
+          so if you're using pip, you can skip this section. However some
+          packages the will be installed have C plugins and will require Python
+          development headers to install. You can get those by installing
+          ``python-dev`` package in apt on Ubuntu (or the equivalent for your
+          distribution).
 
-Workload Automation 2 depends on the following additional libraries:
+Workload Automation 3 depends on the following additional libraries:
 
   * pexpect
   * docutils
   * pySerial
   * pyYAML
   * python-dateutil
+  * louie
+  * pandas
+  * devlib
+  * wrapt
+  * requests
+  * colorama
 
 You can install these with pip::
 
@@ -114,6 +134,12 @@ You can install these with pip::
         sudo -H pip install pyyaml
         sudo -H pip install docutils
         sudo -H pip install python-dateutil
+        sudo -H pip install devlib
+        sudo -H pip install pandas
+        sudo -H pip install louie
+        sudo -H pip install wrapt
+        sudo -H pip install requests
+        sudo -H pip install colorama
 
 Some of these may also be available in your distro's repositories, e.g. ::
 
@@ -128,7 +154,7 @@ distro package names may differ from pip packages.
 Optional Python Packages
 ------------------------
 
-.. note:: unlike the mandatory dependencies in the previous section,
+.. note:: Unlike the mandatory dependencies in the previous section,
           pip will *not* install these automatically, so you will have
           to explicitly install them if/when you need them.
 
@@ -142,28 +168,26 @@ install them upfront (e.g. if you're planning to use WA to an environment that
 may not always have Internet access).
 
   * nose
-  * pandas
   * PyDAQmx
   * pymongo
   * jinja2
 
 
-.. note:: Some packages have C plugins and will require Python development
-          headers to install. You can get those by installing ``python-dev``
-          package in apt on Ubuntu (or the equivalent for your distribution).
 
+.. _github:
 
 Installing
 ==========
 
 Installing the latest released version from PyPI (Python Package Index)::
 
-       sudo -H pip install wlauto
+       sudo -H pip install wa
 
 This will install WA along with its mandatory dependencies. If you would like to
 install all optional dependencies at the same time, do the following instead::
 
-       sudo -H pip install wlauto[all]
+       sudo -H pip install wa[all]
+
 
 Alternatively, you can also install the latest development version from GitHub
 (you will need git installed for this to work)::
@@ -177,8 +201,24 @@ If the above succeeds, try ::
 
         wa --version
 
-Hopefully, this should output something along the lines of "Workload Automation
-version $version".
+Hopefully, this should output something along the lines of ::
+
+        "Workload Automation version $version".
+
+.. _dockerfile:
+
+Dockerfile
+============
+
+As an alternative we also provide a Dockerfile that will create an image called
+wadocker, and is preconfigured to run WA and devlib. Please note that the build
+process automatically accepts the licenses for the Android SDK, so please be
+sure that you are willing to accept these prior to building and running the
+image in a container.
+
+The Dockerfile can be found in the "extras" folder or online at
+`<https://github.com/ARM-software /workload- automation/blob/next/extras/Dockerfile>`_
+which contains addional information about how to build and to use the file.
 
 
 (Optional) Post Installation
@@ -191,59 +231,22 @@ so will need to be supplied by the user. They should be placed into
 them (you may need to create the directory if it doesn't already exist). You
 only need to provide the dependencies for workloads you want to use.
 
+.. _apk_files:
 
 APK Files
 ---------
 
-APKs are applicaton packages used by Android. These are necessary to install an
-application onto devices that do not have Google Play (e.g. devboards running
-AOSP). The following is a list of workloads that will need one, including the
-version(s) for which UI automation has been tested. Automation may also work
-with other versions (especially if it's only a minor or revision difference --
-major version differens are more likely to contain incompatible UI changes) but
-this has not been tested.
+APKs are application packages used by Android. These are necessary to install on
+a device when running an :ref:`ApkWorkload <apk-workload>` or derivative.
+PLease see the workload description using the :ref:`show command <show-command>`
+to see which version of the apk the UI automation has been tested with and place the apk in the corresponding
+Automation may also work with other versions (especially if it's only a minor or
+revision difference -- major version differences are more likely to contain
+incompatible UI changes) but this has not been tested. As a general rule we do
+not guarantee support for the latest version of an app and they are updated on
+as needed basis. We do however attempt to support backwards compatibility with
+previous major releases however beyond this support will likely be dropped.
 
-================ ============================================ ========================= ============ ============
-workload         package                                      name                      version code version name
-================ ============================================ ========================= ============ ============
-andebench        com.eembc.coremark                           AndEBench                       v1383a         1383
-angrybirds       com.rovio.angrybirds                         Angry Birds                      2.1.1         2110
-angrybirds_rio   com.rovio.angrybirdsrio                      Angry Birds                      1.3.2         1320
-anomaly2         com.elevenbitstudios.anomaly2Benchmark       A2 Benchmark                       1.1           50
-antutu           com.antutu.ABenchMark                        AnTuTu Benchmark                   5.3      5030000
-antutu           com.antutu.ABenchMark                        AnTuTu Benchmark                 3.3.2         3322
-antutu           com.antutu.ABenchMark                        AnTuTu Benchmark                 4.0.3      4000300
-benchmarkpi      gr.androiddev.BenchmarkPi                    BenchmarkPi                       1.11            5
-caffeinemark     com.flexycore.caffeinemark                   CaffeineMark                     1.2.4            9
-castlebuilder    com.ettinentertainment.castlebuilder         Castle Builder                     1.0            1
-castlemaster     com.alphacloud.castlemaster                  Castle Master                     1.09          109
-cfbench          eu.chainfire.cfbench                         CF-Bench                           1.2            7
-citadel          com.epicgames.EpicCitadel                    Epic Citadel                      1.07       901107
-dungeondefenders com.trendy.ddapp                             Dungeon Defenders                 5.34           34
-facebook         com.facebook.katana                          Facebook                           3.4       258880
-geekbench        ca.primatelabs.geekbench2                    Geekbench 2                      2.2.7       202007
-geekbench        com.primatelabs.geekbench3                   Geekbench 3                      3.0.0          135
-glb_corporate    net.kishonti.gfxbench                        GFXBench                         3.0.0            1
-glbenchmark      com.glbenchmark.glbenchmark25                GLBenchmark 2.5                    2.5            4
-glbenchmark      com.glbenchmark.glbenchmark27                GLBenchmark 2.7                    2.7            1
-gunbros2         com.glu.gunbros2                             GunBros2                         1.2.2          122
-ironman          com.gameloft.android.ANMP.GloftIMHM          Iron Man 3                       1.3.1         1310
-krazykart        com.polarbit.sg2.krazyracers                 Krazy Kart Racing                1.2.7          127
-linpack          com.greenecomputing.linpackpro               Linpack Pro for Android          1.2.9           31
-nenamark         se.nena.nenamark2                            NenaMark2                          2.4            5
-peacekeeper      com.android.chrome                           Chrome                    18.0.1025469      1025469
-peacekeeper      org.mozilla.firefox                          Firefox                           23.0   2013073011
-quadrant         com.aurorasoftworks.quadrant.ui.professional Quadrant Professional              2.0      2000000
-realracing3      com.ea.games.r3_row                          Real Racing 3                    1.3.5         1305
-smartbench       com.smartbench.twelve                        Smartbench 2012                  1.0.0            5
-sqlite           com.redlicense.benchmark.sqlite              RL Benchmark                       1.3            5
-templerun        com.imangi.templerun                         Temple Run                       1.0.8           11
-thechase         com.unity3d.TheChase                         The Chase                          1.0            1
-truckerparking3d com.tapinator.truck.parking.bus3d            Truck Parking 3D                   2.5            7
-vellamo          com.quicinc.vellamo                          Vellamo                            3.0         3001
-vellamo          com.quicinc.vellamo                          Vellamo                          2.0.3         2003
-videostreaming   tw.com.freedi.youtube.player                 FREEdi YT Player                2.1.13           79
-================ ============================================ ========================= ============ ============
 
 Gaming Workloads
 ----------------
@@ -259,31 +262,12 @@ it :ref:`here <revent_files_creation>`.
 This is the list of workloads that rely on such recordings:
 
 +------------------+
-| angrybirds       |
-+------------------+
 | angrybirds_rio   |
 +------------------+
-| anomaly2         |
+| templerun2       |
 +------------------+
-| castlebuilder    |
-+------------------+
-| castlemastera    |
-+------------------+
-| citadel          |
-+------------------+
-| dungeondefenders |
-+------------------+
-| gunbros2         |
-+------------------+
-| ironman          |
-+------------------+
-| krazykart        |
-+------------------+
-| realracing3      |
-+------------------+
-| templerun        |
-+------------------+
-| truckerparking3d |
+
+
 +------------------+
 
 .. _assets_repository:
@@ -307,8 +291,8 @@ that location.
 
 If you have installed Workload Automation via ``pip`` and wish to remove it, run this command to
 uninstall it::
-    
-    sudo -H pip uninstall wlauto
+
+    sudo -H pip uninstall wa
 
 .. Note:: This will *not* remove any user configuration (e.g. the ~/.workload_automation directory)
 
@@ -317,5 +301,5 @@ uninstall it::
 ====================
 
 To upgrade Workload Automation to the latest version via ``pip``, run::
-    
-    sudo -H pip install --upgrade --no-deps wlauto
+
+    sudo -H pip install --upgrade --no-deps wa

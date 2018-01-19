@@ -1,13 +1,10 @@
-.. Workload Automation 2 documentation master file, created by
-   sphinx-quickstart on Mon Jul 15 09:00:46 2013.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
+.. Workload Automation 3 documentation master file,
+================================================
 Welcome to Documentation for Workload Automation
 ================================================
 
 Workload Automation (WA) is a framework for running workloads on real hardware devices. WA
-supports a number of output formats as well as additional instrumentation (such as Streamline
+supports a number of output formats as well as additional instruments (such as Streamline
 traces). A number of workloads are included with the framework.
 
 
@@ -15,124 +12,82 @@ traces). A number of workloads are included with the framework.
 
 
 What's New
-~~~~~~~~~~
+==========
 
 .. toctree::
    :maxdepth: 1
 
    changes
+   migration_guide
 
+User Information
+================
 
-Usage
-~~~~~
-
-This section lists general usage documentation. If you're new to WA2, it is 
-recommended you start with the :doc:`quickstart` page. This section also contains
+This section lists general usage documentation. If you're new to WA3, it is
+recommended you start with the :doc:`user_guide` page. This section also contains
 installation and configuration guides.
 
-
 .. toctree::
    :maxdepth: 2
 
-   quickstart
    installation
-   device_setup
-   invocation
-   agenda
-   configuration
+   user_guide
+   user_reference
 
 
-Plugins
-~~~~~~~~~~
+How To Guides
+===============
 
-This section lists plugins that currently come with WA2. Each package below
-represents a particular type of plugin (e.g. a workload); each sub-package of
-that package is a particular instance of that plugin (e.g. the Andebench
-workload). Clicking on a link will show what the individual plugin does,
-what configuration parameters it takes, etc.
-
-For how to implement you own plugins, please refer to the guides in the
-:ref:`in-depth` section.
-
-.. raw:: html
-
-   <style>
-   td {
-      vertical-align: text-top;
-   }
-   </style>
-   <table <tr><td>
-  
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
-   plugins/workloads
+   how_to
 
-.. raw:: html
-
-   </td><td>
+FAQ
+====
 
 .. toctree::
    :maxdepth: 2
 
-   plugins/instruments
+   faq
+
+.. User Reference
+.. ===============
+
+.. .. toctree::
+..    :maxdepth: 2
 
 
-.. raw:: html
-
-   </td><td>
-
-.. toctree::
-   :maxdepth: 2
-
-   plugins/result_processors
-
-.. raw:: html
-
-   </td><td>
-
-.. toctree::
-   :maxdepth: 2
-
-   plugins/devices
-
-.. raw:: html
-
-   </td></tr></table>
 
 .. _in-depth:
 
-In-depth
-~~~~~~~~
+Developer Information
+=====================
 
-This section contains more advanced topics, such how to write your own plugins
+This section contains more advanced topics, such how to write your own Plugins
 and detailed descriptions of how WA functions under the hood.
 
 .. toctree::
    :maxdepth: 2
 
-   conventions
-   writing_plugins
-   execution_model
-   resources
-   additional_topics
-   daq_device_setup
-   revent
-   contributing
+   developer_reference
 
-API Reference
-~~~~~~~~~~~~~
+
+References
+==========
 
 .. toctree::
-   :maxdepth: 5
+   :maxdepth: 2
 
-   api/modules
+   plugins
+   api_reference
 
+.. :ref:`FAQ <faq>`
+.. ================
 
-Indices and tables
-~~~~~~~~~~~~~~~~~~
+.. Indices and tables
+.. ==================
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
+.. .. * :ref:`genindex`
+.. .. * :ref:`modindex`
+.. * :ref:`search`

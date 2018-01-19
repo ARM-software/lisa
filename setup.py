@@ -24,9 +24,9 @@ except ImportError:
     from distutils.core import setup
 
 
-wlauto_dir = os.path.join(os.path.dirname(__file__), 'wa')
+wa_dir = os.path.join(os.path.dirname(__file__), 'wa')
 
-sys.path.insert(0, os.path.join(wlauto_dir, 'framework'))
+sys.path.insert(0, os.path.join(wa_dir, 'framework'))
 from version import get_wa_version
 
 # happends if falling back to distutils
@@ -41,7 +41,7 @@ except OSError:
 packages = []
 data_files = {}
 source_dir = os.path.dirname(__file__)
-for root, dirs, files in os.walk(wlauto_dir):
+for root, dirs, files in os.walk(wa_dir):
     rel_dir = os.path.relpath(root, source_dir)
     data = []
     if '__init__.py' in files:
@@ -80,11 +80,13 @@ params = dict(
         'colorama',  # Printing with colors
         'pyYAML',  # YAML-formatted agenda parsing
         'requests',  # Fetch assets over HTTP
-        'devlib',  # Interacting with devices
+        'devlib>=0.0.4',  # Interacting with devices
         'louie',  # callbacks dispatch
-        'wrapt',  # better decorators 
+        'wrapt',  # better decorators
         'pandas>=0.13.1',  # Data analysis and manipulation
     ],
+    dependency_links=['https://github.com/ARM-software/devlib/tarball/master#egg=devlib-0.0.4'],
+
     extras_require={
         'other': ['jinja2'],
         'test': ['nose', 'mock'],

@@ -18,8 +18,8 @@ import sys
 import string
 from copy import copy
 
-from wlauto.core.instrumentation import SIGNAL_MAP, PRIORITY_MAP
-from wlauto.utils.doc import format_simple_table
+from wa.framework.instrumentation import SIGNAL_MAP, Priority
+from wa.utils.doc import format_simple_table
 
 
 CONVINIENCE_ALIASES = ['initialize', 'setup', 'start', 'stop', 'process_workload_result',
@@ -36,7 +36,7 @@ def escape_trailing_underscore(value):
 def generate_instrumentation_method_map(outfile):
     signal_table = format_simple_table([(k, v) for k, v in SIGNAL_MAP.iteritems()],
                                        headers=['method name', 'signal'], align='<<')
-    priority_table = format_simple_table([(escape_trailing_underscore(k), v)  for k, v in PRIORITY_MAP.iteritems()],
+    priority_table = format_simple_table(zip(Priority.names, Priority.values),
                                          headers=['prefix', 'priority'],  align='<>')
     with open(OUTPUT_TEMPLATE_FILE) as fh:
         template = string.Template(fh.read())

@@ -26,9 +26,13 @@ from wa.utils.misc import capitalize
 
 GENERATE_FOR_PLUGIN = ['workload', 'instrument', 'output_processor', 'target']
 
+
 def generate_plugin_documentation(source_dir, outdir, ignore_paths):
     pluginloader.clear()
     pluginloader.update(paths=[source_dir], ignore_paths=ignore_paths)
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+
     for ext_type in pluginloader.kinds:
         if not ext_type in GENERATE_FOR_PLUGIN:
             continue
@@ -57,7 +61,6 @@ def generate_config_documentation(config, outdir):
     outfile = os.path.join(outdir, '{}.rst'.format('_'.join(config.name.split())))
     with open(outfile, 'w') as wfh:
         wfh.write(get_params_rst(config.config_points))
-
 
 
 if __name__ == '__main__':
