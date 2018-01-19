@@ -176,7 +176,15 @@ class Executor():
     """
 
     critical_tasks = {
-        'linux': ['init', 'systemd', 'sh', 'ssh', 'rsyslogd', 'jbd2'],
+        'linux': [
+            'init',
+            'systemd',
+            'dbus',
+            'sh',
+            'ssh',
+            'rsyslogd',
+            'jbd2'
+        ],
         'android': [
             'sh', 'adbd',
             'usb', 'transport',
