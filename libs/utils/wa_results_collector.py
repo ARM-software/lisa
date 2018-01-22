@@ -118,6 +118,7 @@ class WaResultsCollector(object):
 
         self._metric_df_cache = {}
         self._kernel_sha1_cache = {}
+        self._select_cache = {}
         if base_dir:
             base_dir = os.path.expanduser(base_dir)
             if not isinstance(wa_dirs, basestring):
@@ -505,10 +506,15 @@ class WaResultsCollector(object):
         return sha1
 
     def _select(self, tag='.*', kernel='.*', test='.*'):
+        key = (tag, kernel, test)
+        if key in self._select_cache:
+            return self._select_cache[key]
+
         _df = self.results_df
         _df = _df[_df.tag.str.contains(tag)]
         _df = _df[_df.kernel.str.contains(kernel)]
         _df = _df[_df.test.str.contains(test)]
+        self._select_cache[key] = _df
         return _df
 
     @property
