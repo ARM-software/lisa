@@ -33,6 +33,7 @@ from conf import LisaLogging
 
 from bart.common.Utils import area_under_curve
 from devlib.target import KernelVersion
+from devlib.utils.misc import memoized
 from trappy.utils import handle_duplicate_index
 
 from IPython.display import display
@@ -487,6 +488,7 @@ class WaResultsCollector(object):
 
         return metrics_df
 
+    @memoized
     def _wa_get_kernel_sha1(self, wa_dir):
         """
         Find the SHA1 of the kernel that a WA3 run was run against
@@ -495,6 +497,7 @@ class WaResultsCollector(object):
             target_info = json.load(f)
         return KernelVersion(target_info['kernel_release']).sha1
 
+    @memoized
     def _select(self, tag='.*', kernel='.*', test='.*'):
         _df = self.results_df
         _df = _df[_df.tag.str.contains(tag)]
@@ -514,6 +517,7 @@ class WaResultsCollector(object):
     def tags(self):
         return self.results_df['tag'].unique()
 
+    @memoized
     def tests(self, workload=None):
         df = self.results_df
         if workload:
@@ -525,10 +529,12 @@ class WaResultsCollector(object):
                 .groupby('workload').get_group(workload)
                 ['metric'].unique())
 
+    @memoized
     def _get_metric_df(self, workload, metric, tag, kernel, test):
         """
         Common helper for getting results to plot for a given metric
         """
+
         df = self._select(tag, kernel, test)
         if df.empty:
             self._log.warn("No data to plot for (tag: %s, kernel: %s, test: %s)",
