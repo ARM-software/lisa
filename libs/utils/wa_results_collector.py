@@ -146,9 +146,11 @@ class WaResultsCollector(object):
         self.use_cached_trace_metrics = use_cached_trace_metrics
 
         df = pd.DataFrame()
+        df_list = []
         for wa_dir in wa_dirs:
             self._log.info("Reading wa_dir %s", wa_dir)
-            df = df.append(self._read_wa_dir(wa_dir))
+            df_list.append(self._read_wa_dir(wa_dir))
+        df = df.append(df_list)
 
         kernel_refs = {}
         if kernel_repo_path:
