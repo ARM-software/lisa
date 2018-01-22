@@ -119,6 +119,8 @@ class WaResultsCollector(object):
         self._metric_df_cache = {}
         self._kernel_sha1_cache = {}
         self._select_cache = {}
+        self._tests = {}
+
         if base_dir:
             base_dir = os.path.expanduser(base_dir)
             if not isinstance(wa_dirs, basestring):
@@ -530,10 +532,13 @@ class WaResultsCollector(object):
         return self.results_df['tag'].unique()
 
     def tests(self, workload=None):
-        df = self.results_df
         if workload:
-            df = df[df['workload'] == workload]
-        return df['test'].unique()
+            if workload not in self._tests:
+                df = self.results_df[self.results_df['workload'] == workload]
+                self._tests[workload] = df['test'].unique()
+            return self._tests[workload]
+
+        return self.results_df['test'].unique()
 
     def workload_available_metrics(self, workload):
         return (self.results_df
