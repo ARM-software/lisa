@@ -142,6 +142,7 @@ class WaResultsCollector(object):
 
         df = pd.DataFrame()
         for wa_dir in wa_dirs:
+            self._log.info("Reading wa_dir %s", wa_dir)
             df = df.append(self._read_wa_dir(wa_dir))
 
         kernel_refs = {}
