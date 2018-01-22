@@ -430,11 +430,11 @@ class WaResultsCollector(object):
         """
         # return
         # value,metric,units
-        metrics_df = pd.DataFrame()
+        extra_metric_list = []
 
         artifacts = self._read_artifacts(job_dir)
         if self.parse_traces and 'trace-cmd-bin' in artifacts:
-            metrics_df = metrics_df.append(
+            extra_metric_list.append(
                 self._get_trace_metrics(artifacts['trace-cmd-bin']))
 
         if 'jankbench_results_csv' in artifacts:
@@ -443,7 +443,7 @@ class WaResultsCollector(object):
             df.loc[:, 'metric'] = 'frame_total_duration'
             df.loc[:, 'units'] = 'ms'
 
-            metrics_df = metrics_df.append(df)
+            extra_metric_list.append(df)
 
         # WA's metrics model just exports overall energy metrics, not individual
         # samples. We're going to extend that with individual samples so if you
@@ -473,7 +473,7 @@ class WaResultsCollector(object):
 
                     df.loc[:, 'units'] = 'watts'
 
-                    metrics_df = metrics_df.append(df)
+                    extra_metric_list.append(df)
                 elif 'output_power' in df.columns and 'USB_power' in df.columns:
                     # Looks like this is from a Monsoon
                     # For monsoon the USB and device power are collected
@@ -484,9 +484,11 @@ class WaResultsCollector(object):
                     df.loc[:, 'metric'] = 'device_power_sample'
                     df.loc[:, 'units'] = 'watts'
 
-                    metrics_df = metrics_df.append(df)
-
-        return metrics_df
+                    extra_metric_list.append(df)
+        if len(extra_metric_list) > 0:
+            return pd.DataFrame().append(extra_metric_list)
+        else:
+            return pd.DataFrame()
 
     def _wa_get_kernel_sha1(self, wa_dir):
         """
