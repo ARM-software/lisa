@@ -117,6 +117,7 @@ class WaResultsCollector(object):
         self._log = logging.getLogger('WaResultsCollector')
 
         self._metric_df_cache = {}
+        self._kernel_sha1_cache = {}
         if base_dir:
             base_dir = os.path.expanduser(base_dir)
             if not isinstance(wa_dirs, basestring):
@@ -491,9 +492,15 @@ class WaResultsCollector(object):
         """
         Find the SHA1 of the kernel that a WA3 run was run against
         """
+        if wa_dir in self._kernel_sha1_cache:
+            return self._kernel_sha1_cache[wa_dir]
+
         with open(os.path.join(wa_dir, '__meta', 'target_info.json')) as f:
             target_info = json.load(f)
-        return KernelVersion(target_info['kernel_release']).sha1
+
+        sha1 = KernelVersion(target_info['kernel_release']).sha1
+        self._kernel_sha1_cache[wa_dir] = sha1
+        return sha1
 
     def _select(self, tag='.*', kernel='.*', test='.*'):
         _df = self.results_df
