@@ -142,9 +142,11 @@ class WaResultsCollector(object):
         self.use_cached_trace_metrics = use_cached_trace_metrics
 
         df = pd.DataFrame()
+        df_list = []
         for wa_dir in wa_dirs:
             self._log.info("Reading wa_dir %s", wa_dir)
-            df = df.append(self._read_wa_dir(wa_dir))
+            df_list.append(self._read_wa_dir(wa_dir))
+        df = df.append(df_list)
 
         kernel_refs = {}
         if kernel_repo_path:
@@ -232,6 +234,7 @@ class WaResultsCollector(object):
         tag_map = {}
         test_map = {}
         job_dir_map = {}
+        extra_dfs = []
 
         for job in jobs:
             workload = job['workload_name']
@@ -300,8 +303,12 @@ class WaResultsCollector(object):
             extra_df.loc[:, 'id'] = job_id
             extra_df.loc[:, 'tag'] = tag
             extra_df.loc[:, 'test'] = test
+            # Collect all these DFs to merge them in one go at the end.
+            extra_dfs.append(extra_df)
 
-            df = df.append(extra_df)
+        # Append all extra DFs to the results WA's results DF
+        if extra_dfs:
+            df = df.append(extra_dfs)
 
         for iteration, job_ids in skipped_jobs.iteritems():
             self._log.warning("Skipped failed iteration %d for jobs:", iteration)
@@ -426,11 +433,11 @@ class WaResultsCollector(object):
         """
         # return
         # value,metric,units
-        metrics_df = pd.DataFrame()
+        extra_metric_list = []
 
         artifacts = self._read_artifacts(job_dir)
         if self.parse_traces and 'trace-cmd-bin' in artifacts:
-            metrics_df = metrics_df.append(
+            extra_metric_list.append(
                 self._get_trace_metrics(artifacts['trace-cmd-bin']))
 
         if 'jankbench_results_csv' in artifacts:
@@ -439,7 +446,7 @@ class WaResultsCollector(object):
             df.loc[:, 'metric'] = 'frame_total_duration'
             df.loc[:, 'units'] = 'ms'
 
-            metrics_df = metrics_df.append(df)
+            extra_metric_list.append(df)
 
         # WA's metrics model just exports overall energy metrics, not individual
         # samples. We're going to extend that with individual samples so if you
@@ -473,7 +480,7 @@ class WaResultsCollector(object):
 
                     df.loc[:, 'units'] = 'watts'
 
-                    metrics_df = metrics_df.append(df)
+                    extra_metric_list.append(df)
                 elif 'output_power' in df.columns and 'USB_power' in df.columns:
                     # Looks like this is from a Monsoon
                     # For monsoon the USB and device power are collected
@@ -484,9 +491,11 @@ class WaResultsCollector(object):
                     df.loc[:, 'metric'] = 'device_power_sample'
                     df.loc[:, 'units'] = 'watts'
 
-                    metrics_df = metrics_df.append(df)
-
-        return metrics_df
+                    extra_metric_list.append(df)
+        if len(extra_metric_list) > 0:
+            return pd.DataFrame().append(extra_metric_list)
+        else:
+            return pd.DataFrame()
 
     @memoized
     def _wa_get_kernel_sha1(self, wa_dir):
