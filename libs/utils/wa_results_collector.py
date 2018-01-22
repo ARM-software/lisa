@@ -232,6 +232,7 @@ class WaResultsCollector(object):
         tag_map = {}
         test_map = {}
         job_dir_map = {}
+        extra_dfs = []
 
         for job in jobs:
             workload = job['workload_name']
@@ -301,7 +302,9 @@ class WaResultsCollector(object):
             extra_df.loc[:, 'tag'] = tag
             extra_df.loc[:, 'test'] = test
 
-            df = df.append(extra_df)
+            extra_dfs.append(extra_df)
+
+        df = df.append(extra_dfs)
 
         for iteration, job_ids in skipped_jobs.iteritems():
             self._log.warning("Skipped failed iteration %d for jobs:", iteration)
