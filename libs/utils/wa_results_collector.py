@@ -213,6 +213,37 @@ class WaResultsCollector(object):
 
         # results.csv contains all the metrics reported by WA for all jobs.
         df = pd.read_csv(os.path.join(wa_dir, 'results.csv'))
+        # When using Monsoon, the device is a single channel which reports
+        # two metrics. This means that devlib's DerivedEnergymeasurements class
+        # cannot see the output. Due to the way that the monsoon.py script
+        # works, it looks difficult to change Monsoon over to the Acme way of
+        # operating. As a workaround, let's mangle the results here instead.
+        unique_metrics = df['metric'].unique()
+        if 'device_total_energy' not in unique_metrics:
+            # potentially, we need to assemble a device_total_energy from
+            # other energy values we can add together.
+            if 'output_total_energy' in unique_metrics and 'USB_total_energy' in unique_metrics:
+                new_rows = []
+                output_df = df[df['metric'] == 'output_total_energy']
+                usb_df = df[df['metric'] == 'USB_total_energy']
+                # for each 'output_total_energy' metric, we will find
+                # the matching 'USB_total_energy' metric and assemble
+                # a 'device_total_energy' metric by adding them.
+                for row in output_df.iterrows():
+                    vals = row[1]
+                    _id = vals['id']
+                    _workload = vals['workload']
+                    _iteration = vals['iteration']
+                    _value = vals['value']
+                    usb_row = usb_df[(usb_df['workload'] == _workload) & (usb_df['id'] == _id) & (usb_df['iteration'] == _iteration)]
+                    new_val = float(_value) + float(usb_row['value'])
+                    # instead of creating a new row, just change the name
+                    # and value of this one
+                    vals['metric'] = 'device_total_energy'
+                    vals['value'] = new_val
+                    new_rows.append(vals)
+                # add all the new rows in one go at the end
+                df = df.append(new_rows, ignore_index=True)
 
         # __meta/jobs.json describes the jobs that were run - we can use this to
         # find extra artifacts (like traces and detailed energy measurement
