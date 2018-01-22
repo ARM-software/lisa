@@ -116,6 +116,7 @@ class WaResultsCollector(object):
 
         self._log = logging.getLogger('WaResultsCollector')
 
+        self._metric_df_cache = {}
         if base_dir:
             base_dir = os.path.expanduser(base_dir)
             if not isinstance(wa_dirs, basestring):
@@ -525,6 +526,10 @@ class WaResultsCollector(object):
         """
         Common helper for getting results to plot for a given metric
         """
+        lookup = (workload, metric, tag, kernel, test)
+        if lookup in self._metric_df_cache:
+            return self._metric_df_cache[lookup]
+
         df = self._select(tag, kernel, test)
         if df.empty:
             self._log.warn("No data to plot for (tag: %s, kernel: %s, test: %s)",
@@ -553,6 +558,7 @@ class WaResultsCollector(object):
             raise RuntimError('Found different units for workload "{}" metric "{}": {}'
                               .format(workload, metric, units))
 
+        self._metric_df_cache[lookup] = df
         return df
 
 
