@@ -1,7 +1,7 @@
 import logging
 
 
-BIG_CPUS = ['A15', 'A57', 'A72']
+BIG_CPUS = ['A15', 'A57', 'A72', 'A73']
 
 
 class Platform(object):
