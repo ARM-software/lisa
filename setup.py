@@ -80,9 +80,10 @@ params = dict(
         'devlib',  # Interacting with devices
         'louie',  # callbacks dispatch
         'wrapt',  # better decorators 
+        'pandas>=0.13.1',  # Data analysis and manipulation
     ],
     extras_require={
-        'other': ['jinja2', 'pandas>=0.13.1'],
+        'other': ['jinja2'],
         'test': ['nose', 'mock'],
         'mongodb': ['pymongo'],
         'notify': ['notify2'],
