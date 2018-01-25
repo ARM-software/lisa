@@ -375,7 +375,7 @@ class Runner(object):
 
             while self.context.job_queue:
                 try:
-                    with signal.wrap('JOB_EXECUTION', self):
+                    with signal.wrap('JOB_EXECUTION', self, self.context):
                         self.run_next_job(self.context)
                 except KeyboardInterrupt:
                     self.context.skip_remaining_jobs()
@@ -446,16 +446,16 @@ class Runner(object):
         job.set_status(Status.RUNNING)
         self.send(signal.JOB_STARTED)
 
-        with signal.wrap('JOB_TARGET_CONFIG', self):
+        with signal.wrap('JOB_TARGET_CONFIG', self, context):
             job.configure_target(context)
 
-        with signal.wrap('JOB_SETUP', self):
+        with signal.wrap('JOB_SETUP', self, context):
             job.setup(context)
 
         try:
 
             try:
-                with signal.wrap('JOB_EXECUTION', self):
+                with signal.wrap('JOB_EXECUTION', self, context):
                     job.run(context)
             except Exception as e:
                 job.set_status(Status.FAILED)
@@ -465,7 +465,7 @@ class Runner(object):
                 raise e
             finally:
                 try:
-                    with signal.wrap('JOB_OUTPUT_PROCESSED', self):
+                    with signal.wrap('JOB_OUTPUT_PROCESSED', self, context):
                         job.process_output(context)
                     self.pm.process_job_output(context)
                     self.pm.export_job_output(context)
