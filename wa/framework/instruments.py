@@ -280,6 +280,12 @@ class ManagedCallback(object):
                     else:
                         raise
 
+    def __repr__(self):
+        text = 'ManagedCallback({}, {})'
+        return text.format(self.instrument.name, self.callback.im_func.func_name)
+
+    __str__ = __repr__
+
 
 # Need this to keep track of callbacks, because the dispatcher only keeps
 # weak references, so if the callbacks aren't referenced elsewhere, they will
