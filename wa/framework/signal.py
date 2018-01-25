@@ -246,6 +246,7 @@ def connect(handler, signal, sender=dispatcher.Any, priority=0):
                              for details.
 
     """
+    logger.debug('Connecting {} to {}({}) with priority {}'.format(handler, signal, sender, priority))
     if getattr(signal, 'invert_priority', False):
         priority = -priority
     senderkey = id(sender)
@@ -275,6 +276,7 @@ def disconnect(handler, signal, sender=dispatcher.Any):
                 sent by this sender.
 
     """
+    logger.debug('Disconnecting {} from {}({})'.format(handler, signal, sender))
     dispatcher.disconnect(handler, signal, sender)
 
 
