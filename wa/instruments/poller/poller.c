@@ -1,7 +1,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/poll.h>
-#include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
@@ -31,6 +31,23 @@ typedef struct {
         char *path;
 } poll_source_t;
 
+
+int write_trace_marker(char *marker, int size)
+{
+        int ret;
+        FILE *file;
+
+        file = fopen("/sys/kernel/debug/tracing/trace_marker", "w");
+        if (file == NULL) {
+                return -errno;
+        }
+
+        ret = fwrite(marker, sizeof(char), size, file);
+
+        fclose(file);
+        return ret;
+}
+
 int main(int argc, char ** argv) {
 
     extern char *optarg;
@@ -40,16 +57,21 @@ int main(int argc, char ** argv) {
     useconds_t interval = 1000000;
     char buf[1024];
     memset(buf, 0, sizeof(buf));
-    struct timeval current_time;
+    struct timespec current_time;
     double time_float;
     char *labels;
     int labelCount = 0;
+    int should_write_marker = 0;
+    int ret;
 
-    static char usage[] = "usage: %s [-h] [-t INTERVAL] FILE [FILE ...]\n"
+    static char usage[] = "usage: %s [-h] [-m] [-t INTERVAL] FILE [FILE ...]\n"
                           "polls FILE(s) every INTERVAL microseconds and outputs\n"
                           "the results in CSV format including a timestamp to STDOUT\n"
                           "\n"
                           "    -h     Display this message\n"
+                          "    -m     Insert a marker into ftrace at the time of the first\n"
+                          "           sample. This marker may be used to align the timestamps\n"
+                          "           produced by the poller with those of ftrace events.\n"
                           "    -t     The polling sample interval in microseconds\n"
                           "           Defaults to 1000000 (1 second)\n"
                           "    -l     Comma separated list of labels to use in the CSV\n"
@@ -57,7 +79,7 @@ int main(int argc, char ** argv) {
 
 
     //Handling command line arguments
-    while ((c = getopt(argc, argv, "ht:l:")) != -1)
+    while ((c = getopt(argc, argv, "hmt:l:")) != -1)
     {
         switch(c) {
             case 'h':
@@ -65,6 +87,9 @@ int main(int argc, char ** argv) {
             default:
                 show_help = 1;
                 break;
+            case 'm':
+                should_write_marker = 1;
+		break;
             case 't':
                 interval = (useconds_t)atoi(optarg);
                 break;
@@ -131,9 +156,17 @@ int main(int argc, char ** argv) {
     //Poll files 
     int bytes_read = 0;
     while (!done) {
-        gettimeofday(&current_time, NULL);
+        clock_gettime(CLOCK_BOOTTIME, &current_time);
+        if (should_write_marker) {
+            ret = write_trace_marker("POLLER_START", 12);
+            if (ret < 0) {
+                fprintf(stderr, "ERROR writing trace marker: %s\n", strerror(ret));
+                exit(ret);
+            }
+        }
+
         time_float = (double)current_time.tv_sec;
-        time_float += ((double)current_time.tv_usec)/1000/1000;
+        time_float += ((double)current_time.tv_nsec)/1000/1000/1000;
         printf("%f", time_float);
         for (i = 0; i < num_files; i++) {
             lseek(files_to_poll[i].fd, 0, SEEK_SET);

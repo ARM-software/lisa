@@ -14,8 +14,12 @@
 # pylint: disable=access-member-before-definition,attribute-defined-outside-init,unused-argument
 import os
 
+import pandas as pd
+
 from wa import Instrument, Parameter, Executable
+from wa.framework import signal
 from wa.framework.exception import ConfigError, InstrumentError
+from wa.utils.trace_cmd import TraceCmdParser
 from wa.utils.types import list_or_string
 
 
@@ -38,9 +42,18 @@ class FilePoller(Instrument):
         Parameter('files', kind=list_or_string, mandatory=True,
                   description="""A list of paths to the files to be polled"""),
         Parameter('labels', kind=list_or_string,
-                  description="""A list of lables to be used in the CSV output for
-                                 the corresponding files. This cannot be used if
-                                 a `*` wildcard is used in a path."""),
+                  description="""
+                  A list of lables to be used in the CSV output for the
+                  corresponding files. This cannot be used if a `*` wildcard is
+                  used in a path.
+                  """),
+        Parameter('align_with_ftrace', kind=bool, default=False,
+                  description="""
+                  Insert a marker into ftrace that aligns with the first
+                  timestamp. During output processing, extract the marker
+                  and use it's timestamp to adjust the timestamps in the collected
+                  csv so that they align with ftrace.
+                  """),
         Parameter('as_root', kind=bool, default=False,
                   description="""
                   Whether or not the poller will be run as root. This should be
@@ -74,12 +87,17 @@ class FilePoller(Instrument):
 
         self.target_output_path = self.target.path.join(self.target.working_directory, 'poller.csv')
         self.target_log_path = self.target.path.join(self.target.working_directory, 'poller.log')
-        self.command = '{} -t {} -l {} {} > {} 2>{}'.format(target_poller,
-                                                            self.sample_interval * 1000,
-                                                            ','.join(self.labels),
-                                                            ' '.join(self.files),
-                                                            self.target_output_path,
-                                                            self.target_log_path)
+        marker_option = ''
+        if self.align_with_ftrace:
+            marker_option = '-m'
+            signal.connect(self._adjust_timestamps, signal.AFTER_JOB_OUTPUT_PROCESSED)
+        self.command = '{} -t {} {} -l {} {} > {} 2>{}'.format(target_poller,
+                                                               self.sample_interval * 1000,
+                                                               marker_option,
+                                                               ','.join(self.labels),
+                                                               ' '.join(self.files),
+                                                               self.target_output_path,
+                                                               self.target_log_path)
 
     def start(self, context):
         self.target.kick_off(self.command, as_root=self.as_root)
@@ -90,10 +108,11 @@ class FilePoller(Instrument):
     def update_output(self, context):
         host_output_file = os.path.join(context.output_directory, 'poller.csv')
         self.target.pull(self.target_output_path, host_output_file)
-        context.add_artifact('poller_output', host_output_file, kind='data')
+        context.add_artifact('poller-output', host_output_file, kind='data')
+
         host_log_file = os.path.join(context.output_directory, 'poller.log')
         self.target.pull(self.target_log_path, host_log_file)
-        context.add_artifact('poller_log', host_log_file, kind='log')
+        context.add_artifact('poller-log', host_log_file, kind='log')
 
         with open(host_log_file) as fh:
             for line in fh:
@@ -120,3 +139,24 @@ class FilePoller(Instrument):
             label_parts.append(pp[-1])  # always use file name even if same for all
             labels.append('-'.join(label_parts))
         return labels
+
+    def _adjust_timestamps(self, context):
+        output_file = context.get_artifact_path('poller-output')
+        message = 'Adjusting timestamps inside "{}" to align with ftrace'
+        self.logger.debug(message.format(output_file))
+
+        trace_txt = context.get_artifact_path('trace-cmd-txt')
+        trace_parser = TraceCmdParser(filter_markers=False)
+        marker_timestamp = None
+        for event in trace_parser.parse(trace_txt):
+            if event.name == 'print' and 'POLLER_START' in event.text:
+                marker_timestamp = event.timestamp
+                break
+
+        if marker_timestamp is None:
+            raise InstrumentError('Did not see poller marker in ftrace')
+
+        df = pd.read_csv(output_file)
+        df.time -= df.time[0]
+        df.time += marker_timestamp
+        df.to_csv(output_file, index=False)
