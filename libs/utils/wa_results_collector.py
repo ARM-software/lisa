@@ -448,6 +448,10 @@ class WaResultsCollector(object):
         # TODO: once WA's reporting of this data has been cleaned up a bit I
         # think we can simplify this.
         for artifact_name, path in artifacts.iteritems():
+            if os.stat(path).st_size == 0:
+                self._log.info(" no data for %s",  path)
+                continue
+
             if artifact_name.startswith('energy_instrument_output'):
                 df = pd.read_csv(path)
 
