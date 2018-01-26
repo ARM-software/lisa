@@ -761,6 +761,18 @@ class TestEnv(ShareState):
             return None
         return board.json['nrg_model']
 
+    def _load_peripherals(self, board):
+        peripherals_path = os.path.join(basepath,
+                'libs/utils/platforms', board.lower() + '.json')
+        self._log.debug('Trying to load peripheral config from %s', peripherals_path)
+        if not os.path.exists(peripherals_path):
+            return None
+        board = JsonConf(peripherals_path)
+        board.load()
+        if 'peripherals' not in board.json:
+            return None
+        return board.json['peripherals']
+
     def _load_board(self, board):
         board_path = os.path.join(basepath,
                 'libs/utils/platforms', board.lower() + '.json')
@@ -815,6 +827,13 @@ class TestEnv(ShareState):
         }
         self.platform['abi'] = self.target.abi
         self.platform['os'] = self.target.os
+
+        if 'peripherals' in self.conf:
+            self.platform['peripherals'] = self.conf['peripherals']
+        else:
+            peripheral_conf = self._load_peripherals(self.conf['board'])
+            if peripheral_conf is not None:
+                self.platform['peripherals'] = peripheral_conf
 
         self._log.debug('Platform descriptor initialized\n%s', self.platform)
         # self.platform_dump('./')

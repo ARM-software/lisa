@@ -68,17 +68,30 @@ def main():
 
     # Setup plots to produce
     if args.plots == 'all':
-        args.plots = 'tasks clusters cpus stune ediff edspace'
+        args.plots = 'tasks clusters cpus stune ediff edspace peripherals'
 
     # For each rtapp and each run
     if args.outdir is not None:
 
         # Load platform descriptior
         platform = None
-        plt_file = os.path.join(args.outdir, 'platform.json')
+        platform_dir = args.outdir
+        if (os.path.isfile(platform_dir)):
+            platform_dir = os.path.dirname(platform_dir)
+        plt_file = os.path.join(platform_dir, 'platform.json')
+
         if os.path.isfile(plt_file):
             with open(plt_file, 'r') as ifile:
                 platform = json.load(ifile)
+        else:
+            plt_file = os.path.join(args.outdir, 'platform.json')
+            if os.path.isfile(plt_file):
+                with open(plt_file, 'r') as ifile:
+                    platform = json.load(ifile)
+
+        if platform is None:
+            logging.warning("could not find platform file!")
+
         logging.info('Platform description:')
         logging.info('  %s', platform)
 
@@ -142,7 +155,7 @@ def plotdir(run_dir, platform):
         logging.info('No performance data found')
 
     # Load Trace Analysis modules
-    trace = Trace(platform, run_dir)
+    trace = Trace(platform, run_dir, [], trace_format="systrace")
 
     # Define time ranges for all the temporal plots
     trace.setXTimeRange(args.tmin, args.tmax)
@@ -157,8 +170,19 @@ def plotdir(run_dir, platform):
     # Cluster and CPUs plots
     if 'clusters' in args.plots:
         trace.analysis.frequency.plotClusterFrequencies()
+        trace.analysis.frequency.plotClusterFrequencyResidency()
     if 'cpus' in args.plots:
         trace.analysis.cpus.plotCPU()
+        trace.analysis.frequency.plotCPUFrequencies()
+        trace.analysis.frequency.plotCPUFrequencyResidency()
+
+    if 'peripherals' in args.plots:
+        if 'peripherals' not in platform:
+            logging.warning("no peripheral clocks specified, skipping plotting")
+        else:
+            for name, clock_infra_name in platform['peripherals'].iteritems():
+                trace.analysis.frequency.plotPeripheralClock(
+                    title="Clock Frequency for {}".format(name), clk=clock_infra_name)
 
     # SchedTune plots
     if 'stune' in args.plots:

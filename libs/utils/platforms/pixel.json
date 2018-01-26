@@ -25,5 +25,11 @@
                 "nrg_max" :  96
             }
         }
+    },
+    "peripherals": {
+        "bus": "bimc_clk",
+        "display": "mdp_clk_src",
+        "gpu": "gpucc_gfx3d_clk",
+        "video": "video_core_clk_src"
     }
 }
