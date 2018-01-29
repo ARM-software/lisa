@@ -523,7 +523,9 @@ TRANS_TABLE = string.maketrans(BAD_CHARS, '_' * len(BAD_CHARS))
 
 def to_identifier(text):
     """Converts text to a valid Python identifier by replacing all
-    whitespace and punctuation."""
+    whitespace and punctuation and adding a prefix if starting with a digit"""
+    if text[:1].isdigit():
+        text = '_' + text
     return re.sub('_+', '_', text.translate(TRANS_TABLE))
 
 
