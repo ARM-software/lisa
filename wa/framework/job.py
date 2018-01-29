@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from wa.framework import pluginloader, signal
+from wa.framework import pluginloader, signal, instruments
 from wa.framework.configuration.core import Status
 
 # Because of use of Enum (dynamic attrs)
@@ -63,6 +63,33 @@ class Job(object):
             self.workload.initialize(context)
         self.set_status(Status.PENDING)
         context.update_job_state(self)
+
+    def configure_augmentations(self, context, pm):
+        instruments_to_enable = set()
+        output_processors_to_enable = set()
+        enabled_instruments = set(i.name for i in instruments.get_enabled())
+        enabled_output_processors = set(p.name for p in pm.get_enabled())
+
+        for augmentation in self.spec.augmentations.values():
+            augmentation_cls = context.cm.plugin_cache.get_plugin_class(augmentation)
+            if augmentation_cls.kind == 'instrument':
+                instruments_to_enable.add(augmentation)
+            elif augmentation_cls.kind == 'output_processor':
+                output_processors_to_enable.add(augmentation)
+
+        # Disable unrequired instruments
+        for instrument in enabled_instruments.difference(instruments_to_enable):
+            instruments.disable(instrument)
+        # Enable additional instruments
+        for instrument in instruments_to_enable.difference(enabled_instruments):
+            instruments.enable(instrument)
+
+        # Disable unrequired output_processors
+        for processor in enabled_output_processors.difference(output_processors_to_enable):
+            pm.disable(processor)
+        # Enable additional output_processors
+        for processor in output_processors_to_enable.difference(enabled_output_processors):
+            pm.enable(processor)
 
     def configure_target(self, context):
         self.logger.info('Configuring target for job {} [{}]'.format(self.id, self.iteration))

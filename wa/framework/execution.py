@@ -273,7 +273,7 @@ class Executor(object):
 
         Params::
 
-            :state: a ``ConfigManager`` containing processed configuraiton
+            :state: a ``ConfigManager`` containing processed configuration
             :output: an initialized ``RunOutput`` that will be used to
                      store the results.
 
@@ -402,6 +402,7 @@ class Runner(object):
     def finalize_run(self):
         self.logger.info('Finalizing run')
         self.context.end_run()
+        self.pm.enable_all()
         self.pm.process_run_output(self.context)
         self.pm.export_run_output(self.context)
         self.pm.finalize()
@@ -445,6 +446,9 @@ class Runner(object):
 
         job.set_status(Status.RUNNING)
         self.send(signal.JOB_STARTED)
+
+        self.logger.info('Configuring augmentations')
+        job.configure_augmentations(context, self.pm)
 
         with signal.wrap('JOB_TARGET_CONFIG', self, context):
             job.configure_target(context)
