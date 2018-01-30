@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-import datetime
+from datetime import datetime
 import json
 import logging
 import os
@@ -64,16 +64,20 @@ class TestEnv(ShareState):
       want to use to run the experiments
     - a test configuration (test_conf) defining which SW setups we need on
       that HW target
-    - a folder to collect the experiments results, which can be specified
-      using the test_conf::results_dir option and is by default wiped from
-      all the previous contents (if wipe=True)
+    - a folder to collect the experiments results, which can be specified using
+      the target_conf::results_dir option, or using LISA_RESULTS_DIR environment
+      variable and is by default wiped from all the previous contents
+      (if wipe=True)
 
     :param target_conf:
         Configuration defining the target to run experiments on. May be
 
             - A dict defining the values directly
             - A path to a JSON file containing the configuration
-            - ``None``, in which case $LISA_HOME/target.config is used.
+            - ``None``, in which case:
+                - LISA_TARGET_CONF environment variable is read to locate a
+                  config file.
+                - If the variable is not set, $LISA_HOME/target.config is used.
 
         You need to provide the information needed to connect to the
         target. For SSH targets that means "host", "username" and
@@ -104,6 +108,9 @@ class TestEnv(ShareState):
             Directory path containing kernels and DTB images for the
             target. LISA does *not* manage this TFTP server, it must be
             provided externally. Optional.
+
+        **results_dir**
+            location of results of the experiments.
 
     :param test_conf: Configuration of software for target experiments. Takes
                       the same form as target_conf. Fields are:
@@ -136,9 +143,6 @@ class TestEnv(ShareState):
                 functions to enable in the function tracer. Optional.
             buffsize
                 Size of buffer. Default is 10240.
-
-        **results_dir**
-            location of results of the experiments
 
     :param wipe: set true to cleanup all previous content from the output
                  folder
@@ -200,11 +204,14 @@ class TestEnv(ShareState):
             self._log.info('Loading custom (inline) target configuration')
             self.conf = target_conf
         elif isinstance(target_conf, str):
-            self._log.info('Loading custom (file) target configuration')
+            self._log.info('Loading %s target configuration', target_conf)
             self.conf = self.loadTargetConfig(target_conf)
-        elif target_conf is None:
-            self._log.info('Loading default (file) target configuration')
-            self.conf = self.loadTargetConfig()
+        else:
+            target_conf = os.environ.get('LISA_TARGET_CONF', '')
+            self._log.info('Loading [%s] target configuration',
+                    target_conf or 'default')
+            self.conf = self.loadTargetConfig(target_conf)
+
         self._log.debug('Target configuration %s', self.conf)
 
         # Setup test configuration
@@ -239,17 +246,22 @@ class TestEnv(ShareState):
         if '__features__' not in self.conf:
             self.conf['__features__'] = []
 
-        # Initialize local results folder
-        # test configuration overrides target one
-        self.res_dir = (self.test_conf.get('results_dir') or
-                        self.conf.get('results_dir'))
+        # Initialize local results folder.
+        # The test configuration overrides the target's one and the environment
+        # variable overrides everything else.
+        self.res_dir = (
+            os.getenv('LISA_RESULTS_DIR') or
+            self.conf.get('results_dir')
+        )
+        # Default result dir based on the current time
+        if not self.res_dir:
+            self.res_dir = datetime.now().strftime(
+                os.path.join(basepath, OUT_PREFIX, '%Y%m%d_%H%M%S')
+            )
 
-        if self.res_dir and not os.path.isabs(self.res_dir):
-            self.res_dir = os.path.join(basepath, 'results', self.res_dir)
-        else:
-            self.res_dir = os.path.join(basepath, OUT_PREFIX)
-            self.res_dir = datetime.datetime.now()\
-                            .strftime(self.res_dir + '/%Y%m%d_%H%M%S')
+        # Relative paths are interpreted as relative to a fixed root.
+        if not os.path.isabs(self.res_dir):
+            self.res_dir = os.path.join(basepath, OUT_PREFIX, self.res_dir)
 
         if wipe and os.path.exists(self.res_dir):
             self._log.warning('Wipe previous contents of the results folder:')
@@ -281,7 +293,7 @@ class TestEnv(ShareState):
 
         self._initialized = True
 
-    def loadTargetConfig(self, filepath='target.config'):
+    def loadTargetConfig(self, filepath=None):
         """
         Load the target configuration from the specified file.
 
@@ -290,6 +302,9 @@ class TestEnv(ShareState):
         :type filepath: str
 
         """
+
+        # "" and None are replaced by the default 'target.config' value
+        filepath = filepath or 'target.config'
 
         # Loading default target configuration
         conf_file = os.path.join(basepath, filepath)

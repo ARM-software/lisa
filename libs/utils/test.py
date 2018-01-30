@@ -271,8 +271,10 @@ experiment_test.__test__ = False
 # runExperiments, so that if the value is invalid we print the error
 # immediately instead of going ahead with target setup etc.
 try:
-    ITERATIONS_FROM_CMDLINE = int(
-        os.getenv('LISA_TEST_ITERATIONS', '0'))
+    iterations = os.getenv('LISA_TEST_ITERATIONS')
+    # Empty string or 0 will be replaced by 0, otherwise converted to int
+    ITERATIONS_FROM_CMDLINE = int(iterations) if iterations else 0
+
     if ITERATIONS_FROM_CMDLINE < 0:
         raise ValueError('Cannot be negative')
 except ValueError as e:

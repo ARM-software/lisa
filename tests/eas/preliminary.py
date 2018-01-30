@@ -51,7 +51,6 @@ All required config options are set, sched governor is present.
 
 TEST_CONF = {
     'modules': ['cpufreq'],
-    'results_dir': 'PreliminaryTests',
     'tools': [
         'sysbench',
     ]

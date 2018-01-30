@@ -38,7 +38,6 @@ class SetUpTarget(TestCase):
                 'rtapp-calib': {c: 100 for c in range(64)}
             },
             test_conf={
-                'results_dir': self.res_dir,
                 # Don't load cpufreq, it won't work when platform=host
                 'exclude_modules': ['cpufreq'],
             },
@@ -50,10 +49,8 @@ class TestMagicSmoke(SetUpTarget):
         conf_name = 'myconf'
         wl_name = 'mywl'
 
-        results_dir = os.path.join(self.te.LISA_HOME, 'results', self.res_dir,
+        results_dir = os.path.join(self.te.res_dir,
                                    'rtapp:{}:{}'.format(conf_name, wl_name))
-        if os.path.isdir(results_dir):
-            shutil.rmtree(results_dir)
 
         experiments_conf = {
             'confs': [{
