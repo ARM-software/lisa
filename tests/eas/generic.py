@@ -355,7 +355,7 @@ class _EnergyModelTest(LisaTest):
         Use :meth:get_expected_power_df and :meth:get_power_df to estimate
         optimal and observed power usage for task placements of the experiment's
         workload. Assert that the observed power does not exceed the optimal
-        power by more than 20%.
+        power by more than :attr:energy_est_threshold_pct percents.
         """
         exp_power = self.get_expected_power_df(experiment)
         est_power = self.get_power_df(experiment)
@@ -496,7 +496,7 @@ class TwoBigThreeSmall(_EnergyModelTest):
 
 class RampUp(_EnergyModelTest):
     """
-    Test EAS for a task ramping from 5% up to 70% over 2 seconds
+    Test EAS for a task ramping from 5% up to 70%
     """
     workloads = {
         "ramp_up" : {
