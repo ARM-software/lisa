@@ -34,7 +34,7 @@ from wlgen import RTA
 from energy import EnergyMeter
 from energy_model import EnergyModel
 from conf import JsonConf
-from platforms.juno_energy import juno_energy
+from platforms.juno_r0_energy import juno_r0_energy
 from platforms.hikey_energy import hikey_energy
 from platforms.pixel_energy import pixel_energy
 
@@ -420,8 +420,10 @@ class TestEnv(ShareState):
         # Initialize JUNO board
         elif board_name in ('JUNO', 'JUNO2'):
             platform = devlib.platform.arm.Juno()
-            self.nrg_model = juno_energy
             self.__modules = ['bl', 'hwmon', 'cpufreq']
+
+            if board_name == 'JUNO':
+                self.nrg_model = juno_r0_energy
 
         # Initialize OAK board
         elif board_name == 'OAK':
