@@ -34,9 +34,9 @@ export PYTHONPATH=$LISA_HOME/libs/wlgen:$PYTHONPATH
 export PYTHONPATH=$LISA_HOME:$PYTHONPATH
 
 if [ "x$DEVMODE" == "x1" ]; then
-	export PYTHONPATH=$LISA_HOME/libs/devlib:$PYTHONPATH
-	export PYTHONPATH=$LISA_HOME/libs/trappy:$PYTHONPATH
-	export PYTHONPATH=$LISA_HOME/libs/bart:$PYTHONPATH
+    export PYTHONPATH=$LISA_HOME/libs/devlib:$PYTHONPATH
+    export PYTHONPATH=$LISA_HOME/libs/trappy:$PYTHONPATH
+    export PYTHONPATH=$LISA_HOME/libs/bart:$PYTHONPATH
 fi
 
 ################################################################################
@@ -75,22 +75,22 @@ echo -ne "$LISASHELL_DEFAULT"
 
 function _lisa-update-usage {
     echo "Usage: lisa-update (CMD)"
-	echo "  CMD: what to update (default: all)"
-	echo "       all - update lisa and all the external dependencies"
-	echo "       submodules - update external dependencies provided by submodules"
-	echo
+    echo "  CMD: what to update (default: all)"
+    echo "       all - update lisa and all the external dependencies"
+    echo "       submodules - update external dependencies provided by submodules"
+    echo
     echo "Update submodules (if DEVMODE enabled)"
 }
 
 function _lisa-update-submodules {
 echo -ne "${LISASHELL_BLUE}"
 if [ "x$DEVMODE" == "x1" ]; then
-	# Force update existing modules
-	echo
-	echo 'Developer mode ENABLED, updating local libraries...'
-	git submodule sync
-	git submodule update --init
-	echo 'DONE'
+    # Force update existing modules
+    echo
+    echo 'Developer mode ENABLED, updating local libraries...'
+    git submodule sync
+    git submodule update --init
+    echo 'DONE'
 fi
 echo -ne "$LISASHELL_DEFAULT"
 }
@@ -146,14 +146,14 @@ CMD=${1:-all}
 echo
 case "x${CMD^^}" in
 'xSUBMODULES')
-	_lisa-update-submodules
-	;;
+    _lisa-update-submodules
+    ;;
 'xALL')
-	_lisa-update-all
-	;;
+    _lisa-update-all
+    ;;
 "xHELP"|*)
-	_lisa-update-usage
-	;;
+    _lisa-update-usage
+    ;;
 esac
 echo
 echo
@@ -165,9 +165,9 @@ echo
 
 function _lisa-ipython-usage {
     echo "Usage: lisa-ipython CMD [NETIF [PORT]]"
-	echo " CMD     - IPython Notebooks command (deafult: start)"
-	echo "  start  start the ipython server"
-	echo "   stop  stop the ipython server"
+    echo " CMD     - IPython Notebooks command (deafult: start)"
+    echo "  start  start the ipython server"
+    echo "   stop  stop the ipython server"
     echo " NETIF   - the network interface to start the server on (default: lo)"
     echo " PORT    - the tcp port for the server (default: 8888)"
 }
@@ -175,8 +175,8 @@ function _lisa-ipython-usage {
 function _lisa-ipython-start {
 # Get IP address for the specified interface
 IPADDR=$(/sbin/ifconfig $NETIF 2>/dev/null  | \
-	awk '/inet / {print $2}' | \
-	sed 's/addr://')
+    awk '/inet / {print $2}' | \
+    sed 's/addr://')
 if [ "x$IPADDR" == "x" ]; then
     echo
     echo "$NETIF is not a valid network interface"
@@ -198,10 +198,10 @@ URL="http://$IPADDR:$PORT/?token=$TOKEN"
 
 # Check if an instance is already running
 if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
-	echo "Server already running:"
+    echo "Server already running:"
     echo "  " $(cat $URLFILE)
     xdg-open $(cat $URLFILE)
-	return 1
+    return 1
 fi
 
 # Start the server bindeed to the specified interface
@@ -232,7 +232,7 @@ function _lisa-ipython-stop {
 PYDIR="$LISA_HOME/ipynb"
 PIDFILE="$PYDIR/server.pid"
 if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
-	kill $(<$PIDFILE) 2>/dev/null
+    kill $(<$PIDFILE) 2>/dev/null
 fi
 rm -f $PIDFILE 2>/dev/null
 }
@@ -252,16 +252,16 @@ PORT=${3:-8888}
 echo
 case "x${CMD^^}" in
 'xSTART')
-	echo "Starting IPython Notebooks..."
-	_lisa-ipython-start $NETIF $PORT
-	;;
+    echo "Starting IPython Notebooks..."
+    _lisa-ipython-start $NETIF $PORT
+    ;;
 'xSTOP')
-	echo "Stopping IPython Notebooks..."
-	_lisa-ipython-stop
-	;;
+    echo "Stopping IPython Notebooks..."
+    _lisa-ipython-stop
+    ;;
 "xHELP"|*)
-	_lisa-ipython-usage
-	;;
+    _lisa-ipython-usage
+    ;;
 esac
 echo
 echo
@@ -271,8 +271,8 @@ function lisa-check-submods {
 if [ ! -f ./libs/devlib/setup.py ] ||
    [ ! -f ./libs/bart/setup.py ] ||
    [ ! -f ./libs/trappy/setup.py ]; then
-	echo "One or more submodules missing, updating";
-	lisa-update submodules
+    echo "One or more submodules missing, updating";
+    lisa-update submodules
 fi
 }
 
@@ -336,9 +336,9 @@ if [ -n "$LISA_RESULTS_DIR" ]; then
   # same tree to run multiple tests on different boards at the same time.
   local xunit_options=(--with-xunit --xunit-file="$LISA_RESULTS_DIR/results.xml")
 fi
-nosetests -v --nocapture --nologcapture	\
-          --logging-config=logging.conf	\
-		  "${xunit_options[@]}"			\
+nosetests -v --nocapture --nologcapture    \
+          --logging-config=logging.conf    \
+          "${xunit_options[@]}"            \
           "$@"
 }
 
@@ -396,11 +396,11 @@ CMD=${1^^}
 echo
 case "x${CMD^^}" in
 'xREPORT')
-	./tools/report.py $*
-	;;
+    ./tools/report.py $*
+    ;;
 "xHELP"|*)
-	./tools/report.py --help
-	;;
+    ./tools/report.py --help
+    ;;
 esac
 echo
 echo
@@ -427,8 +427,8 @@ export WA_USER_DIRECTORY="$LISA_HOME/tools/wa_user_directory"
 # If the python virtual env existis:
 # let's assume everithing has been already setup and we are ready to go
 if [ -d $WLTEST_VENV ]; then
-	source $WLTEST_VENV/bin/activate
-	return 0
+    source $WLTEST_VENV/bin/activate
+    return 0
 fi
 
 # Check for require dependencies
@@ -436,14 +436,14 @@ which virtualenv &>/dev/null
 if [ $? -ne 0 ]; then
 cat <<EOF
 
-	ERROR: No virtualenv support found for Python!
+    ERROR: No virtualenv support found for Python!
 
-	Please install virtualenv  before running this command.
-	You can install it on Ubuntu systems with:
-		$> pip install virtualenv
+    Please install virtualenv  before running this command.
+    You can install it on Ubuntu systems with:
+        $> pip install virtualenv
 
 EOF
-	return -1
+    return -1
 fi
 
 # Create and activate a python's virtual environment to be used for the
@@ -466,26 +466,26 @@ function lisa-wltest-series {
 if [ -z $ANDROID_HOME ]; then
 cat <<EOF
 
-	ERROR: No Android SDK found!
+    ERROR: No Android SDK found!
 
-	Please point ANDROID_HOME to your local Android SDK.
+    Please point ANDROID_HOME to your local Android SDK.
 
 EOF
-	return -1
+    return -1
 fi
 
 # Check for required external dependencies
 which realpath &>/dev/null
 if [ $? -ne 0 ]; then
-	cat <<EOF
+    cat <<EOF
 
-	ERROR: this script requires the realpath binary!
+    ERROR: this script requires the realpath binary!
 
-	You can install it on Ubuntu systems with:
-		$> sudo apt-get install coreutils
+    You can install it on Ubuntu systems with:
+        $> sudo apt-get install coreutils
 
 EOF
-	return -1
+    return -1
 fi
 
 # Ensure the wltest environment has been configured, and get the relative
@@ -546,4 +546,4 @@ EOF
 # Setup default SHELL text color
 echo -e "$LISASHELL_DEFAULT"
 
-# vim: set tabstop=4:
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
