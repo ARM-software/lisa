@@ -38,6 +38,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
     protected Bundle parameters;
     protected String packageID;
     protected String recipient;
+    protected String workdir_name;
 
     private int networkTimeoutSecs = 30;
     private long networkTimeout =  TimeUnit.SECONDS.toMillis(networkTimeoutSecs);
@@ -47,6 +48,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         parameters = getParams();
         packageID = getPackageID(parameters);
         recipient = parameters.getString("recipient");
+        workdir_name = parameters.getString("workdir_name");
     }
 
     @Test
@@ -203,10 +205,10 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         } else {
             photos.click();
             //Click wa folder image
-            UiObject waFolder =
-            mDevice.findObject(new UiSelector().textContains("wa")
+            UiObject working_directory =
+            mDevice.findObject(new UiSelector().textContains(workdir_name)
                                                .className("android.widget.TextView"));
-            if (!waFolder.waitForExists (uiAutoTimeout)) {
+            if (!working_directory.waitForExists (uiAutoTimeout)) {
                 UiObject refresh =
                     getUiObjectByResourceId("com.google.android.apps.photos:id/image");
                     refresh.clickAndWaitForNewWindow();
@@ -214,8 +216,8 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
                     getUiObjectByResourceId("com.google.android.apps.photos:id/action_mode_close_button");
                     back.clickAndWaitForNewWindow();
             }
-            waFolder.waitForExists (uiAutoTimeout);
-            waFolder.click();
+            working_directory.waitForExists (uiAutoTimeout);
+            working_directory.click();
             //Click test image
             UiObject imageFileButton =
                 mDevice.findObject(new UiSelector().descriptionContains("Photo"));

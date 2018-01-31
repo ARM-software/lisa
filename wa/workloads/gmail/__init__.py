@@ -65,6 +65,10 @@ class Gmail(ApkUiautoWorkload):
         super(Gmail, self).init_resources(context)
         if self.target.get_sdk_version() >= 24 and 'com.google.android.apps.photos' not in self.target.list_packages():
             raise WorkloadError('gmail workload requires Google Photos to be installed for Android N onwards')
+        # Allows for getting working directory regardless if path ends with a '/'
+        work_dir = self.target.working_directory
+        work_dir = work_dir if work_dir[-1] != os.sep else work_dir[:-1]
+        self.gui.uiauto_params['workdir_name'] = self.target.path.basename(work_dir)
         self.gui.uiauto_params['recipient'] = self.recipient
         # Only accept certain image formats
         if os.path.splitext(self.test_image.lower())[1] not in ['.jpg', '.jpeg', '.png']:
