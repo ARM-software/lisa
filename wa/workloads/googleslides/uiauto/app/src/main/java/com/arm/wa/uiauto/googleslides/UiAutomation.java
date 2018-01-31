@@ -146,7 +146,7 @@ public class UiAutomation extends BaseUiAutomation {
         clickUiObject(BY_TEXT, "From photos");
 
         UiObject imagesFolder = mDevice.findObject(new UiSelector().className("android.widget.TextView").textContains("Images"));
-        UiObject moreOptions = mDevice.findObject(new UiSelector().description("More Options"));
+        UiObject moreOptions = mDevice.findObject(new UiSelector().descriptionMatches("More [Oo]ptions"));
         // On some devices the images tabs is missing so we need select the local storage.
         UiObject localDevice = mDevice.findObject(new UiSelector().textMatches(".*[GM]B free"));
         if (!imagesFolder.waitForExists(WAIT_TIMEOUT_1SEC*10)) {
@@ -158,9 +158,14 @@ public class UiAutomation extends BaseUiAutomation {
             // The local storage can hidden by default so we need to enable showing it.
             moreOptions.click();
             moreOptions.click();
-            clickUiObject(BY_TEXT, "Show internal storage");
+            UiObject internal_storage = mDevice.findObject(new UiSelector().textContains("Show internal storage"));
+            if (internal_storage.exists()){
+                internal_storage.click();
+            }
+            mDevice.pressBack();
             clickUiObject(BY_DESC, "Show roots");
-        } else if (localDevice.exists()){
+        }
+        if (localDevice.exists()){
             localDevice.click();
         }
 
