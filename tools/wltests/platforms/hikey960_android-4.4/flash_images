@@ -5,7 +5,7 @@ BASE_DIR="$SCRIPT_DIR/../.."
 source "${BASE_DIR}/helpers"
 source "${PLATFORM_PATH}/definitions"
 
-MODE=${$1:-FASTBOOT}
+MODE=${1:-FASTBOOT}
 [ $MODE == FASTBOOT ] || exit $OK
 
 ################################################################################
@@ -25,4 +25,3 @@ for IMAGE in $(ls *.img); do
 	$FASTBOOT flash $PARTITION $IMAGE; ERROR=$?
 	[ $ERROR -eq 0 ] || exit $ERROR
 done
-
