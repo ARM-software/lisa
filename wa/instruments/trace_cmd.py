@@ -222,7 +222,9 @@ class TraceCmdInstrument(Instrument):
             raise InstrumentError('trace-cmd is not in PATH; is it installed?')
 
     def mark_start(self, context):
-        self.collector.mark_start()
+        if self.is_enabled:
+            self.collector.mark_start()
 
     def mark_stop(self, context):
-        self.collector.mark_stop()
+        if self.is_enabled:
+            self.collector.mark_stop()
