@@ -18,6 +18,8 @@
 import os
 import pandas as pd
 import logging
+import json
+from collections import OrderedDict
 
 from bart.common.Utils import select_window, area_under_curve
 from bart.sched import pelt
@@ -28,6 +30,7 @@ from test import LisaTest, experiment_test
 from time import sleep
 from trace import Trace
 from trappy.stats.grammar import Parser
+from wlgen.rta import Periodic, RTA
 from wlgen.utils import SchedEntity, Task, Taskgroup
 
 UTIL_SCALE = 1024
@@ -536,6 +539,249 @@ class PELTTasksTest(_LoadTrackingBase):
         Test load_avg behaviour for a 50% periodic task
         """
         return self._test_behaviour(experiment, tasks, 'load_avg')
+
+class _CPUMigrationBase(LisaTest):
+    """Base class for shared functionality of tasks migration tests"""
+    test_conf = {
+        'tools'    : [ 'rt-app' ],
+        'ftrace' : {
+            'events' : [
+                'sched_switch',
+                'sched_load_cfs_rq',
+            ],
+        },
+        'modules': ['cpufreq', 'cgroups'],
+    }
+
+    # Allowed error margin
+    allowed_util_margin = UTIL_SCALE * 0.02
+
+    @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        super(_CPUMigrationBase, cls).runExperiments(*args, **kwargs)
+
+    @classmethod
+    def get_wload(cls, test_env, tasks, workload_name):
+        """
+        Create a specification for a rt-app workload from a list of tasks
+        :param test_env: Environment of the test
+        :type test_env: TestEnv
+
+        :param tasks: lists of tasks
+        :type tasks:[RTATask]
+
+        :param workload_name: name of the workload
+        :type workload_name: str
+
+        :returns: the workload specification
+        """
+        rtapp = RTA(test_env.target, workload_name,
+            calibration=test_env.calibration())
+        rtapp.conf(kind='profile',
+            params={'task{}'.format(i): task.get() for i, task in enumerate(tasks)},
+            run_dir=Executor.get_run_dir(test_env.target))
+        return {
+            'migration': {
+                'type' : 'rt-app',
+                'conf' : {
+                    'class' : 'custom',
+                    'json' : rtapp.json,
+                    'prefix' : 'mig_test',
+                },
+            }
+        }
+
+    def _get_one_task(self, tasks, index):
+        """
+        Get a task from the tasks description
+        :param tasks: Tasks description
+        :type tasks: dict
+
+        :param index: the index of the task
+        :type index: int
+
+        :returns: the task that is in the workload at the given index
+        """
+        task_name = tasks.keys()[index]
+        return tasks[task_name]
+
+    def _get_phases_names(self, task):
+        """
+        Return the phases names of a workload
+        :param task: task from which the phases names are retrived
+        :type task: dict
+
+        :returns: a list of the names of the phases
+        """
+        return task['phases'].keys()
+
+    def _get_duration_s(self, task, phase):
+        """
+        Compute the duration of a given phase
+        :param task: Task from which the phase duration is retrived
+        :type task: dict
+
+        :param phase: phase for which the duration is computed
+        :type phase: str
+
+        :returns: the duration in second of the phase
+        """
+        # Get the loop value for a phase
+        loop = task['phases'][phase]['loop']
+        # Get the period value for a phase in us
+        period_us = task['phases'][phase]['timer']['period']
+        return (loop * period_us) / 1e6
+
+    def _get_duty_cycle(self, task, phase):
+        """
+        Compute the duty clycle of a task during a given phase.
+        :param task: task for which the duty clycle is computed
+        :type task: dict
+
+        :param phase: phase for which the duty cycle is computed
+        :type phase: str
+
+        :returns: the duty cycle in percent of a task for a given phase
+        """
+        # Get the period value for a phase in us
+        period_us = task['phases'][phase]['timer']['period']
+        # Get the run time value for a phase in us
+        run_time_us = task['phases'][phase]['run']
+        return run_time_us * 1e2 / period_us
+
+    def _get_cpus(self, task, phase):
+        """
+        Return the cpu assigned to a taks for a given phase.
+        :param task: The task to get the cpu from
+        :type task: dict
+
+        :param phase: The phase to get the cpu from
+        :type phase: str
+
+        :returns: a list of cpus assigned to a task for a given phase
+        """
+        return task['phases'][phase]['cpus']
+
+    def _get_stable_window(self, df, task):
+        """
+        Return a start and end interval for which the utilization signal
+        should be stabilized for each phase.
+        :param df: data frame of the sched_switch events for the tasks
+        :type df: DataFrame
+
+        :param task: The task to obtain phase information from
+        :type task: dict
+
+        :returns: a dictionary which matches a phase with start time and end
+                  time where the utilization signal should be stabilized.
+        """
+        phase_duration_s = 0
+        window = {}
+        start = df.index[1]
+        phases = self._get_phases_names(task)
+        # Compute the stable start and end time for each phase
+        for phase in phases:
+            start += phase_duration_s
+            phase_duration_s = self._get_duration_s(task, phase)
+            window[phase] = (start + UTIL_AVG_CONVERGENCE_TIME,
+                             start + phase_duration_s)
+        return window
+
+    def _get_util_mean(self, start, end, df, cpus):
+        """
+        Compute the mean utilization per CPU given a time interval
+        :param start: start of the time interval
+        :type start: float
+
+        :param end: end of the time interval
+        :type end: float
+
+        :param df: data frame of the sched_load_cfs_rq event
+        :type df: DataFrame
+
+        :param cpus: list of CPUs for which the mean utilization needs to be
+                     computed
+        :type: cpus: [int]
+
+        :returns: a dictionary which matches a cpu with its mean utilization
+        """
+        util_mean = {}
+        df = df[start:end]
+        for cpu in cpus:
+            util = df[(df.cpu == cpu) & (df.path == '/')].util
+            util_mean[cpu] = area_under_curve(util) / (end - start)
+        return util_mean
+
+    def _get_util_expected(self, tasks, cpus, phase):
+        """
+        Compute the expected utilization per cpu given a phase.
+        :param tasks: json description of the tasks
+        :type tasks: dict
+
+        :param cpus: list of CPUs for which the expected utilization needs to
+                     be computed
+        :type cpus: [int]
+
+        :param phase: name of the phase for which the expected utilization
+                      needs to be computed
+        :type phase: str
+
+        :returns: a dictionary which matches the expected utilization to a cpu
+        """
+        expected = {}
+        for cpu in cpus:
+            expected_val = 0
+            for task in tasks.iteritems():
+                [phase_cpu] = self._get_cpus(task[1], phase)
+                if phase_cpu == cpu:
+                    duty_cycle = self._get_duty_cycle(task[1], phase)
+                    expected_val += 1024 * (duty_cycle / 100.0)
+            expected[cpu] = expected_val
+
+        return expected
+
+    def _test_util_per_cpu(self, experiment, tasks):
+        trace = self.get_trace(experiment)
+        if not trace.hasEvents('sched_switch'):
+            raise ValueError('No sched_switch events. '
+                             'Does the kernel support them?')
+        if not trace.hasEvents('sched_load_cfs_rq'):
+            raise ValueError('No sched_load_cfs_rq events. '
+                             'Does the kernel support them?')
+        cpus = set()
+        # Load the JSON tasks description
+        tasks_desc = json.load(open(experiment.wload.params['custom']),
+                               object_pairs_hook=OrderedDict)['tasks']
+        sw_df = trace.data_frame.trace_event('sched_switch')
+        # Filter the event related to the tasks
+        sw_df = sw_df[sw_df.next_comm.isin(tasks_desc.keys())]
+
+        util_df = trace.data_frame.trace_event('sched_load_cfs_rq')
+        phases = self._get_phases_names(self._get_one_task(tasks_desc, 0))
+
+        # Compute the interval where the signal is stable for the phases
+        window = self._get_stable_window(sw_df,
+                                         self._get_one_task(tasks_desc, 0))
+
+        msg = 'Saw util {} on cpu {}, expected {} during phase {}'
+        for phase in phases:
+            # Get all the cpus where tasks are running during this phase
+            for task in tasks_desc.iteritems():
+                cpus.update(self._get_cpus(task[1], phase))
+
+            # Get the mean utilization per CPU
+            util_mean = self._get_util_mean(window[phase][0], window[phase][1],
+                                            util_df, cpus)
+            # Get the expected utilization per CPU
+            expected = self._get_util_expected(tasks_desc, cpus, phase)
+
+            # Check that the expected utilization value and the measured one
+            # match for each CPU.
+            for cpu in cpus:
+                self.assertAlmostEqual(util_mean[cpu], expected[cpu],
+                                       delta=self.allowed_util_margin,
+                                       msg=msg.format(util_mean[cpu], cpu,
+                                                      expected[cpu], phase))
 
 class _PELTTaskGroupsTest(LisaTest):
     """
