@@ -850,6 +850,73 @@ class OneTaskCPUMigrationTest(_CPUMigrationBase):
         """Test util stable range for a migrated 25% task"""
         return self._test_util_per_cpu(experiment, tasks)
 
+class TwoTasksCPUMigrationTest(_CPUMigrationBase):
+    """
+    Goal
+    ====
+    Checks that the utilization is correctly updated for CPU when two tasks are
+    migrated from a CPU to another.
+
+    Detailed Description
+    ====================
+    Two tasks are created. Each task defined two phases as follow (the CPU
+    is the one corresponding for the hikey960 it may be another CPU on
+    another platform):
+
+              Phase 0         Phase 1
+            CPU | Util      CPU | Util
+    Task 0:   4 | 20%         5 | 20%
+    Task 1:   5 | 50%         4 | 50%
+
+    Expected Behaviour
+    ==================
+    The utilization of a CPU is sampled during both phases and should be
+    observed as follow:
+
+            Phase 0         Phase 1
+            Util            Util
+    CPU 4:   20%             50%
+    CPU 5:   50%             20%
+    """
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        tasks = []
+        # Get the 2 CPUs with the highest capacities
+        cpus = sorted(test_env.calibration(),
+                      key=test_env.calibration().get)[:2]
+        # tasks creation
+        task0_phase0 = Periodic(duty_cycle_pct=20, duration_s=1, period_ms=16,
+                                cpus=cpus[0])
+        task0_phase1 = Periodic(duty_cycle_pct=20, duration_s=1, period_ms=16,
+                                cpus=cpus[1])
+        tasks.append(task0_phase0 + task0_phase1)
+
+        task1_phase0 = Periodic(duty_cycle_pct=50, duration_s=1, period_ms=16,
+                               cpus=cpus[1])
+        task1_phase1 = Periodic(duty_cycle_pct=50, duration_s=1, period_ms=16,
+                               cpus=cpus[0])
+        tasks.append(task1_phase0 + task1_phase1)
+
+        wload = cls.get_wload(test_env, tasks, 'cpu_migration1')
+        conf = {
+            'tag' : 'cpu_migration_two_tasks',
+            'flags' : ['ftrace', 'freeze_userspace'],
+            'cpufreq' : {'governor' : 'performance'},
+        }
+
+        return {
+            'wloads': wload,
+            'confs': [conf],
+        }
+
+    @experiment_test
+    def test_util_task_migration(self, experiment, tasks):
+        """
+        Test util stable range for one migrated 25% task and one migrated
+        50% task
+        """
+        return self._test_util_per_cpu(experiment, tasks)
+
 class _PELTTaskGroupsTest(LisaTest):
     """
     Abstract base class for generic tests on PELT taskgroups signals
