@@ -6,6 +6,7 @@ from wa.framework.instruments import is_installed
 from wa.framework.plugin import Plugin
 from wa.utils.log import log_error, indent, dedent
 from wa.utils.misc import isiterable
+from wa.utils.types import identifier
 
 
 class OutputProcessor(Plugin):
@@ -71,6 +72,7 @@ class ProcessorManager(object):
         if isinstance(processor, OutputProcessor):
             return processor
 
+        processor = identifier(processor)
         for p in self.processors:
             if processor == p.name:
                 return p
