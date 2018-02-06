@@ -26,7 +26,7 @@ from devlib.utils.misc import ranges_to_list
 
 import logging
 
-_Phase = namedtuple('Phase', 'duration_s, period_ms, duty_cycle_pct')
+_Phase = namedtuple('Phase', 'duration_s, period_ms, duty_cycle_pct, cpus')
 class Phase(_Phase):
     """
     Descriptor for an RT-App load phase
@@ -39,6 +39,10 @@ class Phase(_Phase):
 
     :param duty_cycle_pct: the generated load in [%].
     :type duty_cycle_pct: int
+
+    :param cpus: the list of cpus on which task execution is restricted during
+                 this phase.
+    :type cpus: [int] or int
     """
     pass
 
@@ -338,9 +342,10 @@ class RTA(Workload):
                     task_conf['cpus'] = ranges_to_list(task['cpus'])
                 elif isinstance(task['cpus'], list):
                     task_conf['cpus'] = task['cpus']
+                elif isinstance(task['cpus'], int):
+                    task_conf['cpus'] = [task['cpus']]
                 else:
-                    raise ValueError('cpus must be a list or string')
-
+                    raise ValueError('cpus must be a list or string or int')
 
             # Setup task configuration
             self.rta_profile['tasks'][tid] = task_conf
@@ -401,6 +406,18 @@ class RTA(Workload):
 
                 self.rta_profile['tasks'][tid]['phases']\
                     ['p'+str(pid).zfill(6)] = task_phase
+
+                if phase.cpus:
+                    if isinstance(phase.cpus, str):
+                        task_phase['cpus'] = ranges_to_list(phase.cpus)
+                    elif isinstance(phase.cpus, list):
+                        task_phase['cpus'] = phase.cpus
+                    elif isinstance(phase.cpus, int):
+                        task_phase['cpus'] = [phase.cpus]
+                    else:
+                        raise ValueError('phases cpus must be a list or string \
+                                          or int')
+
 
                 pid+=1
 
@@ -578,9 +595,9 @@ class Ramp(RTATask):
         steps = range(start_pct, end_pct+delta_adj, delta_pct)
         for load in steps:
             if load == 0:
-                phase = Phase(time_s, 0, 0)
+                phase = Phase(time_s, 0, 0, cpus)
             else:
-                phase = Phase(time_s, period_ms, load)
+                phase = Phase(time_s, period_ms, load, cpus)
             phases.append(phase)
 
         self._task['phases'] = phases
@@ -671,7 +688,7 @@ class Pulse(RTATask):
         for load in [start_pct, end_pct]:
             if load == 0:
                 continue
-            phase = Phase(time_s, period_ms, load)
+            phase = Phase(time_s, period_ms, load, cpus)
             phases.append(phase)
 
         self._task['phases'] = phases
