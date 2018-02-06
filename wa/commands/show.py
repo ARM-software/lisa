@@ -95,4 +95,6 @@ def get_rst_from_target(target):
     text += get_params_rst(target.conn_params)
     text += get_params_rst(target.platform_params)
     text += get_params_rst(target.target_params)
+    text += get_params_rst(target.assistant_params)
+    text += '*Note:* For available runtime parameters please see the documentation'
     return text + '\n'
