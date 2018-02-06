@@ -104,7 +104,7 @@ class LogcatPoller(threading.Thread):
         self.daemon = True
         self.exc = None
 
-    def start(self):
+    def run(self):
         self.logger.debug('starting polling')
         try:
             while True:
