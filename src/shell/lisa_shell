@@ -40,13 +40,23 @@ if [ "x$DEVMODE" == "x1" ]; then
 fi
 
 ################################################################################
+# Helpers
+################################################################################
+
+# Only clear the screen if stdout is a terminal, to avoid ASCII escape
+# characters to be sent to a log file for example.
+function clear {
+test -t 1 && command clear
+}
+
+################################################################################
 # Generic LISA Shell commands
 ################################################################################
 
 # LISA Shell On-Line HELP
 function lisa-help {
 clear
-echo -ne '\E[37;42m'
+echo -e "$LISASHELL_HELP"
 echo "                                                                               "
 echo "                    .:: LISA Shell - HELP On-Line ::.                          "
 echo "                                                                               "
@@ -513,7 +523,7 @@ PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}
 
 # Dump out a nice LISA Shell logo
 clear
-echo -e '\E[37;44m'
+echo -e "$LISASHELL_BANNER"
 
 echo "                                                                               "
 echo "                        .:: LISA Shell ::.                                     "
