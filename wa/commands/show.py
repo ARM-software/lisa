@@ -87,17 +87,12 @@ def get_target_description(name):
 
 
 def get_rst_from_target(target):
-    text = underline(target.name, '-')
+    text = underline(target.name, '~')
     if hasattr(target, 'description'):
         desc = strip_inlined_text(target.description or '')
         text += desc
-    conn_params_rst = get_params_rst(target.conn_params)
-    if conn_params_rst:
-        text += underline('\nconnection parameters', '~') + conn_params_rst
-    platform_params_rst = get_params_rst(target.platform_params)
-    if platform_params_rst:
-        text += underline('\nplatform parameters', '~') + platform_params_rst
-    target_params_rst = get_params_rst(target.target_params)
-    if target_params_rst:
-        text += underline('\nconnection parameters', '~') + target_params_rst
+    text += underline('Device Parameters:', '-')
+    text += get_params_rst(target.conn_params)
+    text += get_params_rst(target.platform_params)
+    text += get_params_rst(target.target_params)
     return text + '\n'
