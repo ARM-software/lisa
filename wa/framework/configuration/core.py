@@ -553,7 +553,7 @@ class MetaConfiguration(Configuration):
 
     name = "Meta Configuration"
 
-    plugin_packages = [
+    core_plugin_packages = [
         'wa.commands',
         'wa.framework.getters',
         'wa.framework.target.descriptor',
@@ -626,11 +626,21 @@ class MetaConfiguration(Configuration):
     def user_config_file(self):
         return os.path.join(self.user_directory, 'config.yaml')
 
+    @property
+    def additional_packages_file(self):
+        return os.path.join(self.user_directory, 'packages')
+
     def __init__(self, environ=os.environ):
         super(MetaConfiguration, self).__init__()
         user_directory = environ.pop('WA_USER_DIRECTORY', '')
         if user_directory:
             self.set('user_directory', user_directory)
+
+        self.plugin_packages = copy(self.core_plugin_packages)
+        if os.path.isfile(self.additional_packages_file):
+            with open(self.additional_packages_file) as fh:
+                extra_packages = [p.strip() for p in fh.read().split('\n') if p.strip()]
+                self.plugin_packages.extend(extra_packages)
 
 
 # This is generic top-level configuration for WA runs.
