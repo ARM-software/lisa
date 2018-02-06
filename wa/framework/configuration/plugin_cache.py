@@ -159,7 +159,7 @@ class PluginCache(object):
 
     def _get_target_params(self, name):
         td = self.targets[name]
-        return get_config_point_map(chain(td.target_params, td.platform_params, td.conn_params))
+        return get_config_point_map(chain(td.target_params, td.platform_params, td.conn_params, td.assistant_params))
 
     # pylint: disable=too-many-nested-blocks, too-many-branches
     def _merge_using_priority_specificity(self, specific_name,
