@@ -104,7 +104,7 @@ class LogcatPoller(threading.Thread):
         self.exc = None
 
     def run(self):
-        self.logger.debug('starting polling')
+        self.logger.debug('Starting polling')
         try:
             while True:
                 if self.stop_signal.is_set():
@@ -116,7 +116,7 @@ class LogcatPoller(threading.Thread):
                 time.sleep(0.5)
         except Exception:  # pylint: disable=W0703
             self.exc = WorkerThreadError(self.name, sys.exc_info())
-        self.logger.debug('polling stopped')
+        self.logger.debug('Polling stopped')
 
     def stop(self):
         self.logger.debug('Stopping logcat polling')
@@ -128,7 +128,7 @@ class LogcatPoller(threading.Thread):
             raise self.exc  # pylint: disable=E0702
 
     def clear_buffer(self):
-        self.logger.debug('clearing logcat buffer')
+        self.logger.debug('Clearing logcat buffer')
         with self.lock:
             self.target.clear_logcat()
             touch(self.buffer_file)
@@ -142,7 +142,7 @@ class LogcatPoller(threading.Thread):
                 touch(outfile)
 
     def close(self):
-        self.logger.debug('closing poller')
+        self.logger.debug('Closing poller')
         if os.path.isfile(self.buffer_file):
             os.remove(self.buffer_file)
 
