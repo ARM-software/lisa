@@ -49,15 +49,14 @@ class AndroidAssistant(object):
 
     def __init__(self, target, logcat_poll_period=None):
         self.target = target
+        self.logcat_poll_period = logcat_poll_period
+        self.logcat_poller = None
         if self.target.is_rooted:
             self.disable_selinux()
-        if logcat_poll_period:
-            self.logcat_poller = LogcatPoller(target, logcat_poll_period)
-        else:
-            self.logcat_poller = None
 
     def start(self):
-        if self.logcat_poller:
+        if self.logcat_poll_period:
+            self.logcat_poller = LogcatPoller(self.target, self.logcat_poll_period)
             self.logcat_poller.start()
 
     def stop(self):
