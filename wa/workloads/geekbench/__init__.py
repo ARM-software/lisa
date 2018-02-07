@@ -29,33 +29,28 @@ class Geekbench(ApkUiautoWorkload):
     description = """
     Geekbench provides a comprehensive set of benchmarks engineered to quickly
     and accurately measure processor and memory performance.
-
     http://www.primatelabs.com/geekbench/
-
     From the website:
-
     Designed to make benchmarks easy to run and easy to understand, Geekbench
     takes the guesswork out of producing robust and reliable benchmark results.
-
     Geekbench scores are calibrated against a baseline score of 1,000 (which is
     the score of a single-processor Power Mac G5 @ 1.6GHz). Higher scores are
     better, with double the score indicating double the performance.
-
     The benchmarks fall into one of four categories:
-
         - integer performance.
         - floating point performance.
         - memory performance.
         - stream performance.
-
     Geekbench benchmarks: http://www.primatelabs.com/geekbench/doc/benchmarks.html
-
     Geekbench scoring methedology:
     http://support.primatelabs.com/kb/geekbench/interpreting-geekbench-scores
-
     """
     summary_metrics = ['score', 'multicore_score']
     versions = {
+        '4.2.0': {
+            'package': 'com.primatelabs.geekbench',
+            'activity': '.HomeActivity',
+        },
         '4.0.1': {
             'package': 'com.primatelabs.geekbench',
             'activity': '.HomeActivity',
@@ -85,7 +80,7 @@ class Geekbench(ApkUiautoWorkload):
         Parameter('times', kind=int, default=1,
                   description=('Specfies the number of times the benchmark will be run in a "tight '
                                'loop", i.e. without performaing setup/teardown inbetween.')),
-        Parameter('timeout', kind=int, default=900,
+        Parameter('timeout', kind=int, default=3600,
                   description=('Timeout for a single iteration of the benchmark. This value is '
                                'multiplied by ``times`` to calculate the overall run timeout. ')),
         Parameter('disable_update_result', kind=bool, default=False,
@@ -118,6 +113,7 @@ class Geekbench(ApkUiautoWorkload):
         self.gui.uiauto_params['version'] = self.version
         self.gui.uiauto_params['times'] = self.times
         self.gui.uiauto_params['is_corporate'] = self.is_corporate
+        self.gui.timeout = self.timeout
 
     def initialize(self, context):
         super(Geekbench, self).initialize(context)
@@ -194,12 +190,12 @@ class Geekbench(ApkUiautoWorkload):
                     context.add_metric(namemify(section['name'] + '_' + workload_name + '_score', i),
                                        workloads['score'])
 
+    update_result_5 = update_result_4
 
 class GBWorkload(object):
     """
     Geekbench workload (not to be confused with WA's workloads). This is a single test run by
     geek bench, such as preforming compression or generating Madelbrot.
-
     """
 
     # Index maps onto the hundreds digit of the ID.
@@ -224,7 +220,6 @@ class GBWorkload(object):
                                  Power Mac G5 running in a single thread.
         :param pmac_g5_mt_score: Score achieved for this workload on 2003 entry-level
                                  Power Mac G5 running in multiple threads.
-
         """
         self.wlid = wlid
         self.name = name
@@ -247,15 +242,12 @@ class GBWorkload(object):
         Returns a tuple (single-thraded score, multi-threaded score) for this workload.
         Some workloads only have a single-threaded score, in which case multi-threaded
         score will be ``None``.
-
         Geekbench will perform four iterations of each workload in single-threaded and,
         for some workloads, multi-threaded configurations. Thus there should always be
         either four or eight scores collected for each workload. Single-threaded iterations
         are always done before multi-threaded, so the ordering of the scores can be used
         to determine which configuration they belong to.
-
         This method should not be called before score collection has finished.
-
         """
         no_of_results = len(self.collected_results)
         if no_of_results == 4:
@@ -281,7 +273,6 @@ class GBScoreCalculator(object):
     """
     Parses logcat output to extract raw Geekbench workload values and converts them into
     category and overall scores.
-
     """
 
     result_regex = re.compile(r'workload (?P<id>\d+) (?P<value>[0-9.]+) '
@@ -330,7 +321,6 @@ class GBScoreCalculator(object):
         """
         Extract results from the specified file. The file should contain a logcat log of Geekbench execution.
         Iteration results in the log appear as 'I/geekbench' category entries in the following format::
-
          |                     worklod ID          value      units   timing
          |                         \-------------    |     ----/     ---/
          |                                      |    |     |         |
@@ -338,7 +328,6 @@ class GBScoreCalculator(object):
          |      |               |
          |      |               -----\
          |      label    random crap we don't care about
-
         """
         for wl in self.workloads:
             wl.clear()
@@ -352,17 +341,12 @@ class GBScoreCalculator(object):
     def update_results(self, context):
         """
         http://support.primatelabs.com/kb/geekbench/interpreting-geekbench-2-scores
-
         From the website:
-
         Each workload's performance is compared against a baseline to determine a score. These
         scores are averaged together to determine an overall, or Geekbench, score for the system.
-
         Geekbench uses the 2003 entry-level Power Mac G5 as the baseline with a score of 1,000
         points. Higher scores are better, with double the score indicating double the performance.
-
         Geekbench provides three different kinds of scores:
-
             :Workload Scores: Each time a workload is executed Geekbench calculates a score based
                               on the computer's performance compared to the baseline
                               performance. There can be multiple workload scores for the
@@ -371,18 +355,15 @@ class GBScoreCalculator(object):
                               workload is executed four times (single-threaded scalar code,
                               multi-threaded scalar code, single-threaded vector code, and
                               multi-threaded vector code) producing four "Dot Product" scores.
-
             :Section Scores: A section score is the average of all the workload scores for
                              workloads that are part of the section. These scores are useful
                              for determining the performance of the computer in a particular
                              area. See the section descriptions above for a summary on what
                              each section measures.
-
             :Geekbench Score: The Geekbench score is the weighted average of the four section
                               scores. The Geekbench score provides a way to quickly compare
                               performance across different computers and different platforms
                               without getting bogged down in details.
-
         """
         scores_by_category = defaultdict(list)
         for wkload in self.workloads:
@@ -407,11 +388,10 @@ class GeekbenchCorproate(Geekbench):
     is_corporate = True
     requires_network = False
 
-    versions = ['4.1.0']
-
-    # The activity name for this version doesn't match the package name
-    activity = 'com.primatelabs.geekbench.HomeActivity'
-    package = 'com.primatelabs.geekbench4.corporate'
+    versions = ['4.1.0', '5.0.0']
+    
+    activity = 'com.primatelabs.geekbench.HomeActivity' 
+    package = 'com.primatelabs.geekbench4.corporate' 
 
     parameters = [
         Parameter('version',
