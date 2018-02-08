@@ -69,7 +69,7 @@ class ExoPlayer(ApkWorkload):
     video_directory = os.path.join(settings.dependencies_directory, name)
 
     package_names = ['com.google.android.exoplayer2.demo']
-    versions = ['2.4.0']
+    versions = ['2.4', '2.5', '2.6']
     action = 'com.google.android.exoplayer.demo.action.VIEW'
     default_format = 'mov_720p'
 
