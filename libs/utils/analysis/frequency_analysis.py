@@ -163,7 +163,7 @@ class FrequencyAnalysis(AnalysisModule):
 # Plotting Methods
 ###############################################################################
 
-    def plotPeripheralClock(self, title='Peripheral Frequency', clk='unknown'):
+    def plotPeripheralClock(self, clk, title='Peripheral Frequency'):
         """
         Produce graph plotting the frequency of a particular peripheral clock
 
@@ -190,11 +190,11 @@ class FrequencyAnalysis(AnalysisModule):
         pd.set_option('display.expand_frame_repr', False)
 
         if not enable_df.empty:
-          enable_df = enable_df[enable_df.clk_name == clk]
-          enable_df['clock_setting'] = 1;
+            enable_df = enable_df[enable_df.clk_name == clk]
+            enable_df['clock_setting'] = 1;
         if not disable_df.empty:
-          disable_df = disable_df[disable_df.clk_name == clk]
-          disable_df['clock_setting'] = 0;
+            disable_df = disable_df[disable_df.clk_name == clk]
+            disable_df['clock_setting'] = 0;
 
         freq = pd.concat([rate_df, enable_df, disable_df])
         freq.sort_index(inplace=True)
@@ -230,12 +230,12 @@ class FrequencyAnalysis(AnalysisModule):
                 freq.loc[index, 'frequency'] = 0
                 last_state = row.state
 
-        gs = gridspec.GridSpec(5,1)
-        freq_axis = plt.subplot(gs[:4, 0])
-        state_axis = plt.subplot(gs[4:, 0])
-        plt.suptitle(title, y=.97, fontsize=16, horizontalalignment='center')
 
-        gs.update(hspace=1.7)
+        fig = plt.figure(figsize=(16,8))
+        gs = gridspec.GridSpec(2, 1, height_ratios=[8, 1])
+        freq_axis = plt.subplot(gs[0])
+        state_axis = plt.subplot(gs[1])
+        plt.suptitle(title, y=.97, fontsize=16, horizontalalignment='center')
 
         #plot frequency information
         freq_axis.set_title("Clock frequency for " + clk)
