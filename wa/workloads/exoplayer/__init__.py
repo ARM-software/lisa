@@ -133,7 +133,8 @@ class ExoPlayer(ApkWorkload):
             if not files:
                 # Download a file with the requested format
                 url = DOWNLOAD_URLS[self.format]
-                filepath = os.path.join(self.video_directory, os.path.basename(url))
+                filename = '{}_{}'.format(format_resolution, os.path.basename(url))
+                filepath = os.path.join(self.video_directory, filename)
                 self.logger.info('Downloading {} to {}...'.format(url, filepath))
                 urllib.urlretrieve(url, filepath)
                 return filepath
