@@ -125,7 +125,7 @@ class Workload(TargetedPlugin):
     def update_output(self, context):
         """
         Update the output within the specified execution context with the
-        metrics and artifacts form this workload iteration.
+        metrics and artifacts for this workload iteration.
 
         """
         pass
