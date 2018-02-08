@@ -761,7 +761,7 @@ class TestEnv(ShareState):
 
     def _load_board(self, board):
         board = self._load_board_file(board)
-        if 'board' not in board.json:
+        if board is not None and 'board' not in board.json:
             return None
         return board.json['board']
 
@@ -788,7 +788,7 @@ class TestEnv(ShareState):
             self.platform['nrg_model'] = self.conf['nrg_model']
         # Try to load the default energy model (if available)
         # We shouldn't have an 'nrg_model' key if there is no energy model data
-        elif 'nrg_model' in board.json:
+        elif board is not None and 'nrg_model' in board.json:
             self.platform['nrg_model'] = board.json['nrg_model']
 
         # Adding topology information
@@ -808,7 +808,7 @@ class TestEnv(ShareState):
 
         if 'peripherals' in self.conf:
             self.platform['peripherals'] = self.conf['peripherals']
-        elif 'peripherals' in board.json:
+        elif board is not None and 'peripherals' in board.json:
             self.platform['peripherals'] = board.json['peripherals']
 
         self._log.debug('Platform descriptor initialized\n%s', self.platform)
