@@ -215,4 +215,5 @@ class ExoPlayer(ApkWorkload):
     def teardown(self, context):
         super(ExoPlayer, self).teardown(context)
         self.monitor.stop()
-        self.target.set_rotation(self._original_orientation)
+        if self._original_orientation is not None:
+            self.target.set_rotation(self._original_orientation)
