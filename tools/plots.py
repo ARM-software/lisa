@@ -59,8 +59,31 @@ parser.add_argument('--tmax', type=float,
 parser.add_argument('--plots', type=str,
         default='all',
         help='List of plots to produce (all,')
+parser.add_argument('--platform_file', type=str,
+        help='Platform file to use when plotting')
 
 args = None
+
+
+
+def load_platform(output_directory):
+    plt_file = None
+    platform = None
+
+    if (args.platform_file):
+        plt_file = args.platform_file
+    elif ('platform.json' in os.listdir(output_directory)):
+        plt_file = os.path.join(output_directory, 'platform.json')
+
+    if plt_file is not None:
+        with open(plt_file, 'r') as ifile:
+            platform = json.load(ifile)
+
+    if platform is None:
+        logging.warning("could not find platform file!")
+    logging.info('Platform description:')
+    logging.info('  %s', platform)
+    return platform
 
 def main():
     global args
@@ -72,31 +95,8 @@ def main():
 
     # For each rtapp and each run
     if args.outdir is not None:
-
-        # Load platform descriptior
-        platform = None
-        platform_dir = args.outdir
-        if (os.path.isfile(platform_dir)):
-            platform_dir = os.path.dirname(platform_dir)
-        plt_file = os.path.join(platform_dir, 'platform.json')
-
-        if os.path.isfile(plt_file):
-            with open(plt_file, 'r') as ifile:
-                platform = json.load(ifile)
-        else:
-            plt_file = os.path.join(args.outdir, 'platform.json')
-            if os.path.isfile(plt_file):
-                with open(plt_file, 'r') as ifile:
-                    platform = json.load(ifile)
-
-        if platform is None:
-            logging.warning("could not find platform file!")
-
-        logging.info('Platform description:')
-        logging.info('  %s', platform)
-
         # Plot the specified results folder
-        return plotdir(args.outdir, platform)
+        return plotdir(args.outdir, load_platform(args.outdir))
 
     for test_idx in sorted(os.listdir(args.results)):
 
@@ -118,15 +118,6 @@ def main():
         # For each run of an rt-app workload
         test_dir = os.path.join(args.results, test_idx)
 
-        # Load platform descriptior
-        platform = None
-        plt_file = os.path.join(test_dir, 'platform.json')
-        if os.path.isfile(plt_file):
-            with open(plt_file, 'r') as ifile:
-                platform = json.load(ifile)
-        logging.info('Platform description:')
-        logging.info('  %s', platform)
-
         for run_idx in sorted(os.listdir(test_dir)):
 
             run_dir = os.path.join(test_dir, run_idx)
@@ -136,7 +127,7 @@ def main():
                 continue
 
             logging.info('Generate plots for [%s]...', run_dir)
-            plotdir(run_dir, platform)
+            plotdir(run_dir, load_platform(args.outdir))
 
 def plotdir(run_dir, platform):
     global args
@@ -155,7 +146,13 @@ def plotdir(run_dir, platform):
         logging.info('No performance data found')
 
     # Load Trace Analysis modules
-    trace = Trace(platform, run_dir, [], trace_format="systrace")
+    trace_format = 'ftrace'
+    for f in os.listdir(run_dir):
+        if f.endswith('html'):
+            trace_format = 'systrace' 
+        run_dir = f
+        break;
+    trace = Trace(platform, run_dir, [], trace_format=trace_format);
 
     # Define time ranges for all the temporal plots
     trace.setXTimeRange(args.tmin, args.tmax)
@@ -176,6 +173,7 @@ def plotdir(run_dir, platform):
         trace.analysis.frequency.plotCPUFrequencies()
         trace.analysis.frequency.plotCPUFrequencyResidency()
 
+    print platform
     if 'peripherals' in args.plots:
         if 'peripherals' not in platform:
             logging.warning("no peripheral clocks specified, skipping plotting")

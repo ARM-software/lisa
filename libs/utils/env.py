@@ -747,42 +747,20 @@ class TestEnv(ShareState):
 
         self.platform['cpus_count'] = len(self.target.core_clusters)
 
-    def _load_em(self, board):
-        em_path = os.path.join(basepath,
-                'libs/utils/platforms', board.lower() + '.json')
-        self._log.debug('Trying to load default EM from %s', em_path)
-        if not os.path.exists(em_path):
-            return None
-        self._log.info('Loading default EM:')
-        self._log.info('   %s', em_path)
-        board = JsonConf(em_path)
-        board.load()
-        if 'nrg_model' not in board.json:
-            return None
-        return board.json['nrg_model']
-
-    def _load_peripherals(self, board):
-        peripherals_path = os.path.join(basepath,
-                'libs/utils/platforms', board.lower() + '.json')
-        self._log.debug('Trying to load peripheral config from %s', peripherals_path)
-        if not os.path.exists(peripherals_path):
-            return None
-        board = JsonConf(peripherals_path)
-        board.load()
-        if 'peripherals' not in board.json:
-            return None
-        return board.json['peripherals']
-
-    def _load_board(self, board):
+    def _load_board_file(self, board):
         board_path = os.path.join(basepath,
                 'libs/utils/platforms', board.lower() + '.json')
-        self._log.debug('Trying to load board descriptor from %s', board_path)
+        self._log.debug('Trying to load board defaults from %s', board_path)
         if not os.path.exists(board_path):
             return None
-        self._log.info('Loading board:')
+        self._log.info('Loading default board file:')
         self._log.info('   %s', board_path)
         board = JsonConf(board_path)
         board.load()
+        return board
+
+    def _load_board(self, board):
+        board = self._load_board_file(board)
         if 'board' not in board.json:
             return None
         return board.json['board']
@@ -803,15 +781,15 @@ class TestEnv(ShareState):
         else:
             self._init_platform_smp()
 
+        board = self._load_board_file(self.conf['board'])
+
         # Adding energy model information
         if 'nrg_model' in self.conf:
             self.platform['nrg_model'] = self.conf['nrg_model']
         # Try to load the default energy model (if available)
-        else:
-            nrg_model = self._load_em(self.conf['board'])
-            # We shouldn't have an 'nrg_model' key if there is no energy model data
-            if nrg_model:
-                self.platform['nrg_model'] = nrg_model
+        # We shouldn't have an 'nrg_model' key if there is no energy model data
+        elif 'nrg_model' in board.json:
+            self.platform['nrg_model'] = board.json['nrg_model']
 
         # Adding topology information
         self.platform['topology'] = self.topology.get_level("cluster")
@@ -830,10 +808,8 @@ class TestEnv(ShareState):
 
         if 'peripherals' in self.conf:
             self.platform['peripherals'] = self.conf['peripherals']
-        else:
-            peripheral_conf = self._load_peripherals(self.conf['board'])
-            if peripheral_conf is not None:
-                self.platform['peripherals'] = peripheral_conf
+        elif 'peripherals' in board.json:
+            self.platform['peripherals'] = board.json['peripherals']
 
         self._log.debug('Platform descriptor initialized\n%s', self.platform)
         # self.platform_dump('./')
