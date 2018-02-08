@@ -36,8 +36,7 @@ class CreateAgendaSubcommand(SubCommand):
 
     def execute(self, state, args):
         agenda = OrderedDict()
-        agenda['config'] = OrderedDict(instruments=[], output_processors=[])
-        agenda['global'] = OrderedDict(iterations=args.iterations)
+        agenda['config'] = OrderedDict(augmentations=[], iterations=args.iterations)
         agenda['workloads'] = []
         target_desc = None
 
