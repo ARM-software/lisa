@@ -705,7 +705,11 @@ class PackageHandler(object):
                     raise WorkloadError(msg)
 
             if not self.package_name:
-                raise WorkloadError('No matching package found')
+                if self.version:
+                    message = 'No matching package found for workload {name} (version {version})'
+                else:
+                    message = 'No matching package found for workload {name}'
+                raise WorkloadError(message.format(name=self.name, version=self.version))
 
         self.pull_apk(self.package_name)
         self.apk_file = context.resolver.get(ApkFile(self.owner,
