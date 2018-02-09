@@ -40,6 +40,9 @@ class SchedEntity(object):
     def add_children(self, ses):
         raise NotImplementedError("add_children() must be implemented")
 
+    def change_taskgroup(self, new_taskgroup):
+        raise NotImplementedError("change_taskgroup() must be implemented")
+
     def _iter(self):
         yield self
         for child in self.children:
@@ -49,6 +52,9 @@ class SchedEntity(object):
     def iter_nodes(self):
         """Pre-order traversal of all nodes"""
         return self._iter()
+
+    def get_child(self, child_name):
+        raise NotImplementedError("get_child() must be implemented")
 
     @property
     def is_task(self):
@@ -133,6 +139,21 @@ class Task(SchedEntity):
     def add_children(self, ses):
         raise TypeError('Cannot add children entities to a task entity.')
 
+    def get_child(self, child_name):
+        raise TypeError('Cannot find child entity from a task entity')
+
+    def change_taskgroup(self, new_taskgroup):
+        """
+        Change the taskgroup to which the task is assigned
+        :param new_taskgroup: New taskgroup assigned to the task
+        :type new_taskgroup: Taskgroup
+        """
+        # Remove the task from its old taskgroup
+        if self.parent:
+            self.parent.children.remove(self)
+        # Add task in the new taskgroup
+        new_taskgroup.add_children([self])
+
     def get_expected_util(self):
         """
         Get expected utilization value. For tasks this corresponds to
@@ -192,6 +213,24 @@ class Taskgroup(SchedEntity):
         self.children.update(ses)
         for entity in ses:
             entity.parent = self
+
+    def get_child(self, child_name):
+        """
+        Get the SchedEntity object associated with a name from the children
+        list of the Taskgroup
+        :params child_name: the name of the child that needs to be retrieved
+        :type child_name: str
+
+        :returns: a Task or a Taskgroup associated with the given name or raise
+                  an error if the name does not exist in the children list
+        """
+        for se in self.iter_nodes():
+            if se.name == child_name:
+                return se
+        raise ValueError("{} not in group {}".format(child_name, self.name))
+
+    def change_taskgroup(self, new_taskgroup):
+        raise TypeError('Cannot change group assignment of a Taskgroup Entity.')
 
     def get_expected_util(self):
         """
