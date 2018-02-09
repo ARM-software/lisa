@@ -984,7 +984,11 @@ class _PELTTaskGroupsTest(LisaTest):
                     # Run tasks
                     se.wload.run(out_dir=test_dir, cpus=se.cpus,
                                  cgroup=se.parent.name, background=True)
-            sleep(max_duration)
+
+            sleep(max_duration / 2.0)
+            # Wake up to migrate tasks between cgroups
+            cls._migrate_task(te)
+            sleep(max_duration / 2.0)
 
             te.ftrace.stop()
 
@@ -994,6 +998,10 @@ class _PELTTaskGroupsTest(LisaTest):
 
         # Extract trace
         cls.trace = Trace(None, test_dir, te.ftrace.events)
+
+    @classmethod
+    def _migrate_task(cls, test_env):
+        return
 
     def _test_group_util(self, group):
         if 'sched_load_se' not in self.trace.available_events:
@@ -1006,6 +1014,7 @@ class _PELTTaskGroupsTest(LisaTest):
             raise ValueError('No sched_switch events. '
                              'Does the kernel support them?')
 
+        max_duration = 0
         task_util_df = self.trace.data_frame.trace_event('sched_load_se')
         tg_util_df = self.trace.data_frame.trace_event('sched_load_cfs_rq')
         sw_df = self.trace.data_frame.trace_event('sched_switch')
@@ -1014,15 +1023,22 @@ class _PELTTaskGroupsTest(LisaTest):
         for se in self.root_group.iter_nodes():
             if se.name == group:
                 tg = se
+            if se.is_task:
+                max_duration = max(max_duration, se.duration_s)
 
         if tg is None:
             raise ValueError('{} taskgroup does not exist.'.format(group))
 
         # Only consider the time interval where the signal should be stable
+        # after the migration phase
         tasks_names = [se.name for se in tg.iter_nodes() if se.is_task]
         tasks_sw_df = sw_df[sw_df.next_comm.isin(tasks_names)]
-        start = tasks_sw_df.index[0] + UTIL_AVG_CONVERGENCE_TIME
-        end = tasks_sw_df.index[-1] - UTIL_AVG_CONVERGENCE_TIME
+
+        start = tasks_sw_df.index[0] + \
+                UTIL_AVG_CONVERGENCE_TIME + \
+                max_duration / 2.0
+        end = tasks_sw_df.index[-1]
+
         task_util_df = task_util_df[start:end]
         tg_util_df = tg_util_df[start:end]
 
