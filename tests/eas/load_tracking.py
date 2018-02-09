@@ -18,6 +18,7 @@
 import os
 import pandas as pd
 import logging
+import re
 import json
 from collections import OrderedDict
 
@@ -1288,4 +1289,101 @@ class UnbalancedHierarchy(_PELTTaskGroupsTest):
         Test utilization propagation to cgroup /tg1/tg2/tg3/tg4
         """
         return self._test_group_util('/tg1/tg2/tg3/tg4')
+
+
+class CgroupsMigrationTest(_PELTTaskGroupsTest):
+    """
+    Test PELT utilization for task groups migration.
+    Initial group hierarchy:
+                           +-----+
+                           | "/" |
+                           +-----+
+                           /     \
+                      +------+   +------+
+                      |"/tg1"|   |"/tg2"|
+                      +------+   +------+
+                       /    \         \
+                    t1_1    t1_2      t2_1
+
+    Final group hierarchy:
+                           +-----+
+                           | "/" |
+                           +-----+
+                           /     \
+                      +------+   +------+
+                      |"/tg1"|   |"/tg2"|
+                      +------+   +------+
+                      /          /      \
+                    t1_1       t1_2    t2_1
+    """
+    target_cpu = 0
+    root_group = None
+    trace = None
+    period_ms = 16
+    duration_s = 4
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        # Run all workloads on a CPU with highest capacity
+        cls.target_cpu = [min(test_env.calibration(),
+                              key=test_env.calibration().get)]
+
+        # Create taskgroups
+        cpus = test_env.target.list_online_cpus()
+        cls.root_group = Taskgroup("/", cpus, 0, test_env)
+        tg1 = Taskgroup("/tg1", cpus, 0, test_env)
+        tg2 = Taskgroup("/tg2", cpus, 0, test_env)
+
+        # Create tasks
+        t1_1 = Task("t1_1", test_env, cls.target_cpu, period_ms=cls.period_ms,
+                    duty_cycle_pct=10, duration_s=cls.duration_s)
+        t1_2 = Task("t1_2", test_env, cls.target_cpu, period_ms=cls.period_ms,
+                    duty_cycle_pct=20, duration_s=cls.duration_s)
+        t2_1 = Task("t2_1", test_env, cls.target_cpu, period_ms=cls.period_ms,
+                    duty_cycle_pct=5, duration_s=cls.duration_s)
+
+        # Link nodes to the hierarchy tree
+        cls.root_group.add_children([tg1, tg2])
+        tg1.add_children([t1_1, t1_2])
+        tg2.add_children([t2_1])
+
+        conf = {
+            'tag' : 'cgp_migration',
+            'flags' : ['ftrace', 'freeze_userspace'],
+            'cpufreq' : {'governor' : 'performance'},
+        }
+
+        return {
+            'wloads': {},
+            'confs': [conf],
+        }
+
+    @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        super(CgroupsMigrationTest, cls).runExperiments(*args, **kwargs)
+
+    @classmethod
+    def _migrate_task(cls, test_env):
+        cgroups = test_env.target.cgroups.controllers['cpu']
+
+        # Migrate t1_2 to the group /tg2 without migrating t1_1
+        task = cls.root_group.get_child('t1_2')
+        new_taskgroup = cls.root_group.get_child('/tg2')
+        task.change_taskgroup(new_taskgroup)
+        tg1_task = cgroups.tasks('/tg1', filter_tname='rt-app',
+                                 filter_tcmdline='t1_1')
+        exclude = next(iter(tg1_task))
+        cgroups.move_tasks('/tg1', '/tg2', exclude=exclude)
+
+    def test_group_util_aggregation(self):
+        """Test the aggregated tasks utilization at the root"""
+        return self._test_group_util('/')
+
+    def test_group_util_move_out(self):
+        """Test utilization update when a task leaves a group"""
+        return self._test_group_util('/tg1')
+
+    def test_group_util_move_in(self):
+        """Test utilization update when a task enters a group"""
+        return self._test_group_util('/tg2')
 
