@@ -72,6 +72,7 @@ class ExoPlayer(ApkWorkload):
     versions = ['2.4', '2.5', '2.6']
     action = 'com.google.android.exoplayer.demo.action.VIEW'
     default_format = 'mov_720p'
+    view = 'SurfaceView - com.google.android.exoplayer2.demo/com.google.android.exoplayer2.demo.PlayerActivity'
 
     parameters = [
         Parameter('version', allowed_values=versions, default=versions[-1], override=True),
