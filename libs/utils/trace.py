@@ -649,17 +649,11 @@ class Trace(object):
         """ Add a column with overutilized status duration. """
         if not self.hasEvents('sched_overutilized'):
             return
-        df = self._dfg_trace_event('sched_overutilized')
-        df['start'] = df.index
-        df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
-        df.drop('start', axis=1, inplace=True)
 
-        # Fix the last event, which will have a NaN duration
-        # Set duration to trace_end - last_event
-        df.loc[df.index[-1], 'len'] = self.start_time + self.time_range - df.index[-1]
+        df = self._dfg_trace_event('sched_overutilized')
+        self.addEventsDeltas(df, 'len')
 
         # Build a stat on trace overutilization
-        df = self._dfg_trace_event('sched_overutilized')
         self.overutilized_time = df[df.overutilized == 1].len.sum()
         self.overutilized_prc = 100. * self.overutilized_time / self.time_range
 
@@ -883,7 +877,6 @@ class Trace(object):
         # Fix sequences of wakeup/sleep events reported with the same index
         return handle_duplicate_index(cpu_active)
 
-
     @memoized
     def getClusterActiveSignal(self, cluster):
         """
@@ -961,6 +954,28 @@ class Trace(object):
         freq['effective_rate'] = np.where(freq['state'] == 0, 0,
                                           np.where(freq['state'] == 1, freq['rate'], float('nan')))
         return freq
+
+    def addEventsDeltas(self, df, col_name='delta'):
+        """
+        Compute the time between each event in a dataframe, and store it in a
+        new column. This only really makes sense for events tracking an
+        on/off state (e.g. overutilized, idle)
+        """
+        if df.empty:
+            return df
+
+        if col_name in df.columns:
+            raise RuntimeError("Column {} is already present in the dataframe".
+                               format(col_name))
+
+        df['start'] = df.index
+        df[col_name] = (df.start - df.start.shift()).fillna(0).shift(-1)
+        df.drop('start', axis=1, inplace=True)
+
+        # Fix the last event, which will have a NaN duration
+        # Set duration to trace_end - last_event
+        df.loc[df.index[-1], col_name] = self.start_time + self.time_range - df.index[-1]
+
 
 class TraceData:
     """ A DataFrame collector exposed to Trace's clients """
