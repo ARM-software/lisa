@@ -173,6 +173,7 @@ class RunOutput(Output):
             job = JobOutput(job_path, job_state.id,
                             job_state.label, job_state.iteration,
                             job_state.retries)
+            job.status = job_state.status
             self.jobs.append(job)
 
     def write_info(self):
