@@ -1,7 +1,9 @@
 import os
 import sys
 import stat
+import shutil
 import string
+import getpass
 from collections import OrderedDict
 from distutils.dir_util import copy_tree
 
@@ -106,6 +108,44 @@ class CreateWorkloadSubcommand(SubCommand):
             self.logger.error('ERROR: {}'.format(e))
 
 
+class CreatePackageSubcommand(SubCommand):
+
+    name = 'package'
+    description = '''Create a new empty Python package for WA extensions. On installation,
+                     this package will "advertise" itself to WA so that Plugins within it will
+                     be loaded by WA when it runs.'''
+
+    def initialize(self, context):
+        self.parser.add_argument('name', metavar='NAME',
+                                 help='Name of the package to be created')
+        self.parser.add_argument('-p', '--path', metavar='PATH', default=None,
+                                 help='The location at which the new package will be created. If not specified, ' +
+                                      'current working directory will be used.')
+        self.parser.add_argument('-f', '--force', action='store_true',
+                                 help='Create the new package even if a file or directory with the same name '
+                                      'already exists at the specified location.')
+
+    def execute(self, state, args):  # pylint: disable=R0201
+        package_dir = args.path or os.path.abspath('.')
+        template_path = os.path.join(TEMPLATES_DIR, 'setup.template')
+        self.create_extensions_package(package_dir, args.name, template_path, args.force)
+
+    def create_extensions_package(self, location, name, setup_template_path, overwrite=False):
+        package_path = os.path.join(location, name)
+        if os.path.exists(package_path):
+            if overwrite:
+                self.logger.info('overwriting existing "{}"'.format(package_path))
+                shutil.rmtree(package_path)
+            else:
+                raise CommandError('Location "{}" already exists.'.format(package_path))
+        actual_package_path = os.path.join(package_path, name)
+        os.makedirs(actual_package_path)
+        setup_text = render_template(setup_template_path, {'package_name': name, 'user': getpass.getuser()})
+        with open(os.path.join(package_path, 'setup.py'), 'w') as wfh:
+            wfh.write(setup_text)
+        touch(os.path.join(actual_package_path, '__init__.py'))
+
+
 class CreateCommand(ComplexCommand):
 
     name = 'create'
@@ -117,7 +157,7 @@ class CreateCommand(ComplexCommand):
     subcmd_classes = [
         CreateWorkloadSubcommand,
         CreateAgendaSubcommand,
-        #CreatePackageSubcommand,
+        CreatePackageSubcommand,
     ]
 
 
@@ -204,3 +244,7 @@ def render_template(name, params):
 def get_class_name(name, postfix=''):
     name = identifier(name)
     return ''.join(map(capitalize, name.split('_'))) + postfix
+
+def touch(path):
+    with open(path, 'w') as _:
+        pass
