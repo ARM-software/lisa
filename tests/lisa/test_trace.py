@@ -21,6 +21,7 @@ import numpy as np
 from unittest import TestCase
 
 from trace import Trace
+import pandas as pd
 
 class TestTrace(TestCase):
     """Smoke tests for LISA's Trace class"""
@@ -33,6 +34,8 @@ class TestTrace(TestCase):
         'sched_load_avg_task',
         'sched_load_se'
     ]
+
+    FLOAT_PLACES=6
 
     def __init__(self, *args, **kwargs):
         super(TestTrace, self).__init__(*args, **kwargs)
@@ -120,7 +123,8 @@ class TestTrace(TestCase):
                       normalize_time=False
         )
 
-        self.assertAlmostEqual(trace.time_range, expected_duration, places=6)
+        self.assertAlmostEqual(trace.time_range, expected_duration,
+                               places=self.FLOAT_PLACES)
 
     def test_time_range_window(self):
         """
@@ -135,7 +139,72 @@ class TestTrace(TestCase):
                       window=(76.402065, 80.402065)
         )
 
-        self.assertAlmostEqual(trace.time_range, expected_duration, places=6)
+        self.assertAlmostEqual(trace.time_range, expected_duration,
+                               places=self.FLOAT_PLACES)
+
+    def test_squash_df(self):
+        """
+        TestTrace: squash_df() behaves as expected
+        """
+        index = [float(i) for i in range(15, 20)]
+        data = [(1, i % 2) for i in range(15, 20)]
+        df = pd.DataFrame(index=index, data=data, columns=['delta', 'state'])
+
+        ## Test "standard" slice:
+
+        # The df here should be:
+        # Time delta state
+        # 16.5  .5   0
+        # 17    .5   1
+        df1 = Trace.squash_df(df, 16.5, 17.5,)
+        head = df1.head(1)
+        tail = df1.tail(1)
+        self.assertEquals(len(df1.index), 2)
+        self.assertEquals(df1.index.tolist(), [16.5, 17])
+        self.assertAlmostEqual(head['delta'].values[0], 0.5, places=self.FLOAT_PLACES)
+        self.assertAlmostEqual(tail['delta'].values[0], 0.5, places=self.FLOAT_PLACES)
+        self.assertEquals(head['state'].values[0], 0)
+        self.assertEquals(tail['state'].values[0], 1)
+
+        ## Test slice where no event exists in the interval
+
+        # The df here should be:
+        # Time delta state
+        # 16.2  .6   0
+        df2 = Trace.squash_df(df, 16.2, 16.8)
+        self.assertEquals(len(df2.index), 1)
+        self.assertEquals(df2.index[0], 16.2)
+        self.assertAlmostEqual(df2['delta'].values[0], 0.6, places=self.FLOAT_PLACES)
+        self.assertEquals(df2['state'].values[0], 0)
+
+        ## Test slice that matches an event's index
+
+        # The df here should be:
+        # Time delta state
+        # 16   1   0
+        df3 = Trace.squash_df(df, 16, 17)
+        self.assertEquals(len(df3.index), 1)
+        self.assertEquals(df3.index[0], 16)
+        self.assertAlmostEqual(df3['delta'].values[0], 1, places=self.FLOAT_PLACES)
+        self.assertEquals(df3['state'].values[0], 0)
+
+        ## Test slice past last event
+        # The df here should be:
+        # Time delta state
+        # 19.5  .5  1
+        df4 = Trace.squash_df(df, 19.5, 22)
+        self.assertEquals(len(df4.index), 1)
+        self.assertEquals(df4.index[0], 19.5)
+        self.assertAlmostEqual(df4['delta'].values[0], 0.5, places=self.FLOAT_PLACES)
+        self.assertEquals(df4['state'].values[0], 1)
+
+        ## Test slice where there's no past event
+        df5 = Trace.squash_df(df, 10, 30)
+        self.assertEquals(len(df5.index), 5)
+
+        ## Test slice where that should contain nothing
+        df6 = Trace.squash_df(df, 8, 9)
+        self.assertEquals(len(df6.index), 0)
 
     def test_overutilized_time(self):
         """
@@ -151,7 +220,8 @@ class TestTrace(TestCase):
         # Last event should be extended to the trace's end
         expected_time = (events[1] - events[0]) + (trace_end - events[2])
 
-        self.assertAlmostEqual(self.trace.overutilized_time, expected_time, places=6)
+        self.assertAlmostEqual(self.trace.overutilized_time, expected_time,
+                               places=self.FLOAT_PLACES)
 
     def test_plotCPUIdleStateResidency(self):
         """
