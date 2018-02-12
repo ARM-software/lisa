@@ -22,7 +22,7 @@ from wa.framework import pluginloader
 from wa.framework.configuration.core import get_config_point_map
 from wa.framework.exception import ConfigError
 from wa.framework.target.descriptor import list_target_descriptions
-from wa.utils.types import obj_dict
+from wa.utils.types import obj_dict, caseless_string
 
 GENERIC_CONFIGS = ["device_config", "workload_parameters",
                    "boot_parameters", "runtime_parameters"]
@@ -78,6 +78,11 @@ class PluginCache(object):
         if source not in self.sources:
             msg = "Source '{}' has not been added to the plugin cache."
             raise RuntimeError(msg.format(source))
+
+        if caseless_string(plugin_name) in ['global', 'config']:
+            msg = '"{}" entry specified inside config/global section; If this is ' \
+            'defined in a config file, move the entry content into the top level'
+            raise ConfigError(msg.format((plugin_name)))
 
         if (not self.loader.has_plugin(plugin_name) and
                 plugin_name not in self.targets and
