@@ -227,9 +227,9 @@ create_funcs = {
     'basic' : create_template_workload,
     'apk' : create_template_workload,
     'revent' : create_template_workload,
-    'apk_revent' : create_template_workload,
+    'apkrevent' : create_template_workload,
     'uiauto' : create_uiautomator_template_workload,
-    'apk_uiauto' : create_uiautomator_template_workload,
+    'apkuiauto' : create_uiautomator_template_workload,
 }
 
 # Utility functions
