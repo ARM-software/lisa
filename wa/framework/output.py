@@ -64,8 +64,14 @@ class Output(object):
         self.events = []
 
     def reload(self):
-        pod = read_pod(self.resultfile)
-        self.result = Result.from_pod(pod)
+        try:
+            pod = read_pod(self.resultfile)
+            self.result = Result.from_pod(pod)
+        except Exception as e:
+            self.result = Result()
+            self.result.status = Status.UNKNOWN
+            self.add_event(str(e))
+
 
     def write_result(self):
         write_pod(self.result.to_pod(), self.resultfile)
