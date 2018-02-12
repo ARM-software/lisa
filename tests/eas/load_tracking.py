@@ -1387,3 +1387,105 @@ class CgroupsMigrationTest(_PELTTaskGroupsTest):
         """Test utilization update when a task enters a group"""
         return self._test_group_util('/tg2')
 
+class NestedCgroupsMigrationTest(_PELTTaskGroupsTest):
+    """
+    Test PELT utilization for task groups migration.
+    Initial group hierarchy:
+                            +-----+
+                            | "/" |
+                            +-----+
+                             /
+                        +------+
+                        |"/tg1"|
+                        +------+
+                          /
+                 +----------+
+                 |"/tg1/tg2"|
+                 +----------+
+                    /    \
+                 t2_1    t2_2
+
+    Final group hierarchy:
+                            +-----+
+                            | "/" |
+                            +-----+
+                             /
+                        +------+
+                        |"/tg1"|
+                        +------+
+                          /   \
+                 +----------+ t2_2
+                 |"/tg1/tg2"|
+                 +----------+
+                   /
+                 t2_1
+    """
+    target_cpu = 0
+    root_group = None
+    trace = None
+    period_ms = 16
+    duration_s = 4
+
+    @classmethod
+    def _getExperimentsConf(cls, test_env):
+        # Run all workloads on a CPU with highest capacity
+        cls.target_cpu = [min(test_env.calibration(),
+                              key=test_env.calibration().get)]
+
+        # Create taskgroups
+        cpus = test_env.target.list_online_cpus()
+        cls.root_group = Taskgroup("/", cpus, 0, test_env)
+        tg1 = Taskgroup("/tg1", cpus, 0, test_env)
+        tg2 = Taskgroup("/tg1/tg2", cpus, 0, test_env)
+
+        # Create tasks
+        t2_1 = Task("t2_1", test_env, cls.target_cpu, period_ms=cls.period_ms,
+                    duty_cycle_pct=10, duration_s=cls.duration_s)
+        t2_2 = Task("t2_2", test_env, cls.target_cpu, period_ms=cls.period_ms,
+                    duty_cycle_pct=20, duration_s=cls.duration_s)
+
+        # Link nodes to the hierarchy tree
+        cls.root_group.add_children([tg1])
+        tg1.add_children([tg2])
+        tg2.add_children([t2_1, t2_2])
+
+        conf = {
+            'tag' : 'nested_cgp_migration',
+            'flags' : ['ftrace', 'freeze_userspace'],
+            'cpufreq' : {'governor' : 'performance'},
+        }
+
+        return {
+            'wloads': {},
+            'confs': [conf],
+        }
+
+    @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        super(NestedCgroupsMigrationTest, cls).runExperiments(*args, **kwargs)
+
+    @classmethod
+    def _migrate_task(cls, test_env):
+        cgroups = test_env.target.cgroups.controllers['cpu']
+
+        # Migrate t2_2 to the group /tg1 without migrating t2_1
+        task = cls.root_group.get_child('t2_2')
+        new_taskgroup = cls.root_group.get_child('/tg1')
+        task.change_taskgroup(new_taskgroup)
+        tg2_task = cgroups.tasks('/tg1/tg2', filter_tname='rt-app',
+                                 filter_tcmdline='t2_1')
+        exclude = next(iter(tg2_task))
+        cgroups.move_tasks('/tg1/tg2', '/tg1', exclude=exclude)
+
+    def test_group_util_aggregation(self):
+        """Test the aggregated tasks utilization at the root"""
+        return self._test_group_util('/')
+
+    def test_group_util_move_in(self):
+        """Test utilization update when a task enters a group"""
+        return self._test_group_util('/tg1')
+
+    def test_group_util_move_out(self):
+        """Test utilization update when a task leaves a group"""
+        return self._test_group_util('/tg1/tg2')
+
