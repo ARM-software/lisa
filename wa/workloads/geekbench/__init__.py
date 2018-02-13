@@ -167,7 +167,7 @@ class Geekbench(ApkUiautoWorkload):
                                           section['multicore_score'])
 
     def update_result_4(self, context):
-        outfile_glob = self.target.path.join(self.target.package_data_directory, self.package, 'files', '*gb4')
+        outfile_glob = self.target.path.join(self.target.package_data_directory, self.package, 'files', '*gb*')
         on_target_output_files = [f.strip() for f in self.target.execute('ls {}'.format(outfile_glob),
                                                                          as_root=True).split('\n') if f]
         for i, on_target_output_file in enumerate(on_target_output_files):
