@@ -798,4 +798,4 @@ class TasksAnalysis(AnalysisModule):
         if 'sched_overutilized' in signals:
             self._trace.analysis.status.plotOverutilized(axes)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

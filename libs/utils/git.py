@@ -55,4 +55,4 @@ class Git(object):
 
         return min(possibles, key=len)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

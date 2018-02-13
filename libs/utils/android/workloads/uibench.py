@@ -161,4 +161,4 @@ class UiBench(Workload):
         System.set_airplane_mode(self._target, on=False)
         Screen.set_brightness(self._target, auto=True)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

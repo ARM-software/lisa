@@ -211,4 +211,4 @@ class CpusAnalysis(AnalysisModule):
                                 figsize=(16, 8))
         ax.grid()
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

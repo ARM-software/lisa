@@ -165,4 +165,4 @@ class Workload(object):
 
         self._log.warning('No trace collected since last run')
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

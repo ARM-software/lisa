@@ -37,4 +37,4 @@ class SFreq(LisaTest):
         """Check that there is not regression on energy"""
         # TODO
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

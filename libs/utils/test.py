@@ -280,4 +280,4 @@ try:
 except ValueError as e:
     raise ValueError("Couldn't read iterations count: {}".format(e))
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

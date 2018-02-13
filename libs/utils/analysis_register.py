@@ -73,4 +73,4 @@ class AnalysisRegister(object):
                     setattr(self, module_name, handler(trace))
                     self._log.debug('   %s', module_name)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

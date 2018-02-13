@@ -803,4 +803,4 @@ FMT_HEADER  = r'{:=<80}'.format('')
 FMT_TITLE   = r'{:~<80}'.format('')
 FMT_FOOTER  = r'{:-<80}'.format('')
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

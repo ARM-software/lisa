@@ -537,4 +537,4 @@ class Gem5EnergyMeter(_DevlibContinuousEnergyMeter):
         df.index = timeline
         return df
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

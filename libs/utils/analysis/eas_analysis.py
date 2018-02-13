@@ -398,4 +398,4 @@ class EasAnalysis(AnalysisModule):
                   .format(self._trace.plots_dir, self._trace.plots_prefix)
         pl.savefig(figname, bbox_inches='tight')
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

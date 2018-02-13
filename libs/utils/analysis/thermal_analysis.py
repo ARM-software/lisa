@@ -287,4 +287,4 @@ class ThermalAnalysis(AnalysisModule):
         cpumasks = df['cpus'].unique().tolist()
         return [m for m in cpumasks if m & global_mask]
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

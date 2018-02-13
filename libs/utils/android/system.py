@@ -518,4 +518,4 @@ class System(object):
             return packages
         return None
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

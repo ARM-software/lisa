@@ -1101,4 +1101,4 @@ IFCFG_BCAST_RE = re.compile(
     r'Bcast:(.*) '
 )
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

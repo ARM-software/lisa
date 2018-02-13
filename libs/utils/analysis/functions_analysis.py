@@ -78,4 +78,4 @@ class FunctionsAnalysis(AnalysisModule):
             axes.set_ylabel(ylabel)
             axes.get_xaxis().set_visible(False)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
