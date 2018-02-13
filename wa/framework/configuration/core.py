@@ -728,6 +728,10 @@ class RunConfiguration(Configuration):
             This defines when during execution of a run the Device will be
             rebooted. The possible values are:
 
+            ``"as_needed"``
+                The device will only be rebooted if the need arises (e.g. if it
+                becomes unresponsive.
+
             ``"never"``
                 The device will never be rebooted.
 
