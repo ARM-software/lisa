@@ -2,6 +2,7 @@ import os
 import shutil
 
 from wa.framework.configuration.core import settings
+from wa.framework.configuration.default import generate_default_config
 
 # Have to disable this due to dynamic attributes
 # pylint: disable=no-member
@@ -19,7 +20,7 @@ def init_user_directory(overwrite_existing=False):  # pylint: disable=R0914
     os.makedirs(settings.dependencies_directory)
     os.makedirs(settings.plugins_directory)
 
-    # TODO: generate default config.yaml here
+    generate_default_config(os.path.join(settings.user_directory, 'config.yaml'))
 
     if os.getenv('USER') == 'root':
         # If running with sudo on POSIX, change the ownership to the real user.
