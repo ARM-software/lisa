@@ -751,7 +751,7 @@ class RunConfiguration(Configuration):
         ConfigurationPoint(
             'device',
             kind=str,
-            mandatory=True,
+            default='generic_android',
             description='''
             This setting defines what specific Device subclass will be used to
             interact the connected device. Obviously, this must match your
