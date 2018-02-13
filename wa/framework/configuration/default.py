@@ -3,12 +3,12 @@ from wa.framework.configuration.plugin_cache import PluginCache
 from wa.utils.serializer import yaml
 from wa.utils.doc import strip_inlined_text
 
-DEFAULT_INSTRUMENTS = ['execution_time',
-                       'interrupts',
-                       'cpufreq',
-                       'status',
-                       'standard',
-                       'csv']
+DEFAULT_AUGMENTATIONS = ['execution_time',
+                         'interrupts',
+                         'cpufreq',
+                         'status',
+                         'csv'
+                        ]
 
 
 def _format_yaml_comment(param, short_description=False):
@@ -21,10 +21,10 @@ def _format_yaml_comment(param, short_description=False):
     return comment
 
 
-def _format_instruments(output):
+def _format_augmentations(output):
     plugin_cache = PluginCache()
-    output.write("instruments:\n")
-    for plugin in DEFAULT_INSTRUMENTS:
+    output.write("augmentations:\n")
+    for plugin in DEFAULT_AUGMENTATIONS:
         plugin_cls = plugin_cache.loader.get_plugin_class(plugin)
         output.writelines(_format_yaml_comment(plugin_cls, short_description=True))
         output.write(" - {}\n".format(plugin))
@@ -39,4 +39,4 @@ def generate_default_config(path):
             output.writelines(comment)
             yaml.dump(entry, output, default_flow_style=False)
             output.write("\n")
-        _format_instruments(output)
+        _format_augmentations(output)
