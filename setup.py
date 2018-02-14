@@ -70,6 +70,9 @@ params = dict(
     license='Apache v2',
     maintainer='ARM Architecture & Technology Device Lab',
     maintainer_email='workload-automation@arm.com',
+    setup_requires=[
+        'numpy'
+    ],
     install_requires=[
         'python-dateutil',  # converting between UTC and local time.
         'pexpect>=3.3',  # Send/receive to/from device
