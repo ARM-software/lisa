@@ -713,7 +713,7 @@ class JobSpec(Configuration):
                            The name of the workload to run.
                            '''),
         ConfigurationPoint('workload_parameters', kind=obj_dict,
-                           aliases=["params", "workload_params"],
+                           aliases=["params", "workload_params", "parameters"],
                            description='''
                            Parameter to be passed to the workload
                            '''),
