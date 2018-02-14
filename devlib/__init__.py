@@ -13,6 +13,7 @@ from devlib.instrument import Instrument, InstrumentChannel, Measurement, Measur
 from devlib.instrument import MEASUREMENT_TYPES, INSTANTANEOUS, CONTINUOUS
 from devlib.instrument.daq import DaqInstrument
 from devlib.instrument.energy_probe import EnergyProbeInstrument
+from devlib.instrument.arm_energy_probe import ArmEnergyProbeInstrument
 from devlib.instrument.frames import GfxInfoFramesInstrument, SurfaceFlingerFramesInstrument
 from devlib.instrument.hwmon import HwmonInstrument
 from devlib.instrument.monsoon import MonsoonInstrument
