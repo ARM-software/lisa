@@ -18,6 +18,7 @@ import os
 import re
 
 from wa import Workload, Parameter, Executable
+from wa.utils.exec_control import once
 
 
 timeout_buffer = 10
@@ -58,32 +59,38 @@ class Hackbench(Workload):
 
     binary_name = 'hackbench'
 
-    def setup(self, context):
-        self.command = '{} -s {} -g {} -l {} {} > {}'
-        self.target_binary = None
-        self.hackbench_result = self.target.get_workpath(hackbench_results_txt)
-        self.run_timeout = self.duration + timeout_buffer
-
+    @once
+    def initialize(self, context):
         host_binary = context.resolver.get(Executable(self, self.target.abi, self.binary_name))
         self.target_binary = self.target.install(host_binary)
 
-        self.command = self.command.format(self.target_binary, self.datasize, self.groups,
-                                           self.loops, self.extra_params, self.hackbench_result)
+    def setup(self, context):
+        self.target_output_file = self.target.get_workpath(hackbench_results_txt)
+        self.run_timeout = self.duration + timeout_buffer
+        command_format = '{} -s {} -g {} -l {} {} > {}'
+        self.command = command_format.format(self.target_binary, self.datasize, self.groups,
+                                             self.loops, self.extra_params, self.target_output_file)
 
     def run(self, context):
         self.target.execute(self.command, timeout=self.run_timeout)
 
     def extract_results(self, context):
-        self.target.pull(self.hackbench_result, context.output_directory)
+        host_output_file = os.path.join(context.output_directory, hackbench_results_txt)
+        self.target.pull(self.target_output_file, host_output_file)
+        context.add_artifact('hackbench-results', host_output_file, kind='raw')
 
     def update_output(self, context):
-        with open(os.path.join(context.output_directory, hackbench_results_txt)) as hackbench_file:
-            for line in hackbench_file:
+        results_file = context.get_artifact_path('hackbench-results')
+        with open(results_file) as fh:
+            for line in fh:
                 for label, (regex, units) in regex_map.iteritems():
                     match = regex.search(line)
                     if match:
                         context.add_metric(label, float(match.group(1)), units)
 
     def teardown(self, context):
+        self.target.execute('rm -f {}'.format(self.target_output_file))
+
+    @once
+    def finalize(self, context):
         self.target.uninstall(self.binary_name)
-        self.target.execute('rm -f {}'.format(self.hackbench_result))
