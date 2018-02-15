@@ -80,6 +80,7 @@ class PluginCache(object):
             raise RuntimeError(msg.format(source))
 
         if (not self.loader.has_plugin(plugin_name) and
+                plugin_name not in self.targets and
                 plugin_name not in GENERIC_CONFIGS):
             msg = 'configuration provided for unknown plugin "{}"'
             raise ConfigError(msg.format(plugin_name))
