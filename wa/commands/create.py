@@ -63,9 +63,9 @@ class CreateAgendaSubcommand(SubCommand):
                 agenda['workloads'].append(entry)
             else:
                 if extcls.kind == 'instrument':
-                    agenda['config']['instruments'].append(name)
+                    agenda['config']['augmentations'].append(name)
                 if extcls.kind == 'output_processor':
-                    agenda['config']['output_processors'].append(name)
+                    agenda['config']['augmentations'].append(name)
                 agenda['config'][name] = config
 
         if args.output:
