@@ -111,8 +111,8 @@ class TargetDescription(object):
                        'conn_params', 'assistant_params']
         config = {}
         for pattr in param_attrs:
-            for n, p in getattr(self, pattr).itervalues():
-                config[n] = p.default
+            for p in getattr(self, pattr):
+                config[p.name] = p.default
         return config
 
     def _set(self, attr, vals):
