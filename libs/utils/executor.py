@@ -337,12 +337,15 @@ class Executor():
             self.target.execute('echo {} > /sys/kernel/debug/sched_features'.format(feat),
                                 as_root=True)
 
+    @staticmethod
+    def get_run_dir(target):
+        return os.path.join(target.working_directory, TGT_RUN_DIR)
+
     def _setup_rootfs(self, tc):
         # Initialize CGroups if required
         self._cgroups_init(tc)
         # Setup target folder for experiments execution
-        self.te.run_dir = os.path.join(
-                self.target.working_directory, TGT_RUN_DIR)
+        self.te.run_dir = self.get_run_dir(self.target)
         # Create run folder as tmpfs
         self._log.debug('Setup RT-App run folder [%s]...', self.te.run_dir)
         self.target.execute('[ -d {0} ] || mkdir {0}'\
