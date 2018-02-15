@@ -49,13 +49,7 @@ LATEST_LINK = 'results_latest'
 basepath = os.path.dirname(os.path.realpath(__file__))
 basepath = basepath.replace('/libs/utils', '')
 
-class ShareState(object):
-    __shared_state = {}
-
-    def __init__(self):
-        self.__dict__ = self.__shared_state
-
-class TestEnv(ShareState):
+class TestEnv(object):
     """
     Represents the environment configuring LISA, the target, and the test setup
 
@@ -150,11 +144,6 @@ class TestEnv(ShareState):
     :param wipe: set true to cleanup all previous content from the output
                  folder
     :type wipe: bool
-
-    :param force_new: Create a new TestEnv object even if there is one available
-                      for this session.  By default, TestEnv only creates one
-                      object per session, use this to override this behaviour.
-    :type force_new: bool
     """
 
     critical_tasks = {
@@ -184,14 +173,35 @@ class TestEnv(ShareState):
     freeze when using freeeze_userspace.
     """
 
-    _initialized = False
+    __singleton = (None, None)
 
-    def __init__(self, target_conf=None, test_conf=None, wipe=True,
-                 force_new=True):
+    @classmethod
+    def create_once(cls, *args, **kwargs):
+        """
+        Create a new TestEnv instance the first time it is called, and then
+        always returns it.
+
+        :param args: Parameters passed to the constructor.
+        :param kwargs: Parameters passed to the constructor.
+
+        """
+
+        params = (tuple(args), tuple(kwargs.items()))
+        if cls.__singleton is None:
+            cls.__singleton = params, cls(*args, **kwargs)
+
+        # We only try to check if the parameters are the same. This check is
+        # not perfect but should catch some common mistakes. It will not catch
+        # a change to a JSON file's content for example.
+        orig_params, singleton = cls.__singleton
+        if orig_params != params:
+            raise ValueError(
+                    'Original instance created using different parameters')
+
+        return singleton
+
+    def __init__(self, target_conf=None, test_conf=None, wipe=True):
         super(TestEnv, self).__init__()
-
-        if self._initialized and not force_new:
-            return
 
         self.conf = {}
         self.test_conf = {}
@@ -325,8 +335,6 @@ class TestEnv(ShareState):
         self._log.info('   %s', self.res_dir)
         self._log.info('Experiment results available also in:')
         self._log.info('   %s', res_lnk)
-
-        self._initialized = True
 
     def loadTargetConfig(self, filepath=None):
         """

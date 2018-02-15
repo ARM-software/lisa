@@ -44,8 +44,7 @@ class SetUpTarget(TestCase):
                 'ftrace': {
                     'events': []
                 }
-            },
-            force_new=True)
+            })
 
 class TestMagicSmoke(SetUpTarget):
     def test_files_created(self):
