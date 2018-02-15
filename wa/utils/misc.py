@@ -290,14 +290,6 @@ class LoadSyntaxError(Exception):
 
 
 RAND_MOD_NAME_LEN = 30
-BAD_CHARS = string.punctuation + string.whitespace
-TRANS_TABLE = string.maketrans(BAD_CHARS, '_' * len(BAD_CHARS))
-
-
-def to_identifier(text):
-    """Converts text to a valid Python identifier by replacing all
-    whitespace and punctuation."""
-    return re.sub('_+', '_', text.translate(TRANS_TABLE))
 
 
 def load_struct_from_python(filepath=None, text=None):
