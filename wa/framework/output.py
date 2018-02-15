@@ -180,6 +180,7 @@ class RunOutput(Output):
         self.target_info = None
         self._combined_config = None
         self.jobs = []
+        self.job_specs = []
         if (not os.path.isfile(self.statefile) or
                 not os.path.isfile(self.infofile)):
             msg = '"{}" does not exist or is not a valid WA output directory.'
@@ -194,6 +195,8 @@ class RunOutput(Output):
             self._combined_config = CombinedConfig.from_pod(read_pod(self.configfile))
         if os.path.isfile(self.targetfile):
             self.target_info = TargetInfo.from_pod(read_pod(self.targetfile))
+        if os.path.isfile(self.jobsfile):
+            self.job_specs = self.read_job_specs()
 
         for job_state in self.state.jobs.itervalues():
             job_path = os.path.join(self.basepath, job_state.output_name)
@@ -201,6 +204,9 @@ class RunOutput(Output):
                             job_state.label, job_state.iteration,
                             job_state.retries)
             job.status = job_state.status
+            job.spec = self.get_job_spec(job.id)
+            if job.spec is None:
+                logger.warning('Could not find spec for job {}'.format(job.id))
             self.jobs.append(job)
 
     def write_info(self):
@@ -242,6 +248,12 @@ class RunOutput(Output):
         shutil.move(job_output.basepath, failed_path)
         job_output.basepath = failed_path
 
+    def get_job_spec(self, spec_id):
+        for spec in self.job_specs:
+            if spec.id == spec_id:
+                return spec
+        return None
+
 
 class JobOutput(Output):
 
@@ -255,6 +267,7 @@ class JobOutput(Output):
         self.iteration = iteration
         self.retry = retry
         self.result = None
+        self.spec = None
         self.reload()
 
 
@@ -539,6 +552,7 @@ def init_job_output(run_output, job):
     ensure_directory_exists(path)
     write_pod(Result().to_pod(), os.path.join(path, 'result.json'))
     job_output = JobOutput(path, job.id, job.label, job.iteration, job.retries)
+    job_output.spec = job.spec
     job_output.status = job.status
     run_output.jobs.append(job_output)
     return job_output
