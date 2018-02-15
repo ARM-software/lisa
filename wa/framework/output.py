@@ -162,12 +162,23 @@ class RunOutput(Output):
         path = os.path.join(self.basepath, '__failed')
         return ensure_directory_exists(path)
 
+    @property
+    def run_config(self):
+        if self._combined_config:
+            return self._combined_config.run_config
+
+    @property
+    def settings(self):
+        if self._combined_config:
+            return self._combined_config.settings
+
     def __init__(self, path):
         super(RunOutput, self).__init__(path)
         self.info = None
         self.state = None
         self.result = None
         self.target_info = None
+        self._combined_config = None
         self.jobs = []
         if (not os.path.isfile(self.statefile) or
                 not os.path.isfile(self.infofile)):
@@ -179,6 +190,8 @@ class RunOutput(Output):
         super(RunOutput, self).reload()
         self.info = RunInfo.from_pod(read_pod(self.infofile))
         self.state = RunState.from_pod(read_pod(self.statefile))
+        if os.path.isfile(self.configfile):
+            self._combined_config = CombinedConfig.from_pod(read_pod(self.configfile))
         if os.path.isfile(self.targetfile):
             self.target_info = TargetInfo.from_pod(read_pod(self.targetfile))
 
