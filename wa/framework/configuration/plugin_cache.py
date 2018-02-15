@@ -257,7 +257,7 @@ def update_config_from_source(final_config, source, state):
         final_config.name = state.specific_name
         for name, cfg_point in state.cfg_points.iteritems():
             if name in state.specific_config[source]:
-                seen_state.specific_config[name].append(str(source))
+                state.seen_specific_config[name].append(str(source))
                 value = state.specific_config[source].pop(name)
                 cfg_point.set_value(final_config, value, check_mandatory=False)
 
