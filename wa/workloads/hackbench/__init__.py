@@ -62,7 +62,7 @@ class Hackbench(Workload):
     @once
     def initialize(self, context):
         host_binary = context.resolver.get(Executable(self, self.target.abi, self.binary_name))
-        self.target_binary = self.target.install(host_binary)
+        Hackbench.target_binary = self.target.install(host_binary)
 
     def setup(self, context):
         self.target_output_file = self.target.get_workpath(hackbench_results_txt)
