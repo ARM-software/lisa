@@ -131,7 +131,8 @@ class ExecutionContext(object):
         if not self.job_queue:
             raise RuntimeError('No jobs to run')
         self.current_job = self.job_queue.pop(0)
-        self.current_job.output = init_job_output(self.run_output, self.current_job)
+        job_output = init_job_output(self.run_output, self.current_job)
+        self.current_job.set_output(job_output)
         self.update_job_state(self.current_job)
         self.tm.start()
         return self.current_job

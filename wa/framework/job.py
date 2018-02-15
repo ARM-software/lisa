@@ -1,4 +1,5 @@
 import logging
+from copy import copy
 from datetime import datetime
 
 from wa.framework import pluginloader, signal, instruments
@@ -55,6 +56,10 @@ class Job(object):
             self._workload_cache[self.id] = self.workload
         else:
             self.workload = self._workload_cache[self.id]
+
+    def set_output(self, output):
+        output.classifiers = copy(self.classifiers)
+        self.output = output
 
     def initialize(self, context):
         self.logger.info('Initializing job {} [{}]'.format(self.id, self.iteration))

@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+from collections import OrderedDict
 from copy import copy
 from datetime import datetime
 
@@ -57,6 +58,19 @@ class Output(object):
         if self.result is None:
             return []
         return self.result.artifacts
+
+    @property
+    def classifiers(self):
+        if self.result is None:
+            return OrderedDict()
+        return self.result.classifiers
+
+    @classifiers.setter
+    def classifiers(self, value):
+        if self.result is None:
+            msg ='Attempting to set classifiers before output has been set'
+            raise RuntimeError(msg)
+        self.result.classifiers = value
 
     def __init__(self, path):
         self.basepath = path
@@ -240,6 +254,7 @@ class Result(object):
         instance.metrics = [Metric.from_pod(m) for m in pod['metrics']]
         instance.artifacts = [Artifact.from_pod(a) for a in pod['artifacts']]
         instance.events = [Event.from_pod(e) for e in pod['events']]
+        instance.classifiers = pod.get('classifiers', OrderedDict())
         return instance
 
     def __init__(self):
@@ -248,6 +263,7 @@ class Result(object):
         self.metrics = []
         self.artifacts = []
         self.events = []
+        self.classifiers = OrderedDict()
 
     def add_metric(self, name, value, units=None, lower_is_better=False,
                    classifiers=None):
@@ -282,6 +298,7 @@ class Result(object):
             metrics=[m.to_pod() for m in self.metrics],
             artifacts=[a.to_pod() for a in self.artifacts],
             events=[e.to_pod() for e in self.events],
+            classifiers=copy(self.classifiers),
         )
 
 
