@@ -61,7 +61,13 @@ class RebootPolicy(object):
 
     valid_policies = ['never', 'as_needed', 'initial', 'each_spec', 'each_iteration']
 
+    @staticmethod
+    def from_pod(pod):
+        return RebootPolicy(pod)
+
     def __init__(self, policy):
+        if isinstance(policy, RebootPolicy):
+            policy = policy.policy
         policy = policy.strip().lower().replace(' ', '_')
         if policy not in self.valid_policies:
             message = 'Invalid reboot policy {}; must be one of {}'.format(policy, ', '.join(self.valid_policies))
@@ -97,10 +103,6 @@ class RebootPolicy(object):
 
     def to_pod(self):
         return self.policy
-
-    @staticmethod
-    def from_pod(pod):
-        return RebootPolicy(pod)
 
 
 class status_list(list):
@@ -662,6 +664,20 @@ class RunConfiguration(Configuration):
     ]
     configuration = {cp.name: cp for cp in config_points + meta_data}
 
+    @classmethod
+    def from_pod(cls, pod):
+        meta_pod = {}
+        for cfg_point in cls.meta_data:
+            meta_pod[cfg_point.name] = pod.pop(cfg_point.name, None)
+
+        device_config = pod.pop('device_config', None)
+        instance = super(RunConfiguration, cls).from_pod(pod)
+        instance.device_config = device_config
+        for cfg_point in cls.meta_data:
+            cfg_point.set_value(instance, meta_pod[cfg_point.name])
+
+        return instance
+
     def __init__(self):
         super(RunConfiguration, self).__init__()
         for confpoint in self.meta_data:
@@ -684,18 +700,6 @@ class RunConfiguration(Configuration):
         pod = super(RunConfiguration, self).to_pod()
         pod['device_config'] = dict(self.device_config or {})
         return pod
-
-    @classmethod
-    def from_pod(cls, pod):
-        meta_pod = {}
-        for cfg_point in cls.meta_data:
-            meta_pod[cfg_point.name] = pod.pop(cfg_point.name, None)
-
-        instance = super(RunConfiguration, cls).from_pod(pod)
-        for cfg_point in cls.meta_data:
-            cfg_point.set_value(instance, meta_pod[cfg_point.name])
-
-        return instance
 
 
 class JobSpec(Configuration):
