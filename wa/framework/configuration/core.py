@@ -784,6 +784,8 @@ class JobSpec(Configuration):
 
     def __init__(self):
         super(JobSpec, self).__init__()
+        if self.classifiers is None:
+            self.classifiers = OrderedDict()
         self.to_merge = defaultdict(OrderedDict)
         self._sources = []
         self.id = None
