@@ -178,7 +178,7 @@ class RtApp(Workload):
 
     def update_output(self, context):
         self._pull_rt_app_logs(context)
-        context.result.classifiers.update(dict(
+        context.output.classifiers.update(dict(
             duration=self.duration,
             task_count=self.task_count,
         ))
@@ -195,8 +195,8 @@ class RtApp(Workload):
                 pload_value = match.group(1)
                 pload_unit = match.group(2)
                 calib_cpu_value = match.group(3)
-                context.result.add_metric('pLoad', float(pload_value), pload_unit)
-                context.result.add_metric('calib_cpu', float(calib_cpu_value))
+                context.add_metric('pLoad', float(pload_value), pload_unit)
+                context.add_metric('calib_cpu', float(calib_cpu_value))
 
             error_match = ERROR_REGEX.search(line)
             if error_match:
@@ -206,8 +206,8 @@ class RtApp(Workload):
             if crit_match:
                 crit_count += 1
 
-        context.result.add_metric('error_count', error_count, 'count')
-        context.result.add_metric('crit_count', crit_count, 'count')
+        context.add_metric('error_count', error_count, 'count')
+        context.add_metric('crit_count', crit_count, 'count')
 
     def finalize(self, context):
         if self.uninstall_on_exit:
