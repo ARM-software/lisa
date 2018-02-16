@@ -22,7 +22,7 @@ from devlib import FtraceCollector
 
 from wa import Instrument, Parameter
 from wa.framework import signal
-from wa.framework.instruments import very_slow
+from wa.framework.instrument import very_slow
 from wa.framework.exception import InstrumentError
 from wa.utils.types import list_of_strings
 from wa.utils.misc import which

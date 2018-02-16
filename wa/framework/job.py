@@ -2,7 +2,7 @@ import logging
 from copy import copy
 from datetime import datetime
 
-from wa.framework import pluginloader, signal, instruments
+from wa.framework import pluginloader, signal, instrument
 from wa.framework.configuration.core import Status
 
 # Because of use of Enum (dynamic attrs)
@@ -72,7 +72,7 @@ class Job(object):
     def configure_augmentations(self, context, pm):
         instruments_to_enable = set()
         output_processors_to_enable = set()
-        enabled_instruments = set(i.name for i in instruments.get_enabled())
+        enabled_instruments = set(i.name for i in instrument.get_enabled())
         enabled_output_processors = set(p.name for p in pm.get_enabled())
 
         for augmentation in self.spec.augmentations.values():
@@ -83,11 +83,11 @@ class Job(object):
                 output_processors_to_enable.add(augmentation)
 
         # Disable unrequired instruments
-        for instrument in enabled_instruments.difference(instruments_to_enable):
-            instruments.disable(instrument)
+        for instrument_name in enabled_instruments.difference(instruments_to_enable):
+            instrument.disable(instrument_name)
         # Enable additional instruments
-        for instrument in instruments_to_enable.difference(enabled_instruments):
-            instruments.enable(instrument)
+        for instrument_name in instruments_to_enable.difference(enabled_instruments):
+            instrument.enable(instrument_name)
 
         # Disable unrequired output_processors
         for processor in enabled_output_processors.difference(output_processors_to_enable):

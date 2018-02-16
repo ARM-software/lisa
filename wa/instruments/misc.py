@@ -39,7 +39,7 @@ from devlib.utils.android import ApkInfo
 
 from wa import Instrument, Parameter, very_fast
 from wa.framework.exception import ConfigError
-from wa.framework.instruments import slow
+from wa.framework.instrument import slow
 from wa.utils.misc import as_relative, diff_tokens, write_table
 from wa.utils.misc import ensure_file_directory_exists as _f
 from wa.utils.misc import ensure_directory_exists as _d
