@@ -459,12 +459,12 @@ Event structure
 
 Each event entry structured as follows:
 
- * An unsigned integer representing which device from the list of device paths
+ * An unsigned short integer representing which device from the list of device paths
    this event is for (zero indexed). E.g. Device ID = 3 would be the 4th
    device in the list of device paths.
- * A signed integer representing the number of seconds since "epoch" when the
-   event was recorded.
- * A signed integer representing the microseconds part of the timestamp.
+ * A unsigned long integer representing the number of seconds since "epoch" when
+   the event was recorded.
+ * A unsigned long integer representing the microseconds part of the timestamp.
  * An unsigned integer representing the event type
  * An unsigned integer representing the event code
  * An unsigned integer representing the event value
