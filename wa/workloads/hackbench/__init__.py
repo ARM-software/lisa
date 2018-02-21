@@ -45,7 +45,8 @@ class Hackbench(Workload):
     """
 
     parameters = [
-        Parameter('duration', kind=int, default=30, description='Test duration in seconds.'),
+        Parameter('timeout', kind=int, default=30, aliases=['duration'],
+                  description='Expected test duration in seconds.'),
         Parameter('datasize', kind=int, default=100, description='Message size in bytes.'),
         Parameter('groups', kind=int, default=10, description='Number of groups.'),
         Parameter('loops', kind=int, default=100, description='Number of loops.'),
@@ -66,7 +67,7 @@ class Hackbench(Workload):
 
     def setup(self, context):
         self.target_output_file = self.target.get_workpath(hackbench_results_txt)
-        self.run_timeout = self.duration + timeout_buffer
+        self.run_timeout = self.timeout + timeout_buffer
         command_format = '{} -s {} -g {} -l {} {} > {}'
         self.command = command_format.format(self.target_binary, self.datasize, self.groups,
                                              self.loops, self.extra_params, self.target_output_file)
