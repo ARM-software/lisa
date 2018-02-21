@@ -71,6 +71,7 @@ cat <<EOF
 
 .:: LISA ($(git describe --all))
 
+LISA commit: $(git rev-parse --short=11 HEAD)
 Submodules version:
 $(git submodule status)
 
@@ -533,6 +534,7 @@ cat <<EOF
 
 Welcome to the Linux Integrated System Analysis SHELL!
 
+version $(git rev-parse --short=11 HEAD)
 LISA_HOME  : $LISA_HOME
 PYTHONPATH :
 EOF
