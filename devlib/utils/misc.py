@@ -526,7 +526,7 @@ def to_identifier(text):
     whitespace and punctuation and adding a prefix if starting with a digit"""
     if text[:1].isdigit():
         text = '_' + text
-    return re.sub('_+', '_', text.translate(TRANS_TABLE))
+    return re.sub('_+', '_', str(text).translate(TRANS_TABLE))
 
 
 def unique(alist):
