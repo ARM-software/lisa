@@ -263,6 +263,13 @@ class RunOutput(Output):
                 return spec
         return None
 
+    def list_workloads(self):
+        workloads = []
+        for job in self.jobs:
+            if job.label not in workloads:
+                workloads.append(job.label)
+        return workloads
+
 
 class JobOutput(Output):
 
