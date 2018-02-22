@@ -421,6 +421,8 @@ The majority of an revent recording will be made up of the input events that wer
 recorded. The event stream is prefixed with the number of events in the stream,
 and start and end times for the recording.
 
+::
+
      0                   1                   2                   3
      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
