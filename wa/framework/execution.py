@@ -116,13 +116,13 @@ class ExecutionContext(object):
         else:
             status = Status.FAILED
         self.run_state.status = status
-        self.output.status = status
-        self.output.info.end_time = datetime.utcnow()
-        self.output.info.duration = self.output.info.end_time -\
-                                    self.output.info.start_time
-        self.output.write_info()
-        self.output.write_state()
-        self.output.write_result()
+        self.run_output.status = status
+        self.run_output.info.end_time = datetime.utcnow()
+        self.run_output.info.duration = self.output.info.end_time -\
+                                        self.output.info.start_time
+        self.run_output.write_info()
+        self.run_output.write_state()
+        self.run_output.write_result()
 
     def finalize(self):
         self.tm.finalize()
