@@ -31,6 +31,12 @@ class LinuxAssistant(object):
 class AndroidAssistant(object):
 
     parameters = [
+        Parameter('disable_selinux', kind=bool, default=True,
+                  description="""
+                  If ``True``, the default, and the target is rooted, an attempt will
+                  be made to disable SELinux by running ``setenforce 0`` on the target
+                  at the beginning of the run.
+                  """),
         Parameter('logcat_poll_period', kind=int,
                   constraint=lambda x: x > 0,
                   description="""
@@ -47,12 +53,13 @@ class AndroidAssistant(object):
                   """),
     ]
 
-    def __init__(self, target, logcat_poll_period=None):
+    def __init__(self, target, logcat_poll_period=None, disable_selinux=True):
         self.target = target
         self.logcat_poll_period = logcat_poll_period
+        self.disable_selinux = disable_selinux
         self.logcat_poller = None
-        if self.target.is_rooted:
-            self.disable_selinux()
+        if self.target.is_rooted and self.disable_selinux:
+            self.do_disable_selinux()
 
     def start(self):
         if self.logcat_poll_period:
@@ -79,7 +86,7 @@ class AndroidAssistant(object):
         if self.logcat_poller:
             self.logcat_poller.clear_buffer()
 
-    def disable_selinux(self):
+    def do_disable_selinux(self):
         # SELinux was added in Android 4.3 (API level 18). Trying to
         # 'getenforce' in earlier versions will produce an error.
         if self.target.get_sdk_version() >= 18:
