@@ -24,6 +24,8 @@ import pexpect as pe
 from time import sleep
 
 GET_FRAMESTATS_CMD = 'shell dumpsys gfxinfo {} > {}'
+SYSTRACE_EVENTS_DEFAULT = ['gfx', 'view', 'sched', 'freq', 'idle']
+SYSTRACE_BUFFSIZE_DEFAULT = 10240
 
 # See https://developer.android.com/reference/android/content/Intent.html#setFlags(int)
 FLAG_ACTIVITY_NEW_TASK = 0x10000000
@@ -35,29 +37,53 @@ class System(object):
     """
 
     @staticmethod
-    def systrace_start(target, trace_file, time=None,
-                       events=['gfx', 'view', 'sched', 'freq', 'idle']):
+    def systrace_start(env, trace_file, time=None, conf=None):
+        """
+        Start tracing using systrace
+
+        :param env: Target test environment
+        :type env: TestEnv
+
+        :param trace_file: Name of the trace output
+        :type trace_file: str
+
+        :param time: Tracing duration in seconds. If no value is passed,
+                     will keep tracing until tracingStop() is called.
+        :type time: int
+
+        :param conf: Custom systrace configuration. If set, will be used
+                     instead of env.conf['systrace'].
+        :type conf: dict
+        """
 
         log = logging.getLogger('System')
 
+        # Prioritize custom conf, then environment conf, then default conf
+        if not conf:
+            conf = env.conf.get('systrace', {})
+
+        events = conf.get('events', SYSTRACE_EVENTS_DEFAULT)
+        buffsize = conf.get('buffsize', SYSTRACE_BUFFSIZE_DEFAULT)
+
         # Check which systrace binary is available under CATAPULT_HOME
         for systrace in ['systrace.py', 'run_systrace.py']:
-                systrace_path = os.path.join(target.CATAPULT_HOME, 'systrace',
+                systrace_path = os.path.join(env.CATAPULT_HOME, 'systrace',
                                              'systrace', systrace)
                 if os.path.isfile(systrace_path):
                         break
         else:
                 log.warning("Systrace binary not available under CATAPULT_HOME: %s!",
-                            target.CATAPULT_HOME)
+                            env.CATAPULT_HOME)
                 return None
 
         #  Format the command according to the specified arguments
-        device = target.conf.get('device', '')
+        device = env.conf.get('device', '')
         if device:
             device = "-e {}".format(device)
-        systrace_pattern = "{} {} -o {} {}"
+
+        systrace_pattern = "{} {} -o {} -b {} {}"
         trace_cmd = systrace_pattern.format(systrace_path, device,
-                                            trace_file, " ".join(events))
+                                            trace_file, buffsize, " ".join(events))
         if time is not None:
             trace_cmd += " -t {}".format(time)
 
