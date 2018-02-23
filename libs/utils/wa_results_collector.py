@@ -116,6 +116,11 @@ class WaResultsCollector(object):
 
         self._log = logging.getLogger('WaResultsCollector')
 
+        self._metric_df_cache = {}
+        self._kernel_sha1_cache = {}
+        self._select_cache = {}
+        self._tests = {}
+
         if base_dir:
             base_dir = os.path.expanduser(base_dir)
             if not isinstance(wa_dirs, basestring):
@@ -141,8 +146,11 @@ class WaResultsCollector(object):
         self.use_cached_trace_metrics = use_cached_trace_metrics
 
         df = pd.DataFrame()
+        df_list = []
         for wa_dir in wa_dirs:
-            df = df.append(self._read_wa_dir(wa_dir))
+            self._log.info("Reading wa_dir %s", wa_dir)
+            df_list.append(self._read_wa_dir(wa_dir))
+        df = df.append(df_list)
 
         kernel_refs = {}
         if kernel_repo_path:
@@ -230,6 +238,7 @@ class WaResultsCollector(object):
         tag_map = {}
         test_map = {}
         job_dir_map = {}
+        extra_dfs = []
 
         for job in jobs:
             workload = job['workload_name']
@@ -299,7 +308,9 @@ class WaResultsCollector(object):
             extra_df.loc[:, 'tag'] = tag
             extra_df.loc[:, 'test'] = test
 
-            df = df.append(extra_df)
+            extra_dfs.append(extra_df)
+
+        df = df.append(extra_dfs)
 
         for iteration, job_ids in skipped_jobs.iteritems():
             self._log.warning("Skipped failed iteration %d for jobs:", iteration)
@@ -424,11 +435,11 @@ class WaResultsCollector(object):
         """
         # return
         # value,metric,units
-        metrics_df = pd.DataFrame()
+        extra_metric_list = []
 
         artifacts = self._read_artifacts(job_dir)
         if self.parse_traces and 'trace-cmd-bin' in artifacts:
-            metrics_df = metrics_df.append(
+            extra_metric_list.append(
                 self._get_trace_metrics(artifacts['trace-cmd-bin']))
 
         if 'jankbench_results_csv' in artifacts:
@@ -437,7 +448,7 @@ class WaResultsCollector(object):
             df.loc[:, 'metric'] = 'frame_total_duration'
             df.loc[:, 'units'] = 'ms'
 
-            metrics_df = metrics_df.append(df)
+            extra_metric_list.append(df)
 
         # WA's metrics model just exports overall energy metrics, not individual
         # samples. We're going to extend that with individual samples so if you
@@ -471,7 +482,7 @@ class WaResultsCollector(object):
 
                     df.loc[:, 'units'] = 'watts'
 
-                    metrics_df = metrics_df.append(df)
+                    extra_metric_list.append(df)
                 elif 'output_power' in df.columns and 'USB_power' in df.columns:
                     # Looks like this is from a Monsoon
                     # For monsoon the USB and device power are collected
@@ -482,23 +493,36 @@ class WaResultsCollector(object):
                     df.loc[:, 'metric'] = 'device_power_sample'
                     df.loc[:, 'units'] = 'watts'
 
-                    metrics_df = metrics_df.append(df)
-
-        return metrics_df
+                    extra_metric_list.append(df)
+        if len(extra_metric_list) > 0:
+            return pd.DataFrame().append(extra_metric_list)
+        else:
+            return pd.DataFrame()
 
     def _wa_get_kernel_sha1(self, wa_dir):
         """
         Find the SHA1 of the kernel that a WA3 run was run against
         """
+        if wa_dir in self._kernel_sha1_cache:
+            return self._kernel_sha1_cache[wa_dir]
+
         with open(os.path.join(wa_dir, '__meta', 'target_info.json')) as f:
             target_info = json.load(f)
-        return KernelVersion(target_info['kernel_release']).sha1
+
+        sha1 = KernelVersion(target_info['kernel_release']).sha1
+        self._kernel_sha1_cache[wa_dir] = sha1
+        return sha1
 
     def _select(self, tag='.*', kernel='.*', test='.*'):
+        key = (tag, kernel, test)
+        if key in self._select_cache:
+            return self._select_cache[key]
+
         _df = self.results_df
         _df = _df[_df.tag.str.contains(tag)]
         _df = _df[_df.kernel.str.contains(kernel)]
         _df = _df[_df.test.str.contains(test)]
+        self._select_cache[key] = _df
         return _df
 
     @property
@@ -514,10 +538,13 @@ class WaResultsCollector(object):
         return self.results_df['tag'].unique()
 
     def tests(self, workload=None):
-        df = self.results_df
         if workload:
-            df = df[df['workload'] == workload]
-        return df['test'].unique()
+            if workload not in self._tests:
+                df = self.results_df[self.results_df['workload'] == workload]
+                self._tests[workload] = df['test'].unique()
+            return self._tests[workload]
+
+        return self.results_df['test'].unique()
 
     def workload_available_metrics(self, workload):
         return (self.results_df
@@ -528,6 +555,10 @@ class WaResultsCollector(object):
         """
         Common helper for getting results to plot for a given metric
         """
+        lookup = (workload, metric, tag, kernel, test)
+        if lookup in self._metric_df_cache:
+            return self._metric_df_cache[lookup]
+
         df = self._select(tag, kernel, test)
         if df.empty:
             self._log.warn("No data to plot for (tag: %s, kernel: %s, test: %s)",
@@ -556,6 +587,7 @@ class WaResultsCollector(object):
             raise RuntimError('Found different units for workload "{}" metric "{}": {}'
                               .format(workload, metric, units))
 
+        self._metric_df_cache[lookup] = df
         return df
 
 
