@@ -24,6 +24,7 @@ import shutil
 import sys
 import time
 import unittest
+import contextlib
 
 import devlib
 from devlib.utils.misc import memoized, which
@@ -148,6 +149,33 @@ class TestEnv(ShareState):
                       for this session.  By default, TestEnv only creates one
                       object per session, use this to override this behaviour.
     :type force_new: bool
+    """
+
+    critical_tasks = {
+        'linux': [
+            'init',
+            'systemd',
+            'dbus',
+            'sh',
+            'ssh',
+            'rsyslogd',
+            'jbd2'
+        ],
+        'android': [
+            'sh', 'adbd',
+            'usb', 'transport',
+            # We don't actually need this task but on Google Pixel it apparently
+            # cannot be frozen, so the cgroup state gets stuck in FREEZING if we
+            # try to freeze it.
+            'thermal-engine',
+            # Similar issue with HiKey960, the board will crash if this is frozen
+            # for too long.
+            'watchdogd',
+        ]
+    }
+    """
+    Dictionary mapping OS name to list of task names that we can't afford to
+    freeze when using freeeze_userspace.
     """
 
     _initialized = False
@@ -1081,6 +1109,31 @@ class TestEnv(ShareState):
 
     def _feature(self, feature):
         return feature in self.conf['__features__']
+
+    @contextlib.contextmanager
+    def freeze_userspace(self):
+        if 'cgroups' not in self.target.modules:
+            raise RuntimeError(
+                'Failed to freeze userspace. Ensure "cgroups" module is listed '
+                'among modules in target/test configuration')
+
+        controllers = [s.name for s in self.target.cgroups.list_subsystems()]
+        if 'freezer' not in controllers:
+            self._log.warning('No freezer cgroup controller on target. '
+                              'Not freezing userspace')
+            yield
+            return
+
+        exclude = self.critical_tasks[self.target.os]
+        self._log.info('Freezing all tasks except: %s', ','.join(exclude))
+        self.target.cgroups.freeze(exclude)
+
+        try:
+            yield
+
+        finally:
+            self._log.info('Un-freezing userspace tasks')
+            self.target.cgroups.freeze(thaw=True)
 
 IFCFG_BCAST_RE = re.compile(
     r'Bcast:(.*) '
