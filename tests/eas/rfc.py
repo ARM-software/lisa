@@ -37,4 +37,4 @@ class RFC(LisaTest):
         """A dummy test just to run configured workloads"""
         pass
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

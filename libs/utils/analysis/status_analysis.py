@@ -107,4 +107,4 @@ class StatusAnalysis(AnalysisModule):
             end = start + delta
             axes.axvspan(start, end, facecolor='r', alpha=0.1)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

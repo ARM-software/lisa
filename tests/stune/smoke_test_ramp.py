@@ -100,4 +100,4 @@ class STune(LisaTest):
                         .format(boost / 100.)
             self.assertTrue(analyzer.assertStatement(statement), msg=error_msg)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

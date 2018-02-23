@@ -164,7 +164,7 @@ class _LoadTrackingBase(LisaTest):
         elif 'sched_pelt_se' in trace.available_events:
             event = 'sched_pelt_se'
         else:
-            raise ValueError('No sched_load_avg_task or sched_pelt_se events. '
+            raise ValueError('No sched_load_avg_task or sched_load_se or sched_pelt_se events. '
                              'Does the kernel support them?')
 
         df = getattr(trace.ftrace, event).data_frame

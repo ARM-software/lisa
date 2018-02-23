@@ -910,4 +910,4 @@ class LatencyAnalysis(AnalysisModule):
         return CDF(df, threshold, above, below)
 
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -174,4 +174,4 @@ class Vellamo(Workload):
         # Set brightness back to auto
         Screen.set_brightness(self._target, auto=True)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

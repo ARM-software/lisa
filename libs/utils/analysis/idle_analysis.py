@@ -321,4 +321,4 @@ class IdleAnalysis(AnalysisModule):
 
         pl.savefig(figname, bbox_inches='tight')
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

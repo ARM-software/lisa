@@ -190,4 +190,4 @@ class ExoPlayer(Workload):
         # Close and clear application
         System.force_stop(self._target, self.package, clear=True)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

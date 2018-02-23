@@ -155,4 +155,4 @@ class Screen(object):
        System.menu(target)
        System.home(target)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -879,4 +879,4 @@ class TraceData:
     """ A DataFrame collector exposed to Trace's clients """
     pass
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

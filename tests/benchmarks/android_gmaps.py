@@ -125,4 +125,4 @@ for governor in governors:
 # We want to collect data from at least one governor
 assert(tests_completed >= 1)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

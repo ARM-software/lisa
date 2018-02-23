@@ -138,4 +138,4 @@ class GMaps(Workload):
         # Switch back to screen auto rotation
         Screen.set_orientation(self._target, auto=True)
 
-# vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
