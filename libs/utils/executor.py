@@ -263,7 +263,11 @@ class Executor():
                     self.experiments.append(exp)
 
                     # WORKLOAD: execution
-                    self._wload_run(exp_idx, exp)
+                    if self._target_conf_flag(tc, 'freeze_userspace'):
+                        with self.te.freeze_userspace():
+                            self._wload_run(exp_idx, exp)
+                    else:
+                        self._wload_run(exp_idx, exp)
                     exp_idx += 1
             self._target_cleanup(tc)
 
@@ -668,11 +672,6 @@ class Executor():
         self._log.debug('out_dir set to [%s]', experiment.out_dir)
         os.system('mkdir -p ' + experiment.out_dir)
 
-        # Freeze all userspace tasks that we don't need for running tests
-        need_thaw = False
-        if self._target_conf_flag(tc, 'freeze_userspace'):
-            need_thaw = self.te.freeze_userspace()
-
         # FTRACE: start (if a configuration has been provided)
         if self.te.ftrace and self._target_conf_flag(tc, 'ftrace'):
             self._log.warning('FTrace events collection enabled')
@@ -704,10 +703,6 @@ class Executor():
             self._log.info('Collected FTrace function profiling:')
             self._log.info('   %s',
                            stats_file.replace(self.te.res_dir, '<res_dir>'))
-
-        # Unfreeze the tasks we froze
-        if need_thaw:
-            self.te.thaw_userspace()
 
         self._print_footer()
 

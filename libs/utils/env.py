@@ -24,6 +24,7 @@ import shutil
 import sys
 import time
 import unittest
+import contextlib
 
 import devlib
 from devlib.utils.misc import memoized, which
@@ -1109,31 +1110,30 @@ class TestEnv(ShareState):
     def _feature(self, feature):
         return feature in self.conf['__features__']
 
+    @contextlib.contextmanager
     def freeze_userspace(self):
-        self.need_thaw = False
         if 'cgroups' not in self.target.modules:
             raise RuntimeError(
                 'Failed to freeze userspace. Ensure "cgroups" module is listed '
                 'among modules in target/test configuration')
+
         controllers = [s.name for s in self.target.cgroups.list_subsystems()]
         if 'freezer' not in controllers:
             self._log.warning('No freezer cgroup controller on target. '
                               'Not freezing userspace')
-            return False
+            yield
+            return
 
         exclude = self.critical_tasks[self.target.os]
         self._log.info('Freezing all tasks except: %s', ','.join(exclude))
         self.target.cgroups.freeze(exclude)
-        self.need_thaw = True
-        return True
 
-    def thaw_userspace(self):
-        if self.need_thaw:
+        try:
+            yield
+
+        finally:
             self._log.info('Un-freezing userspace tasks')
             self.target.cgroups.freeze(thaw=True)
-        else:
-            self._log.error('Trying to un-freeze tasks without first freezing. '
-                            'Not unfreezing userspace')
 
 IFCFG_BCAST_RE = re.compile(
     r'Bcast:(.*) '
