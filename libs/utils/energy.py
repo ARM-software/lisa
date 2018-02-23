@@ -272,7 +272,7 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
             # we have already consumed the first line of `f`.
             df = pd.read_csv(f, names=columns)
         return df
-    
+
     def _build_timeline(self, df):
         sample_period = 1. / self._instrument.sample_rate_hz
         df.index = np.linspace(0, sample_period * len(df), num=len(df))
@@ -470,15 +470,14 @@ class ACME(EnergyMeter):
             self._iio[ch_id].wait()
             self._iio[ch_id] = None
 
-            self._log.debug('Completed IIOCapture for %s...',
-                            self._str(channel))
-
             # iio-capture return "energy=value", add a simple format check
             if '=' not in out:
                 self._log.error('Bad output format for %s:',
                                 self._str(channel))
                 self._log.error('[%s]', out)
                 continue
+            else:
+                self._log.debug('%s: %s', self._str(channel), out)
 
             # Build energy counter object
             nrg = {}
@@ -524,8 +523,8 @@ class Gem5EnergyMeter(_DevlibContinuousEnergyMeter):
 
     def _build_timeline(self, df):
         # Power measurements on gem5 are performed not only periodically but also
-        # spuriously on OPP changes. Let's use the time channel provided by the 
-        # gem5 power instrument to build the timeline accordingly. 
+        # spuriously on OPP changes. Let's use the time channel provided by the
+        # gem5 power instrument to build the timeline accordingly.
         for site, measure in df:
             if measure == 'time':
                 meas_dur = df[site]['time']
