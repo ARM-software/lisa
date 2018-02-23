@@ -470,8 +470,6 @@ class ACME(EnergyMeter):
             self._iio[ch_id].wait()
             self._iio[ch_id] = None
 
-            self._log.debug('Completed IIOCapture for %s...',
-                            self._str(channel))
 
             # iio-capture return "energy=value", add a simple format check
             if '=' not in out:
@@ -479,6 +477,10 @@ class ACME(EnergyMeter):
                                 self._str(channel))
                 self._log.error('[%s]', out)
                 continue
+	    else:
+		self._log.debug('Completed IIOCapture for %s...',
+		                self._str(channel))
+	        self._log.debug('Normal iio-capture case [%s]', out)
 
             # Build energy counter object
             nrg = {}
