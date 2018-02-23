@@ -23,6 +23,7 @@ from subprocess import Popen, PIPE
 from time import time, sleep
 
 from android import Screen, System, Workload
+from target_script import TargetScript
 
 class UiBench(Workload):
     """
@@ -153,6 +154,13 @@ class UiBench(Workload):
                 .format(self._target.adb_name))
         self._log.info("%s", logcat_cmd)
 
+        # Prepare user-input commands on the device
+        if actions:
+            script = TargetScript(self._te, "uibench.sh")
+            for action in actions:
+                self._perform_action(script, action)
+            script.push()
+
         # Start the activity
         System.start_activity(self._target, self.package, activity)
         logcat = Popen(logcat_cmd, shell=True, stdout=PIPE)
@@ -173,9 +181,8 @@ class UiBench(Workload):
                      activity, duration_s)
 
         start = time()
-
-        for action in actions:
-            self._perform_action(action)
+        if actions:
+            script.run()
 
         while (time() - start) < duration_s:
             sleep(1)
@@ -198,16 +205,17 @@ class UiBench(Workload):
         System.set_airplane_mode(self._target, on=False)
         Screen.set_brightness(self._target, auto=True)
 
-    def _perform_action(self, action, delay_s=1.0):
+    @staticmethod
+    def _perform_action(target, action, delay_s=1.0):
         # Delay before performing action
-        sleep(delay_s)
+        target.execute('sleep {}'.format(delay_s))
 
         if action == 'vswipe':
             # Action: A fast Swipe Up/Scroll Down
-            System.vswipe(self._target, 20, 80, 50)
+            System.vswipe(target, 20, 80, 50)
 
         if action == 'tap':
             # Action: Tap in the centre of the screen
-            System.tap(self._target, 50, 50)
+            System.tap(target, 50, 50)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
