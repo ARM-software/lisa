@@ -20,14 +20,13 @@ import json
 import os
 import re
 
-from collections import namedtuple
+from collections import OrderedDict
 from wlgen import Workload
 from devlib.utils.misc import ranges_to_list
 
 import logging
 
-_Phase = namedtuple('Phase', 'duration_s, period_ms, duty_cycle_pct, cpus')
-class Phase(_Phase):
+class Phase(object):
     """
     Descriptor for an RT-App load phase
 
@@ -43,8 +42,22 @@ class Phase(_Phase):
     :param cpus: the list of cpus on which task execution is restricted during
                  this phase.
     :type cpus: [int] or int
+
+    :param barrier_after: if provided, the name of the barrier to sync against
+                          when reaching the end of this phase. Currently only
+                          supported when duty_cycle_pct=100
+    :type barrier_after: str
     """
-    pass
+    def __init__(self, duration_s, period_ms, duty_cycle_pct, cpus=None, barrier_after=None):
+        if barrier_after and duty_cycle_pct != 100:
+            # This could be implemented but currently don't foresee any use.
+            raise ValueError('Barriers only supported when duty_cycle_pct=100')
+
+        self.duration_s = duration_s
+        self.period_ms = period_ms
+        self.duty_cycle_pct = duty_cycle_pct
+        self.cpus = cpus
+        self.barrier_after = barrier_after
 
 class RTA(Workload):
     """
@@ -327,7 +340,7 @@ class RTA(Workload):
                 sched_descr = 'sched: {0:s}'.format(task['sched'])
 
             # Initialize task phases
-            task_conf['phases'] = {}
+            task_conf['phases'] = OrderedDict()
 
             self._log.info('------------------------')
             self._log.info('task [%s], %s', tid, sched_descr)
@@ -364,7 +377,8 @@ class RTA(Workload):
 
                 # Convert time parameters to integer [us] units
                 duration = int(phase.duration_s * 1e6)
-                period = int(phase.period_ms * 1e3)
+
+                task_phase = OrderedDict()
 
                 # A duty-cycle of 0[%] translates on a 'sleep' phase
                 if phase.duty_cycle_pct == 0:
@@ -372,10 +386,8 @@ class RTA(Workload):
                     self._log.info(' + phase_%06d: sleep %.6f [s]',
                                    pid, duration/1e6)
 
-                    task_phase = {
-                        'loop': 1,
-                        'sleep': duration,
-                    }
+                    task_phase['loop'] = 1
+                    task_phase['sleep'] = duration
 
                 # A duty-cycle of 100[%] translates on a 'run-only' phase
                 elif phase.duty_cycle_pct == 100:
@@ -383,14 +395,15 @@ class RTA(Workload):
                     self._log.info(' + phase_%06d: batch %.6f [s]',
                                    pid, duration/1e6)
 
-                    task_phase = {
-                        'loop': 1,
-                        'run': duration,
-                    }
+                    task_phase['loop'] = 1
+                    task_phase['run'] = duration
+                    if phase.barrier_after:
+                        task_phase['barrier'] = phase.barrier_after
 
                 # A certain number of loops is requires to generate the
                 # proper load
                 else:
+                    period = int(phase.period_ms * 1e3)
 
                     cloops = -1
                     if duration >= 0:
@@ -406,11 +419,9 @@ class RTA(Workload):
                     self._log.info('|  run_time %6d [us], sleep_time %6d [us]',
                                    running_time, sleep_time)
 
-                    task_phase = {
-                        'loop': cloops,
-                        'run': running_time,
-                        'timer': {'ref': tid, 'period': period},
-                    }
+                    task_phase['loop'] = cloops
+                    task_phase['run'] = running_time
+                    task_phase['timer'] = {'ref': tid, 'period': period}
 
                 self.rta_profile['tasks'][tid]['phases']\
                     ['p'+str(pid).zfill(6)] = task_phase
@@ -436,7 +447,7 @@ class RTA(Workload):
         self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
         with open(self.json, 'w') as outfile:
             json.dump(self.rta_profile, outfile,
-                    sort_keys=True, indent=4, separators=(',', ': '))
+                      indent=4, separators=(',', ': '))
 
         return self.json
 
@@ -533,8 +544,13 @@ class RTATask(object):
     ``Periodic``.
     """
 
-    def __init__(self):
+    def __init__(self, delay_s=0, loops=1, sched=None, cpus=None):
         self._task = {}
+
+        self._task['cpus'] = cpus
+        self._task['sched'] = sched or {'policy' : 'DEFAULT'}
+        self._task['delay'] = delay_s
+        self._task['loops'] = loops
 
     def get(self):
         """
@@ -582,14 +598,7 @@ class Ramp(RTATask):
 
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
                  period_ms=100, delay_s=0, loops=1, sched=None, cpus=None):
-        super(Ramp, self).__init__()
-
-        self._task['cpus'] = cpus
-        if not sched:
-            sched = {'policy' : 'DEFAULT'}
-        self._task['sched'] = sched
-        self._task['delay'] = delay_s
-        self._task['loops'] = loops
+        super(Ramp, self).__init__(delay_s, loops, sched, cpus)
 
         if start_pct not in range(0,101) or end_pct not in range(0,101):
             raise ValueError('start_pct and end_pct must be in [0..100] range')
@@ -676,20 +685,10 @@ class Pulse(RTATask):
 
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched=None, cpus=None):
-        super(Pulse, self).__init__()
+        super(Pulse, self).__init__(delay_s, loops, sched, cpus)
 
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
-
-        self._task = {}
-
-        self._task['cpus'] = cpus
-        if not sched:
-            sched = {'policy' : 'DEFAULT'}
-        self._task['sched'] = sched
-        self._task['delay'] = delay_s
-        self._task['loops'] = loops
-        self._task['phases'] = {}
 
         if end_pct not in range(0,101) or start_pct not in range(0,101):
             raise ValueError('end_pct and start_pct must be in [0..100] range')
@@ -729,3 +728,30 @@ class Periodic(Pulse):
                  delay_s=0, sched=None, cpus=None):
         super(Periodic, self).__init__(duty_cycle_pct, 0, duration_s,
                                        period_ms, delay_s, 1, sched, cpus)
+
+class RunAndSync(RTATask):
+    """
+    Configure a task that runs 100% then waits on a barrier
+
+    :param barrier: name of barrier to wait for. Sleeps until any other tasks
+                    that refer to this barrier have reached the barrier too.
+    :type barrier: str
+
+    :param time_s: time to run for
+
+    :param delay_s: the delay in seconds before starting.
+
+    :param sched: the scheduler configuration for this task.
+    :type sched: dict
+
+    :param cpus: the list of CPUs on which task can run.
+    :type cpus: list(int)
+
+    """
+    def __init__(self, barrier, time_s=1,
+                 delay_s=0, loops=1, sched=None, cpus=None):
+        super(RunAndSync, self).__init__(delay_s, loops, sched, cpus)
+
+        # This should translate into a phase containing a 'run' event and a
+        # 'barrier' event
+        self._task['phases'] = [Phase(time_s, None, 100, barrier_after=barrier)]
