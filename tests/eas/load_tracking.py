@@ -972,30 +972,25 @@ class _PELTTaskGroupsTest(LisaTest):
 
         # Freeze userspace tasks
         cls._log.info('Freezing userspace tasks')
-        te.target.cgroups.freeze(Executor.critical_tasks[te.target.os])
+        with te.freeze_userspace():
+            cls._log.info('FTrace events collection enabled')
+            te.ftrace.start()
 
-        cls._log.info('FTrace events collection enabled')
-        te.ftrace.start()
+            # Run tasks
+            cls._log.info('Running the tasks')
+            # Run all tasks in background and wait for completion
+            for se in cls.root_group.iter_nodes():
+                if se.is_task:
+                    # Run tasks
+                    se.wload.run(out_dir=test_dir, cpus=se.cpus,
+                                 cgroup=se.parent.name, background=True)
+            sleep(max_duration)
 
-        # Run tasks
-        cls._log.info('Running the tasks')
-        # Run all tasks in background and wait for completion
-        for se in cls.root_group.iter_nodes():
-            if se.is_task:
-                # Run tasks
-                se.wload.run(out_dir=test_dir, cpus=se.cpus,
-                             cgroup=se.parent.name, background=True)
-        sleep(max_duration)
+            te.ftrace.stop()
 
-        te.ftrace.stop()
-
-        trace_file = os.path.join(test_dir, 'trace.dat')
-        te.ftrace.get_trace(trace_file)
-        cls._log.info('Collected FTrace binary trace: %s', trace_file)
-
-        # Un-freeze userspace tasks
-        cls._log.info('Un-freezing userspace tasks')
-        te.target.cgroups.freeze(thaw=True)
+            trace_file = os.path.join(test_dir, 'trace.dat')
+            te.ftrace.get_trace(trace_file)
+            cls._log.info('Collected FTrace binary trace: %s', trace_file)
 
         # Extract trace
         cls.trace = Trace(None, test_dir, te.ftrace.events)
