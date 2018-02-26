@@ -33,6 +33,7 @@ from conf import LisaLogging
 
 from bart.common.Utils import area_under_curve
 from devlib.target import KernelVersion
+from devlib.utils.misc import memoized
 from trappy.utils import handle_duplicate_index
 
 from IPython.display import display
@@ -141,8 +142,11 @@ class WaResultsCollector(object):
         self.use_cached_trace_metrics = use_cached_trace_metrics
 
         df = pd.DataFrame()
+        df_list = []
         for wa_dir in wa_dirs:
-            df = df.append(self._read_wa_dir(wa_dir))
+            self._log.info("Reading wa_dir %s", wa_dir)
+            df_list.append(self._read_wa_dir(wa_dir))
+        df = df.append(df_list)
 
         kernel_refs = {}
         if kernel_repo_path:
@@ -230,6 +234,7 @@ class WaResultsCollector(object):
         tag_map = {}
         test_map = {}
         job_dir_map = {}
+        extra_dfs = []
 
         for job in jobs:
             workload = job['workload_name']
@@ -298,8 +303,12 @@ class WaResultsCollector(object):
             extra_df.loc[:, 'id'] = job_id
             extra_df.loc[:, 'tag'] = tag
             extra_df.loc[:, 'test'] = test
+            # Collect all these DFs to merge them in one go at the end.
+            extra_dfs.append(extra_df)
 
-            df = df.append(extra_df)
+        # Append all extra DFs to the results WA's results DF
+        if extra_dfs:
+            df = df.append(extra_dfs)
 
         for iteration, job_ids in skipped_jobs.iteritems():
             self._log.warning("Skipped failed iteration %d for jobs:", iteration)
@@ -424,11 +433,11 @@ class WaResultsCollector(object):
         """
         # return
         # value,metric,units
-        metrics_df = pd.DataFrame()
+        extra_metric_list = []
 
         artifacts = self._read_artifacts(job_dir)
         if self.parse_traces and 'trace-cmd-bin' in artifacts:
-            metrics_df = metrics_df.append(
+            extra_metric_list.append(
                 self._get_trace_metrics(artifacts['trace-cmd-bin']))
 
         if 'jankbench_results_csv' in artifacts:
@@ -437,7 +446,7 @@ class WaResultsCollector(object):
             df.loc[:, 'metric'] = 'frame_total_duration'
             df.loc[:, 'units'] = 'ms'
 
-            metrics_df = metrics_df.append(df)
+            extra_metric_list.append(df)
 
         # WA's metrics model just exports overall energy metrics, not individual
         # samples. We're going to extend that with individual samples so if you
@@ -471,7 +480,7 @@ class WaResultsCollector(object):
 
                     df.loc[:, 'units'] = 'watts'
 
-                    metrics_df = metrics_df.append(df)
+                    extra_metric_list.append(df)
                 elif 'output_power' in df.columns and 'USB_power' in df.columns:
                     # Looks like this is from a Monsoon
                     # For monsoon the USB and device power are collected
@@ -482,10 +491,13 @@ class WaResultsCollector(object):
                     df.loc[:, 'metric'] = 'device_power_sample'
                     df.loc[:, 'units'] = 'watts'
 
-                    metrics_df = metrics_df.append(df)
+                    extra_metric_list.append(df)
+        if len(extra_metric_list) > 0:
+            return pd.DataFrame().append(extra_metric_list)
+        else:
+            return pd.DataFrame()
 
-        return metrics_df
-
+    @memoized
     def _wa_get_kernel_sha1(self, wa_dir):
         """
         Find the SHA1 of the kernel that a WA3 run was run against
@@ -494,6 +506,7 @@ class WaResultsCollector(object):
             target_info = json.load(f)
         return KernelVersion(target_info['kernel_release']).sha1
 
+    @memoized
     def _select(self, tag='.*', kernel='.*', test='.*'):
         _df = self.results_df
         _df = _df[_df.tag.str.contains(tag)]
@@ -513,6 +526,7 @@ class WaResultsCollector(object):
     def tags(self):
         return self.results_df['tag'].unique()
 
+    @memoized
     def tests(self, workload=None):
         df = self.results_df
         if workload:
@@ -524,10 +538,12 @@ class WaResultsCollector(object):
                 .groupby('workload').get_group(workload)
                 ['metric'].unique())
 
+    @memoized
     def _get_metric_df(self, workload, metric, tag, kernel, test):
         """
         Common helper for getting results to plot for a given metric
         """
+
         df = self._select(tag, kernel, test)
         if df.empty:
             self._log.warn("No data to plot for (tag: %s, kernel: %s, test: %s)",
