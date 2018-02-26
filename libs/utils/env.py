@@ -35,7 +35,7 @@ from wlgen import RTA
 from energy import EnergyMeter
 from energy_model import EnergyModel
 from conf import JsonConf
-from platforms.juno_energy import juno_energy
+from platforms.juno_r0_energy import juno_r0_energy
 from platforms.hikey_energy import hikey_energy
 from platforms.pixel_energy import pixel_energy
 
@@ -453,50 +453,53 @@ class TestEnv(ShareState):
         if 'board' not in self.conf:
             self.conf['board'] = 'UNKNOWN'
 
+        board_name = self.conf['board'].upper()
+
         # Initialize TC2 board
-        if self.conf['board'].upper() == 'TC2':
+        if board_name == 'TC2':
             platform = devlib.platform.arm.TC2()
             self.__modules = ['bl', 'hwmon', 'cpufreq']
 
         # Initialize JUNO board
-        elif self.conf['board'].upper() in ('JUNO', 'JUNO2'):
+        elif board_name in ('JUNO', 'JUNO2'):
             platform = devlib.platform.arm.Juno()
-            self.nrg_model = juno_energy
             self.__modules = ['bl', 'hwmon', 'cpufreq']
 
+            if board_name == 'JUNO':
+                self.nrg_model = juno_r0_energy
+
         # Initialize OAK board
-        elif self.conf['board'].upper() == 'OAK':
+        elif board_name == 'OAK':
             platform = Platform(model='MT8173')
             self.__modules = ['bl', 'cpufreq']
 
         # Initialized HiKey board
-        elif self.conf['board'].upper() == 'HIKEY':
+        elif board_name == 'HIKEY':
             self.nrg_model = hikey_energy
             self.__modules = [ "cpufreq", "cpuidle" ]
             platform = Platform(model='hikey')
 
         # Initialize HiKey960 board
-        elif self.conf['board'].upper() == 'HIKEY960':
+        elif board_name == 'HIKEY960':
             self.__modules = ['bl', 'cpufreq', 'cpuidle']
             platform = Platform(model='hikey960')
 
         # Initialize Pixel phone
-        elif self.conf['board'].upper() == 'PIXEL':
+        elif board_name == 'PIXEL':
             self.nrg_model = pixel_energy
             self.__modules = ['bl', 'cpufreq']
             platform = Platform(model='pixel')
 
         # Initialize gem5 platform
-        elif self.conf['board'].upper() == 'GEM5':
-            self.nrg_model = None
+        elif board_name == 'GEM5':
             self.__modules=['cpufreq']
             platform = self._init_target_gem5()
 
-        elif self.conf['board'] != 'UNKNOWN':
+        elif board_name != 'UNKNOWN':
             # Initilize from platform descriptor (if available)
             board = self._load_board(self.conf['board'])
             if board:
-                core_names=board['cores']
+                core_names = board['cores']
                 platform = Platform(
                     model=self.conf['board'],
                     core_names=core_names,

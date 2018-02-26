@@ -16,7 +16,6 @@
 #
 
 from collections import OrderedDict
-import unittest
 from unittest import TestCase
 import os
 import shutil
@@ -27,9 +26,9 @@ from energy_model import (EnergyModel, ActiveState, EnergyModelCapacityError,
 from trace import Trace
 
 # Import these just to test that they can be constructed
-from libs.utils.platforms.juno_energy import juno_energy
-from libs.utils.platforms.pixel_energy import pixel_energy
-from libs.utils.platforms.hikey_energy import hikey_energy
+import libs.utils.platforms.juno_r0_energy
+import libs.utils.platforms.pixel_energy
+import libs.utils.platforms.hikey_energy
 
 """ A very basic test suite for the EnergyModel class."""
 
