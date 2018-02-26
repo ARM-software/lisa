@@ -100,22 +100,26 @@ class VersatileExpressPlatform(Platform):
                                     baudrate=self.baudrate,
                                     timeout=30,
                                     init_dtr=0) as tty:
-            tty.sendline('')
+            tty.sendline('su')  # this is, apprently, required to query network device
+                                # info by name on recent Juno builds...
             self.logger.debug('Waiting for the Android shell prompt.')
             tty.expect(target.shell_prompt)
 
             self.logger.debug('Waiting for IP address...')
             wait_start_time = time.time()
-            while True:
-                tty.sendline('ip addr list eth0')
-                time.sleep(1)
-                try:
-                    tty.expect(r'inet ([1-9]\d*.\d+.\d+.\d+)', timeout=10)
-                    return tty.match.group(1)
-                except pexpect.TIMEOUT:
-                    pass  # We have our own timeout -- see below.
-                if (time.time() - wait_start_time) > self.ready_timeout:
-                    raise TargetError('Could not acquire IP address.')
+            try:
+                while True:
+                    tty.sendline('ip addr list eth0')
+                    time.sleep(1)
+                    try:
+                        tty.expect(r'inet ([1-9]\d*.\d+.\d+.\d+)', timeout=10)
+                        return tty.match.group(1)
+                    except pexpect.TIMEOUT:
+                        pass  # We have our own timeout -- see below.
+                    if (time.time() - wait_start_time) > self.ready_timeout:
+                        raise TargetError('Could not acquire IP address.')
+            finally:
+                tty.sendline('exit')  # exit shell created by "su" call at the start
 
     def _set_hard_reset_method(self, hard_reset_method):
         if hard_reset_method == 'dtr':
