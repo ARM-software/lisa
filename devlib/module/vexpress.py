@@ -25,7 +25,8 @@ from devlib.utils.uefi import UefiMenu, UefiConfig
 from devlib.utils.uboot import UbootMenu
 
 
-AUTOSTART_MESSAGE = 'Press Enter to stop auto boot...'
+OLD_AUTOSTART_MESSAGE = 'Press Enter to stop auto boot...'
+AUTOSTART_MESSAGE = 'Hit any key to stop autoboot:'
 POWERUP_MESSAGE = 'Powering up system...'
 DEFAULT_MCC_PROMPT = 'Cmd>'
 
@@ -136,18 +137,20 @@ class VexpressBootModule(BootModule):
     def get_through_early_boot(self, tty):
         self.logger.debug('Establishing initial state...')
         tty.sendline('')
-        i = tty.expect([AUTOSTART_MESSAGE, POWERUP_MESSAGE, self.mcc_prompt])
-        if i == 2:
+        i = tty.expect([AUTOSTART_MESSAGE, OLD_AUTOSTART_MESSAGE, POWERUP_MESSAGE, self.mcc_prompt])
+        if i == 3:
             self.logger.debug('Saw MCC prompt.')
             time.sleep(self.short_delay)
             tty.sendline('reboot')
-        elif i == 1:
+        elif i == 2:
             self.logger.debug('Saw powering up message (assuming soft reboot).')
         else:
             self.logger.debug('Saw auto boot message.')
             tty.sendline('')
             time.sleep(self.short_delay)
+            # could be either depending on where in the boot we are
             tty.sendline('reboot')
+            tty.sendline('reset')
 
     def get_uefi_menu(self, tty):
         menu = UefiMenu(tty)
@@ -324,7 +327,7 @@ class VersatileExpressFlashModule(FlashModule):
                                     baudrate=self.target.platform.baudrate,
                                     timeout=self.timeout,
                                     init_dtr=0) as tty:
-            i = tty.expect([self.mcc_prompt, AUTOSTART_MESSAGE])
+            i = tty.expect([self.mcc_prompt, AUTOSTART_MESSAGE, OLD_AUTOSTART_MESSAGE])
             if i:
                 tty.sendline('')
             wait_for_vemsd(self.vemsd_mount, tty, self.mcc_prompt, self.short_delay)
