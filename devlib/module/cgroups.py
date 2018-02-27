@@ -14,6 +14,7 @@
 #
 # pylint: disable=attribute-defined-outside-init
 import logging
+import re
 from collections import namedtuple
 
 from devlib.module import Module
@@ -168,7 +169,37 @@ class Controller(object):
             if cgroup != dest:
                 self.move_tasks(cgroup, dest, grep_filters)
 
-    def tasks(self, cgroup):
+    def tasks(self, cgroup,
+              filter_tid='',
+              filter_tname='',
+              filter_tcmdline=''):
+        """
+        Report the tasks that are included in a cgroup. The tasks can be
+        filtered by their tid, tname or tcmdline if filter_tid, filter_tname or
+        filter_tcmdline are defined respectively. In this case, the reported
+        tasks are the ones in the cgroup that match these patterns.
+
+        Example of tasks format:
+        TID,tname,tcmdline
+        903,cameraserver,/system/bin/cameraserver
+
+        :params filter_tid: regexp pattern to filter by TID
+        :type filter_tid: str
+
+        :params filter_tname: regexp pattern to filter by tname
+        :type filter_tname: str
+
+        :params filter_tcmdline: regexp pattern to filter by tcmdline
+        :type filter_tcmdline: str
+
+        :returns: a dictionary in the form: {tid:(tname, tcmdline)}
+        """
+        if not isinstance(filter_tid, str):
+            raise TypeError('filter_tid should be a str')
+        if not isinstance(filter_tname, str):
+            raise TypeError('filter_tname should be a str')
+        if not isinstance(filter_tcmdline, str):
+            raise TypeError('filter_tcmdline should be a str')
         try:
             cg = self._cgroups[cgroup]
         except KeyError as e:
@@ -179,15 +210,16 @@ class Controller(object):
         entries = output.splitlines()
         tasks = {}
         for task in entries:
-            tid = task.split(',')[0]
-            try:
-                tname = task.split(',')[1]
-            except: continue
-            try:
-                tcmdline = task.split(',')[2]
-            except:
-                tcmdline = ''
-            tasks[int(tid)] = (tname, tcmdline)
+            tid_str, tname, tcmdline = task.split(',', 2)
+
+            if not re.search(filter_tid, tid_str):
+                continue
+            if not re.search(filter_tname, tname):
+                continue
+            if not re.search(filter_tcmdline, tcmdline):
+                continue
+
+            tasks[int(tid_str)] = (tname, tcmdline)
         return tasks
 
     def tasks_count(self, cgroup):
