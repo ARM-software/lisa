@@ -1,6 +1,7 @@
 import logging
 
 from wa.framework import signal
+from wa.framework.exception import ExecutionError, TargetError
 from wa.framework.plugin import Parameter
 from wa.framework.target.descriptor import (get_target_description,
                                             instantiate_target,
@@ -10,7 +11,6 @@ from wa.framework.target.runtime_parameter_manager import RuntimeParameterManage
 
 from devlib import Gem5SimulationPlatform
 from devlib.utils.misc import memoized
-from devlib.exception import TargetError
 
 
 class TargetManager(object):
@@ -33,6 +33,7 @@ class TargetManager(object):
         self.target = None
         self.assistant = None
         self.platform_name = None
+        self.is_responsive = None
         self.parameters = parameters
         self.disconnect = parameters.get('disconnect')
 
@@ -82,6 +83,16 @@ class TargetManager(object):
     def commit_runtime_parameters(self, parameters):
         self.rpm.commit_runtime_parameters(parameters)
 
+    def verify_target_responsive(self):
+        if not self.target.check_responsive(explode=False):
+            self.is_responsive = False
+            if self.target.has('hard_reset'):
+                self.logger.info('Target unresponsive; performing hard reset')
+                self.target.reboot(hard=True)
+                self.is_responsive = True
+            else:
+                raise ExecutionError('Target unresponsive and hard reset not supported; bailing.')
+
     def _init_target(self):
         tdesc = get_target_description(self.target_name)
 
@@ -92,6 +103,8 @@ class TargetManager(object):
         self.logger.debug('Creating {} target'.format(self.target_name))
         self.target = instantiate_target(tdesc, self.parameters, connect=False,
                                          extra_platform_params=extra_plat_params)
+
+        self.is_responsive = True
 
         with signal.wrap('TARGET_CONNECT'):
             self.target.connect()
