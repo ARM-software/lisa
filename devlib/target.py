@@ -440,11 +440,14 @@ class Target(object):
             pass
         self._connected_as_root = None
 
-    def check_responsive(self):
+    def check_responsive(self, explode=True):
         try:
             self.conn.execute('ls /', timeout=5)
+            return 1
         except (TimeoutError, subprocess.CalledProcessError):
-            raise TargetNotRespondingError(self.conn.name)
+            if explode:
+                raise TargetNotRespondingError(self.conn.name)
+            return 0
 
     # process management
 
