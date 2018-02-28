@@ -49,17 +49,17 @@ All required config options are set, sched governor is present.
 
 """
 
-TEST_CONF = {
-    'modules': ['cpufreq'],
-    'tools': [
-        'sysbench',
-    ]
-}
-
 class BasicCheckTest(LisaTest):
+    test_conf = {
+        'modules': ['cpufreq'],
+        'tools': [
+            'sysbench',
+        ]
+    }
+
     @classmethod
     def setUpClass(cls):
-        cls.env = TestEnv(test_conf=TEST_CONF)
+        cls.env = TestEnv(test_conf=cls._getTestConf())
         cls.target = cls.env.target
 
 class TestSchedGovernor(BasicCheckTest):

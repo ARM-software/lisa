@@ -296,8 +296,7 @@ cat <<EOF
 Usage: lisa-test [OPTIONS] [args] FILE[:CLASS]
 
   Run automated tests. Tests can be found under the tests/ directory.
-  Only one python file can be specified at a time, otherwise the results might
-  not be valid.
+  A "results.xml" xUnit file can be found in the results base directory.
 
   Valid OPTIONS are:
 
@@ -307,7 +306,8 @@ Usage: lisa-test [OPTIONS] [args] FILE[:CLASS]
 
   --target-conf (or -t) sets an alternative target.config file.
 
-  --results-dir (or -o) sets the output directory of the tests.
+  --results-base (or -o) sets the output directory for the tests started by this
+    command. Defaults to a timestamp-named folder.
 
   This is a wrapper for the 'nosetests' utility, additional arguments are passed
   to that tool.
@@ -321,11 +321,6 @@ Usage: lisa-test [OPTIONS] [args] FILE[:CLASS]
 
       lisa-test tests/eas/generic.py:RampUp
 
-    Run RampUp test from EAS Generic suite, generating an XML test
-    report via nose's XUnit plugin (see nosetests documentation):
-
-      lisa-test --with-xunit --xunit-file=report.xml tests/eas/generic.py:RampUp
-
     Run RampUp test from EAS Generic suite, repeating the
     workload 10 times and reporting how many times the test run
     passed:
@@ -335,26 +330,24 @@ Usage: lisa-test [OPTIONS] [args] FILE[:CLASS]
     Run EAS Generic suite, repeating each workload 10 times:
 
       lisa-test --iterations 10 tests/eas/generic.py
+
+    Run EAS Generic suite, with the results stored under results/myrun:
+
+      lisa-test --results-base results/myrun tests/eas/generic.py
 EOF
 }
 
 function _lisa-test {
-if [ -n "$LISA_RESULTS_DIR" ]; then
-  mkdir -p "$LISA_RESULTS_DIR"
-  # There is no sensible place to store results.xml when the directory is not
-  # set explicitely, as the Python scripts decide where to put the results..
-  # Using results_latest symlink is not an option as it would race if using the
-  # same tree to run multiple tests on different boards at the same time.
-  local xunit_options=(--with-xunit --xunit-file="$LISA_RESULTS_DIR/results.xml")
-fi
+mkdir -p "$LISA_RESULTS_BASE" &&
 nosetests -v --nocapture --nologcapture    \
           --logging-config=logging.conf    \
-          "${xunit_options[@]}"            \
+          --with-xunit --xunit-file="$LISA_RESULTS_BASE/results.xml"    \
           "$@"
 }
 
 function lisa-test {
 local extra_args=()
+local LISA_RESULTS_BASE=${LISA_RESULTS_BASE:-$LISA_HOME/results/$(date '+%Y%m%d_%H%M%S')}
 
 echo
 while [[ $# -gt 0 ]]; do
@@ -372,8 +365,8 @@ while [[ $# -gt 0 ]]; do
                         LISA_TARGET_CONF="$2"
                         shift
                         ;;
-                -o|--results-dir)
-                        LISA_RESULTS_DIR="$2"
+                -o|--results-base)
+                        LISA_RESULTS_BASE="$2"
                         shift
                         ;;
                 *)
@@ -390,9 +383,13 @@ if [ -z "${extra_args[*]}" ]; then
         return 1
 fi
 
+# Make sure an absolute path is used so relative paths will not be relocated
+# under $LISA_HOME/results/
+LISA_RESULTS_BASE=$(readlink -f "$LISA_RESULTS_BASE")
+
 # Execute in a sub-shell
 (
-  export LISA_TEST_ITERATIONS LISA_TARGET_CONF LISA_RESULTS_DIR
+  export LISA_TEST_ITERATIONS LISA_TARGET_CONF LISA_RESULTS_BASE
   # Allow all TestEnv to share the same target to avoid reinitialization between
   # tests
   export LISA_TARGET_SINGLETON=1

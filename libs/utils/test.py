@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import copy
 import os
 import unittest
 import logging
@@ -63,7 +64,15 @@ class LisaTest(unittest.TestCase):
     def _getTestConf(cls):
         if cls.test_conf is None:
             raise NotImplementedError("Override `test_conf` attribute")
-        return cls.test_conf
+        # Shallow copy of the test conf so we can update its results_dir
+        # without modifying it for all classes that may share the same test_conf
+        # object (through their base class for example).
+        test_conf = copy.copy(cls.test_conf)
+        # Using a qualified name avoids clashes if the same class name is used
+        # by different modules.
+        test_name = cls.__module__ + '.' + cls.__name__
+        test_conf.setdefault('results_dir', test_name)
+        return test_conf
 
     @classmethod
     def _getExperimentsConf(cls, test_env):

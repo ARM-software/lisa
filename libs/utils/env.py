@@ -39,15 +39,18 @@ from platforms.juno_r0_energy import juno_r0_energy
 from platforms.hikey_energy import hikey_energy
 from platforms.pixel_energy import pixel_energy
 
+# This should be an absolute path pointing to the root of LISA repository.
+BASEPATH = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), '..', '..'
+))
+
 USERNAME_DEFAULT = 'root'
 PASSWORD_DEFAULT = ''
 FTRACE_EVENTS_DEFAULT = ['sched:*']
 FTRACE_BUFSIZE_DEFAULT = 10240
-OUT_PREFIX = 'results'
+DEFAULT_RESULTS_BASE = os.path.abspath(os.path.join(BASEPATH, 'results'))
 LATEST_LINK = 'results_latest'
 
-basepath = os.path.dirname(os.path.realpath(__file__))
-basepath = basepath.replace('/libs/utils', '')
 
 class TestEnv(object):
     """
@@ -64,9 +67,12 @@ class TestEnv(object):
       want to use to run the experiments
     - a test configuration (test_conf) defining which SW setups we need on
       that HW target
-    - a folder to collect the experiments results, which can be specified using
-      the target_conf::results_dir option, or using LISA_RESULTS_DIR environment
-      variable and is by default wiped from all the previous contents
+    - a folder to collect the experiments results. If a relative path is given
+      through the test_conf, it will be interpreted relatively to the results
+      base path. This base path can be set using the LISA_RESULTS_BASE
+      environment variable or via target_conf::results_base key. Relative
+      base paths are interpreted relatively to the default base path.
+      By default, the results directory is wiped from all the previous contents
       (if wipe=True)
 
     :param target_conf:
@@ -109,7 +115,10 @@ class TestEnv(object):
             target. LISA does *not* manage this TFTP server, it must be
             provided externally. Optional.
         **results_dir**
-            location of results of the experiments.
+            location of results of the experiments. If the path is relative,
+            it will be created under the results base. If it is an absolute
+            path, it is used as-is. If no results_dir is provided, a
+            timestamp-based folder is created under the results base.
         **ftrace**
             Ftrace configuration merged with test-specific configuration.
             Currently, only additional events through "events" key is supported.
@@ -240,7 +249,7 @@ class TestEnv(object):
         self._log = logging.getLogger('TestEnv')
 
         # Compute base installation path
-        self._log.info('Using base path: %s', basepath)
+        self._log.info('Using base path: %s', BASEPATH)
 
         # Setup target configuration
         if isinstance(target_conf, dict):
@@ -296,22 +305,40 @@ class TestEnv(object):
         if '__features__' not in self.conf:
             self.conf['__features__'] = []
 
-        # Initialize local results folder.
-        # The test configuration overrides the target's one and the environment
-        # variable overrides everything else.
-        self.res_dir = (
-            os.getenv('LISA_RESULTS_DIR') or
-            self.conf.get('results_dir')
+        # Base directory under which results directories are stored. The
+        # default location can be overriden by defining LISA_RESULTS_BASE
+        # environment variable and from target config.
+        res_base = (
+            os.getenv('LISA_RESULTS_BASE') or
+            self.conf.get('results_base') or
+            DEFAULT_RESULTS_BASE
         )
-        # Default result dir based on the current time
-        if not self.res_dir:
-            self.res_dir = datetime.now().strftime(
-                os.path.join(basepath, OUT_PREFIX, '%Y%m%d_%H%M%S')
+        if not os.path.isabs(res_base):
+            res_base = os.path.join(DEFAULT_RESULTS_BASE, res_base)
+
+        # Initialize local results folder.
+        res_dir = (
+            # Setting it from the target config is sloppy but it avoids a
+            # compatibility break with previous behavior. That should work as
+            # long as only one TestEnv is created, for example in a notebook.
+            self.conf.get('results_dir') or
+            # This should be set to the tested class name so that the results
+            # folder can be linked easily to the class that created the
+            # TestEnv.
+            self.test_conf.get('results_dir') or
+            # If no results dir is given by the test configuration, we default
+            # to a timestamp-based name. This is mostly useful when a TestEnv
+            # is created from a notebook. Automated tests are expected to set
+            # results_dir to <module name>.<class name>
+            datetime.now().strftime('%Y%m%d_%H%M%S')
             )
 
-        # Relative paths are interpreted as relative to a fixed root.
-        if not os.path.isabs(self.res_dir):
-            self.res_dir = os.path.join(basepath, OUT_PREFIX, self.res_dir)
+        # A TestEnv instantiated in a notebook may specify an absolute path
+        # which must be honored.
+        if os.path.isabs(res_dir):
+            self.res_dir = res_dir
+        else:
+            self.res_dir = os.path.join(res_base, res_dir)
 
         if wipe and os.path.exists(self.res_dir):
             self._log.warning('Wipe previous contents of the results folder:')
@@ -320,7 +347,7 @@ class TestEnv(object):
         if not os.path.exists(self.res_dir):
             os.makedirs(self.res_dir)
 
-        res_lnk = os.path.join(basepath, LATEST_LINK)
+        res_lnk = os.path.join(BASEPATH, LATEST_LINK)
         if os.path.islink(res_lnk):
             os.remove(res_lnk)
         os.symlink(self.res_dir, res_lnk)
@@ -372,7 +399,7 @@ class TestEnv(object):
         filepath = filepath or 'target.config'
 
         # Loading default target configuration
-        conf_file = os.path.join(basepath, filepath)
+        conf_file = os.path.join(BASEPATH, filepath)
 
         self._log.info('Loading target configuration [%s]...', conf_file)
         conf = JsonConf(conf_file)
@@ -741,10 +768,10 @@ class TestEnv(object):
 
         tools_to_install = []
         for tool in tools:
-            binary = '{}/tools/scripts/{}'.format(basepath, tool)
+            binary = '{}/tools/scripts/{}'.format(BASEPATH, tool)
             if not os.path.isfile(binary):
                 binary = '{}/tools/{}/{}'\
-                         .format(basepath, self.target.abi, tool)
+                         .format(BASEPATH, self.target.abi, tool)
             tools_to_install.append(binary)
 
         for tool_to_install in tools_to_install:
@@ -837,7 +864,7 @@ class TestEnv(object):
         self.platform['cpus_count'] = len(self.target.core_clusters)
 
     def _load_em(self, board):
-        em_path = os.path.join(basepath,
+        em_path = os.path.join(BASEPATH,
                 'libs/utils/platforms', board.lower() + '.json')
         self._log.debug('Trying to load default EM from %s', em_path)
         if not os.path.exists(em_path):
@@ -851,7 +878,7 @@ class TestEnv(object):
         return board.json['nrg_model']
 
     def _load_board(self, board):
-        board_path = os.path.join(basepath,
+        board_path = os.path.join(BASEPATH,
                 'libs/utils/platforms', board.lower() + '.json')
         self._log.debug('Trying to load board descriptor from %s', board_path)
         if not os.path.exists(board_path):

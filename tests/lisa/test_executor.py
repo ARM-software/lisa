@@ -40,6 +40,7 @@ class SetUpTarget(TestCase):
             test_conf={
                 # Don't load cpufreq, it won't work when platform=host
                 'exclude_modules': ['cpufreq'],
+                'results_dir': self.__module__ + '.' + self.__class__.__name__,
                 # Empty list of events to avoid getting the default ones
                 'ftrace': {
                     'events': []
