@@ -33,6 +33,11 @@ class ValidationError(WAError):
     pass
 
 
+class ExecutionError(WAError):
+    """Error encountered by the execution framework."""
+    pass
+
+
 class WorkloadError(WAError):
     """General Workload error."""
     pass
