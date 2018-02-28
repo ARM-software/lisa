@@ -152,6 +152,13 @@ def dedent():
     _indent_level -= 1
 
 
+def set_indent_level(level):
+    global _indent_level
+    old_level = _indent_level
+    _indent_level = level
+    return old_level
+
+
 def log_error(e, logger, critical=False):
     """
     Log the specified Exception as an error. The Error message will be formatted
@@ -163,13 +170,18 @@ def log_error(e, logger, critical=False):
                level, otherwise it will be logged as ``logging.ERROR``.
 
     """
+    if getattr(e, 'logged', None):
+        return
+
     if critical:
         log_func = logger.critical
     else:
         log_func = logger.error
 
     if isinstance(e, KeyboardInterrupt):
-        log_func('Got CTRL-C. Aborting.')
+        old_level = set_indent_level(0)
+        logger.info('Got CTRL-C. Aborting.')
+        set_indent_level(old_level)
     elif isinstance(e, WAError) or isinstance(e, DevlibError):
         log_func(str(e))
     elif isinstance(e, subprocess.CalledProcessError):

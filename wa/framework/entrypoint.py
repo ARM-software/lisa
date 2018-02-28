@@ -107,10 +107,9 @@ def main():
         command = commands[args.command]
         sys.exit(command.execute(config, args))
 
-    except KeyboardInterrupt:
-        logging.info('Got CTRL-C. Aborting.')
+    except KeyboardInterrupt as e:
+        log.log_error(e, logger)
         sys.exit(3)
     except Exception as e:  # pylint: disable=broad-except
-        if not getattr(e, 'logged', None):
-            log.log_error(e, logger)
+        log.log_error(e, logger)
         sys.exit(2)

@@ -233,9 +233,7 @@ class ExecutionContext(object):
             except WorkloadError as e:
                 job.set_status(Status.FAILED)
                 self.add_event(e.message)
-                if not getattr(e, 'logged', None):
-                    log.log_error(e, self.logger)
-                    e.logged = True
+                log.log_error(e, self.logger)
                 failed_ids.append(job.id)
 
                 if self.cm.run_config.bail_on_init_failure:
@@ -428,9 +426,7 @@ class Runner(object):
         except Exception as e: # pylint: disable=broad-except
             job.set_status(Status.FAILED)
             context.add_event(e.message)
-            if not getattr(e, 'logged', None):
-                log.log_error(e, self.logger)
-                e.logged = True
+            log.log_error(e, self.logger)
             if isinstance(e, ExecutionError):
                 raise e
             elif isinstance(e, TargetError):
@@ -470,9 +466,7 @@ class Runner(object):
                     job.run(context)
             except Exception as e:
                 job.set_status(Status.FAILED)
-                if not getattr(e, 'logged', None):
-                    log.log_error(e, self.logger)
-                    e.logged = True
+                log.log_error(e, self.logger)
                 if isinstance(e, TargetError) or isinstance(e, TimeoutError):
                     context.tm.verify_target_responsive()
                 raise e

@@ -19,6 +19,7 @@ This module wraps louie signalling mechanism. It relies on modified version of l
 that has prioritization added to handler invocation.
 
 """
+import sys
 import logging
 from contextlib import contextmanager
 
@@ -298,7 +299,7 @@ def send(signal, sender=dispatcher.Anonymous, *args, **kwargs):
     return dispatcher.send(signal, sender, *args, **kwargs)
 
 
-# This will normally be set to log_error() by init_logging(); see wa.framework/log.py.
+# This will normally be set to log_error() by init_logging(); see wa.utils.log
 # Done this way to prevent a circular import dependency.
 log_error_func = logger.error
 
@@ -337,6 +338,9 @@ def wrap(signal_name, sender=dispatcher.Anonymous,*args, **kwargs):
         yield
         send_func(success_signal, sender, *args, **kwargs)
     finally:
+        exc_type, exc, tb = sys.exc_info()
+        if exc:
+            log_error_func(exc)
         send_func(after_signal, sender, *args, **kwargs)
 
 
