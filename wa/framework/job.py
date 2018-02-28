@@ -115,6 +115,9 @@ class Job(object):
                 self.run_time = datetime.utcnow() - start_time
 
     def process_output(self, context):
+        if not context.tm.is_responsive:
+            self.logger.info('Target unresponsive; not processing job output.')
+            return
         self.logger.info('Processing output for job {} [{}]'.format(self.id, self.iteration))
         if self.status != Status.FAILED:
             with signal.wrap('WORKLOAD_RESULT_EXTRACTION', self, context):
@@ -124,11 +127,17 @@ class Job(object):
                 self.workload.update_output(context)
 
     def teardown(self, context):
+        if not context.tm.is_responsive:
+            self.logger.info('Target unresponsive; not tearing down.')
+            return
         self.logger.info('Tearing down job {} [{}]'.format(self.id, self.iteration))
         with signal.wrap('WORKLOAD_TEARDOWN', self, context):
             self.workload.teardown(context)
 
     def finalize(self, context):
+        if not context.tm.is_responsive:
+            self.logger.info('Target unresponsive; not finalizing.')
+            return
         self.logger.info('Finalizing job {} [{}]'.format(self.id, self.iteration))
         with signal.wrap('WORKLOAD_FINALIZED', self, context):
             self.workload.finalize(context)

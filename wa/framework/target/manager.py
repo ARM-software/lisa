@@ -1,7 +1,7 @@
 import logging
 
 from wa.framework import signal
-from wa.framework.exception import ExecutionError, TargetError
+from wa.framework.exception import ExecutionError, TargetError, TargetNotRespondingError
 from wa.framework.plugin import Parameter
 from wa.framework.target.descriptor import (get_target_description,
                                             instantiate_target,
@@ -90,8 +90,9 @@ class TargetManager(object):
                 self.logger.info('Target unresponsive; performing hard reset')
                 self.target.reboot(hard=True)
                 self.is_responsive = True
+                raise ExecutionError('Target became unresponsive but was recovered.')
             else:
-                raise ExecutionError('Target unresponsive and hard reset not supported; bailing.')
+                raise TargetNotRespondingError('Target unresponsive and hard reset not supported; bailing.')
 
     def _init_target(self):
         tdesc = get_target_description(self.target_name)

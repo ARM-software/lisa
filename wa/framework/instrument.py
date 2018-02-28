@@ -105,7 +105,7 @@ from collections import OrderedDict
 from wa.framework import signal
 from wa.framework.plugin import Plugin
 from wa.framework.exception import (WAError, TargetNotRespondingError, TimeoutError,
-                                    WorkloadError)
+                                    WorkloadError, TargetError)
 from wa.utils.log import log_error
 from wa.utils.misc import isiterable
 from wa.utils.types import identifier, enum, level
@@ -263,6 +263,9 @@ class ManagedCallback(object):
     def __call__(self, context):
         if self.instrument.is_enabled:
             try:
+                if not context.tm.is_responsive:
+                    logger.debug("Target unreponsive; skipping callback {}".format(self.callback))
+                    return
                 self.callback(context)
             except (KeyboardInterrupt, TargetNotRespondingError, TimeoutError):  # pylint: disable=W0703
                 raise
@@ -274,6 +277,8 @@ class ManagedCallback(object):
                 context.add_event(e.message)
                 if isinstance(e, WorkloadError):
                     context.set_status('FAILED')
+                elif isinstance(e, TargetError) or isinstance(e, TimeoutError):
+                    context.tm.verify_target_responsive()
                 else:
                     if context.current_job:
                         context.set_status('PARTIAL')
