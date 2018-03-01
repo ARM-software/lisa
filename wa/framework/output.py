@@ -72,15 +72,24 @@ class Output(object):
             raise RuntimeError(msg)
         self.result.classifiers = value
 
+    @property
+    def events(self):
+        if self.result is None:
+            return []
+        return self.result.events
+
     def __init__(self, path):
         self.basepath = path
         self.result = None
-        self.events = []
 
     def reload(self):
         try:
-            pod = read_pod(self.resultfile)
-            self.result = Result.from_pod(pod)
+            if os.path.isdir(self.basepath):
+                pod = read_pod(self.resultfile)
+                self.result = Result.from_pod(pod)
+            else:
+                self.result = Result()
+                self.result.status = Status.PENDING
         except Exception as e:
             self.result = Result()
             self.result.status = Status.UNKNOWN
