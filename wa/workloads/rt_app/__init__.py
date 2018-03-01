@@ -173,6 +173,7 @@ class RtApp(Workload):
     def run(self, context):
         self.output = self.target.invoke(self.command,
                                          on_cpus=self.taskset_mask,
+                                         redirect_stderr=True,
                                          timeout=self.timeout,
                                          as_root=True)
 
