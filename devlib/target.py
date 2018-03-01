@@ -338,7 +338,7 @@ class Target(object):
         return self.conn.background(command, stdout, stderr, as_root)
 
     def invoke(self, binary, args=None, in_directory=None, on_cpus=None,
-               as_root=False, timeout=30):
+               redirect_stderr=False, as_root=False, timeout=30):
         """
         Executes the specified binary under the specified conditions.
 
@@ -369,6 +369,8 @@ class Target(object):
             command = '{} taskset 0x{:x} {}'.format(self.busybox, on_cpus, command)
         if in_directory:
             command = 'cd {} && {}'.format(in_directory, command)
+        if redirect_stderr:
+            command = '{} 2>&1'.format(command)
         return self.execute(command, as_root=as_root, timeout=timeout)
 
     def background_invoke(self, binary, args=None, in_directory=None,
