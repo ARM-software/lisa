@@ -1,3 +1,4 @@
+import inspect
 from collections import OrderedDict
 from copy import copy
 
@@ -12,7 +13,7 @@ from wa.framework.configuration.core import get_config_point_map
 from wa.framework.exception import PluginLoaderError
 from wa.framework.plugin import Plugin, Parameter
 from wa.framework.target.assistant import LinuxAssistant, AndroidAssistant, ChromeOsAssistant
-from wa.utils.types import list_of_strings, list_of_ints, regex
+from wa.utils.types import list_of_strings, list_of_ints, regex, identifier, caseless_string
 from wa.utils.misc import isiterable
 
 
@@ -488,3 +489,83 @@ class DefaultTargetDescriptor(TargetDescriptor):
                 raise ValueError('Unexpected default "{}"'.format(name))
             param_map[name].default = value
         return cls, param_map.values()
+
+
+
+_adhoc_target_descriptions = []
+
+
+def create_target_description(name, *args, **kwargs):
+    name = identifier(name)
+    for td in _adhoc_target_descriptions:
+        if caseless_string(name) == td.name:
+            msg = 'Target with name "{}" already exists (from source: {})'
+            raise ValueError(msg.format(name, td.source))
+
+    stack = inspect.stack()
+    # inspect.stack() returns a list of call frame records for the current thread
+    # in reverse call order. So the first entry is for the current frame and next one
+    # for the immediate caller. Each entry is a tuple in the format
+    #  (frame_object, module_path, line_no, function_name, source_lines, source_lines_index)
+    #
+    # Here we assign the path of the calling module as the "source" for this description.
+    # because this might be invoked via the add_scription_for_target wrapper, we need to 
+    # check for that, and make sure that we get the info for *its* caller in that case.
+    if stack[1][3] == 'add_description_for_target':
+        source = stack[2][1]
+    else:
+        source = stack[1][1]
+
+    _adhoc_target_descriptions.append(TargetDescription(name, source, *args, **kwargs))
+
+
+def _get_target_defaults(target):
+    specificity = 0
+    res = ('linux', TARGETS['linux'])  # fallback to a generic linux target
+    for name, ttup in TARGETS.iteritems():
+        if issubclass(target, ttup[0][0]):
+            new_spec =  len(inspect.getmro(ttup[0][0]))
+            if new_spec > specificity:
+                res = (name, ttup)
+                specificity  = new_spec
+    return res
+
+
+def add_description_for_target(target, description=None, **kwargs):
+    (base_name, ((base_target, base_conn), base_params, base_defaults)) = _get_target_defaults(target)
+
+    if 'target_params' not in kwargs:
+        kwargs['target_params'] = base_params
+
+    if 'platform' not in kwargs:
+        kwargs['platform'] = Platform
+    if 'platform_params' not in kwargs:
+        for (plat, conn), params, _ in PLATFORMS.itervalues():
+            if plat == kwargs['platform']:
+                kwargs['platform_params'] = params
+                if conn is not None and kwargs['conn'] is None:
+                    kwargs['conn'] = conn
+                break
+
+    if 'conn' not in kwargs:
+        kwargs['conn'] = base_conn
+    if 'conn_params' not in kwargs:
+        kwargs['conn_params'] = CONNECTION_PARAMS.get(kwargs['conn'])
+
+    if 'assistant' not in kwargs:
+        kwargs['assistant'] = ASSISTANTS.get(base_name)
+
+    create_target_description(target.name, target=target, description=description, **kwargs)
+
+
+class SimpleTargetDescriptor(TargetDescriptor):
+
+    name = 'adhoc_targets'
+
+    description="""
+    Returns target descriptions added with ``create_target_description``.
+
+    """
+
+    def get_descriptions(self):
+        return _adhoc_target_descriptions
