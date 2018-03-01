@@ -117,10 +117,10 @@ class TargetDescription(object):
 
     def _set(self, attr, vals):
         if vals is None:
-            vals = {}
+            vals = []
         elif isiterable(vals):
-            if not hasattr(vals, 'iteritems'):
-                vals = {v.name: v for v in vals}
+            if hasattr(vals, 'values'):
+                vals = v.values()
         else:
             msg = '{} must be iterable; got "{}"'
             raise ValueError(msg.format(attr, vals))
@@ -374,7 +374,7 @@ CONNECTION_PARAMS['ChromeOsConnection'] = \
         CONNECTION_PARAMS[AdbConnection] + CONNECTION_PARAMS[SshConnection]
 
 
-# name --> ((target_class, conn_class), params_list, defaults, assistant_class)
+# name --> ((target_class, conn_class), params_list, defaults)
 TARGETS = {
     'linux': ((LinuxTarget, SshConnection), COMMON_TARGET_PARAMS, None),
     'android': ((AndroidTarget, AdbConnection), COMMON_TARGET_PARAMS +
