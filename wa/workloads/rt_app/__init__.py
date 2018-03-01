@@ -23,6 +23,8 @@ from subprocess import CalledProcessError
 from wa import Workload, Parameter, Executable, File
 from wa.framework.exception import WorkloadError, ResourceError
 from wa.utils.misc import check_output
+from wa.utils.exec_control import once
+
 
 RAW_OUTPUT_FILENAME = 'raw-output.txt'
 TARBALL_FILENAME = 'rtapp-logs.tar.gz'
@@ -145,6 +147,7 @@ class RtApp(Workload):
                   """),
     ]
 
+    @once
     def initialize(self, context):
         # initialize() runs once per run. setting a class variable to make it
         # available to other instances of the workload
@@ -209,6 +212,7 @@ class RtApp(Workload):
         context.add_metric('error_count', error_count, 'count')
         context.add_metric('crit_count', crit_count, 'count')
 
+    @once
     def finalize(self, context):
         if self.uninstall_on_exit:
             self.target.uninstall(self.target_binary)
