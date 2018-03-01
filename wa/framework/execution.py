@@ -420,14 +420,15 @@ class Runner(object):
             log.indent()
             self.do_run_job(job, context)
             job.set_status(Status.OK)
-        except KeyboardInterrupt:
-            job.set_status(Status.ABORTED)
-            raise
-        except Exception as e: # pylint: disable=broad-except
-            job.set_status(Status.FAILED)
-            context.add_event(e.message)
+        except (Exception, KeyboardInterrupt) as e: # pylint: disable=broad-except
             log.log_error(e, self.logger)
-            if isinstance(e, ExecutionError):
+            if isinstance(e, KeyboardInterrupt):
+                job.set_status(Status.ABORTED)
+                raise e
+            else:
+                job.set_status(Status.FAILED)
+                context.add_event(e.message)
+            if isinstance(e, TargetNotRespondingError):
                 raise e
             elif isinstance(e, TargetError):
                 context.tm.verify_target_responsive()
@@ -464,6 +465,9 @@ class Runner(object):
             try:
                 with signal.wrap('JOB_EXECUTION', self, context):
                     job.run(context)
+            except KeyboardInterrupt:
+                job.set_status(Status.ABORTED)
+                raise
             except Exception as e:
                 job.set_status(Status.FAILED)
                 log.log_error(e, self.logger)
@@ -484,7 +488,6 @@ class Runner(object):
 
         except KeyboardInterrupt:
             job.set_status(Status.ABORTED)
-            self.logger.info('Got CTRL-C. Aborting.')
             raise
         finally:
             # If setup was successfully completed, teardown must
