@@ -60,8 +60,7 @@ class AcmeCapeInstrument(Instrument):
 
     def __del__(self):
         if self.process and self.process.pid:
-            self.logger.warning('killing iio-capture process [%d]...',
-                                self.process.pid)
+            self.logger.warning('killing iio-capture process [{}]...'.format(self.process.pid))
             self.process.kill()
 
     def reset(self, sites=None, kinds=None, channels=None):
