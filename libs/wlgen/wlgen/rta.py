@@ -426,7 +426,7 @@ class RTA(Workload):
                 self.rta_profile['tasks'][tid]['phases']\
                     ['p'+str(pid).zfill(6)] = task_phase
 
-                if phase.cpus:
+                if phase.cpus is not None:
                     if isinstance(phase.cpus, str):
                         task_phase['cpus'] = ranges_to_list(phase.cpus)
                     elif isinstance(phase.cpus, list):
