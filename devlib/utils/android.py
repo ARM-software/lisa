@@ -378,7 +378,11 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
     adb_shell_command = '({}); echo \"\n$?\"'.format(command)
     actual_command = ['adb'] + device_part + ['shell', adb_shell_command]
     logger.debug('adb {} shell {}'.format(' '.join(device_part), command))
-    raw_output, error = check_output(actual_command, timeout, shell=False)
+    try:
+        raw_output, error = check_output(actual_command, timeout, shell=False)
+    except subprocess.CalledProcessError as e:
+        raise TargetError(str(e))
+
     if raw_output:
         try:
             output, exit_code, _ = raw_output.replace('\r\n', '\n').replace('\r', '\n').rsplit('\n', 2)
