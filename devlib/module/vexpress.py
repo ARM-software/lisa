@@ -17,6 +17,7 @@ import os
 import time
 import tarfile
 import shutil
+from subprocess import CalledProcessError
 
 from devlib.module import HardRestModule, BootModule, FlashModule
 from devlib.exception import TargetError, HostError
@@ -52,7 +53,7 @@ class VexpressDtrHardReset(HardRestModule):
         try:
             if self.target.is_connected:
                 self.target.execute('sync')
-        except TargetError:
+        except (TargetError, CalledProcessError):
             pass
         with open_serial_connection(port=self.port,
                                     baudrate=self.baudrate,
