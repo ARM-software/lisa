@@ -213,10 +213,12 @@ class Target(object):
 
     # connection and initialization
 
-    def connect(self, timeout=None):
+    def connect(self, timeout=None, check_boot_completed=True):
         self.platform.init_target_connection(self)
         tid = id(threading.current_thread())
         self._connections[tid] = self.get_connection(timeout=timeout)
+        if check_boot_completed:
+            self.wait_boot_complete(timeout)
         self._resolve_paths()
         self.execute('mkdir -p {}'.format(self.working_directory))
         self.execute('mkdir -p {}'.format(self.executables_directory))
@@ -235,6 +237,9 @@ class Target(object):
         if self.conn_cls == None:
             raise ValueError('Connection class not specified on Target creation.')
         return self.conn_cls(timeout=timeout, **self.connection_settings)  # pylint: disable=not-callable
+
+    def wait_boot_complete(self, timeout=10):
+        raise NotImplementedError()
 
     def setup(self, executables=None):
         self._setup_shutils()
@@ -444,7 +449,7 @@ class Target(object):
         try:
             self.conn.execute('ls /', timeout=5)
             return 1
-        except (TimeoutError, subprocess.CalledProcessError):
+        except (TimeoutError, subprocess.CalledProcessError, TargetError):
             if explode:
                 raise TargetNotRespondingError(self.conn.name)
             return 0
@@ -836,9 +841,6 @@ class LinuxTarget(Target):
                                           shell_prompt=shell_prompt,
                                           conn_cls=conn_cls)
 
-    def connect(self, timeout=None):
-        super(LinuxTarget, self).connect(timeout=timeout)
-
     def kick_off(self, command, as_root=False):
         command = 'sh -c "{}" 1>/dev/null 2>/dev/null &'.format(escape_double_quotes(command))
         return self.conn.execute(command, as_root=as_root)
@@ -1056,10 +1058,7 @@ class AndroidTarget(Target):
             # indefinitely when making calls to the device. To avoid this,
             # always disconnect first.
             adb_disconnect(device)
-        super(AndroidTarget, self).connect(timeout=timeout)
-
-        if check_boot_completed:
-            self.wait_boot_complete(timeout)
+        super(AndroidTarget, self).connect(timeout=timeout, check_boot_completed=check_boot_completed)
 
     def kick_off(self, command, as_root=None):
         """
@@ -1785,8 +1784,8 @@ class ChromeOsTarget(LinuxTarget):
             else:
                 raise
 
-    def connect(self, timeout=30):
-        super(ChromeOsTarget, self).connect(timeout)
+    def connect(self, timeout=30, check_boot_completed=True):
+        super(ChromeOsTarget, self).connect(timeout, check_boot_completed)
 
         # Assume device supports android apps if container directory is present
         if self.supports_android is None:
