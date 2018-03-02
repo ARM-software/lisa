@@ -20,6 +20,8 @@ import time
 import re
 import pandas
 import StringIO
+import logging
+import tests.utils.em as em
 
 from unittest import SkipTest
 
@@ -187,6 +189,66 @@ class TestEnergyModelPresent(BasicCheckTest):
                 'No energy model visible in procfs. Possible causes: \n'
                 '- Kernel built without (CONFIG_SCHED_DEBUG && CONFIG_SYSCTL)\n'
                 '- No energy model in kernel')
+
+class TestEnergyModelSanity(BasicCheckTest):
+    @classmethod
+    def setUp(cls):
+        if not cls.env.nrg_model:
+            try:
+                cls.env.nrg_model = EnergyModel.from_target(cls.env.target)
+            except Exception as e:
+                raise SkipTest(
+                    'This test requires an EnergyModel for the platform. '
+                    'Either provide one manually or ensure it can be read '
+                    'from the filesystem: {}'.format(e))
+
+    def test_is_active_state_coherent(self):
+        """Test coherency of the active states"""
+        (succeed, msg) = em.is_power_increasing(self.env.nrg_model)
+        self.assertTrue(succeed, msg)
+
+        (succeed, msg) = em.is_efficiency_decreasing(self.env.nrg_model)
+        self.assertTrue(succeed, msg)
+
+    def test_nb_active_states(self):
+        """Test the number of active states for each group of cpus"""
+        freqs = []
+        for cluster in self.env.nrg_model.root.children:
+            cpu = cluster.children[0]
+            freqs.append(len(self.target.cpufreq.list_frequencies(cpu.cpus[0])))
+        (succeed, msg) = em.check_active_states_nb(self.env.nrg_model, freqs)
+        self.assertTrue(succeed, msg)
+
+    def test_get_opp_in_overutilized(self):
+        """Get opp that are in overutilized zone"""
+        opp_overutilized = em.get_opp_overutilized(self.env.nrg_model)
+        msg = "\n"
+        for i, opp in enumerate(opp_overutilized):
+            msg += "\tGroup {}: {}\n".format(i, opp[1])
+        logging.info(msg)
+
+    def test_get_avg_opp_per_group(self):
+        """
+        Get average workload that can be run on each cpus group
+        """
+        avg_load = em.get_avg_cap(self.env.nrg_model)
+        msg = "\n"
+        for i, load in enumerate(avg_load):
+            msg += "\tGroup {}: {}\n".format(i, load)
+        logging.info(msg)
+
+    def test_check_overutilized_area(self):
+        """
+        Compare the opp in overutilized zone of the little cpu to the
+        corresponding opp of the big cpus
+        """
+        (succeed, msg) = em.check_overutilized_area(self.env.nrg_model)
+        self.assertTrue(succeed, msg)
+
+    def test_ideal_placements(self):
+        """Test placement of simple workloads"""
+        (succeed, msg) = em.ideal_placements(self.env.nrg_model)
+        self.assertTrue(succeed, msg)
 
 class TestSchedutilTunables(BasicCheckTest):
     MAX_RATE_LIMIT_US = 20 * 1e3
