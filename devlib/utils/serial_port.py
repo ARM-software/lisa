@@ -55,7 +55,7 @@ def get_connection(timeout, init_dtr=None, logcls=SerialLogger,
     try:
         conn = serial.Serial(*args, **kwargs)
     except serial.SerialException as e:
-        raise HostError(e.message)
+        raise HostError(str(e))
     if init_dtr is not None:
         conn.setDTR(init_dtr)
     conn.nonblocking()
