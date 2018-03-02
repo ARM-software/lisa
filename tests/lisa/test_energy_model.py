@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 from collections import OrderedDict
 from unittest import TestCase
 import os
@@ -22,13 +21,18 @@ import shutil
 from tempfile import mkdtemp
 
 from energy_model import (EnergyModel, ActiveState, EnergyModelCapacityError,
-                          EnergyModelNode, EnergyModelRoot, PowerDomain)
+                          EnergyModelNode, EnergyModelRoot, PowerDomain,
+                          is_efficiency_decreasing, check_active_states_nb,
+                          get_opp_overutilized, compare_big_little_opp,
+                          get_expected_placement, are_placements_equal,
+                          get_avg_cap)
 from trace import Trace
 
 # Import these just to test that they can be constructed
 import libs.utils.platforms.juno_r0_energy
 import libs.utils.platforms.pixel_energy
 import libs.utils.platforms.hikey_energy
+import libs.utils.platforms.hikey960_energy
 
 """ A very basic test suite for the EnergyModel class."""
 
@@ -62,9 +66,9 @@ little_cpu_idle_states = OrderedDict([
 ])
 
 littles=[0, 1]
-def little_cpu_node(cpu):
+def little_cpu_node(cpu, active_states):
     return EnergyModelNode(cpu=cpu,
-                           active_states=little_cpu_active_states,
+                           active_states=active_states,
                            idle_states=little_cpu_idle_states)
 
 big_cluster_active_states = OrderedDict([
@@ -91,36 +95,41 @@ big_cpu_idle_states = OrderedDict([
 
 bigs=[2, 3]
 
-def big_cpu_node(cpu):
+def big_cpu_node(cpu, active_state):
     return EnergyModelNode(cpu=cpu,
-                           active_states=big_cpu_active_states,
+                           active_states=active_state,
                            idle_states=big_cpu_idle_states)
-
-em = EnergyModel(
-    root_node=EnergyModelRoot(children=[
-        EnergyModelNode(name='cluster_little',
-                        active_states=little_cluster_active_states,
-                        idle_states=little_cluster_idle_states,
-                        children=[little_cpu_node(0),
-                                  little_cpu_node(1)]),
-        EnergyModelNode(name='cluster_big',
-                        active_states=big_cluster_active_states,
-                        idle_states=big_cluster_idle_states,
-                        children=[big_cpu_node(2),
-                                  big_cpu_node(3)])
-    ]),
-    root_power_domain=PowerDomain(idle_states=[], children=[
-        PowerDomain(
-            idle_states=['cluster-sleep-0'],
-            children=[PowerDomain(idle_states=['WFI', 'cpu-sleep-0'], cpu=c)
-                      for c in littles]),
-        PowerDomain(
-            idle_states=['cluster-sleep-0'],
-            children=[PowerDomain(idle_states=['WFI', 'cpu-sleep-0'], cpu=c)
-                      for c in bigs]),
+def createEnergyModel(little_cpu=little_cpu_active_states,
+                      big_cpu=big_cpu_active_states,
+                      little_cluster=little_cluster_active_states,
+                      big_cluster=big_cluster_active_states):
+    return EnergyModel(
+        root_node=EnergyModelRoot(children=[
+            EnergyModelNode(name='cluster_little',
+                            active_states=little_cluster,
+                            idle_states=little_cluster_idle_states,
+                            children=[little_cpu_node(0, little_cpu),
+                                      little_cpu_node(1, little_cpu)]),
+            EnergyModelNode(name='cluster_big',
+                            active_states=big_cluster,
+                            idle_states=big_cluster_idle_states,
+                            children=[big_cpu_node(2, big_cpu),
+                                      big_cpu_node(3, big_cpu)])
         ]),
-    freq_domains=[littles, bigs]
-)
+        root_power_domain=PowerDomain(idle_states=[], children=[
+            PowerDomain(
+                idle_states=['cluster-sleep-0'],
+                children=[PowerDomain(idle_states=['WFI', 'cpu-sleep-0'], cpu=c)
+                          for c in littles]),
+            PowerDomain(
+                idle_states=['cluster-sleep-0'],
+                children=[PowerDomain(idle_states=['WFI', 'cpu-sleep-0'], cpu=c)
+                          for c in bigs]),
+            ]),
+        freq_domains=[littles, bigs]
+    )
+
+em = createEnergyModel()
 
 class TestInvalid(TestCase):
     """Test the sanity checks in EnerygModel setup"""
@@ -423,3 +432,121 @@ class TestEstimateFromTrace(TestCase):
             row = df.iloc[i]
             self.assertAlmostEqual(row.name, exp_index, places=4)
             self.assertDictEqual(row.to_dict(), exp_values)
+
+class TestSanityCheckUtils(TestCase):
+    """
+    The tests proposes some utils to sanity check the energy model. This
+    test controls the behaviours of these utils functions.
+    """
+    # Good cpu active states
+    coherent_little_cpu_active_states = OrderedDict([
+        (1000, ActiveState(capacity=100, power=100)),
+        (1500, ActiveState(capacity=150, power=160)),
+        (2000, ActiveState(capacity=200, power=800)),
+    ])
+    coherent_big_cpu_active_states = OrderedDict([
+        (3000, ActiveState(capacity=300, power=950)),
+        (4000, ActiveState(capacity=400, power=3000)),
+    ])
+
+    # Wrong cpu active states
+    wrong_little_cpu_active_states = OrderedDict([
+        (1000, ActiveState(capacity=100, power=100)),
+        (1500, ActiveState(capacity=150, power=100)),
+        (2000, ActiveState(capacity=200, power=100)),
+    ])
+
+    wrong_big_cpu_active_states = OrderedDict([
+        (1000, ActiveState(capacity=300, power=500)),
+        (1500, ActiveState(capacity=400, power=100)),
+        (2000, ActiveState(capacity=500, power=100))
+    ])
+
+    # Wrong cluster active states
+    wrong_cluster_active_states = OrderedDict([
+        (1000, ActiveState(power=30)),
+        (1500, ActiveState(power=30)),
+        (2000, ActiveState(power=30)),
+    ])
+
+    good_em = createEnergyModel(little_cpu=coherent_little_cpu_active_states,
+                                big_cpu=coherent_big_cpu_active_states)
+
+    bad_em = createEnergyModel(little_cpu=wrong_little_cpu_active_states,
+                               big_cpu=wrong_big_cpu_active_states,
+                               little_cluster=wrong_cluster_active_states,
+                               big_cluster=wrong_cluster_active_states)
+
+    def test_is_efficiency_decreasing(self):
+        """is_efficiency_decreasing correctly reports errors"""
+        (succeed, msg) = is_efficiency_decreasing(self.good_em)
+        self.assertTrue(succeed)
+        self.assertEqual(msg, '')
+
+        (succeed, msg) = is_efficiency_decreasing(self.bad_em)
+        self.assertFalse(succeed)
+        self.assertIn("['cpu0', 'cpu1', 'cpu2', 'cpu3']", msg)
+
+    def test_nb_active_states(self):
+        """check_active_states_nb correctly reports errors"""
+        (succeed, msg) = check_active_states_nb(self.good_em, [3,2])
+        self.assertTrue(succeed)
+        self.assertEqual(msg, '')
+
+        (succeed, msg) = check_active_states_nb(self.good_em, [5,2])
+        self.assertFalse(succeed)
+        self.assertIn("['cpu0', 'cpu1', 'cluster_little']", msg)
+        (succeed, msg) = check_active_states_nb(self.good_em, [3,5])
+        self.assertFalse(succeed)
+        self.assertIn("['cpu2', 'cpu3', 'cluster_big']", msg)
+
+    def test_get_opp_overutilized(self):
+        """get_opp_overutilized correctly reports information"""
+        opp_overutilized = get_opp_overutilized(self.good_em)
+        expected_opp = [(160.0, [200]), (320.0, [400])]
+        self.assertEqual(opp_overutilized, expected_opp)
+
+    def test_get_avg_cap(self):
+        """get_avg_cap correctly reports information"""
+        avg_load = get_avg_cap(self.good_em)
+        expected_load = [130.0, 310.0]
+        self.assertEqual(avg_load, expected_load)
+
+    def test_compare_big_little_opp(self):
+        """compare_big_little_opp correctly reports errors"""
+        (succeed, msg) = compare_big_little_opp(self.good_em)
+        self.assertTrue(succeed)
+        self.assertEqual(msg, '')
+
+        (succeed, msg) = compare_big_little_opp(self.bad_em)
+        self.assertFalse(succeed)
+        self.assertIn("[200, 160.0]", msg)
+        self.assertIn("[100]", msg)
+
+    def test_get_expected_placement(self):
+        """get_expected_placement returns expected value"""
+        util = [100, 0]
+        placement = get_expected_placement(self.good_em, util)
+        self.assertEqual(placement, [[100, 0], [0, 0]])
+
+        util = [100, 200]
+        placement = get_expected_placement(self.good_em, util)
+        self.assertEqual(placement, [[100, 0], [200, 0]])
+
+    def test_are_placements_equal(self):
+        """_are_placements_equal returns expected value"""
+        s1 = [[100, 0], [0, 0]]
+        s2 = [(100,0,0,0), (0,100,0,0)]
+        self.assertTrue(are_placements_equal(self.good_em, s1, s2))
+
+        s2 = [(100,0,0,0)]
+        self.assertFalse(are_placements_equal(self.good_em, s1, s2))
+
+        s2 = [(100,0,0,0), (0,100,0,0), (0,0,100,0)]
+        self.assertFalse(are_placements_equal(self.good_em, s1, s2))
+
+        s2 = [(0,0,100,0), (0,0,0,100)]
+        self.assertFalse(are_placements_equal(self.good_em, s1, s2))
+
+        s2 = [(200,0,0,0), (0,200,0,0)]
+        self.assertFalse(are_placements_equal(self.good_em, s1, s2))
