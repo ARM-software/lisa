@@ -46,7 +46,7 @@ class Job(object):
         self._status = Status.NEW
 
     def load(self, target, loader=pluginloader):
-        self.logger.info('Loading job {}'.format(self.id))
+        self.logger.info('Loading job {}'.format(self))
         if self.iteration == 1:
             self.workload = loader.get_workload(self.spec.workload_name,
                                                 target,
@@ -62,7 +62,7 @@ class Job(object):
         self.output = output
 
     def initialize(self, context):
-        self.logger.info('Initializing job {} [{}]'.format(self.id, self.iteration))
+        self.logger.info('Initializing job {}'.format(self))
         with signal.wrap('WORKLOAD_INITIALIZED', self, context):
             self.workload.logger.context = context
             self.workload.initialize(context)
@@ -97,16 +97,16 @@ class Job(object):
             pm.enable(processor)
 
     def configure_target(self, context):
-        self.logger.info('Configuring target for job {} [{}]'.format(self.id, self.iteration))
+        self.logger.info('Configuring target for job {}'.format(self))
         context.tm.commit_runtime_parameters(self.spec.runtime_parameters)
 
     def setup(self, context):
-        self.logger.info('Setting up job {} [{}]'.format(self.id, self.iteration))
+        self.logger.info('Setting up job {}'.format(self))
         with signal.wrap('WORKLOAD_SETUP', self, context):
             self.workload.setup(context)
 
     def run(self, context):
-        self.logger.info('Running job {} [{}]'.format(self.id, self.iteration))
+        self.logger.info('Running job {}'.format(self))
         with signal.wrap('WORKLOAD_EXECUTION', self, context):
             start_time = datetime.utcnow()
             try:
@@ -118,7 +118,7 @@ class Job(object):
         if not context.tm.is_responsive:
             self.logger.info('Target unresponsive; not processing job output.')
             return
-        self.logger.info('Processing output for job {} [{}]'.format(self.id, self.iteration))
+        self.logger.info('Processing output for job {}'.format(self))
         if self.status != Status.FAILED:
             with signal.wrap('WORKLOAD_RESULT_EXTRACTION', self, context):
                 self.workload.extract_results(context)
@@ -130,7 +130,7 @@ class Job(object):
         if not context.tm.is_responsive:
             self.logger.info('Target unresponsive; not tearing down.')
             return
-        self.logger.info('Tearing down job {} [{}]'.format(self.id, self.iteration))
+        self.logger.info('Tearing down job {}'.format(self))
         with signal.wrap('WORKLOAD_TEARDOWN', self, context):
             self.workload.teardown(context)
 
@@ -138,7 +138,7 @@ class Job(object):
         if not context.tm.is_responsive:
             self.logger.info('Target unresponsive; not finalizing.')
             return
-        self.logger.info('Finalizing job {} [{}]'.format(self.id, self.iteration))
+        self.logger.info('Finalizing job {} '.format(self))
         with signal.wrap('WORKLOAD_FINALIZED', self, context):
             self.workload.finalize(context)
 
@@ -146,3 +146,9 @@ class Job(object):
         status = Status(status)
         if force or self.status < status:
             self.status = status
+
+    def __str__(self):
+        return '{} ({}) [{}]'.format(self.id, self.label, self.iteration)
+
+    def __repr__(self):
+        return 'Job({})'.format(self)
