@@ -356,18 +356,6 @@ class RTA(Workload):
             task_conf['loop'] = task['loops']
             self._log.info(' | loops count: %d', task['loops'])
 
-            # Setup task affinity
-            if 'cpus' in task and task['cpus']:
-                self._log.info(' | CPUs affinity: %s', task['cpus'])
-                if isinstance(task['cpus'], str):
-                    task_conf['cpus'] = ranges_to_list(task['cpus'])
-                elif isinstance(task['cpus'], list):
-                    task_conf['cpus'] = task['cpus']
-                elif isinstance(task['cpus'], int):
-                    task_conf['cpus'] = [task['cpus']]
-                else:
-                    raise ValueError('cpus must be a list or string or int')
-
             # Setup task configuration
             self.rta_profile['tasks'][tid] = task_conf
 
@@ -436,7 +424,7 @@ class RTA(Workload):
                     else:
                         raise ValueError('phases cpus must be a list or string \
                                           or int')
-
+                    self._log.info('|  CPUs affinity: {}'.format(phase.cpus))
 
                 pid+=1
 
@@ -495,6 +483,7 @@ class RTA(Workload):
                          remaining tasks are killed by rt-app when this time has
                          elapsed.
         :param cpus: CPUs to restrict this workload to, using ``taskset``.
+                    .. note:: if not specified, it can run on all CPUs
         :type cpus: list(int)
 
         :param sched: Global RT-App scheduler configuration. Dict with fields:
@@ -544,10 +533,9 @@ class RTATask(object):
     ``Periodic``.
     """
 
-    def __init__(self, delay_s=0, loops=1, sched=None, cpus=None):
+    def __init__(self, delay_s=0, loops=1, sched=None):
         self._task = {}
 
-        self._task['cpus'] = cpus
         self._task['sched'] = sched or {'policy' : 'DEFAULT'}
         self._task['delay'] = delay_s
         self._task['loops'] = loops
@@ -593,12 +581,13 @@ class Ramp(RTATask):
     :type sched: dict
 
     :param cpus: the list of CPUs on which task can run.
+                .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
     """
 
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
                  period_ms=100, delay_s=0, loops=1, sched=None, cpus=None):
-        super(Ramp, self).__init__(delay_s, loops, sched, cpus)
+        super(Ramp, self).__init__(delay_s, loops, sched)
 
         if start_pct not in range(0,101) or end_pct not in range(0,101):
             raise ValueError('start_pct and end_pct must be in [0..100] range')
@@ -643,6 +632,7 @@ class Step(Ramp):
     :type sched: dict
 
     :param cpus: the list of CPUs on which task can run.
+                .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
     """
 
@@ -680,12 +670,13 @@ class Pulse(RTATask):
     :type sched: dict
 
     :param cpus: the list of CPUs on which task can run
+                .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
     """
 
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched=None, cpus=None):
-        super(Pulse, self).__init__(delay_s, loops, sched, cpus)
+        super(Pulse, self).__init__(delay_s, loops, sched)
 
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
@@ -721,6 +712,7 @@ class Periodic(Pulse):
     :type sched: dict
 
     :param cpus: the list of CPUs on which task can run.
+                .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
     """
 
@@ -745,13 +737,15 @@ class RunAndSync(RTATask):
     :type sched: dict
 
     :param cpus: the list of CPUs on which task can run.
+                .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
 
     """
     def __init__(self, barrier, time_s=1,
                  delay_s=0, loops=1, sched=None, cpus=None):
-        super(RunAndSync, self).__init__(delay_s, loops, sched, cpus)
+        super(RunAndSync, self).__init__(delay_s, loops, sched)
 
         # This should translate into a phase containing a 'run' event and a
         # 'barrier' event
-        self._task['phases'] = [Phase(time_s, None, 100, barrier_after=barrier)]
+        self._task['phases'] = [Phase(time_s, None, 100, cpus,
+                                      barrier_after=barrier)]
