@@ -197,6 +197,8 @@ class Workload(object):
 
                      .. note:: if specified it overrides the CPUs specified at
                                configuration time
+                     .. note:: if not specified here and during the
+                               configuration time, it can run on all CPUs
         :type cpus: list(int)
 
         :param background: run the workload in background. In this case the
@@ -234,7 +236,10 @@ class Workload(object):
 
         # Prepend eventually required taskset command
         if cpus or self.cpus:
-            cpus_mask = self.getCpusMask(cpus if cpus else self.cpus)
+            pinned_cpus = cpus if cpus else self.cpus
+            self._log.info(('CPUs affinity for workload '
+                            '{}: {}').format(self.name, pinned_cpus))
+            cpus_mask = self.getCpusMask(pinned_cpus)
             taskset_cmd = '{}/taskset 0x{:X}'\
                     .format(self.target.executables_directory,
                             cpus_mask)
