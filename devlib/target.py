@@ -841,6 +841,9 @@ class LinuxTarget(Target):
                                           shell_prompt=shell_prompt,
                                           conn_cls=conn_cls)
 
+    def wait_boot_complete(self, timeout=10):
+        pass
+
     def kick_off(self, command, as_root=False):
         command = 'sh -c "{}" 1>/dev/null 2>/dev/null &'.format(escape_double_quotes(command))
         return self.conn.execute(command, as_root=as_root)
