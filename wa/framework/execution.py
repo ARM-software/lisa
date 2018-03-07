@@ -98,6 +98,7 @@ class ExecutionContext(object):
         self.current_job = None
         self.successful_jobs = 0
         self.failed_jobs = 0
+        self.run_interrupted = False
 
     def start_run(self):
         self.output.info.start_time = datetime.utcnow()
@@ -372,6 +373,8 @@ class Runner(object):
             self.send(signal.RUN_INITIALIZED)
 
             while self.context.job_queue:
+                if self.context.run_interrupted:
+                    raise KeyboardInterrupt()
                 with signal.wrap('JOB_EXECUTION', self, self.context):
                     self.run_next_job(self.context)
 
@@ -425,6 +428,7 @@ class Runner(object):
         except (Exception, KeyboardInterrupt) as e: # pylint: disable=broad-except
             log.log_error(e, self.logger)
             if isinstance(e, KeyboardInterrupt):
+                context.run_interrupted = True
                 job.set_status(Status.ABORTED)
                 raise e
             else:
@@ -467,6 +471,7 @@ class Runner(object):
                 with signal.wrap('JOB_EXECUTION', self, context):
                     job.run(context)
             except KeyboardInterrupt:
+                context.run_interrupted = True
                 job.set_status(Status.ABORTED)
                 raise
             except Exception as e:
@@ -488,6 +493,7 @@ class Runner(object):
                     raise
 
         except KeyboardInterrupt:
+            context.run_interrupted = True
             job.set_status(Status.ABORTED)
             raise
         finally:
@@ -512,7 +518,10 @@ class Runner(object):
                 self.context.failed_jobs += 1
         else:  # status not in retry_on_status
             self.logger.info('Job completed with status {}'.format(job.status))
-            self.context.successful_jobs += 1
+            if job.status != 'ABORTED':
+                self.context.successful_jobs += 1
+            else:
+                self.context.failed_jobs += 1
 
     def retry_job(self, job):
         retry_job = Job(job.spec, job.iteration, self.context)
