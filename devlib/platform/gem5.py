@@ -174,7 +174,11 @@ class Gem5SimulationPlatform(Platform):
             # Open the stderr file
             with open(self.stderr_filename, 'r') as f:
                 for line in f:
+                    # Look for two different strings, exact wording depends on
+                    # version of gem5
                     m = re.search(r"Listening for system connection on port (?P<port>\d+)", line)
+                    if not m:
+                        m = re.search(r"Listening for connections on port (?P<port>\d+)", line)
                     if m:
                         port = int(m.group('port'))
                         if port >= 3456 and port < 5900:
