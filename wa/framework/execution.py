@@ -232,7 +232,6 @@ class ExecutionContext(object):
                 job.initialize(self)
             except WorkloadError as e:
                 job.set_status(Status.FAILED)
-                self.add_event(e.message)
                 log.log_error(e, self.logger)
                 failed_ids.append(job.id)
 
@@ -342,11 +341,11 @@ class Executor(object):
             self.logger.warn('There were warnings during execution.')
             self.logger.warn('Please see {}'.format(output.logfile))
 
-    def _error_signalled_callback(self):
+    def _error_signalled_callback(self, record):
         self.error_logged = True
         signal.disconnect(self._error_signalled_callback, signal.ERROR_LOGGED)
 
-    def _warning_signalled_callback(self):
+    def _warning_signalled_callback(self, record):
         self.warning_logged = True
         signal.disconnect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
@@ -362,7 +361,6 @@ class Runner(object):
 
     def __init__(self, context, pm):
         self.logger = logging.getLogger('runner')
-        self.logger.context = context
         self.context = context
         self.pm = pm
         self.output = self.context.output
@@ -393,6 +391,8 @@ class Runner(object):
 
     def initialize_run(self):
         self.logger.info('Initializing run')
+        signal.connect(self._error_signalled_callback, signal.ERROR_LOGGED)
+        signal.connect(self._warning_signalled_callback, signal.WARNING_LOGGED)
         self.context.start_run()
         self.pm.initialize()
         log.indent()
@@ -411,6 +411,8 @@ class Runner(object):
         for job in self.context.completed_jobs:
             job.finalize(self.context)
         log.dedent()
+        signal.disconnect(self._error_signalled_callback, signal.ERROR_LOGGED)
+        signal.disconnect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
     def run_next_job(self, context):
         job = context.start_job()
@@ -427,7 +429,6 @@ class Runner(object):
                 raise e
             else:
                 job.set_status(Status.FAILED)
-                context.add_event(e.message)
             if isinstance(e, TargetNotRespondingError):
                 raise e
             elif isinstance(e, TargetError):
@@ -522,6 +523,12 @@ class Runner(object):
 
     def send(self, s):
         signal.send(s, self, self.context)
+
+    def _error_signalled_callback(self, record):
+        self.context.add_event(record.getMessage())
+
+    def _warning_signalled_callback(self, record):
+        self.context.add_event(record.getMessage())
 
     def __str__(self):
         return 'runner'
