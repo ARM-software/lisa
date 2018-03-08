@@ -68,6 +68,8 @@ class RecordCommand(Command):
         self.parser.add_argument('-o', '--output', help='Specify the output file', metavar='FILE')
         self.parser.add_argument('-s', '--setup', help='Record a recording for setup stage',
                                  action='store_true')
+        self.parser.add_argument('-r', '--run', help='Record a recording for run stage',
+                                 action='store_true')
         self.parser.add_argument('-e', '--extract_results', help='Record a recording for extract_results stage',
                                  action='store_true')
         self.parser.add_argument('-t', '--teardown', help='Record a recording for teardown stage',
@@ -194,7 +196,8 @@ class RecordCommand(Command):
                                    'revent_files')
         if args.setup or args.all:
             self.record(setup_file, 'SETUP', output_path)
-        self.record(run_file, 'RUN', output_path)
+        if args.run or args.all:
+            self.record(run_file, 'RUN', output_path)
         if args.extract_results or args.all:
             self.record(extract_results_file, 'EXTRACT_RESULTS', output_path)
         if args.teardown or args.all:
