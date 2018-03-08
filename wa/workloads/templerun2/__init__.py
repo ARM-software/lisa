@@ -20,6 +20,7 @@ from wa import ApkReventWorkload
 class TempleRun2(ApkReventWorkload):
 
     name = 'templerun2'
+    package_names = ['com.imangi.templerun2']
     description = """
     Temple Run 2 game.
 
