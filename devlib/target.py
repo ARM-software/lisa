@@ -1390,6 +1390,10 @@ class AndroidTarget(Target):
         cmd = 'settings put system user_rotation {}'
         self.execute(cmd.format(rotation))
 
+    def open_url(self, url):
+        cmd = 'am start -a android.intent.action.VIEW -d "{}"'
+        self.execute(cmd.format(escape_double_quote(url)))
+
     def homescreen(self):
         self.execute('am start -a android.intent.action.MAIN -c android.intent.category.HOME')
 
