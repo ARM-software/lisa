@@ -40,6 +40,7 @@ class Workload(TargetedPlugin):
 
     parameters = [
         Parameter('cleanup_assets', kind=bool,
+                  global_alias='cleanup_assets',
                   default=True,
                   description="""
                   If ``True``, if assets are deployed as part of the workload they
