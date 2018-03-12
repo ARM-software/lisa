@@ -961,7 +961,8 @@ class WaResultsCollector(object):
 
         return pd.DataFrame(comparisons)
 
-    def plot_comparisons(self, base_id=None, by='kernel'):
+    def plot_comparisons(self, base_id=None, by='kernel',
+                         delta_min=2, delta_med=10, delta_max=50):
         """
         Visualise metrics that changed between a baseline and variants
 
@@ -1006,9 +1007,12 @@ class WaResultsCollector(object):
             # TODO: something is up with the calculations above, because there's
             # always a bit of empty space at the bottom of the axes.
 
+            # Sanitize deltas
+            delta_med = max(delta_min, delta_med)
+            delta_max = max(delta_med, delta_max)
 
             gb = test_comparisons.groupby('new_id')
-            colors = cm.rainbow(np.linspace(0, 1, len(gb)))
+            colors = cm.terrain(np.linspace(0, 1, len(gb)))
             for i, (group, gdf) in enumerate(gb):
                 def get_dummy_row(metric):
                     return pd.DataFrame({col: 0 for col in gdf.columns}, index=[metric])
@@ -1040,12 +1044,30 @@ class WaResultsCollector(object):
 
             # Add some text for labels, title and axes ticks
             ax.set_xlabel('Percent difference')
+
+            # Set fixed percentage diffenrences boundaris
+            ax.set_xlim(-delta_max, delta_max)
+            # Error bands
+            delta_bands = [
+                (delta_max, 'b'),
+                (delta_med, 'y'),
+                (delta_min, 'g'),
+                (0,         'w') # Must be the last entry
+            ]
+            for idx, (end, color) in enumerate(delta_bands):
+                if end == 0:
+                    break
+                start, _ = delta_bands[idx+1];
+                ax.axvspan(start, end, facecolor=color, alpha=0.05)
+                ax.axvspan(-start, -end, facecolor=color, alpha=0.05)
+
             [baseline] = test_comparisons['base_id'].unique()
-            ax.set_title('{} ({}): Percent difference compared to {} \nopacity depicts p-value'
-                         .format(test, inv_id, baseline))
+            ax.set_title('{} ({}): Percent difference compared to {} \n'
+                         'opacity depicts p-value, '
+                         'delta bands: <{}%:min <{}%:med'
+                         .format(test, inv_id, baseline, delta_min, delta_med))
             ax.set_yticklabels(gdf.index.tolist())
             ax.set_yticks(pos + thickness / 2)
-            # ax.set_xlim((-50, 50))
             ax.legend(loc='best')
 
             ax.grid(True)
