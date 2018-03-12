@@ -210,7 +210,15 @@ class Controller(object):
         entries = output.splitlines()
         tasks = {}
         for task in entries:
-            tid_str, tname, tcmdline = task.split(',', 2)
+            fields = task.split(',', 2)
+            nr_fields = len(fields)
+            if nr_fields < 2:
+                continue
+            elif nr_fields == 2:
+                tid_str, tname = fields
+                tcmdline = ''
+            else:
+                tid_str, tname, tcmdline = fields
 
             if not re.search(filter_tid, tid_str):
                 continue
