@@ -1,8 +1,17 @@
 import os
 import shutil
 
-from wa.framework.configuration.core import settings
-from wa.framework.configuration.default import generate_default_config
+from wa.framework import pluginloader
+from wa.framework.configuration.core import (settings, ConfigurationPoint,
+                                             MetaConfiguration, RunConfiguration,
+                                             JobSpec)
+from wa.framework.configuration.default import (generate_default_config,
+                                                write_param_yaml, _format_yaml_comment)
+from wa.framework.configuration.plugin_cache import PluginCache
+from wa.utils.misc import get_random_string, load_struct_from_python
+from wa.utils.serializer import yaml
+from wa.utils.types import identifier
+
 
 # Have to disable this due to dynamic attributes
 # pylint: disable=no-member
@@ -36,3 +45,83 @@ def init_user_directory(overwrite_existing=False):  # pylint: disable=R0914
                     os.chown(os.path.join(root, d), uid, gid)
                 for f in files:
                     os.chown(os.path.join(root, f), uid, gid)
+
+
+def init_config():
+    """
+    If configuration file is missing try to convert WA2 config if present
+    otherwise initilise fresh config file
+    """
+    wa2_config_file = os.path.join(settings.user_directory, 'config.py')
+    wa3_config_file = os.path.join(settings.user_directory, 'config.yaml')
+    if os.path.exists(wa2_config_file):
+        convert_wa2_agenda(wa2_config_file, wa3_config_file)
+    else:
+        generate_default_config(wa3_config_file)
+
+
+def convert_wa2_agenda(filepath, output_path):
+    """
+    Convert WA2 .py config file to a WA3 .yaml config file.
+    """
+
+    orig_agenda = load_struct_from_python(filepath)
+    new_agenda = {'augmentations': []}
+    config_points = MetaConfiguration.config_points + RunConfiguration.config_points
+
+    # Add additional config points to extract from config file.
+    # Also allows for aliasing of renamed parameters
+    config_points.extend([
+            ConfigurationPoint('augmentations',
+                            aliases=["instruments", "processors", "instrumentation",
+                                    "output_processors", "augment", "result_processors"],
+                            description='''The agumentations enabled by default.
+                                          This combines the "instrumentation"
+                                          and "result_processors" from previous
+                                          versions of WA (the old entries are
+                                          now aliases for this).'''),
+            ConfigurationPoint('device_config',
+                            description='''Generic configuration for device.'''),
+            ConfigurationPoint('cleanup_assets',
+                            aliases=['clean_up'],
+                            description='''Specific whether to clean up assets
+                                           deployed to the target'''),
+            ])
+
+    for param in orig_agenda.keys():
+        for cfg_point in config_points:
+            if param == cfg_point.name or param in cfg_point.aliases:
+                if cfg_point.name == 'augmentations':
+                    new_agenda['augmentations'].extend(orig_agenda.pop(param))
+                else:
+                    new_agenda[cfg_point.name] = format_parameter(orig_agenda.pop(param))
+
+    with open(output_path, 'w') as output:
+        for param in config_points:
+            entry = {param.name: new_agenda.get(param.name, param.default)}
+            write_param_yaml(entry, param, output)
+
+        # Convert plugin configuration
+        output.write("# Plugin Configuration\n")
+        for param in orig_agenda.keys():
+            if pluginloader.has_plugin(param):
+                entry = {param: orig_agenda.pop(param)}
+                yaml.dump(format_parameter(entry), output, default_flow_style=False)
+                output.write("\n")
+
+        # Write any additional aliased parameters into new config
+        plugin_cache = PluginCache()
+        output.write("# Additional global aliases\n")
+        for param in orig_agenda.keys():
+            if plugin_cache.is_global_alias(param):
+                entry = {param: orig_agenda.pop(param)}
+                yaml.dump(format_parameter(entry), output, default_flow_style=False)
+                output.write("\n")
+
+
+def format_parameter(param):
+    if isinstance(param, dict):
+         return {identifier(k) : v for k, v in param.iteritems()}
+    else:
+        return param
+

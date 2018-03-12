@@ -24,7 +24,7 @@ from wa.framework import pluginloader
 from wa.framework.command import init_argument_parser
 from wa.framework.configuration import settings
 from wa.framework.configuration.execution import ConfigManager
-from wa.framework.host import init_user_directory
+from wa.framework.host import init_user_directory, init_config
 from wa.framework.exception import ConfigError
 from wa.utils import log
 from wa.utils.doc import format_body
@@ -64,6 +64,8 @@ def split_joined_options(argv):
 def main():
     if not os.path.exists(settings.user_directory):
         init_user_directory()
+    if not os.path.exists(os.path.join(settings.user_directory, 'config.yaml')):
+        init_config()
 
     try:
 
