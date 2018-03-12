@@ -35,8 +35,12 @@ def generate_default_config(path):
     with open(path, 'w') as output:
         for param in MetaConfiguration.config_points + RunConfiguration.config_points:
             entry = {param.name: param.default}
-            comment = _format_yaml_comment(param)
-            output.writelines(comment)
-            yaml.dump(entry, output, default_flow_style=False)
-            output.write("\n")
+            write_param_yaml(entry, param, output)
         _format_augmentations(output)
+
+
+def write_param_yaml(entry, param, output):
+    comment = _format_yaml_comment(param)
+    output.writelines(comment)
+    yaml.dump(entry, output, default_flow_style=False)
+    output.write("\n")
