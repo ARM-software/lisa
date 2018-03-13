@@ -382,6 +382,16 @@ energy_measurement:
 EOF
 }
 
+config_emeter_monsoon() {
+	# Generate a WA configuration fragment for the MONSOON energy meter
+	cat >>$WA_LOCAL_CONF <<EOF
+# Automatically generated MONSOON configurations
+energy_measurement:
+  instrument: monsoon
+
+EOF
+}
+
 # Prepare WA_AGENDA (if specified it override the TEST_CMD)
 if [ ! -z $WA_AGENDA ]; then
 	if [ ! -f $WA_AGENDA ]; then
@@ -400,6 +410,7 @@ if [ ! -z $WA_AGENDA ]; then
 		TEST_CMD="wa run -f -d \"$TEST_CMD_RESULTS\" -c \"$WA_LOCAL_CONF\" \"$WA_AGENDA\""
 	fi
 	if [ "x$EMETER" == "xMONSOON" ]; then
+		config_emeter_monsoon
 		TEST_CMD="wa run -f -d \"$TEST_CMD_RESULTS\" -c \"$WA_LOCAL_CONF\" \"$WA_AGENDA\""
 	fi
 fi
