@@ -263,6 +263,9 @@ def format_literal(lit):
         return '``\'{}\'``'.format(lit)
     elif hasattr(lit, 'pattern'):  # regex
         return '``r\'{}\'``'.format(lit.pattern)
+    elif isinstance(lit, dict):
+        content = indent(',\n'.join("{}: {}".format(key,val) for (key,val) in lit.iteritems()))
+        return '::\n\n{}'.format(indent('{{\n{}\n}}'.format(content)))
     else:
         return '``{}``'.format(lit)
 
