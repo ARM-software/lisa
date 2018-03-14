@@ -24,6 +24,12 @@
 # such as required assets, can be mounted into the container using a
 # second --volume command.
 #
+# If you require access to a TTY from the Docker container, please
+# also mount this into the container in the same style as is used to
+# mount USB devices. For example:
+#
+#   docker run -it --privileged -v /dev/ttyUSB0:/dev/ttyUSB0 -v /dev/bus/usb:/dev/bus/usb --volume ${PWD}:/workspace --workdir /workspace wa
+#
 # When you are finished, please run `exit` to leave the container.
 #
 # NOTE: Please make sure that the ADB server is NOT running on the
