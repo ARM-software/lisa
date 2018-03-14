@@ -586,7 +586,12 @@ class LogcatMonitor(object):
             regexp = '{}'.format('|'.join(self._regexps))
             if len(self._regexps) > 1:
                 regexp = '({})'.format(regexp)
-            logcat_cmd = '{} -e "{}"'.format(logcat_cmd, regexp)
+            # Logcat on older version of android do not support the -e argument
+            # so fall back to using grep.
+            if self.target.get_sdk_version() > 23:
+                logcat_cmd = '{} -e "{}"'.format(logcat_cmd, regexp)
+            else:
+                logcat_cmd = '{} | grep "{}"'.format(logcat_cmd, regexp)
 
         logcat_cmd = get_adb_command(self.target.conn.device, logcat_cmd)
 
