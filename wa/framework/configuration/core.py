@@ -433,13 +433,14 @@ class MetaConfiguration(Configuration):
             WA logging configuration. This should be a dict with a subset
             of the following keys::
 
-            :normal_format: Logging format used for console output
-            :verbose_format: Logging format used for verbose console output
-            :file_format: Logging format used for run.log
-            :color: If ``True`` (the default), console logging output will
-                    contain bash color escape codes. Set this to ``False`` if
-                    console output will be piped somewhere that does not know
-                    how to handle those.
+                :normal_format: Logging format used for console output
+                :verbose_format: Logging format used for verbose console output
+                :file_format: Logging format used for run.log
+                :color: If ``True`` (the default), console logging output will
+                        contain bash color escape codes. Set this to ``False`` if
+                        console output will be piped somewhere that does not know
+                        how to handle those.
+
             """,
         ),
         ConfigurationPoint(
