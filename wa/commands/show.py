@@ -16,8 +16,10 @@ from subprocess import call, Popen, PIPE
 
 from wa import Command
 from wa.framework import pluginloader
+from wa.framework.configuration.core import MetaConfiguration, RunConfiguration
 from wa.framework.exception import NotFoundError
 from wa.framework.target.descriptor import list_target_descriptions
+from wa.utils.types import caseless_string
 from wa.utils.doc import (strip_inlined_text, get_rst_from_plugin,
                           get_params_rst, underline)
 from wa.utils.misc import which
@@ -37,17 +39,23 @@ class ShowCommand(Command):
         name = args.plugin
         rst_output = None
 
-        plugin = get_plugin(name)
-        if plugin:
-            rst_output = get_rst_from_plugin(plugin)
-            plugin_name = plugin.name
-            kind = '{}:'.format(plugin.kind)
+        if name == caseless_string('settings'):
+            rst_output = get_rst_for_global_config()
+            rst_output += get_rst_for_envars()
+            plugin_name = name.lower()
+            kind = 'global:'
         else:
-            target = get_target_description(name)
-            if target:
-                rst_output = get_rst_from_target(target)
-                plugin_name = target.name
-                kind = 'target:'
+            plugin = get_plugin(name)
+            if plugin:
+                rst_output = get_rst_from_plugin(plugin)
+                plugin_name = plugin.name
+                kind = '{}:'.format(plugin.kind)
+            else:
+                target = get_target_description(name)
+                if target:
+                    rst_output = get_rst_from_target(target)
+                    plugin_name = target.name
+                    kind = 'target:'
 
         if not rst_output:
             raise NotFoundError('Could not find plugin or alias "{}"'.format(name))
@@ -96,5 +104,26 @@ def get_rst_from_target(target):
     text += get_params_rst(target.platform_params)
     text += get_params_rst(target.target_params)
     text += get_params_rst(target.assistant_params)
-    text += '*Note:* For available runtime parameters please see the documentation'
+    text += '.. Note: For available runtime parameters please see the documentation'
     return text + '\n'
+
+def get_rst_for_global_config():
+    text = underline('Global Configuration')
+    text += 'These parameters control the behaviour of WA/run as a whole, they ' \
+    'should be set inside a config file (either located in $WA_USER_DIRECTORY/config.yaml ' \
+    'or one which is specified with -c), or into config/global section of the agenda.\n\n'
+
+    cfg_points = MetaConfiguration.config_points + RunConfiguration.config_points
+    text += get_params_rst(cfg_points)
+    return text
+
+def get_rst_for_envars():
+    text = underline('Environment Variables')
+    text += '''WA_USER_DIRECTORY: str
+    This is the location WA will look for config.yaml, plugins,  dependencies,
+    and it will also be used for local caches, etc. If this variable is not set,
+    the default location is ``~/.workload_automation`` (this is created when WA
+    is installed).
+
+    .. note.. This location must be writable by the user who runs WA.'''
+    return text
