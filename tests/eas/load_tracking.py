@@ -1004,7 +1004,7 @@ class _PELTTaskGroupsTest(LisaTest):
     def _migrate_task(cls, test_env):
         return
 
-    def _test_group_util(self, group):
+    def _test_group_util(self, group, test_upper_bound=True):
         if 'sched_load_se' not in self.trace.available_events:
             raise ValueError('No sched_load_se events. '
                              'Does the kernel support them?')
@@ -1071,12 +1071,17 @@ class _PELTTaskGroupsTest(LisaTest):
 
             expected_trace_util += util_mean
 
+        msg = msg.format(util_mean_tg, group, expected_trace_util)
         error_margin = expected_trace_util * self.allowed_util_margin
-        self.assertAlmostEqual(util_mean_tg, expected_trace_util,
-                               delta=error_margin,
-                               msg=msg.format(util_mean_tg,
-                                              group,
-                                              expected_trace_util))
+        # The root group contains more tasks than what we expect, since
+        # non-frozen tasks are executing there, so we cannot check for an upper
+        # bound on its utilization.
+        if test_upper_bound:
+            self.assertAlmostEqual(util_mean_tg, expected_trace_util,
+                                   delta=error_margin, msg=msg)
+        else:
+            lower_bound = expected_trace_util - error_margin
+            self.assertGreaterEqual(util_mean_tg, lower_bound, msg=msg)
 
 class TwoGroupsCascade(_PELTTaskGroupsTest):
     """
@@ -1156,7 +1161,7 @@ class TwoGroupsCascade(_PELTTaskGroupsTest):
         """
         Test utilization propagation to cgroup root
         """
-        return self._test_group_util('/')
+        return self._test_group_util('/', test_upper_bound=False)
 
     def test_util_tg1_group(self):
         """
@@ -1256,7 +1261,7 @@ class UnbalancedHierarchy(_PELTTaskGroupsTest):
         """
         Test utilization propagation to cgroup root
         """
-        return self._test_group_util('/')
+        return self._test_group_util('/', test_upper_bound=False)
 
     def test_util_tg1_group(self):
         """
@@ -1369,7 +1374,7 @@ class CgroupsMigrationTest(_PELTTaskGroupsTest):
 
     def test_group_util_aggregation(self):
         """Test the aggregated tasks utilization at the root"""
-        return self._test_group_util('/')
+        return self._test_group_util('/', test_upper_bound=False)
 
     def test_group_util_move_out(self):
         """Test utilization update when a task leaves a group"""
@@ -1471,7 +1476,7 @@ class NestedCgroupsMigrationTest(_PELTTaskGroupsTest):
 
     def test_group_util_aggregation(self):
         """Test the aggregated tasks utilization at the root"""
-        return self._test_group_util('/')
+        return self._test_group_util('/', test_upper_bound=False)
 
     def test_group_util_move_in(self):
         """Test utilization update when a task enters a group"""
