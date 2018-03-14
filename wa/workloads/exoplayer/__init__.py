@@ -125,8 +125,8 @@ class ExoPlayer(ApkWorkload):
         else:
             # Search for files we've already downloaded
             files = []
+            format_ext, format_resolution = self.format.split('_')
             for filename in os.listdir(self.video_directory):
-                format_ext, format_resolution = self.format.split('_')
                 _, file_ext = os.path.splitext(filename)
                 if file_ext == '.' + format_ext and format_resolution in filename:
                     files.append(os.path.join(self.video_directory, filename))
