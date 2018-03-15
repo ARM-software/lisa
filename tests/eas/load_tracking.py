@@ -557,6 +557,9 @@ class _CPUMigrationBase(LisaTest):
     # Allowed error margin
     allowed_util_margin = UTIL_SCALE * 0.02
 
+    # Dictionary that contains the description of the tasks
+    tasks_desc = {}
+
     @classmethod
     def setUpClass(cls, *args, **kwargs):
         super(_CPUMigrationBase, cls).runExperiments(*args, **kwargs)
@@ -581,12 +584,13 @@ class _CPUMigrationBase(LisaTest):
         rtapp.conf(kind='profile',
             params={'task{}'.format(i): task.get() for i, task in enumerate(tasks)},
             run_dir=Executor.get_run_dir(test_env.target))
+        cls.tasks_desc = rtapp.rta_profile['tasks']
         return {
             'migration': {
                 'type' : 'rt-app',
                 'conf' : {
                     'class' : 'custom',
-                    'json' : rtapp.json,
+                    'json' : rtapp.rta_profile,
                     'prefix' : 'mig_test',
                 },
             }
@@ -743,6 +747,7 @@ class _CPUMigrationBase(LisaTest):
 
     def _test_util_per_cpu(self, experiment, tasks):
         trace = self.get_trace(experiment)
+
         if not trace.hasEvents('sched_switch'):
             raise ValueError('No sched_switch events. '
                              'Does the kernel support them?')
@@ -750,31 +755,29 @@ class _CPUMigrationBase(LisaTest):
             raise ValueError('No sched_load_cfs_rq events. '
                              'Does the kernel support them?')
         cpus = set()
-        # Load the JSON tasks description
-        tasks_desc = json.load(open(experiment.wload.params['custom']),
-                               object_pairs_hook=OrderedDict)['tasks']
-        sw_df = trace.data_frame.trace_event('sched_switch')
+
         # Filter the event related to the tasks
-        sw_df = sw_df[sw_df.next_comm.isin(tasks_desc.keys())]
+        sw_df = trace.data_frame.trace_event('sched_switch')
+        sw_df = sw_df[sw_df.next_comm.isin(self.tasks_desc.keys())]
 
         util_df = trace.data_frame.trace_event('sched_load_cfs_rq')
-        phases = self._get_phases_names(self._get_one_task(tasks_desc, 0))
+        phases = self._get_phases_names(self._get_one_task(self.tasks_desc, 0))
 
         # Compute the interval where the signal is stable for the phases
         window = self._get_stable_window(sw_df,
-                                         self._get_one_task(tasks_desc, 0))
+                                         self._get_one_task(self.tasks_desc, 0))
 
         msg = 'Saw util {} on cpu {}, expected {} during phase {}'
         for phase in phases:
             # Get all the cpus where tasks are running during this phase
-            for task in tasks_desc.iteritems():
+            for task in self.tasks_desc.iteritems():
                 cpus.update(self._get_cpus(task[1], phase))
 
             # Get the mean utilization per CPU
             util_mean = self._get_util_mean(window[phase][0], window[phase][1],
                                             util_df, cpus)
             # Get the expected utilization per CPU
-            expected = self._get_util_expected(tasks_desc, cpus, phase)
+            expected = self._get_util_expected(self.tasks_desc, cpus, phase)
 
             # Check that the expected utilization value and the measured one
             # match for each CPU.

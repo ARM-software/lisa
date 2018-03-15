@@ -222,8 +222,6 @@ class RTA(Workload):
 
         rtapp_conf = self.params['custom']
 
-        self._log.info('Loading custom configuration:')
-        self._log.info('   %s', rtapp_conf)
         self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
         ofile = open(self.json, 'w')
 
@@ -252,6 +250,8 @@ class RTA(Workload):
                                  "a filename or an embedded dictionary")
         else:
             # We assume we are being passed a filename instead of a dict
+            self._log.info('Loading custom configuration:')
+            self._log.info('   %s', rtapp_conf)
             ifile = open(rtapp_conf, 'r')
 
         for line in ifile:
