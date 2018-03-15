@@ -35,6 +35,9 @@ KVERSION_REGEX =re.compile(
 GOOGLE_DNS_SERVER_ADDRESS = '8.8.8.8'
 
 
+installed_package_info = namedtuple('installed_package_info', 'apk_path package')
+
+
 class Target(object):
 
     path = None
@@ -1189,6 +1192,15 @@ class AndroidTarget(Target):
             if 'versionName' in line:
                 return line.split('=', 1)[1]
         return None
+
+    def get_package_info(self, package):
+        output = self.execute('pm list packages -f {}'.format(package))
+        for entry in output.strip().split('\n'):
+            rest, entry_package = entry.rsplit('=', 1)
+            if entry_package != package:
+                continue
+            _, apk_path = rest.split(':')
+            return installed_package_info(apk_path, entry_package)
 
     def get_sdk_version(self):
         try:
