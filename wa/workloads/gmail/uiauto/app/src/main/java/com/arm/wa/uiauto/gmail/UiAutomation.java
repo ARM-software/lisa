@@ -159,13 +159,20 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         ActionLogger logger = new ActionLogger(testTag, parameters);
 
         UiObject attachIcon =
-            getUiObjectByResourceId(packageID + "add_attachment", "android.widget.TextView");
+            mDevice.findObject(new UiSelector().resourceId(packageID + "add_attachment")
+                                               .className("android.widget.TextView"));
 
         logger.start();
 
         attachIcon.click();
         UiObject attachFile =
-            getUiObjectByText("Attach file", "android.widget.TextView");
+            mDevice.findObject(new UiSelector().textContains("Attach file")
+                                               .className("android.widget.TextView"));
+        if (!attachFile.exists()){
+            attachFile =
+                mDevice.findObject(new UiSelector().descriptionContains("Attach file")
+                                               .className("android.widget.TextView"));
+        }
         attachFile.clickAndWaitForNewWindow(uiAutoTimeout);
 
         // Show Roots menu
@@ -187,7 +194,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             if (imagesEntry.waitForExists(uiAutoTimeout)) {
                 imagesEntry.click();
             }
-            selectGalleryFolder("wa");
+            selectGalleryFolder(workdir_name);
 
             UiObject imageButton =
             mDevice.findObject(new UiSelector().resourceId("com.android.documentsui:id/grid")
