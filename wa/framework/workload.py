@@ -780,9 +780,8 @@ class PackageHandler(object):
         if not self.target.package_is_installed(package):
             message = 'Cannot retrieve "{}" as not installed on Target'
             raise WorkloadError(message.format(package))
-        package_info = self.target.execute('pm list packages -f {}'.format(package))
-        apk_path = re.match('package:(.*)={}'.format(package), package_info).group(1)
-        self.target.pull(apk_path, self.owner.dependencies_directory)
+        package_info = self.target.get_package_info(package)
+        self.target.pull(package_info.apk_path, self.owner.dependencies_directory)
 
     def teardown(self):
         self.target.execute('am force-stop {}'.format(self.apk_info.package))
