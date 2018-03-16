@@ -16,6 +16,8 @@
 # pylint: disable=no-member
 
 import logging
+import os
+import shutil
 from copy import copy
 from datetime import datetime
 
@@ -218,6 +220,24 @@ class ExecutionContext(object):
     def add_event(self, message):
         self.output.add_event(message)
 
+    def take_screenshot(self, filename):
+        filepath = self._get_unique_filepath(filename)
+        self.tm.target.capture_screen(filepath)
+        self.add_artifact('screenshot', filepath, kind='log')
+
+    def take_uiautomator_dump(self, filename):
+        filepath = self._get_unique_filepath(filename)
+        self.tm.target.capture_ui_hierarchy(filepath)
+        self.add_artifact('uitree', filepath, kind='log')
+
+    def record_ui_state(self, basename):
+        self.logger.info('Recording screen state...')
+        self.take_screenshot('{}.png'.format(basename))
+        target = self.tm.target
+        if target.os == 'android' or\
+           (target.os == 'chromeos' and target.has('android_container')):
+            self.take_uiautomator_dump('{}.uix'.format(basename))
+
     def initialize_jobs(self):
         new_queue = []
         failed_ids = []
@@ -242,6 +262,24 @@ class ExecutionContext(object):
                 new_queue.append(job)
 
         self.job_queue = new_queue
+
+    def _get_unique_filepath(self, filename):
+        filepath = os.path.join(self.output_directory, filename)
+        rest, ext = os.path.splitext(filepath)
+        i = 1
+        new_filepath = '{}-{}{}'.format(rest, i, ext)
+
+        if not os.path.exists(filepath) and not os.path.exists(new_filepath):
+            return filepath
+        elif not os.path.exists(new_filepath):
+            # new_filepath does not exit, thefore filepath must exit.
+            # this is the first collision
+            shutil.move(filepath, new_filepath)
+
+        while os.path.exists(new_filepath):
+            i += 1
+            new_filepath = '{}-{}{}'.format(rest, i, ext)
+        return new_filepath
 
 
 class Executor(object):
