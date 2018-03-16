@@ -28,6 +28,10 @@ class Job(object):
     def status(self):
         return self._status
 
+    @property
+    def has_been_initialized(self):
+        return self._has_been_initialized
+
     @status.setter
     def status(self, value):
         self._status = value
@@ -43,6 +47,7 @@ class Job(object):
         self.output = None
         self.run_time = None
         self.retries = 0
+        self._has_been_initialized = False
         self._status = Status.NEW
 
     def load(self, target, loader=pluginloader):
@@ -67,6 +72,7 @@ class Job(object):
             self.workload.logger.context = context
             self.workload.initialize(context)
         self.set_status(Status.PENDING)
+        self._has_been_initialized = True
         context.update_job_state(self)
 
     def configure_augmentations(self, context, pm):
@@ -135,6 +141,8 @@ class Job(object):
             self.workload.teardown(context)
 
     def finalize(self, context):
+        if not self._has_been_initialized:
+            return
         if not context.tm.is_responsive:
             self.logger.info('Target unresponsive; not finalizing.')
             return
