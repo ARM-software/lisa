@@ -49,7 +49,7 @@ class EnergyInstrumentBackend(Plugin):
     def validate_parameters(self, params):
         pass
 
-    def get_instruments(self, target, **kwargs):
+    def get_instruments(self, target, metadir, **kwargs):
         """
         Get a dict mapping device keys to an Instruments
 
@@ -187,7 +187,7 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
                   """),
     ]
 
-    def get_instruments(self, target,
+    def get_instruments(self, target, metadir,
                         iio_capture, host, iio_devices, buffer_size):
 
         #
@@ -298,7 +298,7 @@ class EnergyMeasurement(Instrument):
         self.backend.validate_parameters(self.params)
 
     def initialize(self, context):
-        self.instruments = self.backend.get_instruments(self.target, **self.params)
+        self.instruments = self.backend.get_instruments(self.target, context.run_output.metadir, **self.params)
 
         for instrument in self.instruments.itervalues():
             if not (instrument.mode & CONTINUOUS):
