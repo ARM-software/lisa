@@ -18,10 +18,12 @@
 from __future__ import division
 from collections import defaultdict
 import os
+import shutil
 
 from devlib import DerivedEnergyMeasurements
 from devlib.instrument import CONTINUOUS
 from devlib.instrument.energy_probe import EnergyProbeInstrument
+from devlib.instrument.arm_energy_probe import ArmEnergyProbeInstrument
 from devlib.instrument.daq import DaqInstrument
 from devlib.instrument.acmecape import AcmeCapeInstrument
 from devlib.instrument.monsoon import MonsoonInstrument
@@ -162,6 +164,37 @@ class EnergyProbeBackend(EnergyInstrumentBackend):
                 msg = 'Number of Energy Probe port labels does not match the number of resistor values.'
                 raise ConfigError(msg)
 
+class ArmEnergyProbeBackend(EnergyInstrumentBackend):
+
+    name = 'arm_energy_probe'
+
+    parameters = [
+        Parameter('config_file', kind=str,
+                  description="""
+                  Path to config file of the AEP
+                  """),
+    ]
+
+    instrument = ArmEnergyProbeInstrument
+
+    def get_instruments(self, target, metadir, **kwargs):
+        """
+        Get a dict mapping device keys to an Instruments
+
+        Typically there is just a single device/instrument, in which case the
+        device key is arbitrary.
+        """
+
+        shutil.copy(self.config_file, metadirr)
+
+        return {None: self.instrument(target, **kwargs)}
+
+    def validate_parameters(self, params):
+        if not params.get('config_file'):
+            raise ConfigError('Mandatory parameter "config_file" is not set.')
+        self.config_file = params.get('config_file')
+        if not os.path.exists(self.config_file):
+            raise ConfigError('"config_file" does not exist.')
 
 class AcmeCapeBackend(EnergyInstrumentBackend):
 
@@ -249,7 +282,7 @@ class EnergyMeasurement(Instrument):
 
     parameters = [
         Parameter('instrument', kind=str, mandatory=True,
-                  allowed_values=['daq', 'energy_probe', 'acme_cape', 'monsoon', 'juno_readenergy'],
+                  allowed_values=['daq', 'energy_probe', 'acme_cape', 'monsoon', 'juno_readenergy', 'arm_energy_probe'],
                   description="""
                   Specify the energy instruments to be enabled.
                   """),
