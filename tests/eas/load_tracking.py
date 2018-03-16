@@ -1331,16 +1331,16 @@ class CgroupsMigrationTest(_PELTTaskGroupsTest):
         # Create taskgroups
         cpus = test_env.target.list_online_cpus()
         cls.root_group = Taskgroup("/", cpus, 0, test_env)
-        tg1 = Taskgroup("/tg1", cpus, 0, test_env)
-        tg2 = Taskgroup("/tg2", cpus, 0, test_env)
+        tg1 = Taskgroup("/tg1", cls.target_cpu, 0, test_env)
+        tg2 = Taskgroup("/tg2", cls.target_cpu, 0, test_env)
 
         # Create tasks
-        t1_1 = Task("t1_1", test_env, cls.target_cpu, period_ms=cls.period_ms,
+        t1_1 = Task("t1_1", test_env, cpus, period_ms=cls.period_ms,
                     duty_cycle_pct=10, duration_s=cls.duration_s)
-        t1_2 = Task("t1_2", test_env, cls.target_cpu, period_ms=cls.period_ms,
+        t1_2 = Task("t1_2", test_env, cpus, period_ms=cls.period_ms,
                     duty_cycle_pct=20, duration_s=cls.duration_s)
-        t2_1 = Task("t2_1", test_env, cls.target_cpu, period_ms=cls.period_ms,
-                    duty_cycle_pct=5, duration_s=cls.duration_s)
+        t2_1 = Task("t2_1", test_env, cpus, period_ms=cls.period_ms,
+                    duty_cycle_pct=15, duration_s=cls.duration_s)
 
         # Link nodes to the hierarchy tree
         cls.root_group.add_children([tg1, tg2])
@@ -1435,13 +1435,13 @@ class NestedCgroupsMigrationTest(_PELTTaskGroupsTest):
         # Create taskgroups
         cpus = test_env.target.list_online_cpus()
         cls.root_group = Taskgroup("/", cpus, 0, test_env)
-        tg1 = Taskgroup("/tg1", cpus, 0, test_env)
-        tg2 = Taskgroup("/tg1/tg2", cpus, 0, test_env)
+        tg1 = Taskgroup("/tg1", cls.target_cpu, 0, test_env)
+        tg2 = Taskgroup("/tg1/tg2", cls.target_cpu, 0, test_env)
 
         # Create tasks
-        t2_1 = Task("t2_1", test_env, cls.target_cpu, period_ms=cls.period_ms,
+        t2_1 = Task("t2_1", test_env, cpus, period_ms=cls.period_ms,
                     duty_cycle_pct=10, duration_s=cls.duration_s)
-        t2_2 = Task("t2_2", test_env, cls.target_cpu, period_ms=cls.period_ms,
+        t2_2 = Task("t2_2", test_env, cpus, period_ms=cls.period_ms,
                     duty_cycle_pct=20, duration_s=cls.duration_s)
 
         # Link nodes to the hierarchy tree
