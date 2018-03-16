@@ -500,8 +500,16 @@ class Runner(object):
         with signal.wrap('JOB_TARGET_CONFIG', self, context):
             job.configure_target(context)
 
-        with signal.wrap('JOB_SETUP', self, context):
-            job.setup(context)
+        try:
+            with signal.wrap('JOB_SETUP', self, context):
+                job.setup(context)
+        except Exception as e:
+            job.set_status(Status.FAILED)
+            log.log_error(e, self.logger)
+            if isinstance(e, TargetError) or isinstance(e, TimeoutError):
+                context.tm.verify_target_responsive()
+            self.context.record_ui_state('setup-error')
+            raise e
 
         try:
 
@@ -517,6 +525,7 @@ class Runner(object):
                 log.log_error(e, self.logger)
                 if isinstance(e, TargetError) or isinstance(e, TimeoutError):
                     context.tm.verify_target_responsive()
+                self.context.record_ui_state('run-error')
                 raise e
             finally:
                 try:
@@ -528,6 +537,7 @@ class Runner(object):
                     job.set_status(Status.PARTIAL)
                     if isinstance(e, TargetError) or isinstance(e, TimeoutError):
                         context.tm.verify_target_responsive()
+                    self.context.record_ui_state('output-error')
                     raise
 
         except KeyboardInterrupt:
