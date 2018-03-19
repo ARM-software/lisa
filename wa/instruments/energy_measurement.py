@@ -64,45 +64,54 @@ class DAQBackend(EnergyInstrumentBackend):
 
     parameters = [
         Parameter('resistor_values', kind=list_of_ints,
+                  global_alias='daq_resistor_values',
                   description="""
                   The values of resistors (in Ohms) across which the voltages
                   are measured on.
                   """),
         Parameter('labels', kind=list_of_strings,
+                  global_alias='daq_labels',
                   description="""
                   'List of port labels. If specified, the length of the list
                   must match the length of ``resistor_values``.
                   """),
         Parameter('host', kind=str, default='localhost',
+                  global_alias='daq_server_host',
                   description="""
                   The host address of the machine that runs the daq Server which
                   the instrument communicates with.
                   """),
         Parameter('port', kind=int, default=45677,
+                  global_alias='daq_server_port',
                   description="""
                   The port number for daq Server in which daq instrument
                   communicates with.
                   """),
         Parameter('device_id', kind=str, default='Dev1',
+                  global_alias='daq_device_id',
                   description="""
                   The ID under which the DAQ is registered with the driver.
                   """),
         Parameter('v_range', kind=str, default=2.5,
+                  global_alias='daq_v_range',
                   description="""
                   Specifies the voltage range for the SOC voltage channel on the
                   DAQ (please refer to :ref:`daq_setup` for details).
                   """),
         Parameter('dv_range', kind=str, default=0.2,
+                  global_alias='daq_dv_range',
                   description="""
                   Specifies the voltage range for the resistor voltage channel
                   on the DAQ (please refer to :ref:`daq_setup` for details).
                   """),
         Parameter('sample_rate_hz', kind=str, default=10000,
+                  global_alias='daq_sampling_rate',
                   description="""
                   Specify the sample rate in Hz.
                   """),
         Parameter('channel_map', kind=list_of_ints,
                   default=(0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23),
+                  global_alias='daq_channel_map',
                   description="""
                   Represents mapping from  logical AI channel number to physical
                   connector on the DAQ (varies between DAQ models). The default
