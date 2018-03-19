@@ -783,6 +783,8 @@ class PackageHandler(object):
             raise WorkloadError(message.format(package))
         package_info = self.target.get_package_info(package)
         self.target.pull(package_info.apk_path, self.owner.dependencies_directory)
+        apk_name = self.target.path.basename(package_info.apk_path)
+        return os.path.join(self.owner.dependencies_directory, apk_name)
 
     def teardown(self):
         self.target.execute('am force-stop {}'.format(self.apk_info.package))
