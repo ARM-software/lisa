@@ -273,8 +273,8 @@ def format_literal(lit):
 def get_params_rst(parameters):
     text = ''
     for param in parameters:
-        text += '{} : {} {}\n'.format(param.name, get_type_name(param.kind),
-                                      param.mandatory and '(mandatory)' or ' ')
+        text += '{}: {}\n'.format(param.name, param.mandatory and '(mandatory)' or ' ')
+        text += indent("type: ``'{}'``\n\n".format(get_type_name(param.kind)))
         desc = strip_inlined_text(param.description or '')
         text += indent('{}\n'.format(desc))
         if param.aliases:
