@@ -214,7 +214,16 @@ class ApkWorkload(Workload):
                   description="""
                   If ``True``, workload will check that the APK matches the target
                   device ABI, otherwise any suitable APK found will be used.
-                  """)
+                  """),
+        Parameter('prefer_host_package', kind=bool,
+                  default=True,
+                  aliases=['check_apk'],
+                  description="""
+                  If ``True`` then a package found on the host
+                  will be preferred if it is a valid version and ABI, if not it
+                  will fall back to the version on the target if available. If
+                  ``False`` then the version on the target is preferred instead.
+                  """),
     ]
 
     @property
@@ -237,7 +246,8 @@ class ApkWorkload(Workload):
                                   force_install=self.force_install,
                                   install_timeout=self.install_timeout,
                                   uninstall=self.uninstall,
-                                  exact_abi=self.exact_abi)
+                                  exact_abi=self.exact_abi,
+                                  prefer_host_package=self.prefer_host_package)
 
     @once_per_instance
     def initialize(self, context):
@@ -614,7 +624,7 @@ class PackageHandler(object):
 
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
                  package_name=None, strict=False, force_install=False, uninstall=False,
-                 exact_abi=False):
+                 exact_abi=False, prefer_host_package=True):
         self.logger = logging.getLogger('apk')
         self.owner = owner
         self.target = self.owner.target
@@ -626,6 +636,7 @@ class PackageHandler(object):
         self.force_install = force_install
         self.uninstall = uninstall
         self.exact_abi = exact_abi
+        self.prefer_host_package = prefer_host_package
         self.apk_file = None
         self.apk_info = None
         self.apk_version = None
@@ -646,6 +657,35 @@ class PackageHandler(object):
             msg = 'Cannot Resolve package; No package name(s) specified'
             raise WorkloadError(msg)
 
+        self.error_msg = None
+        if self.prefer_host_package:
+            self.resolve_package_from_host(context)
+            if not self.apk_file:
+                self.resolve_package_from_target(context)
+        else:
+            self.resolve_package_from_target(context)
+            if not self.apk_file:
+                self.resolve_package_from_host(context)
+
+        if self.apk_file:
+            self.apk_info = ApkInfo(self.apk_file)
+        else:
+            if self.error_msg:
+                raise WorkloadError(self.error_msg)
+            else:
+                if self.package_name:
+                    message = 'Package "{package}" not found for workload {name} '\
+                              'on host or target.'
+                elif self.version:
+                    message = 'No matching package found for workload {name} '\
+                              '(version {version}) on host or target.'
+                else:
+                    message = 'No matching package found for workload {name} on host or target'
+                raise WorkloadError(message.format(name=self.owner.name, version=self.version,
+                                                   package=self.package_name))
+
+    def resolve_package_from_host(self, context):
+        self.logger.debug('Resolving package on host system')
         if self.package_name:
             self.apk_file = context.resolver.get(ApkFile(self.owner,
                                                          variant=self.variant,
@@ -657,35 +697,26 @@ class PackageHandler(object):
         else:
             available_packages = []
             for package in self.owner.package_names:
-                available_packages.append(context.resolver.get(ApkFile(self.owner,
-                                                                       variant=self.variant,
-                                                                       version=self.version,
-                                                                       package=package,
-                                                                       exact_abi=self.exact_abi,
-                                                                       supported_abi=self.supported_abi),
-                                                               strict=self.strict))
+                apk_file = context.resolver.get(ApkFile(self.owner,
+                                                        variant=self.variant,
+                                                        version=self.version,
+                                                        package=package,
+                                                        exact_abi=self.exact_abi,
+                                                        supported_abi=self.supported_abi),
+                                                strict=self.strict)
+                if apk_file:
+                    available_packages.append(apk_file)
             if len(available_packages) == 1:
                 self.apk_file = available_packages[0]
             elif len(available_packages) > 1:
                 msg = 'Multiple matching packages found for "{}" on host: {}'
-                raise WorkloadError(msg.format(self.owner, available_packages))
-        if self.apk_file:
-            self.apk_info = ApkInfo(self.apk_file)
-            if self.version:
-                installed_version = self.target.get_package_version(self.apk_info.package)
-                host_version = self.apk_info.version_name
-                if (installed_version and installed_version != host_version and
-                        loose_version_matching(self.version, installed_version)):
-                    msg = 'Multiple matching packages found for {}; host version: {}, device version: {}'
-                    raise WorkloadError(msg.format(self.owner, host_version, installed_version))
-        else:
-            self.resolve_package_from_target(context)
+                self.error_msg = msg.format(self.owner, available_packages)
 
     def resolve_package_from_target(self, context):
+        self.logger.debug('Resolving package on target')
         if self.package_name:
             if not self.target.package_is_installed(self.package_name):
-                msg = 'Package "{}" cannot be found on the host or device'
-                raise WorkloadError(msg.format(self.package_name))
+                return
         else:
             installed_versions = []
             for package in self.owner.package_names:
@@ -693,32 +724,25 @@ class PackageHandler(object):
                     installed_versions.append(package)
 
             if self.version:
+                matching_packages = []
                 for package in installed_versions:
                     package_version = self.target.get_package_version(package)
                     if loose_version_matching(self.version, package_version):
-                        self.package_name = package
-                        break
+                        matching_packages.append(package)
+                if len(matching_packages) == 1:
+                    self.package_name = matching_packages[0]
+                elif len(matching_packages) > 1:
+                   msg = 'Multiple matches for version "{}" found on device.'
+                   self.error_msg = msg.format(self.version)
             else:
                 if len(installed_versions) == 1:
                     self.package_name = installed_versions[0]
                 elif len(installed_versions) > 1:
-                    msg = 'Package version not set and multiple versions found on device'
-                    raise WorkloadError(msg)
+                   self.error_msg = 'Package version not set and multiple versions found on device.'
 
-            if not self.package_name:
-                if self.version:
-                    message = 'No matching package found for workload {name} (version {version})'
-                else:
-                    message = 'No matching package found for workload {name}'
-                raise WorkloadError(message.format(name=self.owner.name, version=self.version))
-
-        self.pull_apk(self.package_name)
-        self.apk_file = context.resolver.get(ApkFile(self.owner,
-                                                     variant=self.variant,
-                                                     version=self.version,
-                                                     package=self.package_name),
-                                             strict=self.strict)
-        self.apk_info = ApkInfo(self.apk_file)
+        if self.package_name:
+            self.logger.debug('Found matching package on target; Pulling to host.')
+            self.apk_file = self.pull_apk(self.package_name)
 
     def initialize_package(self, context):
         installed_version = self.target.get_package_version(self.apk_info.package)
@@ -733,7 +757,7 @@ class PackageHandler(object):
                 self.logger.debug(message.format(self.owner.name, host_version))
             self.force_install = True  # pylint: disable=attribute-defined-outside-init
         else:
-            message = '{} version {} found on both device and host.'
+            message = '{} version {} present on both device and host.'
             self.logger.debug(message.format(self.owner.name, host_version))
         if self.force_install:
             if installed_version:
