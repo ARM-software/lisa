@@ -25,6 +25,7 @@ class Speedometer(UiautoWorkload):
 
     name = 'speedometer'
     regex=re.compile(r'Speedometer Score ([\d.]+)')
+    versions = ['1.0', '2.0']
     description = '''
     A workload to execute the speedometer web based benchmark
 
@@ -35,13 +36,24 @@ class Speedometer(UiautoWorkload):
 
     '''
 
+    parameters = [
+        Parameter('version', allowed_values=versions, kind=str, default='2.0',
+                  description='''
+                  The speedometer version to be used.
+                  ''')
+    ]
+
     def __init__(self, target, **kwargs):
         super(Speedometer, self).__init__(target, **kwargs)
         self.gui.timeout = 1500
+        self.gui.uiauto_params['version'] = self.version
 
     def setup(self, context):
         super(Speedometer, self).setup(context)
-        self.target.execute('am start -a android.intent.action.VIEW -d http://browserbench.org/Speedometer/')
+        url = 'am start -a android.intent.action.VIEW -d http://browserbench.org/Speedometer' + self.version
+        if self.version == '1.0':
+            url = 'am start -a android.intent.action.VIEW -d http://browserbench.org/Speedometer'
+        self.target.execute(url)
 
     def update_output(self, context):
         super(Speedometer, self).update_output(context)
