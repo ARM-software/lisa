@@ -574,9 +574,7 @@ class RunConfiguration(Configuration):
 
             ``"by_spec"``
                 All iterations of the first spec are executed before moving on
-                to the next spec. E.g. A1 A2 A3 B1 C1 C2 This may also be
-                specified as ``"classic"``, as this was the way workloads were
-                executed in earlier versions of WA.
+                to the next spec. E.g. A1 A2 A3 B1 C1 C2.
 
             ``"random"``
                 Execution order is entirely random.
