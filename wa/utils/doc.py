@@ -274,6 +274,10 @@ def get_params_rst(parameters):
                                       param.mandatory and '(mandatory)' or ' ')
         desc = strip_inlined_text(param.description or '')
         text += indent('{}\n'.format(desc))
+        if param.aliases:
+            text += indent('\naliases: {}\n'.format(', '.join(map(format_literal, param.aliases))))
+        if param.global_alias:
+            text += indent('\nglobal alias: {}\n'.format(format_literal(param.global_alias)))
         if param.allowed_values:
             text += indent('\nallowed values: {}\n'.format(', '.join(map(format_literal, param.allowed_values))))
         elif param.constraint:
