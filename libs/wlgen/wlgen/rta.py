@@ -20,6 +20,7 @@ import json
 import os
 import re
 
+from tempfile import NamedTemporaryFile
 from collections import OrderedDict
 from wlgen import Workload
 from devlib.utils.misc import ranges_to_list
@@ -218,12 +219,11 @@ class RTA(Workload):
 
             return 'CPU{0:d}'.format(target_cpu)
 
-    def _confCustom(self):
+    def _confCustom(self, tf):
 
         rtapp_conf = self.params['custom']
 
         self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
-        ofile = open(self.json, 'w')
 
         calibration = self.getCalibrationConf()
         # Calibration can either be a string like "CPU1" or an integer, if the
@@ -254,25 +254,27 @@ class RTA(Workload):
             self._log.info('   %s', rtapp_conf)
             ifile = open(rtapp_conf, 'r')
 
+        temp_json = list()
         for line in ifile:
             if '__DURATION__' in line and self.duration is None:
                 raise ValueError('Workload duration not specified')
             for src, target in replacements.iteritems():
                 line = line.replace(src, target)
-            ofile.write(line)
+            temp_json.append(line)
+
+        temp_json = '\n'.join(temp_json)
+        self.rta_profile = json.loads(temp_json)
+        tf.write(temp_json + '\n')
 
         if isinstance(ifile, file):
             ifile.close()
-        ofile.close()
 
-        with open(self.json) as f:
-            conf = json.load(f)
-        for tid in conf['tasks']:
+        for tid in self.rta_profile['tasks']:
             self.tasks[tid] = {'pid': -1}
 
         return self.json
 
-    def _confProfile(self):
+    def _confProfile(self, tf):
 
         # Sanity check for task names
         for task in self.params['profile'].keys():
@@ -433,9 +435,8 @@ class RTA(Workload):
 
         # Generate JSON configuration on local file
         self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
-        with open(self.json, 'w') as outfile:
-            json.dump(self.rta_profile, outfile,
-                      indent=4, separators=(',', ': '))
+        json.dump(self.rta_profile, tf,
+                  indent=4, separators=(',', ': '))
 
         return self.json
 
@@ -505,18 +506,21 @@ class RTA(Workload):
 
         self.loadref = loadref
 
-        # Setup class-specific configuration
-        if kind == 'custom':
-            self._confCustom()
-        elif kind == 'profile':
-            self._confProfile()
+        with NamedTemporaryFile() as tf:
+            # Setup class-specific configuration
+            if kind == 'custom':
+                self._confCustom(tf)
+            elif kind == 'profile':
+                self._confProfile(tf)
 
-        # Move configuration file to target
-        self.target.push(self.json, self.run_dir)
+            self.rta_cmd  = os.path.join(self.target.executables_directory, 'rt-app')
+            self.rta_conf = os.path.join(self.run_dir, self.json)
+            self.command = '{0:s} {1:s} 2>&1'.format(self.rta_cmd, self.rta_conf)
 
-        self.rta_cmd  = self.target.executables_directory + '/rt-app'
-        self.rta_conf = self.run_dir + '/' + self.json
-        self.command = '{0:s} {1:s} 2>&1'.format(self.rta_cmd, self.rta_conf)
+            # Flush the buffers to the file before pushing to the target since
+            # Target.push() will reopen the file
+            tf.flush()
+            self.target.push(tf.name, self.rta_conf)
 
         # Set and return the test label
         self.test_label = '{0:s}_{1:02d}'.format(self.name, self.exc_id)
