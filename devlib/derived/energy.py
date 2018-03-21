@@ -30,13 +30,13 @@ class DerivedEnergyMeasurements(DerivedMeasurements):
         # Determine sites to calculate energy for
         channel_map = defaultdict(list)
         for channel in measurements_csv.channels:
-            channel_map[channel].append(channel.kind)
-        for channel, kinds in channel_map.iteritems():
-            if 'power' in kinds and not 'energy' in kinds:
-                should_calculate_energy.append(channel.site)
+            channel_map[channel.site].append(channel.kind)
             if channel.site == 'timestamp':
                 use_timestamp = True
                 time_measurment = channel.measurement_type
+        for site, kinds in channel_map.iteritems():
+            if 'power' in kinds and not 'energy' in kinds:
+                should_calculate_energy.append(site)
 
         if measurements_csv.sample_rate_hz is None and not use_timestamp:
             msg = 'Timestamp data is unavailable, please provide a sample rate'
