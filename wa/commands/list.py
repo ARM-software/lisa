@@ -29,9 +29,9 @@ class ListCommand(Command):
         kinds = get_kinds()
         self.parser.add_argument('kind', metavar='KIND',
                                  help=('Specify the kind of plugin to list. Must be '
-                                       'one of: {}'.format(', '.join(kinds))),
-                                 choices=kinds)
-        self.parser.add_argument('-n', '--name', 
+                                       'one of: {}'.format(', '.join(sorted(kinds)))),
+                                 choices=sorted(kinds))
+        self.parser.add_argument('-n', '--name',
                                  help='Filter results by the name specified')
         self.parser.add_argument('-o', '--packaged-only', action='store_true',
                                  help='''
@@ -39,7 +39,7 @@ class ListCommand(Command):
                                  not list plugins installed locally or from
                                  other packages.
                                  ''')
-        self.parser.add_argument('-p', '--platform', 
+        self.parser.add_argument('-p', '--platform',
                                  help='''
                                  Only list results that are supported by the
                                  specified platform.
