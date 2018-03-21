@@ -29,6 +29,7 @@ class Geekbench(ApkUiautoWorkload):
     description = """
     Geekbench provides a comprehensive set of benchmarks engineered to quickly
     and accurately measure processor and memory performance.
+
     http://www.primatelabs.com/geekbench/
     From the website:
     Designed to make benchmarks easy to run and easy to understand, Geekbench
@@ -389,9 +390,9 @@ class GeekbenchCorproate(Geekbench):
     requires_network = False
 
     versions = ['4.1.0', '5.0.0']
-    
-    activity = 'com.primatelabs.geekbench.HomeActivity' 
-    package = 'com.primatelabs.geekbench4.corporate' 
+
+    activity = 'com.primatelabs.geekbench.HomeActivity'
+    package = 'com.primatelabs.geekbench4.corporate'
 
     parameters = [
         Parameter('version',
