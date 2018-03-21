@@ -7,6 +7,7 @@ import subprocess
 import tarfile
 import tempfile
 import threading
+import xml.dom.minidom
 from collections import namedtuple
 
 from devlib.host import LocalConnection, PACKAGE_BIN_DIRECTORY
@@ -1174,6 +1175,16 @@ class AndroidTarget(Target):
         if prop:
             return props[prop]
         return props
+
+    def capture_ui_hierarchy(self, filepath):
+        on_target_file = self.get_workpath('screen_capture.xml')
+        self.execute('uiautomator dump {}'.format(on_target_file))
+        self.pull(on_target_file, filepath)
+        self.remove(on_target_file)
+
+        parsed_xml = xml.dom.minidom.parse(filepath)
+        with open(filepath, 'w') as f:
+            f.write(parsed_xml.toprettyxml())
 
     def is_installed(self, name):
         return super(AndroidTarget, self).is_installed(name) or self.package_is_installed(name)
