@@ -168,14 +168,18 @@ class RTA(Workload):
                                  for key in pload) + "}")
 
         # Sanity check calibration values for big.LITTLE systems
-        if 'bl' in target.modules:
-            bcpu = target.bl.bigs_online[0]
-            lcpu = target.bl.littles_online[0]
-            if pload[bcpu] > pload[lcpu]:
-                log.warning('Calibration values reports big cores less '
-                            'capable than LITTLE cores')
-                raise RuntimeError('Calibration failed: try again or file a bug')
-            bigs_speedup = ((float(pload[lcpu]) / pload[bcpu]) - 1) * 100
+        if target.big_core:
+            bcpu = [i for i, t in enumerate(target.core_names) if t == target.big_core]
+            lcpu = [i for i, t in enumerate(target.core_names) if t == target.little_core]
+            for l in lcpu:
+                for b in bcpu:
+                    if pload[b] > pload[l]:
+                        log.warning('Calibration values reports big cores less'
+                                    ' capable than LITTLE cores')
+                        raise RuntimeError('Calibration failed: try again or '
+                                            'file a bug')
+
+            bigs_speedup = ((float(pload[lcpu[0]]) / pload[bcpu[0]]) - 1) * 100
             log.info('big cores are ~%.0f%% more capable than LITTLE cores',
                      bigs_speedup)
 
