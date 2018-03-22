@@ -371,8 +371,13 @@ class Configuration(object):
         if name not in self.configuration:
             raise ConfigError('Unknown {} configuration "{}"'.format(self.name,
                                                                      name))
-        self.configuration[name].set_value(self, value,
-                                           check_mandatory=check_mandatory)
+        try:
+            self.configuration[name].set_value(self, value,
+                                            check_mandatory=check_mandatory)
+        except (TypeError, ValueError, ConfigError) as e:
+            msg = 'Invalid value "{}" for "{}": {}'
+            raise ConfigError(msg.format(value, name, e))
+
 
     def update_config(self, values, check_mandatory=True):
         for k, v in values.iteritems():
