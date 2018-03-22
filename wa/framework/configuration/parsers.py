@@ -221,7 +221,16 @@ def merge_augmentations(raw):
     cfg_point = JobSpec.configuration['augmentations']
     names = [cfg_point.name,] + cfg_point.aliases
 
-    entries = [toggle_set(raw.pop(n)) for n in names if n in raw]
+    entries = []
+    for n in names:
+        if n not in raw:
+            continue
+        value = raw.pop(n)
+        try:
+            entries.append(toggle_set(value))
+        except TypeError as e:
+            msg = 'Invalid value "{}" for "{}": {}'
+            raise ConfigError(msg.format(value, n, e))
 
     # Make sure none of the specified aliases conflict with each other
     to_check = [e for e in entries]
