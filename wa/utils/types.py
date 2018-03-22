@@ -381,6 +381,14 @@ class toggle_set(set):
                 dest.add(item)
         return dest
 
+    def __init__(self, *args):
+        if args:
+            value = args[0]
+            if isinstance(value, basestring):
+                msg = 'invalid type for toggle_set: "{}"'
+                raise TypeError(msg.format(type(value)))
+        set.__init__(self, *args)
+
     def merge_with(self, other):
         new_self = copy(self)
         return toggle_set.merge(other, new_self)
