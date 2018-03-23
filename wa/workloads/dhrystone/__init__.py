@@ -100,6 +100,7 @@ class Dhrystone(Workload):
         self.target.killall('dhrystone')
 
     def run(self, context):
+        self.output = None
         try:
             self.output = self.target.execute(self.command,
                                               timeout=self.timeout,
@@ -109,12 +110,16 @@ class Dhrystone(Workload):
             raise
 
     def extract_results(self, context):
-        outfile = os.path.join(context.output_directory, 'dhrystone.output')
-        with open(outfile, 'w') as wfh:
-            wfh.write(self.output)
-        context.add_artifact('dhrystone-output', outfile, 'raw', "dhrystone's stdout")
+        if self.output:
+            outfile = os.path.join(context.output_directory, 'dhrystone.output')
+            with open(outfile, 'w') as wfh:
+                wfh.write(self.output)
+            context.add_artifact('dhrystone-output', outfile, 'raw', "dhrystone's stdout")
 
     def update_output(self, context):
+        if not self.output:
+            return
+
         score_count = 0
         dmips_count = 0
         total_score = 0
