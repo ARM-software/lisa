@@ -794,6 +794,10 @@ class JobSpec(Configuration):
         self.to_merge = defaultdict(OrderedDict)
         self._sources = []
         self.id = None
+        if self.boot_parameters is None:
+            self.boot_parameters = obj_dict()
+        if self.runtime_parameters is None:
+            self.runtime_parameters = obj_dict()
 
     def to_pod(self):
         pod = super(JobSpec, self).to_pod()
