@@ -163,10 +163,11 @@ class ChromeOsAssistant(LinuxAssistant):
 
     parameters = LinuxAssistant.parameters + AndroidAssistant.parameters
 
-    def __init__(self, target, logcat_poll_period=None):
+    def __init__(self, target, logcat_poll_period=None, disable_selinux=True):
         super(ChromeOsAssistant, self).__init__(target)
         if target.supports_android:
-            self.android_assistant = AndroidAssistant(target.android_container, logcat_poll_period)
+            self.android_assistant = AndroidAssistant(target.android_container,
+                                                      logcat_poll_period, disable_selinux)
         else:
             self.android_assistant = None
 
