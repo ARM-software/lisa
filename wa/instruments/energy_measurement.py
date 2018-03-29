@@ -185,7 +185,7 @@ class ArmEnergyProbeBackend(EnergyInstrumentBackend):
         device key is arbitrary.
         """
 
-        shutil.copy(self.config_file, metadirr)
+        shutil.copy(self.config_file, metadir)
 
         return {None: self.instrument(target, **kwargs)}
 
