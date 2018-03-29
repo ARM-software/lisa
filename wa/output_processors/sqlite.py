@@ -190,7 +190,8 @@ class SqliteResultProcessor(OutputProcessor):
     def _update_spec(self, spec):
         self._last_spec = spec
         spec_tuple = (spec.id, self._run_oid, spec.iterations, spec.label, spec.workload_name,
-                      json.dumps(spec.boot_parameters), json.dumps(spec.runtime_parameters),
+                      json.dumps(spec.boot_parameters.to_pod()),
+                      json.dumps(spec.runtime_parameters.to_pod()),
                       json.dumps(spec.workload_parameters.to_pod()))
         with self._open_connecton() as conn:
             conn.execute('INSERT INTO workload_specs VALUES (?,?,?,?,?,?,?,?)', spec_tuple)
