@@ -181,6 +181,14 @@ class RunOutput(Output):
         if self._combined_config:
             return self._combined_config.settings
 
+    @property
+    def augmentations(self):
+        run_augs = set([])
+        for job in self.jobs:
+            for aug in job.spec.augmentations:
+                run_augs.add(aug)
+        return list(run_augs)
+
     def __init__(self, path):
         super(RunOutput, self).__init__(path)
         self.info = None
