@@ -20,6 +20,8 @@ from collections import defaultdict
 import os
 import shutil
 
+from wa.utils.types import list_of_numbers
+
 from devlib import DerivedEnergyMeasurements
 from devlib.instrument import CONTINUOUS
 from devlib.instrument.energy_probe import EnergyProbeInstrument
@@ -65,7 +67,7 @@ class DAQBackend(EnergyInstrumentBackend):
     name = 'daq'
 
     parameters = [
-        Parameter('resistor_values', kind=list_of_ints,
+        Parameter('resistor_values', kind=list_of_numbers,
                   global_alias='daq_resistor_values',
                   description="""
                   The values of resistors (in Ohms) across which the voltages
@@ -106,7 +108,7 @@ class DAQBackend(EnergyInstrumentBackend):
                   Specifies the voltage range for the resistor voltage channel
                   on the DAQ (please refer to :ref:`daq_setup` for details).
                   """),
-        Parameter('sample_rate_hz', kind=str, default=10000,
+        Parameter('sample_rate_hz', kind=int, default=10000,
                   global_alias='daq_sampling_rate',
                   description="""
                   Specify the sample rate in Hz.
