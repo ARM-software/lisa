@@ -103,11 +103,6 @@ class RtApp(Workload):
     Please refer to the existing configs in ``$WA_ROOT/wa/workloads/rt_app/use_case``
     for more examples.
 
-    The version of rt-app currently used with this workload contains enhancements and
-    modifications done by Linaro. The source code for this version may be obtained here:
-
-    http://git.linaro.org/power/rt-app.git
-
     The upstream version of rt-app is hosted here:
 
     https://github.com/scheduler-tools/rt-app
