@@ -203,7 +203,7 @@ class Http(ResourceGetter):
     def __init__(self, **kwargs):
         super(Http, self).__init__(**kwargs)
         self.logger = logger
-        self.index = None
+        self.index = {}
 
     def register(self, resolver):
         resolver.register(self.get, SourcePriority.remote)
@@ -212,7 +212,12 @@ class Http(ResourceGetter):
         if not resource.owner:
             return  # TODO: add support for unowned resources
         if not self.index:
-            self.index = self.fetch_index()
+            try:
+                self.index = self.fetch_index()
+            except requests.exceptions.RequestException as e:
+                msg = 'Skipping HTTP getter due to connection error: {}'
+                self.logger.debug(msg.format(e.message))
+                return
         if resource.kind == 'apk':
             # APKs must always be downloaded to run ApkInfo for version
             # information.
