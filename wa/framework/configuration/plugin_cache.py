@@ -223,6 +223,43 @@ class PluginCache(object):
         for cfg_point in ms.cfg_points.itervalues():
             cfg_point.validate(merged_config, check_mandatory=is_final)
 
+    def __getattr__(self, name):
+        """
+        This resolves methods for specific plugins types based on corresponding
+        generic plugin methods. So it's possible to say things like ::
+
+            loader.get_device('foo')
+
+        instead of ::
+
+            loader.get_plugin('foo', kind='device')
+
+        """
+        error_msg = 'No plugins of type "{}" discovered'
+        if name.startswith('get_'):
+            name = name.replace('get_', '', 1)
+            if name in self.loader.kind_map:
+                def __wrapper(pname, *args, **kwargs):
+                    return self.get_plugin(pname, name, *args, **kwargs)
+                return __wrapper
+            raise NotFoundError(error_msg.format(name))
+        if name.startswith('list_'):
+            name = name.replace('list_', '', 1).rstrip('s')
+            if name in self.loader.kind_map:
+                def __wrapper(*args, **kwargs):  # pylint: disable=E0102
+                    return self.list_plugins(name, *args, **kwargs)
+                return __wrapper
+            raise NotFoundError(error_msg.format(name))
+        if name.startswith('has_'):
+            name = name.replace('has_', '', 1)
+            if name in self.loader.kind_map:
+                def __wrapper(pname, *args, **kwargs):  # pylint: disable=E0102
+                    return self.loader.has_plugin(pname, name, *args, **kwargs)
+                return __wrapper
+            raise NotFoundError(error_msg.format(name))
+        raise AttributeError(name)
+
+
 
 class MergeState(object):
 
