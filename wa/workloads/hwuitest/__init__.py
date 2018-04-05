@@ -34,7 +34,7 @@ class HWUITest(Workload):
     description = """
     Tests UI rendering latency on Android devices.
 
-    The binary for this workload is built as part of AOSP's 
+    The binary for this workload is built as part of AOSP's
     frameworks/base/libs/hwui component.
     """
     supported_platforms = ['android']
@@ -59,7 +59,7 @@ class HWUITest(Workload):
     def __init__(self, target, *args, **kwargs):
         super(HWUITest, self).__init__(target, *args, **kwargs)
         HWUITest.target_exe = None
-        
+
 
     @once
     def initialize(self, context):
@@ -69,12 +69,15 @@ class HWUITest(Workload):
         HWUITest.target_exe = self.target.install(host_exe)
 
     def run(self, context):
+        self.output = None
         self.output = self.target.execute("{} {} {} {}".format(self.target_exe,
                                                                self.test.lower(),
                                                                self.loops,
                                                                self.frames))
 
     def extract_results(self, context):
+        if not self.output:
+          return
         outfile = os.path.join(context.output_directory, 'hwuitest.output')
         with open(outfile, 'w') as wfh:
             wfh.write(self.output)
