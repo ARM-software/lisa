@@ -156,6 +156,7 @@ class RtApp(Workload):
         self._deploy_rt_app_binary_if_necessary()
 
     def setup(self, context):
+        self.output = None
         self.log_basename = context.current_job.label
         self.host_json_config = self._load_json_config(context)
         self.config_file_on_target = self.target.path.join(self.target_working_directory,
@@ -181,6 +182,8 @@ class RtApp(Workload):
             task_count=self.task_count,
         ))
 
+        if not self.output:
+            return
         outfile = os.path.join(context.output_directory, RAW_OUTPUT_FILENAME)
         with open(outfile, 'w') as wfh:
             wfh.write(self.output)
