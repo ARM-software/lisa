@@ -259,7 +259,7 @@ public class BaseUiAutomation {
     }
 
     public void uiDeviceSwipeVertical(int startY, int endY, int xCoordinate, int steps) {
-        mDevice.swipe(startY, xCoordinate, endY, xCoordinate, steps);
+        mDevice.swipe(xCoordinate, startY, xCoordinate, endY, steps);
     }
 
     public void uiDeviceSwipeHorizontal(int startX, int endX, int yCoordinate, int steps) {
