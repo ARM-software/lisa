@@ -1006,7 +1006,7 @@ class WaResultsCollector(object):
                         # Find a p-value which hopefully represents the
                         # (complement of the) certainty that any difference in
                         # the mean represents something real.
-                        pvalue =  ttest_ind(group_results, base_results, equal_var=False).pvalue
+                        _, pvalue = ttest_ind(group_results, base_results, equal_var=False)
 
                     comparisons.append(Comparison(
                         metric, test, inv_id,
