@@ -111,12 +111,19 @@ class WaResultsCollector(object):
                      this can take some time, so the extracted metrics are
                      cached in the provided output directories. Set this param
                      to False to disable this caching.
+
+    :param display_charts: This class uses IPython.display module to render some
+                           charts of workloads' results. But we also want to use
+                           this class without rendering any charts when we are
+                           only interested in table of figures. Set this param
+                           to False if you only want table of results but not
+                           display them.
     """
     RE_WLTEST_DIR = re.compile(r"wa\.(?P<sha1>\w+)_(?P<name>.+)")
 
     def __init__(self, base_dir=None, wa_dirs=".*", platform=None,
                  kernel_repo_path=None, parse_traces=True,
-                 use_cached_trace_metrics=True):
+                 use_cached_trace_metrics=True, display_charts=True):
 
         self._log = logging.getLogger('WaResultsCollector')
 
@@ -143,6 +150,7 @@ class WaResultsCollector(object):
         if not self.parse_traces:
             self._log.warning("Trace parsing disabled")
         self.use_cached_trace_metrics = use_cached_trace_metrics
+        self.display_charts = display_charts
 
         df = pd.DataFrame()
         df_list = []
@@ -674,6 +682,9 @@ class WaResultsCollector(object):
                           (lowest-valued boxplot at the top of the graph) of the
                           specified `sort_on` statistic.
         """
+        if not self.display_charts:
+            return
+
         sp = self._get_sort_params(sort_on)
         df = self._get_metric_df(workload, metric, tag, kernel, test)
         if df is None:
@@ -814,7 +825,8 @@ class WaResultsCollector(object):
                             by, sort_on, ascending, xlim)
         stats_df = self.describe(workload, metric, tag, kernel, test,
                                  by, sort_on, ascending)
-        display(stats_df)
+        if self.display_charts:
+            display(stats_df)
 
         return (axes, stats_df)
 
@@ -866,6 +878,10 @@ class WaResultsCollector(object):
 
         :param by: List of identifiers to group output as in DataFrame.groupby.
         """
+
+        if not self.display_charts:
+            return
+
         df = self._get_metric_df(workload, metric, tag, kernel, test)
         if df is None:
             return
@@ -1009,6 +1025,9 @@ class WaResultsCollector(object):
         'kernel' column in the results_df uses). If by='tag' then `base_id`
         should be a WA 'tag id' (as named in the WA agenda).
         """
+        if not self.display_charts:
+            return
+
         df = self.find_comparisons(base_id=base_id, by=by)
 
         if df.empty:
