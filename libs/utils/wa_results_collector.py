@@ -295,7 +295,12 @@ class WaResultsCollector(object):
             # Jobs can fail due to target misconfiguration or other problems,
             # without preventing us from collecting the results for the jobs
             # that ran OK.
-            with open(os.path.join(job_dir, 'result.json')) as f:
+            my_file = os.path.join(job_dir, 'result.json')
+            if not os.path.isfile(my_file):
+                skipped_jobs[iteration].append(job_id)
+                continue
+
+            with open(my_file) as f:
                 job_result = json.load(f)
                 if job_result['status'] == 'FAILED':
                     skipped_jobs[iteration].append(job_id)
@@ -477,7 +482,12 @@ class WaResultsCollector(object):
                 continue
 
             if artifact_name.startswith('energy_instrument_output'):
-                df = pd.read_csv(path)
+
+                try:
+                    df = pd.read_csv(path)
+                except pandas.errors.ParserError as e:
+                    self._log.info(" no data for %s",  path)
+                    continue
 
                 if 'device_power' in df.columns:
                     # Looks like this is from an ACME
