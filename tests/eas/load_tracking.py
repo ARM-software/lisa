@@ -1367,9 +1367,12 @@ class CgroupsMigrationTest(_PELTTaskGroupsTest):
         task = cls.root_group.get_child('t1_2')
         new_taskgroup = cls.root_group.get_child('/tg2')
         task.change_taskgroup(new_taskgroup)
-        tg1_task = cgroups.tasks('/tg1', filter_tname='rt-app',
-                                 filter_tcmdline='t1_1')
-        exclude = next(iter(tg1_task))
+        try:
+            [exclude] = cgroups.tasks('/tg1', filter_tname='rt-app',
+                                      filter_tcmdline='t1_1').keys()
+        except:
+            raise ValueError('The non-migrated task PID has not been found')
+
         cgroups.move_tasks('/tg1', '/tg2', exclude=exclude)
 
     def test_group_util_aggregation(self):
@@ -1469,9 +1472,12 @@ class NestedCgroupsMigrationTest(_PELTTaskGroupsTest):
         task = cls.root_group.get_child('t2_2')
         new_taskgroup = cls.root_group.get_child('/tg1')
         task.change_taskgroup(new_taskgroup)
-        tg2_task = cgroups.tasks('/tg1/tg2', filter_tname='rt-app',
-                                 filter_tcmdline='t2_1')
-        exclude = next(iter(tg2_task))
+        try:
+            [exclude] = cgroups.tasks('/tg1/tg2', filter_tname='rt-app',
+                                      filter_tcmdline='t2_1').keys()
+        except:
+            raise ValueError('The non-migrated task PID has not been found')
+
         cgroups.move_tasks('/tg1/tg2', '/tg1', exclude=exclude)
 
     def test_group_util_aggregation(self):
