@@ -567,7 +567,7 @@ class RampDown(_EnergyModelTest):
 
 class EnergyModelWakeMigration(_EnergyModelTest):
     """
-    Test EAS for tasks alternating beetween 10% and 50%
+    Test EAS for tasks alternating beetween 10% and 70%
     """
     workloads = {
         'em_wake_migration' : {
@@ -580,7 +580,7 @@ class EnergyModelWakeMigration(_EnergyModelTest):
                         'params' : {
                             "period_ms" : WORKLOAD_PERIOD_MS,
                             'start_pct': 10,
-                            'end_pct': 50,
+                            'end_pct': 70,
                             'time_s': 2,
                             'loops': 2
                         },
