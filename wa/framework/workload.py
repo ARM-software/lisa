@@ -806,7 +806,8 @@ class PackageHandler(object):
             message = 'Cannot retrieve "{}" as not installed on Target'
             raise WorkloadError(message.format(package))
         package_info = self.target.get_package_info(package)
-        self.target.pull(package_info.apk_path, self.owner.dependencies_directory)
+        self.target.pull(package_info.apk_path, self.owner.dependencies_directory,
+                                                timeout=self.install_timeout)
         apk_name = self.target.path.basename(package_info.apk_path)
         return os.path.join(self.owner.dependencies_directory, apk_name)
 
