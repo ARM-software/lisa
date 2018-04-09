@@ -794,7 +794,7 @@ class PackageHandler(object):
                                          replace=True, allow_downgrade=True)
         if 'Failure' in output:
             if 'ALREADY_EXISTS' in output:
-                msg = 'Using already installed APK (did not unistall properly?)'
+                msg = 'Using already installed APK (did not uninstall properly?)'
                 self.logger.warn(msg)
             else:
                 raise WorkloadError(output)
