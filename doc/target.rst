@@ -451,6 +451,17 @@ Target
    :param timeout: Optional timeout (in seconds) for the installation
    :param with_name: This may be used to rename the executable on the target
 
+
+.. method:: Target.install_if_needed(host_path, search_system_binaries=True)
+
+   Check to see if the binary is already installed on the device and if not,
+   install it.
+
+   :param host_path: path to the executable on the host
+   :param search_system_binaries: Specify whether to search the devices PATH
+       when checking to see if the executable is installed, otherwise only check
+       user installed binaries.
+
 .. method:: Target.uninstall(name)
 
    Uninstall the specified executable from the target
@@ -483,6 +494,7 @@ Target
     path to the directory with the archive's contents is returned.
 
 .. method:: Target.is_network_connected()
+
    Checks for internet connectivity on the device. This doesn't actually
    guarantee that the internet connection is "working" (which is rather
    nebulous), it's intended just for failing early when definitively _not_
