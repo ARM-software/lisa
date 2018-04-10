@@ -865,6 +865,12 @@ class JobSpec(Configuration):
     def finalize(self):
         self.id = "-".join([source.config['id']
                             for source in self._sources[1:]])  # ignore first id, "global"
+
+        # ensure *_parameters are always obj_dict's
+        self.boot_parameters = obj_dict((self.boot_parameters or {}).items())
+        self.runtime_parameters = obj_dict((self.runtime_parameters or {}).items())
+        self.workload_parameters = obj_dict((self.workload_parameters or {}).items())
+
         if self.label is None:
             self.label = self.workload_name
 
