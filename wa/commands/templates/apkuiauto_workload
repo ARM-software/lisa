@@ -17,7 +17,7 @@ class ${class_name}(ApkUiautoWorkload):
 
     def __init__(self, target, **kwargs):
         super(${class_name}, self).__init__(target, **kwargs)
-        # Define any additional attiributes required for the workload
+        # Define any additional attributes required for the workload
 
     def init_resources(self, context):
         super(${class_name}, self).init_resources(context)
