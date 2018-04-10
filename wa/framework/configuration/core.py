@@ -458,6 +458,13 @@ class MetaConfiguration(Configuration):
             specified when invoking a run.
             """,
         ),
+        ConfigurationPoint(
+            'extra_plugin_paths',
+            kind=list_of_strings,
+            description="""
+            A list of additional paths to scan for plugins.
+            """,
+        ),
     ]
     configuration = {cp.name: cp for cp in config_points}
 
@@ -482,6 +489,10 @@ class MetaConfiguration(Configuration):
         user_directory = environ.pop('WA_USER_DIRECTORY', '')
         if user_directory:
             self.set('user_directory', user_directory)
+
+        extra_plugin_paths = environ.pop('WA_PLUGIN_PATHS', '')
+        if extra_plugin_paths:
+            self.set('extra_plugin_paths', extra_plugin_paths.split(os.pathsep))
 
         self.plugin_packages = copy(self.core_plugin_packages)
         if os.path.isfile(self.additional_packages_file):
