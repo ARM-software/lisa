@@ -477,6 +477,10 @@ class MetaConfiguration(Configuration):
         return os.path.join(self.user_directory, 'plugins')
 
     @property
+    def plugin_paths(self):
+        return [self.plugins_directory] + (self.extra_plugin_paths or [])
+
+    @property
     def user_config_file(self):
         return os.path.join(self.user_directory, 'config.yaml')
 

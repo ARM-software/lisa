@@ -38,7 +38,7 @@ class __LoaderWrapper(object):
         from wa.framework.plugin import PluginLoader
         from wa.framework.configuration.core import settings
         self._loader = PluginLoader(settings.plugin_packages,
-                                    [settings.plugins_directory], [])
+                                    settings.plugin_paths, [])
 
     def update(self, packages=None, paths=None, ignore_paths=None):
         if not self._loader:
