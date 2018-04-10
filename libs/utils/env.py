@@ -709,25 +709,13 @@ class TestEnv(ShareState):
         if not force and self.ftrace is not None:
             return self.ftrace
 
-        if conf is None and 'ftrace' not in self.conf:
-            return None
+        ftrace = conf or self.conf.get('ftrace')
+        if ftrace is None:
+            return
 
-        if conf is not None:
-            ftrace = conf
-        else:
-            ftrace = self.conf['ftrace']
-
-        events = FTRACE_EVENTS_DEFAULT
-        if 'events' in ftrace:
-            events = ftrace['events']
-
-        functions = None
-        if 'functions' in ftrace:
-            functions = ftrace['functions']
-
-        buffsize = FTRACE_BUFSIZE_DEFAULT
-        if 'buffsize' in ftrace:
-            buffsize = ftrace['buffsize']
+        events = ftrace.get('events', FTRACE_EVENTS_DEFAULT)
+        functions = ftrace.get('functions', None)
+        buffsize = ftrace.get('buffsize', FTRACE_BUFSIZE_DEFAULT)
 
         self.ftrace = devlib.FtraceCollector(
             self.target,
