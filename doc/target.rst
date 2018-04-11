@@ -441,7 +441,9 @@ Target
 .. method:: Target.capture_screen(filepath)
 
    Take a screenshot on the device and save it to the specified file on the
-   host. This may not be supported by the target.
+   host. This may not be supported by the target. You can optionally insert a
+   ``{ts}`` tag into the file name, in which case it will be substituted with
+   on-target timestamp of the screen shot in ISO8601 format.
 
 .. method:: Target.install(filepath[, timeout[, with_name]])
 
