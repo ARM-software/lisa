@@ -129,6 +129,12 @@ class Output(object):
         artifact = self.get_artifact(name)
         return self.get_path(artifact.path)
 
+    def __repr__(self):
+        return '<{} {}>'.format(self.__class__.__name__,
+                                os.path.basename(self.basepath))
+
+    __str__ = __repr__
+
 
 class RunOutput(Output):
 
