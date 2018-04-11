@@ -905,7 +905,9 @@ class LinuxTarget(Target):
         try:
 
             tmpfile = self.tempfile()
-            self.execute('DISPLAY=:0.0 scrot {}'.format(tmpfile))
+            cmd = 'DISPLAY=:0.0 scrot {} && {} date -u -Iseconds'
+            ts = self.execute(cmd.format(tmpfile, self.busybox)).strip()
+            filepath = filepath.format(ts=ts)
             self.pull(tmpfile, filepath)
             self.remove(tmpfile)
         except TargetError as e:
@@ -1144,7 +1146,9 @@ class AndroidTarget(Target):
 
     def capture_screen(self, filepath):
         on_device_file = self.path.join(self.working_directory, 'screen_capture.png')
-        self.execute('screencap -p  {}'.format(on_device_file))
+        cmd = 'screencap -p  {} && {} date -u -Iseconds'
+        ts = self.execute(cmd.format(on_device_file, self.busybox)).strip()
+        filepath = filepath.format(ts=ts)
         self.pull(on_device_file, filepath)
         self.remove(on_device_file)
 

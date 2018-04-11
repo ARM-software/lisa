@@ -242,6 +242,11 @@ class Gem5SimulationPlatform(Platform):
             if '.bmp' in f:
                 screen_caps.append(f)
 
+        if '{ts}' in filepath:
+            cmd = '{} date -u -Iseconds'
+            ts = self.target.execute(cmd.format(self.target.busybox)).strip()
+            filepath = filepath.format(ts=ts)
+
         successful_capture = False
         if len(screen_caps) == 1:
             # Bail out if we do not have image, and resort to the slower, built
