@@ -187,7 +187,7 @@ class TestEnv(ShareState):
     _initialized = False
 
     def __init__(self, target_conf=None, test_conf=None, wipe=True,
-                 force_new=False):
+                 force_new=True):
         super(TestEnv, self).__init__()
 
         if self._initialized and not force_new:
@@ -313,13 +313,13 @@ class TestEnv(ShareState):
         self._init()
 
         # Initialize FTrace events collection
-        self._init_ftrace(True)
+        self._init_ftrace()
 
         # Initialize RT-App calibration values
         self.calibration()
 
         # Initialize energy probe instrument
-        self._init_energy(True)
+        self._init_energy()
 
         self._log.info('Set results folder to:')
         self._log.info('   %s', self.res_dir)
@@ -349,7 +349,7 @@ class TestEnv(ShareState):
         conf.load()
         return conf.json
 
-    def _init(self, force = False):
+    def _init(self, force=True):
 
         # Initialize target
         self._init_target(force)
@@ -385,7 +385,7 @@ class TestEnv(ShareState):
         self._init_platform()
 
 
-    def _init_target(self, force = False):
+    def _init_target(self, force=True):
 
         if not force and self.target is not None:
             return self.target
@@ -711,7 +711,7 @@ class TestEnv(ShareState):
     def ftrace_conf(self, conf):
         self._init_ftrace(True, conf)
 
-    def _init_ftrace(self, force=False, conf=None):
+    def _init_ftrace(self, force=True, conf=None):
 
         if not force and self.ftrace is not None:
             return self.ftrace
@@ -748,7 +748,7 @@ class TestEnv(ShareState):
 
         return self.ftrace
 
-    def _init_energy(self, force):
+    def _init_energy(self, force=True):
 
         # Initialize energy probe to board default
         self.emeter = EnergyMeter.getInstance(self.target, self.conf, force,
