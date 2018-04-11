@@ -393,6 +393,9 @@ fi
 # Execute in a sub-shell
 (
   export LISA_TEST_ITERATIONS LISA_TARGET_CONF LISA_RESULTS_DIR
+  # Allow all TestEnv to share the same target to avoid reinitialization between
+  # tests
+  export LISA_TARGET_SINGLETON=1
   _lisa-test "${extra_args[@]}"
 )
 local retcode=$?

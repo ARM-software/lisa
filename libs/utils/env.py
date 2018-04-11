@@ -53,6 +53,11 @@ class TestEnv(object):
     """
     Represents the environment configuring LISA, the target, and the test setup
 
+    If LISA_TARGET_SINGLETON environment variable is defined to 1, only the
+    first TestEnv instance will create a target and the following ones will
+    reuse the same target object. That avoids reinitializing the target when
+    starting tests using lisa-test command.
+
     The test environment is defined by:
 
     - a target configuration (target_conf) defining which HW platform we
@@ -173,6 +178,9 @@ class TestEnv(object):
     freeze when using freeeze_userspace.
     """
 
+    # target class attribute is used as a shared storage between instances
+    target = None
+
     __singleton = (None, None)
 
     @classmethod
@@ -205,11 +213,8 @@ class TestEnv(object):
 
         self.conf = {}
         self.test_conf = {}
-        self.target = None
         self.ftrace = None
         self.workdir = None
-        self._installed_tools = set()
-        self._calib = None
 
         # Keep track of target IP and MAC address
         self.ip = None
@@ -326,7 +331,8 @@ class TestEnv(object):
         self._init_ftrace()
 
         # Initialize RT-App calibration values
-        self.calibration()
+        # If the target is already existing and calibrated, we skip it
+        self.calibration(force=False)
 
         # Initialize energy probe instrument
         self._init_energy()
@@ -335,6 +341,22 @@ class TestEnv(object):
         self._log.info('   %s', self.res_dir)
         self._log.info('Experiment results available also in:')
         self._log.info('   %s', res_lnk)
+
+    @property
+    def _target_state(self):
+        """
+        Monkey patch devlib Target to store some LISA-specific data.
+
+        That allows storing all target-specific state in the target object that
+        can then be shared across multiple TestEnv instances. _lisa_state
+        member is unlikely to be used by devlib code so this hack should be
+        harmless.
+        """
+        try:
+            return self.target._lisa_state
+        except AttributeError:
+            self.target._lisa_state = dict()
+            return self.target._lisa_state
 
     def loadTargetConfig(self, filepath=None):
         """
@@ -394,10 +416,6 @@ class TestEnv(object):
 
 
     def _init_target(self, force=True):
-
-        if not force and self.target is not None:
-            return self.target
-
         connection_settings = {}
 
         # Configure username
@@ -575,48 +593,57 @@ class TestEnv(object):
         self._log.info('Connection settings:')
         self._log.info('   %s', connection_settings)
 
-        if platform_type.lower() == 'linux':
-            self._log.debug('Setup LINUX target...')
-            if "host" not in connection_settings:
-                raise ValueError('Missing "host" param in Linux target conf')
+        # If a target does not already exist or if we want to recreate the
+        # target every time
+        if self.target is None or not int(os.getenv('LISA_TARGET_SINGLETON',0)):
+            if platform_type.lower() == 'linux':
+                self._log.debug('Setup LINUX target...')
+                if "host" not in connection_settings:
+                    raise ValueError('Missing "host" param in Linux target conf')
 
-            self.target = devlib.LinuxTarget(
-                    platform = platform,
-                    connection_settings = connection_settings,
-                    working_directory = self.workdir,
-                    load_default_modules = False,
-                    modules = modules)
-        elif platform_type.lower() == 'android':
-            self._log.debug('Setup ANDROID target...')
-            self.target = devlib.AndroidTarget(
-                    platform = platform,
-                    connection_settings = connection_settings,
-                    working_directory = self.workdir,
-                    load_default_modules = False,
-                    modules = modules)
-        elif platform_type.lower() == 'host':
-            self._log.debug('Setup HOST target...')
-            self.target = devlib.LocalLinuxTarget(
-                    platform = platform,
-                    working_directory = '/tmp/devlib-target',
-                    executables_directory = '/tmp/devlib-target/bin',
-                    load_default_modules = False,
-                    modules = modules,
-                    connection_settings = {'unrooted': True})
-        else:
-            raise ValueError('Config error: not supported [platform] type {}'\
-                    .format(platform_type))
+                self.target = devlib.LinuxTarget(
+                        platform = platform,
+                        connection_settings = connection_settings,
+                        working_directory = self.workdir,
+                        load_default_modules = False,
+                        modules = modules)
+            elif platform_type.lower() == 'android':
+                self._log.debug('Setup ANDROID target...')
+                self.target = devlib.AndroidTarget(
+                        platform = platform,
+                        connection_settings = connection_settings,
+                        working_directory = self.workdir,
+                        load_default_modules = False,
+                        modules = modules)
+            elif platform_type.lower() == 'host':
+                self._log.debug('Setup HOST target...')
+                self.target = devlib.LocalLinuxTarget(
+                        platform = platform,
+                        working_directory = '/tmp/devlib-target',
+                        executables_directory = '/tmp/devlib-target/bin',
+                        load_default_modules = False,
+                        modules = modules,
+                        connection_settings = {'unrooted': True})
+            else:
+                raise ValueError('Config error: not supported [platform] type {}'\
+                        .format(platform_type))
 
-        self._log.debug('Checking target connection...')
-        self._log.debug('Target info:')
-        self._log.debug('      ABI: %s', self.target.abi)
-        self._log.debug('     CPUs: %s', self.target.cpuinfo)
-        self._log.debug(' Clusters: %s', self.target.core_clusters)
+            self._log.debug('Checking target connection...')
+            self._log.debug('Target info:')
+            self._log.debug('      ABI: %s', self.target.abi)
+            self._log.debug('     CPUs: %s', self.target.cpuinfo)
+            self._log.debug(' Clusters: %s', self.target.core_clusters)
 
-        self._log.info('Initializing target workdir:')
-        self._log.info('   %s', self.target.working_directory)
+            self._log.info('Initializing target workdir:')
+            self._log.info('   %s', self.target.working_directory)
 
-        self.target.setup()
+            self.target.setup()
+            self._target_state['installed_tools'] = set()
+
+            # Store the target in the class attribute so they will be available
+            # if target reinint is skipped
+            type(self).target = self.target
+
         self.install_tools(self._tools)
 
         # Verify that all the required modules have been initialized
@@ -630,11 +657,20 @@ class TestEnv(object):
                         'update your kernel or test configurations'.format(module))
 
         if not self.nrg_model:
-            try:
-                self._log.info('Attempting to read energy model from target')
-                self.nrg_model = EnergyModel.from_target(self.target)
-            except (TargetError, RuntimeError, ValueError) as e:
-                self._log.error("Couldn't read target energy model: %s", e)
+            # If the target already has an energy model attached, we just use
+            # that to avoid spending time re-fetching it.
+            target_em = self._target_state.get('nrg_model')
+            if target_em:
+                self._log.info('Using energy model already fetched from target')
+                self.nrg_model = target_em
+            else:
+                try:
+                    self._log.info('Attempting to read energy model from target')
+                    self.nrg_model = EnergyModel.from_target(self.target)
+                except (TargetError, RuntimeError, ValueError) as e:
+                    self._log.error("Couldn't read target energy model: %s", e)
+
+        self._target_state['nrg_model'] = self.nrg_model
 
     def _init_target_gem5(self):
         system = self.conf['gem5']['system']
@@ -701,7 +737,7 @@ class TestEnv(object):
             tools.update(['taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh'])
 
         # Remove duplicates and already-instaled tools
-        tools.difference_update(self._installed_tools)
+        tools.difference_update(self._target_state['installed_tools'])
 
         tools_to_install = []
         for tool in tools:
@@ -714,7 +750,7 @@ class TestEnv(object):
         for tool_to_install in tools_to_install:
             self.target.install(tool_to_install)
 
-        self._installed_tools.update(tools)
+        self._target_state['installed_tools'].update(tools)
 
     def ftrace_conf(self, conf):
         self._init_ftrace(True, conf)
@@ -890,10 +926,11 @@ class TestEnv(object):
                   force=False and we have not installed rt-app.
         """
 
-        if not force and self._calib:
-            return self._calib
+        if not force and self._target_state.get('calib'):
+            return self._target_state['calib']
 
-        required = force or 'rt-app' in self._installed_tools
+
+        required = force or 'rt-app' in self._target_state['installed_tools']
 
         if not required:
             self._log.debug('No RT-App workloads, skipping calibration')
@@ -901,19 +938,21 @@ class TestEnv(object):
 
         if not force and 'rtapp-calib' in self.conf:
             self._log.info('Using configuration provided RTApp calibration')
-            self._calib = {
+            calib = {
                     int(key): int(value)
                     for key, value in self.conf['rtapp-calib'].items()
                 }
         else:
             self._log.info('Calibrating RTApp...')
-            self._calib = RTA.calibrate(self.target)
+            calib = RTA.calibrate(self.target)
 
         self._log.info('Using RT-App calibration values:')
         self._log.info('   %s',
-                       "{" + ", ".join('"%r": %r' % (key, self._calib[key])
-                                       for key in sorted(self._calib)) + "}")
-        return self._calib
+                       "{" + ", ".join('"%r": %r' % (key, calib[key])
+                                       for key in sorted(calib)) + "}")
+
+        self._target_state['calib'] = calib
+        return calib
 
     def resolv_host(self, host=None):
         """
