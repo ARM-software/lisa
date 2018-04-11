@@ -87,6 +87,10 @@ class AgendaParser(object):
             self._populate_and_validate_config(state, raw, source)
             sections = self._pop_sections(raw)
             global_workloads = self._pop_workloads(raw)
+            if not global_workloads:
+                msg = 'No jobs avaliable. Please ensure you have specified at '\
+                      'least one workload to run.'
+                raise ConfigError(msg)
 
             if raw:
                 msg = 'Invalid top level agenda entry(ies): "{}"'
