@@ -198,9 +198,7 @@ class TestEnv(ShareState):
         self.target = None
         self.ftrace = None
         self.workdir = None
-        self.__installed_tools = set()
-        self.__modules = []
-        self.__connection_settings = None
+        self._installed_tools = set()
         self._calib = None
 
         # Keep track of target IP and MAC address
@@ -263,7 +261,7 @@ class TestEnv(ShareState):
         # Initialize binary tools to deploy
         test_conf_tools = self.test_conf.get('tools', [])
         target_conf_tools = self.conf.get('tools', [])
-        self.__tools = list(set(test_conf_tools + target_conf_tools))
+        self._tools = list(set(test_conf_tools + target_conf_tools))
 
         # Initialize ftrace events
         # test configuration override target one
@@ -277,7 +275,7 @@ class TestEnv(ShareState):
         )
         self.conf['ftrace'] = ftrace
         if ftrace['events']:
-            self.__tools.append('trace-cmd')
+            self._tools.append('trace-cmd')
 
         # Initialize features
         if '__features__' not in self.conf:
@@ -392,25 +390,25 @@ class TestEnv(ShareState):
         if not force and self.target is not None:
             return self.target
 
-        self.__connection_settings = {}
+        connection_settings = {}
 
         # Configure username
         if 'username' in self.conf:
-            self.__connection_settings['username'] = self.conf['username']
+            connection_settings['username'] = self.conf['username']
         else:
-            self.__connection_settings['username'] = USERNAME_DEFAULT
+            connection_settings['username'] = USERNAME_DEFAULT
 
         # Configure password or SSH keyfile
         if 'keyfile' in self.conf:
-            self.__connection_settings['keyfile'] = self.conf['keyfile']
+            connection_settings['keyfile'] = self.conf['keyfile']
         elif 'password' in self.conf:
-            self.__connection_settings['password'] = self.conf['password']
+            connection_settings['password'] = self.conf['password']
         else:
-            self.__connection_settings['password'] = PASSWORD_DEFAULT
+            connection_settings['password'] = PASSWORD_DEFAULT
 
         # Configure port
         if 'port' in self.conf:
-            self.__connection_settings['port'] = self.conf['port']
+            connection_settings['port'] = self.conf['port']
 
         # Configure the host IP/MAC address
         if 'host' in self.conf:
@@ -419,7 +417,7 @@ class TestEnv(ShareState):
                     (self.mac, self.ip) = self.resolv_host(self.conf['host'])
                 else:
                     self.ip = self.conf['host']
-                self.__connection_settings['host'] = self.ip
+                connection_settings['host'] = self.ip
             except KeyError:
                 raise ValueError('Config error: missing [host] parameter')
 
@@ -458,7 +456,7 @@ class TestEnv(ShareState):
         # Setup board default if not specified by configuration
         self.nrg_model = None
         platform = None
-        self.__modules = ['cpufreq', 'cpuidle']
+        modules = ['cpufreq', 'cpuidle']
         if 'board' not in self.conf:
             self.conf['board'] = 'UNKNOWN'
 
@@ -467,12 +465,12 @@ class TestEnv(ShareState):
         # Initialize TC2 board
         if board_name == 'TC2':
             platform = devlib.platform.arm.TC2()
-            self.__modules = ['bl', 'hwmon', 'cpufreq']
+            modules = ['bl', 'hwmon', 'cpufreq']
 
         # Initialize JUNO board
         elif board_name in ('JUNO', 'JUNO2'):
             platform = devlib.platform.arm.Juno()
-            self.__modules = ['bl', 'hwmon', 'cpufreq']
+            modules = ['bl', 'hwmon', 'cpufreq']
 
             if board_name == 'JUNO':
                 self.nrg_model = juno_r0_energy
@@ -480,28 +478,28 @@ class TestEnv(ShareState):
         # Initialize OAK board
         elif board_name == 'OAK':
             platform = Platform(model='MT8173')
-            self.__modules = ['bl', 'cpufreq']
+            modules = ['bl', 'cpufreq']
 
         # Initialized HiKey board
         elif board_name == 'HIKEY':
             self.nrg_model = hikey_energy
-            self.__modules = [ "cpufreq", "cpuidle" ]
+            modules = [ "cpufreq", "cpuidle" ]
             platform = Platform(model='hikey')
 
         # Initialize HiKey960 board
         elif board_name == 'HIKEY960':
-            self.__modules = ['bl', 'cpufreq', 'cpuidle']
+            modules = ['bl', 'cpufreq', 'cpuidle']
             platform = Platform(model='hikey960')
 
         # Initialize Pixel phone
         elif board_name == 'PIXEL':
             self.nrg_model = pixel_energy
-            self.__modules = ['bl', 'cpufreq']
+            modules = ['bl', 'cpufreq']
             platform = Platform(model='pixel')
 
         # Initialize gem5 platform
         elif board_name == 'GEM5':
-            self.__modules=['cpufreq']
+            modules=['cpufreq']
             platform = self._init_target_gem5()
 
         elif board_name != 'UNKNOWN':
@@ -516,13 +514,13 @@ class TestEnv(ShareState):
                     big_core=board.get('big_core', None)
                 )
                 if 'modules' in board:
-                    self.__modules = board['modules']
+                    modules = board['modules']
 
         ########################################################################
         # Modules configuration
         ########################################################################
 
-        modules = set(self.__modules)
+        modules = set(modules)
 
         # Refine modules list based on target.conf
         modules.update(self.conf.get('modules', []))
@@ -533,8 +531,8 @@ class TestEnv(ShareState):
                              self.test_conf.get('exclude_modules', []))
         modules.difference_update(remove_modules)
 
-        self.__modules = list(modules)
-        self._log.info('Devlib modules to load: %s', self.__modules)
+        modules = list(modules)
+        self._log.info('Devlib modules to load: %s', modules)
 
         ########################################################################
         # Devlib target setup (based on target.config::platform)
@@ -542,7 +540,7 @@ class TestEnv(ShareState):
 
         # If the target is Android, we need just (eventually) the device
         if platform_type.lower() == 'android':
-            self.__connection_settings = None
+            connection_settings = None
             device = 'DEFAULT'
 
             # Workaround for ARM-software/devlib#225
@@ -551,43 +549,43 @@ class TestEnv(ShareState):
 
             if 'device' in self.conf:
                 device = self.conf['device']
-                self.__connection_settings = {'device' : device}
+                connection_settings = {'device' : device}
             elif 'host' in self.conf:
                 host = self.conf['host']
                 port = '5555'
                 if 'port' in self.conf:
                     port = str(self.conf['port'])
                 device = '{}:{}'.format(host, port)
-                self.__connection_settings = {'device' : device}
+                connection_settings = {'device' : device}
             self._log.info('Connecting Android target [%s]', device)
         else:
             self._log.info('Connecting %s target:', platform_type)
-            for key in self.__connection_settings:
+            for key in connection_settings:
                 self._log.info('%10s : %s', key,
-                               self.__connection_settings[key])
+                               connection_settings[key])
 
         self._log.info('Connection settings:')
-        self._log.info('   %s', self.__connection_settings)
+        self._log.info('   %s', connection_settings)
 
         if platform_type.lower() == 'linux':
             self._log.debug('Setup LINUX target...')
-            if "host" not in self.__connection_settings:
+            if "host" not in connection_settings:
                 raise ValueError('Missing "host" param in Linux target conf')
 
             self.target = devlib.LinuxTarget(
                     platform = platform,
-                    connection_settings = self.__connection_settings,
+                    connection_settings = connection_settings,
                     working_directory = self.workdir,
                     load_default_modules = False,
-                    modules = self.__modules)
+                    modules = modules)
         elif platform_type.lower() == 'android':
             self._log.debug('Setup ANDROID target...')
             self.target = devlib.AndroidTarget(
                     platform = platform,
-                    connection_settings = self.__connection_settings,
+                    connection_settings = connection_settings,
                     working_directory = self.workdir,
                     load_default_modules = False,
-                    modules = self.__modules)
+                    modules = modules)
         elif platform_type.lower() == 'host':
             self._log.debug('Setup HOST target...')
             self.target = devlib.LocalLinuxTarget(
@@ -595,7 +593,7 @@ class TestEnv(ShareState):
                     working_directory = '/tmp/devlib-target',
                     executables_directory = '/tmp/devlib-target/bin',
                     load_default_modules = False,
-                    modules = self.__modules,
+                    modules = modules,
                     connection_settings = {'unrooted': True})
         else:
             raise ValueError('Config error: not supported [platform] type {}'\
@@ -611,10 +609,10 @@ class TestEnv(ShareState):
         self._log.info('   %s', self.target.working_directory)
 
         self.target.setup()
-        self.install_tools(self.__tools)
+        self.install_tools(self._tools)
 
         # Verify that all the required modules have been initialized
-        for module in self.__modules:
+        for module in modules:
             self._log.debug('Check for module [%s]...', module)
             if not hasattr(self.target, module):
                 self._log.warning('Unable to initialize [%s] module', module)
@@ -695,7 +693,7 @@ class TestEnv(ShareState):
             tools.update(['taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh'])
 
         # Remove duplicates and already-instaled tools
-        tools.difference_update(self.__installed_tools)
+        tools.difference_update(self._installed_tools)
 
         tools_to_install = []
         for tool in tools:
@@ -708,7 +706,7 @@ class TestEnv(ShareState):
         for tool_to_install in tools_to_install:
             self.target.install(tool_to_install)
 
-        self.__installed_tools.update(tools)
+        self._installed_tools.update(tools)
 
     def ftrace_conf(self, conf):
         self._init_ftrace(True, conf)
@@ -887,7 +885,7 @@ class TestEnv(ShareState):
         if not force and self._calib:
             return self._calib
 
-        required = force or 'rt-app' in self.__installed_tools
+        required = force or 'rt-app' in self._installed_tools
 
         if not required:
             self._log.debug('No RT-App workloads, skipping calibration')
