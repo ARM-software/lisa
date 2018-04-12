@@ -17,6 +17,7 @@
 
 import json
 import os
+import numpy as np
 from unittest import TestCase
 
 from trace import Trace
@@ -244,6 +245,36 @@ class TestTrace(TestCase):
     def test_sched_load_avg_signals(self):
         """Test parsing sched_load_avg_task events from EAS1.2"""
         self._test_tasks_dfs('sched_load_avg')
+
+    def test_getPeripheralClockInfo(self):
+        """
+        TestTrace: getPeripheralClockInfo() returns proper effective rate info.
+        """
+        self.events = [
+            'clock_set_rate',
+            'clock_disable',
+            'clock_enable'
+        ]
+        trace = self.make_trace("""
+          <idle>-0 [002] 380330000000: clock_enable: bus_clk state=1 cpu_id=2
+          <idle>-0 [002] 380331000000: clock_set_rate: bus_clk state=750000000 cpu_id=2
+          <idle>-0 [000] 380332000000: clock_disable: bus_clk state=0 cpu_id=0
+          <idle>-0 [000] 380333000000: clock_enable: bus_clk state=1 cpu_id=0
+          <idle>-0 [002] 380334000000: clock_set_rate: bus_clk state=100000000 cpu_id=2
+          <idle>-0 [000] 380335000000: clock_disable: bus_clk state=0 cpu_id=0
+          <idle>-0 [004] 380339000000: cpu_idle:             state=1 cpu_id=4
+        """)
+        df = trace.getPeripheralClockEffectiveRate(clk_name='bus_clk')
+        exp_effective_rate=[ float('NaN'), 750000000, 0.0, 750000000, 100000000, 0.0]
+        effective_rate = df['effective_rate'].tolist()
+        self.assertEqual(len(exp_effective_rate), len(effective_rate))
+
+        for e, r in zip(exp_effective_rate, effective_rate):
+            if (np.isnan(e)):
+                self.assertTrue(np.isnan(r))
+                continue
+            self.assertEqual(e,r)
+
 
 class TestTraceNoClusterData(TestTrace):
     """

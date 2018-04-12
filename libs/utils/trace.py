@@ -874,6 +874,39 @@ class Trace(object):
 
         return cluster_active
 
+    @memoized
+    def getPeripheralClockEffectiveRate(self, clk_name):
+        if clk_name is None: 
+            self._log.warning('no specified clk_name in computing peripheral clock, returning None')
+            return
+        if not self.hasEvents('clock_set_rate'):
+            self._log.warning('Events [clock_set_rate] not found, returning None!')
+            return
+        rate_df = self._dfg_trace_event('clock_set_rate')
+        enable_df = self._dfg_trace_event('clock_enable')
+        disable_df = self._dfg_trace_event('clock_disable')
+        pd.set_option('display.expand_frame_repr', False)
+
+        freq = rate_df[rate_df.clk_name == clk_name]
+        if not enable_df.empty:
+            enables = enable_df[enable_df.clk_name == clk_name]
+        if not disable_df.empty:
+            disables = disable_df[disable_df.clk_name == clk_name]
+
+        freq = pd.concat([freq, enables, disables]).sort_index()
+        if freq.empty:
+            self._log.warning('No events for clock ' + clk_name + ' found in trace')
+            return
+
+        freq['start'] = freq.index
+        freq['len'] = (freq.start - freq.start.shift()).fillna(0).shift(-1)
+        # The last value will be NaN, fix to be appropriate length
+        freq.loc[freq.index[-1], 'len'] = self.start_time + self.time_range - freq.index[-1]
+
+        freq = freq.fillna(method='ffill')
+        freq['effective_rate'] = np.where(freq['state'] == 0, 0,
+                                          np.where(freq['state'] == 1, freq['rate'], float('nan')))
+        return freq
 
 class TraceData:
     """ A DataFrame collector exposed to Trace's clients """
