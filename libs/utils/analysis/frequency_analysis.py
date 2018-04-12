@@ -27,6 +27,7 @@ import pylab as pl
 from analysis_module import AnalysisModule
 from bart.common.Utils import area_under_curve
 from devlib.utils.misc import memoized
+from matplotlib.ticker import FuncFormatter
 from trappy.utils import listify
 from trace import ResidencyTime, ResidencyData
 
@@ -162,6 +163,85 @@ class FrequencyAnalysis(AnalysisModule):
 ###############################################################################
 # Plotting Methods
 ###############################################################################
+
+    def plotPeripheralClock(self, clk, title='Peripheral Frequency'):
+        """
+        Produce graph plotting the frequency of a particular peripheral clock
+
+        :param title: The title for the chart
+        :type  title: str
+
+        :param clk: The clk name to chart
+        :type  clk: str
+
+        :raises: KeyError
+        """
+        freq = self._trace.getPeripheralClockEffectiveRate(clk)
+        if freq is None or freq.empty:
+            self._log.warning('no peripheral clock events found for clock')
+            return
+
+        fig = plt.figure(figsize=(16,8))
+        gs = gridspec.GridSpec(2, 1, height_ratios=[8, 1])
+        freq_axis = plt.subplot(gs[0])
+        state_axis = plt.subplot(gs[1])
+        plt.suptitle(title, y=.97, fontsize=16, horizontalalignment='center')
+
+
+        # Plot frequency information (set rate)
+        freq_axis.set_title("Clock frequency for " + clk)
+        set_rate = freq['rate'].dropna()
+
+        rate_axis_lib = 0
+        if len(set_rate) > 0:
+            rate_axis_lib = set_rate.max()
+            set_rate.plot(style=['b--'], ax=freq_axis, drawstyle='steps-post', alpha=0.4, label="clock_set_rate value")
+            freq_axis.hlines(set_rate.iloc[-1], set_rate.index[-1], self._trace.x_max, linestyle='--', color='b', alpha=0.4)
+        else:
+            self._log.warning('No clock_set_rate events to plot')
+
+        # Plot frequency information (effective rate)
+        eff_rate = freq['effective_rate'].dropna()
+        if len(eff_rate) > 0 and eff_rate.max() > 0:
+            rate_axis_lib = max(rate_axis_lib, eff_rate.max())
+            eff_rate.plot(style=['b-'], ax=freq_axis, drawstyle='steps-post', alpha=1.0, label="Effective rate (with on/off)")
+            freq_axis.hlines(eff_rate.iloc[-1], eff_rate.index[-1], self._trace.x_max, linestyle='-', color='b', alpha=1.0)
+        else:
+            self._log.warning('No effective frequency events to plot')
+
+        freq_axis.set_ylim(0, rate_axis_lib * 1.1)
+        freq_axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        freq_axis.set_xlabel('')
+        freq_axis.grid(True)
+        freq_axis.legend()
+        def mhz(x, pos):
+            return '%1.2f MHz' % (x*1e-6)
+        freq_axis.get_yaxis().set_major_formatter(FuncFormatter(mhz))
+
+        on = freq[freq.state == 1]
+        state_axis.hlines([0] * len(on),
+                          on['start'], on['start'] + on['len'],
+                          linewidth = 10.0, label='clock on', color='green')
+        off = freq[freq.state == 0]
+        state_axis.hlines([0] * len(off),
+                          off['start'], off['start'] + off['len'],
+                          linewidth = 10.0, label='clock off', color='red')
+
+
+        # Plot time period that the clock state was unknown from the trace
+        indeterminate = pd.concat([on, off]).sort_index()
+        if indeterminate.empty:
+            indet_range_max = self._trace.x_max 
+        else:
+            indet_range_max = indeterminate.index[0] 
+        state_axis.hlines(0, 0, indet_range_max, linewidth = 1.0, label='indeterminate clock state', linestyle='--')
+        state_axis.legend(bbox_to_anchor=(0., 1.02, 1., 0.102), loc=3, ncol=3, mode='expand')
+        state_axis.set_yticks([])
+        state_axis.set_xlabel('seconds')
+        state_axis.set_xlim(self._trace.x_min, self._trace.x_max)
+
+        figname = os.path.join(self._trace.plots_dir, '{}{}.png'.format(self._trace.plots_prefix, clk))
+        pl.savefig(figname, bbox_inches='tight')
 
     def plotClusterFrequencies(self, title='Clusters Frequencies'):
         """
