@@ -893,7 +893,7 @@ class TestEnv(ShareState):
             return
 
         if not force and 'rtapp-calib' in self.conf:
-            self._log.warning('Using configuration provided RTApp calibration')
+            self._log.info('Using configuration provided RTApp calibration')
             self._calib = {
                     int(key): int(value)
                     for key, value in self.conf['rtapp-calib'].items()

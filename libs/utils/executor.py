@@ -674,7 +674,7 @@ class Executor():
 
         # FTRACE: start (if a configuration has been provided)
         if self.te.ftrace and self._target_conf_flag(tc, 'ftrace'):
-            self._log.warning('FTrace events collection enabled')
+            self._log.info('FTrace events collection enabled')
             self.te.ftrace.start()
 
         # ENERGY: start sampling
