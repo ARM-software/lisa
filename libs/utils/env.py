@@ -720,6 +720,10 @@ class TestEnv(ShareState):
         events = FTRACE_EVENTS_DEFAULT
         if 'events' in ftrace:
             events = ftrace['events']
+        if 'debug_events' in self.conf:
+            # Need to convert from unicode object to str
+            dbg_events = [s.encode('utf-8') for s in self.conf['debug_events']]
+            events = list(set(events).union(dbg_events))
 
         functions = None
         if 'functions' in ftrace:
