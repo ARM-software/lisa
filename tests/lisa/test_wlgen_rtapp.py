@@ -73,8 +73,7 @@ class TestRTAProfile(RTABase):
             run_dir=self.target_run_dir
         )
 
-        with open(rtapp.json) as f:
-            conf = json.load(f, object_pairs_hook=OrderedDict)
+        conf = rtapp.rta_profile
 
         # Check that the configuration looks like we expect it to
         phases = conf['tasks']['my_task']['phases'].values()
@@ -270,8 +269,7 @@ class TestRTACustom(RTABase):
         rtapp.conf(kind='custom', params=json_path, duration=5,
                    run_dir=self.target_run_dir)
 
-        with open(rtapp.json) as f:
-            conf = json.load(f)
+        conf = rtapp.rta_profile
 
         # Convert k to str because the json loader gives us unicode strings
         tasks = set([str(k) for k in conf['tasks'].keys()])
@@ -315,8 +313,7 @@ class TestRTACalibrationConf(RTABase):
             run_dir=self.target_run_dir
         )
 
-        with open(rtapp.json) as f:
-            return json.load(f)['global']['calibration']
+        return rtapp.rta_profile['global']['calibration']
 
     def test_calibration_conf_pload(self):
         """Test that the smallest pload value is used, if provided"""

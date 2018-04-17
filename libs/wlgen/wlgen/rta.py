@@ -20,6 +20,7 @@ import json
 import os
 import re
 
+from tempfile import NamedTemporaryFile
 from collections import OrderedDict
 from wlgen import Workload
 from devlib.utils.misc import ranges_to_list
@@ -167,14 +168,18 @@ class RTA(Workload):
                                  for key in pload) + "}")
 
         # Sanity check calibration values for big.LITTLE systems
-        if 'bl' in target.modules:
-            bcpu = target.bl.bigs_online[0]
-            lcpu = target.bl.littles_online[0]
-            if pload[bcpu] > pload[lcpu]:
-                log.warning('Calibration values reports big cores less '
-                            'capable than LITTLE cores')
-                raise RuntimeError('Calibration failed: try again or file a bug')
-            bigs_speedup = ((float(pload[lcpu]) / pload[bcpu]) - 1) * 100
+        if target.big_core:
+            bcpu = [i for i, t in enumerate(target.core_names) if t == target.big_core]
+            lcpu = [i for i, t in enumerate(target.core_names) if t == target.little_core]
+            for l in lcpu:
+                for b in bcpu:
+                    if pload[b] > pload[l]:
+                        log.warning('Calibration values reports big cores less'
+                                    ' capable than LITTLE cores')
+                        raise RuntimeError('Calibration failed: try again or '
+                                            'file a bug')
+
+            bigs_speedup = ((float(pload[lcpu[0]]) / pload[bcpu[0]]) - 1) * 100
             log.info('big cores are ~%.0f%% more capable than LITTLE cores',
                      bigs_speedup)
 
@@ -218,12 +223,11 @@ class RTA(Workload):
 
             return 'CPU{0:d}'.format(target_cpu)
 
-    def _confCustom(self):
+    def _confCustom(self, tf):
 
         rtapp_conf = self.params['custom']
 
         self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
-        ofile = open(self.json, 'w')
 
         calibration = self.getCalibrationConf()
         # Calibration can either be a string like "CPU1" or an integer, if the
@@ -259,20 +263,20 @@ class RTA(Workload):
                 raise ValueError('Workload duration not specified')
             for src, target in replacements.iteritems():
                 line = line.replace(src, target)
-            ofile.write(line)
+            tf.write(line)
 
         if isinstance(ifile, file):
             ifile.close()
-        ofile.close()
+        tf.close()
 
-        with open(self.json) as f:
-            conf = json.load(f)
-        for tid in conf['tasks']:
+        with open(tf.name) as f:
+            self.rta_profile = json.load(f)
+        for tid in self.rta_profile['tasks']:
             self.tasks[tid] = {'pid': -1}
 
         return self.json
 
-    def _confProfile(self):
+    def _confProfile(self, tf):
 
         # Sanity check for task names
         for task in self.params['profile'].keys():
@@ -433,9 +437,9 @@ class RTA(Workload):
 
         # Generate JSON configuration on local file
         self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
-        with open(self.json, 'w') as outfile:
-            json.dump(self.rta_profile, outfile,
-                      indent=4, separators=(',', ': '))
+        json.dump(self.rta_profile, tf,
+                  indent=4, separators=(',', ': '))
+        tf.close()
 
         return self.json
 
@@ -505,14 +509,19 @@ class RTA(Workload):
 
         self.loadref = loadref
 
-        # Setup class-specific configuration
-        if kind == 'custom':
-            self._confCustom()
-        elif kind == 'profile':
-            self._confProfile()
+        try:
+            tf = NamedTemporaryFile(delete=False)
+            # Setup class-specific configuration
+            if kind == 'custom':
+                self._confCustom(tf)
+            elif kind == 'profile':
+                self._confProfile(tf)
 
-        # Move configuration file to target
-        self.target.push(self.json, self.run_dir)
+            # Move configuration file to target
+            self.target.push(tf.name, os.path.join(self.run_dir,self.json))
+        finally:
+            tf.close()
+            os.unlink(tf.name)
 
         self.rta_cmd  = self.target.executables_directory + '/rt-app'
         self.rta_conf = self.run_dir + '/' + self.json
