@@ -25,9 +25,7 @@ class TargetError(DevlibError):
 
 class TargetNotRespondingError(DevlibError):
     """The target is unresponsive."""
-
-    def __init__(self, target):
-        super(TargetNotRespondingError, self).__init__('Target {} is not responding.'.format(target))
+    pass
 
 
 class HostError(DevlibError):

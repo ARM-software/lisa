@@ -455,7 +455,7 @@ class Target(object):
             return 1
         except (TimeoutError, subprocess.CalledProcessError, TargetError):
             if explode:
-                raise TargetNotRespondingError(self.conn.name)
+                raise TargetNotRespondingError('Target {} is not responding'.format(self.conn.name))
             return 0
 
     # process management
