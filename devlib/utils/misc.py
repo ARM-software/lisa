@@ -30,6 +30,7 @@ import pkgutil
 import logging
 import random
 import ctypes
+import threading
 from operator import itemgetter
 from itertools import groupby
 from functools import partial
@@ -135,6 +136,9 @@ def preexec_function():
 
 
 check_output_logger = logging.getLogger('check_output')
+# Popen is not thread safe. If two threads attempt to call it at the same time,
+# one may lock up. See https://bugs.python.org/issue12739.
+check_output_lock = threading.Lock()
 
 
 def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
@@ -158,9 +162,13 @@ def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
         except OSError:
             pass  # process may have already terminated.
 
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                               stdin=subprocess.PIPE,
-                               preexec_fn=preexec_function, **kwargs)
+    with check_output_lock:
+        process = subprocess.Popen(command,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE,
+                                   stdin=subprocess.PIPE,
+                                   preexec_fn=preexec_function,
+                                   **kwargs)
 
     if timeout:
         timer = threading.Timer(timeout, callback, [process.pid, ])
