@@ -1188,7 +1188,7 @@ class AndroidTarget(Target):
 
         parsed_xml = xml.dom.minidom.parse(filepath)
         with open(filepath, 'w') as f:
-            f.write(parsed_xml.toprettyxml())
+            f.write(parsed_xml.toprettyxml().encode('utf-8'))
 
     def is_installed(self, name):
         return super(AndroidTarget, self).is_installed(name) or self.package_is_installed(name)
