@@ -28,7 +28,7 @@ from wa.utils.types import enum, list_or_string, prioritylist
 
 
 
-SourcePriority = enum(['package', 'remote', 'lan', 'external_package', 'local',
+SourcePriority = enum(['package', 'remote', 'lan', 'local',
                        'perferred'], start=0, step=10)
 
 
