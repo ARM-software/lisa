@@ -31,7 +31,8 @@ sys.path.insert(0, os.path.join(this_dir, '../..'))
 import wa
 from build_plugin_docs import (generate_plugin_documentation,
                                generate_run_config_documentation,
-                               generate_meta_config_documentation)
+                               generate_meta_config_documentation,
+                               generate_target_documentation)
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -318,6 +319,7 @@ def setup(app):
     os.chdir(os.path.dirname(__file__))
     app.connect('builder-inited', run_apidoc)
     generate_plugin_documentation(module_dir, 'plugins', excluded_extensions)
+    generate_target_documentation('plugins')
     generate_run_config_documentation('run_config')
     generate_meta_config_documentation('run_config')
     app.add_object_type('confval', 'confval',

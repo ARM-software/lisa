@@ -20,11 +20,12 @@ import sys
 
 from wa import pluginloader
 from wa.framework.configuration.core import RunConfiguration, MetaConfiguration
-from wa.utils.doc import get_rst_from_plugin, underline, get_params_rst
+from wa.framework.target.descriptor import list_target_descriptions
+from wa.utils.doc import (strip_inlined_text, get_rst_from_plugin,
+                          get_params_rst, underline)
 from wa.utils.misc import capitalize
 
-
-GENERATE_FOR_PLUGIN = ['workload', 'instrument', 'output_processor', 'target']
+GENERATE_FOR_PLUGIN = ['workload', 'instrument', 'output_processor']
 
 
 def generate_plugin_documentation(source_dir, outdir, ignore_paths):
@@ -45,6 +46,39 @@ def generate_plugin_documentation(source_dir, outdir, ignore_paths):
             for ext in sorted(exts, key=lambda x: x.name):
                 wfh.write(get_rst_from_plugin(ext))
 
+def generate_target_documentation(outdir):
+    targets_to_generate = ['generic_android',
+                           'generic_linux',
+                           'generic_chromeos',
+                           'generic_local',
+                           'juno_linux',
+                           'juno_android']
+
+    intro = '\nThis is a list of commonly used targets and their device '\
+    'parameters, to see a complete for a complete reference please use the '\
+    'WA :ref:`list command <list-command>`.\n\n\n'
+
+    pluginloader.clear()
+    pluginloader.update(packages=['wa.framework.target.descriptor'])
+
+    target_descriptors = list_target_descriptions(pluginloader)
+    outfile = os.path.join(outdir, 'targets.rst')
+    with open(outfile, 'w') as wfh:
+        wfh.write(underline('Common Targets'))
+        wfh.write(intro)
+        for td in sorted(target_descriptors, key=lambda t: t.name):
+            if td.name not in targets_to_generate:
+                continue
+            text = underline(td.name, '~')
+            if hasattr(td, 'description'):
+                desc = strip_inlined_text(td.description or '')
+                text += desc
+            text += underline('Device Parameters:', '-')
+            text += get_params_rst(td.conn_params)
+            text += get_params_rst(td.platform_params)
+            text += get_params_rst(td.target_params)
+            text += get_params_rst(td.assistant_params)
+            wfh.write(text)
 
 def generate_run_config_documentation(outdir):
     generate_config_documentation(RunConfiguration, outdir)
