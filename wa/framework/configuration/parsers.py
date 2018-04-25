@@ -14,16 +14,17 @@
 #
 
 import os
+import logging
 
 from wa.framework.configuration.core import JobSpec
 from wa.framework.exception import ConfigError
+from wa.utils import log
 from wa.utils.serializer import json, read_pod, SerializerSyntaxError
 from wa.utils.types import toggle_set, counter
 
 
-###############
-### Parsers ###
-###############
+logger = logging.getLogger('config')
+
 
 class ConfigParser(object):
 
@@ -31,6 +32,8 @@ class ConfigParser(object):
         self.load(state, _load_file(filepath, "Config"), filepath)
 
     def load(self, state, raw, source, wrap_exceptions=True):  # pylint: disable=too-many-branches
+        logger.debug('Parsing config from "{}"'.format(source))
+        log.indent()
         try:
             state.plugin_cache.add_source(source)
             if 'run_name' in raw:
@@ -47,23 +50,27 @@ class ConfigParser(object):
             for cfg_point in state.settings.configuration.itervalues():
                 value = pop_aliased_param(cfg_point, raw)
                 if value is not None:
+                    logger.debug('Setting meta "{}" to "{}"'.format(cfg_point.name, value))
                     state.settings.set(cfg_point.name, value)
 
             # Get run specific configuration
             for cfg_point in state.run_config.configuration.itervalues():
                 value = pop_aliased_param(cfg_point, raw)
                 if value is not None:
+                    logger.debug('Setting run "{}" to "{}"'.format(cfg_point.name, value))
                     state.run_config.set(cfg_point.name, value)
 
             # Get global job spec configuration
             for cfg_point in JobSpec.configuration.itervalues():
                 value = pop_aliased_param(cfg_point, raw)
                 if value is not None:
+                    logger.debug('Setting global "{}" to "{}"'.format(cfg_point.name, value))
                     state.jobs_config.set_global_value(cfg_point.name, value)
 
             for name, values in raw.iteritems():
                 # Assume that all leftover config is for a plug-in or a global
                 # alias it is up to PluginCache to assert this assumption
+                logger.debug('Caching "{}" with "{}"'.format(name, values))
                 state.plugin_cache.add_configs(name, values, source)
 
         except ConfigError as e:
@@ -71,6 +78,9 @@ class ConfigParser(object):
                 raise ConfigError('Error in "{}":\n{}'.format(source, str(e)))
             else:
                 raise e
+        finally:
+            log.dedent()
+
 
 
 class AgendaParser(object):
@@ -80,6 +90,8 @@ class AgendaParser(object):
         self.load(state, raw, filepath)
 
     def load(self, state, raw, source):
+        logger.debug('Parsing agenda from "{}"'.format(source))
+        log.indent()
         try:
             if not isinstance(raw, dict):
                 raise ConfigError('Invalid agenda, top level entry must be a dict')
@@ -104,6 +116,8 @@ class AgendaParser(object):
 
         except (ConfigError, SerializerSyntaxError) as e:
             raise ConfigError('Error in "{}":\n\t{}'.format(source, str(e)))
+        finally:
+            log.dedent()
 
     def _populate_and_validate_config(self, state, raw, source):
         for name in ['config', 'global']:
@@ -116,7 +130,9 @@ class AgendaParser(object):
                 raise ConfigError(msg.format(name))
 
             if 'run_name' in entry:
-                state.run_config.set('run_name', entry.pop('run_name'))
+                value = entry.pop('run_name')
+                logger.debug('Setting run name to "{}"'.format(value))
+                state.run_config.set('run_name', value)
 
             state.load_config(entry, '{}/{}'.format(source, name), wrap_exceptions=False)
 

@@ -19,6 +19,7 @@ from collections import OrderedDict, defaultdict
 
 from wa.framework.exception import ConfigError, NotFoundError
 from wa.framework.configuration.tree import SectionNode
+from wa.utils import log
 from wa.utils.misc import (get_article, merge_config_values)
 from wa.utils.types import (identifier, integer, boolean, list_of_strings,
                             list_of, toggle_set, obj_dict, enum)
@@ -35,7 +36,6 @@ KIND_MAP = {
 Status = enum(['UNKNOWN', 'NEW', 'PENDING',
                'STARTED', 'CONNECTED', 'INITIALIZED', 'RUNNING',
                'OK', 'PARTIAL', 'FAILED', 'ABORTED', 'SKIPPED'])
-
 
 
 ##########################
@@ -933,8 +933,12 @@ class JobGenerator(object):
 
     def add_section(self, section, workloads):
         new_node = self.root_node.add_section(section)
-        for workload in workloads:
-            new_node.add_workload(workload)
+        log.indent()
+        try:
+            for workload in workloads:
+                new_node.add_workload(workload)
+        finally:
+            log.dedent()
 
     def add_workload(self, workload):
         self.root_node.add_workload(workload)

@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+
+from wa.utils import log
+
+
+logger = logging.getLogger('config')
+
 
 class JobSpecSource(object):
 
@@ -20,6 +27,7 @@ class JobSpecSource(object):
     def __init__(self, config, parent=None):
         self.config = config
         self.parent = parent
+        self._log_self()
 
     @property
     def id(self):
@@ -27,6 +35,15 @@ class JobSpecSource(object):
 
     def name(self):
         raise NotImplementedError()
+
+    def _log_self(self):
+        logger.debug('Creating {} node'.format(self.kind))
+        log.indent()
+        try:
+            for key, value in self.config.iteritems():
+                logger.debug('"{}" to "{}"'.format(key, value))
+        finally:
+            log.dedent()
 
 
 class WorkloadEntry(JobSpecSource):
