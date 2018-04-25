@@ -408,16 +408,21 @@ redirect the output to a different directory we can use::
 
     wa run dhrystone -d my_output_directory
 
-We can also tell WA to use a different config.yaml file by supplying with with the ``-c`` argument.
-One use case for passing additional config files is if you have multiple devices
-you wish test with WA, you can store the relevant device configuration in
-individual config files and then pass the file corresponding to the device you wish
-to use for that particular test.::
+We can also tell WA to use additional config files by supplying it with
+the ``-c`` argument. One use case for passing additional config files is if you
+have multiple devices you wish test with WA, you can store the relevant device
+configuration in individual config files and then pass the file corresponding to
+the device you wish to use for that particular test.
 
-    wa run -c myconfig.yaml dhrystone
+.. note:: As previously mentioned, any more specific configuration present in
+          the agenda file will overwrite the corresponding config parameters
+          specified in the config file(s).
+::
+
+    wa run -c myconfig.yaml ~/myagenda.yaml
 
 To use the same output directory but override the existing contents to
-store new dhrystone resultswe::
+store new dhrystone results we can specify the ``-f`` argument::
 
     wa run -f dhrystone
 
