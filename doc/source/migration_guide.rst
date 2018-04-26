@@ -62,7 +62,7 @@ All augmentations can now been enabled and disabled on a per workload basis.
 
 Setting Runtime Parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-:ref:`Runtime Parameters <runtime-parmeters>` are now the preferred way of
+:ref:`Runtime Parameters <runtime-parameters>` are now the preferred way of
 configuring, cpufreq, hotplug and cpuidle rather setting the corresponding
 sysfile values as this will perform additional validation and ensure the nodes
 are set in the correct order to avoid any conflicts.

@@ -1,4 +1,4 @@
-.. _runtime-parmeters:
+.. _runtime-parameters:
 
 Runtime Parameters
 ------------------

@@ -144,7 +144,7 @@ In addition to configuring the workload itself, we can also specify
 configuration for the underlying device which can be done by setting runtime
 parameters in the workload spec. Explict runtime paremeters have been exposed for
 configuring cpufreq, hotplug and cpuidle. For more detailed information on Runtime
-Parameters see the :ref:`runtime parmeters <runtime-parmeters>` section. For
+Parameters see the :ref:`runtime parmeters <runtime-parameters>` section. For
 example, suppose we want to ensure the maximum score for our benchmarks, at the
 expense of power consumption so we want to set the cpufreq governor to
 "performance" and enable all of the cpus on the device, (assuming there are 8
