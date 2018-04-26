@@ -50,7 +50,7 @@ def init_user_directory(overwrite_existing=False):  # pylint: disable=R0914
 def init_config():
     """
     If configuration file is missing try to convert WA2 config if present
-    otherwise initilise fresh config file
+    otherwise initialize fresh config file
     """
     wa2_config_file = os.path.join(settings.user_directory, 'config.py')
     wa3_config_file = os.path.join(settings.user_directory, 'config.yaml')
@@ -75,7 +75,7 @@ def convert_wa2_agenda(filepath, output_path):
             ConfigurationPoint('augmentations',
                             aliases=["instruments", "processors", "instrumentation",
                                     "output_processors", "augment", "result_processors"],
-                            description='''The agumentations enabled by default.
+                            description='''The augmentations enabled by default.
                                           This combines the "instrumentation"
                                           and "result_processors" from previous
                                           versions of WA (the old entries are

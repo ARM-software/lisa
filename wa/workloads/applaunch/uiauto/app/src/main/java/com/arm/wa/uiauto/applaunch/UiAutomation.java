@@ -54,7 +54,7 @@ public class UiAutomation extends BaseUiAutomation {
     protected String packageID;
 
     @Before
-    public void initilize() throws Exception {
+    public void initialize() throws Exception {
         parameters = getParams();
         packageID = getPackageID(parameters);
 

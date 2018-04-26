@@ -29,7 +29,7 @@ public class UiAutomation extends BaseUiAutomation {
     public static String TAG = "${name}";
 
     @Before
-    public void initilize() throws Exception {
+    public void initialize() throws Exception {
         parameters = getParams();
         // Perform any parameter initialization here
     }
