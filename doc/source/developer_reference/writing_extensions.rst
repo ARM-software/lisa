@@ -265,6 +265,7 @@ looking for an executable file would do so like this::
 
 Currently available resource types are defined in :py:mod:`wa.framework.resources`.
 
+.. _deploying-executables:
 
 Deploying executables to a target
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -309,10 +310,9 @@ target. The executable should be invoked *only* via that path; do **not** assume
 that it will be in ``PATH`` on the target (or that the executable with the same
 name in ``PATH`` is the version deployed by WA.
 
-.. code:: python
+For more information on how to implement this, please see the
+:ref:`how to guide <deploying-executables-guide>`.
 
-  self.command = "{} -a -b -c".format(target_binary)
-  self.target.execute(self.command)
 
 Deploying assets
 -----------------
@@ -487,6 +487,7 @@ If the plugin itself is capable of recovering from the error and carrying
 on, it may make more sense to log an ERROR or WARNING level message using the
 plugin's logger and to continue operation.
 
+.. _decorators:
 
 Execution Decorators
 ---------------------

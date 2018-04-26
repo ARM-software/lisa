@@ -1,3 +1,41 @@
+.. _deploying-executables-guide:
+
+Installing Binaries Example
+===========================
+
+Installing binaries for a particular plugin should generally only be performed
+once during a run. This should typically be done in the ``initialize`` method,
+if the only functionality performed in the method is to install the required binaries
+then the ``initialize`` method should be decorated with the ``@once``
+:ref:`decorator <decorators>` otherwise this should be placed into a dedicated
+method which is decorated instead. Please note if doing this then any installed
+paths should be added as class attributes rather than instance variables. As a
+general rule if binaries are installed as part of ``initialize`` then they
+should be installed in the complementary ``finalize`` method.
+
+Part of an example workload demonstrating this is shown below:
+
+.. code:: python
+
+  class MyWorkload(Workload):
+        #..
+        @once
+        def initialize(self, context):
+            resource = Executable(self, self.target.abi, 'my_executable')
+            host_binary = context.resolver.get(resource)
+            MyWorkload.target_binary = self.target.install(host_binary)
+        #..
+
+        def setup(self, context):
+            self.command = "{} -a -b -c".format(self.target_binary)
+            self.target.execute(self.command)
+        #..
+
+        @once
+        def finalize(self, context):
+            self.target.uninstall('my_executable')
+
+
 .. _adding-a-workload:
 
 Adding a Workload Examples

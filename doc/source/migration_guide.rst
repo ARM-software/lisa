@@ -147,6 +147,12 @@ The ``update_results`` method has been split out into 2 stages. There is now
 any results from the target back to the host system and to update the output
 with any metrics or artefacts for the specific workload iteration respectively.
 
+WA now features :ref:`decorators <decorators>` which can be used to allow for more efficient
+binary deployment and that they are only installed to the device once per run. For
+more information of implementing this please see
+:ref:`deploying executables to a target <deploying-executables>`.
+
+
 APK Functionality
 ^^^^^^^^^^^^^^^^^
 All apk functionality has re-factored into an APKHandler object which is
