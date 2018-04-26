@@ -142,9 +142,9 @@ to 15 million. You can specify this using dhrystone's parameters:
 
 In addition to configuring the workload itself, we can also specify
 configuration for the underlying device which can be done by setting runtime
-parameters in the workload spec. Explict runtime paremeters have been exposed for
+parameters in the workload spec. Explicit runtime parameters have been exposed for
 configuring cpufreq, hotplug and cpuidle. For more detailed information on Runtime
-Parameters see the :ref:`runtime parmeters <runtime-parameters>` section. For
+Parameters see the :ref:`runtime parameters <runtime-parameters>` section. For
 example, suppose we want to ensure the maximum score for our benchmarks, at the
 expense of power consumption so we want to set the cpufreq governor to
 "performance" and enable all of the cpus on the device, (assuming there are 8
@@ -342,6 +342,90 @@ parameters used.
                 - id: 03_cycl
                   name: cyclictest
                   iterations: 10
+
+.. _classifiers:
+
+Classifiers
+------------
+
+Classifiers can be used in 2 distinct ways, the first use is being supplied in
+an agenda as a set of key-value pairs which can be used to help identify sub-
+tests of a run, for example if you have multiple sections in your agenda running
+your workloads at different frequencies you might want to set a classifier
+specifying which frequencies are being used. These can then be utilized later,
+for example with the ``csv`` :ref:`output processor <output-processors>` with
+``use_all_classifiers`` set to ``True`` and this will add additional columns to
+the output file for each of the classifier keys that have been specified
+allowing for quick comparison.
+
+An example agenda is shown here:
+
+.. code-block:: yaml
+
+        config:
+            augmentations:
+                - csv
+            iterations: 1
+            device: generic_android
+            csv:
+                use_all_classifiers: True
+        sections:
+            - id: max_speed
+              runtime_parameters:
+                  frequency: 1700000
+              classifiers:
+                  freq: 1700000
+            - id: min_speed
+              runtime_parameters:
+                  frequency: 200000
+              classifiers:
+                  freq: 200000
+        workloads:
+        -   name: recentfling
+
+The other way that they can used is by being automatically added by some
+workloads to identify their results metrics and artifacts. For example some
+workloads perform multiple tests with the same execution run and therefore will
+use metrics to differentiate between them, For example the ``recentfling``
+workload will use classifiers to distinguish between which loop a particular
+result is for or whether it is an average across all loops ran.
+
+The output from the agenda above will produce a csv file similar to what is
+shown below. Some columns have been omitted for clarity however as can been seen
+the custom **frequency** classifier column has been added and populated, along
+with the **loop** classifier added by the workload.
+
+::
+
+ id              | workload      | metric                    | freq      | loop    | value ‖
+ max_speed-wk1   | recentfling   | 90th Percentile           | 1700000   | 1       | 8     ‖
+ max_speed-wk1   | recentfling   | 95th Percentile           | 1700000   | 1       | 9     ‖
+ max_speed-wk1   | recentfling   | 99th Percentile           | 1700000   | 1       | 16    ‖
+ max_speed-wk1   | recentfling   | Jank                      | 1700000   | 1       | 11    ‖
+ max_speed-wk1   | recentfling   | Jank%                     | 1700000   | 1       | 1     ‖
+ # ...
+ max_speed-wk1   | recentfling   | Jank                      | 1700000   | 3       | 1     ‖
+ max_speed-wk1   | recentfling   | Jank%                     | 1700000   | 3       | 0     ‖
+ max_speed-wk1   | recentfling   | Average 90th Percentqile  | 1700000   | Average | 7     ‖
+ max_speed-wk1   | recentfling   | Average 95th Percentile   | 1700000   | Average | 8     ‖
+ max_speed-wk1   | recentfling   | Average 99th Percentile   | 1700000   | Average | 14    ‖
+ max_speed-wk1   | recentfling   | Average Jank              | 1700000   | Average | 6     ‖
+ max_speed-wk1   | recentfling   | Average Jank%             | 1700000   | Average | 0     ‖
+ min_speed-wk1   | recentfling   | 90th Percentile           | 200000    | 1       | 7     ‖
+ min_speed-wk1   | recentfling   | 95th Percentile           | 200000    | 1       | 8     ‖
+ min_speed-wk1   | recentfling   | 99th Percentile           | 200000    | 1       | 14    ‖
+ min_speed-wk1   | recentfling   | Jank                      | 200000    | 1       | 5     ‖
+ min_speed-wk1   | recentfling   | Jank%                     | 200000    | 1       | 0     ‖
+ # ...
+ min_speed-wk1   | recentfling   | Jank                      | 200000    | 3       | 5     ‖
+ min_speed-wk1   | recentfling   | Jank%                     | 200000    | 3       | 0     ‖
+ min_speed-wk1   | recentfling   | Average 90th Percentile   | 200000    | Average | 7     ‖
+ min_speed-wk1   | recentfling   | Average 95th Percentile   | 200000    | Average | 8     ‖
+ min_speed-wk1   | recentfling   | Average 99th Percentile   | 200000    | Average | 13    ‖
+ min_speed-wk1   | recentfling   | Average Jank              | 200000    | Average | 4     ‖
+ min_speed-wk1   | recentfling   | Average Jank%             | 200000    | Average | 0     ‖
+
+
 
 .. _sections:
 
