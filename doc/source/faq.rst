@@ -34,10 +34,20 @@ install the application onto the device or source the apk and place into
 
 ------------
 
+**Q:** I am trying to set a valid runtime parameters however I still receive the error ``"Unknown runtime parameter"``
+----------------------------------------------------------------------------------------------------------------------
+
+**A:** PLease ensure you have the corresponding module loaded on the device.
+Please see :ref:`Runtime Parameters <runtime-parameters>` for the list of
+runtime parameters and their containing modules, and the appropriate section in
+:ref:`setting up a device <setting-up-a-device>` for ensuring it is installed.
+
+-------------
+
 **Q:** I have a big.LITTLE device but am unable to set parameters corresponding to the big or little core and receive the error ``"Unknown runtime parameter"``
 --------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-**A:** Please ensure you have the hot plugging module enabled for your device.
+**A:** Please ensure you have the hot plugging module enabled for your device (Please see question above).
 
 
 **A:** This can occur if the device uses dynamic hot-plugging and although WA
@@ -51,7 +61,7 @@ your device.
 ------------------------------------------------------------------------
 
 **A:** Upon first use of WA3, your WA2 config file typically located at
-``$USER_HOME/config.py`` will have been convered to a WA3 config file located at
+``$USER_HOME/config.py`` will have been converted to a WA3 config file located at
 ``$USER_HOME/config.yaml``. The "standard" output processor, present in WA2, has
 been merged into the core framework and therefore no longer exists. To fix this
 error please remove the "standard" entry from the "augmentations" list in the
