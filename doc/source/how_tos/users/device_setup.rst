@@ -48,6 +48,18 @@ common parameters you might want to change are outlined below.
    Android builds. If this is not the case for your device, you will need to
    specify an alternative working directory (e.g. under ``/data/local``).
 
+
+.. confval:: modules
+
+  A list of additional modules to be installed for the target. Devlib
+  implements functionality for particular subsystems as modules.  A number of
+  "default" modules (e.g.  for cpufreq subsystem) are loaded automatically,
+  unless explicitly disabled.  If additional modules need to be loaded, they
+  may  be specified using this parameter.
+
+  Please see the `devlib documentation <http://devlib.readthedocs.io/en/latest/modules.html>`_
+  for information on the available modules.
+
 .. _core-names:
 
 .. confval:: core_names
@@ -69,7 +81,18 @@ A typical ``device_config`` inside ``config.yaml`` may look something like
 
         device_config:
                 device: 0123456789ABCDEF
+                # ...
+
+
+or a more specific config could be be
+
+.. code-block:: yaml
+
+        device_config:
+                device: 0123456789ABCDEF
                 working_direcory: '/sdcard/wa-working'
+                modules: ['hotplug', 'cpufreq']
+                core_names : ['a7', 'a7', 'a7', 'a15', 'a15']
                 # ...
 
 .. _configuring-android:
@@ -196,7 +219,7 @@ common parameters you might want to change are outlined below.
    default list is ``['/proc/version', '/etc/debian_version', '/etc/lsb-release', '/etc/arch-release']``
 
 
-In addition, ``working_directory``, ``core_names``, and can also
+In addition, ``working_directory``, ``core_names``, ``modules`` etc. can also
 be specified and have the same meaning as for Android devices (see above).
 
 A typical ``device_config`` inside ``config.yaml`` may look something like
