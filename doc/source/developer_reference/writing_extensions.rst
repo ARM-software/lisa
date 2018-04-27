@@ -701,7 +701,7 @@ The interface should be implemented as follows
                     are required to run the workload.
 
 
-.. instrument-reference:
+.. _instrument-reference:
 
 Adding an Instrument
 ---------------------

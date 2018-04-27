@@ -218,7 +218,7 @@ the rest of the list augmentations to disable them.
 
 This should give you basic functionality. If you are working with a development
 board or you need some advanced functionality additional configuration may be required.
-Please see the :ref:`device_setup` section for more details.
+Please see the :ref:`device setup <setting-up-a-device>` section for more details.
 
 .. note:: In WA2 'Instrumentation' and 'Result Processors' were divided up into their
           own sections in the agenda. In WA3 they now fall under the same category of

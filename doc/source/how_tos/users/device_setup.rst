@@ -310,13 +310,15 @@ the first first spec first, then move on to second spec, etc. Again, please see
 :ref:`configuration-specification` for more details.
 
 
-Adding a new device interface
+Adding a new target interface
 -----------------------------
 
 If you are working with a particularly unusual device (e.g. a early stage
-development board) or need to be able to handle some quirk of your Android build,
-configuration available in ``generic_android`` interface may not be enough for
-you. In that case, you may need to write a custom interface for your device. A
-device interface is an ``Extension`` (a plug-in) type in WA and is implemented
-similar to other extensions (such as workloads or instruments). Pleaser refer to
-:ref:`adding_a_device` section for information on how this may be done.
+development board) or need to be able to handle some quirk of your Android
+build, configuration available in ``generic_android`` interface may not be
+enough for you. In that case, you may need to write a custom interface for your
+device. A device interface is an ``Extension`` (a plug-in) type in WA and is
+implemented similar to other extensions (such as workloads or instruments).
+Pleaser refer to the
+:ref:`adding a custom target <adding-custom-target-example>` section for
+information on how this may be done.
