@@ -22,10 +22,22 @@ from wa import pluginloader
 from wa.framework.configuration.core import RunConfiguration, MetaConfiguration
 from wa.framework.target.descriptor import list_target_descriptions
 from wa.utils.doc import (strip_inlined_text, get_rst_from_plugin,
-                          get_params_rst, underline)
+                          get_params_rst, underline, line_break)
 from wa.utils.misc import capitalize
 
 GENERATE_FOR_PLUGIN = ['workload', 'instrument', 'output_processor']
+
+def insert_contents_table(title='', depth=1):
+    """
+    Insert a sphinx directive to insert a contents page with
+    a configurable title and depth.
+    """
+    text = '''\n
+.. contents:: {}
+   :depth: {}
+   :local:\n
+'''.format(title, depth)
+    return text
 
 
 def generate_plugin_documentation(source_dir, outdir, ignore_paths):
@@ -39,12 +51,16 @@ def generate_plugin_documentation(source_dir, outdir, ignore_paths):
             continue
         outfile = os.path.join(outdir, '{}s.rst'.format(ext_type))
         with open(outfile, 'w') as wfh:
-            wfh.write('.. _{}s:\n\n'.format(ext_type))
+            wfh.write('.. _{}s:\n\n'.format(ext_type.replace('_', '-')))
             title = ' '.join([capitalize(w) for w in ext_type.split('_')])
             wfh.write(underline('{}s'.format(title)))
+            wfh.write(insert_contents_table())
+            wfh.write(break_line())
             exts = pluginloader.list_plugins(ext_type)
             for ext in sorted(exts, key=lambda x: x.name):
                 wfh.write(get_rst_from_plugin(ext))
+                wfh.write(break_line())
+
 
 def generate_target_documentation(outdir):
     targets_to_generate = ['generic_android',
@@ -79,6 +95,7 @@ def generate_target_documentation(outdir):
             text += get_params_rst(td.target_params)
             text += get_params_rst(td.assistant_params)
             wfh.write(text)
+
 
 def generate_run_config_documentation(outdir):
     generate_config_documentation(RunConfiguration, outdir)
