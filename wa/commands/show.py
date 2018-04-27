@@ -19,7 +19,7 @@ from wa.framework import pluginloader
 from wa.framework.configuration.core import MetaConfiguration, RunConfiguration
 from wa.framework.exception import NotFoundError
 from wa.framework.target.descriptor import list_target_descriptions
-from wa.utils.types import caseless_string
+from wa.utils.types import caseless_string, identifier
 from wa.utils.doc import (strip_inlined_text, get_rst_from_plugin,
                           get_params_rst, underline)
 from wa.utils.misc import which
@@ -36,7 +36,7 @@ class ShowCommand(Command):
                                  help='The name of the plugin to display documentation for.')
 
     def execute(self, state, args):
-        name = args.plugin
+        name = identifier(args.plugin)
         rst_output = None
 
         if name == caseless_string('settings'):
@@ -79,7 +79,7 @@ class ShowCommand(Command):
 
 def get_plugin(name):
     for plugin in pluginloader.list_plugins():
-        if name == plugin.name:
+        if name == identifier(plugin.name):
             return plugin
         if hasattr(plugin, 'alias'):
             for alias in plugin.alias:
@@ -90,7 +90,7 @@ def get_plugin(name):
 def get_target_description(name):
     targets = list_target_descriptions()
     for target in targets:
-        if name == target.name:
+        if name == identifier(target.name):
             return target
 
 
