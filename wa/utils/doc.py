@@ -298,6 +298,11 @@ def underline(text, symbol='='):
     return '{}\n{}\n\n'.format(text, symbol * len(text))
 
 
+def line_break(length=10, symbol='-'):
+    """Insert a line break"""
+    return '\n{}\n\n'.format(symbol * length)
+
+
 def get_rst_from_plugin(plugin):
     text = underline(plugin.name, '-')
     if hasattr(plugin, 'description'):
