@@ -21,7 +21,7 @@ from collections import OrderedDict
 from subprocess import CalledProcessError
 
 from wa import Workload, Parameter, Executable, File
-from wa.framework.exception import WorkloadError, ResourceError
+from wa.framework.exception import WorkloadError, ResourceError, ConfigError
 from wa.utils.misc import check_output
 from wa.utils.exec_control import once
 
@@ -231,7 +231,13 @@ class RtApp(Workload):
         config_file = self._generate_workgen_config(user_config_file,
                                                     context.output_directory)
         with open(config_file) as fh:
-            config_data = json.load(fh, object_pairs_hook=OrderedDict)
+            try:
+                config_data = json.load(fh, object_pairs_hook=OrderedDict)
+            except ValueError:
+                # We were not able to parse the JSON file. Raise an informative error.
+                msg = "Failed to parse {}. Please make sure it is valid JSON."
+                raise ConfigError(msg.format(user_config_file))
+
         self._update_rt_app_config(config_data)
         self.duration = config_data['global'].get('duration', 0)
         self.task_count = len(config_data.get('tasks', []))
