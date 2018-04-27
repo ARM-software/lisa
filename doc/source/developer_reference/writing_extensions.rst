@@ -714,10 +714,11 @@ hooked up to the supported signals. Once a signal is broadcasted, the
 corresponding registered method is invoked.
 
 Each method in Instrument must take two arguments, which are self and context.
-Supported signals can be found in the :ref:`Signals Documentation
-<instruments_method_map>` To make implementations easier and common, the basic
-steps to add new instrument is similar to the steps to add new workload and an
-example can be found :ref:`here <adding-an-instrument-example>`.
+Supported method and their corresponding signals can be found in the
+:ref:`Signals Documentation <instruments_method_map>` To make implementations
+easier and common, the basic steps to add new instrument is similar to the steps
+to add new workload and an example can be found
+:ref:`here <adding-an-instrument-example>`.
 
 .. _instrument-api:
 
@@ -870,6 +871,9 @@ Below is a simple instrument that measures the execution time of a workload::
         def update_result(self, context):
             execution_time = self.end_time - self.start_time
             context.add_metric('execution_time', execution_time, 'seconds')
+
+
+.. include:: developer_reference/instrument_method_map.rst
 
 .. _adding-an-output-processor:
 

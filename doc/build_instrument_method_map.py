@@ -18,14 +18,14 @@ import sys
 import string
 from copy import copy
 
-from wa.framework.instrumentation import SIGNAL_MAP, Priority
+from wa.framework.instrument import SIGNAL_MAP, Priority
 from wa.utils.doc import format_simple_table
 
 
 CONVINIENCE_ALIASES = ['initialize', 'setup', 'start', 'stop', 'process_workload_result',
                        'update_result', 'teardown', 'finalize']
 
-OUTPUT_TEMPLATE_FILE =  os.path.join(os.path.dirname(__file__), 'source', 'instrumentation_method_map.template')
+OUTPUT_TEMPLATE_FILE =  os.path.join(os.path.dirname(__file__), 'source', 'instrument_method_map.template')
 
 
 def escape_trailing_underscore(value):
@@ -33,7 +33,7 @@ def escape_trailing_underscore(value):
         return value[:-1] + '\_'
 
 
-def generate_instrumentation_method_map(outfile):
+def generate_instrument_method_map(outfile):
     signal_table = format_simple_table([(k, v) for k, v in SIGNAL_MAP.iteritems()],
                                        headers=['method name', 'signal'], align='<<')
     priority_table = format_simple_table(zip(Priority.names, Priority.values),

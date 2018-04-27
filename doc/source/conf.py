@@ -33,6 +33,7 @@ from build_plugin_docs import (generate_plugin_documentation,
                                generate_run_config_documentation,
                                generate_meta_config_documentation,
                                generate_target_documentation)
+from build_instrument_method_map import generate_instrument_method_map
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -322,6 +323,7 @@ def setup(app):
     generate_target_documentation('plugins')
     generate_run_config_documentation('run_config')
     generate_meta_config_documentation('run_config')
+    generate_instrument_method_map(os.path.join('developer_reference', 'instrument_method_map.rst'))
     app.add_object_type('confval', 'confval',
                         objname='configuration value',
                         indextemplate='pair: %s; configuration value')
