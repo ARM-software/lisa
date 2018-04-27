@@ -73,10 +73,11 @@ file of a particular size on the device, not all the methods are required to be
 implements however as many as possible have been used to demonstrate their
 purpose.
 
+
 .. note:: This is intended as an example of how to implement the Workload
-          :ref: `interface <workload-interface>`. The methodology used to
-          perform the actual measurement is not necessarily sound, and this
-          Workload should not be used to collect real measurements.
+   :ref:`interface <workload-interface>`. The methodology used to
+   perform the actual measurement is not necessarily sound, and this
+   Workload should not be used to collect real measurements.
 
 .. code-block:: python
 
@@ -362,11 +363,12 @@ The main difference between the two is that this workload will subclass
 Adding an Instrument Example
 =============================
 This is an example of how we would create a instrument which will trace device
-errors. For more detailed information please see :ref:`here <instrument-reference>`.
-The first thing to do is to subclass :class:`Instrument`, overwrite
-the variable name with what we want our instrument to be called and locate our
-binary for our instrument. ::
+errors. For more detailed information please see
+:ref:`here <instrument-reference>`. The first thing to do is to subclass
+:class:`Instrument`, overwrite the variable name with what we want our instrument
+to be called and locate our binary for our instrument.
 
+::
         class TraceErrorsInstrument(Instrument):
 
             name = 'trace-errors'
@@ -379,10 +381,10 @@ binary for our instrument. ::
 
 We then declare and implement the required methods as detailed
 :ref:`here <instrument-api>`. For the ``initialize`` method, we want to install
-    the executable file to the target so we can use the target's ``install``
-    method which will try to copy the file to a location on the device that
-    supports execution, will change the file mode appropriately and return the
-    file path on the target. ::
+the executable file to the target so we can use the target's ``install``
+method which will try to copy the file to a location on the device that
+supports execution, will change the file mode appropriately and return the
+file path on the target. ::
 
     def initialize(self, context):
         self.trace_on_target = self.target.install(self.binary_file)
@@ -524,6 +526,7 @@ the :ref:`context <context>`.
 
 
 .. _adding-custom-target-example:
+
 Adding a Custom Target Example
 ===============================
 This is an example of how we would create a customised target, this is typically

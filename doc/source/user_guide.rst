@@ -417,6 +417,8 @@ the device you wish to use for that particular test.
 .. note:: As previously mentioned, any more specific configuration present in
           the agenda file will overwrite the corresponding config parameters
           specified in the config file(s).
+
+
 ::
 
     wa run -c myconfig.yaml ~/myagenda.yaml

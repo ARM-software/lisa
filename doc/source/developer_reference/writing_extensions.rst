@@ -874,7 +874,7 @@ Below is a simple instrument that measures the execution time of a workload::
 .. _adding-an-output-processor:
 
 Adding an Output processor
--------------------------
+----------------------------
 
 A output processor is responsible for processing the results. This may
 involve formatting and writing them to a file, uploading them to a database,
