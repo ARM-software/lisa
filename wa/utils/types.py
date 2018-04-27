@@ -390,12 +390,12 @@ class toggle_set(set):
         set.__init__(self, *args)
 
     def merge_with(self, other):
-        new_self = copy(self)
-        return toggle_set.merge(other, new_self)
+        other = copy(other)
+        return toggle_set.merge(self, toggle_set(other))
 
     def merge_into(self, other):
-        other = copy(other)
-        return toggle_set.merge(self, other)
+        new_self = copy(self)
+        return toggle_set.merge(other, new_self)
 
     def add(self, item):
         if item not in self:
