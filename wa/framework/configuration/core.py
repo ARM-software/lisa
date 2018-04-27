@@ -897,23 +897,35 @@ class JobGenerator(object):
 
     @property
     def enabled_instruments(self):
-        self._read_enabled_instruments = True
-        return self._enabled_instruments.values()
+        self._read_augmentations = True
+        if self._enabled_instruments is None:
+            self._enabled_instruments = []
+            for entry in self._enabled_augmentations.merge_with(self.disabled_augmentations).values():
+                entry_cls = self.plugin_cache.get_plugin_class(entry)
+                if entry_cls.kind == 'instrument':
+                    self._enabled_instruments.append(entry)
+        return self._enabled_instruments
 
     @property
     def enabled_processors(self):
-        self._read_enabled_processors = True
-        return self._enabled_processors.values()
+        self._read_augmentations = True
+        if self._enabled_processors is None:
+            self._enabled_processors = []
+            for entry in self._enabled_augmentations.merge_with(self.disabled_augmentations).values():
+                entry_cls = self.plugin_cache.get_plugin_class(entry)
+                if entry_cls.kind == 'output_processor':
+                    self._enabled_processors.append(entry)
+        return self._enabled_processors
 
     def __init__(self, plugin_cache):
         self.plugin_cache = plugin_cache
         self.ids_to_run = []
         self.sections = []
         self.workloads = []
-        self._enabled_instruments = toggle_set()
-        self._enabled_processors = toggle_set()
-        self._read_enabled_instruments = False
-        self._read_enabled_processors = False
+        self._enabled_augmentations = toggle_set()
+        self._enabled_instruments = None
+        self._enabled_processors = None
+        self._read_augmentations = False
         self.disabled_augmentations = set()
 
         self.job_spec_template = obj_dict(not_in_dict=['name'])
@@ -954,24 +966,10 @@ class JobGenerator(object):
         self.disabled_augmentations = self.disabled_augmentations.union(augmentations)
 
     def update_augmentations(self, value):
-        for entry in value:
-            entry_name = entry[1:] if entry.startswith('~') else entry
-            entry_cls = self.plugin_cache.get_plugin_class(entry_name)
-            if entry_cls.kind == 'instrument':
-                if self._read_enabled_instruments:
-                    msg = "'enabled_instruments' cannot be updated after it has been accessed"
-                    raise RuntimeError(msg)
-                self._enabled_instruments.add(entry)
-            elif entry_cls.kind == 'output_processor':
-                if self._read_enabled_processors:
-                    msg = "'enabled_processors' cannot be updated after it has been accessed"
-                    raise RuntimeError(msg)
-                self._enabled_processors.add(entry)
-            else:
-                msg = 'Unknown augmentation type: {}'
-                raise ConfigError(msg.format(entry_cls.kind))
-        self._enabled_instruments = self._enabled_instruments.merge_with(self.disabled_augmentations)
-        self._enabled_processors = self._enabled_processors.merge_with(self.disabled_augmentations)
+        if self._read_augmentations:
+            msg = 'Cannot update augmentations after they have been accessed'
+            raise RuntimeError(msg)
+        self._enabled_augmentations = self._enabled_augmentations.merge_with(value)
 
     def only_run_ids(self, ids):
         if isinstance(ids, str):
