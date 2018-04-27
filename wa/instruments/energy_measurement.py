@@ -62,9 +62,30 @@ class EnergyInstrumentBackend(Plugin):
         """
         return {None: self.instrument(target, **kwargs)}
 
+
 class DAQBackend(EnergyInstrumentBackend):
 
     name = 'daq'
+    description="""
+    National Instruments Data Acquisition device
+
+    For more information about the device, please see the NI website:
+
+    http://www.ni.com/data-acquisition/
+
+    This backend has been used with USB-62xx and USB-63xx devices, though other
+    models (e.g. the PCIe variants will most likely also work).
+
+    This backend relies on the daq-server running on a machinge connected to a
+    DAQ device:
+
+        https://github.com/ARM-software/daq-server
+
+    The server is necessary because DAQ devices have drivers only for Windows
+    and very specific (old) Linux kernels, so the machine interfacing with the
+    DAQ is most likely going to be different from the machinge running WA.
+
+    """
 
     parameters = [
         Parameter('resistor_values', kind=list_of_numbers,
@@ -138,6 +159,18 @@ class DAQBackend(EnergyInstrumentBackend):
 class EnergyProbeBackend(EnergyInstrumentBackend):
 
     name = 'energy_probe'
+    description="""
+    Arm Energy Probe caiman version
+
+    This backend relies on caiman utility:
+
+        https://github.com/ARM-software/caiman
+
+    For more information about Arm Energy Probe please see
+
+        https://developer.arm.com/products/software-development-tools/ds-5-development-studio/streamline/arm-energy-probe
+
+    """
 
     parameters = [
         Parameter('resistor_values', kind=list_of_ints,
@@ -166,9 +199,23 @@ class EnergyProbeBackend(EnergyInstrumentBackend):
                 msg = 'Number of Energy Probe port labels does not match the number of resistor values.'
                 raise ConfigError(msg)
 
+
 class ArmEnergyProbeBackend(EnergyInstrumentBackend):
 
     name = 'arm_energy_probe'
+    description="""
+    Arm Energy Probe arm-probe version
+
+    An alternative Arm Energy Probe backend that relies on arm-probe utility:
+
+        https://git.linaro.org/tools/arm-probe.git
+
+    For more information about Arm Energy Probe please see
+
+        https://developer.arm.com/products/software-development-tools/ds-5-development-studio/streamline/arm-energy-probe
+
+
+    """
 
     parameters = [
         Parameter('config_file', kind=str,
@@ -198,9 +245,22 @@ class ArmEnergyProbeBackend(EnergyInstrumentBackend):
         if not os.path.exists(self.config_file):
             raise ConfigError('"config_file" does not exist.')
 
+
 class AcmeCapeBackend(EnergyInstrumentBackend):
 
     name = 'acme_cape'
+    description="""
+    BayLibre ACME cape
+
+    This backend relies on iio-capture utility:
+
+        https://github.com/BayLibre/iio-capture
+
+    For more information about ACME cape please see:
+
+        https://baylibre.com/acme/
+
+    """
 
     parameters = [
         Parameter('iio-capture', default=which('iio-capture'),
@@ -250,12 +310,25 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
 class MonsoonBackend(EnergyInstrumentBackend):
 
     name = 'monsoon'
+    description="""
+    Monsoon Solutions power monitor
+
+    To use this instrument, you need to install the monsoon.py script available
+    from the Android Open Source Project. As of May 2017 this is under the CTS
+    repository:
+
+        https://android.googlesource.com/platform/cts/+/master/tools/utils/monsoon.py
+
+    Collects power measurements only, from a selection of two channels, the USB
+    passthrough channel and the main output channel.
+
+    """
 
     parameters = [
         Parameter('monsoon_bin', default=which('monsoon.py'),
                   description="""
                   Path to monsoon.py executable. If not provided,
-                  ``$PATH`` is searched.
+                  ``PATH`` is searched.
                   """),
         Parameter('tty_device', default='/dev/ttyACM0',
                   description="""
@@ -270,6 +343,15 @@ class MonsoonBackend(EnergyInstrumentBackend):
 class JunoEnergyBackend(EnergyInstrumentBackend):
 
     name = 'juno_readenergy'
+    description="""
+    Arm Juno development board on-board energy meters
+
+    For more information about Arm Juno board see:
+
+        https://developer.arm.com/products/system-design/development-boards/juno-development-board
+
+    """
+
     instrument = JunoEnergyInstrument
 
 
@@ -291,7 +373,14 @@ class EnergyMeasurement(Instrument):
         Parameter('instrument_parameters', kind=dict, default={},
                    description="""
                    Specify the parameters used to initialize the desired
-                   instruments.
+                   instruments. To see parameters available for a particular
+                   instrument, run
+
+                        wa show <instrument name>
+
+                   See help for ``instrument`` parameter to see available
+                   options for <instrument name>.
+
                    """),
         Parameter('sites', kind=list_or_string,
                   description="""
