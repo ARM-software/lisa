@@ -370,6 +370,9 @@ class toggle_set(set):
 
     @staticmethod
     def merge(source, dest):
+        if '~~' in dest:
+            dest.remove('~~')
+            return dest
         for item in source:
             if item not in dest:
                 #Disable previously enabled item

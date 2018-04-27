@@ -92,7 +92,7 @@ class RunCommand(Command):
         self.logger.debug('Version: {}'.format(get_wa_version()))
         self.logger.debug('Command Line: {}'.format(' '.join(sys.argv)))
 
-        disabled_augmentations = toggle_set(["~{}".format(i)
+        disabled_augmentations = toggle_set([i != '~~' and "~{}".format(i) or i
                                            for i in args.augmentations_to_disable])
         config.jobs_config.disable_augmentations(disabled_augmentations)
         config.jobs_config.only_run_ids(args.only_run_ids)

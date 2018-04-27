@@ -957,6 +957,8 @@ class JobGenerator(object):
 
     def disable_augmentations(self, augmentations):
         for entry in augmentations:
+            if entry == '~~':
+                continue
             if entry.startswith('~'):
                 entry = entry[1:]
             try:

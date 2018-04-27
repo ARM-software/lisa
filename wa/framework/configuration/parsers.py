@@ -306,7 +306,10 @@ def _construct_valid_entry(raw, seen_ids, prefix, jobs_config):
             workload_entry[name] = value
 
     if "augmentations" in workload_entry:
-        jobs_config.update_augmentations(workload_entry["augmentations"])
+        if '~~' in workload_entry['augmentations']:
+            msg = '"~~" can only be specfied in top-level config, and not for individual workloads/sections'
+            raise ConfigError(msg)
+        jobs_config.update_augmentations(workload_entry['augmentations'])
 
     # error if there are unknown workload_entry
     if raw:
