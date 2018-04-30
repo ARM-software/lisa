@@ -945,12 +945,9 @@ class JobGenerator(object):
 
     def add_section(self, section, workloads):
         new_node = self.root_node.add_section(section)
-        log.indent()
-        try:
+        with log.indentcontext():
             for workload in workloads:
                 new_node.add_workload(workload)
-        finally:
-            log.dedent()
 
     def add_workload(self, workload):
         self.root_node.add_workload(workload)

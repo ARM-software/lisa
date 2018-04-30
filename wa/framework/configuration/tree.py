@@ -38,12 +38,9 @@ class JobSpecSource(object):
 
     def _log_self(self):
         logger.debug('Creating {} node'.format(self.kind))
-        log.indent()
-        try:
+        with log.indentcontext():
             for key, value in self.config.iteritems():
                 logger.debug('"{}" to "{}"'.format(key, value))
-        finally:
-            log.dedent()
 
 
 class WorkloadEntry(JobSpecSource):

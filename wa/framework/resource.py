@@ -239,12 +239,9 @@ class ResourceResolver(object):
             self.logger.debug('Loading getter {}'.format(gettercls.name))
             getter = self.loader.get_plugin(name=gettercls.name,
                                             kind="resource_getter")
-            log.indent()
-            try:
+            with log.indentcontext():
                 getter.initialize()
                 getter.register(self)
-            finally:
-                log.dedent()
             self.getters.append(getter)
 
     def register(self, source, priority=SourcePriority.local):

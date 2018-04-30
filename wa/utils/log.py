@@ -21,6 +21,7 @@ import os
 import string
 import subprocess
 import threading
+from contextlib import contextmanager
 
 import colorama
 
@@ -146,6 +147,15 @@ def indent():
 def dedent():
     global _indent_level
     _indent_level -= 1
+
+
+@contextmanager
+def indentcontext():
+    indent()
+    try:
+        yield
+    finally:
+        dedent()
 
 
 def set_indent_level(level):

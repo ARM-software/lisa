@@ -626,8 +626,7 @@ class PluginLoader(object):
 
     def _discover_in_module(self, module):  # NOQA pylint: disable=too-many-branches
         self.logger.debug('Checking module %s', module.__name__)
-        log.indent()
-        try:
+        with log.indentcontext():
             for obj in vars(module).itervalues():
                 if inspect.isclass(obj):
                     if not issubclass(obj, Plugin):
@@ -647,9 +646,6 @@ class PluginLoader(object):
                             self.logger.warning(e)
                         else:
                             raise e
-        finally:
-            log.dedent()
-            pass
 
     def _add_found_plugin(self, obj):
         """
