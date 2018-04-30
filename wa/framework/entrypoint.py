@@ -80,8 +80,8 @@ def main():
 
         # load_commands will trigger plugin enumeration, and we want logging
         # to be enabled for that, which requires the verbosity setting; however
-        # full argument parse cannot be complted until the commands are loaded; so
-        # parse just the base args for know so we can get verbosity.
+        # full argument parsing cannot be completed until the commands are loaded; so
+        # parse just the base args for now so we can get verbosity.
         argv = split_joined_options(sys.argv[1:])
 
         # 'Parse_known_args' automatically displays the default help and exits
