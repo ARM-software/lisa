@@ -6,7 +6,7 @@ from wa.framework.plugin import Parameter
 from wa.framework.target.descriptor import (get_target_description,
                                             instantiate_target,
                                             instantiate_assistant)
-from wa.framework.target.info import TargetInfo
+from wa.framework.target.info import get_target_info
 from wa.framework.target.runtime_parameter_manager import RuntimeParameterManager
 
 from devlib import Gem5SimulationPlatform
@@ -72,7 +72,7 @@ class TargetManager(object):
 
     @memoized
     def get_target_info(self):
-        return TargetInfo(self.target)
+        return get_target_info(self.target)
 
     def merge_runtime_parameters(self, parameters):
         return self.rpm.merge_runtime_parameters(parameters)
