@@ -16,9 +16,11 @@
 
 # pylint: disable=E1101
 import logging
+import logging.handlers
+import os
 import string
-import threading
 import subprocess
+import threading
 
 import colorama
 
@@ -39,16 +41,19 @@ COLOR_MAP = {
 
 RESET_COLOR = colorama.Style.RESET_ALL
 
+DEFAULT_INIT_BUFFER_CAPACITY = 1000
+
 _indent_level = 0
 _indent_width = 4
 _console_handler = None
+_init_handler = None
 
 
 def init(verbosity=logging.INFO, color=True, indent_with=4,
          regular_fmt='%(levelname)-8s %(message)s',
          verbose_fmt='%(asctime)s %(levelname)-8s %(name)10.10s: %(message)s',
          debug=False):
-    global _indent_width, _console_handler
+    global _indent_width, _console_handler, _init_handler
     _indent_width = indent_with
     signal.log_error_func = lambda m: log_error(m, signal.logger)
 
@@ -70,6 +75,13 @@ def init(verbosity=logging.INFO, color=True, indent_with=4,
         _console_handler.setLevel(logging.INFO)
         _console_handler.setFormatter(formatter(regular_fmt))
     root_logger.addHandler(_console_handler)
+
+    buffer_capacity = os.getenv('WA_LOG_BUFFER_CAPACITY',
+                                DEFAULT_INIT_BUFFER_CAPACITY)
+    _init_handler = InitHandler(buffer_capacity)
+    _init_handler.setLevel(logging.DEBUG)
+    root_logger.addHandler(_init_handler)
+
     logging.basicConfig(level=logging.DEBUG)
     if not debug:
         logging.raiseExceptions = False
@@ -84,10 +96,17 @@ def set_level(level):
 
 def add_file(filepath, level=logging.DEBUG,
              fmt='%(asctime)s %(levelname)-8s %(name)10.10s: %(message)s'):
+    global _init_handler
     root_logger = logging.getLogger()
     file_handler = logging.FileHandler(filepath)
     file_handler.setLevel(level)
     file_handler.setFormatter(LineFormatter(fmt))
+
+    if _init_handler:
+        _init_handler.flush_to_target(file_handler)
+        root_logger.removeHandler(_init_handler)
+        _init_handler = None
+
     root_logger.addHandler(file_handler)
 
 
@@ -194,6 +213,30 @@ class ErrorSignalHandler(logging.Handler):
             signal.send(signal.ERROR_LOGGED, self, record)
         elif record.levelno == logging.WARNING:
             signal.send(signal.WARNING_LOGGED, self, record)
+
+
+class InitHandler(logging.handlers.BufferingHandler):
+    """
+    Used to buffer early logging records before a log file is created.
+
+    """
+
+    def __init__(self, capacity):
+        super(InitHandler, self).__init__(capacity)
+        self.targets = []
+
+    def add_target(self, target):
+        if target not in self.targets:
+            self.targets.append(target)
+
+    def flush(self):
+        for target in self.targets:
+            self.flush_to_target(target)
+        self.buffer = []
+
+    def flush_to_target(self, target):
+        for record in self.buffer:
+            target.emit(record)
 
 
 class LineFormatter(logging.Formatter):
