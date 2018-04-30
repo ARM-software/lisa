@@ -631,6 +631,8 @@ class PluginLoader(object):
                 if inspect.isclass(obj):
                     if not issubclass(obj, Plugin):
                         continue
+                    if obj.__module__ != module.__name__:
+                        continue
                     if not obj.kind:
                         message = 'Skipping plugin {} as it does not define a kind'
                         self.logger.debug(message.format(obj.__name__))
