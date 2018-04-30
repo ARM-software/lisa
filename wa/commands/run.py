@@ -24,7 +24,6 @@ from wa.framework import pluginloader
 from wa.framework.configuration.parsers import AgendaParser
 from wa.framework.execution import Executor
 from wa.framework.output import init_run_output
-from wa.framework.version import get_wa_version
 from wa.framework.exception import NotFoundError, ConfigError
 from wa.utils import log
 from wa.utils.types import toggle_set
