@@ -442,6 +442,18 @@ class CpufreqModule(Module):
 
         return [int(c) for c in self.target.read_value(sysfile).split()]
 
+    @memoized
+    def get_driver(self, cpu):
+        """
+        Get the name of the driver used by this cpufreq policy.
+        """
+        if isinstance(cpu, int):
+            cpu = 'cpu{}'.format(cpu)
+
+        sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_driver'.format(cpu)
+
+        return self.target.read_value(sysfile).strip()
+
     def iter_domains(self):
         """
         Iterate over the frequency domains in the system
