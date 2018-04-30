@@ -225,14 +225,18 @@ class InitHandler(logging.handlers.BufferingHandler):
         super(InitHandler, self).__init__(capacity)
         self.targets = []
 
-    def add_target(self, target):
-        if target not in self.targets:
-            self.targets.append(target)
+    def emit(self, record):
+        record.indent_level = _indent_level
+        super(InitHandler, self).emit(record)
 
     def flush(self):
         for target in self.targets:
             self.flush_to_target(target)
         self.buffer = []
+
+    def add_target(self, target):
+        if target not in self.targets:
+            self.targets.append(target)
 
     def flush_to_target(self, target):
         for record in self.buffer:
@@ -250,7 +254,8 @@ class LineFormatter(logging.Formatter):
         if self.usesTime():
             record.asctime = self.formatTime(record, self.datefmt)
 
-        indent = _indent_width * _indent_level
+        indent_level = getattr(record, 'indent_level', _indent_level)
+        indent = _indent_width * indent_level
         d = record.__dict__
         parts = []
         for line in record.message.split('\n'):
