@@ -1,6 +1,6 @@
 from copy import copy
 
-from devlib import AndroidTarget
+from devlib import AndroidTarget, TargetError
 from devlib.target import KernelConfig, KernelVersion, Cpuinfo
 from devlib.utils.android import AndroidProperties
 
@@ -165,6 +165,11 @@ def get_target_info(target):
     info.is_rooted = target.is_rooted
     info.kernel_version = target.kernel_version
     info.kernel_config = target.config
+    try:
+        info.sched_features = target.read_value('/sys/kernel/debug/sched_features').split()
+    except TargetError:
+        # best effort -- debugfs might not be mounted
+        pass
 
     for i, name in enumerate(target.cpuinfo.cpu_names):
         cpu = CpuInfo()
@@ -214,6 +219,7 @@ class TargetInfo(object):
         instance.is_rooted = pod['is_rooted']
         instance.kernel_version = kernel_version_from_pod(pod)
         instance.kernel_config = kernel_config_from_pod(pod)
+        instance.sched_features = pod['sched_features']
         if instance.os == 'android':
             instance.screen_resolution = pod['screen_resolution']
             instance.prop = AndroidProperties('')
@@ -231,6 +237,7 @@ class TargetInfo(object):
         self.is_rooted = None
         self.kernel_version = None
         self.kernel_config = None
+        self.sched_features = None
 
     def to_pod(self):
         pod = {}
@@ -244,6 +251,7 @@ class TargetInfo(object):
         pod['kernel_release'] = self.kernel_version.release
         pod['kernel_version'] = self.kernel_version.version
         pod['kernel_config'] = dict(self.kernel_config.iteritems())
+        pod['sched_features'] = self.sched_features
         if self.os == 'android':
             pod['screen_resolution'] = self.screen_resolution
             pod['prop'] = self.prop._properties
