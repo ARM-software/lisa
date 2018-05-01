@@ -265,7 +265,7 @@ def merge_augmentations(raw):
                 raise ConfigError(msg.format(check_entry, e, conflict_string))
 
     if entries:
-        raw['augmentations'] = reduce(lambda x, y: x.merge_with(y), entries)
+        raw['augmentations'] = reduce(lambda x, y: x.union(y), entries)
 
 
 def _pop_aliased(d, names, entry_id):
