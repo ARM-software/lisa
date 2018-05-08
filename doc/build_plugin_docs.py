@@ -55,11 +55,11 @@ def generate_plugin_documentation(source_dir, outdir, ignore_paths):
             title = ' '.join([capitalize(w) for w in ext_type.split('_')])
             wfh.write(underline('{}s'.format(title)))
             wfh.write(insert_contents_table())
-            wfh.write(break_line())
+            wfh.write(line_break())
             exts = pluginloader.list_plugins(ext_type)
             for ext in sorted(exts, key=lambda x: x.name):
                 wfh.write(get_rst_from_plugin(ext))
-                wfh.write(break_line())
+                wfh.write(line_break())
 
 
 def generate_target_documentation(outdir):
