@@ -237,15 +237,16 @@ APK Files
 ---------
 
 APKs are application packages used by Android. These are necessary to install on
-a device when running an :ref:`ApkWorkload <apk-workload>` or derivative.
-PLease see the workload description using the :ref:`show command <show-command>`
-to see which version of the apk the UI automation has been tested with and place the apk in the corresponding
-Automation may also work with other versions (especially if it's only a minor or
-revision difference -- major version differences are more likely to contain
-incompatible UI changes) but this has not been tested. As a general rule we do
-not guarantee support for the latest version of an app and they are updated on
-as needed basis. We do however attempt to support backwards compatibility with
-previous major releases however beyond this support will likely be dropped.
+a device when running an :ref:`ApkWorkload <apk-workload>` or derivative. PLease
+see the workload description using the :ref:`show command <show-command>` to see
+which version of the apk the UI automation has been tested with and place the
+apk in the corresponding Automation may also work with other versions
+(especially if it's only a minor or revision difference -- major version
+differences are more likely to contain incompatible UI changes) but this has not
+been tested. As a general rule we do not guarantee support for the latest
+version of an app and they are updated on as needed basis. We do however attempt
+to support backwards compatibility with previous major releases however beyond
+this support will likely be dropped.
 
 
 Gaming Workloads
