@@ -439,15 +439,19 @@ Output Directory
 ================
 
 The exact contents on the output directory will depend on configuration options
-used, instruments and output processors enabled, etc. Typically, the output
-directory will contain a results file at the top level that lists all
-measurements that were collected (currently, csv and json formats are
-supported), along with a subdirectory for each iteration executed with output
-for that specific iteration.
+used, augmentations enabled, etc.
 
-At the top level, there will also be a ``run.log`` file containing the complete log
+At the top level, there will be a ``run.log`` file containing the complete log
 output for the execution. The contents of this file is equivalent to what you
 would get in the console when using --verbose option.
+
+The output directory will also contain a ``results.json`` file that lists any
+overall run metrics and artifacts that have been collected during the run.
+Depending on the augmentations that were enabled there may be other results
+files in different formats, for example the ``csv``
+:ref:`output processor <output-processors>`. In addition you will find a subdirectory
+for each successful iteration executed with output and its own ``results.json``
+file for that specific iteration.
 
 If a job fails to complete for some reason, then the output directory for that
 job will be moved into a new directory called ``__failed``. If the job was
@@ -455,8 +459,8 @@ running on a platform that supports android then WA will take a screen capture
 and UI dump from the device.
 
 Finally, there will be a ``__meta`` subdirectory. This will contain a copy of
-the agenda file used to run the workloads along with any other configuration
-files that were supplied for execution.
+the agenda file used to run the workloads along with other configuration
+files that were used for the execution of that run.
 
 Uninstall
 =========
