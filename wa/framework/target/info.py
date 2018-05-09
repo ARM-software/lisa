@@ -171,6 +171,9 @@ def get_target_info(target):
         # best effort -- debugfs might not be mounted
         pass
 
+    hostid_string = target.execute('{} hostid'.format(target.busybox)).strip()
+    info.hostid = int(hostid_string, 16)
+
     for i, name in enumerate(target.cpuinfo.cpu_names):
         cpu = CpuInfo()
         cpu.id = i
@@ -215,6 +218,7 @@ class TargetInfo(object):
         instance.cpus = [CpuInfo.from_pod(c) for c in pod['cpus']]
         instance.os = pod['os']
         instance.os_version = pod['os_version']
+        instance.hostid = pod['hostid']
         instance.abi = pod['abi']
         instance.is_rooted = pod['is_rooted']
         instance.kernel_version = kernel_version_from_pod(pod)
@@ -233,6 +237,7 @@ class TargetInfo(object):
         self.cpus = []
         self.os = None
         self.os_version = None
+        self.hostid = None
         self.abi = None
         self.is_rooted = None
         self.kernel_version = None
@@ -246,6 +251,7 @@ class TargetInfo(object):
         pod['cpus'] = [c.to_pod() for c in self.cpus]
         pod['os'] = self.os
         pod['os_version'] = self.os_version
+        pod['hostid'] = self.hostid
         pod['abi'] = self.abi
         pod['is_rooted'] = self.is_rooted
         pod['kernel_release'] = self.kernel_version.release
