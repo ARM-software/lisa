@@ -26,7 +26,7 @@ from wa.framework.configuration import settings
 from wa.framework.configuration.execution import ConfigManager
 from wa.framework.host import init_user_directory, init_config
 from wa.framework.exception import ConfigError
-from wa.framework.version import get_wa_version
+from wa.framework.version import get_wa_version_with_commit
 from wa.utils import log
 from wa.utils.doc import format_body
 
@@ -95,7 +95,7 @@ def main():
         args, _ = parser.parse_known_args(filtered_argv)
         settings.set("verbosity", args.verbose)
         log.init(settings.verbosity)
-        logger.debug('Version: {}'.format(get_wa_version()))
+        logger.debug('Version: {}'.format(get_wa_version_with_commit()))
         logger.debug('Command Line: {}'.format(' '.join(sys.argv)))
 
         # each command will add its own subparser
