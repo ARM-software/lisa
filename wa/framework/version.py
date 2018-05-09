@@ -13,7 +13,9 @@
 # limitations under the License.
 #
 
+import os
 from collections import namedtuple
+from subprocess import Popen, PIPE
 
 
 VersionTuple = namedtuple('Version', ['major', 'minor', 'revision'])
@@ -25,3 +27,22 @@ def get_wa_version():
     version_string = '{}.{}.{}'.format(
         version.major, version.minor, version.revision)
     return version_string
+
+
+def get_wa_version_with_commit():
+    version_string = get_wa_version()
+    commit = get_commit()
+    if commit:
+        return '{}-{}'.format(version_string, commit)
+    else:
+        return version_string
+
+
+def get_commit():
+    p = Popen(['git', 'rev-parse', 'HEAD'],
+              cwd=os.path.dirname(__file__), stdout=PIPE)
+    std, _ = p.communicate()
+    p.wait()
+    if p.returncode:
+        return None
+    return std[:8]
