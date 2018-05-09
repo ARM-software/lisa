@@ -361,6 +361,16 @@ class Plugin(object):
                 self.capabilities.append(capability)
         self._modules.append(module)
 
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        params = []
+        for param in self.parameters:
+            params.append('{}={}'.format(param.name,
+                                         getattr(self, param.name, None)))
+        return '{}({})'.format(self.name, ', '.join(params))
+
 
 class TargetedPlugin(Plugin):
     """
