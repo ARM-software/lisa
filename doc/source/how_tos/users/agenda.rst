@@ -228,10 +228,10 @@ WA has various resource getters that can be configured to locate APK files but
 for most people APK files should be kept in the
 ``$WA_USER_DIRECTORY/dependencies/SOME_WORKLOAD/`` directory. (by default
 ``~/.workload_automation/dependencies/SOME_WORKLOAD/``). The
-``WA_USER_DIRECTORY`` enviroment variable can be used to change the location of
+``WA_USER_DIRECTORY`` environment variable can be used to change the location of
 this folder. The APK files need to be put into the corresponding directories for
 the workload they belong to. The name of the file can be anything but as
-explained below may need to contain certain peices of information.
+explained below may need to contain certain pieces of information.
 
 All ApkWorkloads have parameters that affect the way in which APK files are
 resolved, ``exact_abi``, ``force_install`` and ``prefer_host_package``. Their
@@ -276,7 +276,7 @@ their APK files are resolved.
    This parameter is used to specify which version of uiautomation for the
    workload is used. In some workloads e.g. ``geekbench`` multiple versions with
    drastically different UI's are supported. A APKs version will be
-   automatically extracted therefore it is possible to have mutiple apks for
+   automatically extracted therefore it is possible to have multiple apks for
    different versions of a workload present on the host and select between which
    is used for a particular job by specifying the relevant version in your
    :ref:`agenda <agenda>`.

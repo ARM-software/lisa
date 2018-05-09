@@ -1,7 +1,7 @@
-.. _deploying-executables-guide:
+.. _deploying-executables-example:
 
-Installing Binaries Example
-===========================
+Deploying Executables Example
+==============================
 
 Installing binaries for a particular plugin should generally only be performed
 once during a run. This should typically be done in the ``initialize`` method,
@@ -369,6 +369,7 @@ errors. For more detailed information please see
 to be called and locate our binary for our instrument.
 
 ::
+
         class TraceErrorsInstrument(Instrument):
 
             name = 'trace-errors'
@@ -410,7 +411,7 @@ again decorated the method::
 Once we have generated our result data we need to retrieve it from the device
 for further processing or adding directly to WA's output for that job. For
 example for trace data we will want to pull it to the device and add it as a
-:ref:`artifact <atrifact>` to WA's :ref:`context <context>` as shown below::
+:ref:`artifact <artifact>` to WA's :ref:`context <context>` as shown below::
 
     def extract_results(self, context):
         # pull the trace file from the target

@@ -225,9 +225,9 @@ which contains addional information about how to build and to use the file.
 ============================
 
 Some WA plugins have additional dependencies that need to be
-statisfied before they can be used. Not all of these can be provided with WA and
+satisfied before they can be used. Not all of these can be provided with WA and
 so will need to be supplied by the user. They should be placed into
-``~/.workload_uatomation/dependencies/<extenion name>`` so that WA can find
+``~/.workload_uatomation/dependencies/<extension name>`` so that WA can find
 them (you may need to create the directory if it doesn't already exist). You
 only need to provide the dependencies for workloads you want to use.
 

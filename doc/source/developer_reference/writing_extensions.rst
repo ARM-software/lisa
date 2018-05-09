@@ -312,7 +312,7 @@ that it will be in ``PATH`` on the target (or that the executable with the same
 name in ``PATH`` is the version deployed by WA.
 
 For more information on how to implement this, please see the
-:ref:`how to guide <deploying-executables-guide>`.
+:ref:`how to guide <deploying-executables-example>`
 
 
 Deploying assets
