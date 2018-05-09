@@ -388,6 +388,11 @@ class Executor(object):
         self.warning_logged = True
         signal.disconnect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
+    def __str__(self):
+        return 'executor'
+
+    __repr__ = __str__
+
 
 class Runner(object):
     """
