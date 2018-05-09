@@ -88,9 +88,6 @@ class RunCommand(Command):
         output = self.set_up_output_directory(config, args)
         log.add_file(output.logfile)
 
-        self.logger.debug('Version: {}'.format(get_wa_version()))
-        self.logger.debug('Command Line: {}'.format(' '.join(sys.argv)))
-
         disabled_augmentations = toggle_set([i != '~~' and "~{}".format(i) or i
                                            for i in args.augmentations_to_disable])
         config.jobs_config.disable_augmentations(disabled_augmentations)
