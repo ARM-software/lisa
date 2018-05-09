@@ -50,9 +50,9 @@ class ViewerWorkload(Workload):
     ----------
     wload = Workload.getInstance(te, 'Example')
     wload.run(out_dir=te.res_dir,
-        uri="https://media.giphy.com/media/XIqCQx02E1U9W/giphy.gif")        
+        uri="https://media.giphy.com/media/XIqCQx02E1U9W/giphy.gif")
     """
-    
+
     # Let the system pick the best package
     package = ''
 

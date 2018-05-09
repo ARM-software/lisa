@@ -44,7 +44,7 @@ class TargetScript(object):
         self._target = env.target
         self._script_name = script_name
         self.commands = []
-        
+
     # This is made to look like the devlib Target execute()
     def execute(self, cmd):
         """
@@ -75,7 +75,7 @@ class TargetScript(object):
             return getattr(self._target, name)
 
         return getattr(super, name)
-            
+
     def push(self):
         """
         Push a script to the target
@@ -109,7 +109,7 @@ class TargetScript(object):
             self._run_as_root = as_root
             self._bg_shell = None
             if background:
-                self._bg_shell = self._target.background(self._remote_path, 
+                self._bg_shell = self._target.background(self._remote_path,
                                                     as_root=self._run_as_root)
             else:
                 self._target.execute(self._remote_path, as_root=self._run_as_root)

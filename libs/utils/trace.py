@@ -876,7 +876,7 @@ class Trace(object):
 
     @memoized
     def getPeripheralClockEffectiveRate(self, clk_name):
-        if clk_name is None: 
+        if clk_name is None:
             self._log.warning('no specified clk_name in computing peripheral clock, returning None')
             return
         if not self.hasEvents('clock_set_rate'):

@@ -231,9 +231,9 @@ class FrequencyAnalysis(AnalysisModule):
         # Plot time period that the clock state was unknown from the trace
         indeterminate = pd.concat([on, off]).sort_index()
         if indeterminate.empty:
-            indet_range_max = self._trace.x_max 
+            indet_range_max = self._trace.x_max
         else:
-            indet_range_max = indeterminate.index[0] 
+            indet_range_max = indeterminate.index[0]
         state_axis.hlines(0, 0, indet_range_max, linewidth = 1.0, label='indeterminate clock state', linestyle='--')
         state_axis.legend(bbox_to_anchor=(0., 1.02, 1., 0.102), loc=3, ncol=3, mode='expand')
         state_axis.set_yticks([])
