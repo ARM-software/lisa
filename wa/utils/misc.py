@@ -258,7 +258,7 @@ def format_duration(seconds, sep=' ', order=['day', 'hour', 'minute', 'second'])
             continue
         suffix = '' if value == 1 else 's'
         result.append('{} {}{}'.format(value, item, suffix))
-    return sep.join(result)
+    return result and sep.join(result) or 'N/A'
 
 
 def get_article(word):

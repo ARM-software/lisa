@@ -352,10 +352,12 @@ class Executor(object):
         self.logger.info('Starting run')
         runner = Runner(context, pm)
         signal.send(signal.RUN_STARTED, self)
-        runner.run()
-        context.finalize()
-        self.execute_postamble(context, output)
-        signal.send(signal.RUN_COMPLETED, self)
+        try:
+            runner.run()
+        finally:
+            context.finalize()
+            self.execute_postamble(context, output)
+            signal.send(signal.RUN_COMPLETED, self)
 
     def execute_postamble(self, context, output):
         self.logger.info('Done.')
@@ -441,9 +443,8 @@ class Runner(object):
         signal.connect(self._warning_signalled_callback, signal.WARNING_LOGGED)
         self.context.start_run()
         self.pm.initialize()
-        log.indent()
-        self.context.initialize_jobs()
-        log.dedent()
+        with log.indentcontext():
+            self.context.initialize_jobs()
         self.context.write_state()
 
     def finalize_run(self):
