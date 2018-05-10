@@ -1099,7 +1099,7 @@ class AndroidTarget(Target):
     def list_directory(self, path, as_root=False):
         if self.ls_command == '':
             self.__setup_list_directory()
-        contents = self.execute('{} {}'.format(self.ls_command, path), as_root=as_root)
+        contents = self.execute('{} "{}"'.format(self.ls_command, escape_double_quotes(path)), as_root=as_root)
         return [x.strip() for x in contents.split('\n') if x.strip()]
 
     def install(self, filepath, timeout=None, with_name=None):  # pylint: disable=W0221
