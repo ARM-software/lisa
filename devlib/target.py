@@ -883,7 +883,7 @@ class LinuxTarget(Target):
             return filtered_result
 
     def list_directory(self, path, as_root=False):
-        contents = self.execute('ls -1 {}'.format(path), as_root=as_root)
+        contents = self.execute('ls -1 "{}"'.format(escape_double_quotes(path)), as_root=as_root)
         return [x.strip() for x in contents.split('\n') if x.strip()]
 
     def install(self, filepath, timeout=None, with_name=None):  # pylint: disable=W0221
