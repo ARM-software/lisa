@@ -49,7 +49,7 @@ class Memcpy(Workload):
                   description='''
                   Specifies the size, in bytes, of the buffer to be copied.
                   '''),
-        Parameter('iterations', kind=int, default=1000,
+        Parameter('loops', kind=int, default=1000, aliases=['iterations'],
                   description='''
                   Specfies the number of iterations that will be performed.
                   '''),
@@ -69,7 +69,7 @@ class Memcpy(Workload):
         Memcpy.target_exe = self.target.install_if_needed(host_binary)
 
     def setup(self, context):
-        self.command = '{} -i {} -s {}'.format(Memcpy.target_exe, self.iterations, self.buffer_size)
+        self.command = '{} -i {} -s {}'.format(Memcpy.target_exe, self.loops, self.buffer_size)
         for c in (self.cpus.list()):
             self.command += ' -c {}'.format(c)
         self.result = None

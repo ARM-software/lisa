@@ -78,7 +78,7 @@ class Geekbench(ApkUiautoWorkload):
         Parameter('version', default=sorted(versions.keys())[-1], allowed_values=sorted(versions.keys()),
                   description='Specifies which version of the workload should be run.',
                   override=True),
-        Parameter('times', kind=int, default=1,
+        Parameter('loops', kind=int, default=1, aliases=['times'],
                   description=('Specfies the number of times the benchmark will be run in a "tight '
                                'loop", i.e. without performaing setup/teardown inbetween.')),
         Parameter('timeout', kind=int, default=3600,
@@ -86,7 +86,7 @@ class Geekbench(ApkUiautoWorkload):
                                'multiplied by ``times`` to calculate the overall run timeout. ')),
         Parameter('disable_update_result', kind=bool, default=False,
                   description=('If ``True`` the results file will not be pulled from the targets '
-                               '/data/data/com.primatelabs.geekbench folder.  This allows the '
+                               '``/data/data/com.primatelabs.geekbench`` folder.  This allows the '
                                'workload to be run on unrooted targets and the results extracted '
                                'manually later.')),
     ]
@@ -112,7 +112,7 @@ class Geekbench(ApkUiautoWorkload):
     def __init__(self, *args, **kwargs):
         super(Geekbench, self).__init__(*args, **kwargs)
         self.gui.uiauto_params['version'] = self.version
-        self.gui.uiauto_params['times'] = self.times
+        self.gui.uiauto_params['loops'] = self.loops
         self.gui.uiauto_params['is_corporate'] = self.is_corporate
         self.gui.timeout = self.timeout
 
@@ -126,7 +126,7 @@ class Geekbench(ApkUiautoWorkload):
 
     def setup(self, context):
         super(Geekbench, self).setup(context)
-        self.run_timeout = self.timeout * self.times
+        self.run_timeout = self.timeout * self.loops
         self.exact_apk_version = self.version
 
     def update_output(self, context):
@@ -137,8 +137,8 @@ class Geekbench(ApkUiautoWorkload):
             update_method(context)
 
     def validate(self):
-        if (self.times > 1) and (self.version == '2'):
-            raise ConfigError('times parameter is not supported for version 2 of Geekbench.')
+        if (self.loops > 1) and (self.version == '2'):
+            raise ConfigError('loops parameter is not supported for version 2 of Geekbench.')
 
     def update_result_2(self, context):
         score_calculator = GBScoreCalculator()

@@ -46,7 +46,7 @@ public class UiAutomation extends BaseUiAutomation {
     Integer majorVersion;
     Integer minorVersion;
     Boolean isCorporate;
-    Integer times;
+    Integer loops;
 
     @Before
     public void initialize() {
@@ -55,7 +55,7 @@ public class UiAutomation extends BaseUiAutomation {
         majorVersion = Integer.parseInt(version[0]);
         minorVersion = Integer.parseInt(version[1]);
         isCorporate = params.getBoolean("is_corporate");
-        times = params.getInt("times");
+        loops = params.getInt("loops");
     }
 
     @Test
@@ -70,7 +70,7 @@ public class UiAutomation extends BaseUiAutomation {
     @Test
     @Override
     public void runWorkload() throws Exception {
-        for (int i = 0; i < times; i++) {
+        for (int i = 0; i < loops; i++) {
             switch (majorVersion) {
                 case 2:
                     // In version 2, we scroll through the results WebView to make sure
@@ -92,7 +92,7 @@ public class UiAutomation extends BaseUiAutomation {
                         shareResults();
                     }
                     break;
-                case 4: 
+                case 4:
                 case 5:
                     runCpuBenchmarks(isCorporate);
                     waitForResultsv3onwards();
@@ -101,7 +101,7 @@ public class UiAutomation extends BaseUiAutomation {
                     throw new RuntimeException("Invalid version of Geekbench requested");
             }
 
-            if (i < (times - 1)) {
+            if (i < (loops - 1)) {
                 mDevice.pressBack();
                 if (majorVersion < 4)
                     mDevice.pressBack();  // twice

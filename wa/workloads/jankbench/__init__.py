@@ -69,7 +69,7 @@ class Jankbench(ApkWorkload):
         Parameter('test_ids', kind=list_or_string,
                   allowed_values=valid_test_ids,
                   description='ID of the jankbench test to be run.'),
-        Parameter('reps', kind=int, default=1, constraint=lambda x: x > 0,
+        Parameter('loops', kind=int, default=1, constraint=lambda x: x > 0, aliases=['reps'],
                   description='''
                   Specifies the number of times the benchmark will be run in a "tight loop",
                   i.e. without performaing setup/teardown inbetween.
@@ -188,8 +188,8 @@ class Jankbench(ApkWorkload):
         if self.test_ids:
             test_idxs = [str(self.valid_test_ids.index(i)) for i in self.test_ids]
             command_params.append('--eia com.android.benchmark.EXTRA_ENABLED_BENCHMARK_IDS {}'.format(','.join(test_idxs)))
-        if self.reps:
-            command_params.append('--ei com.android.benchmark.EXTRA_RUN_COUNT {}'.format(self.reps))
+        if self.loops:
+            command_params.append('--ei com.android.benchmark.EXTRA_RUN_COUNT {}'.format(self.loops))
         return 'am start -W -S -n {}/{} {}'.format(self.package,
                                                    self.activity,
                                                    ' '.join(command_params))

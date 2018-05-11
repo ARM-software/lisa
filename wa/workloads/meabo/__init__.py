@@ -90,8 +90,9 @@ class Meabo(Workload):
             default=16384,
         ),
         Parameter(
-            'num_iterations',
+            'loops',
             kind=int,
+            aliases=['num_iterations'],
             description='''
             Number of iterations that core loop is executed.
             ''',
@@ -220,7 +221,7 @@ class Meabo(Workload):
         ('-r', 'nrow'),
         ('-C', 'num_cpus'),
         ('-H', 'num_hwcntrs'),
-        ('-i', 'num_iterations'),
+        ('-i', 'loops'),
         ('-x', 'num_palindromes'),
         ('-p', 'num_particles'),
         ('-R', 'num_randomloc'),
