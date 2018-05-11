@@ -325,3 +325,12 @@ class TraceCmdParser(object):
                     body_parser = regex_body_parser(body_parser)
                 yield TraceCmdEvent(parser=body_parser, **match.groupdict())
 
+
+def trace_has_marker(filepath, max_lines_to_check=2000000):
+    with open(filepath) as fh:
+        for i, line in enumerate(fh):
+            if TRACE_MARKER_START in line:
+                return True
+            if i >= max_lines_to_check:
+                break
+    return False
