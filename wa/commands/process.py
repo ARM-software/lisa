@@ -20,6 +20,7 @@ from wa import discover_wa_outputs
 from wa.framework.exception import CommandError
 from wa.framework.output import RunOutput
 from wa.framework.output_processor import ProcessorManager
+from wa.utils import log
 
 class ProcessContext(object):
 
@@ -71,6 +72,7 @@ class ProcessCommand(Command):
             output_list = [RunOutput(process_directory)]
         else:
             output_list = [output for output in discover_wa_outputs(process_directory)]
+
         pc = ProcessContext()
         for run_output in output_list:
             if not args.recursive:
@@ -78,6 +80,14 @@ class ProcessCommand(Command):
             else:
                 self.logger.info('Install output processors for run in path `{}`'
                                  .format(run_output.basepath))
+
+            logfile = os.path.join(run_output.basepath, 'process.log')
+            i = 0
+            while os.path.exists(logfile):
+                i += 1
+                logfile = os.path.join(run_output.basepath, 'process-{}.log'.format(i))
+            log.add_file(logfile)
+
             pm = ProcessorManager(loader=config.plugin_cache)
             for proc in config.get_processors():
                 pm.install(proc, None)
@@ -89,8 +99,10 @@ class ProcessCommand(Command):
                         pm.get_output_processor(proc)
                     except ValueError:
                         pm.install(proc, None)
+
             pm.validate()
             pm.initialize()
+
             pc.run_output = run_output
             pc.target_info = run_output.target_info
             for job_output in run_output.jobs:
@@ -102,8 +114,13 @@ class ProcessCommand(Command):
                             pm.disable(augmentation)
                         except ValueError:
                             pass
+
+                msg = 'Processing job {} {} iteration {}'
+                self.logger.info(msg.format(job_output.id, job_output.label,
+                                            job_output.iteration))
                 pm.process_job_output(pc)
                 pm.export_job_output(pc)
+
             pm.enable_all()
             if not args.force:
                 for augmentation in run_output.augmentations:
@@ -111,6 +128,10 @@ class ProcessCommand(Command):
                         pm.disable(augmentation)
                     except ValueError:
                         pass
+
+            self.logger.info('Processing run')
             pm.process_run_output(pc)
             pm.export_run_output(pc)
             pm.finalize()
+
+            self.logger.info('Done.')
