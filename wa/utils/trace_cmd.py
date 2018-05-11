@@ -235,7 +235,7 @@ class TraceCmdParser(object):
 
     """
 
-    def __init__(self, filter_markers=True):
+    def __init__(self, filter_markers=True, check_for_markers=True, events=None):
         """
         Initialize a new trace parser.
 
@@ -245,27 +245,29 @@ class TraceCmdParser(object):
                                markers will be reported). This maybe overriden
                                based on `check_for_markers` parameter of
                                `parse()`
+        :param check_for_markers: Check if the start/stop markers are present
+                                  in the trace and ensure that `filter_markers`
+                                  is `False` if they aren't
+        :param events: A list of event names to be reported; if not specified,
+                       all events will be reported.
+
 
         """
         self.filter_markers = filter_markers
+        self.check_for_markers = check_for_markers
+        self.events = events
 
-    def parse(self, filepath, events=None, check_for_markers=True):  # pylint: disable=too-many-branches,too-many-locals
+    def parse(self, filepath):  # pylint: disable=too-many-branches,too-many-locals
         """
         This is a generator for the trace event stream.
 
         :param filepath: The path to the file containg text trace as reported
                          by trace-cmd
-        :param events: A list of event names to be reported; if not specified,
-                       all events will be reported.
-        :param check_for_markers: Check if the start/stop markers are present
-                                  in the trace and ensure that `filter_markers`
-                                  is `False` if they aren't
-
         """
         inside_maked_region = False
-        filters = [re.compile('^{}$'.format(e)) for e in (events or [])]
+        filters = [re.compile('^{}$'.format(e)) for e in (self.events or [])]
         filter_markers = self.filter_markers
-        if filter_markers and check_for_markers:
+        if filter_markers and self.check_for_markers:
             with open(filepath) as fh:
                 for line in fh:
                     if TRACE_MARKER_START in line:
