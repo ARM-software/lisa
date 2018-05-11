@@ -52,7 +52,7 @@ import dateutil.parser
 
 from wa.framework.exception import SerializerSyntaxError
 from wa.utils.misc import isiterable
-from wa.utils.types import regex_type, none_type, level
+from wa.utils.types import regex_type, none_type, level, cpu_mask
 
 
 __all__ = [
@@ -91,6 +91,8 @@ class WAJSONEncoder(_json.JSONEncoder):
             return 'DATET:{}'.format(obj.isoformat())
         elif isinstance(obj, level):
             return 'LEVEL:{}:{}'.format(obj.name, obj.value)
+        elif isinstance(obj, cpu_mask):
+            return 'CPUMASK:{}'.format(obj.mask())
         else:
             return _json.JSONEncoder.default(self, obj)
 
@@ -111,6 +113,9 @@ class WAJSONDecoder(_json.JSONDecoder):
                 elif v.startswith('LEVEL:'):
                     _, name, value = v.split(':', 2)
                     return level(name, value)
+                elif v.startswith('CPUMASK:'):
+                    _, value = v.split(':', 1)
+                    return cpu_mask(value)
 
             return v
 
@@ -156,6 +161,7 @@ class json(object):
 _mapping_tag = _yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
 _regex_tag = u'tag:wa:regex'
 _level_tag = u'tag:wa:level'
+_cpu_mask_tag = u'tag:wa:cpu_mask'
 
 
 def _wa_dict_representer(dumper, data):
@@ -169,6 +175,9 @@ def _wa_regex_representer(dumper, data):
 def _wa_level_representer(dumper, data):
     text = '{}:{}'.format(data.name, data.level)
     return dumper.represent_scalar(_level_tag, text)
+
+def _wa_cpu_mask_representer(dumper, data):
+    return dumper.represent_scalar(_cpu_mask_tag, data.mask())
 
 def _wa_dict_constructor(loader, node):
     pairs = loader.construct_pairs(node)
@@ -190,13 +199,19 @@ def _wa_level_constructor(loader, node):
     name, value = value.split(':', 1)
     return level(name, value)
 
+def _wa_cpu_mask_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    return cpu_mask(value)
+
 
 _yaml.add_representer(OrderedDict, _wa_dict_representer)
 _yaml.add_representer(regex_type, _wa_regex_representer)
 _yaml.add_representer(level, _wa_level_representer)
+_yaml.add_representer(cpu_mask, _wa_cpu_mask_representer)
 _yaml.add_constructor(_mapping_tag, _wa_dict_constructor)
 _yaml.add_constructor(_regex_tag, _wa_regex_constructor)
 _yaml.add_constructor(_level_tag, _wa_level_constructor)
+_yaml.add_constructor(_cpu_mask_tag, _wa_cpu_mask_constructor)
 
 
 class yaml(object):

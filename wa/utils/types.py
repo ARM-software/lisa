@@ -36,7 +36,8 @@ from copy import copy
 
 from devlib.utils.types import identifier, boolean, integer, numeric, caseless_string
 
-from wa.utils.misc import isiterable
+from wa.utils.misc import (isiterable, list_to_ranges, list_to_mask,
+                           mask_to_list, ranges_to_list)
 
 
 def list_of_strs(value):
@@ -741,3 +742,61 @@ class ParameterDict(dict):
             else:
                 for k, v in d.iteritems():
                     self[k] = v
+
+
+class cpu_mask(object):
+    """
+    A class to allow for a consistent way of representing a cpus mask with
+    methods to provide conversions between the various required forms. The
+    mask can be specified directly as a mask, as a list of cpus indexes or a
+    sysfs-style string.
+    """
+    @staticmethod
+    def from_pod(pod):
+        return cpu_mask(int(pod['cpu_mask']))
+
+    def __init__(self, cpus):
+        self._mask = 0
+        if isinstance(cpus, int):
+            self._mask = cpus
+        elif isinstance(cpus, basestring):
+            if cpus[:2] == '0x' or cpus[:2] == '0X':
+                self._mask = int(cpus, 16)
+            else:
+                self._mask = list_to_mask(ranges_to_list(cpus))
+        elif isinstance(cpus, list):
+            self._mask = list_to_mask(cpus)
+        elif isinstance(cpus, cpu_mask):
+            self._mask = cpus._mask
+        else:
+            msg = 'Unknown conversion from {} to cpu mask'
+            raise ValueError(msg.format(cpus))
+
+    def __bool__(self):
+        """Allow for use in comparisons to check if a mask has been set"""
+        return bool(self._mask)
+
+    __nonzero__ = __bool__
+
+    def __repr__(self):
+        return 'cpu_mask: {}'.format(self.mask())
+
+    __str__ = __repr__
+
+    def list(self):
+        """Returns a list of the indexes of bits that are set in the mask."""
+        return list(reversed(mask_to_list(self._mask)))
+
+    def mask(self, prefix=True):
+        """Returns a hex representation of the mask with an optional prefix"""
+        if prefix:
+            return hex(self._mask)
+        else:
+            return hex(self._mask)[2:]
+
+    def ranges(self):
+        """"Returns a sysfs-style ranges string"""
+        return list_to_ranges(self.list())
+
+    def to_pod(self):
+        return {'cpu_mask': self._mask}
