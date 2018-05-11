@@ -72,8 +72,9 @@ class Meabo(Workload):
             default=1048576,
         ),
         Parameter(
-            'nrow',
+            'num_rows',
             kind=int,
+            aliases=['nrow'],
             description='''
             Number of rows for the sparse matrix used in Phase 6.
             ''',
@@ -81,8 +82,9 @@ class Meabo(Workload):
             default=16384,
         ),
         Parameter(
-            'ncol',
+            'num_cols',
             kind=int,
+            aliases=['ncol'],
             description='''
             Number of columns for the sparse matrix used in Phase 6.
             ''',
@@ -217,8 +219,8 @@ class Meabo(Workload):
         ('-B', 'bind_to_cpu_set'),
         ('-b', 'block_size'),
         ('-l', 'llist_size'),
-        ('-c', 'ncol'),
-        ('-r', 'nrow'),
+        ('-c', 'num_col'),
+        ('-r', 'num_row'),
         ('-C', 'num_cpus'),
         ('-H', 'num_hwcntrs'),
         ('-i', 'loops'),
