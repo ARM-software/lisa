@@ -58,7 +58,7 @@ class Sysbench(Workload):
         Parameter('test', kind=str, default='cpu',
                   allowed_values=['fileio', 'cpu', 'memory', 'threads', 'mutex'],
                   description='sysbench test to run'),
-        Parameter('num_threads', kind=int, default=8,
+        Parameter('threads', kind=int, default=8, aliases=['num_threads'],
                   description='''
                   The number of threads sysbench will launch.
                   '''),
@@ -112,7 +112,7 @@ class Sysbench(Workload):
     def setup(self, context):
         self.host_results_file = None
         params = dict(test=self.test,
-                      num_threads=self.num_threads)
+                      num_threads=self.threads)
         if self.max_requests:
             params['max_requests'] = self.max_requests
         if self.max_time:

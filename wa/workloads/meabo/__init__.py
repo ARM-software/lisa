@@ -148,8 +148,9 @@ class Meabo(Workload):
             default=range(1, 11),
         ),
         Parameter(
-            'num_threads',
+            'threads',
             kind=int,
+            aliases=['num_threads'],
             description='''
             Controls how many threads the application will be using.
             ''',
@@ -227,7 +228,7 @@ class Meabo(Workload):
         ('-x', 'num_palindromes'),
         ('-p', 'num_particles'),
         ('-R', 'num_randomloc'),
-        ('-T', 'num_threads'),
+        ('-T', 'threads'),
     ]
 
     def validate(self):
