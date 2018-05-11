@@ -97,7 +97,7 @@ class ProcessorManager(object):
             proc.finalize()
 
     def process_job_output(self, context):
-        self.do_for_each_proc('process_job_output', 'processing using "{}"',
+        self.do_for_each_proc('process_job_output', 'Processing using "{}"',
                               context.job_output, context.target_info,
                               context.run_output)
 
