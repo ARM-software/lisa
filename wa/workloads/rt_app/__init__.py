@@ -24,6 +24,7 @@ from wa import Workload, Parameter, Executable, File
 from wa.framework.exception import WorkloadError, ResourceError, ConfigError
 from wa.utils.misc import check_output
 from wa.utils.exec_control import once
+from wa.utils.types import cpu_mask
 
 
 RAW_OUTPUT_FILENAME = 'raw-output.txt'
@@ -127,7 +128,7 @@ class RtApp(Workload):
                   Duration of the workload execution in Seconds. If specified, this
                   will override the corresponding parameter in the JSON config.
                   '''),
-        Parameter('taskset_mask', kind=int,
+        Parameter('cpus', kind=cpu_mask, default=0, aliases=['taskset_mask'],
                   description='Constrain execution to specific CPUs.'),
         Parameter('uninstall_on_exit', kind=bool, default=False,
                   description="""
@@ -170,7 +171,7 @@ class RtApp(Workload):
     def run(self, context):
         self.output = self.target.invoke(self.command,
                                          in_directory=self.target_working_directory,
-                                         on_cpus=self.taskset_mask,
+                                         on_cpus=self.cpus and self.cpus.list() or None,
                                          redirect_stderr=True,
                                          timeout=self.timeout,
                                          as_root=self.target.is_rooted)

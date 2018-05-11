@@ -20,6 +20,7 @@ import re
 
 from wa import Workload, Parameter, Executable
 from wa.utils.exec_control import once
+from wa.utils.types import cpu_mask
 
 
 THIS_DIR = os.path.dirname(__file__)
@@ -52,11 +53,12 @@ class Memcpy(Workload):
                   description='''
                   Specfies the number of iterations that will be performed.
                   '''),
-        Parameter('cpus', kind=list,
+        Parameter('cpus', kind=cpu_mask, default=0,
                   description='''
-                  A list of integers specifying ordinals of cores to which the
-                  affinity of the test process should be set. If not specified,
-                  all available cores will be used.
+                  The cpus for which the affinity of the test
+                  process should be set, specified as a mask, as a list of
+                  cpus or a sysfs-style string. If not specified, all available
+                  cores will be used.
                   '''),
     ]
     @once
@@ -68,7 +70,7 @@ class Memcpy(Workload):
 
     def setup(self, context):
         self.command = '{} -i {} -s {}'.format(Memcpy.target_exe, self.iterations, self.buffer_size)
-        for c in (self.cpus or []):
+        for c in (self.cpus.list()):
             self.command += ' -c {}'.format(c)
         self.result = None
 

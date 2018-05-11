@@ -20,7 +20,7 @@ import os
 from wa import Workload, Parameter, Executable, WorkloadError, ConfigError
 from wa.utils.exec_control import once
 from wa.utils.misc import parse_value
-from wa.utils.types import numeric
+from wa.utils.types import numeric, cpu_mask
 
 
 class Sysbench(Workload):
@@ -84,10 +84,11 @@ class Sysbench(Workload):
                   Additional parameters to be passed to sysbench as a single
                   string.
                   '''),
-        Parameter('taskset_mask', kind=int, default=0,
+        Parameter('cpus', kind=cpu_mask, default=0, aliases=['taskset_mask'],
                   description='''
-                  The processes spawned by sysbench will be pinned to cores as
-                  specified by this parameter.
+                  The processes spawned by sysbench will be
+                  pinned to cores as specified by this parameter. Can be
+                  provided as a mask, a list of cpus or a sysfs-style string.
                   '''),
     ]
 
@@ -158,8 +159,8 @@ class Sysbench(Workload):
         if self.file_test_mode:
             param_strings.append('--file-test-mode={}'.format(self.file_test_mode))
         sysbench_command = '{} {} {} run'.format(self.target_binary, ' '.join(param_strings), self.cmd_params)
-        if self.taskset_mask:
-            taskset_string = '{} taskset 0x{:x} '.format(self.target.busybox, self.taskset_mask)
+        if self.cpus:
+            taskset_string = '{} taskset {} '.format(self.target.busybox, self.cpus.mask())
         else:
             taskset_string = ''
         return 'cd {} && {} {} > sysbench_result.txt'.format(self.target.working_directory, taskset_string, sysbench_command)

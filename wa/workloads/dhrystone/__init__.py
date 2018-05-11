@@ -20,6 +20,7 @@ import re
 
 from wa import Workload, Parameter, ConfigError, Executable
 from wa.utils.exec_control import once
+from wa.utils.types import cpu_mask
 
 
 class Dhrystone(Workload):
@@ -65,11 +66,11 @@ class Dhrystone(Workload):
                   The delay, in seconds, between kicking off of dhrystone
                   threads (if ``threads`` > 1).
                   ''')),
-        Parameter('taskset_mask', kind=int, default=0,
-                  description='''
-                  The processes spawned by dhrystone will be pinned to cores as
-                  specified by this parameter.
-                  '''),
+        Parameter('cpus', kind=cpu_mask, default=0, aliases=['taskset_mask'],
+                  description=''' The processes spawned by dhrystone will be
+                  pinned to cores as specified by this parameter. The mask can
+                  be specified directly as a mask, as a list of cpus or a sysfs-
+                  style string '''),
     ]
 
     @once
@@ -83,9 +84,9 @@ class Dhrystone(Workload):
             execution_mode = '-l {}'.format(self.mloops)
         else:
             execution_mode = '-r {}'.format(self.duration)
-        if self.taskset_mask:
-            taskset_string = '{} taskset 0x{:x} '.format(self.target.busybox,
-                                                         self.taskset_mask)
+        if self.cpus:
+            taskset_string = '{} taskset {} '.format(self.target.busybox,
+                                                     self.cpus.mask())
         else:
             taskset_string = ''
         self.command = '{}{} {} -t {} -d {}'.format(taskset_string,
