@@ -22,12 +22,14 @@ from wa.framework.output import RunOutput
 from wa.framework.output_processor import ProcessorManager
 from wa.utils import log
 
+
 class ProcessContext(object):
 
     def __init__(self):
         self.run_output = None
         self.target_info = None
         self.job_output = None
+
 
 class ProcessCommand(Command):
 
@@ -134,4 +136,5 @@ class ProcessCommand(Command):
             pm.export_run_output(pc)
             pm.finalize()
 
+            run_output.write_result()
             self.logger.info('Done.')
