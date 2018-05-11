@@ -4,6 +4,7 @@ from datetime import datetime
 
 from wa.framework import pluginloader, signal, instrument
 from wa.framework.configuration.core import Status
+from wa.utils.log import indentcontext
 
 # Because of use of Enum (dynamic attrs)
 # pylint: disable=no-member
@@ -68,39 +69,42 @@ class Job(object):
 
     def initialize(self, context):
         self.logger.info('Initializing job {}'.format(self))
-        with signal.wrap('WORKLOAD_INITIALIZED', self, context):
-            self.workload.logger.context = context
-            self.workload.initialize(context)
-        self.set_status(Status.PENDING)
-        self._has_been_initialized = True
-        context.update_job_state(self)
+        with indentcontext():
+            with signal.wrap('WORKLOAD_INITIALIZED', self, context):
+                self.workload.logger.context = context
+                self.workload.initialize(context)
+            self.set_status(Status.PENDING)
+            self._has_been_initialized = True
+            context.update_job_state(self)
 
     def configure_augmentations(self, context, pm):
-        instruments_to_enable = set()
-        output_processors_to_enable = set()
-        enabled_instruments = set(i.name for i in instrument.get_enabled())
-        enabled_output_processors = set(p.name for p in pm.get_enabled())
+        self.logger.info('Configuring augmentations')
+        with indentcontext():
+            instruments_to_enable = set()
+            output_processors_to_enable = set()
+            enabled_instruments = set(i.name for i in instrument.get_enabled())
+            enabled_output_processors = set(p.name for p in pm.get_enabled())
 
-        for augmentation in self.spec.augmentations.values():
-            augmentation_cls = context.cm.plugin_cache.get_plugin_class(augmentation)
-            if augmentation_cls.kind == 'instrument':
-                instruments_to_enable.add(augmentation)
-            elif augmentation_cls.kind == 'output_processor':
-                output_processors_to_enable.add(augmentation)
+            for augmentation in self.spec.augmentations.values():
+                augmentation_cls = context.cm.plugin_cache.get_plugin_class(augmentation)
+                if augmentation_cls.kind == 'instrument':
+                    instruments_to_enable.add(augmentation)
+                elif augmentation_cls.kind == 'output_processor':
+                    output_processors_to_enable.add(augmentation)
 
-        # Disable unrequired instruments
-        for instrument_name in enabled_instruments.difference(instruments_to_enable):
-            instrument.disable(instrument_name)
-        # Enable additional instruments
-        for instrument_name in instruments_to_enable.difference(enabled_instruments):
-            instrument.enable(instrument_name)
+            # Disable unrequired instruments
+            for instrument_name in enabled_instruments.difference(instruments_to_enable):
+                instrument.disable(instrument_name)
+            # Enable additional instruments
+            for instrument_name in instruments_to_enable.difference(enabled_instruments):
+                instrument.enable(instrument_name)
 
-        # Disable unrequired output_processors
-        for processor in enabled_output_processors.difference(output_processors_to_enable):
-            pm.disable(processor)
-        # Enable additional output_processors
-        for processor in output_processors_to_enable.difference(enabled_output_processors):
-            pm.enable(processor)
+            # Disable unrequired output_processors
+            for processor in enabled_output_processors.difference(output_processors_to_enable):
+                pm.disable(processor)
+            # Enable additional output_processors
+            for processor in output_processors_to_enable.difference(enabled_output_processors):
+                pm.enable(processor)
 
     def configure_target(self, context):
         self.logger.info('Configuring target for job {}'.format(self))
@@ -125,20 +129,22 @@ class Job(object):
             self.logger.info('Target unresponsive; not processing job output.')
             return
         self.logger.info('Processing output for job {}'.format(self))
-        if self.status != Status.FAILED:
-            with signal.wrap('WORKLOAD_RESULT_EXTRACTION', self, context):
-                self.workload.extract_results(context)
-                context.extract_results()
-            with signal.wrap('WORKLOAD_OUTPUT_UPDATE', self, context):
-                self.workload.update_output(context)
+        with indentcontext():
+            if self.status != Status.FAILED:
+                with signal.wrap('WORKLOAD_RESULT_EXTRACTION', self, context):
+                    self.workload.extract_results(context)
+                    context.extract_results()
+                with signal.wrap('WORKLOAD_OUTPUT_UPDATE', self, context):
+                    self.workload.update_output(context)
 
     def teardown(self, context):
         if not context.tm.is_responsive:
             self.logger.info('Target unresponsive; not tearing down.')
             return
         self.logger.info('Tearing down job {}'.format(self))
-        with signal.wrap('WORKLOAD_TEARDOWN', self, context):
-            self.workload.teardown(context)
+        with indentcontext():
+            with signal.wrap('WORKLOAD_TEARDOWN', self, context):
+                self.workload.teardown(context)
 
     def finalize(self, context):
         if not self._has_been_initialized:
@@ -147,8 +153,9 @@ class Job(object):
             self.logger.info('Target unresponsive; not finalizing.')
             return
         self.logger.info('Finalizing job {} '.format(self))
-        with signal.wrap('WORKLOAD_FINALIZED', self, context):
-            self.workload.finalize(context)
+        with indentcontext():
+            with signal.wrap('WORKLOAD_FINALIZED', self, context):
+                self.workload.finalize(context)
 
     def set_status(self, status, force=False):
         status = Status(status)

@@ -454,10 +454,9 @@ class Runner(object):
         self.pm.process_run_output(self.context)
         self.pm.export_run_output(self.context)
         self.pm.finalize()
-        log.indent()
-        for job in self.context.completed_jobs:
-            job.finalize(self.context)
-        log.dedent()
+        with log.indentcontext():
+            for job in self.context.completed_jobs:
+                job.finalize(self.context)
         signal.disconnect(self._error_signalled_callback, signal.ERROR_LOGGED)
         signal.disconnect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
@@ -500,7 +499,6 @@ class Runner(object):
         job.set_status(Status.RUNNING)
         self.send(signal.JOB_STARTED)
 
-        self.logger.info('Configuring augmentations')
         job.configure_augmentations(context, self.pm)
 
         with signal.wrap('JOB_TARGET_CONFIG', self, context):

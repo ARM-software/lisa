@@ -4,7 +4,7 @@ from wa.framework import pluginloader
 from wa.framework.exception import ConfigError
 from wa.framework.instrument import is_installed
 from wa.framework.plugin import Plugin
-from wa.utils.log import log_error, indent, dedent
+from wa.utils.log import log_error, indentcontext
 from wa.utils.misc import isiterable
 from wa.utils.types import identifier
 
@@ -115,8 +115,7 @@ class ProcessorManager(object):
                               context.run_output, context.target_info)
 
     def do_for_each_proc(self, method_name, message, *args):
-        try:
-            indent()
+        with indentcontext():
             for proc in self.processors:
                 if proc.is_enabled:
                     proc_func = getattr(proc, method_name, None)
@@ -129,8 +128,6 @@ class ProcessorManager(object):
                         if isinstance(e, KeyboardInterrupt):
                             raise
                         log_error(e, self.logger)
-        finally:
-            dedent()
 
     def _enable_output_processor(self, inst):
         inst = self.get_output_processor(inst)
