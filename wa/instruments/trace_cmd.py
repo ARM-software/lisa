@@ -201,6 +201,7 @@ class TraceCmdInstrument(Instrument):
         self.collector.stop()
 
     def update_output(self, context):  # NOQA pylint: disable=R0912
+        self.logger.info('Extracting trace from target...')
         outfile = os.path.join(context.output_directory, 'trace.dat')
         self.collector.get_trace(outfile)
         context.add_artifact('trace-cmd-bin', outfile, 'data')
