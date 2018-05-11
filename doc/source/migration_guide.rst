@@ -73,11 +73,11 @@ Any parameter names changes  listed below will also have their old names
 specified as aliases and should continue to work as normal, however going forward
 the new parameter names should be preferred:
 
-- The workload parameter ``clean_up`` has be renamed to ``cleanup_assets`` to
+- The workload parameter ``clean_up`` has be renamed to :confval:`cleanup_assets` to
   better reflect its purpose.
 
 - The workload parameter ``check_apk`` has been renamed to
-  ``prefer_host_package`` to be more explicit in it's functionality to indicated
+  :confval:`prefer_host_package` to be more explicit in it's functionality to indicated
   whether a package on the target for the host should have priority when
   searching for a suitable package.
 
