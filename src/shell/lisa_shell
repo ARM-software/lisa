@@ -424,9 +424,8 @@ echo
 
 export WLTEST_VENV="$LISA_HOME/tools/wa_venv"
 
-function lisa-wltests-cleanup {
-[ ! -d $WLTEST_VENV ] || return 0
-rm -rf $WLTEST_VENV
+function lisa-wltest-cleanup {
+[ ! -d $WLTEST_VENV ] || rm -rf $WLTEST_VENV
 }
 
 function lisa-wltest-init {
