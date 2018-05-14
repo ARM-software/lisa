@@ -181,7 +181,7 @@ Parameters:
 Enabling and Disabling Augmentations
 ---------------------------------------
 
-Augmentations are the collective name  for  "instruments" and "results
+Augmentations are the collective name  for  "instruments" and "output
 processors" in WA3.
 
 Some augmentations are enabled by default after your initial install of WA,
