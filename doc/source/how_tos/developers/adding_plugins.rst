@@ -190,7 +190,9 @@ therefore we would choose the :ref:`ApkUiAutomator workload
 
 From here you can navigate to the displayed folder and you will find your
 ``__init__.py``  and a ``uiauto`` directory. The former is your python WA
-workload and will look something like this::
+workload and will look something like this
+
+.. code-block:: python
 
         from wa import Parameter, ApkUiautoWorkload
         class GoogleDocs(ApkUiautoWorkload):
@@ -257,7 +259,9 @@ description.
 The latter will contain a framework for performing the UI automation on the
 target, the files you will be most interested in will be
 ``uiauto/app/src/main/java/arm/wa/uiauto/UiAutomation.java`` which will contain
-the actual code of the automation and will look something like::
+the actual code of the automation and will look something like:
+
+.. code-block:: java
 
         package com.arm.wa.uiauto.google_docs;
 
