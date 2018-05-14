@@ -235,6 +235,34 @@ Which will produce something like::
 This will be populated with default values which can then be customised for the
 particular use case.
 
+.. _process-command:
+
+Process
+--------
+
+This command allows for output processors to be ran on data that was produced by
+a previous run.
+
+There are 2 ways of specifying which processors you wish to use, either passing
+them directly as arguments to the process command with the ``--processor``
+argument or by providing an additional config file with the ``--config``
+argument. Please note that by default the process command will not rerun
+processors that have already been ran during the run, in order to force a rerun
+of the processors you can specific the ``--force`` argument.
+
+Additionally if you have a directory containing multiple run directories you can
+specify the ``--recursive`` argument which will cause WA to walk the specified
+directory processing all the WA output sub-directories individually.
+
+
+As an example if we had performed multiple experiments and have the various WA
+output directories in our ``my_experiments`` directory, and we now want to process
+the outputs with a tool that only supports CSV files. We can easily generate CSV
+files for all the runs contained in our directory using the CSV processor by
+using the following command::
+
+      wa process -r -p csv my_experiments
+
 
 .. _record_command:
 
