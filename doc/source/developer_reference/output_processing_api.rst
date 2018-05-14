@@ -21,7 +21,7 @@ directory we can initialize a ``RunOutput`` as follows:
 
 
 
-From here we can retrieve different information about the run. For example if we
+From here we can retrieve various information about the run. For example if we
 want to see what the overall status of the run was, along with the runtime
 parameters and the metrics recorded from the first job was we can do the following:
 

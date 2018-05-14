@@ -347,8 +347,8 @@ Classifiers
 ------------
 
 Classifiers can be used in 2 distinct ways, the first use is being supplied in
-an agenda as a set of key-value pairs which can be used to help identify sub-
-tests of a run, for example if you have multiple sections in your agenda running
+an agenda as a set of key-value pairs which can be used to help identify sub-tests
+of a run, for example if you have multiple sections in your agenda running
 your workloads at different frequencies you might want to set a classifier
 specifying which frequencies are being used. These can then be utilized later,
 for example with the ``csv`` :ref:`output processor <output-processors>` with
@@ -384,9 +384,9 @@ An example agenda is shown here:
 The other way that they can used is by being automatically added by some
 workloads to identify their results metrics and artifacts. For example some
 workloads perform multiple tests with the same execution run and therefore will
-use metrics to differentiate between them, For example the ``recentfling``
-workload will use classifiers to distinguish between which loop a particular
-result is for or whether it is an average across all loops ran.
+use metrics to differentiate between them, e.g. the ``recentfling`` workload
+will use classifiers to distinguish between which loop a particular result is
+for or whether it is an average across all loops ran.
 
 The output from the agenda above will produce a csv file similar to what is
 shown below. Some columns have been omitted for clarity however as can been seen
@@ -500,7 +500,7 @@ turn override global settings.
 
 
 
-Augmentationts
+Augmentations
 --------------
 
 Augmentations are plugins that augment the execution of workload jobs with
@@ -509,7 +509,7 @@ metrics and/or artifacts, such as traces or logs. There are two types of
 augmentations:
 
 Instruments
-        These "instrument" a WA run in order to change it's behavior (e.g.
+        These "instrument" a WA run in order to change it's behaviour (e.g.
         introducing delays between successive job executions), or collect
         additional measurements (e.g. energy usage). Some instruments may depend
         on particular features being enabled on the target (e.g. cpufreq), or
@@ -677,8 +677,10 @@ Each workload will be run in two configurations: once, to collect energy
 measurements, and once to collect thermal data and kernel trace. Trace can give
 insight into why a workload is using more or less energy than expected, but it
 can be relatively intrusive and might impact absolute energy and performance
-metrics, which is why it is collected separately. classifiers_ are used to
+metrics, which is why it is collected separately. Classifiers_ are used to
 separate metrics from the two configurations in the results.
+
+.. _other-agenda-configuration:
 
 Other Configuration
 -------------------

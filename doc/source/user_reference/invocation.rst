@@ -16,16 +16,18 @@ Individual sub-commands are discussed in detail below.
 Run
 ---
 
-The most common sub-command you will use is ``run``. This will run specified
-workload(s) and process resulting output. This takes a single mandatory
-argument that specifies what you want WA to run. This could be either a
-workload name, or a path to an "agenda" file that allows to specify multiple
-workloads as well as a lot additional configuration (see :ref:`agenda`
-section for details). Executing ::
+The most common sub-command you will use is ``run``. This will run the specified
+workload(s) and process its resulting output. This takes a single mandatory
+argument which specifies what you want WA to run. This could be either a workload
+name, or a path to an agenda" file that allows to specify multiple workloads as
+well as a lot additional configuration (see :ref:`agenda` section for details).
+Executing ::
 
         wa run -h
 
-Will display help for this subcommand that will look something like this::
+Will display help for this subcommand that will look something like this:
+
+.. code-block:: none
 
         usage: wa run [-h] [-c CONFIG] [-v] [--version] [-d DIR] [-f] [-i ID]
               [--disable INSTRUMENT]
@@ -130,7 +132,7 @@ will produce something like: ::
         from the website:
 
         The whole idea behind this application is to use the same Pi calculation
-        algorithm on every Android Device and check how fast that proccess is.
+        algorithm on every Android Device and check how fast that process is.
         Better calculation times, conclude to faster Android devices. This way you
         can also check how lightweight your custom made Android build is. Or not.
 
@@ -185,9 +187,9 @@ will produce something like: ::
 
         markers_enabled : boolean
             If set to ``True``, workloads will insert markers into logs
-            at various points during execution. These markes may be used
+            at various points during execution. These markers may be used
             by other plugins or post-processing scripts to provide
-            measurments or statistics for specific parts of the workload
+            measurements or statistics for specific parts of the workload
             execution.
 
 .. note:: You can also use this command to view global settings by using ``wa show settings``
@@ -202,9 +204,8 @@ This aids in the creation of new WA-related objects for example agendas and work
 For more detailed information on creating workloads please see the
 :ref:`adding a workload <adding-a-workload>` section for more details.
 
-agendas:
 As an example to create an agenda that will run the dhrystone and memcpy workloads
-that will use the status and hwmon augumentations, run each test 3 times and save
+that will use the status and hwmon augmentations, run each test 3 times and save
 into the file ``my_agenda.yaml`` the following command can be used::
 
         wa create agenda dhrystone memcpy status hwmon -i 3 -o my_agenda.yaml
@@ -271,7 +272,7 @@ using the following command::
 Record
 ------
 
-This command simiplifies the process of recording revent files. It will
+This command simplifies the process of recording revent files. It will
 automatically deploy revent and has options to automatically open apps and
 record specified stages of a workload. Revent allows you to record raw inputs
 such as screen swipes or button presses. This can be useful for recording inputs
@@ -285,14 +286,14 @@ devices it is obtained from ``/proc/device-tree/model``. - suffix is used by WA
 to determine which part of the app execution the recording is for, currently
 these are either ``setup``, ``run``, ``extract_results`` or ``teardown``. All
 stages except ``run`` are optional for playback and to specify which stages
-shoule be recorded the ``-s``, ``-r``, ``-e`` or ``-t`` arguments respectively,
+should be recorded the ``-s``, ``-r``, ``-e`` or ``-t`` arguments respectively,
 or optionally ``-a`` to indicate all stages should be recorded.
 
 
 The full set of options for this command are::
 
         usage: wa record [-h] [-c CONFIG] [-v] [--version] [-d DEVICE] [-o FILE] [-s]
-                         [-e] [-t] [-a] [-C] [-p PACKAGE | -w WORKLOAD]
+                         [-r] [-e] [-t] [-a] [-C] [-p PACKAGE | -w WORKLOAD]
 
         optional arguments:
           -h, --help            show this help message and exit
@@ -307,8 +308,8 @@ The full set of options for this command are::
           -o FILE, --output FILE
                                 Specify the output file
           -s, --setup           Record a recording for setup stage
-          -e, --extract_results
-                                Record a recording for extract_results stage
+          -r, --run             Record a recording for run stage
+          -e, --extract_results Record a recording for extract_results stage
           -t, --teardown        Record a recording for teardown stage
           -a, --all             Record recordings for available stages
           -C, --clear           Clear app cache before launching it
@@ -324,8 +325,9 @@ For more information please see :ref:`Revent Recording <revent-recording>`.
 Replay
 ------
 
-Along side ``record`` wa also has a command to playback a single recorded revent file.
-It behaves similar to the ``record`` command taking a subset of the same options allowing you to automatically launch a package on the device ::
+Alongside ``record`` wa also has a command to playback a single recorded revent
+file. It behaves similar to the ``record`` command taking a subset of the same
+options allowing you to automatically launch a package on the device ::
 
     usage: wa replay [-h] [-c CONFIG] [-v] [--debug] [--version] [-p PACKAGE] [-C]
                  revent

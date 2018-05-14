@@ -16,8 +16,10 @@ changes moving from WA2 to WA3.
       config file and will be performed upon first invocation of WA3.
     - The "config" and "global" sections in an agenda are not interchangeable so can all be specified in a "config" section.
     - "Results Processors" are now known as "Output Processors" and can now be ran offline.
-    - "Instrumentation" is now know as "Instruments" for more consistent naming.
-    - "Both "Output Processor" and "Instrument" configuration has been merged into "Augmentations" (support for the old naming schemes have been retained for backwards compatibility)
+    - "Instrumentation" is now known as "Instruments" for more consistent naming.
+    - "Both "Output Processor" and "Instrument" configuration have been merged
+      into "Augmentations" (support for the old naming schemes have been
+      retained for backwards compatibility)
 
 
 - New features:

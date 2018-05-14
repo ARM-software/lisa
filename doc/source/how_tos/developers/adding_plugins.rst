@@ -11,7 +11,7 @@ then the ``initialize`` method should be decorated with the ``@once``
 method which is decorated instead. Please note if doing this then any installed
 paths should be added as class attributes rather than instance variables. As a
 general rule if binaries are installed as part of ``initialize`` then they
-should be installed in the complementary ``finalize`` method.
+should be uninstalled in the complementary ``finalize`` method.
 
 Part of an example workload demonstrating this is shown below:
 
@@ -41,11 +41,11 @@ Part of an example workload demonstrating this is shown below:
 Adding a Workload Examples
 ==========================
 
-The easiest way to create a new workload is to use the create command. ``wa
-create workload <args>``.  This will use predefined templates to create a
-workload based on the options that are supplied to be used as a starting point
-for the workload. For more information on using the create workload command see
-``wa create workload -h``
+The easiest way to create a new workload is to use the
+:ref:`create <create-command>` command. ``wa create workload <args>``.  This
+will use predefined templates to create a workload based on the options that are
+supplied to be used as a starting point for the workload. For more information
+on using the create workload command see ``wa create workload -h``
 
 The first thing to decide is the type of workload you want to create depending
 on the OS you will be using and the aim of the workload. The are currently 6
@@ -55,7 +55,7 @@ Once you have decided what type of workload you wish to choose this can be
 specified with ``-k <workload_kind>`` followed by the workload name. This
 will automatically generate a workload in the your ``WA_CONFIG_DIR/plugins``. If
 you wish to specify a custom location this can be provided with ``-p
-<directory>``
+<path>``
 
 Adding a Basic Workload Example
 --------------------------------
@@ -68,10 +68,9 @@ This will generate a very basic workload with dummy methods for the workload
 interface and it is left to the developer to add any required functionality to
 the workload.
 
-This example shows a simple workload that times how long it takes to compress a
-file of a particular size on the device, not all the methods are required to be
-implements however as many as possible have been used to demonstrate their
-purpose.
+Not all the methods are required to be implemented, this example shows how a
+subset might be used to implement a simple workload that times how long it takes
+to compress a file of a particular size on the device.
 
 
 .. note:: This is intended as an example of how to implement the Workload
@@ -92,7 +91,6 @@ purpose.
 
                       This workload was created for illustration purposes only. It should not be
                       used to collect actual measurements.
-
                       '''
 
         parameters = [
@@ -137,9 +135,9 @@ purpose.
             This method is used to extract any results from the target for
             example we want to pull the file containing the timing information
             that we will use to generate metrics for our workload and then we
-            add this file as a artifact as a 'raw' file which once WA has
-            finished processing it will allow it to decide whether to keep the
-            file or not.
+            add this file as an artifact with a 'raw' kind, which means once WA
+            has finished processing it will allow it to decide whether to keep
+            the file or not.
             """
             super(ZipTestWorkload, self).extract_results(context)
             # Pull the results file to the host
@@ -149,9 +147,9 @@ purpose.
 
         def update_output(self, context):
             """
-            In this method we can do any generation of metric that we wish to
+            In this method we can do any generation of metrics that we wish to
             for our workload. In this case we are going to simply convert the
-            times reported to seconds and add them as 'metrics' to WA which can
+            times reported into seconds and add them as 'metrics' to WA which can
             then be displayed to the user along with any others in a format
             dependant on which output processors they have enabled for the run.
             """
@@ -343,7 +341,8 @@ command::
 
 This will generate a revent based workload you will end up with a very similar
 python file as to the one outlined in generating a :ref:`UiAutomator based
-workload <apkuiautomator-example>` except without the java automation files.
+workload <apkuiautomator-example>` however without the accompanying java
+automation files.
 
 The main difference between the two is that this workload will subclass
 ``ApkReventWorkload`` instead of ``ApkUiautomatorWorkload`` as shown below.
@@ -367,7 +366,7 @@ The main difference between the two is that this workload will subclass
 Adding an Instrument Example
 =============================
 This is an example of how we would create a instrument which will trace device
-errors. For more detailed information please see
+errors using a custom "trace" binary file. For more detailed information please see
 :ref:`here <instrument-reference>`. The first thing to do is to subclass
 :class:`Instrument`, overwrite the variable name with what we want our instrument
 to be called and locate our binary for our instrument.
@@ -388,7 +387,7 @@ We then declare and implement the required methods as detailed
 :ref:`here <instrument-api>`. For the ``initialize`` method, we want to install
 the executable file to the target so we can use the target's ``install``
 method which will try to copy the file to a location on the device that
-supports execution, will change the file mode appropriately and return the
+supports execution, change the file mode appropriately and return the
 file path on the target. ::
 
     def initialize(self, context):
@@ -398,7 +397,7 @@ Then we implemented the start method, which will simply run the file to start
 tracing. Supposing that the call to this binary requires some overhead to begin
 collecting errors we might want to decorate the method with the ``@slow``
 decorator to try and reduce the impact on other running instruments. For more
-information on prioritization please see :ref:`here <prioritization>`::
+information on prioritization please see :ref:`here <prioritization>`. ::
 
     @slow
     def start(self, context):
@@ -406,7 +405,7 @@ information on prioritization please see :ref:`here <prioritization>`::
 
 Lastly, we need to stop tracing once the workload stops and this happens in the
 stop method, assuming stopping the collection also require some overhead we have
-again decorated the method::
+again decorated the method. ::
 
     @slow
     def stop(self, context):
@@ -425,9 +424,9 @@ example for trace data we will want to pull it to the device and add it as a
 
 Once we have retrieved the data we can now do any further processing and add any
 relevant :ref:`Metrics <metrics>` to the :ref:`context <context>`. For this we
-will use the the ``add_metric`` method and to add the instruments results to the
-final result for that workload. The method can be passed 4 params, which are the
-metric `key`, `value`, `unit` and `lower_is_better`. ::
+will use the the ``add_metric`` method to add the results to the final output
+for that workload. The method can be passed 4 params, which are the metric
+`key`, `value`, `unit` and `lower_is_better`. ::
 
     def update_output(self, context):
         # parse the file if needs to be parsed, or add result directly to
@@ -442,7 +441,7 @@ instruments and the code to clear these file goes in teardown method. ::
     def teardown(self, context):
         self.target.remove(os.path.join(self.target.working_directory, 'trace.txt'))
 
-At the very end of the run we would want to uninstall the binary we deployed earlier ::
+At the very end of the run we would want to uninstall the binary we deployed earlier. ::
 
     def finalize(self, context):
         self.target.uninstall(self.binary_name)
@@ -499,7 +498,7 @@ Next we need to implement any relevant methods, (please see
 available methods). In this case we only want to implement the
 ``export_run_output`` method as we are not generating any new artifacts and
 we only care about the overall output rather than the individual job
-outputs. And the implementation is very simple, it just loops through all
+outputs. The implementation is very simple, it just loops through all
 the available metrics for all the available jobs and adds them to a list
 which is written to file and then added as an :ref:`artifact <artifact>` to
 the :ref:`context <context>`.
@@ -514,7 +513,7 @@ the :ref:`context <context>`.
     class Table(OutputProcessor):
 
         name = 'table'
-        description = 'Generates a text file containing a column-aligned table with run results.'
+        description = 'Generates a text file containing a column-aligned table of run results.'
 
         def export_run_output(self, output, target_info):
             rows = []
@@ -527,7 +526,7 @@ the :ref:`context <context>`.
             outfile =  output.get_path('table.txt')
             with open(outfile, 'w') as wfh:
                 write_table(rows, wfh)
-            output.add_artifact('results_table', 'table.txt, 'export')
+            output.add_artifact('results_table', 'table.txt', 'export')
 
 
 .. _adding-custom-target-example:

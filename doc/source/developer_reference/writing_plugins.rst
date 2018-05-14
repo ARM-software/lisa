@@ -4,7 +4,7 @@
 Writing Plugins
 ================
 
-Workload Automation offers several plugin points (or plugin types).The most
+Workload Automation offers several plugin points (or plugin types). The most
 interesting of these are
 
 :workloads: These are the tasks that get executed and measured on the device. These
@@ -14,24 +14,24 @@ interesting of these are
           physical device would require its own interface class (though some functionality
           may be reused by subclassing from an existing base).
 :instruments: Instruments allow collecting additional data from workload execution (e.g.
-              system traces). Instruments are not specific to a particular Workload. Instruments
+              system traces). Instruments are not specific to a particular workload. Instruments
               can hook into any stage of workload execution.
 :output processors: These are used to format the results of workload execution once they have been
                     collected. Depending on the callback used, these will run either after each
-                    iteration or at the end of the run, after all of the results have been
+                    iteration and/or at the end of the run, after all of the results have been
                     collected.
 
-You can create an plugin by subclassing the appropriate base class, defining
-appropriate methods and attributes, and putting the .py file with the class into
-the "plugins" subdirectory under ``~/.workload_automation`` (or equivalent)
-where it will be automatically picked up by WA.
+You can create a plugin by subclassing the appropriate base class, defining
+appropriate methods and attributes, and putting the .py file containing the
+class into the "plugins" subdirectory under ``~/.workload_automation`` (or
+equivalent) where it will be automatically picked up by WA.
 
 
 Plugin Basics
-----------------
+--------------
 
 This sub-section covers things common to implementing plugins of all types. It
-is recommended you familiarize  yourself with the information here before
+is recommended you familiarize yourself with the information here before
 proceeding onto guidance for specific plugin types.
 
 .. _context:
@@ -280,7 +280,8 @@ As with other resources, host-side paths to the executable binary to be deployed
 should be obtained via the :ref:`resource resolver <resource-resolution>`. A
 special resource type, ``Executable`` is used to identify  a binary to be
 deployed. This is similar to the regular ``File`` resource, however it takes an
-additional parameter that specifies the ABI for which executable was compiled.
+additional parameter that specifies the ABI for which the executable was
+compiled for.
 
 In order for the binary to be obtained in this way, it must be stored in one of
 the locations scanned by the resource resolver in a directory structure
@@ -304,7 +305,8 @@ binary has been previously deployed by WA and will not try to re-install.
 
 
 .. note:: Please also note that the check is done based solely on the binary name.
-          For more information please see: :func:`devlib.target.Target.install_if_needed`
+          For more information please see the devlib
+          `documentation <http://devlib.readthedocs.io/en/latest/target.html#Target.install_if_needed>`_.
 
 Both of the above methods will return the path to the installed binary on the
 target. The executable should be invoked *only* via that path; do **not** assume
@@ -312,7 +314,7 @@ that it will be in ``PATH`` on the target (or that the executable with the same
 name in ``PATH`` is the version deployed by WA.
 
 For more information on how to implement this, please see the
-:ref:`how to guide <deploying-executables-example>`
+:ref:`how to guide <deploying-executables-example>`.
 
 
 Deploying assets
@@ -344,8 +346,8 @@ name
         Python identifier.
 
 kind
-        This is the type of the value of the parameter. This could be an
-        callable. Normally this should  be a standard Python type, e.g. ``int``
+        This is the type of the value of the parameter. This must be an
+        callable. Normally this should be a standard Python type, e.g. ``int``
         or ``float``, or one the types defined in :mod:`wa.utils.types`.
         If not explicitly specified, this will default to ``str``.
 
@@ -402,12 +404,12 @@ override
 Validation and cross-parameter constraints
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-An plugin will get validated at some point after constructions. When exactly
+A plugin will get validated at some point after construction. When exactly
 this occurs depends on the plugin type, but it *will* be validated before it
 is used.
 
 You can implement ``validate`` method in your plugin (that takes no arguments
-beyond the ``self``) to perform any additions *internal* validation in your
+beyond the ``self``) to perform any additional *internal* validation in your
 plugin. By "internal", I mean that you cannot make assumptions about the
 surrounding environment (e.g. that the device has been initialized).
 
@@ -476,7 +478,7 @@ notify the user. The exception would typically be :class:`ConfigError` or
 :class:`WorkloadError`/:class:`DeviceError`/:class:`InstrumentError`/:class:`OutputProcessorError`.
 All these errors are defined in :mod:`wa.framework.exception` module.
 
-:class:`ConfigError` should be raised where there is a problem in configuration
+A :class:`ConfigError` should be raised where there is a problem in configuration
 specified by the user (either through the agenda or config files). These errors
 are meant to be resolvable by simple adjustments to the configuration (and the
 error message should suggest what adjustments need to be made. For all other
@@ -606,9 +608,9 @@ Workload Interface
 ^^^^^^^^^^^^^^^^^^^
 The workload interface should be implemented as follows:
 
-    :name: This identifies the workload (e.g. it used to specify it in the
-           :ref:`agenda`.
-    :init_resources: This method may be optionally override to implement dynamic
+    :name: This identifies the workload (e.g. it is used to specify the workload
+        in the :ref:`agenda <agenda>`).
+    :init_resources: This method may be optionally overridden to implement dynamic
                      resource discovery for the workload. This method executes
                      early on, before the device has been initialized, so it
                      should only be used to initialize resources that do not
@@ -661,7 +663,7 @@ track of the current execution state (such as the current workload, iteration
 number, etc), and contains, among other things, a
 :class:`wa.framework.output.JobOutput` instance that should be populated from
 the ``update_output`` method with the results of the execution. For more
-information please see `the context`_ documentation.::
+information please see `the context`_ documentation. ::
 
         # ...
 
@@ -697,7 +699,7 @@ The revent workload classes define the following interfaces::
 The interface should be implemented as follows
 
     :name: This identifies the workload (e.g. it used to specify it in the
-           :ref:`agenda`.
+           :ref:`agenda <agenda>`.
     :package_names: This is a list of the android application apk packages names that
                     are required to run the workload.
 
@@ -714,11 +716,11 @@ Automation, the methods of the new instrument will be found automatically and
 hooked up to the supported signals. Once a signal is broadcasted, the
 corresponding registered method is invoked.
 
-Each method in Instrument must take two arguments, which are self and context.
-Supported method and their corresponding signals can be found in the
-:ref:`Signals Documentation <instruments_method_map>` To make implementations
-easier and common, the basic steps to add new instrument is similar to the steps
-to add new workload and an example can be found
+Each method in ``Instrument`` must take two arguments, which are ``self`` and
+``context``. Supported methods and their corresponding signals can be found in
+the :ref:`Signals Documentation <instruments_method_map>`. To make
+implementations easier and common, the basic steps to add new instrument is
+similar to the steps to add new workload and an example can be found
 :ref:`here <adding-an-instrument-example>`.
 
 .. _instrument-api:
@@ -787,7 +789,7 @@ The full interface of WA instruments is shown below::
             """
             pass
 
-This is similar to a Workload, except all methods are optional. In addition to
+This is similar to a ``Workload``, except all methods are optional. In addition to
 the workload-like methods, instruments can define a number of other methods that
 will get invoked at various points during run execution. The most useful of
 which is perhaps ``initialize`` that gets invoked after the device has been
@@ -861,11 +863,11 @@ Below is a simple instrument that measures the execution time of a workload::
             self.start_time = None
             self.end_time = None
 
-        @fast
+        @very_fast
         def start(self, context):
             self.start_time = time.time()
 
-        @fast
+        @very_fast
         def stop(self, context):
             self.end_time = time.time()
 
@@ -887,7 +889,7 @@ generating plots, etc. WA comes with a few output processors that output
 results in a few common formats (such as csv or JSON).
 
 You can add your own output processors by creating a Python file in
-``~/.workload_automation/result_processors`` with a class that derives from
+``~/.workload_automation/plugins`` with a class that derives from
 :class:`wa.OutputProcessor <wa.framework.processor.OutputProcessor>`, which has
 the following interface::
 
@@ -919,7 +921,7 @@ the following interface::
 
 
 The method names should be fairly self-explanatory. The difference between
-"process" and "export" methods is that export methods will be invoke after
+"process" and "export" methods is that export methods will be invoked after
 process methods for all output processors have been generated. Process methods
 may generated additional artifacts (metrics, files, etc), while export methods
 should not -- the should only handle existing results (upload them to  a
@@ -927,8 +929,7 @@ database, archive on a filer, etc).
 
 The output object passed to job methods is an instance of
 :class:`wa.framework.output.JobOutput`, the output object passed to run methods
-is an instance of :class:`wa.RunOutput <wa.framework.output.RunOutput>`. Please
-refer to their API documentation for details.
+is an instance of :class:`wa.RunOutput <wa.framework.output.RunOutput>`.
 
 
 Adding a Resource Getter
@@ -987,7 +988,7 @@ should typically be registered as ``preferred``.
 
 You don't have to stick to standard priority levels (though you should, unless
 there is a good reason). Any integer is a valid priority. The standard priorities
-range from 0 to 50 in increments of 10.
+range from 0 to 40 in increments of 10.
 
 Example
 ^^^^^^^
@@ -1036,9 +1037,9 @@ The currently available platforms are:
 
 The currently available targets from devlib are:
     :linux: A device running a Linux based OS.
-    :android: A device running the Android OS.
+    :android: A device running Android OS.
     :local: Used to run locally on a linux based host.
-    :chromeos: A device running chromeos, supporting an android container if available.
+    :chromeos: A device running ChromeOS, supporting an android container if available.
 
 For an example of adding you own customized version of an existing devlib target,
 please see the how to section :ref:`Adding a Custom Target <adding-custom-target-example>`.
@@ -1113,7 +1114,7 @@ management tools, e.g. ::
         sudo pip install my_wa_exts-0.0.1.tar.gz
 
 As part of the installation process, the setup.py in the package, will write the
-package's name into ``~/.workoad_automoation/packages``. This will tell WA that
+package's name into ``~/.workoad_automation/packages``. This will tell WA that
 the package contains plugin and it will load them next time it runs.
 
 .. note:: There are no uninstall hooks in ``setuputils``,  so if you ever

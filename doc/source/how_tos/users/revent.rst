@@ -94,7 +94,7 @@ command with an example output shown below::
     INFO     Recording(s) are available at: '$WA_USER_DIRECTORY/dependencies/angrybirds_rio/revent_files'
 
 Once you have made your desired recordings, you can either manually playback
-individual recordings using the :ref:`reply <replay-command>` command or, with
+individual recordings using the :ref:`replay <replay-command>` command or, with
 the recordings in the appropriate dependencies location, simply run the workload
 using the :ref:`run <run-command>` command and then all the available recordings will be
 played back automatically.

@@ -227,7 +227,7 @@ which contains addional information about how to build and to use the file.
 Some WA plugins have additional dependencies that need to be
 satisfied before they can be used. Not all of these can be provided with WA and
 so will need to be supplied by the user. They should be placed into
-``~/.workload_uatomation/dependencies/<extension name>`` so that WA can find
+``~/.workload_automation/dependencies/<extension name>`` so that WA can find
 them (you may need to create the directory if it doesn't already exist). You
 only need to provide the dependencies for workloads you want to use.
 
@@ -237,16 +237,16 @@ APK Files
 ---------
 
 APKs are application packages used by Android. These are necessary to install on
-a device when running an :ref:`ApkWorkload <apk-workload>` or derivative. PLease
-see the workload description using the :ref:`show command <show-command>` to see
+a device when running an :ref:`ApkWorkload <apk-workload>` or derivative. Please
+see the workload description using the :ref:`show <show-command>` command to see
 which version of the apk the UI automation has been tested with and place the
-apk in the corresponding Automation may also work with other versions
-(especially if it's only a minor or revision difference -- major version
-differences are more likely to contain incompatible UI changes) but this has not
-been tested. As a general rule we do not guarantee support for the latest
-version of an app and they are updated on as needed basis. We do however attempt
-to support backwards compatibility with previous major releases however beyond
-this support will likely be dropped.
+apk in the corresponding workloads dependency folder. Automation may also work
+with other versions (especially if it's only a minor or revision difference --
+major version differences are more likely to contain incompatible UI changes)
+but this has not been tested. As a general rule we do not guarantee support for
+the latest version of an app and they are updated on an as needed basis. We do
+however attempt to support backwards compatibility with previous major releases
+however beyond this support will likely be dropped.
 
 
 Gaming Workloads

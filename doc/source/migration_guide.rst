@@ -15,12 +15,12 @@ Configuration
 
 Default configuration file change
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Instead of the standard ``config.py`` file located at ``$WA_USER_HOME/config.py`
-WA not use a ``confg.yaml`` files which is written in the YAML format instead of
-python. Additionally upon first invocation WA3 will automatically try and detect
-whether a WA2 config file is present and convert it to use the new WA3 format.
-During this process any know parameter name changes should be detected and
-updated accordingly.
+Instead of the standard ``config.py`` file located at
+``$WA_USER_HOME/config.py`` WA now uses a ``confg.yaml`` file (at the same
+location) which is written in the YAML format instead of python. Additionally
+upon first invocation WA3 will automatically try and detect whether a WA2 config
+file is present and convert it to use the new WA3 format. During this process
+any known parameter name changes should be detected and updated accordingly.
 
 Plugin Changes
 ^^^^^^^^^^^^^^^
@@ -78,7 +78,7 @@ the new parameter names should be preferred:
 
 - The workload parameter :confval:`check_apk` has been renamed to
   :confval:`prefer_host_package` to be more explicit in it's functionality to indicated
-  whether a package on the target for the host should have priority when
+  whether a package on the target or the host should have priority when
   searching for a suitable package.
 
 Individual workload parameters have been attempted to be standardized for the
@@ -110,7 +110,7 @@ moved into a ``__failed`` subdirectory to allow for quicker analysis.
 Output API
 ~~~~~~~~~~
 There is now an Output API which can be used to more easily post process the
-output from a workload. For more information please see the
+output from a run. For more information please see the
 :ref:`Output API <output-api>` documentation.
 
 
@@ -155,15 +155,15 @@ Workloads
 
 Python Workload Structure
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-The ``update_results`` method has been split out into 2 stages. There is now
-``extract_results`` and ``update_output`` which should be used for extracting
-any results from the target back to the host system and to update the output
-with any metrics or artefacts for the specific workload iteration respectively.
+- The ``update_results`` method has been split out into 2 stages. There is now
+  ``extract_results`` and ``update_output`` which should be used for extracting
+  any results from the target back to the host system and to update the output
+  with any metrics or artefacts for the specific workload iteration respectively.
 
-WA now features :ref:`decorators <decorators>` which can be used to allow for more efficient
-binary deployment and that they are only installed to the device once per run. For
-more information of implementing this please see
-:ref:`deploying executables to a target <deploying-executables>`.
+- WA now features :ref:`decorators <decorators>` which can be used to allow for more efficient
+  binary deployment and that they are only installed to the device once per run. For
+  more information of implementing this please see
+  :ref:`deploying executables to a target <deploying-executables>`.
 
 
 APK Functionality
@@ -176,27 +176,25 @@ available as the apk attribute of the workload. This means that for example
 UiAutomator Java Structure
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 Instead of a single ``runUiAutomation`` method to perform all of the UiAutomation,
-the structure has been refactored into 4 methods that can optionally be overridden.
+the structure has been refactored into 5 methods that can optionally be overridden.
 The available methods are ``initialize``, ``setup``, ``runWorkload``, ``extactResults``
 and ``teardown`` to better mimic the different stages in the python workload.
 
 
-``initialize`` should have the ``@Before`` tag attached to the method which will cause it
-to be ran before each of the stages of the workload. This method should be used to retrieve
-and set any relevant parameters required during the workload.
+  - ``initialize`` should be used to retrieve
+    and set any relevant parameters required during the workload.
+  - ``setup`` should be used to perform any setup required for the workload, for
+    example dismissing popups or configuring and required settings.
+  - ``runWorkload`` should be used to perform the actual measurable work of the workload.
+  - ``extractResults`` should be used to extract any relevant results from the
+    target after the workload has been completed.
+  - ``teardown`` should be used to perform any final clean up of the workload on the target.
 
-The remaining method all have the ``@Test`` tag attached to the method to indicate that this
-is a test stage that should be called at the appropriate time.
-
-``setup`` should be used to perform any setup required for the workload, for
-example dismissing popups or configuring and required settings.
-
-``runWorkload`` should be used to perform the actual measurable work of the workload.
-
-``extractResults`` should be used to extract any relevant results from the
-target after the workload has been completed.
-
-``teardown`` should be used to perform any final clean up of the workload on the target.
+.. note:: The ``initialize`` method should have the ``@Before`` tag attached
+     to the method which will cause it   to be ran before each of the stages of
+     the workload.  The remaining method should all have the ``@Test`` tag
+     attached to the method to indicate that this is a test stage that should be
+     called at the appropriate time.
 
 GUI Functionality
 ^^^^^^^^^^^^^^^^^
@@ -208,28 +206,26 @@ you wish to pass parameters to a UiAuotmator workload you will now need to use
 
 Attributes
 ^^^^^^^^^^
-The ``device`` attribute of the workload is now a devlib ``target``. Some of the
-command names remain the same, however there will be differences. The API can be
-found here: http://devlib.readthedocs.io/en/latest/target.html however some of
-the more common changes can be found below:
+- The old ``package`` attribute has been replaced by ``package_names`` which
+  expects a list of strings which allows for multiple package names to be
+  specified if required. It is also no longer required to explicitly state the
+  launch-able activity, this will be automatically discovered from the apk so this
+  workload attribute can be removed.
+
+- The ``device`` attribute of the workload is now a devlib ``target``. Some of the
+  command names remain the same, however there will be differences. The API can be
+  found at http://devlib.readthedocs.io/en/latest/target.html however some of
+  the more common changes can be found below:
 
 
-+----------------------------------------------+---------------------------------+
-| Original Method                              | New Method                      |
-+----------------------------------------------+---------------------------------+
-|``self.device.pull_file(file)``               | ``self.target.pull(file)``      |
-+----------------------------------------------+---------------------------------+
-|``self.device.push_file(file)``               | ``self.target.push(file)``      |
-+----------------------------------------------+---------------------------------+
-|``self.device.install_executable(file)``      |  ``self.target.install(file)``  |
-+----------------------------------------------+---------------------------------+
-|``self.device.execute(cmd, background=True)`` |  ``self.target.background(cmd)``|
-+----------------------------------------------+---------------------------------+
-
-
-The old ``package`` attribute has been replaced by ``package_names`` which
-expects a list of strings which allows for multiple package names to be
-specified if required. It is also no longer required to explicitly state the
-launch-able activity, this will be automatically discovered from the apk so this
-workload attribute can be removed.
-
+  +----------------------------------------------+---------------------------------+
+  | Original Method                              | New Method                      |
+  +----------------------------------------------+---------------------------------+
+  |``self.device.pull_file(file)``               | ``self.target.pull(file)``      |
+  +----------------------------------------------+---------------------------------+
+  |``self.device.push_file(file)``               | ``self.target.push(file)``      |
+  +----------------------------------------------+---------------------------------+
+  |``self.device.install_executable(file)``      |  ``self.target.install(file)``  |
+  +----------------------------------------------+---------------------------------+
+  |``self.device.execute(cmd, background=True)`` |  ``self.target.background(cmd)``|
+  +----------------------------------------------+---------------------------------+

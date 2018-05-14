@@ -67,7 +67,7 @@ List Command
 ============
 
 In order to get started with using WA we first we need to find
-out what is available to use. In order to do this we can use the "list"
+out what is available to use. In order to do this we can use the :ref:`list <list-command>`
 command followed by the type of plugin that you wish to see.
 
 For example to see what workloads are available along with a short description
@@ -97,7 +97,9 @@ Which will give an output in the format of:
 
 The same syntax can be used to display ``commands``,
 ``energy_instrument_backends``, ``instruments``, ``output_processors``,
-``resource_getters`` and ``targets``. Alternatively please see the
+``resource_getters``, ``targets``. Once you have found the plugin you are
+looking for you can use the :ref:`show <show-command>` command to display more
+detailed information.  Alternatively please see the
 :ref:`Plugin Reference <plugin-reference>` for an online version.
 
 Show Command
@@ -141,13 +143,14 @@ configuration file which will in turn overwrite the default configuration file.
 Android
 -------
 
-By default, the device is set to 'generic_android'. WA is configured to work
-with a generic Android device through ``adb``. If you only have one device listed
-when you execute ``adb devices``, and your device has a standard Android
-configuration, then no extra configuration is required.
+By default, the device WA will use is set to 'generic_android'. WA is configured
+to work with a generic Android device through ``adb``. If you only have one
+device listed when you execute ``adb devices``, and your device has a standard
+Android configuration, then no extra configuration is required.
 
-However, if your device is connected via network, you will have to manually execute
-``adb connect <device ip>`` so that it appears in the device listing.
+However, if your device is connected via network, you will have to manually
+execute ``adb connect <device ip>`` (or specify this in your
+:ref:`agenda <agenda>`) so that it appears in the device listing.
 
 If you have multiple devices connected, you will need to tell WA which one you
 want it to use. You can do that by setting ``device`` in the device_config section.

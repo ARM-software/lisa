@@ -14,22 +14,27 @@ Example
 ^^^^^^^
 Say we want to perform an experiment on an Android big.LITTLE devices to compare
 the power consumption between the big and LITTLE clusters running the dhrystone
-workload. Assuming we have additional instrumentation active for this device
-that we can measure the power the device is consuming, to reduce external
-factors we want to ensure that the device has its screen turned off and that it
-is in airplane mode turned on for both tests. We will then run 2 :ref:`sections
-<sections>` will each enable a single cluster on the device, set the cores to their
-maximum frequency and disable all available idle states.
+and benchmarkpi workloads. Assuming we have additional instrumentation active
+for this device that can measure the power the device is consuming, to reduce
+external factors we want to ensure that the device is in airplane mode turned on
+for all our tests and the screen is off only for our dhrystone run. We will then
+run 2 :ref:`sections <sections>` will each enable a single cluster on the
+device, set the cores to their maximum frequency and disable all available idle
+states.
 
 .. code-block:: yaml
 
+        config:
+            runtime_parameters:
+                  airplane_mode: true
         #..
         workloads:
                 - name: dhrystone
                   iterations: 1
                   runtime_parameters:
-                        airplane_mode: true
                         screen_on: false
+                - name: benchmarkpi
+                  iterations: 1
         sections:
                 - id: LITTLES
                   runtime_parameters:
@@ -167,8 +172,9 @@ CPUIdle
 ^^^^^^^
 
 :idle_states: A ``string`` or list of strings which can be used to specify what
-            idles states should be enabled for all cores if there are common frequencies
-            available. 'all' and 'none' are also valid entries as a shorthand
+            idles states should be enabled for all cores if there are common
+            idle states available. 'all' and 'none' are also valid entries as a
+            shorthand
 
 :<core_name>_idle_states: A ``string`` or list of strings which can be used to
                           specify what idles states should be enabled for cores of a particular type
@@ -200,7 +206,7 @@ Android Specific Runtime Parameters
     entries are ``NATURAL``, ``LEFT``, ``INVERTED``, ``RIGHT``.
 
 :screen_on: A ``boolean`` to specify whether the devices screen should be
-    turned on. Defaults to ``true``.
+    turned on. Defaults to ``True``.
 
 .. _setting-sysfiles:
 
@@ -209,18 +215,19 @@ Setting Sysfiles
 In order to perform additional configuration of a target the ``sysfile_values``
 runtime parameter can be used. The value for this parameter is a mapping (an
 associative array, in YAML) of file paths onto values that should be written
-into those files. sysfile_values is the only runtime parameter that is available
-for any (Linux) device. Other runtime parameters will depend on the specifics of
-the device used (e.g. its CPU cores configuration) as detailed above.
+into those files. ``sysfile_values`` is the only runtime parameter that is
+available for any (Linux) device. Other runtime parameters will depend on the
+specifics of the device used (e.g. its CPU cores configuration) as detailed
+above.
 
-.. note:: By default WA will attempt to verify that the sysfile value was
+.. note:: By default WA will attempt to verify that the any sysfile values were
    written correctly by reading the node back and comparing the two values. If
    you do not wish this check to happen, for example the node you are writing to
    is write only, you can append an ``!`` to the file path to disable this
    verification.
 
 For example the following configuration could be used to enable and verify that cpu0
-is online, however will not attempt to check that it's governor have been set to
+is online, however will not attempt to check that its governor have been set to
 userspace::
 
                 - name: dhrystone

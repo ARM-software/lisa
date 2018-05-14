@@ -37,8 +37,8 @@ class Geekbench(ApkUiautoWorkload):
     Geekbench scores are calibrated against a baseline score of 1,000 (which is
     the score of a single-processor Power Mac G5 @ 1.6GHz). Higher scores are
     better, with double the score indicating double the performance.
-    The benchmarks fall into one of four categories:
 
+    The benchmarks fall into one of four categories:
         - integer performance.
         - floating point performance.
         - memory performance.

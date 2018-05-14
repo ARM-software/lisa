@@ -652,7 +652,7 @@ class RunConfiguration(Configuration):
             The maximum number of times failed jobs will be retried before
             giving up. If not set.
 
-            .. note:: this number does not include the original attempt
+            .. note:: This number does not include the original attempt
             ''',
         ),
         ConfigurationPoint(

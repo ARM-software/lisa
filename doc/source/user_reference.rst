@@ -12,5 +12,14 @@ User Reference
 ---------------------------------------------------------------
 
 .. include:: user_reference/configuration.rst
+
+-------------------
+
 .. include:: user_reference/invocation.rst
+
+-------------------
+
 .. include:: user_reference/output_directory.rst
+
+
+

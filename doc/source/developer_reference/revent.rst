@@ -26,8 +26,8 @@ Only the run stage is mandatory, the remaining stages will be replayed if a
 recording is present otherwise no actions will be performed for that particular
 stage.
 
-For instance, to add a custom revent files for a device named mydevice and
-a workload name myworkload, you need to add the revent files to the directory
+For instance, to add a custom revent files for a device named "mydevice" and
+a workload name "myworkload", you need to add the revent files to the directory
 ``/home/$WA_USER_HOME/dependencies/myworkload/revent_files`` creating it if
 necessary. ::
 

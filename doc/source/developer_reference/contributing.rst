@@ -1,7 +1,7 @@
 Contributing Code
 =================
 
-We welcome code contributions via GitHub pull requests.To help with
+We welcome code contributions via GitHub pull requests. To help with
 maintainability of the code line we ask that the code uses a coding style
 consistent with the rest of WA code. Briefly, it is
 
@@ -16,7 +16,7 @@ consistent with the rest of WA code. Briefly, it is
   "stats" for "statistics", "config" for "configuration", etc are OK). Do
   *not* use Hungarian notation (so prefer ``birth_date`` over ``dtBirth``).
 
-New extensions should also follow implementation guidelines specified in
+New extensions should also follow implementation guidelines specified in the
 :ref:`writing-plugins` section of the documentation.
 
 We ask that the following checks are performed on the modified code prior to

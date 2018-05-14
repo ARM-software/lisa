@@ -37,8 +37,8 @@ install the application onto the device or source the apk and place into
 **Q:** I am trying to set a valid runtime parameters however I still receive the error ``"Unknown runtime parameter"``
 -------------------------------------------------------------------------------------------------------------------------
 
-**A:** PLease ensure you have the corresponding module loaded on the device.
-Please see :ref:`Runtime Parameters <runtime-parameters>` for the list of
+**A:** Please ensure you have the corresponding module loaded on the device.
+See :ref:`Runtime Parameters <runtime-parameters>` for the list of
 runtime parameters and their containing modules, and the appropriate section in
 :ref:`setting up a device <setting-up-a-device>` for ensuring it is installed.
 

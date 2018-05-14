@@ -20,12 +20,11 @@ Android
 General Device Setup
 ^^^^^^^^^^^^^^^^^^^^
 
-You can specify the device interface by setting ``device`` setting in
-``~/.workload_automation/config.yaml``. Available interfaces can be viewed by
-running ``wa list targets`` command. If you don't see your specific platform
-listed (which is likely unless you're using one of the Arm-supplied platforms), then
-you should use ``generic_android`` interface (this is set in the config by
-default).
+You can specify the device interface by setting ``device`` setting in a
+``config`` file or section. Available interfaces can be viewed by running ``wa
+list targets`` command. If you don't see your specific platform listed (which is
+likely unless you're using one of the Arm-supplied platforms), then you should
+use ``generic_android`` interface (this is what is used by the default config).
 
 .. code-block:: yaml
 
@@ -38,7 +37,8 @@ common parameters you might want to change are outlined below.
 .. confval:: device
 
    If you have multiple Android devices connected to the host machine, you will
-   need to set this to indicate to WA which device you want it to use.
+   need to set this to indicate to WA which device you want it to use. The will
+   be the adb name the is displayed when running ``adb devices``
 
 .. confval:: working_directory
 
@@ -81,7 +81,7 @@ A typical ``device_config`` inside ``config.yaml`` may look something like
 
         device_config:
                 device: 0123456789ABCDEF
-                # ...
+        # ...
 
 
 or a more specific config could be be
@@ -172,12 +172,11 @@ Linux
 General Device Setup
 ^^^^^^^^^^^^^^^^^^^^
 
-You can specify the device interface by setting ``device`` setting in
-``~/.workload_automation/config.yaml``. Available interfaces can be viewed by
-running ``wa list targets`` command. If you don't see your specific platform
-listed (which is likely unless you're using one of the Arm-supplied platforms), then
-you should use ``generic_linux`` interface (this is set in the config by
-default).
+You can specify the device interface by setting ``device`` setting in a
+``config`` file or section. Available interfaces can be viewed by running
+``wa list targets`` command. If you don't see your specific platform listed
+(which is likely unless you're using one of the Arm-supplied platforms), then
+you should use ``generic_linux`` interface.
 
 .. code-block:: yaml
 
@@ -239,25 +238,24 @@ Chrome OS
 General Device Setup
 ^^^^^^^^^^^^^^^^^^^^
 
-You can specify the device interface by setting ``device`` setting in
-``~/.workload_automation/config.yaml``. Available interfaces can be viewed by
+You can specify the device interface by setting ``device`` setting in a
+``config`` file or section. Available interfaces can be viewed by
 running ``wa list targets`` command. If you don't see your specific platform
 listed (which is likely unless you're using one of the Arm-supplied platforms), then
-you should use ``generic_chromeos`` interface (this is set in the config by
-default).
+you should use ``generic_chromeos`` interface.
 
 .. code-block:: yaml
 
         device: generic_chromeos
 
 The device interface may be configured through ``device_config`` setting, who's
-value is a ``dict`` mapping setting names to their values. The chrome os target
+value is a ``dict`` mapping setting names to their values. The ChromeOS target
 is essentially the same as a linux device and requires a similar setup, however
 it also optionally supports connecting to an android container running on the
-device which will be automatically deted if present. If the device supports
+device which will be automatically detected if present. If the device supports
 android applications then the android configuration is also supported. In order
-to support this then WA will open 2 connections to the device, one via SSH to
-the main ChomeOS OS and another via ADB to the android container where a limited
+to support this WA will open 2 connections to the device, one via SSH to
+the main OS and another via ADB to the android container where a limited
 subset of functionality can be performed.
 
 In order to distinguish between the two connections some of the android specific
