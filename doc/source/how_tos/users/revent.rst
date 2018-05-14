@@ -1,7 +1,7 @@
 .. _revent_files_creation:
 
-Revent
-======
+Automating GUI Interactions With Revent
+=======================================
 
 Overview and Usage
 ------------------

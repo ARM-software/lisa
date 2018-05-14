@@ -1,7 +1,7 @@
 .. _agenda:
 
-Agenda
-======
+Defining Experiments With an Agenda
+===================================
 
 An agenda specifies what is to be done during a Workload Automation run,
 including which workloads will be run, with what configuration, which
