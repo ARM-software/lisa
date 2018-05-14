@@ -23,7 +23,6 @@
 import sys
 import os
 import shlex
-from sphinx.apidoc import main
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(this_dir, '..'))
@@ -306,19 +305,11 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
 
-def run_apidoc(_):
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    cur_dir = os.path.abspath(os.path.dirname(__file__))
-    api_output = os.path.join(cur_dir, 'api')
-    module = os.path.join(cur_dir, '..', '..', 'wa')
-    main(['-f', '-o', api_output, module, '--force'])
-
 def setup(app):
     module_dir = os.path.join('..', '..', 'wa')
     excluded_extensions = [os.path.join(module_dir, 'framework'),
                            os.path.join(module_dir, 'tests')]
     os.chdir(os.path.dirname(__file__))
-    app.connect('builder-inited', run_apidoc)
     generate_plugin_documentation(module_dir, 'plugins', excluded_extensions)
     generate_target_documentation('plugins')
     generate_run_config_documentation('run_config')

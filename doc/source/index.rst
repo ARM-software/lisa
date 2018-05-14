@@ -80,7 +80,6 @@ References
    :maxdepth: 2
 
    plugins
-   api_reference
 
 .. :ref:`FAQ <faq>`
 .. ================

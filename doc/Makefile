@@ -18,7 +18,6 @@ WAEXTOPTS     = source/plugins ../wa ../wa/tests ../wa/framework
 PAPEROPT_a4     = -D latex_paper_size=a4
 PAPEROPT_letter = -D latex_paper_size=letter
 ALLSPHINXOPTS   = -d $(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) source
-ALLSPHINXAPIOPTS = -f $(SPHINXAPIOPTS) -o source/api ../wa
 # the i18n builder cannot share the environment and doctrees with the others
 I18NSPHINXOPTS  = $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) source
 
@@ -49,7 +48,6 @@ help:
 
 clean:
 	rm -rf $(BUILDDIR)/*
-	rm -rf source/api/*
 	rm -rf source/plugins/*
 	rm -rf source/developer_reference/instrument_method_map.rst
 
