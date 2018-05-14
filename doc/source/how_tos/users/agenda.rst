@@ -48,6 +48,10 @@ config.yaml (see :ref:`configuration-specification` section).
           same structure by the YAML parser. You can use whatever format you
           find easier/clearer.
 
+.. note:: WA plugin names are case-insensitive, and dashes (``-``) and
+          underscores (``_``) are treated identically. So all of the following
+          entries specify the same workload: ``rt_app``, ``rt-app``, ``RT-app``.
+
 Multiple iterations
 -------------------
 
