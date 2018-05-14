@@ -81,7 +81,7 @@ class Jankbench(ApkWorkload):
 
                   This defaults to ``True`` for rooted devices and ``False`` otherwise.
                   '''),
-        Parameter('run_timeout', kind=int, default=10 * 60,
+        Parameter('timeout', kind=int, default=10 * 60, aliases=['run_timeout'],
                   description="""
                   Time out for workload execution. The workload will be killed if it hasn't completed
                   within this period.
@@ -102,13 +102,13 @@ class Jankbench(ApkWorkload):
         self.monitor.start()
 
     def run(self, context):
-        result = self.target.execute(self.command, timeout=self.run_timeout)
+        result = self.target.execute(self.command, timeout=self.timeout)
         if 'FAILURE' in result:
             raise WorkloadError(result)
         else:
             self.logger.debug(result)
         self.target.sleep(DELAY)
-        self.monitor.wait_for_run_end(self.run_timeout)
+        self.monitor.wait_for_run_end(self.timeout)
 
     def extract_results(self, context):
         self.monitor.stop()

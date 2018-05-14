@@ -205,11 +205,12 @@ class Meabo(Workload):
             default=2097152,
         ),
         Parameter(
-            'run_timeout',
+            'timeout',
             kind=int,
             description="""
             Timeout for execution of the test.
             """,
+            aliases=['run_timeout'],
             constraint=lambda x: x > 0,
             default=60 * 45,
         ),
@@ -245,7 +246,7 @@ class Meabo(Workload):
 
     def run(self, context):
         self.output = self.target.execute(self.command,
-                                          timeout=self.run_timeout)
+                                          timeout=self.timeout)
 
     def update_output(self, context):
         if self.output is None:
