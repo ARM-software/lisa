@@ -27,3 +27,4 @@ libs/armeabi
 **/uiauto/**/proguard-rules.pro
 **/uiauto/app/libs/
 **/uiauto/*.properties
+doc/source/developer_reference/instrument_method_map.rst
