@@ -25,7 +25,7 @@ def kernel_version_from_pod(pod):
         if version_string:
             kernel_string = '{} #{}'.format(release_string, version_string)
         else:
-            kerne_string = release_string
+            kernel_string = release_string
     else:
         kernel_string = '#{}'.format(version_string)
     return KernelVersion(kernel_string)
