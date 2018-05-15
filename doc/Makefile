@@ -50,6 +50,7 @@ clean:
 	rm -rf $(BUILDDIR)/*
 	rm -rf source/plugins/*
 	rm -rf source/developer_reference/instrument_method_map.rst
+	rm -rf source/run_config/*
 
 coverage:
 	$(SPHINXBUILD) -b coverage $(ALLSPHINXOPTS) $(BUILDDIR)/coverage
