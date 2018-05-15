@@ -110,9 +110,9 @@ You can use the same syntax to quickly display information about ``commands``,
 Show
 ----
 
-This will show detailed information about an plugin, including more in-depth
-description and any parameters/configuration that are available.  For example
-executing ::
+This will show detailed information about an plugin (workloads, targets,
+instruments etc.), including a full description and any relevant
+parameters/configuration that are available. For example executing ::
 
         wa show benchmarkpi
 
@@ -138,7 +138,7 @@ will produce something like: ::
         number, but an approximation near the first digits of Pi over the same
         calculation circles the algorithms needs.
 
-        So, the number you are getting in miliseconds is the time your mobile device
+        So, the number you are getting in milliseconds is the time your mobile device
         takes to run and complete the Pi calculation algorithm resulting in a
         approximation of the first Pi digits.
 
@@ -189,6 +189,8 @@ will produce something like: ::
             by other plugins or post-processing scripts to provide
             measurments or statistics for specific parts of the workload
             execution.
+
+.. note:: You can also use this command to view global settings by using ``wa show settings``
 
 
 .. _create-command:

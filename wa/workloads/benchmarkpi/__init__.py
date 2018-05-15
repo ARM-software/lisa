@@ -31,7 +31,7 @@ class BenchmarkPi(ApkUiautoWorkload):
     from the website:
 
     The whole idea behind this application is to use the same Pi calculation
-    algorithm on every Android Device and check how fast that proccess is.
+    algorithm on every Android Device and check how fast that process is.
     Better calculation times, conclude to faster Android devices. This way you
     can also check how lightweight your custom made Android build is. Or not.
 
@@ -39,7 +39,7 @@ class BenchmarkPi(ApkUiautoWorkload):
     number, but an approximation near the first digits of Pi over the same
     calculation circles the algorithms needs.
 
-    So, the number you are getting in miliseconds is the time your mobile device
+    So, the number you are getting in milliseconds is the time your mobile device
     takes to run and complete the Pi calculation algorithm resulting in a
     approximation of the first Pi digits.
     """
