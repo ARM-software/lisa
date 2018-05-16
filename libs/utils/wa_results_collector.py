@@ -23,6 +23,7 @@ import pandas as pd
 import subprocess
 import logging
 import warnings
+import sqlite3
 
 from scipy.stats import ttest_ind
 import matplotlib.cm as cm
@@ -446,6 +447,14 @@ class WaResultsCollector(object):
 
         if 'jankbench_results_csv' in artifacts:
             df = pd.read_csv(artifacts['jankbench_results_csv'])
+            df = pd.DataFrame({'value': df['total_duration']})
+            df.loc[:, 'metric'] = 'frame_total_duration'
+            df.loc[:, 'units'] = 'ms'
+
+            extra_metric_list.append(df)
+        elif 'jankbench-results' in artifacts:
+            con = sqlite3.connect(artifacts['jankbench-results'])
+            df = pd.read_sql_query("SELECT _id, name, run_id, iteration, total_duration, jank_frame from ui_results", con)
             df = pd.DataFrame({'value': df['total_duration']})
             df.loc[:, 'metric'] = 'frame_total_duration'
             df.loc[:, 'units'] = 'ms'
