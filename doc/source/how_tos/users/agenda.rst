@@ -301,8 +301,8 @@ to all specs within an agenda (and therefore with a single WA run). If an ID
 isn't explicitly specified using ``id`` field (note that the field name is in
 lower case), one will be automatically assigned to the spec at the beginning of
 the WA run based on the position of the spec within the list. The first spec
-*without an explicit ID* will be assigned ID ``1``, the second spec *without an
-explicit ID*  will be assigned ID ``2``, and so forth.
+*without an explicit ID* will be assigned ID ``wk1``, the second spec *without an
+explicit ID*  will be assigned ID ``wk2``, and so forth.
 
 Numerical IDs aren't particularly easy to deal with, which is why it is
 recommended that, for non-trivial agendas, you manually set the ids to something
