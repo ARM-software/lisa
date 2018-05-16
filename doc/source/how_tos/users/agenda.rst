@@ -437,20 +437,19 @@ Sections
 --------
 
 It is a common requirement to be able to run the same set of workloads under
-different device configurations. E.g. you may want to investigate impact of
+different device configurations. E.g. you may want to investigate the impact of
 changing a particular setting to different values on the benchmark scores, or to
 quantify the impact of enabling a particular feature in the kernel. WA allows
 this by defining "sections" of configuration with an agenda.
 
-For example, suppose what we really want, is to measure the impact of using
-interactive cpufreq governor vs the performance governor on the three
-benchmarks. We could create another three workload spec entries similar to the
-ones we already have and change the sysfile value being set to "interactive".
-However, this introduces a lot of duplication; and what if we want to change
-spec configuration? We would have to change it in multiple places, running the
-risk of forgetting one.
+For example, suppose that we want to measure the impact of using 3 different
+cpufreq governors on 2 benchmarks. We could create 6 separate workload specs
+and set the governor runtime parameter for each entry. However, this
+introduces a lot of duplication; and what if we want to change spec
+configuration? We would have to change it in multiple places, running the risk
+of forgetting one.
 
-A better way is to keep the three workload specs and define a section for each
+A better way is to keep the two workload specs and define a section for each
 governor:
 
 .. code-block:: yaml
@@ -471,6 +470,9 @@ governor:
                 - id: inter
                   runtime_params:
                         cpu0_governor: interactive
+                - id: sched
+                  runtime_params:
+                        cpu0_governor: sched
         workloads:
                 - id: 01_dhry
                   name: dhrystone
