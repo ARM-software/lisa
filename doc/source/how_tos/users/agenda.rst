@@ -219,11 +219,7 @@ cpu0 and cpu4 will affect all our cores) e.g.
                 iterations: 10
 
 Here, we're specifying a ``sysfile_values`` runtime parameter for the device.
-The value for this parameter is a mapping (an associative array, in YAML) of
-file paths onto values that should be written into those files. Runtime
-parameters will depend on the specifics of the device used (e.g. its CPU cores
-configuration).
-
+For more information please see :ref:`setting sysfiles <setting-sysfiles>`.
 
 APK Workloads
 ^^^^^^^^^^^^^
