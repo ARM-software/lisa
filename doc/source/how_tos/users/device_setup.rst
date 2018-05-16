@@ -124,7 +124,7 @@ Juno Setup
 
 The full software stack can be obtained from Linaro:
 
-https://releases.linaro.org/14.08/members/arm/android/images/armv8-android-juno-lsk
+https://releases.linaro.org/android/images/lcr-reference-juno/latest/
 
 Please follow the instructions on the "Binary Image Installation" tab on that
 page. More up-to-date firmware and kernel may also be obtained by registered
