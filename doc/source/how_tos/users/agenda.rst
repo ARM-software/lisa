@@ -261,19 +261,17 @@ exact behaviours are outlined below.
 
    This parameter is used to specify a preference over host or target versions
    of the app. When set to ``True`` WA will prefer the host side version of the
-   APK. It will check if the host has the APK and if the host APK meets the
-   version requirements of the workload. If does and the target already has same
-   version nothing will be done, other wise it will overwrite the targets app
-   with the host version. If the hosts is missing the APK or it does not meet
-   version requirements WA will fall back to the app on the target if it has the
-   app and it is of a suitable version. When this parameter is set to ``false``
-   WA will prefer to use the version already on the target if it meets the
-   workloads version requirements. If it does not it will fall back to search
-   the host for the correct version. In both modes if neither the host nor
-   target have a suitable version, WA will error and not run the workload.
-
-Some workloads will also feature the follow parameters which will alter the way
-their APK files are resolved.
+   APK. It will check if the host has the APK and whether it meets the version
+   requirements of the workload. If so, and the target also already has same
+   version nothing will be done, otherwise WA will overwrite the targets
+   installed application with the host version. If the host is missing the APK
+   or it does not meet version requirements WA will fall back to the app on the
+   target if present and is a suitable version. When this parameter is set to
+   ``False`` WA will prefer to use the version already on the target if it meets
+   the workloads version requirements. If it does not it will fall back to
+   searching the host for the correct version. In both modes if neither the host
+   nor target have a suitable version, WA will produce and error and will not
+   run the workload.
 
 .. confval:: version
 
