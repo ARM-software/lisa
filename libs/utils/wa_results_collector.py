@@ -254,6 +254,10 @@ class WaResultsCollector(object):
                 # If not, some workloads have a 'test' workload_parameter, try
                 # using that
                 test = job['workload_parameters']['test']
+            elif 'test_ids' in job['workload_parameters']:
+                # If not, some workloads have a 'test_ids' workload_parameter, try
+                # using that
+                test = job['workload_parameters']['test_ids']
             else:
                 # Otherwise just use the workload name.
                 # This isn't ideal because it means the results from jobs with
