@@ -4,10 +4,19 @@
 Welcome to Documentation for Workload Automation
 ================================================
 
-Workload Automation (WA) is a framework for running workloads on real hardware devices. WA
-supports a number of output formats as well as additional instruments (such as Streamline
-traces). A number of workloads are included with the framework.
+Workload Automation (WA) is a framework for executing workloads and collecting
+measurements on Android and Linux devices. WA includes automation for nearly 30
+workloads, some common instrumentation (ftrace, hwmon). A number of output
+formats are supported.
 
+Workload Automation is designed primarily as a developer tool/framework to
+facilitate data driven development by providing a method of collecting
+measurements from a device in a repeatable way.
+
+Workload Automation is highly extensible. Most of the concrete functionality is
+implemented via :ref:`plug-ins <plugin-reference>`, and it is easy to
+:ref:`write new plug-ins <writing-plugins>` to support new device types,
+workloads, instruments or output processing.
 
 .. contents:: Contents
 
@@ -52,14 +61,6 @@ FAQ
 
    faq
 
-.. User Reference
-.. ===============
-
-.. .. toctree::
-..    :maxdepth: 2
-
-
-
 .. _in-depth:
 
 Developer Information
@@ -81,9 +82,6 @@ References
    :maxdepth: 2
 
    plugins
-
-.. :ref:`FAQ <faq>`
-.. ================
 
 .. Indices and tables
 .. ==================
