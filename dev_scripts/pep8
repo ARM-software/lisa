@@ -1,12 +1,11 @@
 #!/bin/bash
 
 DEFAULT_DIRS=(
-	wlauto
-	wlauto/external/daq_server/src/daqpower
+        wa
 )
 
-EXCLUDE=wlauto/external/,wlauto/tests
-EXCLUDE_COMMA=wlauto/core/bootstrap.py,wlauto/workloads/geekbench/__init__.py
+EXCLUDE=wa/tests
+EXCLUDE_COMMA=
 IGNORE=E501,E265,E266,W391,E401,E402,E731
 
 if ! hash pep8 2>/dev/null; then
