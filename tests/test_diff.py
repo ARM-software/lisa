@@ -22,7 +22,7 @@ from unittest import TestCase
 
 from nose.tools import assert_equal
 
-from wa.instrumentation.misc import _diff_interrupt_files
+from wa.instruments.misc import _diff_interrupt_files
 
 
 class InterruptDiffTest(TestCase):
