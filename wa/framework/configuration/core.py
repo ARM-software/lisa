@@ -869,7 +869,7 @@ class JobSpec(Configuration):
         self.runtime_parameters = target_manager.merge_runtime_parameters(runtime_parameters)
 
     def finalize(self):
-        self.id = "-".join([source.config['id']
+        self.id = "-".join([str(source.config['id'])
                             for source in self._sources[1:]])  # ignore first id, "global"
 
         # ensure *_parameters are always obj_dict's

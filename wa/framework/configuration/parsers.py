@@ -322,6 +322,7 @@ def _construct_valid_entry(raw, seen_ids, prefix, jobs_config):
 def _collect_valid_id(entry_id, seen_ids, entry_type):
     if entry_id is None:
         return
+    entry_id = str(entry_id)
     if entry_id in seen_ids:
         raise ConfigError('Duplicate {} ID "{}".'.format(entry_type, entry_id))
     # "-" is reserved for joining section and workload IDs
