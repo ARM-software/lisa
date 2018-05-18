@@ -67,20 +67,33 @@ configuring, cpufreq, hotplug and cpuidle rather setting the corresponding
 sysfile values as this will perform additional validation and ensure the nodes
 are set in the correct order to avoid any conflicts.
 
-Parameter Changes ### TODO
+Parameter Changes
 ^^^^^^^^^^^^^^^^^
-Any parameter names changes  listed below will also have their old names
+Any parameter names changes listed below will also have their old names
 specified as aliases and should continue to work as normal, however going forward
 the new parameter names should be preferred:
 
-- The workload parameter ``clean_up`` has be renamed to :confval:`cleanup_assets` to
+- The workload parameter :confval:`clean_up` has be renamed to :confval:`cleanup_assets` to
   better reflect its purpose.
 
-- The workload parameter ``check_apk`` has been renamed to
+- The workload parameter :confval:`check_apk` has been renamed to
   :confval:`prefer_host_package` to be more explicit in it's functionality to indicated
   whether a package on the target for the host should have priority when
   searching for a suitable package.
 
+Individual workload parameters have been attempted to be standardized for the
+more common operations e.g.:
+
+  - :confval:`iterations` is now :confval:`loops` to indicate the how many
+    'tight loops' of the workload should be performed, e.g. without the
+    setup/teardown method calls.
+  - :confval:`num_threads` is now consistently :confval:`threads` across workloads.
+  - :confval:`run_timeout` is now consistently :confval:`timeout` across workloads.
+  - :confval:`taskset_mask` and :confval:`cpus` have been changed to
+    consistently be referred to as :confval:`cpus` and its types is now
+    a :class:`cpu_mask` type allowing configuration to be supplied either
+    directly as a mask, as a list of a list of cpu indexes or as a sysfs-style
+    string.
 
 Output
 ^^^^^^^
