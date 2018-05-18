@@ -69,7 +69,7 @@ class ShowCommand(Command):
 
             # Correctly format the title and page number of the man page
             title, body = output.split('\n', 1)
-            title = '.TH {}{} 1'.format(kind, plugin_name)
+            title = '.TH {}{} 7'.format(kind, plugin_name)
             output = '\n'.join([title, body])
 
             call('echo "{}" | man -l -'.format(escape_double_quotes(output)), shell=True)
