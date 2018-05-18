@@ -111,7 +111,7 @@ Output API
 ~~~~~~~~~~
 There is now an Output API which can be used to more easily post process the
 output from a run. For more information please see the
-:ref:`Output API <output-api>` documentation.
+:ref:`Output API <output_processing_api>` documentation.
 
 
 -----------------------------------------------------------

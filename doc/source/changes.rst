@@ -23,7 +23,7 @@ changes moving from WA2 to WA3.
 
 
 - New features:
-    - There is a new Output API which can be used to aid in post processing a run's output. For more information please see :ref:`output-api`.
+    - There is a new Output API which can be used to aid in post processing a run's output. For more information please see :ref:`output_processing_api`.
     - All "augmentations" can now be enabled on a per workload basis.
 
 For more information on migrating from WA2 to WA3 please see the :ref:`migration-guide`.
