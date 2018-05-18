@@ -628,19 +628,20 @@ class RunConfiguration(Configuration):
             This is list of statuses on which a job will be considered to have
             failed and will be automatically retried up to ``max_retries``
             times. This defaults to ``["FAILED", "PARTIAL"]`` if not set.
-            Possible values are::
+            Possible values are:
 
             ``"OK"``
-            This iteration has completed and no errors have been detected
+                This iteration has completed and no errors have been detected
 
             ``"PARTIAL"``
-            One or more instruments have failed (the iteration may still be running).
+                One or more instruments have failed (the iteration may still be
+                running).
 
             ``"FAILED"``
-            The workload itself has failed.
+                The workload itself has failed.
 
             ``"ABORTED"``
-            The user interrupted the workload
+                The user interrupted the workload.
             ''',
         ),
         ConfigurationPoint(

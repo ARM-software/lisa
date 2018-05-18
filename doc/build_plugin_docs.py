@@ -57,9 +57,14 @@ def generate_plugin_documentation(source_dir, outdir, ignore_paths):
             wfh.write(insert_contents_table())
             wfh.write(line_break())
             exts = pluginloader.list_plugins(ext_type)
-            for ext in sorted(exts, key=lambda x: x.name):
-                wfh.write(get_rst_from_plugin(ext))
+            sorted_exts = iter(sorted(exts, key=lambda x: x.name))
+            try:
+                wfh.write(get_rst_from_plugin(sorted_exts.next()))
+            except StopIteration:
+                return
+            for ext in sorted_exts:
                 wfh.write(line_break())
+                wfh.write(get_rst_from_plugin(ext))
 
 
 def generate_target_documentation(outdir):

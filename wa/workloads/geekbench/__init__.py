@@ -38,10 +38,12 @@ class Geekbench(ApkUiautoWorkload):
     the score of a single-processor Power Mac G5 @ 1.6GHz). Higher scores are
     better, with double the score indicating double the performance.
     The benchmarks fall into one of four categories:
+
         - integer performance.
         - floating point performance.
         - memory performance.
         - stream performance.
+
     Geekbench benchmarks: http://www.primatelabs.com/geekbench/doc/benchmarks.html
     Geekbench scoring methedology:
     http://support.primatelabs.com/kb/geekbench/interpreting-geekbench-scores

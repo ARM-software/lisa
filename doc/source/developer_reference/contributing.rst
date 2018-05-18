@@ -17,7 +17,7 @@ consistent with the rest of WA code. Briefly, it is
   *not* use Hungarian notation (so prefer ``birth_date`` over ``dtBirth``).
 
 New extensions should also follow implementation guidelines specified in
-:ref:`writing_extensions` section of the documentation.
+:ref:`writing-plugins` section of the documentation.
 
 We ask that the following checks are performed on the modified code prior to
 submitting a pull request:
