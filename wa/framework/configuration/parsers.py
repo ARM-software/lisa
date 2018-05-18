@@ -346,5 +346,7 @@ def _process_workload_entry(workload, seen_workload_ids, jobs_config):
     workload = _get_workload_entry(workload)
     workload = _construct_valid_entry(workload, seen_workload_ids,
                                       "wk", jobs_config)
+    if "workload_name" not in workload:
+        raise ConfigError('No workload name specified in entry {}'.format(workload['id']))
     return workload
 
