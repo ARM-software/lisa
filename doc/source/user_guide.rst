@@ -65,6 +65,7 @@ For more details, please see the :ref:`installation <apk_files>` section.
 
 List Command
 ============
+
 In order to get started with using WA we first we need to find
 out what is available to use. In order to do this we can use the "list"
 command followed by the type of plugin that you wish to see.
@@ -99,6 +100,18 @@ The same syntax can be used to display ``commands``,
 ``resource_getters`` and ``targets``. Alternatively please see the
 :ref:`Plugin Reference <plugin-reference>` for an online version.
 
+Show Command
+============
+
+If you want to learn more information about a particular plugin, such as the
+parameters it supports, you can use the "show" command::
+
+    wa show dhrystone
+
+If you have ``pandoc`` installed on your system, this will display man
+page-like description of the plugin, and the parameters it supports. If you do
+not have ``pandoc``, you will instead see the same information as raw
+restructured text.
 
 Configure Your Device
 =====================
