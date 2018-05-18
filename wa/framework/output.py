@@ -133,7 +133,9 @@ class Output(object):
         return '<{} {}>'.format(self.__class__.__name__,
                                 os.path.basename(self.basepath))
 
-    __str__ = __repr__
+    def __str__(self):
+        return os.path.basename(self.basepath)
+
 
 
 class RunOutput(Output):
