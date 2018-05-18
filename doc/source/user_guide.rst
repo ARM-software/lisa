@@ -448,32 +448,59 @@ To display verbose output while running memcpy::
 
 .. _output_directory:
 
-Output Directory
-================
+Output
+======
 
-The exact contents on the output directory will depend on configuration options
-used, augmentations enabled, etc.
+The output directory will contain subdirectories for each job that was run,
+which will in turn contain the generated metrics and artifacts for each job.
+The directory will also contain a ``run.log`` file containing the complete log
+output for the run, and a ``__meta`` directory with the configuration and
+metadata for the run. Metrics are serialized inside ``result.json`` files inside
+each job's subdirectory. There may also be a ``__failed`` directory containing
+failed attempts for jobs that have been re-run.
 
-At the top level, there will be a ``run.log`` file containing the complete log
-output for the execution. The contents of this file is equivalent to what you
-would get in the console when using --verbose option.
+Augmentations may add additional files at the run or job directory level. The
+default configuration has ``status`` and ``csv`` augmentations enabled which
+generate a ``status.txt`` containing status summary for the run and individual
+jobs, and a ``results.csv`` containing metrics from all jobs in a CSV table,
+respectively.
 
-The output directory will also contain a ``results.json`` file that lists any
-overall run metrics and artifacts that have been collected during the run.
-Depending on the augmentations that were enabled there may be other results
-files in different formats, for example the ``csv``
-:ref:`output processor <output-processors>`. In addition you will find a subdirectory
-for each successful iteration executed with output and its own ``results.json``
-file for that specific iteration.
+See :ref:`output_directory_structure` for more information.
 
-If a job fails to complete for some reason, then the output directory for that
-job will be moved into a new directory called ``__failed``. If the job was
-running on a platform that supports android then WA will take a screen capture
-and UI dump from the device.
+In order to make it easier to access WA results from scripts, WA provides an API
+that parses the contents of the output directory:
 
-Finally, there will be a ``__meta`` subdirectory. This will contain a copy of
-the agenda file used to run the workloads along with other configuration
-files that were used for the execution of that run.
+
+.. code-block:: pycon
+
+    >>> from wa import RunOutput
+    >>> ro = RunOutput('./wa_output')
+    >>> for job in ro.jobs:
+    ...     if job.status != 'OK':
+    ...         print 'Job "{}" did not complete successfully: {}'.format(job, job.status)
+    ...         continue
+    ...     print 'Job "{}":'.format(job)
+    ...     for metric in job.metrics:
+    ...         if metric.units:
+    ...             print '\t{}: {} {}'.format(metric.name, metric.value, metric.units)
+    ...         else:
+    ...             print '\t{}: {}'.format(metric.name, metric.value)
+    ...
+    Job "wk1-dhrystone-1":
+            thread 0 score: 20833333
+            thread 0 DMIPS: 11857
+            thread 1 score: 24509804
+            thread 1 DMIPS: 13950
+            thread 2 score: 18011527
+            thread 2 DMIPS: 10251
+            thread 3 score: 26371308
+            thread 3 DMIPS: 15009
+            time: 1.001251 seconds
+            total DMIPS: 51067
+            total score: 89725972
+            execution_time: 1.4834280014 seconds
+
+See  :ref:`output_processing_api` for details.
 
 Uninstall
 =========

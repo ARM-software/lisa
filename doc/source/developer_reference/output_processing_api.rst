@@ -1,7 +1,7 @@
-.. _output-api:
+.. _output_processing_api:
 
-Output API
-==========
+Output Processing API
+=====================
 
 WA3 now has an output API that can be used to post process a run's
 :ref:`Output Directory Structure<output_directory>` which can be performed by using WA's
