@@ -200,9 +200,12 @@ def regex(value):
 __counters = defaultdict(int)
 
 
-def reset_counter(name=None):
-    __counters[name] = 0
+def reset_counter(name=None, value=0):
+    __counters[name] = value
 
+def reset_all_counters(value=0):
+    for k in __counters:
+        reset_counter(k, value)
 
 def counter(name=None):
     """
