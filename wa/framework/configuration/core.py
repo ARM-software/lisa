@@ -912,7 +912,6 @@ class JobGenerator(object):
     def __init__(self, plugin_cache):
         self.plugin_cache = plugin_cache
         self.ids_to_run = []
-        self.sections = []
         self.workloads = []
         self._enabled_augmentations = toggle_set()
         self._enabled_instruments = None
