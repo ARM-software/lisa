@@ -9,15 +9,15 @@ global:
                 a15_cores: 2
 workloads:
         - id: 1c
-          workload_name: bbench_with_audio
+          workload_name: exoplayer
         - id: 1d
-          workload_name: Bbench_with_audio
+          workload_name: exoplayer
           runtime_parameters:
                 os_mode: mp_a7_only
                 a7_cores: 0
           iterations: 4
         - id: 1e
-          workload_name: audio
+          workload_name: benchmarkpi
         - id: 1f
           workload_name: antutu
           runtime_parameters:
