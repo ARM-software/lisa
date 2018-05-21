@@ -247,7 +247,7 @@ def format_duration(seconds, sep=' ', order=['day', 'hour', 'minute', 'second'])
     if isinstance(seconds, timedelta):
         td = seconds
     else:
-        td = timedelta(seconds=seconds)
+        td = timedelta(seconds=seconds or 0)
     dt = datetime(1, 1, 1) + td
     result = []
     for item in order:
