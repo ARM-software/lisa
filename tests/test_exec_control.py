@@ -46,6 +46,9 @@ class TestClass(object):
     def initilize_once_per_instance(self):
         self.count += 1
 
+    def __repr__(self):
+        return '{}: Called={}'.format(self.__class__.__name__, self.called)
+
 
 class SubClass(TestClass):
 
