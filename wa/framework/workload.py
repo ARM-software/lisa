@@ -318,9 +318,9 @@ class ApkUiautoWorkload(ApkUIWorkload):
         Parameter('markers_enabled', kind=bool, default=False,
                   description="""
                   If set to ``True``, workloads will insert markers into logs
-                  at various points during execution. These markes may be used
+                  at various points during execution. These markers may be used
                   by other plugins or post-processing scripts to provide
-                  measurments or statistics for specific parts of the workload
+                  measurements or statistics for specific parts of the workload
                   execution.
                   """),
     ]
@@ -399,9 +399,9 @@ class UiautoWorkload(UIWorkload):
         Parameter('markers_enabled', kind=bool, default=False,
                   description="""
                   If set to ``True``, workloads will insert markers into logs
-                  at various points during execution. These markes may be used
+                  at various points during execution. These markers may be used
                   by other plugins or post-processing scripts to provide
-                  measurments or statistics for specific parts of the workload
+                  measurements or statistics for specific parts of the workload
                   execution.
                   """),
     ]
