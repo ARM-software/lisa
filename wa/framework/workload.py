@@ -286,10 +286,10 @@ class ApkUIWorkload(ApkWorkload):
     @once_per_instance
     def initialize(self, context):
         super(ApkUIWorkload, self).initialize(context)
+        self.gui.deploy()
 
     def setup(self, context):
         super(ApkUIWorkload, self).setup(context)
-        self.gui.deploy()
         self.gui.setup()
 
     def run(self, context):
@@ -367,10 +367,10 @@ class UIWorkload(Workload):
     @once_per_instance
     def initialize(self, context):
         super(UIWorkload, self).initialize(context)
+        self.gui.deploy()
 
     def setup(self, context):
         super(UIWorkload, self).setup(context)
-        self.gui.deploy()
         self.gui.setup()
 
     def run(self, context):
