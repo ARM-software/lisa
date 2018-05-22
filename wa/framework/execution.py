@@ -85,6 +85,10 @@ class ExecutionContext(object):
     def output_directory(self):
         return self.output.basepath
 
+    @property
+    def reboot_policy(self):
+        return self.cm.run_config.reboot_policy
+
     def __init__(self, cm, tm, output):
         self.logger = logging.getLogger('context')
         self.cm = cm
@@ -486,7 +490,7 @@ class Runner(object):
             if isinstance(e, TargetNotRespondingError):
                 raise e
             elif isinstance(e, TargetError):
-                context.tm.verify_target_responsive()
+                context.tm.verify_target_responsive(context.reboot_policy.can_reboot)
         finally:
             self.logger.info('Completing job {}'.format(job.id))
             self.send(signal.JOB_COMPLETED)
@@ -518,7 +522,7 @@ class Runner(object):
             job.set_status(Status.FAILED)
             log.log_error(e, self.logger)
             if isinstance(e, TargetError) or isinstance(e, TimeoutError):
-                context.tm.verify_target_responsive()
+                context.tm.verify_target_responsive(context.reboot_policy.can_reboot)
             self.context.record_ui_state('setup-error')
             raise e
 
@@ -535,7 +539,7 @@ class Runner(object):
                 job.set_status(Status.FAILED)
                 log.log_error(e, self.logger)
                 if isinstance(e, TargetError) or isinstance(e, TimeoutError):
-                    context.tm.verify_target_responsive()
+                    context.tm.verify_target_responsive(context.reboot_policy.can_reboot)
                 self.context.record_ui_state('run-error')
                 raise e
             finally:
@@ -547,7 +551,7 @@ class Runner(object):
                 except Exception as e:
                     job.set_status(Status.PARTIAL)
                     if isinstance(e, TargetError) or isinstance(e, TimeoutError):
-                        context.tm.verify_target_responsive()
+                        context.tm.verify_target_responsive(context.reboot_policy.can_reboot)
                     self.context.record_ui_state('output-error')
                     raise
 

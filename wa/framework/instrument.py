@@ -278,7 +278,7 @@ class ManagedCallback(object):
                 if isinstance(e, WorkloadError):
                     context.set_status('FAILED')
                 elif isinstance(e, TargetError) or isinstance(e, TimeoutError):
-                    context.tm.verify_target_responsive()
+                    context.tm.verify_target_responsive(context.reboot_policy.can_reboot)
                 else:
                     if context.current_job:
                         context.set_status('PARTIAL')

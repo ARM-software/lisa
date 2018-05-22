@@ -83,10 +83,12 @@ class TargetManager(object):
     def commit_runtime_parameters(self, parameters):
         self.rpm.commit_runtime_parameters(parameters)
 
-    def verify_target_responsive(self):
+    def verify_target_responsive(self, can_reboot=True):
         if not self.target.check_responsive(explode=False):
             self.is_responsive = False
-            if self.target.has('hard_reset'):
+            if not can_reboot:
+                raise TargetNotRespondingError('Target unresponsive and is not allowed to reboot.')
+            elif self.target.has('hard_reset'):
                 self.logger.info('Target unresponsive; performing hard reset')
                 self.target.reboot(hard=True)
                 self.is_responsive = True
