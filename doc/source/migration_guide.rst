@@ -81,6 +81,13 @@ the new parameter names should be preferred:
   whether a package on the target or the host should have priority when
   searching for a suitable package.
 
+- The execution order ``by_spec`` is now called ``by_workload`` for clarity of
+  purpose. For more information please see :ref:`configuration-specification`.
+
+- The ``by_spec`` reboot policy has been removed as this is no longer relevant
+  and the ``each_iteration`` reboot policy has been renamed to ``each_job``,
+  please see :ref:`configuration-specification` for more information.
+
 Individual workload parameters have been attempted to be standardized for the
 more common operations e.g.:
 

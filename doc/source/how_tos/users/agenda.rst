@@ -180,7 +180,7 @@ execution, so all subsequent iterations will also be affected unless they
 explicitly change the parameter (in the example above, performance governor will
 also be used for ``memcpy`` and ``cyclictest``. There are two ways around this:
 either set ``reboot_policy`` WA setting (see :ref:`configuration-specification`
-section) such that the device gets rebooted between spec executions, thus being
+section) such that the device gets rebooted between job executions, thus being
 returned to its initial state, or set the default runtime parameter values in
 the ``config`` section of the agenda so that they get set for every spec that
 doesn't explicitly override them.

@@ -293,9 +293,9 @@ Reboot Policy
 ^^^^^^^^^^^^^
 
 This indicates when during WA execution the device will be rebooted. By default
-this is set to ``as_needed``, indicating that WA will not reboot the device. Please
-see ``reboot_policy`` documentation in :ref:`configuration-specification` for
-more details.
+this is set to ``as_needed``, indicating that WA will only reboot the device if
+it becomes unresponsive. Please see ``reboot_policy`` documentation in
+:ref:`configuration-specification` for more details.
 
 Execution Order
 ^^^^^^^^^^^^^^^
