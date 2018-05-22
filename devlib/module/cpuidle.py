@@ -132,7 +132,7 @@ class Cpuidle(Module):
     def get_states(self, cpu=0):
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
-        return self._states.get(cpu)
+        return self._states.get(cpu, [])
 
     def get_state(self, state, cpu=0):
         if isinstance(state, int):
