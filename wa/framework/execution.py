@@ -302,7 +302,6 @@ class Executor(object):
         self.error_logged = False
         self.warning_logged = False
         self.target_manager = None
-        self.device = None
 
     def execute(self, config_manager, output):
         """
