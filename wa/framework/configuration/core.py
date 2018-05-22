@@ -78,8 +78,8 @@ class RebootPolicy(object):
         return self.policy != 'never'
 
     @property
-    def perform_initial_boot(self):
-        return self.policy not in ['never', 'as_needed']
+    def perform_initial_reboot(self):
+        return self.policy == 'initial'
 
     @property
     def reboot_on_each_job(self):
