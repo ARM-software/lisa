@@ -547,7 +547,7 @@ class RunConfiguration(Configuration):
             'execution_order',
             kind=str,
             default='by_iteration',
-            allowed_values=['by_iteration', 'by_spec', 'by_section', 'random'],
+            allowed_values=['by_iteration', 'by_section', 'by_workload', 'random'],
             description='''
             Defines the order in which the agenda spec will be executed. At the
             moment, the following execution orders are supported:
@@ -572,9 +572,11 @@ class RunConfiguration(Configuration):
 
                         X.A1, X.B1, Y.A1, Y.B1, X.A2, X.B2, Y.A2, Y.B2
 
-            ``"by_spec"``
+            ``"by_workload"``
                 All iterations of the first spec are executed before moving on
-                to the next spec. E.g. A1 A2 A3 B1 C1 C2.
+                to the next spec. E.g::
+
+                        X.A1, X.A2, Y.A1, Y.A2, X.B1, X.B2, Y.B1, Y.B2
 
             ``"random"``
                 Execution order is entirely random.

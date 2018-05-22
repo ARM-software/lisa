@@ -125,7 +125,7 @@ class ConfigManager(object):
         self._jobs_generated = True
 
 
-def permute_by_job(specs):
+def permute_by_workload(specs):
     """
     This is that "classic" implementation that executes all iterations of a
     workload spec before proceeding onto the next spec.
@@ -205,7 +205,7 @@ def permute_randomly(specs):
 
 permute_map = {
     'by_iteration': permute_by_iteration,
-    'by_job': permute_by_job,
+    'by_workload': permute_by_workload,
     'by_section': permute_by_section,
     'random': permute_randomly,
 }
