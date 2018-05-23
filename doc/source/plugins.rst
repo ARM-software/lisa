@@ -36,6 +36,12 @@ For how to implement you own Plugins, please refer to the guides in the
 
    plugins/instruments
 
+.. toctree::
+   :maxdepth: 2
+
+   plugins/energy_instrument_backends
+
+
 
 .. raw:: html
 
