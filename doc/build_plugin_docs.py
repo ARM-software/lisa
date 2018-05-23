@@ -25,7 +25,7 @@ from wa.utils.doc import (strip_inlined_text, get_rst_from_plugin,
                           get_params_rst, underline, line_break)
 from wa.utils.misc import capitalize
 
-GENERATE_FOR_PLUGIN = ['workload', 'instrument', 'output_processor']
+GENERATE_FOR_PACKAGES = ['wa.workloads', 'wa.instruments', 'wa.output_processors']
 
 def insert_contents_table(title='', depth=1):
     """
@@ -42,13 +42,11 @@ def insert_contents_table(title='', depth=1):
 
 def generate_plugin_documentation(source_dir, outdir, ignore_paths):
     pluginloader.clear()
-    pluginloader.update(paths=[source_dir], ignore_paths=ignore_paths)
+    pluginloader.update(packages=GENERATE_FOR_PACKAGES)
     if not os.path.exists(outdir):
         os.mkdir(outdir)
 
     for ext_type in pluginloader.kinds:
-        if not ext_type in GENERATE_FOR_PLUGIN:
-            continue
         outfile = os.path.join(outdir, '{}s.rst'.format(ext_type))
         with open(outfile, 'w') as wfh:
             wfh.write('.. _{}s:\n\n'.format(ext_type.replace('_', '-')))
