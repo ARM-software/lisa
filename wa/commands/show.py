@@ -46,7 +46,10 @@ class ShowCommand(Command):
             plugin_name = name.lower()
             kind = 'global:'
         else:
-            plugin = get_plugin(name)
+            try:
+                plugin = pluginloader.get_plugin_class(name)
+            except NotFoundError:
+                plugin = None
             if plugin:
                 rst_output = get_rst_from_plugin(plugin)
                 plugin_name = plugin.name
@@ -76,16 +79,6 @@ class ShowCommand(Command):
             call('echo "{}" | man -l -'.format(escape_double_quotes(output)), shell=True)
         else:
             print rst_output
-
-
-def get_plugin(name):
-    for plugin in pluginloader.list_plugins():
-        if name == identifier(plugin.name):
-            return plugin
-        if hasattr(plugin, 'alias'):
-            for alias in plugin.alias:
-                if name == alias:
-                    return plugin
 
 
 def get_target_description(name):
