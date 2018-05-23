@@ -20,7 +20,7 @@ from devlib.utils.misc import memoized
 
 from wa.framework import pluginloader
 from wa.framework.configuration.core import get_config_point_map
-from wa.framework.exception import ConfigError
+from wa.framework.exception import ConfigError, NotFoundError
 from wa.framework.target.descriptor import list_target_descriptions
 from wa.utils.types import obj_dict, caseless_string
 
@@ -149,10 +149,20 @@ class PluginCache(object):
         params = self.loader.get_plugin_class(name).parameters
         return get_config_point_map(params)
 
+    def resolve_alias(self, name):
+        return self.loader.resolve_alias(name)
+
     def _set_plugin_defaults(self, plugin_name, config):
         cfg_points = self.get_plugin_parameters(plugin_name)
         for cfg_point in cfg_points.itervalues():
             cfg_point.set_value(config, check_mandatory=False)
+
+        try:
+            _, alias_params = self.resolve_alias(plugin_name)
+            for name, value in alias_params.iteritems():
+                cfg_points[name].set_value(config, value)
+        except NotFoundError:
+            pass
 
     def _set_from_global_aliases(self, plugin_name, config):
         for alias, param in self._global_alias_map[plugin_name].iteritems():
