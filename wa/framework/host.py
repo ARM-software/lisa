@@ -81,11 +81,13 @@ def convert_wa2_agenda(filepath, output_path):
                                           versions of WA (the old entries are
                                           now aliases for this).'''),
             ConfigurationPoint('device_config',
-                            description='''Generic configuration for device.'''),
+                            description='''Generic configuration for device.''',
+                            default={}),
             ConfigurationPoint('cleanup_assets',
                             aliases=['clean_up'],
                             description='''Specific whether to clean up assets
-                                           deployed to the target'''),
+                                           deployed to the target''',
+                            default=True),
             ])
 
     for param in orig_agenda.keys():
