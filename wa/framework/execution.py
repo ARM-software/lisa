@@ -227,7 +227,8 @@ class ExecutionContext(object):
     def take_screenshot(self, filename):
         filepath = self._get_unique_filepath(filename)
         self.tm.target.capture_screen(filepath)
-        self.add_artifact('screenshot', filepath, kind='log')
+        if os.path.isfile(filepath):
+            self.add_artifact('screenshot', filepath, kind='log')
 
     def take_uiautomator_dump(self, filename):
         filepath = self._get_unique_filepath(filename)
