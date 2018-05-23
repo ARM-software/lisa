@@ -294,6 +294,15 @@ def get_params_rst(parameters):
     return text
 
 
+def get_aliases_rst(aliases):
+    text = ''
+    for alias in aliases:
+        param_str = ', '.join(['{}={}'.format(n, format_literal(v))
+                               for n, v in alias.params.iteritems()])
+        text += '{}\n{}\n'.format(alias.name, indent(param_str))
+    return text
+
+
 def underline(text, symbol='='):
     return '{}\n{}\n\n'.format(text, symbol * len(text))
 
@@ -312,7 +321,13 @@ def get_rst_from_plugin(plugin):
     else:
         desc = ''
     text += desc + '\n\n'
+
+    aliases_rst = get_aliases_rst(plugin.aliases)
+    if aliases_rst:
+        text += underline('aliases', '~') + aliases_rst
+
     params_rst = get_params_rst(plugin.parameters)
     if params_rst:
         text += underline('parameters', '~') + params_rst
+
     return text + '\n'
