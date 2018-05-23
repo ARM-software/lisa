@@ -543,7 +543,7 @@ class PluginLoader(object):
             return (alias_name, {})
         if alias_name in self.aliases:
             alias = self.aliases[alias_name]
-            return (alias.plugin_name, alias.params)
+            return (alias.plugin_name, copy(alias.params))
         raise NotFoundError('Could not find plugin or alias "{}"'.format(alias_name))
 
     # Internal methods.
