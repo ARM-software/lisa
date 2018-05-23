@@ -85,7 +85,7 @@ def convert_wa2_agenda(filepath, output_path):
                             default={}),
             ConfigurationPoint('cleanup_assets',
                             aliases=['clean_up'],
-                            description='''Specific whether to clean up assets
+                            description='''Specify whether to clean up assets
                                            deployed to the target''',
                             default=True),
             ])
