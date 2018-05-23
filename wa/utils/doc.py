@@ -299,7 +299,7 @@ def get_aliases_rst(aliases):
     for alias in aliases:
         param_str = ', '.join(['{}={}'.format(n, format_literal(v))
                                for n, v in alias.params.iteritems()])
-        text += '{}\n{}\n'.format(alias.name, indent(param_str))
+        text += '{}\n{}\n\n'.format(alias.name, indent(param_str))
     return text
 
 
