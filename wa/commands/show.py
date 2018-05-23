@@ -26,6 +26,7 @@ from wa.utils.misc import which
 
 from devlib.utils.misc import escape_double_quotes
 
+
 class ShowCommand(Command):
 
     name = 'show'
@@ -107,6 +108,7 @@ def get_rst_from_target(target):
     text += '.. Note: For available runtime parameters please see the documentation'
     return text + '\n'
 
+
 def get_rst_for_global_config():
     text = underline('Global Configuration')
     text += 'These parameters control the behaviour of WA/run as a whole, they ' \
@@ -116,6 +118,7 @@ def get_rst_for_global_config():
     cfg_points = MetaConfiguration.config_points + RunConfiguration.config_points
     text += get_params_rst(cfg_points)
     return text
+
 
 def get_rst_for_envars():
     text = underline('Environment Variables')
