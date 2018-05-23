@@ -455,6 +455,8 @@ class PluginLoader(object):
         """ Clear all discovered items. """
         self.plugins = {}
         self.kind_map.clear()
+        self.aliases.clear()
+        self.global_param_aliases.clear()
 
     def reload(self):
         """ Clear all discovered items and re-run the discovery. """
