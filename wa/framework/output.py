@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 from collections import OrderedDict
-from copy import copy
+from copy import copy, deepcopy
 from datetime import datetime
 
 from wa.framework.configuration.core import JobSpec, Status
@@ -11,7 +11,7 @@ from wa.framework.exception import HostError
 from wa.framework.run import RunState, RunInfo
 from wa.framework.target.info import TargetInfo
 from wa.utils.misc import touch, ensure_directory_exists
-from wa.utils.serializer import write_pod, read_pod
+from wa.utils.serializer import write_pod, read_pod, is_pod
 from wa.utils.types import enum, numeric
 
 
@@ -128,6 +128,12 @@ class Output(object):
     def get_artifact_path(self, name):
         artifact = self.get_artifact(name)
         return self.get_path(artifact.path)
+
+    def add_metadata(self, key, *args, **kwargs):
+        self.result.add_metadata(key, *args, **kwargs)
+
+    def update_metadata(self, key, *args):
+        self.result.update_metadata(key, *args)
 
     def __repr__(self):
         return '<{} {}>'.format(self.__class__.__name__,
@@ -313,6 +319,7 @@ class Result(object):
         instance.artifacts = [Artifact.from_pod(a) for a in pod['artifacts']]
         instance.events = [Event.from_pod(e) for e in pod['events']]
         instance.classifiers = pod.get('classifiers', OrderedDict())
+        instance.metadata = pod.get('metadata', OrderedDict())
         return instance
 
     def __init__(self):
@@ -322,6 +329,7 @@ class Result(object):
         self.artifacts = []
         self.events = []
         self.classifiers = OrderedDict()
+        self.metadata = OrderedDict()
 
     def add_metric(self, name, value, units=None, lower_is_better=False,
                    classifiers=None):
@@ -350,6 +358,54 @@ class Result(object):
                 return artifact
         raise HostError('Artifact "{}" not found'.format(name))
 
+    def add_metadata(self, key, *args, **kwargs):
+        force = kwargs.pop('force', False)
+        if kwargs:
+            msg = 'Unexpected keyword arguments: {}'
+            raise ValueError(msg.format(kwargs))
+
+        if key in self.metadata and not force:
+            msg = 'Metadata with key "{}" already exists.'
+            raise ValueError(msg.format(key))
+
+        if len(args) == 1:
+            value = args[0]
+        elif len(args) == 2:
+            value = {args[0]: args[1]}
+        elif not args:
+            value = None
+        else:
+            raise ValueError("Unexpected arguments: {}".format(args))
+
+        self.metadata[key] = value
+
+    def update_metadata(self, key, *args):
+        if not args:
+            del self.metadata[key]
+            return
+
+        if key not in self.metadata:
+            return self.add_metadata(key, *args)
+
+        if hasattr(self.metadata[key], 'iteritems'):
+            if len(args) == 2:
+                self.metadata[key][args[0]] = args[1]
+            elif len(args) > 2:  # assume list of key-value pairs
+                for k, v in args:
+                    self.metadata[key][k] = v
+            elif hasattr(args[0], 'iteritems'):
+                for k, v in args[0].iteritems():
+                    self.metadata[key][k] = v
+            else:
+                raise ValueError('Invalid value for key "{}": {}'.format(key, args))
+
+        elif isiterable(self.metadata[key]):
+            self.metadata[key].extend(args)
+        else:   # scalar
+            if len(args) > 1:
+                raise ValueError('Invalid value for key "{}": {}'.format(key, args))
+            self.metadata[key] = args[0]
+
     def to_pod(self):
         return dict(
             status=str(self.status),
@@ -357,6 +413,7 @@ class Result(object):
             artifacts=[a.to_pod() for a in self.artifacts],
             events=[e.to_pod() for e in self.events],
             classifiers=copy(self.classifiers),
+            metadata=deepcopy(self.metadata),
         )
 
 

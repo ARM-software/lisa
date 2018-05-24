@@ -222,6 +222,12 @@ class ExecutionContext(object):
     def add_event(self, message):
         self.output.add_event(message)
 
+    def add_metadata(self, key, *args, **kwargs):
+        self.output.add_metadata(key, *args, **kwargs)
+
+    def update_metadata(self, key, *args):
+        self.output.update_metadata(key, *args)
+
     def take_screenshot(self, filename):
         filepath = self._get_unique_filepath(filename)
         self.tm.target.capture_screen(filepath)
