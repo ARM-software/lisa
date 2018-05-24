@@ -55,7 +55,12 @@ class Openssl(Workload):
     def initialize(self, context):
         if self.use_system_binary:
             try:
-                self.target.execute('openssl -h')
+                cmd = '{0} md5sum < $({0} which openssl)'
+                output  = self.target.execute(cmd.format(self.target.busybox))
+                md5hash  = output.split()[0]
+                version = self.target.execute('openssl version').strip()
+                context.update_metadata('hashes', 'openssl', md5hash)
+                context.update_metadata('versions', 'openssl', version)
             except TargetError:
                 msg = 'Openssl does not appear to be installed on target.'
                 raise WorkloadError(msg)
