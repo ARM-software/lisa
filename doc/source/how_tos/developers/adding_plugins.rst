@@ -210,8 +210,8 @@ workload and will look something like this
              super(GoogleDocs, self).__init__(target, **kwargs)
              # Define any additional attributes required for the workload
 
-            def init_resources(self, context):
-             super(GoogleDocs, self).init_resources(context)
+            def init_resources(self, resolver):
+             super(GoogleDocs, self).init_resources(resolver)
              # This method may be used to perform early resource discovery and
              # initialization. This is invoked during the initial loading stage and
              # before the device is ready, so cannot be used for any device-dependent

@@ -19,8 +19,8 @@ class ${class_name}(ApkReventWorkload):
         super(${class_name}, self).__init__(target, **kwargs)
         # Define any additional attributes required for the workload
 
-    def init_resources(self, context):
-        super(${class_name}, self).init_resources(context)
+    def init_resources(self, resolver):
+        super(${class_name}, self).init_resources(resolver)
         # This method may be used to perform early resource discovery and
         # initialization. This is invoked during the initial loading stage and
         # before the device is ready, so cannot be used for any device-dependent

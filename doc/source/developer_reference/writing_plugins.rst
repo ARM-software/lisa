@@ -257,9 +257,9 @@ looking for an executable file would do so like this::
 
         # ...
 
-        def init_resources(self, context):
+        def init_resources(self, resolver):
             resource = Executable(self, self.target.abi, 'my_benchmark')
-            host_exe = context.resolver.get(resource)
+            host_exe = resolver.get(resource)
 
         # ...
 

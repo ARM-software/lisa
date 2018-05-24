@@ -279,9 +279,9 @@ class ApkUIWorkload(ApkWorkload):
         super(ApkUIWorkload, self).__init__(target, **kwargs)
         self.gui = None
 
-    def init_resources(self, context):
-        super(ApkUIWorkload, self).init_resources(context)
-        self.gui.init_resources(context.resolver)
+    def init_resources(self, resolver):
+        super(ApkUIWorkload, self).init_resources(resolver)
+        self.gui.init_resources(resolver)
 
     @once_per_instance
     def initialize(self, context):
@@ -360,9 +360,9 @@ class UIWorkload(Workload):
         super(UIWorkload, self).__init__(target, **kwargs)
         self.gui = None
 
-    def init_resources(self, context):
-        super(UIWorkload, self).init_resources(context)
-        self.gui.init_resources(context.resolver)
+    def init_resources(self, resolver):
+        super(UIWorkload, self).init_resources(resolver)
+        self.gui.init_resources(resolver)
 
     @once_per_instance
     def initialize(self, context):
@@ -648,6 +648,7 @@ class PackageHandler(object):
         self.resolve_package(context)
 
     def setup(self, context):
+        context.update_metadata('app_version', self.apk_info.version_name)
         self.initialize_package(context)
         self.start_activity()
         self.target.execute('am kill-all')  # kill all *background* activities
