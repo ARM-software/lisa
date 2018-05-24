@@ -73,7 +73,7 @@ class Workload(TargetedPlugin):
         self.asset_files = []
         self.deployed_assets = []
 
-    def init_resources(self, context):
+    def init_resources(self, resolver):
         """
         This method may be used to perform early resource discovery and
         initialization. This is invoked during the initial loading stage and
@@ -83,7 +83,7 @@ class Workload(TargetedPlugin):
 
         """
         for asset in self.deployable_assets:
-            self.asset_files.append(context.resolver.get(File(self, asset)))
+            self.asset_files.append(resolver.get(File(self, asset)))
 
     @once_per_instance
     def initialize(self, context):
@@ -689,7 +689,7 @@ class PackageHandler(object):
     def resolve_package_from_host(self, context):
         self.logger.debug('Resolving package on host system')
         if self.package_name:
-            self.apk_file = context.resolver.get(ApkFile(self.owner,
+            self.apk_file = context.get_resource(ApkFile(self.owner,
                                                          variant=self.variant,
                                                          version=self.version,
                                                          package=self.package_name,
@@ -699,7 +699,7 @@ class PackageHandler(object):
         else:
             available_packages = []
             for package in self.owner.package_names:
-                apk_file = context.resolver.get(ApkFile(self.owner,
+                apk_file = context.get_resource(ApkFile(self.owner,
                                                         variant=self.variant,
                                                         version=self.version,
                                                         package=package,

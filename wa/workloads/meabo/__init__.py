@@ -308,7 +308,7 @@ class Meabo(Workload):
     @once
     def _install_executable(self, context):
         resource = Executable(self, self.target.abi, 'meabo')
-        host_exe = context.resolver.get(resource)
+        host_exe = context.get_resource(resource)
         Meabo.target_exe = self.target.install(host_exe)
 
     @once

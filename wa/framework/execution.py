@@ -15,6 +15,7 @@
 
 # pylint: disable=no-member
 
+import hashlib
 import logging
 import os
 import shutil
@@ -180,6 +181,17 @@ class ExecutionContext(object):
 
     def write_state(self):
         self.run_output.write_state()
+
+    def get_resource(self, resource, strict=True):
+        result = self.resolver.get(resource, strict)
+        if os.path.isfile(result):
+            with open(result, 'rb') as fh:
+                md5hash = hashlib.md5(fh.read())
+                key = '{}/{}'.format(resource.owner, os.path.basename(result))
+                self.update_metadata('hashes', key, md5hash.hexdigest())
+        return result
+
+    get = get_resource  # alias to allow a context to act as a resolver
 
     def get_metric(self, name):
         try:

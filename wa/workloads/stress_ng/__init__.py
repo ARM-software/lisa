@@ -80,7 +80,7 @@ class StressNg(Workload):
             raise WorkloadError('stress-ng requires root premissions to run')
 
         resource = Executable(self, self.target.abi, 'stress-ng')
-        host_exe = context.resolver.get(resource)
+        host_exe = context.get_resource(resource)
         StressNg.binary = self.target.install(host_exe)
 
     def setup(self, context):

@@ -149,10 +149,10 @@ class RtApp(Workload):
         # available to other instances of the workload
         RtApp.target_working_directory = self.target.path.join(self.target.working_directory,
                                                                'rt-app-working')
-        RtApp.host_binary = context.resolver.get(Executable(self,
+        RtApp.host_binary = context.get_resource(Executable(self,
                                                             self.target.abi,
                                                             BINARY_NAME), strict=False)
-        RtApp.workgen_script = context.resolver.get(File(self, 'workgen'))
+        RtApp.workgen_script = context.get_resource(File(self, 'workgen'))
         self.target.execute('mkdir -p {}'.format(self.target_working_directory))
         self._deploy_rt_app_binary_if_necessary()
 
@@ -228,7 +228,7 @@ class RtApp(Workload):
             RtApp.target_binary = self.target.install(self.host_binary)
 
     def _load_json_config(self, context):
-        user_config_file = self._get_raw_json_config(context.resolver)
+        user_config_file = self._get_raw_json_config(context)
         config_file = self._generate_workgen_config(user_config_file,
                                                     context.output_directory)
         with open(config_file) as fh:

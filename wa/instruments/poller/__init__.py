@@ -70,7 +70,7 @@ class FilePoller(Instrument):
     def initialize(self, context):
         if not self.target.is_rooted and self.as_root:
             raise ConfigError('The target is not rooted, cannot run poller as root.')
-        host_poller = context.resolver.get(Executable(self, self.target.abi,
+        host_poller = context.get_resource(Executable(self, self.target.abi,
                                                       "poller"))
         target_poller = self.target.install(host_poller)
 

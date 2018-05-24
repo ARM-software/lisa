@@ -63,7 +63,7 @@ class HWUITest(Workload):
 
     @once
     def initialize(self, context):
-        host_exe = context.resolver.get(Executable(self,
+        host_exe = context.get_resource(Executable(self,
                                                    self.target.abi,
                                                    BINARY))
         HWUITest.target_exe = self.target.install(host_exe)

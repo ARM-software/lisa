@@ -65,7 +65,7 @@ class Memcpy(Workload):
     def initialize(self, context):
         self.binary_name = 'memcpy'
         resource = Executable(self, self.target.abi, self.binary_name)
-        host_binary = context.resolver.get(resource)
+        host_binary = context.get_resource(resource)
         Memcpy.target_exe = self.target.install_if_needed(host_binary)
 
     def setup(self, context):

@@ -106,7 +106,7 @@ class Sysbench(Workload):
     @once
     def initialize(self, context):
         exe = Executable(self, self.target.abi, 'sysbench')
-        host_binary = context.resolver.get(exe)
+        host_binary = context.get_resource(exe)
         Sysbench.target_binary = self.target.install(host_binary)
 
     def setup(self, context):

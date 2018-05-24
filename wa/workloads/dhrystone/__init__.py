@@ -76,7 +76,7 @@ class Dhrystone(Workload):
     @once
     def initialize(self, context):
         resource = Executable(self, self.target.abi, 'dhrystone')
-        host_exe = context.resolver.get(resource)
+        host_exe = context.get_resource(resource)
         Dhrystone.target_exe = self.target.install(host_exe)
 
     def setup(self, context):

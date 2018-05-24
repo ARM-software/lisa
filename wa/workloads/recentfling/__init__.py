@@ -71,9 +71,9 @@ class Recentfling(Workload):
             raise WorkloadError("This workload relies on ``dumpsys gfxinfo`` \
                                  only present in Android M and onwards")
 
-        defs_host = context.resolver.get(File(self, "defs.sh"))
+        defs_host = context.get_resource(File(self, "defs.sh"))
         Recentfling.defs_target = self.target.install(defs_host)
-        recentfling_host = context.resolver.get(File(self, "recentfling.sh"))
+        recentfling_host = context.get_resource(File(self, "recentfling.sh"))
         Recentfling.recentfling_target = self.target.install(recentfling_host)
 
     def setup(self, context):
