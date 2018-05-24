@@ -467,15 +467,15 @@ class Runner(object):
         signal.disconnect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
     def run_next_job(self, context):
-        if self.config.run_config.reboot_policy.reboot_on_each_job:
-            self.logger.debug('Rebooting on new job.')
-            self.context.tm.target.reboot()
-
         job = context.start_job()
         self.logger.info('Running job {}'.format(job.id))
 
         try:
             log.indent()
+            if self.context.reboot_policy.reboot_on_each_job:
+                self.logger.info('Rebooting on new job.')
+                self.context.tm.target.reboot()
+
             context.tm.start()
             self.do_run_job(job, context)
             job.set_status(Status.OK)
