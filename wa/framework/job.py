@@ -108,21 +108,24 @@ class Job(object):
 
     def configure_target(self, context):
         self.logger.info('Configuring target for job {}'.format(self))
-        context.tm.commit_runtime_parameters(self.spec.runtime_parameters)
+        with indentcontext():
+            context.tm.commit_runtime_parameters(self.spec.runtime_parameters)
 
     def setup(self, context):
         self.logger.info('Setting up job {}'.format(self))
-        with signal.wrap('WORKLOAD_SETUP', self, context):
-            self.workload.setup(context)
+        with indentcontext():
+            with signal.wrap('WORKLOAD_SETUP', self, context):
+                self.workload.setup(context)
 
     def run(self, context):
         self.logger.info('Running job {}'.format(self))
-        with signal.wrap('WORKLOAD_EXECUTION', self, context):
-            start_time = datetime.utcnow()
-            try:
-                self.workload.run(context)
-            finally:
-                self.run_time = datetime.utcnow() - start_time
+        with indentcontext():
+            with signal.wrap('WORKLOAD_EXECUTION', self, context):
+                start_time = datetime.utcnow()
+                try:
+                    self.workload.run(context)
+                finally:
+                    self.run_time = datetime.utcnow() - start_time
 
     def process_output(self, context):
         if not context.tm.is_responsive:
