@@ -39,15 +39,15 @@ class ExecutionContext(object):
 
     @property
     def previous_job(self):
-        if not self.job_queue:
-            return None
-        return self.job_queue[0]
-
-    @property
-    def next_job(self):
         if not self.completed_jobs:
             return None
         return self.completed_jobs[-1]
+
+    @property
+    def next_job(self):
+        if not self.job_queue:
+            return None
+        return self.job_queue[0]
 
     @property
     def spec_changed(self):
