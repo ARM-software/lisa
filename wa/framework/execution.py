@@ -142,13 +142,11 @@ class ExecutionContext(object):
         job_output = init_job_output(self.run_output, self.current_job)
         self.current_job.set_output(job_output)
         self.update_job_state(self.current_job)
-        self.tm.start()
         return self.current_job
 
     def end_job(self):
         if not self.current_job:
             raise RuntimeError('No jobs in progress')
-        self.tm.stop()
         self.completed_jobs.append(self.current_job)
         self.update_job_state(self.current_job)
         self.output.write_result()
@@ -478,6 +476,7 @@ class Runner(object):
 
         try:
             log.indent()
+            context.tm.start()
             self.do_run_job(job, context)
             job.set_status(Status.OK)
         except (Exception, KeyboardInterrupt) as e: # pylint: disable=broad-except
@@ -495,6 +494,7 @@ class Runner(object):
         finally:
             self.logger.info('Completing job {}'.format(job.id))
             self.send(signal.JOB_COMPLETED)
+            context.tm.stop()
             context.end_job()
 
             log.dedent()
