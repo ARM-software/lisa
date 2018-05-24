@@ -332,7 +332,19 @@ class Executor(object):
                                        output.basepath)
 
         if config_manager.run_config.reboot_policy.perform_initial_reboot:
-            self.target_manager.target.reboot()
+            self.logger.info('Performing inital reboot.')
+            attempts = config_manager.run_config.max_retries
+            while attempts:
+                try:
+                    self.target_manager.target.reboot()
+                except TargetError as e:
+                    if attempts:
+                        attempts -= 1
+                    else:
+                        raise e
+                else:
+                    break
+
         output.set_target_info(self.target_manager.get_target_info())
 
         self.logger.info('Initializing execution context')
