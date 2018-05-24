@@ -54,11 +54,12 @@ class RebootPolicy(object):
     :as_needed: Only reboot the device if it becomes unresponsive, or needs to be flashed, etc.
     :initial: The device will be rebooted when the execution first starts, just before
               executing the first workload spec.
+    :each_spec: The device will be rebooted before running a new workload spec.
     :each_iteration: The device will be rebooted before each new iteration.
 
     """
 
-    valid_policies = ['never', 'as_needed', 'initial', 'each_job']
+    valid_policies = ['never', 'as_needed', 'initial', 'each_spec', 'each_job']
 
     @staticmethod
     def from_pod(pod):
@@ -84,6 +85,10 @@ class RebootPolicy(object):
     @property
     def reboot_on_each_job(self):
         return self.policy == 'each_job'
+
+    @property
+    def reboot_on_each_spec(self):
+        return self.policy == 'each_spec'
 
     def __str__(self):
         return self.policy
@@ -599,6 +604,12 @@ class RunConfiguration(Configuration):
 
             ``"each_job"``
                 The device will be rebooted before each new job.
+
+            ``"each_spec"``
+                The device will be rebooted before running a new workload spec.
+
+                .. note:: this acts the same as each_job when execution order
+                          is set to by_iteration
             '''),
         ConfigurationPoint(
             'device',
