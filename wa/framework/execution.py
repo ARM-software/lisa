@@ -487,6 +487,9 @@ class Runner(object):
             if self.context.reboot_policy.reboot_on_each_job:
                 self.logger.info('Rebooting on new job.')
                 self.context.tm.target.reboot()
+            elif self.context.reboot_policy.reboot_on_each_spec and context.spec_changed:
+                self.logger.info('Rebooting on new spec.')
+                self.context.tm.target.reboot()
 
             context.tm.start()
             self.do_run_job(job, context)
