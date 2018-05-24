@@ -305,6 +305,7 @@ def _read_pod(fh, fmt=None):
     else:
         raise ValueError('Unknown format "{}": {}'.format(fmt, getattr(fh, 'name', '<none>')))
 
+
 def _write_pod(pod, wfh, fmt=None):
     if fmt is None:
         fmt = os.path.splitext(wfh.name)[1].lower().strip('.')
@@ -317,6 +318,19 @@ def _write_pod(pod, wfh, fmt=None):
     else:
         raise ValueError('Unknown format "{}": {}'.format(fmt, getattr(wfh, 'name', '<none>')))
 
+
 def is_pod(obj):
-    return type(obj) in POD_TYPES
+    if  type(obj) not in POD_TYPES:
+        return False
+    if hasattr(obj, 'iteritems'):
+        for k, v in obj.iteritems():
+            if not (is_pod(k) and is_pod(v)):
+                return False
+    elif isiterable(obj):
+        for v in obj:
+            if not is_pod(v):
+                return False
+    return True
+
+
 
