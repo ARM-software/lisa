@@ -63,7 +63,7 @@ would like to create recordings for and the appropriate file name will be genera
 
 You can also directly specify a workload to create recordings for and WA will
 walk you through the relevant steps. For example if we waned to create
-recordings for the Anybirds Rio workload we can specify the ``workload`` flag
+recordings for the Angrybirds Rio workload we can specify the ``workload`` flag
 with ``-w``. And in this case WA can be used to automatically deploy and launch
 the workload and record ``setup`` (``-s``) , ``run`` (``-r``) and ``teardown``
 (``-t``) stages for the workload. In order to do this we would use the following
