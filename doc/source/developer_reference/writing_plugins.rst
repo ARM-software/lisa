@@ -307,6 +307,54 @@ If an entry does not exit, ``update_metadata`` will create it, so it's
 recommended to always use that for non-scalar entries, unless the intention is
 specifically to ensure that the entry does not exist at the time of the call.
 
+Classifiers
+^^^^^^^^^^^
+
+Classifiers are key-value pairs of tags that can be attached to metrics,
+artifacts, jobs, or the entire run. Run and job classifiers get propagated to
+metrics and artifacts. Classifier keys should be strings, and their values
+should be simple scalars (i.e. strings, numbers, or bools).
+
+Classifiers can be thought of as "tags" that are used to annotate metrics and
+artifacts, in order to make it easier to sort through them later. WA itself does
+not do anything with them, however output processors will augment the output
+they generate with them (for example, ``csv`` processor can add additional
+columns for classifier keys).
+
+Classifiers are typically added by the user to attach some domain-specific
+information (e.g. experiment configuration identifier) to the results, see
+:ref:`classifiers`. However, plugins can also attach additional classifiers, by
+specifying them in ``add_metric()`` and ``add_artifacts()`` calls.
+
+
+Metadata vs Classifiers
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Both metadata and classifiers are sets of essentially opaque key-value pairs
+that get included in WA output. While they may seem somewhat similar and
+interchangeable, they serve different purposes and are handled differently by
+the framework.
+
+Classifiers are used to annotate generated metrics and artifacts in order to
+assist post-processing tools in sorting through them. Metadata is used to record
+additional information that is not necessary for processing the results, but
+that may be needed in order to reproduce them or to make sense of them in a
+grander context.
+
+These are specific differences in how they are handled:
+
+- Classifiers are often provided by the user via the agenda (though can also be
+  added by plugins). Metadata in only created by the framework and plugins.
+- Classifier values must be simple scalars; metadata values can be nested
+  collections, such as lists or dicts.
+- Classifies are used by output processors to augment the output the latter
+  generated; metadata typically isn't.
+- Classifiers are essentially associated with the individual metrics and
+  artifacts (though in the agenda they're specified at workload, section, or
+  global run levels); metadata is associated with a particular job or run, and
+  not with metrics or artifacts.
+
+
 .. _resource-resolution:
 
 Dynamic Resource Resolution
