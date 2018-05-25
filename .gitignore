@@ -28,4 +28,4 @@ libs/armeabi
 **/uiauto/app/libs/
 **/uiauto/*.properties
 doc/source/developer_reference/instrument_method_map.rst
-doc/source/runconfig/
+doc/source/run_config/
