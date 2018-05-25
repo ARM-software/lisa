@@ -260,6 +260,53 @@ this can be done with ``add_run_artifiact``:
 In this case, you also need to make sure that the file represented by the
 artifact is written to the output directory for the run and not the current job.
 
+Metadata
+^^^^^^^^
+
+There may be additional data collected by your plugin that you want to record as
+part of the result, but that does not fall with the definition of a "metric".
+For example, you may want to record the version of the binary you're executing.
+You can do this by adding a metadata entry:
+
+.. code-block:: python
+
+	context.add_metadata("exe-version", 1.3)
+
+
+Metadata will be added either to the current job result, or to the run result,
+depending on the current context. Metadata values can be scalars or nested
+structures of dicts/sequences; the only constraint is that all constituent
+objects of the value must be POD (Plain Old Data) types -- see :ref:`WA POD
+types <wa-pods>`.
+
+There is special support for handling metadata entries that are dicts of values.
+The following call adds a metadata entry ``"versions"`` who's value is
+``{"my_exe": 1.3}``:
+
+.. code-block:: python
+
+	context.add_metadata("versions", "my_exe", 1.3)
+
+If you attempt to add a metadata entry that already exists, an error will be
+raised, unless ``force=True`` is specified, in which case, it will be
+overwritten.
+
+Updating an existing entry who's value is a collection can be done with
+``update_metadata``:
+
+.. code-block:: python
+
+	context.update_metadata("ran_apps", "my_exe")
+	context.update_metadata("versions", "my_other_exe", "2.3.0")
+
+The first call appends ``"my_exe"`` to the list at metadata entry
+``"ran_apps"``. The second call updates the ``"versions"`` dict in the metadata
+with an entry for ``"my_other_exe"``.
+
+If an entry does not exit, ``update_metadata`` will create it, so it's
+recommended to always use that for non-scalar entries, unless the intention is
+specifically to ensure that the entry does not exist at the time of the call.
+
 .. _resource-resolution:
 
 Dynamic Resource Resolution
