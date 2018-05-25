@@ -22,3 +22,6 @@ Developer Reference
 
 .. include:: developer_reference/revent.rst
 
+-----------------
+
+.. include:: developer_reference/serialization.rst
