@@ -80,6 +80,7 @@ POD_TYPES = [
     regex_type,
     none_type,
     level,
+    cpu_mask,
 ]
 
 class WAJSONEncoder(_json.JSONEncoder):
