@@ -172,6 +172,21 @@ This is what WA uses to store a single metric collected from executing a workloa
                         metric beyond current iteration (e.g. this can be used
                         to identify sub-tests).
 
+Metrics can be added to WA output via the context:
+
+
+.. code-block:: python
+
+	context.add_metric("score", 9001)
+	context.add_metric("time", 2.35, "seconds", lower_is_better=True)
+
+You only need to specify the name and the value for the metric. Units and
+classifiers are optional, and, if not specified otherwise, it will be assumed
+that higher values are better.
+
+The metric will be added to the result for the current job, if there is one;
+otherwise, it will be added to the overall run result.
+
 .. _artifact:
 
 Artifacts
@@ -218,6 +233,32 @@ also helps WA decide how it should be handled. Currently supported kinds are:
                  function of a particular artifact, not it's intended means of
                  processing -- this is left entirely up to the output
                  processors.
+
+As with :ref:`metrics`, artifacts are added via the context:
+
+.. code-block:: python
+
+	context.add_artifact("benchmark-output", "bech-out.txt", kind="raw",
+	                     description="stdout from running the benchmark")
+
+.. note:: The file *must* exist on the host by the point at which the artifact
+          is added, otherwise an error will be raised.
+
+The artifact will be added to the result of the current job, if there is one;
+otherwise, it will be added to the overall run result. In some situations, you
+may wish to add an artifact to the overall run while being inside a job context,
+this can be done with ``add_run_artifiact``:
+
+.. code-block:: python
+
+	context.add_run_artifact("score-summary", "scores.txt", kind="export",
+				 description="""
+				 Summary of the scores so far. Updated after
+				 every job.
+				 """)
+
+In this case, you also need to make sure that the file represented by the
+artifact is written to the output directory for the run and not the current job.
 
 .. _resource-resolution:
 
