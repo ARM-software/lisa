@@ -6,8 +6,8 @@ Welcome to Documentation for Workload Automation
 
 Workload Automation (WA) is a framework for executing workloads and collecting
 measurements on Android and Linux devices. WA includes automation for nearly 30
-workloads, some common instrumentation (ftrace, hwmon). A number of output
-formats are supported.
+workloads and supports some common instrumentation (ftrace, hwmon) along with a
+number of output formats.
 
 Workload Automation is designed primarily as a developer tool/framework to
 facilitate data driven development by providing a method of collecting
