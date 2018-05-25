@@ -241,8 +241,9 @@ An object looking for a resource invokes a resource resolver with an instance of
 ``Resource`` describing the resource it is after. The resolver goes through the
 getters registered for that resource type in priority order attempting to obtain
 the resource; once the resource is obtained, it is returned to the calling
-object. If none of the registered getters could find the resource, ``None`` is
-returned instead.
+object. If none of the registered getters could find the resource,
+``NotFoundError`` is raised (or``None`` is returned instead, if invoked with
+``strict=False``).
 
 The most common kind of object looking for resources is a ``Workload``, and the
 ``Workload`` class defines
