@@ -121,13 +121,15 @@ class DAQBackend(EnergyInstrumentBackend):
                   global_alias='daq_v_range',
                   description="""
                   Specifies the voltage range for the SOC voltage channel on the
-                  DAQ (please refer to :ref:`daq_setup` for details).
+                  DAQ (please refer to ``daq-server`` package documentation for
+                  details).
                   """),
         Parameter('dv_range', kind=str, default=0.2,
                   global_alias='daq_dv_range',
                   description="""
                   Specifies the voltage range for the resistor voltage channel
-                  on the DAQ (please refer to :ref:`daq_setup` for details).
+                  on the DAQ (please refer to ``daq-server`` package
+                  documentation for details).
                   """),
         Parameter('sample_rate_hz', kind=int, default=10000,
                   global_alias='daq_sampling_rate',
