@@ -16,6 +16,7 @@
 #
 
 import os
+import logging
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -74,6 +75,8 @@ class _EnergyModelTest(LisaTest):
     @classmethod
     def setUpClass(cls, *args, **kwargs):
         super(_EnergyModelTest, cls).runExperiments(*args, **kwargs)
+
+        cls._log = logging.getLogger('_EnergyModelTest')
 
     @classmethod
     def _getExperimentsConf(cls, test_env):
@@ -343,9 +346,14 @@ class _EnergyModelTest(LisaTest):
             slack = pa.df(task)["Slack"]
 
             bad_activations_pct = len(slack[slack < 0]) * 100. / len(slack)
+
+            msg = 'task {} missed {}% of activations ({}% allowed)'.format(
+                    task, bad_activations_pct, self.negative_slack_allowed_pct)
+
             if bad_activations_pct > self.negative_slack_allowed_pct:
-                raise AssertionError("task {} missed {}% of activations".format(
-                    task, bad_activations_pct))
+                raise AssertionError(msg)
+            else:
+                self._log.info(msg)
 
     def _test_task_placement(self, experiment, tasks):
         """
