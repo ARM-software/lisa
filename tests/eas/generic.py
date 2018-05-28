@@ -89,7 +89,6 @@ class _EnergyModelTest(LisaTest):
         conf = {
             'tag' : 'energy_aware',
             'flags' : ['ftrace', 'freeze_userspace'],
-            'sched_features' : 'ENERGY_AWARE',
         }
 
         if 'cpufreq' in test_env.target.modules:
