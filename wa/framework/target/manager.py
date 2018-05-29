@@ -74,6 +74,10 @@ class TargetManager(object):
     def get_target_info(self):
         return get_target_info(self.target)
 
+    def reboot(self):
+        with signal.wrap('REBOOT'):
+            self.target.reboot()
+
     def merge_runtime_parameters(self, parameters):
         return self.rpm.merge_runtime_parameters(parameters)
 

@@ -135,6 +135,10 @@ SIGNAL_MAP = OrderedDict([
     ('on_successful_job', signal.SUCCESSFUL_JOB),
     ('after_job', signal.AFTER_JOB),
 
+    ('before_reboot', signal.BEFORE_REBOOT),
+    ('on_successful_reboot', signal.SUCCESSFUL_REBOOT),
+    ('after_reboot', signal.AFTER_REBOOT),
+
     ('on_error', signal.ERROR_LOGGED),
     ('on_warning', signal.WARNING_LOGGED),
 
@@ -151,9 +155,6 @@ SIGNAL_MAP = OrderedDict([
     # ('before_first_iteration_boot', signal.BEFORE_FIRST_ITERATION_BOOT),
     # ('on_successful_first_iteration_boot', signal.SUCCESSFUL_FIRST_ITERATION_BOOT),
     # ('after_first_iteration_boot', signal.AFTER_FIRST_ITERATION_BOOT),
-    # ('before_boot', signal.BEFORE_BOOT),
-    # ('on_successful_boot', signal.SUCCESSFUL_BOOT),
-    # ('after_boot', signal.AFTER_BOOT),
 
     # ('on_spec_init', signal.SPEC_INIT),
     # ('on_run_init', signal.RUN_INIT),

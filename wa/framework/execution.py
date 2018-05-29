@@ -354,7 +354,7 @@ class Executor(object):
             attempts = config_manager.run_config.max_retries
             while attempts:
                 try:
-                    self.target_manager.target.reboot()
+                    self.target_manager.reboot()
                 except TargetError as e:
                     if attempts:
                         attempts -= 1
@@ -504,10 +504,10 @@ class Runner(object):
             log.indent()
             if self.context.reboot_policy.reboot_on_each_job:
                 self.logger.info('Rebooting on new job.')
-                self.context.tm.target.reboot()
+                self.context.tm.reboot()
             elif self.context.reboot_policy.reboot_on_each_spec and context.spec_changed:
                 self.logger.info('Rebooting on new spec.')
-                self.context.tm.target.reboot()
+                self.context.tm.reboot()
 
             with signal.wrap('JOB', self, context):
                 context.tm.start()
