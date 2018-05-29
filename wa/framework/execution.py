@@ -581,7 +581,7 @@ class Runner(object):
                 try:
                     with signal.wrap('JOB_OUTPUT_PROCESSED', self, context):
                         job.process_output(context)
-                    self.pm.process_job_output(context)
+                        self.pm.process_job_output(context)
                     self.pm.export_job_output(context)
                 except Exception as e:
                     job.set_status(Status.PARTIAL)
