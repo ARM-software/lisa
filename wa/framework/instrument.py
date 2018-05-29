@@ -134,6 +134,9 @@ SIGNAL_MAP = OrderedDict([
     ('before_job', signal.BEFORE_JOB),
     ('on_successful_job', signal.SUCCESSFUL_JOB),
     ('after_job', signal.AFTER_JOB),
+    ('before_processing_job_output', signal.BEFORE_JOB_OUTPUT_PROCESSED),
+    ('on_successfully_processing_job', signal.SUCCESSFUL_JOB_OUTPUT_PROCESSED),
+    ('after_processing_job_output', signal.AFTER_JOB_OUTPUT_PROCESSED),
 
     ('before_reboot', signal.BEFORE_REBOOT),
     ('on_successful_reboot', signal.SUCCESSFUL_REBOOT),
