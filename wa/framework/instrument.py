@@ -135,6 +135,9 @@ SIGNAL_MAP = OrderedDict([
     ('on_successful_job', signal.SUCCESSFUL_JOB),
     ('after_job', signal.AFTER_JOB),
 
+    ('on_error', signal.ERROR_LOGGED),
+    ('on_warning', signal.WARNING_LOGGED),
+
     # ('on_run_start', signal.RUN_START),
     # ('on_run_end', signal.RUN_END),
     # ('on_workload_spec_start', signal.WORKLOAD_SPEC_START),
@@ -172,9 +175,6 @@ SIGNAL_MAP = OrderedDict([
     # ('before_overall_results_processing', signal.BEFORE_OVERALL_RESULTS_PROCESSING),
     # ('on_successful_overall_results_processing', signal.SUCCESSFUL_OVERALL_RESULTS_PROCESSING),
     # ('after_overall_results_processing', signal.AFTER_OVERALL_RESULTS_PROCESSING),
-
-    # ('on_error', signal.ERROR_LOGGED),
-    # ('on_warning', signal.WARNING_LOGGED),
 ])
 
 
