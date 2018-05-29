@@ -143,6 +143,10 @@ BEFORE_RUN_INIT = Signal('before-run-init', invert_priority=True)
 SUCCESSFUL_RUN_INIT = Signal('successful-run-init')
 AFTER_RUN_INIT = Signal('after-run-init')
 
+BEFORE_JOB = Signal('before-job', invert_priority=True)
+SUCCESSFUL_JOB = Signal('successful-job')
+AFTER_JOB = Signal('after-job')
+
 BEFORE_JOB_TARGET_CONFIG = Signal('before-job-target-config', invert_priority=True)
 SUCCESSFUL_JOB_TARGET_CONFIG = Signal('successful-job-target-config')
 AFTER_JOB_TARGET_CONFIG = Signal('after-job-target-config')

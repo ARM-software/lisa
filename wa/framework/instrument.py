@@ -131,6 +131,10 @@ SIGNAL_MAP = OrderedDict([
     ('teardown', signal.AFTER_WORKLOAD_TEARDOWN),
     ('finalize', signal.RUN_FINALIZED),
 
+    ('before_job', signal.BEFORE_JOB),
+    ('on_successful_job', signal.SUCCESSFUL_JOB),
+    ('after_job', signal.AFTER_JOB),
+
     # ('on_run_start', signal.RUN_START),
     # ('on_run_end', signal.RUN_END),
     # ('on_workload_spec_start', signal.WORKLOAD_SPEC_START),

@@ -509,9 +509,10 @@ class Runner(object):
                 self.logger.info('Rebooting on new spec.')
                 self.context.tm.target.reboot()
 
-            context.tm.start()
-            self.do_run_job(job, context)
-            job.set_status(Status.OK)
+            with signal.wrap('JOB', self, context):
+                context.tm.start()
+                self.do_run_job(job, context)
+                job.set_status(Status.OK)
         except (Exception, KeyboardInterrupt) as e: # pylint: disable=broad-except
             log.log_error(e, self.logger)
             if isinstance(e, KeyboardInterrupt):
