@@ -172,9 +172,9 @@ BEFORE_FLASHING = Signal('before-flashing', invert_priority=True)
 SUCCESSFUL_FLASHING = Signal('successful-flashing')
 AFTER_FLASHING = Signal('after-flashing')
 
-BEFORE_BOOT = Signal('before-boot', invert_priority=True)
-SUCCESSFUL_BOOT = Signal('successful-boot')
-AFTER_BOOT = Signal('after-boot')
+BEFORE_REBOOT = Signal('before-reboot', invert_priority=True)
+SUCCESSFUL_REBOOT = Signal('successful-reboot')
+AFTER_REBOOT = Signal('after-reboot')
 
 BEFORE_TARGET_CONNECT = Signal('before-target-connect', invert_priority=True)
 SUCCESSFUL_TARGET_CONNECT = Signal('successful-target-connect')
