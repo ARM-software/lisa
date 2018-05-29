@@ -614,12 +614,14 @@ class Runner(object):
                       'Max retries exceeded.'
                 self.logger.error(msg.format(job.id, job.iteration, job.status))
                 self.context.failed_jobs += 1
+                self.send(signal.JOB_FAILED)
         else:  # status not in retry_on_status
             self.logger.info('Job completed with status {}'.format(job.status))
             if job.status != 'ABORTED':
                 self.context.successful_jobs += 1
             else:
                 self.context.failed_jobs += 1
+                self.send(signal.JOB_ABORTED)
 
     def retry_job(self, job):
         retry_job = Job(job.spec, job.iteration, self.context)
@@ -627,6 +629,7 @@ class Runner(object):
         retry_job.retries = job.retries + 1
         retry_job.set_status(Status.PENDING)
         self.context.job_queue.insert(0, retry_job)
+        self.send(signal.JOB_RESTARTED)
 
     def send(self, s):
         signal.send(s, self, self.context)
