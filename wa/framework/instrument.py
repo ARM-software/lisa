@@ -153,39 +153,6 @@ SIGNAL_MAP = OrderedDict([
 
     ('on_error', signal.ERROR_LOGGED),
     ('on_warning', signal.WARNING_LOGGED),
-
-    # ('on_workload_spec_start', signal.WORKLOAD_SPEC_START),
-    # ('on_workload_spec_end', signal.WORKLOAD_SPEC_END),
-    # ('on_iteration_start', signal.ITERATION_START),
-    # ('on_iteration_end', signal.ITERATION_END),
-
-    # ('before_initial_boot', signal.BEFORE_INITIAL_BOOT),
-    # ('on_successful_initial_boot', signal.SUCCESSFUL_INITIAL_BOOT),
-    # ('after_initial_boot', signal.AFTER_INITIAL_BOOT),
-    # ('before_first_iteration_boot', signal.BEFORE_FIRST_ITERATION_BOOT),
-    # ('on_successful_first_iteration_boot', signal.SUCCESSFUL_FIRST_ITERATION_BOOT),
-    # ('after_first_iteration_boot', signal.AFTER_FIRST_ITERATION_BOOT),
-
-    # ('on_spec_init', signal.SPEC_INIT),
-    # ('on_run_init', signal.RUN_INIT),
-    # ('on_iteration_init', signal.ITERATION_INIT),
-
-    # ('before_workload_setup', signal.BEFORE_WORKLOAD_SETUP),
-    # ('on_successful_workload_setup', signal.SUCCESSFUL_WORKLOAD_SETUP),
-    # ('after_workload_setup', signal.AFTER_WORKLOAD_SETUP),
-    # ('before_workload_execution', signal.BEFORE_WORKLOAD_EXECUTION),
-    # ('on_successful_workload_execution', signal.SUCCESSFUL_WORKLOAD_EXECUTION),
-    # ('after_workload_execution', signal.AFTER_WORKLOAD_EXECUTION),
-    # ('before_workload_result_update', signal.BEFORE_WORKLOAD_RESULT_UPDATE),
-    # ('on_successful_workload_result_update', signal.SUCCESSFUL_WORKLOAD_RESULT_UPDATE),
-    # ('after_workload_result_update', signal.AFTER_WORKLOAD_RESULT_UPDATE),
-    # ('before_workload_teardown', signal.BEFORE_WORKLOAD_TEARDOWN),
-    # ('on_successful_workload_teardown', signal.SUCCESSFUL_WORKLOAD_TEARDOWN),
-    # ('after_workload_teardown', signal.AFTER_WORKLOAD_TEARDOWN),
-
-    # ('before_overall_results_processing', signal.BEFORE_OVERALL_RESULTS_PROCESSING),
-    # ('on_successful_overall_results_processing', signal.SUCCESSFUL_OVERALL_RESULTS_PROCESSING),
-    # ('after_overall_results_processing', signal.AFTER_OVERALL_RESULTS_PROCESSING),
 ])
 
 
