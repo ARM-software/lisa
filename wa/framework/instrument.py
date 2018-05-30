@@ -158,7 +158,7 @@ SIGNAL_MAP = OrderedDict([
 
 def get_priority(func):
     return getattr(getattr(func, 'im_func', func),
-                   'priority', Priority.normal)
+                   'priority', signal.CallbackPriority.normal)
 
 
 def priority(priority):
@@ -171,7 +171,7 @@ def priority(priority):
         else:
             if not isinstance(priority, int):
                 msg = 'Invalid priorty "{}"; must be an int or one of {}'
-                raise ValueError(msg.format(priority, Priority.values))
+                raise ValueError(msg.format(priority, signal.CallbackPriority.values))
             wrapper.priority = level('custom', priority)
         return wrapper
     return decorate
