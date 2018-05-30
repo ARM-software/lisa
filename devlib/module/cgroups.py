@@ -394,7 +394,7 @@ class CgroupsModule(Module):
     def list_subsystems(self):
         subsystems = []
         for line in self.target.execute('{} cat /proc/cgroups'\
-                .format(self.target.busybox)).splitlines()[1:]:
+                .format(self.target.busybox), as_root=self.target.is_rooted).splitlines()[1:]:
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
