@@ -108,7 +108,7 @@ from wa.framework.exception import (WAError, TargetNotRespondingError, TimeoutEr
                                     WorkloadError, TargetError)
 from wa.utils.log import log_error
 from wa.utils.misc import isiterable
-from wa.utils.types import identifier, enum, level
+from wa.utils.types import identifier, level
 
 
 logger = logging.getLogger('instruments')
@@ -156,9 +156,6 @@ SIGNAL_MAP = OrderedDict([
 ])
 
 
-Priority = enum(['very_slow', 'slow', 'normal', 'fast', 'very_fast'], -20, 10)
-
-
 def get_priority(func):
     return getattr(getattr(func, 'im_func', func),
                    'priority', Priority.normal)
@@ -169,8 +166,8 @@ def priority(priority):
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
         wrapper.func_name = func.func_name
-        if priority in Priority.levels:
-            wrapper.priority = Priority(priority)
+        if priority in signal.CallbackPriority.levels:
+            wrapper.priority = signal.CallbackPriority(priority)
         else:
             if not isinstance(priority, int):
                 msg = 'Invalid priorty "{}"; must be an int or one of {}'
@@ -180,11 +177,13 @@ def priority(priority):
     return decorate
 
 
-very_slow = priority(Priority.very_slow)
-slow = priority(Priority.slow)
-normal = priority(Priority.normal)
-fast = priority(Priority.fast)
-very_fast = priority(Priority.very_fast)
+extremely_slow = priority(signal.CallbackPriority.extremely_low)
+very_slow = priority(signal.CallbackPriority.very_low)
+slow = priority(signal.CallbackPriority.low)
+normal = priority(signal.CallbackPriority.normal)
+fast = priority(signal.CallbackPriority.high)
+very_fast = priority(signal.CallbackPriority.very_high)
+extremely_fast = priority(signal.CallbackPriority.extremely_high)
 
 
 installed = []

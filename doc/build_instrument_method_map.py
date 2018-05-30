@@ -18,7 +18,8 @@ import sys
 import string
 from copy import copy
 
-from wa.framework.instrument import SIGNAL_MAP, Priority
+from wa.framework.instrument import SIGNAL_MAP
+from wa.framework.signal import CallbackPriority
 from wa.utils.doc import format_simple_table
 
 
@@ -36,7 +37,7 @@ def escape_trailing_underscore(value):
 def generate_instrument_method_map(outfile):
     signal_table = format_simple_table([(k, v) for k, v in SIGNAL_MAP.iteritems()],
                                        headers=['method name', 'signal'], align='<<')
-    priority_table = format_simple_table(zip(Priority.names, Priority.values),
+    priority_table = format_simple_table(zip(CallbackPriority.names, CallbackPriority.values),
                                          headers=['decorator', 'priority'],  align='<>')
     with open(OUTPUT_TEMPLATE_FILE) as fh:
         template = string.Template(fh.read())
