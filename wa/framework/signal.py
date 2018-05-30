@@ -26,7 +26,7 @@ from contextlib import contextmanager
 import wrapt
 from louie import dispatcher
 
-from wa.utils.types import prioritylist
+from wa.utils.types import prioritylist, enum
 
 
 logger = logging.getLogger('signal')
@@ -193,18 +193,10 @@ AFTER_OVERALL_RESULTS_PROCESSING = Signal(
     'after-overall-results-process')
 
 
-class CallbackPriority(object):
 
-    EXTREMELY_HIGH = 30
-    VERY_HIGH = 20
-    HIGH = 10
-    NORMAL = 0
-    LOW = -10
-    VERY_LOW = -20
-    EXTREMELY_LOW = -30
 
-    def __init__(self):
-        raise ValueError('Cannot instantiate')
+CallbackPriority = enum(['extremely_low', 'very_low', 'low', 'normal',
+                         'high', 'very_high', 'extremely_high'], -30, 10)
 
 
 class _prioritylist_wrapper(prioritylist):
