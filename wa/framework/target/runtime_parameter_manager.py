@@ -39,7 +39,7 @@ class RuntimeParameterManager(object):
     def merge_runtime_parameters(self, parameters):
         merged_params = obj_dict()
         for source in parameters:
-            for name, value in parameters[source].iteritems():
+            for name, value in parameters[source].items():
                 cp = self.get_cfg_point(name)
                 cp.set_value(merged_params, value)
         return dict(merged_params)
@@ -60,7 +60,7 @@ class RuntimeParameterManager(object):
 
     # Stores a set of parameters performing isolated validation when appropriate
     def set_runtime_parameters(self, parameters):
-        for name, value in parameters.iteritems():
+        for name, value in parameters.items():
             cfg = self.get_config_for_name(name)
             if cfg is None:
                 msg = 'Unsupported runtime parameter: "{}"'
@@ -74,14 +74,14 @@ class RuntimeParameterManager(object):
 
     def get_config_for_name(self, name):
         name = caseless_string(name)
-        for k, v in self.runtime_params.iteritems():
+        for k, v in self.runtime_params.items():
             if name == k:
                 return v.rt_config
         return None
 
     def get_cfg_point(self, name):
         name = caseless_string(name)
-        for k, v in self.runtime_params.iteritems():
+        for k, v in self.runtime_params.items():
             if name == k:
                 return v.cfg_point
         raise ConfigError('Unknown runtime parameter: {}'.format(name))

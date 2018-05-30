@@ -20,7 +20,11 @@ from wa.utils.misc import get_traceback
 
 class WAError(Exception):
     """Base class for all Workload Automation exceptions."""
-    pass
+    @property
+    def message(self):
+        if self.args:
+            return self.args[0]
+        return ''
 
 
 class NotFoundError(WAError):

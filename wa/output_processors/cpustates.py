@@ -14,8 +14,9 @@
 #
 
 import os
-import csv
 from collections import OrderedDict
+
+from devlib.utils.csvutil import csvwriter
 
 from wa import OutputProcessor, Parameter
 from wa.utils.types import list_of_strings
@@ -29,14 +30,14 @@ def _get_cpustates_description():
     """
     output_lines = []
     lines = iter(report_power_stats.__doc__.split('\n'))
-    line = lines.next()
+    line = next(lines)
     while True:
         try:
             if line.strip().startswith(':param'):
                 while line.strip():
-                    line = lines.next()
+                    line = next(lines)
             output_lines.append(line)
-            line = lines.next()
+            line = next(lines)
         except StopIteration:
             break
     return '\n'.join(output_lines)
@@ -105,7 +106,7 @@ class CpuStatesProcessor(OutputProcessor):
             split_wfi_states=self.split_wfi_states,
         )
 
-        for report in reports.itervalues():
+        for report in reports.values():
             output.add_artifact(report.name, report.filepath, kind='data')
 
         iteration_id = (output.id, output.label, output.iteration)
@@ -118,7 +119,7 @@ class CpuStatesProcessor(OutputProcessor):
 
         parallel_rows = []
         powerstate_rows = []
-        for iteration_id, reports in self.iteration_reports.iteritems():
+        for iteration_id, reports in self.iteration_reports.items():
             job_id, workload, iteration = iteration_id
             parallel_report = reports['parallel-stats']
             powerstate_report = reports['power-state-stats']
@@ -132,8 +133,7 @@ class CpuStatesProcessor(OutputProcessor):
                                            for s in stats])
 
         outpath = output.get_path('parallel-stats.csv')
-        with open(outpath, 'w') as wfh:
-            writer = csv.writer(wfh)
+        with csvwriter(outpath) as writer:
             writer.writerow(['id', 'workload', 'iteration', 'cluster',
                              'number_of_cores', 'total_time',
                              '%time', '%running_time'])
@@ -141,8 +141,7 @@ class CpuStatesProcessor(OutputProcessor):
         output.add_artifact('run-parallel-stats', outpath, kind='export')
 
         outpath = output.get_path('power-state-stats.csv')
-        with open(outpath, 'w') as wfh:
-            writer = csv.writer(wfh)
+        with csvwriter(outpath) as writer:
             headers = ['id', 'workload', 'iteration', 'state']
             headers += ['{} CPU{}'.format(c, i)
                         for i, c in enumerate(powerstate_report.core_names)]

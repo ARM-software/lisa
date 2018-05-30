@@ -21,7 +21,7 @@ class __LoaderWrapper(object):
     def kinds(self):
         if not self._loader:
             self.reset()
-        return self._loader.kind_map.keys()
+        return list(self._loader.kind_map.keys())
 
     @property
     def kind_map(self):

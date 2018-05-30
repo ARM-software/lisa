@@ -164,16 +164,16 @@ def format_simple_table(rows, headers=None, align='>', show_borders=True, border
     """Formats a simple table."""
     if not rows:
         return ''
-    rows = [map(str, r) for r in rows]
+    rows = [list(map(str, r)) for r in rows]
     num_cols = len(rows[0])
 
     # cycle specified alignments until we have num_cols of them. This is
     # consitent with how such cases are handled in R, pandas, etc.
     it = cycle(align)
-    align = [it.next() for _ in xrange(num_cols)]
+    align = [next(it) for _ in range(num_cols)]
 
-    cols = zip(*rows)
-    col_widths = [max(map(len, c)) for c in cols]
+    cols = list(zip(*rows))
+    col_widths = [max(list(map(len, c))) for c in cols]
     if headers:
         col_widths = [max(len(h), cw) for h, cw in zip(headers, col_widths)]
     row_format = ' '.join(['{:%s%s}' % (align[i], w) for i, w in enumerate(col_widths)])
@@ -259,12 +259,12 @@ def indent(text, spaces=4):
 
 
 def format_literal(lit):
-    if isinstance(lit, basestring):
+    if isinstance(lit, str):
         return '``\'{}\'``'.format(lit)
     elif hasattr(lit, 'pattern'):  # regex
         return '``r\'{}\'``'.format(lit.pattern)
     elif isinstance(lit, dict):
-        content = indent(',\n'.join("{}: {}".format(key,val) for (key,val) in lit.iteritems()))
+        content = indent(',\n'.join("{}: {}".format(key,val) for (key,val) in lit.items()))
         return '::\n\n{}'.format(indent('{{\n{}\n}}'.format(content)))
     else:
         return '``{}``'.format(lit)
@@ -287,7 +287,7 @@ def get_params_rst(parameters):
             text += indent('\nconstraint: ``{}``\n'.format(get_type_name(param.constraint)))
         if param.default:
             value = param.default
-            if isinstance(value, basestring) and value.startswith(USER_HOME):
+            if isinstance(value, str) and value.startswith(USER_HOME):
                 value = value.replace(USER_HOME, '~')
             text += indent('\ndefault: {}\n'.format(format_literal(value)))
         text += '\n'
@@ -298,7 +298,7 @@ def get_aliases_rst(aliases):
     text = ''
     for alias in aliases:
         param_str = ', '.join(['{}={}'.format(n, format_literal(v))
-                               for n, v in alias.params.iteritems()])
+                               for n, v in alias.params.items()])
         text += '{}\n{}\n\n'.format(alias.name, indent(param_str))
     return text
 

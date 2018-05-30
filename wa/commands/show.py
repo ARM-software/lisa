@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import sys
 from subprocess import call, Popen, PIPE
 
 from wa import Command
@@ -66,7 +67,11 @@ class ShowCommand(Command):
 
         if which('pandoc'):
             p = Popen(['pandoc', '-f', 'rst', '-t', 'man'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-            output, _ = p.communicate(rst_output)
+            if sys.version_info[0] == 3:
+                output, _ = p.communicate(rst_output.encode(sys.stdin.encoding))
+                output = output.decode(sys.stdout.encoding)
+            else:
+                output, _ = p.communicate(rst_output)
 
             # Make sure to double escape back slashes
             output = output.replace('\\', '\\\\\\')
@@ -78,7 +83,7 @@ class ShowCommand(Command):
 
             call('echo "{}" | man -l -'.format(escape_double_quotes(output)), shell=True)
         else:
-            print rst_output
+            print(rst_output)
 
 
 def get_target_description(name):

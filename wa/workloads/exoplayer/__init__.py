@@ -18,7 +18,13 @@
 import re
 import os
 import time
-import urllib
+
+from future.standard_library import install_aliases
+install_aliases()
+
+import urllib.request
+import urllib.parse
+import urllib.error
 
 from wa import ApkWorkload, Parameter, ConfigError, WorkloadError
 from wa.framework.configuration.core import settings
@@ -81,7 +87,7 @@ class ExoPlayer(ApkWorkload):
                   Playback duration of the video file. This becomes the duration of the workload.
                   If provided must be shorter than the length of the media.
                   """),
-        Parameter('format', allowed_values=DOWNLOAD_URLS.keys(),
+        Parameter('format', allowed_values=list(DOWNLOAD_URLS.keys()),
                   description="""
                   Specifies which format video file to play. Default is {}
                   """.format(default_format)),
@@ -137,7 +143,7 @@ class ExoPlayer(ApkWorkload):
                 filename = '{}_{}'.format(format_resolution, os.path.basename(url))
                 filepath = os.path.join(self.video_directory, filename)
                 self.logger.info('Downloading {} to {}...'.format(url, filepath))
-                urllib.urlretrieve(url, filepath)
+                urllib.request.urlretrieve(url, filepath)
                 return filepath
             else:
                 if len(files) > 1:
@@ -172,7 +178,7 @@ class ExoPlayer(ApkWorkload):
         self.play_cmd = 'am start -a {} -d "file://{}"'.format(self.action,
                                                                self.device_video_file)
 
-        self.monitor = self.target.get_logcat_monitor(REGEXPS.values())
+        self.monitor = self.target.get_logcat_monitor(list(REGEXPS.values()))
         self.monitor.start()
 
     def run(self, context):

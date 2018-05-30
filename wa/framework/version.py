@@ -14,6 +14,7 @@
 #
 
 import os
+import sys
 from collections import namedtuple
 from subprocess import Popen, PIPE
 
@@ -45,4 +46,7 @@ def get_commit():
     p.wait()
     if p.returncode:
         return None
-    return std[:8]
+    if sys.version_info[0] == 3:
+        return std[:8].decode(sys.stdout.encoding)
+    else:
+        return std[:8]

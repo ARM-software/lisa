@@ -15,7 +15,7 @@
 
 
 # pylint: disable=W0613,E1101
-from __future__ import division
+
 from collections import defaultdict
 import os
 import shutil
@@ -413,9 +413,9 @@ class EnergyMeasurement(Instrument):
         self.params = obj_dict()
 
         instrument_parameters = {identifier(k): v
-                                 for k, v in self.instrument_parameters.iteritems()}
+                                 for k, v in self.instrument_parameters.items()}
         supported_params = self.backend.get_parameters()
-        for name, param in supported_params.iteritems():
+        for name, param in supported_params.items():
             value = instrument_parameters.pop(name, None)
             param.set_value(self.params, value)
         if instrument_parameters:
@@ -426,7 +426,7 @@ class EnergyMeasurement(Instrument):
     def initialize(self, context):
         self.instruments = self.backend.get_instruments(self.target, context.run_output.metadir, **self.params)
 
-        for instrument in self.instruments.itervalues():
+        for instrument in self.instruments.values():
             if not (instrument.mode & CONTINUOUS):
                 msg = '{} instrument does not support continuous measurement collection'
                 raise ConfigError(msg.format(self.instrument))
@@ -436,26 +436,26 @@ class EnergyMeasurement(Instrument):
             # Check that the expeccted channels exist.
             # If there are multiple Instruments, they were all constructed with
             # the same channels param, so check them all.
-            for instrument in self.instruments.itervalues():
+            for instrument in self.instruments.values():
                 if not instrument.get_channels(channel):
                     raise ConfigError('No channels found for "{}"'.format(channel))
 
     def setup(self, context):
-        for instrument in self.instruments.itervalues():
+        for instrument in self.instruments.values():
             instrument.reset(sites=self.sites,
                              kinds=self.kinds,
                              channels=self.channels)
 
     def start(self, context):
-        for instrument in self.instruments.itervalues():
+        for instrument in self.instruments.values():
             instrument.start()
 
     def stop(self, context):
-        for instrument in self.instruments.itervalues():
+        for instrument in self.instruments.values():
             instrument.stop()
 
     def update_output(self, context):
-        for device, instrument in self.instruments.iteritems():
+        for device, instrument in self.instruments.items():
             # Append the device key to the filename and artifact name, unless
             # it's None (as it will be for backends with only 1
             # devce/instrument)
@@ -501,7 +501,7 @@ class EnergyMeasurement(Instrument):
         #  the devlib instrument, before we potentially appended a device key to
         #  it)
         if len(self.instruments) > 1:
-            for name, metrics in metrics_by_name.iteritems():
+            for name, metrics in metrics_by_name.items():
                 units = metrics[0].units
                 value = sum(m.value for m in metrics)
                 context.add_metric(name, value, units)

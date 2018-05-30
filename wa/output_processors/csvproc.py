@@ -1,4 +1,6 @@
-import csv
+import sys
+
+from devlib.utils.csvutil import csvwriter
 
 from wa import OutputProcessor, Parameter
 from wa.framework.exception import ConfigError
@@ -64,7 +66,7 @@ class CsvReportProcessor(OutputProcessor):
             classifiers = set([])
             for out in outputs:
                 for metric in out.metrics:
-                    classifiers.update(metric.classifiers.keys())
+                    classifiers.update(list(metric.classifiers.keys()))
             extra_columns = list(classifiers)
         elif self.extra_columns:
             extra_columns = self.extra_columns
@@ -72,8 +74,7 @@ class CsvReportProcessor(OutputProcessor):
             extra_columns = []
 
         outfile = output.get_path('results.csv')
-        with open(outfile, 'wb') as wfh:
-            writer = csv.writer(wfh)
+        with csvwriter(outfile) as writer:
             writer.writerow(['id', 'workload', 'iteration', 'metric', ] +
                             extra_columns + ['value', 'units'])
 

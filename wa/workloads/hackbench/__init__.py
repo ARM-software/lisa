@@ -84,7 +84,7 @@ class Hackbench(Workload):
         results_file = context.get_artifact_path('hackbench-results')
         with open(results_file) as fh:
             for line in fh:
-                for label, (regex, units) in regex_map.iteritems():
+                for label, (regex, units) in regex_map.items():
                     match = regex.search(line)
                     if match:
                         context.add_metric(label, float(match.group(1)), units)

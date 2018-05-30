@@ -76,7 +76,7 @@ class RunState(object):
 
     @property
     def num_completed_jobs(self):
-        return sum(1 for js in self.jobs.itervalues()
+        return sum(1 for js in self.jobs.values()
                    if js.status > Status.RUNNING)
 
     def __init__(self):
@@ -95,7 +95,7 @@ class RunState(object):
 
     def get_status_counts(self):
         counter = Counter()
-        for job_state in self.jobs.itervalues():
+        for job_state in self.jobs.values():
             counter[job_state.status] += 1
         return counter
 
@@ -103,7 +103,7 @@ class RunState(object):
         return OrderedDict(
             status=str(self.status),
             timestamp=self.timestamp,
-            jobs=[j.to_pod() for j in self.jobs.itervalues()],
+            jobs=[j.to_pod() for j in self.jobs.values()],
         )
 
 

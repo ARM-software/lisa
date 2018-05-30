@@ -21,6 +21,7 @@ from wa.framework.exception import ConfigError
 from wa.utils import log
 from wa.utils.serializer import json, read_pod, SerializerSyntaxError
 from wa.utils.types import toggle_set, counter
+from functools import reduce
 
 
 logger = logging.getLogger('config')
@@ -47,27 +48,27 @@ class ConfigParser(object):
             merge_augmentations(raw)
 
             # Get WA core configuration
-            for cfg_point in state.settings.configuration.itervalues():
+            for cfg_point in state.settings.configuration.values():
                 value = pop_aliased_param(cfg_point, raw)
                 if value is not None:
                     logger.debug('Setting meta "{}" to "{}"'.format(cfg_point.name, value))
                     state.settings.set(cfg_point.name, value)
 
             # Get run specific configuration
-            for cfg_point in state.run_config.configuration.itervalues():
+            for cfg_point in state.run_config.configuration.values():
                 value = pop_aliased_param(cfg_point, raw)
                 if value is not None:
                     logger.debug('Setting run "{}" to "{}"'.format(cfg_point.name, value))
                     state.run_config.set(cfg_point.name, value)
 
             # Get global job spec configuration
-            for cfg_point in JobSpec.configuration.itervalues():
+            for cfg_point in JobSpec.configuration.values():
                 value = pop_aliased_param(cfg_point, raw)
                 if value is not None:
                     logger.debug('Setting global "{}" to "{}"'.format(cfg_point.name, value))
                     state.jobs_config.set_global_value(cfg_point.name, value)
 
-            for name, values in raw.iteritems():
+            for name, values in raw.items():
                 # Assume that all leftover config is for a plug-in or a global
                 # alias it is up to PluginCache to assert this assumption
                 logger.debug('Caching "{}" with "{}"'.format(name, values))
@@ -106,7 +107,7 @@ class AgendaParser(object):
 
             if raw:
                 msg = 'Invalid top level agenda entry(ies): "{}"'
-                raise ConfigError(msg.format('", "'.join(raw.keys())))
+                raise ConfigError(msg.format('", "'.join(list(raw.keys()))))
 
             sect_ids, wkl_ids = self._collect_ids(sections, global_workloads)
             self._process_global_workloads(state, global_workloads, wkl_ids)
@@ -301,7 +302,7 @@ def _construct_valid_entry(raw, seen_ids, prefix, jobs_config):
     merge_augmentations(raw)
 
     # Validate all workload_entry
-    for name, cfg_point in JobSpec.configuration.iteritems():
+    for name, cfg_point in JobSpec.configuration.items():
         value = pop_aliased_param(cfg_point, raw)
         if value is not None:
             value = cfg_point.kind(value)
@@ -317,7 +318,7 @@ def _construct_valid_entry(raw, seen_ids, prefix, jobs_config):
     # error if there are unknown workload_entry
     if raw:
         msg = 'Invalid entry(ies) in "{}": "{}"'
-        raise ConfigError(msg.format(workload_entry['id'], ', '.join(raw.keys())))
+        raise ConfigError(msg.format(workload_entry['id'], ', '.join(list(raw.keys()))))
 
     return workload_entry
 
@@ -339,7 +340,7 @@ def _collect_valid_id(entry_id, seen_ids, entry_type):
 
 
 def _get_workload_entry(workload):
-    if isinstance(workload, basestring):
+    if isinstance(workload, str):
         workload = {'name': workload}
     elif not isinstance(workload, dict):
         raise ConfigError('Invalid workload entry: "{}"')

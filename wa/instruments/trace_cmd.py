@@ -15,7 +15,7 @@
 
 
 # pylint: disable=W0613,E1101
-from __future__ import division
+
 import os
 
 from devlib import FtraceCollector

@@ -71,7 +71,7 @@ POD_TYPES = [
     dict,
     set,
     str,
-    unicode,
+    str,
     int,
     float,
     bool,
@@ -104,7 +104,7 @@ class WAJSONDecoder(_json.JSONDecoder):
         d = _json.JSONDecoder.decode(self, s, **kwargs)
 
         def try_parse_object(v):
-            if isinstance(v, basestring):
+            if isinstance(v, str):
                 if v.startswith('REGEX:'):
                     _, flags, pattern = v.split(':', 2)
                     return re.compile(pattern, int(flags or 0))
@@ -122,8 +122,8 @@ class WAJSONDecoder(_json.JSONDecoder):
 
         def load_objects(d):
             pairs = []
-            for k, v in d.iteritems():
-                if hasattr(v, 'iteritems'):
+            for k, v in d.items():
+                if hasattr(v, 'items'):
                     pairs.append((k, load_objects(v)))
                 elif isiterable(v):
                     pairs.append((k, [try_parse_object(i) for i in v]))
@@ -160,13 +160,13 @@ class json(object):
 
 
 _mapping_tag = _yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
-_regex_tag = u'tag:wa:regex'
-_level_tag = u'tag:wa:level'
-_cpu_mask_tag = u'tag:wa:cpu_mask'
+_regex_tag = 'tag:wa:regex'
+_level_tag = 'tag:wa:level'
+_cpu_mask_tag = 'tag:wa:cpu_mask'
 
 
 def _wa_dict_representer(dumper, data):
-    return dumper.represent_mapping(_mapping_tag, data.iteritems())
+    return dumper.represent_mapping(_mapping_tag, iter(data.items()))
 
 
 def _wa_regex_representer(dumper, data):
@@ -248,17 +248,17 @@ class python(object):
     def loads(s, *args, **kwargs):
         pod = {}
         try:
-            exec s in pod  # pylint: disable=exec-used
+            exec(s, pod)  # pylint: disable=exec-used
         except SyntaxError as e:
             raise SerializerSyntaxError(e.message, e.lineno)
-        for k in pod.keys():
+        for k in list(pod.keys()):
             if k.startswith('__'):
                 del pod[k]
         return pod
 
 
 def read_pod(source, fmt=None):
-    if isinstance(source, basestring):
+    if isinstance(source, str):
         with open(source) as fh:
             return _read_pod(fh, fmt)
     elif hasattr(source, 'read') and (hasattr(source, 'name') or fmt):
@@ -269,7 +269,7 @@ def read_pod(source, fmt=None):
 
 
 def write_pod(pod, dest, fmt=None):
-    if isinstance(dest, basestring):
+    if isinstance(dest, str):
         with open(dest, 'w') as wfh:
             return _write_pod(pod, wfh, fmt)
     elif hasattr(dest, 'write') and (hasattr(dest, 'name') or fmt):
@@ -323,8 +323,8 @@ def _write_pod(pod, wfh, fmt=None):
 def is_pod(obj):
     if  type(obj) not in POD_TYPES:
         return False
-    if hasattr(obj, 'iteritems'):
-        for k, v in obj.iteritems():
+    if hasattr(obj, 'items'):
+        for k, v in obj.items():
             if not (is_pod(k) and is_pod(v)):
                 return False
     elif isiterable(obj):

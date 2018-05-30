@@ -287,7 +287,7 @@ def loose_version_matching(config_version, apk_version):
     if len(apk_version) < len(config_version):
         return False  # More specific version requested than available
 
-    for i in xrange(len(config_version)):
+    for i in range(len(config_version)):
         if config_version[i] != apk_version[i]:
             return False
     return True

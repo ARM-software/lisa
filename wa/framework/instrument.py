@@ -165,7 +165,7 @@ def priority(priority):
     def decorate(func):
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
-        wrapper.func_name = func.func_name
+        wrapper.__name__ = func.__name__
         if priority in signal.CallbackPriority.levels:
             wrapper.priority = signal.CallbackPriority(priority)
         else:
@@ -255,7 +255,7 @@ class ManagedCallback(object):
                 global failures_detected  # pylint: disable=W0603
                 failures_detected = True
                 log_error(e, logger)
-                context.add_event(e.message)
+                context.add_event(e.args[0] if e.args else str(e))
                 if isinstance(e, WorkloadError):
                     context.set_status('FAILED')
                 elif isinstance(e, TargetError) or isinstance(e, TimeoutError):
@@ -268,7 +268,7 @@ class ManagedCallback(object):
 
     def __repr__(self):
         text = 'ManagedCallback({}, {})'
-        return text.format(self.instrument.name, self.callback.im_func.func_name)
+        return text.format(self.instrument.name, self.callback.__func__.__name__)
 
     __str__ = __repr__
 

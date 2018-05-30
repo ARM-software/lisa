@@ -25,6 +25,8 @@ from collections import OrderedDict, defaultdict
 from itertools import chain
 from copy import copy
 
+from future.utils import with_metaclass
+
 from wa.framework.configuration.core import settings, ConfigurationPoint as Parameter
 from wa.framework.exception import (NotFoundError, PluginLoaderError, TargetError,
                                     ValidationError, ConfigError, HostError)
@@ -34,7 +36,10 @@ from wa.utils.misc import (ensure_directory_exists as _d, walk_modules, load_cla
 from wa.utils.types import identifier
 
 
-MODNAME_TRANS = string.maketrans(':/\\.', '____')
+if sys.version_info[0] == 3:
+    MODNAME_TRANS = str.maketrans(':/\\.', '____')
+else:
+    MODNAME_TRANS = string.maketrans(':/\\.', '____')
 
 
 class AttributeCollection(object):
@@ -50,7 +55,7 @@ class AttributeCollection(object):
 
     @property
     def values(self):
-        return self._attrs.values()
+        return list(self._attrs.values())
 
     def __init__(self, attrcls):
         self._attrcls = attrcls
@@ -61,7 +66,7 @@ class AttributeCollection(object):
         if p.name in self._attrs:
             if p.override:
                 newp = copy(self._attrs[p.name])
-                for a, v in p.__dict__.iteritems():
+                for a, v in p.__dict__.items():
                     if v is not None:
                         setattr(newp, a, v)
                 if not hasattr(newp, "_overridden"):
@@ -77,7 +82,7 @@ class AttributeCollection(object):
     append = add
 
     def __str__(self):
-        return 'AC({})'.format(map(str, self._attrs.values()))
+        return 'AC({})'.format(list(map(str, list(self._attrs.values()))))
 
     __repr__ = __str__
 
@@ -212,14 +217,14 @@ class PluginMeta(type):
         if hasattr(cls, 'aliases'):
             aliases, cls.aliases = cls.aliases, AliasCollection()
             for alias in aliases:
-                if isinstance(alias, basestring):
+                if isinstance(alias, str):
                     alias = Alias(alias)
                 alias.validate(cls)
                 alias.plugin_name = cls.name
                 cls.aliases.add(alias)
 
 
-class Plugin(object):
+class Plugin(with_metaclass(PluginMeta, object)):
     """
     Base class for all WA plugins. An plugin is basically a plug-in.  It
     extends the functionality of WA in some way. Plugins are discovered and
@@ -230,7 +235,6 @@ class Plugin(object):
     ``~/.workload_automation/``.
 
     """
-    __metaclass__ = PluginMeta
 
     kind = None
     name = None
@@ -334,7 +338,7 @@ class Plugin(object):
     can = has
 
     def _load_module(self, loader, module_spec):
-        if isinstance(module_spec, basestring):
+        if isinstance(module_spec, str):
             name = module_spec
             params = {}
         elif isinstance(module_spec, dict):
@@ -342,7 +346,7 @@ class Plugin(object):
                 msg = 'Invalid module spec: {}; dict must have exctly one key -- '\
                       'the module name.'
                 raise ValueError(msg.format(module_spec))
-            name, params = module_spec.items()[0]
+            name, params = list(module_spec.items())[0]
         else:
             message = 'Invalid module spec: {}; must be a string or a one-key dict.'
             raise ValueError(message.format(module_spec))
@@ -491,7 +495,7 @@ class PluginLoader(object):
 
         """
         name, base_kwargs = self.resolve_alias(name)
-        kwargs = OrderedDict(chain(base_kwargs.iteritems(), kwargs.iteritems()))
+        kwargs = OrderedDict(chain(iter(base_kwargs.items()), iter(kwargs.items())))
         cls = self.get_plugin_class(name, kind)
         plugin = cls(*args, **kwargs)
         return plugin
@@ -514,10 +518,10 @@ class PluginLoader(object):
 
         """
         if kind is None:
-            return self.plugins.values()
+            return list(self.plugins.values())
         if kind not in self.kind_map:
             raise ValueError('Unknown plugin type: {}'.format(kind))
-        return self.kind_map[kind].values()
+        return list(self.kind_map[kind].values())
 
     def has_plugin(self, name, kind=None):
         """
@@ -625,7 +629,7 @@ class PluginLoader(object):
             modname = os.path.splitext(filepath[1:])[0].translate(MODNAME_TRANS)
             module = imp.load_source(modname, filepath)
             self._discover_in_module(module)
-        except (SystemExit, ImportError), e:
+        except (SystemExit, ImportError) as e:
             if self.keep_going:
                 self.logger.warning('Failed to load {}'.format(filepath))
                 self.logger.warning('Got: {}'.format(e))
@@ -639,7 +643,7 @@ class PluginLoader(object):
     def _discover_in_module(self, module):  # NOQA pylint: disable=too-many-branches
         self.logger.debug('Checking module %s', module.__name__)
         with log.indentcontext():
-            for obj in vars(module).itervalues():
+            for obj in vars(module).values():
                 if inspect.isclass(obj):
                     if not issubclass(obj, Plugin):
                         continue

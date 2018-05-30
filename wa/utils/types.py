@@ -29,10 +29,19 @@ import os
 import re
 import numbers
 import shlex
+import sys
 from bisect import insort
-from urllib import quote, unquote
+if sys.version_info[0] == 3:
+    from urllib.parse import quote, unquote
+    from past.builtins import basestring
+    long = int
+else:
+    from urllib import quote, unquote
 from collections import defaultdict, MutableMapping
 from copy import copy
+from functools import total_ordering
+
+from future.utils import with_metaclass
 
 from devlib.utils.types import identifier, boolean, integer, numeric, caseless_string
 
@@ -47,7 +56,7 @@ def list_of_strs(value):
     """
     if not isiterable(value):
         raise ValueError(value)
-    return map(str, value)
+    return list(map(str, value))
 
 list_of_strings = list_of_strs
 
@@ -59,7 +68,7 @@ def list_of_ints(value):
     """
     if not isiterable(value):
         raise ValueError(value)
-    return map(int, value)
+    return list(map(int, value))
 
 list_of_integers = list_of_ints
 
@@ -72,7 +81,7 @@ def list_of_numbers(value):
     """
     if not isiterable(value):
         raise ValueError(value)
-    return map(numeric, value)
+    return list(map(numeric, value))
 
 
 def list_of_bools(value, interpret_strings=True):
@@ -88,9 +97,9 @@ def list_of_bools(value, interpret_strings=True):
     if not isiterable(value):
         raise ValueError(value)
     if interpret_strings:
-        return map(boolean, value)
+        return list(map(boolean, value))
     else:
-        return map(bool, value)
+        return list(map(bool, value))
 
 
 def list_of(type_):
@@ -98,16 +107,16 @@ def list_of(type_):
     attempts to convert all elements in the passed value to the specifed
     ``type_``, raising ``ValueError`` on error."""
     def __init__(self, values):
-        list.__init__(self, map(type_, values))
+        list.__init__(self, list(map(type_, values)))
 
     def append(self, value):
         list.append(self, type_(value))
 
     def extend(self, other):
-        list.extend(self, map(type_, other))
+        list.extend(self, list(map(type_, other)))
 
     def from_pod(cls, pod):
-        return cls(map(type_, pod))
+        return cls(list(map(type_, pod)))
 
     def _to_pod(self):
         return self
@@ -132,7 +141,7 @@ def list_or_string(value):
     a one-element list with stringified value will be returned.
 
     """
-    if isinstance(value, basestring):
+    if isinstance(value, str):
         return [value]
     else:
         try:
@@ -147,11 +156,11 @@ def list_or_caseless_string(value):
     not iterable a one-element list with stringified value will be returned.
 
     """
-    if isinstance(value, basestring):
+    if isinstance(value, str):
         return [caseless_string(value)]
     else:
         try:
-            return map(caseless_string, value)
+            return list(map(caseless_string, value))
         except ValueError:
             return [caseless_string(value)]
 
@@ -229,8 +238,8 @@ class arguments(list):
 
     def __init__(self, value=None):
         if isiterable(value):
-            super(arguments, self).__init__(map(str, value))
-        elif isinstance(value, basestring):
+            super(arguments, self).__init__(list(map(str, value)))
+        elif isinstance(value, str):
             posix = os.name != 'nt'
             super(arguments, self).__init__(shlex.split(value, posix=posix))
         elif value is None:
@@ -242,7 +251,7 @@ class arguments(list):
         return super(arguments, self).append(str(value))
 
     def extend(self, values):
-        return super(arguments, self).extend(map(str, values))
+        return super(arguments, self).extend(list(map(str, values)))
 
     def __str__(self):
         return ' '.join(self)
@@ -288,7 +297,7 @@ class prioritylist(object):
         self.__delitem__(index)
 
     def _priority_index(self, element):
-        for priority, elements in self.elements.iteritems():
+        for priority, elements in self.elements.items():
             if element in elements:
                 return (priority, elements.index(element))
         raise IndexError(element)
@@ -333,7 +342,7 @@ class prioritylist(object):
             else:
                 index_range = [index]
         elif isinstance(index, slice):
-            index_range = range(index.start or 0, index.stop, index.step or 1)
+            index_range = list(range(index.start or 0, index.stop, index.step or 1))
         else:
             raise ValueError('Invalid index {}'.format(index))
         current_global_offset = 0
@@ -391,7 +400,7 @@ class toggle_set(set):
     def __init__(self, *args):
         if args:
             value = args[0]
-            if isinstance(value, basestring):
+            if isinstance(value, str):
                 msg = 'invalid type for toggle_set: "{}"'
                 raise TypeError(msg.format(type(value)))
         set.__init__(self, *args)
@@ -507,12 +516,15 @@ class obj_dict(MutableMapping):
             raise AttributeError("No such attribute: " + name)
 
     def __getattr__(self, name):
+        if 'dict' not in self.__dict__:
+            raise AttributeError("No such attribute: " + name)
         if name in self.__dict__['dict']:
             return self.__dict__['dict'][name]
         else:
             raise AttributeError("No such attribute: " + name)
 
 
+@total_ordering
 class level(object):
     """
     A level has a name and behaves like a string when printed, however it also
@@ -538,11 +550,8 @@ class level(object):
     def __repr__(self):
         return '{}({})'.format(self.name, self.value)
 
-    def __cmp__(self, other):
-        if isinstance(other, level):
-            return cmp(self.value, other.value)
-        else:
-            return cmp(self.value, other)
+    def __hash__(self):
+        return hash(self.name)
 
     def __eq__(self, other):
         if isinstance(other, level):
@@ -552,13 +561,24 @@ class level(object):
         else:
             return self.value == other
 
-    def __ne__(self, other):
+    def __lt__(self, other):
         if isinstance(other, level):
-            return self.value != other.value
+            return self.value < other.value
         elif isinstance(other, basestring):
-            return self.name != other
+            return self.name < other
         else:
-            return self.value != other
+            return self.value < other
+
+
+class _EnumMeta(type):
+
+    def __str__(cls):
+        return str(cls.levels)
+
+    def __getattr__(self, name):
+        name = name.lower()
+        if name in self.__dict__:
+                return self.__dict__[name]
 
 
 def enum(args, start=0, step=1):
@@ -583,11 +603,7 @@ def enum(args, start=0, step=1):
 
     """
 
-    class Enum(object):
-
-        class __metaclass__(type):
-            def __str__(cls):
-                return str(cls.levels)
+    class Enum(with_metaclass(_EnumMeta, object)):
 
         @classmethod
         def from_pod(cls, pod):
@@ -642,14 +658,14 @@ class ParameterDict(dict):
     # Function to determine the appropriate prefix based on the parameters type
     @staticmethod
     def _get_prefix(obj):
-        if isinstance(obj, basestring):
+        if isinstance(obj, str):
             prefix = 's'
         elif isinstance(obj, float):
             prefix = 'f'
-        elif isinstance(obj, long):
-            prefix = 'd'
         elif isinstance(obj, bool):
             prefix = 'b'
+        elif isinstance(obj, long):
+            prefix = 'i'
         elif isinstance(obj, int):
             prefix = 'i'
         elif obj is None:
@@ -686,7 +702,7 @@ class ParameterDict(dict):
             elif value_type == 'b':
                 return boolean(value)
             elif value_type == 'd':
-                return long(value)
+                return int(value)
             elif value_type == 'f':
                 return float(value)
             elif value_type == 'i':
@@ -700,7 +716,7 @@ class ParameterDict(dict):
             raise ValueError('Unknown {} {}'.format(type(string), string))
 
     def __init__(self, *args, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             self.__setitem__(k, v)
         dict.__init__(self, *args)
 
@@ -714,7 +730,7 @@ class ParameterDict(dict):
         return dict.__contains__(self, self._encode(item))
 
     def __iter__(self):
-        return iter((k, self._decode(v)) for (k, v) in self.items())
+        return iter((k, self._decode(v)) for (k, v) in list(self.items()))
 
     def iteritems(self):
         return self.__iter__()
@@ -730,7 +746,10 @@ class ParameterDict(dict):
         return (key, self._decode(value))
 
     def iter_encoded_items(self):
-        return dict.iteritems(self)
+        if sys.version_info[0] == 3:
+            return dict.items(self)
+        else:
+            return dict.iteritems(self)
 
     def get_encoded_value(self, name):
         return dict.__getitem__(self, name)
@@ -743,7 +762,7 @@ class ParameterDict(dict):
             if isinstance(d, ParameterDict):
                 dict.update(self, d)
             else:
-                for k, v in d.iteritems():
+                for k, v in d.items():
                     self[k] = v
 
 
@@ -762,7 +781,7 @@ class cpu_mask(object):
         self._mask = 0
         if isinstance(cpus, int):
             self._mask = cpus
-        elif isinstance(cpus, basestring):
+        elif isinstance(cpus, str):
             if cpus[:2] == '0x' or cpus[:2] == '0X':
                 self._mask = int(cpus, 16)
             else:

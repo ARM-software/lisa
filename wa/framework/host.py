@@ -90,7 +90,7 @@ def convert_wa2_agenda(filepath, output_path):
                             default=True),
             ])
 
-    for param in orig_agenda.keys():
+    for param in list(orig_agenda.keys()):
         for cfg_point in config_points:
             if param == cfg_point.name or param in cfg_point.aliases:
                 if cfg_point.name == 'augmentations':
@@ -105,7 +105,7 @@ def convert_wa2_agenda(filepath, output_path):
 
         # Convert plugin configuration
         output.write("# Plugin Configuration\n")
-        for param in orig_agenda.keys():
+        for param in list(orig_agenda.keys()):
             if pluginloader.has_plugin(param):
                 entry = {param: orig_agenda.pop(param)}
                 yaml.dump(format_parameter(entry), output, default_flow_style=False)
@@ -114,7 +114,7 @@ def convert_wa2_agenda(filepath, output_path):
         # Write any additional aliased parameters into new config
         plugin_cache = PluginCache()
         output.write("# Additional global aliases\n")
-        for param in orig_agenda.keys():
+        for param in list(orig_agenda.keys()):
             if plugin_cache.is_global_alias(param):
                 entry = {param: orig_agenda.pop(param)}
                 yaml.dump(format_parameter(entry), output, default_flow_style=False)
@@ -123,7 +123,7 @@ def convert_wa2_agenda(filepath, output_path):
 
 def format_parameter(param):
     if isinstance(param, dict):
-         return {identifier(k) : v for k, v in param.iteritems()}
+         return {identifier(k) : v for k, v in param.items()}
     else:
         return param
 

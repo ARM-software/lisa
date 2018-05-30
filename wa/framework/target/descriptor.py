@@ -28,7 +28,7 @@ def list_target_descriptions(loader=pluginloader):
                 raise PluginLoaderError(msg.format(desc.name, prev_dtor.name,
                                                    descriptor.name))
             targets[desc.name] = desc
-    return targets.values()
+    return list(targets.values())
 
 
 def get_target_description(name, loader=pluginloader):
@@ -47,11 +47,11 @@ def instantiate_target(tdesc, params, connect=None, extra_platform_params=None):
     tp, pp, cp = {}, {}, {}
 
     for supported_params, new_params in (target_params, tp), (platform_params, pp), (conn_params, cp):
-        for name, value in supported_params.iteritems():
+        for name, value in supported_params.items():
             if value.default and name == value.name:
                 new_params[name] = value.default
 
-    for name, value in params.iteritems():
+    for name, value in params.items():
         if name in target_params:
             tp[name] = value
         elif name in platform_params:
@@ -64,7 +64,7 @@ def instantiate_target(tdesc, params, connect=None, extra_platform_params=None):
             msg = 'Unexpected parameter for {}: {}'
             raise ValueError(msg.format(tdesc.name, name))
 
-    for pname, pval in (extra_platform_params or {}).iteritems():
+    for pname, pval in (extra_platform_params or {}).items():
         if pname in pp:
             raise RuntimeError('Platform parameter clash: {}'.format(pname))
         pp[pname] = pval
@@ -121,7 +121,7 @@ class TargetDescription(object):
             vals = []
         elif isiterable(vals):
             if hasattr(vals, 'values'):
-                vals = v.values()
+                vals = list(v.values())
         else:
             msg = '{} must be iterable; got "{}"'
             raise ValueError(msg.format(attr, vals))
@@ -453,11 +453,11 @@ class DefaultTargetDescriptor(TargetDescriptor):
 
     def get_descriptions(self):
         result = []
-        for target_name, target_tuple in TARGETS.iteritems():
+        for target_name, target_tuple in TARGETS.items():
             (target, conn), target_params = self._get_item(target_tuple)
             assistant = ASSISTANTS[target_name]
             conn_params =  CONNECTION_PARAMS[conn]
-            for platform_name, platform_tuple in PLATFORMS.iteritems():
+            for platform_name, platform_tuple in PLATFORMS.items():
                 (platform, plat_conn), platform_params = self._get_item(platform_tuple)
                 name = '{}_{}'.format(platform_name, target_name)
                 td = TargetDescription(name, self)
@@ -484,11 +484,11 @@ class DefaultTargetDescriptor(TargetDescriptor):
             return cls, params
 
         param_map = OrderedDict((p.name, copy(p)) for p in params)
-        for name, value in defaults.iteritems():
+        for name, value in defaults.items():
             if name not in param_map:
                 raise ValueError('Unexpected default "{}"'.format(name))
             param_map[name].default = value
-        return cls, param_map.values()
+        return cls, list(param_map.values())
 
 
 
@@ -522,7 +522,7 @@ def create_target_description(name, *args, **kwargs):
 def _get_target_defaults(target):
     specificity = 0
     res = ('linux', TARGETS['linux'])  # fallback to a generic linux target
-    for name, ttup in TARGETS.iteritems():
+    for name, ttup in TARGETS.items():
         if issubclass(target, ttup[0][0]):
             new_spec =  len(inspect.getmro(ttup[0][0]))
             if new_spec > specificity:
@@ -540,7 +540,7 @@ def add_description_for_target(target, description=None, **kwargs):
     if 'platform' not in kwargs:
         kwargs['platform'] = Platform
     if 'platform_params' not in kwargs:
-        for (plat, conn), params, _ in PLATFORMS.itervalues():
+        for (plat, conn), params, _ in PLATFORMS.values():
             if plat == kwargs['platform']:
                 kwargs['platform_params'] = params
                 if conn is not None and kwargs['conn'] is None:

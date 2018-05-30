@@ -17,7 +17,7 @@ import os
 import json
 import re
 
-from HTMLParser import HTMLParser
+from html.parser import HTMLParser
 
 from wa import ApkUiautoWorkload, Parameter
 from wa.utils.types import list_of_strs
@@ -48,7 +48,7 @@ class Vellamo(ApkUiautoWorkload):
         '3.0': ['Browser', 'Metal', 'Multi'],
         '3.2.4': ['Browser', 'Metal', 'Multi'],
     }
-    valid_versions = benchmark_types.keys()
+    valid_versions = list(benchmark_types.keys())
     summary_metrics = None
 
     parameters = [
@@ -119,7 +119,7 @@ class Vellamo(ApkUiautoWorkload):
                     benchmark.name = benchmark.name.replace(' ', '_')
                     context.add_metric('{}_Total'.format(benchmark.name),
                                                                 benchmark.score)
-                    for name, score in benchmark.metrics.items():
+                    for name, score in list(benchmark.metrics.items()):
                         name = name.replace(' ', '_')
                         context.add_metric('{}_{}'.format(benchmark.name,
                                                                  name), score)

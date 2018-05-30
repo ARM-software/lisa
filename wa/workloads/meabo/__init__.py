@@ -145,7 +145,7 @@ class Meabo(Workload):
             Controls which phases to run.
             ''',
             constraint=lambda x: all(0 < v <=10 for v in x),
-            default=range(1, 11),
+            default=list(range(1, 11)),
         ),
         Parameter(
             'threads',

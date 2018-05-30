@@ -464,7 +464,7 @@ class Runner(object):
             self.logger.info('Skipping remaining jobs.')
             self.context.skip_remaining_jobs()
         except Exception as e:
-            message = e.message if e.message else str(e)
+            message = e.args[0] if e.args else str(e)
             log.log_error(e, self.logger)
             self.logger.error('Skipping remaining jobs due to "{}".'.format(e))
             self.context.skip_remaining_jobs()

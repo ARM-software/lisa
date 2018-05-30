@@ -33,7 +33,7 @@ class RuntimeConfig(Plugin):
 
     @property
     def supported_parameters(self):
-        return self._runtime_params.values()
+        return list(self._runtime_params.values())
 
     @property
     def core_names(self):
@@ -166,12 +166,12 @@ class HotplugRuntimeConfig(RuntimeConfig):
 
     def validate_parameters(self):
         if len(self.num_cores) == self.target.number_of_cpus:
-            if all(v is False for v in self.num_cores.values()):
+            if all(v is False for v in list(self.num_cores.values())):
                 raise ValueError('Cannot set number of all cores to 0')
 
     def commit(self):
         '''Online all CPUs required in order before then off-lining'''
-        num_cores = sorted(self.num_cores.iteritems())
+        num_cores = sorted(self.num_cores.items())
         for cpu, online in num_cores:
             if online:
                 self.target.hotplug.online(cpu)
@@ -190,7 +190,7 @@ class SysfileValuesRuntimeConfig(RuntimeConfig):
     #pylint: disable=unused-argument
     @staticmethod
     def set_sysfile(obj, value, core):
-        for path, value in value.iteritems():
+        for path, value in value.items():
             verify = True
             if path.endswith('!'):
                 verify = False
@@ -222,7 +222,7 @@ class SysfileValuesRuntimeConfig(RuntimeConfig):
         return
 
     def commit(self):
-        for path, (value, verify) in self.sysfile_values.iteritems():
+        for path, (value, verify) in self.sysfile_values.items():
             self.target.write_value(path, value, verify=verify)
 
     def clear(self):
@@ -255,7 +255,7 @@ class FreqValue(object):
                 raise TargetError(msg.format(value))
         elif isinstance(value, int) and value in self.values:
             return value
-        elif isinstance(value, basestring):
+        elif isinstance(value, str):
             value = caseless_string(value)
             if value in ['min', 'max']:
                 return value
@@ -675,7 +675,7 @@ class IdleStateValue(object):
         if self.values is None:
             return value
 
-        if isinstance(value, basestring):
+        if isinstance(value, str):
             value = caseless_string(value)
             if value == 'all':
                 return [state[0] for state in self.values]

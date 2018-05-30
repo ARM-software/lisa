@@ -90,11 +90,11 @@ class PluginCache(object):
             msg = 'configuration provided for unknown plugin "{}"'
             raise ConfigError(msg.format(plugin_name))
 
-        if not hasattr(values, 'iteritems'):
+        if not hasattr(values, 'items'):
             msg = 'Plugin configuration for "{}" not a dictionary ({} is {})'
             raise ConfigError(msg.format(plugin_name, repr(values), type(values)))
 
-        for name, value in values.iteritems():
+        for name, value in values.items():
             if (plugin_name not in GENERIC_CONFIGS and
                     name not in self.get_plugin_parameters(plugin_name)):
                 msg = "'{}' is not a valid parameter for '{}'"
@@ -124,7 +124,7 @@ class PluginCache(object):
             for source in self.sources:
                 if source not in plugin_config:
                     continue
-                for name, value in plugin_config[source].iteritems():
+                for name, value in plugin_config[source].items():
                     cfg_points[name].set_value(config, value=value)
         else:
             # A more complicated merge that involves priority of sources and
@@ -136,7 +136,7 @@ class PluginCache(object):
 
     def get_plugin(self, name, kind=None, *args, **kwargs):
         config = self.get_plugin_config(name)
-        kwargs = dict(config.items() + kwargs.items())
+        kwargs = dict(list(config.items()) + list(kwargs.items()))
         return self.loader.get_plugin(name, kind=kind, *args, **kwargs)
 
     def get_plugin_class(self, name, kind=None):
@@ -154,18 +154,18 @@ class PluginCache(object):
 
     def _set_plugin_defaults(self, plugin_name, config):
         cfg_points = self.get_plugin_parameters(plugin_name)
-        for cfg_point in cfg_points.itervalues():
+        for cfg_point in cfg_points.values():
             cfg_point.set_value(config, check_mandatory=False)
 
         try:
             _, alias_params = self.resolve_alias(plugin_name)
-            for name, value in alias_params.iteritems():
+            for name, value in alias_params.items():
                 cfg_points[name].set_value(config, value)
         except NotFoundError:
             pass
 
     def _set_from_global_aliases(self, plugin_name, config):
-        for alias, param in self._global_alias_map[plugin_name].iteritems():
+        for alias, param in self._global_alias_map[plugin_name].items():
             if alias in self.global_alias_values:
                 for source in self.sources:
                     if source not in self.global_alias_values[alias]:
@@ -230,7 +230,7 @@ class PluginCache(object):
 
         # Validate final configuration
         merged_config.name = specific_name
-        for cfg_point in ms.cfg_points.itervalues():
+        for cfg_point in ms.cfg_points.values():
             cfg_point.validate(merged_config, check_mandatory=is_final)
 
     def __getattr__(self, name):
@@ -285,7 +285,7 @@ class MergeState(object):
 def update_config_from_source(final_config, source, state):
     if source in state.generic_config:
         final_config.name = state.generic_name
-        for name, cfg_point in state.cfg_points.iteritems():
+        for name, cfg_point in state.cfg_points.items():
             if name in state.generic_config[source]:
                 if name in state.seen_specific_config:
                     msg = ('"{generic_name}" configuration "{config_name}" has '
@@ -307,7 +307,7 @@ def update_config_from_source(final_config, source, state):
 
     if source in state.specific_config:
         final_config.name = state.specific_name
-        for name, cfg_point in state.cfg_points.iteritems():
+        for name, cfg_point in state.cfg_points.items():
             if name in state.specific_config[source]:
                 state.seen_specific_config[name].append(str(source))
                 value = state.specific_config[source].pop(name)

@@ -128,13 +128,13 @@ def disable(logs):
 
 
 def __enable_logger(logger):
-    if isinstance(logger, basestring):
+    if isinstance(logger, str):
         logger = logging.getLogger(logger)
     logger.propagate = True
 
 
 def __disable_logger(logger):
-    if isinstance(logger, basestring):
+    if isinstance(logger, str):
         logger = logging.getLogger(logger)
     logger.propagate = False
 

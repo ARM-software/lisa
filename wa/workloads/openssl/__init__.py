@@ -102,7 +102,7 @@ class Openssl(Workload):
 
             parts =  line.split(':')
             if parts[0] == '+F':  # evp ciphers
-                for bs, value  in zip(BLOCK_SIZES, map(float, parts[3:])):
+                for bs, value  in zip(BLOCK_SIZES, list(map(float, parts[3:]))):
                     value = value / 2**20  # to MB
                     context.add_metric('score', value, 'MB/s',
                                        classifiers={'block_size': bs})

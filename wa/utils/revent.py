@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-from __future__ import division
+
 import os
 import struct
 import signal
@@ -88,7 +88,7 @@ class UinputDeviceInfo(object):
         self.abs_bits = bytearray(parts[3])
         self.num_absinfo = parts[4]
         self.absinfo = [absinfo(*read_struct(fh, absinfo_struct))
-                        for _ in xrange(self.num_absinfo)]
+                        for _ in range(self.num_absinfo)]
 
     def __str__(self):
         return 'UInputInfo({})'.format(self.__dict__)
@@ -145,7 +145,7 @@ class ReventRecording(object):
             if self.stream:
                 events = self._iter_events()
                 try:
-                    first = last = events.next()
+                    first = last = next(events)
                 except StopIteration:
                     self._duration = 0
                 for last in events:
@@ -230,7 +230,7 @@ class ReventRecording(object):
 
     def _read_devices(self, fh):
         num_devices, = read_struct(fh, u32_struct)
-        for _ in xrange(num_devices):
+        for _ in range(num_devices):
             self.device_paths.append(read_string(fh))
 
     def _read_gamepad_info(self, fh):
@@ -243,7 +243,7 @@ class ReventRecording(object):
             raise RuntimeError(msg)
         self.fh.seek(self._events_start)
         if self.version >= 2:
-            for _ in xrange(self.num_events):
+            for _ in range(self.num_events):
                 yield ReventEvent(self.fh)
         else:
             file_size = os.path.getsize(self.filepath)

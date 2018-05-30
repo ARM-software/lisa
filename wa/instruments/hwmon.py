@@ -58,11 +58,11 @@ class HwmonInstrument(Instrument):
         measurements_before = {m.channel.label: m for m in self.before}
         measurements_after = {m.channel.label: m for m in self.after}
 
-        if measurements_before.keys() != measurements_after.keys():
+        if list(measurements_before.keys()) != list(measurements_after.keys()):
             self.logger.warning(
                 'hwmon before/after measurements returned different entries!')
 
-        for label, measurement_after in measurements_after.iteritems():
+        for label, measurement_after in measurements_after.items():
             if label not in measurements_before:
                 continue # We've already warned about this
             measurement_before = measurements_before[label]

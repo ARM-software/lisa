@@ -1,5 +1,7 @@
 import random
-from itertools import izip_longest, groupby, chain
+from itertools import groupby, chain
+
+from future.moves.itertools import zip_longest
 
 from wa.framework.configuration.core import (MetaConfiguration, RunConfiguration,
                                              JobGenerator, Status, settings)
@@ -157,8 +159,8 @@ def permute_by_iteration(specs):
     all_tuples = []
     for spec in chain(*groups):
         all_tuples.append([(spec, i + 1)
-                           for i in xrange(spec.iterations)])
-    for t in chain(*map(list, izip_longest(*all_tuples))):
+                           for i in range(spec.iterations)])
+    for t in chain(*list(map(list, zip_longest(*all_tuples)))):
         if t is not None:
             yield t
 
@@ -183,8 +185,8 @@ def permute_by_section(specs):
     all_tuples = []
     for spec in chain(*groups):
         all_tuples.append([(spec, i + 1)
-                           for i in xrange(spec.iterations)])
-    for t in chain(*map(list, izip_longest(*all_tuples))):
+                           for i in range(spec.iterations)])
+    for t in chain(*list(map(list, zip_longest(*all_tuples)))):
         if t is not None:
             yield t
 
@@ -196,7 +198,7 @@ def permute_randomly(specs):
     """
     result = []
     for spec in specs:
-        for i in xrange(1, spec.iterations + 1):
+        for i in range(1, spec.iterations + 1):
             result.append((spec, i))
     random.shuffle(result)
     for t in result:
@@ -214,5 +216,5 @@ permute_map = {
 def permute_iterations(specs, exec_order):
     if exec_order not in permute_map:
         msg = 'Unknown execution order "{}"; must be in: {}'
-        raise ValueError(msg.format(exec_order, permute_map.keys()))
+        raise ValueError(msg.format(exec_order, list(permute_map.keys())))
     return permute_map[exec_order](specs)

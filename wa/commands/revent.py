@@ -24,6 +24,10 @@ from wa.framework.target.manager import TargetManager
 from wa.utils.revent import ReventRecorder
 
 
+if sys.version_info[0] == 3:
+    raw_input = input
+
+
 class RecordCommand(Command):
 
     name = 'record'
@@ -146,7 +150,7 @@ class RecordCommand(Command):
         if os.path.exists(host_path):
             msg = 'Revent file \'{}\' already exists, overwrite? [y/n]'
             self.logger.info(msg.format(revent_file_name))
-            if raw_input('') == 'y':
+            if input('') == 'y':
                 os.remove(host_path)
             else:
                 msg = 'Did not pull and overwrite \'{}\''
@@ -222,7 +226,7 @@ class RecordCommand(Command):
         if not file_name:
             file_name = '{}.revent'.format(self.target.model)
         if not output_path:
-            output_path = os.getcwdu()
+            output_path = os.getcwd()
 
         return output_path, file_name
 

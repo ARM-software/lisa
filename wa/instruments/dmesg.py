@@ -31,7 +31,7 @@ class DmesgInstrument(Instrument):
     name = 'dmesg'
 
     parameters = [
-        Parameter('loglevel', kind=int, allowed_values=range(8),
+        Parameter('loglevel', kind=int, allowed_values=list(range(8)),
                   description='Set loglevel for console output.')
     ]
 

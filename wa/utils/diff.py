@@ -1,11 +1,18 @@
-from wa.utils.misc import write_table
+import os
+import re
+
+from future.moves.itertools import zip_longest
+
+from wa.utils.misc import as_relative, diff_tokens, write_table
+from wa.utils.misc import ensure_file_directory_exists as _f
+from wa.utils.misc import ensure_directory_exists as _d
 
 
 def diff_interrupt_files(before, after, result):  # pylint: disable=R0914
     output_lines = []
     with open(before) as bfh:
         with open(after) as ofh:
-            for bline, aline in izip(bfh, ofh):
+            for bline, aline in zip(bfh, ofh):
                 bchunks = bline.strip().split()
                 while True:
                     achunks = aline.strip().split()
@@ -20,7 +27,7 @@ def diff_interrupt_files(before, after, result):  # pylint: disable=R0914
                         diffchunks = ['>'] + achunks
                         output_lines.append(diffchunks)
                         try:
-                            aline = ofh.next()
+                            aline = next(ofh)
                         except StopIteration:
                             break
 
@@ -45,11 +52,9 @@ def diff_interrupt_files(before, after, result):  # pylint: disable=R0914
 
 def diff_sysfs_dirs(before, after, result):  # pylint: disable=R0914
     before_files = []
-    os.path.walk(before,
-                 lambda arg, dirname, names: arg.extend([os.path.join(dirname, f) for f in names]),
-                 before_files
-                 )
-    before_files = filter(os.path.isfile, before_files)
+    for root, dirs, files in os.walk(before):
+        before_files.extend([os.path.join(root, f) for f in files])
+    before_files = list(filter(os.path.isfile, before_files))
     files = [os.path.relpath(f, before) for f in before_files]
     after_files = [os.path.join(after, f) for f in files]
     diff_files = [os.path.join(result, f) for f in files]
@@ -61,7 +66,7 @@ def diff_sysfs_dirs(before, after, result):  # pylint: disable=R0914
 
         with open(bfile) as bfh, open(afile) as afh:  # pylint: disable=C0321
             with open(_f(dfile), 'w') as dfh:
-                for i, (bline, aline) in enumerate(izip_longest(bfh, afh), 1):
+                for i, (bline, aline) in enumerate(zip_longest(bfh, afh), 1):
                     if aline is None:
                         logger.debug('Lines missing from {}'.format(afile))
                         break

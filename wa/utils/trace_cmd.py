@@ -114,7 +114,7 @@ class DroppedEventsEvent(object):
 def try_convert_to_numeric(v):
     try:
         if isiterable(v):
-            return map(numeric, v)
+            return list(map(numeric, v))
         else:
             return numeric(v)
     except ValueError:
@@ -153,13 +153,13 @@ def regex_body_parser(regex, flags=0):
     If regex is a pre-compiled object, flags will be ignored.
 
     """
-    if isinstance(regex, basestring):
+    if isinstance(regex, str):
         regex = re.compile(regex, flags)
 
     def regex_parser_func(event, text):
         match = regex.search(text)
         if match:
-            for k, v in match.groupdict().iteritems():
+            for k, v in match.groupdict().items():
                 try:
                     event.fields[k] = int(v)
                 except ValueError:
@@ -321,7 +321,7 @@ class TraceCmdParser(object):
                         continue
 
                 body_parser = EVENT_PARSER_MAP.get(event_name, default_body_parser)
-                if isinstance(body_parser, basestring) or isinstance(body_parser, re._pattern_type):  # pylint: disable=protected-access
+                if isinstance(body_parser, str) or isinstance(body_parser, re._pattern_type):  # pylint: disable=protected-access
                     body_parser = regex_body_parser(body_parser)
                 yield TraceCmdEvent(parser=body_parser, **match.groupdict())
 

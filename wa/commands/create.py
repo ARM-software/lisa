@@ -94,9 +94,9 @@ class CreateWorkloadSubcommand(SubCommand):
         self.parser.add_argument('-f', '--force', action='store_true',
                                  help='Create the new workload even if a workload with the specified ' +
                                       'name already exists.')
-        self.parser.add_argument('-k', '--kind', metavar='KIND', default='basic', choices=create_funcs.keys(),
+        self.parser.add_argument('-k', '--kind', metavar='KIND', default='basic', choices=list(create_funcs.keys()),
                                  help='The type of workload to be created. The available options ' +
-                                      'are: {}'.format(', '.join(create_funcs.keys())))
+                                      'are: {}'.format(', '.join(list(create_funcs.keys()))))
 
     def execute(self, state, args):  # pylint: disable=R0201
         where = args.path or 'local'
@@ -179,7 +179,7 @@ def create_workload(name, kind='basic', where='local', check_name=True, **kwargs
     except KeyError:
         raise CommandError('Unknown workload type: {}'.format(kind))
 
-    print 'Workload created in {}'.format(workload_dir)
+    print('Workload created in {}'.format(workload_dir))
 
 
 def create_template_workload(path, name, kind, class_name):

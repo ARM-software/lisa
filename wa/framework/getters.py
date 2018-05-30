@@ -18,7 +18,7 @@
 This module contains the standard set of resource getters used by Workload Automation.
 
 """
-import httplib
+import http.client
 import json
 import logging
 import os
@@ -233,13 +233,17 @@ class Http(ResourceGetter):
             return {}
         index_url = urljoin(self.url, 'index.json')
         response = self.geturl(index_url)
-        if response.status_code != httplib.OK:
+        if response.status_code != http.client.OK:
             message = 'Could not fetch "{}"; recieved "{} {}"'
             self.logger.error(message.format(index_url,
                                              response.status_code,
                                              response.reason))
             return {}
-        return json.loads(response.content)
+        if sys.version_info[0] == 3:
+            content = response.content.decode('utf-8')
+        else:
+            content = response.content
+        return json.loads(content)
 
     def download_asset(self, asset, owner_name):
         url = urljoin(self.url, owner_name, asset['path'])
@@ -252,7 +256,7 @@ class Http(ResourceGetter):
                 return local_path
         self.logger.debug('Downloading {}'.format(url))
         response = self.geturl(url, stream=True)
-        if response.status_code != httplib.OK:
+        if response.status_code != http.client.OK:
             message = 'Could not download asset "{}"; recieved "{} {}"'
             self.logger.warning(message.format(url,
                                                response.status_code,
@@ -275,7 +279,7 @@ class Http(ResourceGetter):
         if not assets:
             return None
         asset_map = {a['path']: a for a in assets}
-        paths = get_path_matches(resource, asset_map.keys())
+        paths = get_path_matches(resource, list(asset_map.keys()))
         local_paths = []
         for path in paths:
             local_paths.append(self.download_asset(asset_map[path],
@@ -292,7 +296,7 @@ class Http(ResourceGetter):
 
         asset_map = {a['path']: a for a in assets}
         if resource.kind in ['jar', 'revent']:
-            path = get_generic_resource(resource, asset_map.keys())
+            path = get_generic_resource(resource, list(asset_map.keys()))
             if path:
                 return asset_map[path]
         elif resource.kind == 'executable':

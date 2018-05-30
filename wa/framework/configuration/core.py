@@ -95,11 +95,11 @@ class RebootPolicy(object):
 
     __repr__ = __str__
 
-    def __cmp__(self, other):
+    def __eq__(self, other):
         if isinstance(other, RebootPolicy):
-            return cmp(self.policy, other.policy)
+            return self.policy == other.policy
         else:
-            return cmp(self.policy, other)
+            return self.policy == other
 
     def to_pod(self):
         return self.policy
@@ -127,7 +127,7 @@ class LoggingConfig(dict):
     def __init__(self, config=None):
         dict.__init__(self)
         if isinstance(config, dict):
-            config = {identifier(k.lower()): v for k, v in config.iteritems()}
+            config = {identifier(k.lower()): v for k, v in config.items()}
             self['regular_format'] = config.pop('regular_format', self.defaults['regular_format'])
             self['verbose_format'] = config.pop('verbose_format', self.defaults['verbose_format'])
             self['file_format'] = config.pop('file_format', self.defaults['file_format'])
@@ -135,9 +135,9 @@ class LoggingConfig(dict):
             self['color'] = config.pop('color', self.defaults['color'])
             if config:
                 message = 'Unexpected logging configuration parameters: {}'
-                raise ValueError(message.format(bad_vals=', '.join(config.keys())))
+                raise ValueError(message.format(bad_vals=', '.join(list(config.keys()))))
         elif config is None:
-            for k, v in self.defaults.iteritems():
+            for k, v in self.defaults.items():
                 self[k] = v
         else:
             raise ValueError(config)
@@ -360,7 +360,7 @@ class Configuration(object):
                 cfg_point.set_value(instance, value)
         if pod:
             msg = 'Invalid entry(ies) for "{}": "{}"'
-            raise ValueError(msg.format(cls.name, '", "'.join(pod.keys())))
+            raise ValueError(msg.format(cls.name, '", "'.join(list(pod.keys()))))
         return instance
 
     def __init__(self):
@@ -380,7 +380,7 @@ class Configuration(object):
 
 
     def update_config(self, values, check_mandatory=True):
-        for k, v in values.iteritems():
+        for k, v in values.items():
             self.set(k, v, check_mandatory=check_mandatory)
 
     def validate(self):
@@ -824,7 +824,7 @@ class JobSpec(Configuration):
     def update_config(self, source, check_mandatory=True):
         self._sources.append(source)
         values = source.config
-        for k, v in values.iteritems():
+        for k, v in values.items():
             if k == "id":
                 continue
             elif k.endswith('_parameters'):
@@ -849,7 +849,7 @@ class JobSpec(Configuration):
             if not config:
                 continue
 
-            for name, cfg_point in cfg_points.iteritems():
+            for name, cfg_point in cfg_points.items():
                 if name in config:
                     value = config.pop(name)
                     cfg_point.set_value(workload_params, value,
@@ -873,7 +873,7 @@ class JobSpec(Configuration):
                 runtime_parameters[source] = global_runtime_params[source]
 
         # Add runtime parameters from JobSpec
-        for source, values in self.to_merge['runtime_parameters'].iteritems():
+        for source, values in self.to_merge['runtime_parameters'].items():
             runtime_parameters[source] = values
 
         # Merge
@@ -884,9 +884,9 @@ class JobSpec(Configuration):
                             for source in self._sources[1:]])  # ignore first id, "global"
 
         # ensure *_parameters are always obj_dict's
-        self.boot_parameters = obj_dict((self.boot_parameters or {}).items())
-        self.runtime_parameters = obj_dict((self.runtime_parameters or {}).items())
-        self.workload_parameters = obj_dict((self.workload_parameters or {}).items())
+        self.boot_parameters = obj_dict(list((self.boot_parameters or {}).items()))
+        self.runtime_parameters = obj_dict(list((self.runtime_parameters or {}).items()))
+        self.workload_parameters = obj_dict(list((self.workload_parameters or {}).items()))
 
         if self.label is None:
             self.label = self.workload_name
@@ -903,7 +903,7 @@ class JobGenerator(object):
         self._read_augmentations = True
         if self._enabled_instruments is None:
             self._enabled_instruments = []
-            for entry in self._enabled_augmentations.merge_with(self.disabled_augmentations).values():
+            for entry in list(self._enabled_augmentations.merge_with(self.disabled_augmentations).values()):
                 entry_cls = self.plugin_cache.get_plugin_class(entry)
                 if entry_cls.kind == 'instrument':
                     self._enabled_instruments.append(entry)
@@ -914,7 +914,7 @@ class JobGenerator(object):
         self._read_augmentations = True
         if self._enabled_processors is None:
             self._enabled_processors = []
-            for entry in self._enabled_augmentations.merge_with(self.disabled_augmentations).values():
+            for entry in list(self._enabled_augmentations.merge_with(self.disabled_augmentations).values()):
                 entry_cls = self.plugin_cache.get_plugin_class(entry)
                 if entry_cls.kind == 'output_processor':
                     self._enabled_processors.append(entry)
@@ -934,7 +934,7 @@ class JobGenerator(object):
         self.job_spec_template.name = "globally specified job spec configuration"
         self.job_spec_template.id = "global"
         # Load defaults
-        for cfg_point in JobSpec.configuration.itervalues():
+        for cfg_point in JobSpec.configuration.values():
             cfg_point.set_value(self.job_spec_template, check_mandatory=False)
 
         self.root_node = SectionNode(self.job_spec_template)
@@ -996,7 +996,7 @@ class JobGenerator(object):
                             break
                     else:
                         continue
-                self.update_augmentations(job_spec.augmentations.values())
+                self.update_augmentations(list(job_spec.augmentations.values()))
                 specs.append(job_spec)
         return specs
 

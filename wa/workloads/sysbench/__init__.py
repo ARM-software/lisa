@@ -135,16 +135,16 @@ class Sysbench(Workload):
 
         with open(self.host_results_file) as fh:
             find_line_with('General statistics:', fh)
-            extract_metric('total time', fh.next(), context.output)
-            extract_metric('total number of events', fh.next(), context.output, lower_is_better=False)
+            extract_metric('total time', next(fh), context.output)
+            extract_metric('total number of events', next(fh), context.output, lower_is_better=False)
             find_line_with('response time:', fh)
-            extract_metric('min', fh.next(), context.output, 'response time ')
-            extract_metric('avg', fh.next(), context.output, 'response time ')
-            extract_metric('max', fh.next(), context.output, 'response time ')
-            extract_metric('approx.  95 percentile', fh.next(), context.output)
+            extract_metric('min', next(fh), context.output, 'response time ')
+            extract_metric('avg', next(fh), context.output, 'response time ')
+            extract_metric('max', next(fh), context.output, 'response time ')
+            extract_metric('approx.  95 percentile', next(fh), context.output)
             find_line_with('Threads fairness:', fh)
-            extract_threads_fairness_metric('events', fh.next(), context.output)
-            extract_threads_fairness_metric('execution time', fh.next(), context.output)
+            extract_threads_fairness_metric('events', next(fh), context.output)
+            extract_threads_fairness_metric('execution time', next(fh), context.output)
 
     def teardown(self, context):
         self.target.remove(self.target_results_file)
@@ -155,7 +155,7 @@ class Sysbench(Workload):
 
     def _build_command(self, **parameters):
         param_strings = ['--{}={}'.format(k.replace('_', '-'), v)
-                         for k, v in parameters.iteritems()]
+                         for k, v in parameters.items()]
         if self.file_test_mode:
             param_strings.append('--file-test-mode={}'.format(self.file_test_mode))
         sysbench_command = '{} {} {} run'.format(self.target_binary, ' '.join(param_strings), self.cmd_params)

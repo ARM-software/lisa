@@ -71,7 +71,7 @@ def list_targets():
     output = DescriptionListFormatter()
     for target in targets:
         output.add_item(target.description or '', target.name)
-    print output.format_data()
+    print(output.format_data())
 
 
 def list_plugins(args, filters):
@@ -80,7 +80,7 @@ def list_plugins(args, filters):
         filtered_results = []
         for result in results:
             passed = True
-            for k, v in filters.iteritems():
+            for k, v in filters.items():
                 if getattr(result, k) != v:
                     passed = False
                     break
@@ -95,7 +95,7 @@ def list_plugins(args, filters):
         output = DescriptionListFormatter()
         for result in sorted(filtered_results, key=lambda x: x.name):
             output.add_item(get_summary(result), result.name)
-        print output.format_data()
+        print(output.format_data())
 
 
 def check_platform(plugin, platform):

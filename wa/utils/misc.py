@@ -18,7 +18,7 @@
 Miscellaneous functions that don't fit anywhere else.
 
 """
-from __future__ import division
+
 import os
 import sys
 import re
@@ -30,9 +30,13 @@ import traceback
 import logging
 import random
 import hashlib
+import sys
 from datetime import datetime, timedelta
 from operator import mul
-from StringIO import StringIO
+if sys.version_info[0] == 3:
+    from io import StringIO
+else:
+    from io import BytesIO as StringIO
 from itertools import chain, cycle
 from distutils.spawn import find_executable
 
@@ -83,11 +87,11 @@ def diff_tokens(before_token, after_token):
 def prepare_table_rows(rows):
     """Given a list of lists, make sure they are prepared to be formatted into a table
     by making sure each row has the same number of columns and stringifying all values."""
-    rows = [map(str, r) for r in rows]
-    max_cols = max(map(len, rows))
+    rows = [list(map(str, r)) for r in rows]
+    max_cols = max(list(map(len, rows)))
     for row in rows:
         pad = max_cols - len(row)
-        for _ in xrange(pad):
+        for _ in range(pad):
             row.append('')
     return rows
 
@@ -102,10 +106,10 @@ def write_table(rows, wfh, align='>', headers=None):  # pylint: disable=R0914
     # cycle specified alignments until we have max_cols of them. This is
     # consitent with how such cases are handled in R, pandas, etc.
     it = cycle(align)
-    align = [it.next() for _ in xrange(num_cols)]
+    align = [next(it) for _ in range(num_cols)]
 
-    cols = zip(*rows)
-    col_widths = [max(map(len, c)) for c in cols]
+    cols = list(zip(*rows))
+    col_widths = [max(list(map(len, c))) for c in cols]
     row_format = ' '.join(['{:%s%s}' % (align[i], w) for i, w in enumerate(col_widths)])
     row_format += '\n'
 
@@ -144,7 +148,7 @@ def _check_remove_item(the_list, item):
     """Helper function for merge_lists that implements checking wether an items
     should be removed from the list and doing so if needed. Returns ``True`` if
     the item has been removed and ``False`` otherwise."""
-    if not isinstance(item, basestring):
+    if not isinstance(item, str):
         return False
     if not item.startswith('~'):
         return False
@@ -275,7 +279,7 @@ def get_article(word):
 
 def get_random_string(length):
     """Returns a random ASCII string of the specified length)."""
-    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in xrange(length))
+    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(length))
 
 
 class LoadSyntaxError(Exception):
@@ -307,9 +311,9 @@ def load_struct_from_python(filepath=None, text=None):
             while modname in sys.modules:  # highly unlikely, but...
                 modname = get_random_string(RAND_MOD_NAME_LEN)
             mod = imp.new_module(modname)
-            exec text in mod.__dict__  # pylint: disable=exec-used
+            exec(text, mod.__dict__)  # pylint: disable=exec-used
         return dict((k, v)
-                    for k, v in mod.__dict__.iteritems()
+                    for k, v in mod.__dict__.items()
                     if not k.startswith('_'))
     except SyntaxError as e:
         raise LoadSyntaxError(e.message, filepath, e.lineno)
@@ -404,7 +408,7 @@ def istextfile(fileobj, blocksize=512):
 def categorize(v):
     if hasattr(v, 'merge_with') and hasattr(v, 'merge_into'):
         return 'o'
-    elif hasattr(v, 'iteritems'):
+    elif hasattr(v, 'items'):
         return 'm'
     elif isiterable(v):
         return 's'
@@ -515,13 +519,14 @@ def merge_sequencies(s1, s2):
     return type(s2)(unique(chain(s1, s2)))
 
 
+
 def merge_maps(m1, m2):
-    return type(m2)(chain(m1.iteritems(), m2.iteritems()))
+    return type(m2)(chain(iter(m1.items()), iter(m2.items())))
 
 
 def merge_dicts_simple(base, other):
     result = base.copy()
-    for key, value in (other or {}).iteritems():
+    for key, value in (other or {}).items():
         result[key] = merge_config_values(result.get(key), value)
     return result
 
@@ -534,11 +539,11 @@ def touch(path):
 def get_object_name(obj):
     if hasattr(obj, 'name'):
         return obj.name
-    elif hasattr(obj, 'im_func'):
-        return '{}.{}'.format(get_object_name(obj.im_class),
-                              obj.im_func.func_name)
+    elif hasattr(obj, '__func__') and hasattr(obj, '__self__'):
+        return '{}.{}'.format(get_object_name(obj.__self__.__class__),
+                              obj.__func__.__name__)
     elif hasattr(obj, 'func_name'):
-        return obj.func_name
+        return obj.__name__
     elif hasattr(obj, '__name__'):
         return obj.__name__
     elif hasattr(obj, '__class__'):
@@ -557,7 +562,7 @@ def resolve_cpus(name, target):
         - 'all' - returns all cpus
         - '' - Empty name will also return all cpus
     """
-    cpu_list = range(target.number_of_cpus)
+    cpu_list = list(range(target.number_of_cpus))
 
     # Support for passing cpu no directly
     if isinstance(name, int):

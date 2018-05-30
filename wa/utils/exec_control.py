@@ -12,7 +12,7 @@ def activate_environment(name):
     #pylint: disable=W0603
     global __active_environment
 
-    if name not in __environments.keys():
+    if name not in list(__environments.keys()):
         init_environment(name)
     __active_environment = name
 
@@ -24,7 +24,7 @@ def init_environment(name):
     :raises: ``ValueError`` if an environment with name ``name``
              already exists.
     """
-    if name in __environments.keys():
+    if name in list(__environments.keys()):
         msg = "Environment {} already exists".format(name)
         raise ValueError(msg)
     __environments[name] = []
@@ -39,7 +39,7 @@ def reset_environment(name=None):
     """
 
     if name is not None:
-        if name not in __environments.keys():
+        if name not in list(__environments.keys()):
             msg = "Environment {} does not exist".format(name)
             raise ValueError(msg)
         __environments[name] = []
@@ -75,7 +75,7 @@ def once_per_class(method):
         if __active_environment is None:
             activate_environment('default')
 
-        func_id = repr(method.func_name) + repr(args[0].__class__)
+        func_id = repr(method.__name__) + repr(args[0].__class__)
 
         if func_id in __environments[__active_environment]:
             return

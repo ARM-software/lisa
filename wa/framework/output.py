@@ -10,7 +10,7 @@ from wa.framework.configuration.execution import CombinedConfig
 from wa.framework.exception import HostError
 from wa.framework.run import RunState, RunInfo
 from wa.framework.target.info import TargetInfo
-from wa.utils.misc import touch, ensure_directory_exists
+from wa.utils.misc import touch, ensure_directory_exists, isiterable
 from wa.utils.serializer import write_pod, read_pod, is_pod
 from wa.utils.types import enum, numeric
 
@@ -229,7 +229,7 @@ class RunOutput(Output):
         if os.path.isfile(self.jobsfile):
             self.job_specs = self.read_job_specs()
 
-        for job_state in self.state.jobs.itervalues():
+        for job_state in self.state.jobs.values():
             job_path = os.path.join(self.basepath, job_state.output_name)
             job = JobOutput(job_path, job_state.id,
                             job_state.label, job_state.iteration,
@@ -387,14 +387,14 @@ class Result(object):
         if key not in self.metadata:
             return self.add_metadata(key, *args)
 
-        if hasattr(self.metadata[key], 'iteritems'):
+        if hasattr(self.metadata[key], 'items'):
             if len(args) == 2:
                 self.metadata[key][args[0]] = args[1]
             elif len(args) > 2:  # assume list of key-value pairs
                 for k, v in args:
                     self.metadata[key][k] = v
-            elif hasattr(args[0], 'iteritems'):
-                for k, v in args[0].iteritems():
+            elif hasattr(args[0], 'items'):
+                for k, v in args[0].items():
                     self.metadata[key][k] = v
             else:
                 raise ValueError('Invalid value for key "{}": {}'.format(key, args))

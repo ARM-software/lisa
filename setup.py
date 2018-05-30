@@ -81,9 +81,10 @@ params = dict(
         'pyYAML',  # YAML-formatted agenda parsing
         'requests',  # Fetch assets over HTTP
         'devlib>=0.0.4',  # Interacting with devices
-        'louie',  # callbacks dispatch
+        'louie-latest',  # callbacks dispatch
         'wrapt',  # better decorators
         'pandas>=0.13.1',  # Data analysis and manipulation
+        'future',  # Python 2-3 compatiblity
     ],
     dependency_links=['https://github.com/ARM-software/devlib/tarball/master#egg=devlib-0.0.4'],
 
@@ -104,7 +105,7 @@ params = dict(
     ],
 )
 
-all_extras = list(chain(params['extras_require'].itervalues()))
+all_extras = list(chain(iter(params['extras_require'].values())))
 params['extras_require']['everything'] = all_extras
 
 setup(**params)

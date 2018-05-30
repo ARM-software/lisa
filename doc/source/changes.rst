@@ -19,8 +19,8 @@ For more information on migrating from WA2 to WA3 please see the
 
 Not all of WA2 extensions have been ported for the initial 3.0.0 release. We
 have ported the ones we believe to be most widely used and useful. The porting
-work will continue, and more of WA2's extensions will be in the future releases,
-however we do not intend to port absolutely everything, as some things we
+work will continue, and more of WA2's extensions will be in the future releases.
+However, we do not intend to port absolutely everything, as some things we
 believe to be no longer useful.
 
 .. note:: If there a particular WA2 extension you would like to see in WA3 that
@@ -30,6 +30,15 @@ believe to be no longer useful.
 
 New Features
 ~~~~~~~~~~~~
+
+- Python 3 support. WA now runs on both Python 2 and Python 3.
+
+  .. warning:: Python 2 support should now be considered depricated. Python 2
+               will still be fully supported up to the next major release
+               (v3.1). After that, Python 2 will be supported for existing
+               functionality, however there will be no guarantee that newly
+               added functionality would be compatible with Python 2. Support
+               for Python 2 will be dropped completely after release v3.2.
 
 - There is a new Output API which can be used to aid in post processing a
   run's output. For more information please see :ref:`output_processing_api`.

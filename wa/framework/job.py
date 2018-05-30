@@ -85,7 +85,7 @@ class Job(object):
             enabled_instruments = set(i.name for i in instrument.get_enabled())
             enabled_output_processors = set(p.name for p in pm.get_enabled())
 
-            for augmentation in self.spec.augmentations.values():
+            for augmentation in list(self.spec.augmentations.values()):
                 augmentation_cls = context.cm.plugin_cache.get_plugin_class(augmentation)
                 if augmentation_cls.kind == 'instrument':
                     instruments_to_enable.add(augmentation)

@@ -10,7 +10,7 @@ def cpuinfo_from_pod(pod):
     cpuinfo.sections = pod['cpuinfo']
     lines = []
     for section in cpuinfo.sections:
-        for key, value in section.iteritems():
+        for key, value in section.items():
             line = '{}: {}'.format(key, value)
             lines.append(line)
         lines.append('')
@@ -35,7 +35,7 @@ def kernel_config_from_pod(pod):
     config = KernelConfig('')
     config._config = pod['kernel_config']
     lines = []
-    for key, value in config._config.iteritems():
+    for key, value in config._config.items():
         if value == 'n':
             lines.append('# {} is not set'.format(key))
         else:

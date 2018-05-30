@@ -39,7 +39,7 @@ class JobSpecSource(object):
     def _log_self(self):
         logger.debug('Creating {} node'.format(self.kind))
         with log.indentcontext():
-            for key, value in self.config.iteritems():
+            for key, value in self.config.items():
                 logger.debug('"{}" to "{}"'.format(key, value))
 
 

@@ -49,8 +49,8 @@ class StatusTxtReporter(OutputProcessor):
             txt = '{}/{} iterations completed without error\n'
             wfh.write(txt.format(counter[Status.OK], len(output.jobs)))
             wfh.write('\n')
-            status_lines = [map(str, [o.id, o.label, o.iteration, o.status,
-                                      o.event_summary])
+            status_lines = [list(map(str, [o.id, o.label, o.iteration, o.status,
+                                      o.event_summary]))
                             for o in output.jobs]
             write_table(status_lines, wfh, align='<<>><')
 

@@ -13,15 +13,16 @@
 # limitations under the License.
 #
 
-from __future__ import division
+
 import os
 import sys
-import csv
 import re
 import logging
 from ctypes import c_int32
 from collections import defaultdict
 import argparse
+
+from devlib.utils.csvutil import create_writer, csvwriter
 
 from wa.utils.trace_cmd import TraceCmdParser, trace_has_marker, TRACE_MARKER_START, TRACE_MARKER_STOP
 
@@ -114,7 +115,7 @@ class SystemPowerState(object):
         self.timestamp = None
         self.cpus = []
         idle_state = -1 if no_idle else None
-        for _ in xrange(num_cores):
+        for _ in range(num_cores):
             self.cpus.append(CpuPowerState(idle_state=idle_state))
 
     def copy(self):
@@ -331,8 +332,7 @@ class PowerStateTransitions(object):
 
     def __init__(self, output_directory):
         self.filepath = os.path.join(output_directory, 'state-transitions-timeline.csv')
-        self._wfh = open(self.filepath, 'w')
-        self.writer = csv.writer(self._wfh)
+        self.writer, self._wfh = create_writer(self.filepath)
         headers = ['timestamp', 'cpu_id', 'frequency', 'idle_state']
         self.writer.writerow(headers)
 
@@ -360,8 +360,7 @@ class PowerStateTimeline(object):
     def __init__(self, output_directory, cpus):
         self.filepath = os.path.join(output_directory, 'power-state-timeline.csv')
         self.idle_state_names = {cpu.id: [s.name for s in cpu.cpuidle.states] for cpu in cpus}
-        self._wfh = open(self.filepath, 'w')
-        self.writer = csv.writer(self._wfh)
+        self.writer, self._wfh = create_writer(self.filepath)
         headers = ['ts'] + ['{} CPU{}'.format(cpu.name, cpu.id) for cpu in cpus]
         self.writer.writerow(headers)
 
@@ -405,7 +404,7 @@ class ParallelStats(object):
                 clusters.append(cpu.cpufreq.related_cpus)
 
         for i, clust in enumerate(clusters):
-            self.clusters[i] = set(clust)
+            self.clusters[str(i)] = set(clust)
         self.clusters['all'] = set([cpu.id for cpu in cpus])
 
         self.first_timestamp = None
@@ -419,7 +418,7 @@ class ParallelStats(object):
             delta = timestamp - self.last_timestamp
             active_cores = [i for i, c in enumerate(self.previous_states)
                             if c and c[0] == -1]
-            for cluster, cluster_cores in self.clusters.iteritems():
+            for cluster, cluster_cores in self.clusters.items():
                 clust_active_cores = len(cluster_cores.intersection(active_cores))
                 self.parallel_times[cluster][clust_active_cores] += delta
                 if clust_active_cores:
@@ -438,7 +437,7 @@ class ParallelStats(object):
         total_time = self.last_timestamp - self.first_timestamp
         for cluster in sorted(self.parallel_times):
             running_time = self.running_times[cluster]
-            for n in xrange(len(self.clusters[cluster]) + 1):
+            for n in range(len(self.clusters[cluster]) + 1):
                 time = self.parallel_times[cluster][n]
                 time_pc = time / total_time
                 if not self.use_ratios:
@@ -474,8 +473,7 @@ class ParallelReport(object):
         self.values.append(value)
 
     def write(self):
-        with open(self.filepath, 'w') as wfh:
-            writer = csv.writer(wfh)
+        with csvwriter(self.filepath) as writer:
             writer.writerow(['cluster', 'number_of_cores', 'total_time', '%time', '%running_time'])
             writer.writerows(self.values)
 
@@ -520,7 +518,7 @@ class PowerStateStats(object):
         total_time = self.last_timestamp - self.first_timestamp
         state_stats = defaultdict(lambda: [None] * len(self.core_names))
 
-        for cpu, states in self.cpu_states.iteritems():
+        for cpu, states in self.cpu_states.items():
             for state in states:
                 time = states[state]
                 time_pc = time / total_time
@@ -543,8 +541,7 @@ class PowerStateStatsReport(object):
         self.precision = precision
 
     def write(self):
-        with open(self.filepath, 'w') as wfh:
-            writer = csv.writer(wfh)
+        with csvwriter(self.filepath) as writer:
             headers = ['state'] + ['{} CPU{}'.format(c, i)
                                    for i, c in enumerate(self.core_names)]
             writer.writerow(headers)
@@ -561,8 +558,7 @@ class CpuUtilizationTimeline(object):
 
     def __init__(self, output_directory, cpus):
         self.filepath = os.path.join(output_directory, 'utilization-timeline.csv')
-        self._wfh = open(self.filepath, 'w')
-        self.writer = csv.writer(self._wfh)
+        self.writer, self._wfh = create_writer(self.filepath)
 
         headers = ['ts'] + ['{} CPU{}'.format(cpu.name, cpu.id) for cpu in cpus]
         self.writer.writerow(headers)
