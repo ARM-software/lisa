@@ -1,4 +1,4 @@
-#    Copyright 2015 ARM Limited
+#    Copyright 2018 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -298,29 +298,26 @@ class Instrument(object):
         pass
 
     def reset(self, sites=None, kinds=None, channels=None):
-        self.active_channels = []
-        if kinds is None and sites is None and channels is None:
-            self.active_channels = sorted(self.channels.values(), key=lambda x: x.label)
-        elif channels is not None:
+        if channels is not None:
             if sites is not None or kinds is not None:
-                raise ValueError(
-                    'sites and kinds should not be set if channels is set')
-            for chan_name in channels:
-                try:
-                    self.active_channels.append(self.channels[chan_name])
-                except KeyError:
-                    msg = 'Unexpected channel "{}"; must be in {}'
-                    raise ValueError(msg.format(chan_name, self.channels.keys()))
+                raise ValueError('sites and kinds should not be set if channels is set')
+
+            try:
+                self.active_channels = [self.channels[ch] for ch in channels]
+            except KeyError as e:
+                msg = 'Unexpected channel "{}"; must be in {}'
+                raise ValueError(msg.format(e, self.channels.keys()))
+        elif sites is None and kinds is None:
+            self.active_channels = sorted(self.channels.itervalues(), key=lambda x: x.label)
         else:
             if isinstance(sites, basestring):
                 sites = [sites]
             if isinstance(kinds, basestring):
                 kinds = [kinds]
-            else:
-                for chan in self.channels.values():
-                    if (kinds is None or chan.kind in kinds) and \
-                       (sites is None or chan.site in sites):
-                        self.active_channels.append(chan)
+
+            wanted = lambda ch : ((kinds is None or ch.kind in kinds) and
+                                  (sites is None or ch.site in sites))
+            self.active_channels = filter(wanted, self.channels.itervalues())
 
     # instantaneous
 
