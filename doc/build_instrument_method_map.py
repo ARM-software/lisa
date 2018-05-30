@@ -37,7 +37,7 @@ def generate_instrument_method_map(outfile):
     signal_table = format_simple_table([(k, v) for k, v in SIGNAL_MAP.iteritems()],
                                        headers=['method name', 'signal'], align='<<')
     priority_table = format_simple_table(zip(Priority.names, Priority.values),
-                                         headers=['prefix', 'priority'],  align='<>')
+                                         headers=['decorator', 'priority'],  align='<>')
     with open(OUTPUT_TEMPLATE_FILE) as fh:
         template = string.Template(fh.read())
     with open(outfile, 'w') as wfh:
