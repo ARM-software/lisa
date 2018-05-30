@@ -455,8 +455,7 @@ class Runner(object):
             while self.context.job_queue:
                 if self.context.run_interrupted:
                     raise KeyboardInterrupt()
-                with signal.wrap('JOB_EXECUTION', self, self.context):
-                    self.run_next_job(self.context)
+                self.run_next_job(self.context)
 
         except KeyboardInterrupt as e:
             log.log_error(e, self.logger)
@@ -551,8 +550,7 @@ class Runner(object):
             job.configure_target(context)
 
         try:
-            with signal.wrap('JOB_SETUP', self, context):
-                job.setup(context)
+            job.setup(context)
         except Exception as e:
             job.set_status(Status.FAILED)
             log.log_error(e, self.logger)
@@ -564,8 +562,7 @@ class Runner(object):
         try:
 
             try:
-                with signal.wrap('JOB_EXECUTION', self, context):
-                    job.run(context)
+                job.run(context)
             except KeyboardInterrupt:
                 context.run_interrupted = True
                 job.set_status(Status.ABORTED)
@@ -597,8 +594,7 @@ class Runner(object):
         finally:
             # If setup was successfully completed, teardown must
             # run even if the job failed
-            with signal.wrap('JOB_TEARDOWN', self):
-                job.teardown(context)
+            job.teardown(context)
 
     def check_job(self, job):
         rc = self.context.cm.run_config
