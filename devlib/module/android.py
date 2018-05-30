@@ -63,7 +63,7 @@ class FastbootFlashModule(FlashModule):
             image_bundle = expand_path(image_bundle)
             to_flash = self._bundle_to_images(image_bundle)
         to_flash = merge_dicts(to_flash, images or {}, should_normalize=False)
-        for partition, image_path in to_flash.iteritems():
+        for partition, image_path in to_flash.items():
             self.logger.debug('flashing {}'.format(partition))
             self._flash_image(self.target, partition, expand_path(image_path))
         fastboot_command('reboot')

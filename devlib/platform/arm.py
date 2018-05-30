@@ -15,7 +15,6 @@
 from __future__ import division
 import os
 import tempfile
-import csv
 import time
 import pexpect
 
@@ -23,6 +22,7 @@ from devlib.platform import Platform
 from devlib.instrument import Instrument, InstrumentChannel, MeasurementsCsv, Measurement,  CONTINUOUS,  INSTANTANEOUS
 from devlib.exception import TargetError, HostError
 from devlib.host import PACKAGE_BIN_DIRECTORY
+from devlib.utils.csvutil import csvreader, csvwriter
 from devlib.utils.serial_port import open_serial_connection
 
 
@@ -267,9 +267,8 @@ class JunoEnergyInstrument(Instrument):
         self.target.pull(self.on_target_file, temp_file)
         self.target.remove(self.on_target_file)
 
-        with open(temp_file, 'rb') as fh:
-            reader = csv.reader(fh)
-            headings = reader.next()
+        with csvreader(temp_file) as reader:
+            headings = next(reader)
 
             # Figure out which columns from the collected csv we actually want
             select_columns = []
@@ -279,10 +278,9 @@ class JunoEnergyInstrument(Instrument):
                 except ValueError:
                     raise HostError('Channel "{}" is not in {}'.format(chan.name, temp_file))
 
-            with open(output_file, 'wb') as wfh:
+            with csvwriter(output_file) as writer:
                 write_headings = ['{}_{}'.format(c.site, c.kind)
                                   for c in self.active_channels]
-                writer = csv.writer(wfh)
                 writer.writerow(write_headings)
                 for row in reader:
                     write_row = [row[c] for c in select_columns]
@@ -293,11 +291,11 @@ class JunoEnergyInstrument(Instrument):
     def take_measurement(self):
         result = []
         output = self.target.execute(self.command2).split()
-        reader=csv.reader(output)
-        headings=reader.next()
-        values = reader.next()
-        for chan in self.active_channels:
-            value = values[headings.index(chan.name)]
-            result.append(Measurement(value, chan))
+        with csvreader(output) as reader:
+            headings=next(reader)
+            values = next(reader)
+            for chan in self.active_channels:
+                value = values[headings.index(chan.name)]
+                result.append(Measurement(value, chan))
         return result
 

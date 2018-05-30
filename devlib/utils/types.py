@@ -26,6 +26,9 @@ is not the best language to use for configuration.
 
 """
 import math
+from functools import total_ordering
+
+from past.builtins import basestring
 
 from devlib.utils.misc import isiterable, to_identifier, ranges_to_list, list_to_mask
 
@@ -88,6 +91,7 @@ def numeric(value):
     return fvalue
 
 
+@total_ordering
 class caseless_string(str):
     """
     Just like built-in Python string except case-insensitive on comparisons. However, the
@@ -100,13 +104,13 @@ class caseless_string(str):
             other = other.lower()
         return self.lower() == other
 
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __cmp__(self, other):
-        if isinstance(basestring, other):
+    def __lt__(self, other):
+        if isinstance(other, basestring):
             other = other.lower()
-        return cmp(self.lower(), other)
+        return self.lower() < other
+
+    def __hash__(self):
+        return hash(self.lower())
 
     def format(self, *args, **kwargs):
         return caseless_string(super(caseless_string, self).format(*args, **kwargs))

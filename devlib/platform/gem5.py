@@ -63,13 +63,12 @@ class Gem5SimulationPlatform(Platform):
 
         # Find the first one that does not exist. Ensures that we do not re-use
         # the directory used by someone else.
-        for i in xrange(sys.maxint):
+        i = 0
+        directory = os.path.join(self.gem5_interact_dir, "wa_{}".format(i))
+        while os.path.exists(directory):
+            i += 1
             directory = os.path.join(self.gem5_interact_dir, "wa_{}".format(i))
-            try:
-                os.stat(directory)
-                continue
-            except OSError:
-                break
+
         self.gem5_interact_dir = directory
         self.logger.debug("Using {} as the temporary directory."
                           .format(self.gem5_interact_dir))

@@ -251,7 +251,7 @@ class VexpressUBoot(VexpressBootModule):
         menu = UbootMenu(tty)
         self.logger.debug('Waiting for U-Boot prompt...')
         menu.open(timeout=120)
-        for var, value in self.env.iteritems():
+        for var, value in self.env.items():
             menu.setenv(var, value)
         menu.boot()
 
@@ -338,7 +338,7 @@ class VersatileExpressFlashModule(FlashModule):
             if images:
                 self._overlay_images(images)
             os.system('sync')
-        except (IOError, OSError), e:
+        except (IOError, OSError) as e:
             msg = 'Could not deploy images to {}; got: {}'
             raise TargetError(msg.format(self.vemsd_mount, e))
         self.target.boot()
@@ -352,7 +352,7 @@ class VersatileExpressFlashModule(FlashModule):
             tar.extractall(self.vemsd_mount)
 
     def _overlay_images(self, images):
-        for dest, src in images.iteritems():
+        for dest, src in images.items():
             dest = os.path.join(self.vemsd_mount, dest)
             self.logger.debug('Copying {} to {}'.format(src, dest))
             shutil.copy(src, dest)
@@ -379,7 +379,7 @@ def wait_for_vemsd(vemsd_mount, tty, mcc_prompt=DEFAULT_MCC_PROMPT, short_delay=
     path = os.path.join(vemsd_mount, 'config.txt')
     if os.path.exists(path):
         return
-    for _ in xrange(attempts):
+    for _ in range(attempts):
         tty.sendline('')  # clear any garbage
         tty.expect(mcc_prompt, timeout=short_delay)
         tty.sendline('usb_on')

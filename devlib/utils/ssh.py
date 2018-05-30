@@ -23,6 +23,7 @@ import threading
 import tempfile
 import shutil
 import socket
+import sys
 import time
 
 import pexpect
@@ -236,7 +237,7 @@ class SshConnection(object):
     def cancel_running_command(self):
         # simulate impatiently hitting ^C until command prompt appears
         logger.debug('Sending ^C')
-        for _ in xrange(self.max_cancel_attempts):
+        for _ in range(self.max_cancel_attempts):
             self.conn.sendline(chr(3))
             if self.conn.prompt(0.1):
                 return True
@@ -263,7 +264,10 @@ class SshConnection(object):
         timed_out = self._wait_for_prompt(timeout)
         # the regex removes line breaks potential introduced when writing
         # command to shell.
-        output = process_backspaces(self.conn.before)
+        if sys.version_info[0] == 3:
+            output = process_backspaces(self.conn.before.decode(sys.stdout.encoding))
+        else:
+            output = process_backspaces(self.conn.before)
         output = re.sub(r'\r([^\n])', r'\1', output)
         if '\r\n' in output: # strip the echoed command
             output = output.split('\r\n', 1)[1]
@@ -604,7 +608,7 @@ class Gem5Connection(TelnetConnection):
                 break
             except pxssh.ExceptionPxssh:
                 pass
-            except EOF, err:
+            except EOF as err:
                 self._gem5_EOF_handler(gem5_simulation, gem5_out_dir, err)
         else:
             gem5_simulation.kill()
@@ -626,7 +630,7 @@ class Gem5Connection(TelnetConnection):
                 self._login_to_device()
             except TIMEOUT:
                 pass
-            except EOF, err:
+            except EOF as err:
                 self._gem5_EOF_handler(gem5_simulation, gem5_out_dir, err)
 
             try:
@@ -636,7 +640,7 @@ class Gem5Connection(TelnetConnection):
                 prompt_found = True
             except TIMEOUT:
                 pass
-            except EOF, err:
+            except EOF as err:
                 self._gem5_EOF_handler(gem5_simulation, gem5_out_dir, err)
 
         gem5_logger.info("Successfully logged in")

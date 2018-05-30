@@ -325,7 +325,7 @@ class CGroup(object):
     def get_tasks(self):
         task_ids = self.target.read_value(self.tasks_file).split()
         logging.debug('Tasks: %s', task_ids)
-        return map(int, task_ids)
+        return list(map(int, task_ids))
 
     def add_task(self, tid):
         self.target.write_value(self.tasks_file, tid, verify=False)

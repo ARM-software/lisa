@@ -27,7 +27,8 @@ import logging
 import re
 import threading
 import tempfile
-import Queue
+import queue
+import sys
 from collections import defaultdict
 
 from devlib.exception import TargetError, HostError, DevlibError
@@ -88,7 +89,7 @@ class AndroidProperties(object):
         self._properties = dict(re.findall(r'\[(.*?)\]:\s+\[(.*?)\]', text))
 
     def iteritems(self):
-        return self._properties.iteritems()
+        return iter(self._properties.items())
 
     def __iter__(self):
         return iter(self._properties)
@@ -140,6 +141,8 @@ class ApkInfo(object):
         logger.debug(' '.join(command))
         try:
             output = subprocess.check_output(command, stderr=subprocess.STDOUT)
+            if sys.version_info[0] == 3:
+                output = output.decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as e:
             raise HostError('Error parsing APK file {}. `aapt` says:\n{}'
                             .format(apk_path, e.output))
@@ -160,7 +163,7 @@ class ApkInfo(object):
                 mapped_abis = []
                 for apk_abi in apk_abis:
                     found = False
-                    for abi, architectures in ABI_MAP.iteritems():
+                    for abi, architectures in ABI_MAP.items():
                         if apk_abi in architectures:
                             mapped_abis.append(abi)
                             found = True

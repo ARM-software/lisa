@@ -13,10 +13,12 @@
 # limitations under the License.
 #
 from __future__ import division
-import csv
 import logging
 import collections
 
+from past.builtins import basestring
+
+from devlib.utils.csvutil import csvreader
 from devlib.utils.types import numeric
 from devlib.utils.types import identifier
 
@@ -37,7 +39,7 @@ class MeasurementType(object):
         self.category = category
         self.conversions = {}
         if conversions is not None:
-            for key, value in conversions.iteritems():
+            for key, value in conversions.items():
                 if not callable(value):
                     msg = 'Converter must be callable; got {} "{}"'
                     raise ValueError(msg.format(type(value), value))
@@ -189,14 +191,13 @@ class MeasurementsCsv(object):
 
     def iter_values(self):
         for row in self._iter_rows():
-            values = map(numeric, row)
+            values = list(map(numeric, row))
             yield self.data_tuple(*values)
 
     def _load_channels(self):
         header = []
-        with open(self.path, 'rb') as fh:
-            reader = csv.reader(fh)
-            header = reader.next()
+        with csvreader(self.path) as reader:
+            header = next(reader)
 
         self.channels = []
         for entry in header:
@@ -218,9 +219,8 @@ class MeasurementsCsv(object):
             self.channels.append(chan)
 
     def _iter_rows(self):
-        with open(self.path, 'rb') as fh:
-            reader = csv.reader(fh)
-            reader.next()  # headings
+        with csvreader(self.path) as reader:
+            next(reader)  # headings
             for row in reader:
                 yield row
 
@@ -252,7 +252,7 @@ class InstrumentChannel(object):
                 self.measurement_type = MEASUREMENT_TYPES[measurement_type]
             except KeyError:
                 raise ValueError('Unknown measurement type:  {}'.format(measurement_type))
-        for atname, atvalue in attrs.iteritems():
+        for atname, atvalue in attrs.items():
             setattr(self, atname, atvalue)
 
     def __str__(self):
@@ -278,7 +278,7 @@ class Instrument(object):
     # channel management
 
     def list_channels(self):
-        return self.channels.values()
+        return list(self.channels.values())
 
     def get_channels(self, measure):
         if hasattr(measure, 'name'):

@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from __future__ import division
-import csv
 import re
 
 from devlib.platform.gem5 import Gem5SimulationPlatform
 from devlib.instrument import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import TargetError, HostError
+from devlib.utils.csvutil import csvwriter
 
 
 class Gem5PowerInstrument(Instrument):
@@ -66,8 +66,7 @@ class Gem5PowerInstrument(Instrument):
 
     def get_data(self, outfile):
         active_sites = [c.site for c in self.active_channels]
-        with open(outfile, 'wb') as wfh:
-            writer = csv.writer(wfh)
+        with csvwriter(outfile) as writer:
             writer.writerow([c.label for c in self.active_channels]) # headers
             sites_to_match = [self.site_mapping.get(s, s) for s in active_sites]
             for rec, rois in self.target.gem5stats.match_iter(sites_to_match,

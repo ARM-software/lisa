@@ -1,7 +1,7 @@
 #pylint: disable=attribute-defined-outside-init
 from __future__ import division
-import csv
 import os
+import sys
 import time
 import tempfile
 from fcntl import fcntl, F_GETFL, F_SETFL
@@ -10,6 +10,7 @@ from subprocess import Popen, PIPE, STDOUT
 
 from devlib import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import HostError
+from devlib.utils.csvutil import csvreader, csvwriter
 from devlib.utils.misc import which
 
 OUTPUT_CAPTURE_FILE = 'acme-cape.csv'
@@ -83,7 +84,7 @@ class AcmeCapeInstrument(Instrument):
         self.process.terminate()
         timeout_secs = 10
         output = ''
-        for _ in xrange(timeout_secs):
+        for _ in range(timeout_secs):
             if self.process.poll() is not None:
                 break
             time.sleep(1)
@@ -95,7 +96,10 @@ class AcmeCapeInstrument(Instrument):
                 msg = 'Could not terminate iio-capture:\n{}'
                 raise HostError(msg.format(output))
         if self.process.returncode != 15: # iio-capture exits with 15 when killed
-            output += self.process.stdout.read()
+            if sys.version_info[0] == 3:
+                output += self.process.stdout.read().decode(sys.stdout.encoding)
+            else:
+                output += self.process.stdout.read()
             self.logger.info('ACME instrument encountered an error, '
                              'you may want to try rebooting the ACME device:\n'
                              '  ssh root@{} reboot'.format(self.host))
@@ -114,13 +118,11 @@ class AcmeCapeInstrument(Instrument):
         active_channels = [c.label for c in self.active_channels]
         active_indexes = [all_channels.index(ac) for ac in active_channels]
 
-        with open(self.raw_data_file, 'rb') as fh:
-            with open(outfile, 'wb') as wfh:
-                writer = csv.writer(wfh)
+        with csvreader(self.raw_data_file, skipinitialspace=True) as reader:
+            with csvwriter(outfile) as writer:
                 writer.writerow(active_channels)
 
-                reader = csv.reader(fh, skipinitialspace=True)
-                header = reader.next()
+                header = next(reader)
                 ts_index = header.index('timestamp ms')
 
 

@@ -17,7 +17,6 @@
 # pylint: disable=W0613,E1101,access-member-before-definition,attribute-defined-outside-init
 from __future__ import division
 import os
-import csv
 import subprocess
 import signal
 import struct
@@ -28,6 +27,7 @@ import shutil
 
 from devlib.instrument import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import HostError
+from devlib.utils.csvutil import csvreader, csvwriter
 from devlib.utils.misc import which
 
 from devlib.utils.parse_aep import AepParser
@@ -108,10 +108,8 @@ class ArmEnergyProbeInstrument(Instrument):
         active_channels = [c.label for c in self.active_channels]
         active_indexes = [all_channels.index(ac) for ac in active_channels]
 
-        with open(self.output_file, 'rb') as ifile:
-            reader = csv.reader(ifile, delimiter=' ')
-            with open(outfile, 'wb') as wfh:
-                writer = csv.writer(wfh)
+        with csvreader(self.output_file, delimiter=' ') as reader:
+            with csvwriter(outfile) as writer:
                 for row in reader:
                     if skip_header == 1:
                         writer.writerow(active_channels)

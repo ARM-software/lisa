@@ -75,7 +75,7 @@ class Gem5StatsModule(Module):
             raise KeyError('ROI label {} already used'.format(label))
         if len(self.rois) >= GEM5STATS_ROI_NUMBER:
             raise RuntimeError('Too many ROIs reserved')
-        all_rois = set(xrange(GEM5STATS_ROI_NUMBER))
+        all_rois = set(range(GEM5STATS_ROI_NUMBER))
         used_rois = set([roi.number for roi in self.rois.values()])
         avail_rois = all_rois - used_rois
         self.rois[label] = Gem5ROI(list(avail_rois)[0], self.target)
@@ -223,7 +223,7 @@ class Gem5StatsModule(Module):
         '''
         with open(self._stats_file_path, 'r') as stats_file:
             # _goto_dump reach EOF and returns the total number of dumps + 1
-            return self._goto_dump(stats_file, sys.maxint)
+            return self._goto_dump(stats_file, sys.maxsize)
     
     def _goto_dump(self, stats_file, target_dump):
         if target_dump < 0:
@@ -243,7 +243,7 @@ class Gem5StatsModule(Module):
         dump_iterator = iter_statistics_dump(stats_file)
         while curr_dump < target_dump:
             try:
-                dump = dump_iterator.next()
+                dump = next(dump_iterator)
             except StopIteration:
                 break
             # End of passed dump is beginning og next one

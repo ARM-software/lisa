@@ -15,6 +15,8 @@
 import logging
 from inspect import isclass
 
+from past.builtins import basestring
+
 from devlib.utils.misc import walk_modules
 from devlib.utils.types import identifier
 
@@ -75,7 +77,7 @@ class BootModule(Module):  # pylint: disable=R0921
         raise NotImplementedError()
 
     def update(self, **kwargs):
-        for name, value in kwargs.iteritems():
+        for name, value in kwargs.items():
             if not hasattr(self, name):
                 raise ValueError('Unknown parameter "{}" for {}'.format(name, self.name))
             self.logger.debug('Updating "{}" to "{}"'.format(name, value))
@@ -117,6 +119,6 @@ def register_module(mod):
 
 def __load_cache():
     for module in walk_modules('devlib.module'):
-        for obj in vars(module).itervalues():
+        for obj in vars(module).values():
             if isclass(obj) and issubclass(obj, Module) and obj.name:
                 register_module(obj)

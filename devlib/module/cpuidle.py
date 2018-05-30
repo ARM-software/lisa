@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 # pylint: disable=attribute-defined-outside-init
+from past.builtins import basestring
+
 from devlib.module import Module
 from devlib.utils.misc import memoized
 from devlib.utils.types import integer, boolean

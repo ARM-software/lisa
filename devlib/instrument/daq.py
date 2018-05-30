@@ -1,19 +1,19 @@
 import os
-import csv
 import tempfile
 from itertools import chain
 
 from devlib.instrument import Instrument, MeasurementsCsv, CONTINUOUS
 from devlib.exception import HostError
+from devlib.utils.csvutil import csvwriter, create_reader
 from devlib.utils.misc import unique
 
 try:
     from daqpower.client import execute_command, Status
     from daqpower.config import DeviceConfiguration, ServerConfiguration
-except ImportError, e:
+except ImportError as e:
     execute_command, Status = None, None
     DeviceConfiguration, ServerConfiguration, ConfigurationError = None, None, None
-    import_error_mesg = e.message
+    import_error_mesg = e.args[0] if e.args else str(e)
 
 
 class DaqInstrument(Instrument):
@@ -37,7 +37,7 @@ class DaqInstrument(Instrument):
         if execute_command is None:
             raise HostError('Could not import "daqpower": {}'.format(import_error_mesg))
         if labels is None:
-            labels = ['PORT_{}'.format(i) for i in xrange(len(resistor_values))]
+            labels = ['PORT_{}'.format(i) for i in range(len(resistor_values))]
         if len(labels) != len(resistor_values):
             raise ValueError('"labels" and "resistor_values" must be of the same length')
         self.server_config = ServerConfiguration(host=host,
@@ -97,8 +97,8 @@ class DaqInstrument(Instrument):
             for site in active_sites:
                 try:
                     site_file = raw_file_map[site]
-                    fh = open(site_file, 'rb')
-                    site_readers[site] = csv.reader(fh)
+                    reader, fh = create_reader(site_file)
+                    site_readers[site] = reader
                     file_handles.append(fh)
                 except KeyError:
                     message = 'Could not get DAQ trace for {}; Obtained traces are in {}'
@@ -106,22 +106,21 @@ class DaqInstrument(Instrument):
 
             # The first row is the headers
             channel_order = []
-            for site, reader in site_readers.iteritems():
+            for site, reader in site_readers.items():
                 channel_order.extend(['{}_{}'.format(site, kind)
-                                      for kind in reader.next()])
+                                      for kind in next(reader)])
 
             def _read_next_rows():
                 parts = []
-                for reader in site_readers.itervalues():
+                for reader in site_readers.values():
                     try:
-                        parts.extend(reader.next())
+                        parts.extend(next(reader))
                     except StopIteration:
                         parts.extend([None, None])
                 return list(chain(parts))
 
-            with open(outfile, 'wb') as wfh:
+            with csvwriter(outfile) as writer:
                 field_names = [c.label for c in self.active_channels]
-                writer = csv.writer(wfh)
                 writer.writerow(field_names)
                 raw_row = _read_next_rows()
                 while any(raw_row):

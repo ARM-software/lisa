@@ -70,6 +70,7 @@ params = dict(
         'pexpect>=3.3',  # Send/recieve to/from device
         'pyserial',  # Serial port interface
         'wrapt',  # Basic for construction of decorator functions
+        'future', # Python 2-3 compatibility
     ],
     extras_require={
         'daq': ['daqpower'],
@@ -85,7 +86,7 @@ params = dict(
     ],
 )
 
-all_extras = list(chain(params['extras_require'].itervalues()))
+all_extras = list(chain(iter(params['extras_require'].values())))
 params['extras_require']['full'] = all_extras
 
 setup(**params)

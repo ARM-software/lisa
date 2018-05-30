@@ -67,7 +67,7 @@ class AepParser(object):
         virtual = {}
 
         # Create an entry for each virtual parent
-        for supply in topo.iterkeys():
+        for supply in topo.keys():
             index = topo[supply]['index']
             # Don't care of hidden columns
             if hide[index]:
@@ -85,11 +85,11 @@ class AepParser(object):
 
         # Remove parent with 1 child as they don't give more information than their
         # child
-        for supply in virtual.keys():
+        for supply in list(virtual.keys()):
             if len(virtual[supply]) == 1:
                 del virtual[supply];
 
-        for supply in virtual.keys():
+        for supply in list(virtual.keys()):
             # Add label, hide and duplicate columns for virtual domains
             hide.append(0)
             duplicate.append(1)
@@ -166,9 +166,9 @@ class AepParser(object):
     @staticmethod
     def add_virtual_data(data, virtual):
         # write virtual domain
-        for parent in virtual.iterkeys():
+        for parent in virtual.keys():
             power = 0
-            for child in virtual[parent].values():
+            for child in list(virtual[parent].values()):
                 try:
                     power += data[child]
                 except IndexError:
@@ -440,7 +440,7 @@ class AepParser(object):
 
 
         # Create an entry for each virtual parent
-        for supply in topo.iterkeys():
+        for supply in topo.keys():
             # Parent is in the topology
             parent = topo[supply]['parent']
             if parent in topo:
@@ -454,15 +454,15 @@ class AepParser(object):
 
         # Remove parent with 1 child as they don't give more information than their
         # child
-        for supply in virtual.keys():
+        for supply in list(virtual.keys()):
             if len(virtual[supply]) == 1:
                 del virtual[supply];
 
         topo_list = ['']*(1+len(topo)+len(virtual))
         topo_list[0] = 'time'
-        for chnl in topo.iterkeys():
+        for chnl in topo.keys():
             topo_list[topo[chnl]['index']] = chnl
-        for chnl in virtual.iterkeys():
+        for chnl in virtual.keys():
             index +=1
             topo_list[index] = chnl
 
@@ -495,7 +495,7 @@ if __name__ == '__main__':
     try:
         opts, args = getopt.getopt(sys.argv[1:], "i:vo:s:l:t:")
     except getopt.GetoptError as err:
-        print str(err) # will print something like "option -a not recognized"
+        print(str(err)) # will print something like "option -a not recognized"
         sys.exit(2)
 
     for o, a in opts:
@@ -513,7 +513,7 @@ if __name__ == '__main__':
         if o == "-t":
             topofile = a
             parser = AepParser()
-            print parser.topology_from_config(topofile)
+            print(parser.topology_from_config(topofile))
             exit(0)
 
     parser = AepParser()

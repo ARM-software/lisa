@@ -26,7 +26,7 @@ class GpufreqModule(Module):
     def __init__(self, target):
         super(GpufreqModule, self).__init__(target)
         frequencies_str = self.target.read_value("/sys/kernel/gpu/gpu_freq_table")
-        self.frequencies = map(int, frequencies_str.split(" "))
+        self.frequencies = list(map(int, frequencies_str.split(" ")))
         self.frequencies.sort()
         self.governors = self.target.read_value("/sys/kernel/gpu/gpu_available_governor").split(" ")
 

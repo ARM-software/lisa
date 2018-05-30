@@ -34,7 +34,7 @@ class DerivedEnergyMeasurements(DerivedMeasurements):
             if channel.site == 'timestamp':
                 use_timestamp = True
                 time_measurment = channel.measurement_type
-        for site, kinds in channel_map.iteritems():
+        for site, kinds in channel_map.items():
             if 'power' in kinds and not 'energy' in kinds:
                 should_calculate_energy.append(site)
 

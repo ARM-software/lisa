@@ -1,14 +1,15 @@
 import os
 import re
-import csv
 import tempfile
 from datetime import datetime
 from collections import defaultdict
-from itertools import izip_longest
+
+from future.moves.itertools import zip_longest
 
 from devlib.instrument import Instrument, MeasurementsCsv, CONTINUOUS
 from devlib.exception import TargetError, HostError
 from devlib.utils.android import ApkInfo
+from devlib.utils.csvutil import csvwriter
 
 
 THIS_DIR = os.path.dirname(__file__)
@@ -46,10 +47,9 @@ def netstats_to_measurements(netstats):
 def write_measurements_csv(measurements, filepath):
     headers = sorted(measurements.keys())
     columns = [measurements[h] for h in headers]
-    with open(filepath, 'wb') as wfh:
-        writer = csv.writer(wfh)
+    with csvwriter(filepath) as writer:
         writer.writerow(headers)
-        writer.writerows(izip_longest(*columns))
+        writer.writerows(zip_longest(*columns))
 
 
 class NetstatsInstrument(Instrument):

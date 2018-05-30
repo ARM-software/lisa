@@ -1,5 +1,4 @@
 from __future__ import division
-import csv
 import os
 import re
 
@@ -8,8 +7,11 @@ try:
 except ImportError:
     pd = None
 
+from past.builtins import basestring
+
 from devlib import DerivedMeasurements, DerivedMetric, MeasurementsCsv, InstrumentChannel
 from devlib.exception import HostError
+from devlib.utils.csvutil import csvwriter
 from devlib.utils.rendering import gfxinfo_get_last_dump, VSYNC_INTERVAL
 from devlib.utils.types import numeric
 
@@ -103,8 +105,7 @@ class DerivedGfxInfoStats(DerivedFpsStats):
             fps = 0
 
         csv_file = self._get_csv_file_name(measurements_csv.path)
-        with open(csv_file, 'wb') as wfh:
-            writer = csv.writer(wfh)
+        with csvwriter(csv_file) as writer:
             writer.writerow(['fps'])
             writer.writerows(per_frame_fps)
 

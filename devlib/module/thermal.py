@@ -100,5 +100,5 @@ class ThermalModule(Module):
 
     def disable_all_zones(self):
         """Disables all the thermal zones in the target"""
-        for zone in self.zones.itervalues():
+        for zone in self.zones.values():
             zone.set_enabled(False)

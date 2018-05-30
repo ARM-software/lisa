@@ -1,12 +1,15 @@
-import csv
 import os
 import signal
+import sys
 from subprocess import Popen, PIPE
 from tempfile import NamedTemporaryFile
+
 from devlib.instrument import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import HostError
 from devlib.host import PACKAGE_BIN_DIRECTORY
+from devlib.utils.csvutil import csvwriter
 from devlib.utils.misc import which
+
 
 INSTALL_INSTRUCTIONS="""
 MonsoonInstrument requires the monsoon.py tool, available from AOSP:
@@ -17,6 +20,7 @@ Download this script and put it in your $PATH (or pass it as the monsoon_bin
 parameter to MonsoonInstrument). `pip install python-gflags pyserial` to install
 the dependencies.
 """
+
 
 class MonsoonInstrument(Instrument):
     """Instrument for Monsoon Solutions power monitor
@@ -81,6 +85,9 @@ class MonsoonInstrument(Instrument):
         process.poll()
         if process.returncode is not None:
             stdout, stderr = process.communicate()
+            if sys.version_info[0] == 3:
+                stdout = stdout.encode(sys.stdout.encoding)
+                stderr = stderr.encode(sys.stdout.encoding)
             raise HostError(
                 'Monsoon script exited unexpectedly with exit code {}.\n'
                 'stdout:\n{}\nstderr:\n{}'.format(process.returncode,
@@ -104,8 +111,7 @@ class MonsoonInstrument(Instrument):
 
         stdout, stderr = self.output
 
-        with open(outfile, 'wb') as f:
-            writer = csv.writer(f)
+        with csvwriter(outfile) as writer:
             active_sites = [c.site for c in self.active_channels]
 
             # Write column headers

@@ -150,7 +150,7 @@ class CpufreqModule(Module):
         if governor is None:
             governor = self.get_governor(cpu)
         valid_tunables = self.list_governor_tunables(cpu)
-        for tunable, value in kwargs.iteritems():
+        for tunable, value in kwargs.items():
             if tunable in valid_tunables:
                 path = '/sys/devices/system/cpu/{}/cpufreq/{}/{}'.format(cpu, governor, tunable)
                 try:
@@ -176,7 +176,7 @@ class CpufreqModule(Module):
         try:
             cmd = 'cat /sys/devices/system/cpu/{}/cpufreq/scaling_available_frequencies'.format(cpu)
             output = self.target.execute(cmd)
-            available_frequencies = map(int, output.strip().split())  # pylint: disable=E1103
+            available_frequencies = list(map(int, output.strip().split()))  # pylint: disable=E1103
         except TargetError:
             # On some devices scaling_frequencies  is not generated.
             # http://adrynalyne-teachtofish.blogspot.co.uk/2011/11/how-to-enable-scalingavailablefrequenci.html
@@ -190,7 +190,7 @@ class CpufreqModule(Module):
                     return []
                 raise
 
-            available_frequencies = map(int, reversed([f for f, _ in zip(out_iter, out_iter)]))
+            available_frequencies = list(map(int, reversed([f for f, _ in zip(out_iter, out_iter)])))
         return available_frequencies
 
     @memoized
@@ -478,7 +478,7 @@ class CpufreqModule(Module):
         """
         cpus = set(range(self.target.number_of_cpus))
         while cpus:
-            cpu = iter(cpus).next()
+            cpu = next(iter(cpus))
             domain = self.target.cpufreq.get_related_cpus(cpu)
             yield domain
             cpus = cpus.difference(domain)

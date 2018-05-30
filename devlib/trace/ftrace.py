@@ -19,6 +19,7 @@ import json
 import time
 import re
 import subprocess
+import sys
 
 from devlib.trace import TraceCollector
 from devlib.host import PACKAGE_BIN_DIRECTORY
@@ -121,7 +122,7 @@ class FtraceCollector(TraceCollector):
                 _event = '*' + event
             event_re = re.compile(_event.replace('*', '.*'))
             # Select events matching the required ones
-            if len(filter(event_re.match, available_events)) == 0:
+            if len(list(filter(event_re.match, available_events))) == 0:
                 message = 'Event [{}] not available for tracing'.format(event)
                 if strict:
                     raise TargetError(message)
@@ -276,6 +277,8 @@ class FtraceCollector(TraceCollector):
             self.logger.debug(command)
             process = subprocess.Popen(command, stderr=subprocess.PIPE, shell=True)
             _, error = process.communicate()
+            if sys.version_info[0] == 3:
+                error = error.decode(sys.stdout.encoding)
             if process.returncode:
                 raise TargetError('trace-cmd returned non-zero exit code {}'.format(process.returncode))
             if error:

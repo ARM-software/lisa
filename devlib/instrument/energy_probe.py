@@ -14,14 +14,15 @@
 #
 from __future__ import division
 import os
-import csv
 import signal
 import tempfile
 import struct
 import subprocess
+import sys
 
 from devlib.instrument import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import HostError
+from devlib.utils.csvutil import csvwriter
 from devlib.utils.misc import which
 
 
@@ -39,7 +40,7 @@ class EnergyProbeInstrument(Instrument):
             self.labels = labels
         else:
             self.labels = ['PORT_{}'.format(i)
-                           for i in xrange(len(resistor_values))]
+                           for i in range(len(resistor_values))]
         self.device_entry = device_entry
         self.caiman = which('caiman')
         if self.caiman is None:
@@ -80,6 +81,9 @@ class EnergyProbeInstrument(Instrument):
         self.process.poll()
         if self.process.returncode is not None:
             stdout, stderr = self.process.communicate()
+            if sys.version_info[0] == 3:
+                stdout = stdout.decode(sys.stdout.encoding)
+                stderr = stderr.decode(sys.stdout.encoding)
             raise HostError(
                 'Energy Probe: Caiman exited unexpectedly with exit code {}.\n'
                 'stdout:\n{}\nstderr:\n{}'.format(self.process.returncode,
@@ -98,8 +102,7 @@ class EnergyProbeInstrument(Instrument):
 
         self.logger.debug('Parsing raw data file: {}'.format(self.raw_data_file))
         with open(self.raw_data_file, 'rb') as bfile:
-            with open(outfile, 'wb') as wfh:
-                writer = csv.writer(wfh)
+            with csvwriter(outfile) as writer:
                 writer.writerow(active_channels)
                 while True:
                     data = bfile.read(num_of_ports * self.bytes_per_sample)

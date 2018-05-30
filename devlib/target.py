@@ -4,6 +4,7 @@ import time
 import logging
 import posixpath
 import subprocess
+import sys
 import tarfile
 import tempfile
 import threading
@@ -233,7 +234,7 @@ class Target(object):
             self._install_module(get_module('bl'))
 
     def disconnect(self):
-        for conn in self._connections.itervalues():
+        for conn in self._connections.values():
             conn.close()
         self._connections = {}
 
@@ -514,8 +515,8 @@ class Target(object):
 
     def tempfile(self, prefix='', suffix=''):
         names = tempfile._get_candidate_names()  # pylint: disable=W0212
-        for _ in xrange(tempfile.TMP_MAX):
-            name = names.next()
+        for _ in range(tempfile.TMP_MAX):
+            name = next(names)
             path = self.get_workpath(prefix + name + suffix)
             if not self.file_exists(path):
                 return path
@@ -542,7 +543,7 @@ class Target(object):
 
     def list_offline_cpus(self):
         online = self.list_online_cpus()
-        return [c for c in xrange(self.number_of_cpus)
+        return [c for c in range(self.number_of_cpus)
                 if c not in online]
 
     def getenv(self, variable):
@@ -716,7 +717,7 @@ class Target(object):
     def _update_modules(self, stage):
         for mod in self.modules:
             if isinstance(mod, dict):
-                mod, params = mod.items()[0]
+                mod, params = list(mod.items())[0]
             else:
                 params = {}
             mod = get_module(mod)
@@ -790,7 +791,7 @@ class LinuxTarget(Target):
     @memoized
     def abi(self):
         value = self.execute('uname -m').strip()
-        for abi, architectures in ABI_MAP.iteritems():
+        for abi, architectures in ABI_MAP.items():
             if value in architectures:
                 result = abi
                 break
@@ -858,27 +859,27 @@ class LinuxTarget(Target):
         result = self.execute('ps -C {} -o pid'.format(process_name),  # NOQA
                               check_exit_code=False).strip().split()
         if len(result) >= 2:  # at least one row besides the header
-            return map(int, result[1:])
+            return list(map(int, result[1:]))
         else:
             return []
 
     def ps(self, **kwargs):
         command = 'ps -eo user,pid,ppid,vsize,rss,wchan,pcpu,state,fname'
         lines = iter(convert_new_lines(self.execute(command)).split('\n'))
-        lines.next()  # header
+        next(lines)  # header
 
         result = []
         for line in lines:
             parts = re.split(r'\s+', line, maxsplit=8)
             if parts and parts != ['']:
-                result.append(PsEntry(*(parts[0:1] + map(int, parts[1:5]) + parts[5:])))
+                result.append(PsEntry(*(parts[0:1] + list(map(int, parts[1:5])) + parts[5:])))
 
         if not kwargs:
             return result
         else:
             filtered_result = []
             for entry in result:
-                if all(getattr(entry, k) == v for k, v in kwargs.iteritems()):
+                if all(getattr(entry, k) == v for k, v in kwargs.items()):
                     filtered_result.append(entry)
             return filtered_result
 
@@ -952,7 +953,7 @@ class AndroidTarget(Target):
 
         mapped_result = []
         for supported_abi in result:
-            for abi, architectures in ABI_MAP.iteritems():
+            for abi, architectures in ABI_MAP.items():
                 found = False
                 if supported_abi in architectures and abi not in mapped_result:
                     mapped_result.append(abi)
@@ -1125,7 +1126,7 @@ class AndroidTarget(Target):
 
     def ps(self, **kwargs):
         lines = iter(convert_new_lines(self.execute('ps')).split('\n'))
-        lines.next()  # header
+        next(lines)  # header
         result = []
         for line in lines:
             parts = line.split(None, 8)
@@ -1134,13 +1135,13 @@ class AndroidTarget(Target):
             if len(parts) == 8:
                 # wchan was blank; insert an empty field where it should be.
                 parts.insert(5, '')
-            result.append(PsEntry(*(parts[0:1] + map(int, parts[1:5]) + parts[5:])))
+            result.append(PsEntry(*(parts[0:1] + list(map(int, parts[1:5])) + parts[5:])))
         if not kwargs:
             return result
         else:
             filtered_result = []
             for entry in result:
-                if all(getattr(entry, k) == v for k, v in kwargs.iteritems()):
+                if all(getattr(entry, k) == v for k, v in kwargs.items()):
                     filtered_result.append(entry)
             return filtered_result
 
@@ -1188,7 +1189,10 @@ class AndroidTarget(Target):
 
         parsed_xml = xml.dom.minidom.parse(filepath)
         with open(filepath, 'w') as f:
-            f.write(parsed_xml.toprettyxml().encode('utf-8'))
+            if sys.version_info[0] == 3:
+                f.write(parsed_xml.toprettyxml())
+            else:
+                f.write(parsed_xml.toprettyxml().encode('utf-8'))
 
     def is_installed(self, name):
         return super(AndroidTarget, self).is_installed(name) or self.package_is_installed(name)
@@ -1626,7 +1630,7 @@ class KernelConfig(object):
         return name
 
     def iteritems(self):
-        return self._config.iteritems()
+        return iter(self._config.items())
 
     def __init__(self, text):
         self.text = text
@@ -1647,7 +1651,7 @@ class KernelConfig(object):
     def like(self, name):
         regex = re.compile(name, re.I)
         result = {}
-        for k, v in self._config.iteritems():
+        for k, v in self._config.items():
             if regex.search(k):
                 result[k] = v
         return result
@@ -1707,7 +1711,7 @@ def _get_part_name(section):
     implementer = section.get('CPU implementer', '0x0')
     part = section['CPU part']
     variant = section.get('CPU variant', '0x0')
-    name = get_cpu_name(*map(integer, [implementer, part, variant]))
+    name = get_cpu_name(*list(map(integer, [implementer, part, variant])))
     if name is None:
         name = '{}/{}/{}'.format(implementer, part, variant)
     return name
@@ -1730,13 +1734,13 @@ def _build_path_tree(path_map, basepath, sep=os.path.sep, dictcls=dict):
             process_node(node[parts[0]], parts[1], value)
 
     relpath_map = {os.path.relpath(p, basepath): v
-                   for p, v in path_map.iteritems()}
+                   for p, v in path_map.items()}
 
-    if len(relpath_map) == 1 and relpath_map.keys()[0] == '.':
-        result = relpath_map.values()[0]
+    if len(relpath_map) == 1 and list(relpath_map.keys())[0] == '.':
+        result = list(relpath_map.values())[0]
     else:
         result = dictcls()
-        for path, value in relpath_map.iteritems():
+        for path, value in relpath_map.items():
             process_node(result, path, value)
 
     return result

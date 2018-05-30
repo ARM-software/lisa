@@ -75,8 +75,8 @@ class HwmonDevice(object):
     @property
     def sensors(self):
         all_sensors = []
-        for sensors_of_kind in self._sensors.itervalues():
-            all_sensors.extend(sensors_of_kind.values())
+        for sensors_of_kind in self._sensors.values():
+            all_sensors.extend(list(sensors_of_kind.values()))
         return all_sensors
 
     def __init__(self, target, path, name, fields):
@@ -100,7 +100,7 @@ class HwmonDevice(object):
 
     def get(self, kind, number=None):
         if number is None:
-            return [s for _, s in sorted(self._sensors[kind].iteritems(),
+            return [s for _, s in sorted(self._sensors[kind].items(),
                                          key=lambda x: x[0])]
         else:
             return self._sensors[kind].get(number)
@@ -139,7 +139,7 @@ class HwmonModule(Module):
 
     def scan(self):
         values_tree = self.target.read_tree_values(self.root, depth=3)
-        for entry_id, fields in values_tree.iteritems():
+        for entry_id, fields in values_tree.items():
             path = self.target.path.join(self.root, entry_id)
             name = fields.pop('name', None)
             if name is None:

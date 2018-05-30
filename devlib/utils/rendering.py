@@ -1,4 +1,3 @@
-import csv
 import logging
 import os
 import re
@@ -11,6 +10,7 @@ from collections import namedtuple, OrderedDict
 from distutils.version import LooseVersion
 
 from devlib.exception  import WorkerThreadError, TargetNotRespondingError, TimeoutError
+from devlib.utils.csvutil import csvwriter
 
 
 logger = logging.getLogger('rendering')
@@ -53,7 +53,7 @@ class FrameCollector(threading.Thread):
                 wfh.close()
         except (TargetNotRespondingError, TimeoutError):  # pylint: disable=W0703
             raise
-        except Exception, e:  # pylint: disable=W0703
+        except Exception as e:  # pylint: disable=W0703
             logger.warning('Exception on collector thread: {}({})'.format(e.__class__.__name__, e))
             self.exc = WorkerThreadError(self.name, sys.exc_info())
         logger.debug('Surface flinger frame data collection stopped.')
@@ -93,8 +93,7 @@ class FrameCollector(threading.Thread):
                 indexes.append(self.header.index(c))
             frames = [[f[i] for i in indexes] for f in self.frames]
             header = columns
-        with open(outfile, 'w') as wfh:
-            writer = csv.writer(wfh)
+        with csvwriter(outfile) as writer:
             if header:
                 writer.writerow(header)
             writer.writerows(frames)
@@ -142,7 +141,7 @@ class SurfaceFlingerFrameCollector(FrameCollector):
     def _process_trace_line(self, line):
         parts = line.split()
         if len(parts) == 3:
-            frame = SurfaceFlingerFrame(*map(int, parts))
+            frame = SurfaceFlingerFrame(*list(map(int, parts)))
             if not frame.frame_ready_time:
                 return # "null" frame
             if frame.frame_ready_time <= self.last_ready_time:
@@ -167,7 +166,7 @@ def read_gfxinfo_columns(target):
     for line in lines:
         if line.startswith('---PROFILEDATA---'):
             break
-    columns_line = lines.next()
+    columns_line = next(lines)
     return columns_line.split(',')[:-1]  # has a trailing ','
 
 
@@ -202,11 +201,11 @@ class GfxinfoFrameCollector(FrameCollector):
                         found = True
                         break
 
-                fh.next()  # headers
+                next(fh)  # headers
                 for line in fh:
                     if line.startswith('---PROFILEDATA---'):
                         break
-                    entries = map(int, line.strip().split(',')[:-1])  # has a trailing ','
+                    entries = list(map(int, line.strip().split(',')[:-1]))  # has a trailing ','
                     if entries[1] <= last_vsync:
                         continue  # repeat frame
                     last_vsync = entries[1]
@@ -240,14 +239,14 @@ def gfxinfo_get_last_dump(filepath):
         fh_iter = _file_reverse_iter(fh)
         try:
             while True:
-                buf = fh_iter.next()
+                buf = next(fh_iter)
                 ix = buf.find('** Graphics')
                 if ix >= 0:
                     return buf[ix:] + record
 
                 ix = buf.find(' **\n')
                 if ix >= 0:
-                    buf =  fh_iter.next() + buf
+                    buf =  next(fh_iter) + buf
                     ix = buf.find('** Graphics')
                     if ix < 0:
                         msg = '"{}" appears to be corrupted'

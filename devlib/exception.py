@@ -15,7 +15,11 @@
 
 class DevlibError(Exception):
     """Base class for all Devlib exceptions."""
-    pass
+    @property
+    def message(self):
+        if self.args:
+            return self.args[0]
+        return str(self)
 
 
 class TargetError(DevlibError):
@@ -75,13 +79,13 @@ def get_traceback(exc=None):
     object, or for the current exception exc is not specified.
 
     """
-    import StringIO, traceback, sys
+    import io, traceback, sys
     if exc is None:
         exc = sys.exc_info()
     if not exc:
         return None
     tb = exc[2]
-    sio = StringIO.StringIO()
+    sio = io.BytesIO()
     traceback.print_tb(tb, file=sio)
     del tb  # needs to be done explicitly see: http://docs.python.org/2/library/sys.html#sys.exc_info
     return sio.getvalue()

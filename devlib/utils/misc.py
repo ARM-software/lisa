@@ -36,8 +36,10 @@ from itertools import groupby
 from functools import partial
 
 import wrapt
+from past.builtins import basestring
 
 from devlib.exception import HostError, TimeoutError
+from functools import reduce
 
 
 # ABI --> architectures list
@@ -176,6 +178,9 @@ def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
 
     try:
         output, error = process.communicate(inputtext)
+        if sys.version_info[0] == 3:
+            output = output.decode(sys.stdout.encoding)
+            error =  error.decode(sys.stderr.encoding)
     finally:
         if timeout:
             timer.cancel()
@@ -185,7 +190,7 @@ def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
         if retcode == -9:  # killed, assume due to timeout callback
             raise TimeoutError(command, output='\n'.join([output, error]))
         elif ignore != 'all' and retcode not in ignore:
-            raise subprocess.CalledProcessError(retcode, command, output='\n'.join([output, error]))
+            raise subprocess.CalledProcessError(retcode, command, output='\n'.join([str(output), str(error)]))
     return output, error
 
 
@@ -257,8 +262,8 @@ def _merge_two_dicts(base, other, list_duplicates='all', match_types=False,  # p
                      dict_type=dict, should_normalize=True, should_merge_lists=True):
     """Merge dicts normalizing their keys."""
     merged = dict_type()
-    base_keys = base.keys()
-    other_keys = other.keys()
+    base_keys = list(base.keys())
+    other_keys = list(other.keys())
     norm = normalize if should_normalize else lambda x, y: x
 
     base_only = []
@@ -390,7 +395,7 @@ def normalize(value, dict_type=dict):
     no surrounding whitespace, underscore-delimited strings."""
     if isinstance(value, dict):
         normalized = dict_type()
-        for k, v in value.iteritems():
+        for k, v in value.items():
             key = k.strip().lower().replace(' ', '_')
             normalized[key] = normalize(v, dict_type)
         return normalized
@@ -431,7 +436,7 @@ def getch(count=1):
     """Read ``count`` characters from standard input."""
     if os.name == 'nt':
         import msvcrt  # pylint: disable=F0401
-        return ''.join([msvcrt.getch() for _ in xrange(count)])
+        return ''.join([msvcrt.getch() for _ in range(count)])
     else:  # assume Unix
         import tty  # NOQA
         import termios  # NOQA
@@ -509,7 +514,7 @@ def strip_bash_colors(text):
 
 def get_random_string(length):
     """Returns a random ASCII string of the specified length)."""
-    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in xrange(length))
+    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(length))
 
 
 class LoadSyntaxError(Exception):
@@ -526,7 +531,10 @@ class LoadSyntaxError(Exception):
 
 RAND_MOD_NAME_LEN = 30
 BAD_CHARS = string.punctuation + string.whitespace
-TRANS_TABLE = string.maketrans(BAD_CHARS, '_' * len(BAD_CHARS))
+if sys.version_info[0] == 3:
+    TRANS_TABLE = str.maketrans(BAD_CHARS, '_' * len(BAD_CHARS))
+else:
+    TRANS_TABLE = string.maketrans(BAD_CHARS, '_' * len(BAD_CHARS))
 
 
 def to_identifier(text):
@@ -555,8 +563,8 @@ def ranges_to_list(ranges_string):
     values = []
     for rg in ranges_string.split(','):
         if '-' in rg:
-            first, last = map(int, rg.split('-'))
-            values.extend(xrange(first, last + 1))
+            first, last = list(map(int, rg.split('-')))
+            values.extend(range(first, last + 1))
         else:
             values.append(int(rg))
     return values
@@ -565,8 +573,8 @@ def ranges_to_list(ranges_string):
 def list_to_ranges(values):
     """Converts a list, e.g ``[0,2,3,4]``, into a sysfs-style ranges string, e.g. ``"0,2-4"``"""
     range_groups = []
-    for _, g in groupby(enumerate(values), lambda (i, x): i - x):
-        range_groups.append(map(itemgetter(1), g))
+    for _, g in groupby(enumerate(values), lambda i_x: i_x[0] - i_x[1]):
+        range_groups.append(list(map(itemgetter(1), g)))
     range_strings = []
     for group in range_groups:
         if len(group) == 1:
@@ -589,7 +597,7 @@ def mask_to_list(mask):
     """Converts the specfied integer bitmask into a list of
     indexes of bits that are set in the mask."""
     size = len(bin(mask)) - 2  # because of "0b"
-    return [size - i - 1 for i in xrange(size)
+    return [size - i - 1 for i in range(size)
             if mask & (1 << size - i - 1)]
 
 
@@ -634,7 +642,7 @@ def memoized(wrapped, instance, args, kwargs):
     def memoize_wrapper(*args, **kwargs):
         id_string = func_id + ','.join([__get_memo_id(a) for a in  args])
         id_string += ','.join('{}={}'.format(k, v)
-                              for k, v in kwargs.iteritems())
+                              for k, v in kwargs.items())
         if id_string not in __memo_cache:
             __memo_cache[id_string] = wrapped(*args, **kwargs)
         return __memo_cache[id_string]

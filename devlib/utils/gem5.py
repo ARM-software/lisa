@@ -45,7 +45,7 @@ def iter_statistics_dump(stats_file):
                 k = res.group("key")
                 vtext = res.group("value")
                 try:
-                    v = map(numeric, vtext.split())
+                    v = list(map(numeric, vtext.split()))
                     cur_dump[k] = v[0] if len(v)==1 else set(v)
                 except ValueError:
                     msg = 'Found non-numeric entry in gem5 stats ({}: {})'
