@@ -164,7 +164,6 @@ class DelayInstrument(Instrument):
 
     @extremely_slow
     def before_job(self, context):
-        import ipdb; ipdb.set_trace()
         if self.fixed_between_specs and context.spec_changed:
             msg = 'Waiting for {}s before starting new spec...'
             self.logger.info(msg.format(self.fixed_between_specs))
