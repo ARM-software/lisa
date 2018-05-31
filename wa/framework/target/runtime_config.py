@@ -542,13 +542,9 @@ class CpufreqRuntimeConfig(RuntimeConfig):
                                     config.get('governor'),
                                     config.get('governor_tunables'))
 
-            frequency = config.get('frequency')
-            if frequency == 'min':
-                frequency = self.target.cpufreq.get_min_frequency(cpu)
-            elif frequency == 'max':
-                frequency = self.target.cpufreq.get_max_frequency(cpu)
+            freq = self._resolve_freq(config.get('frequency'), cpu)
             self.configure_frequency(cpu,
-                                     frequency,
+                                     freq,
                                      config.get('min_frequency'),
                                      config.get('max_frequency'),
                                      config.get('governor'))
@@ -581,6 +577,13 @@ class CpufreqRuntimeConfig(RuntimeConfig):
             self._set_frequency(cpu, freq, governor)
         else:
             self._set_min_max_frequencies(cpu, min_freq, max_freq)
+
+    def _resolve_freq(self, value, cpu):
+        if value == 'min':
+            value = self.target.cpufreq.get_min_available_frequency(cpu)
+        elif value == 'max':
+            value = self.target.cpufreq.get_max_available_frequency(cpu)
+        return value
 
     def _set_frequency(self, cpu, freq, governor):
         if not governor:
