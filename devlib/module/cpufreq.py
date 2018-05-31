@@ -193,6 +193,24 @@ class CpufreqModule(Module):
             available_frequencies = map(int, reversed([f for f, _ in zip(out_iter, out_iter)]))
         return available_frequencies
 
+    @memoized
+    def get_max_available_frequency(self, cpu):
+        """
+        Returns the maximum available frequency for a given core or None if
+        could not be found.
+        """
+        freqs = self.list_frequencies(cpu)
+        return freqs and max(freqs) or None
+
+    @memoized
+    def get_min_available_frequency(self, cpu):
+        """
+        Returns the minimum available frequency for a given core or None if
+        could not be found.
+        """
+        freqs = self.list_frequencies(cpu)
+        return freqs and min(freqs) or None
+
     def get_min_frequency(self, cpu):
         """
         Returns the min frequency currently set for the specified CPU.
