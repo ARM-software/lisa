@@ -85,7 +85,7 @@ class Target(object):
         if self.connected_as_root:
             return True
         try:
-            self.execute('ls /', timeout=2, as_root=True)
+            self.execute('ls /', timeout=5, as_root=True)
             return True
         except (TargetError, TimeoutError):
             return False
