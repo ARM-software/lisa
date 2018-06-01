@@ -528,12 +528,9 @@ class CpufreqRuntimeConfig(RuntimeConfig):
                 msg = 'CPU{}: Can\'t set both cpu frequency and maximum frequency'
                 raise ConfigError(msg.format(cpu))
 
-            if maxf and minf > maxf:
+            if (maxf and minf) and self._resolve_freq(minf, cpu) > self._resolve_freq(maxf, cpu):
                 msg = 'CPU{}: min_frequency "{}" cannot be greater than max_frequency "{}"'
                 raise ConfigError(msg.format(cpu, minf, maxf))
-            if maxf and freq > maxf:
-                msg = 'CPU{}: cpu frequency "{}" cannot be greater than max_frequency "{}"'
-                raise ConfigError(msg.format(cpu, freq, maxf))
 
     def commit(self):
         for cpu in self.config:
