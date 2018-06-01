@@ -498,6 +498,13 @@ class RampUp(_EnergyModelTest):
     """
     Test EAS for a task ramping from 5% up to 70%
     """
+    # The main purpose of this test is to ensure that as it grows in load, a
+    # task is migrated from LITTLE to big CPUs on a big.LITTLE system.
+    # This migration naturally happens some time _after_ it could possibly be
+    # done, since there must be some hysteresis to avoid a performance cost.
+    # Therefore allow a larger energy usage threshold
+    energy_est_threshold_pct = 15
+
     workloads = {
         "ramp_up" : {
             "type": "rt-app",
