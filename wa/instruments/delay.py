@@ -121,6 +121,7 @@ class DelayInstrument(Instrument):
                   Temperature (in device-specific units) the
                   device must cool down to just before the actual workload
                   execution (after setup has been performed).
+
                   .. note:: This cannot be specified at the same time as
                             ``fixed_between_jobs``
                   """),
