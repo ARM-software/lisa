@@ -184,6 +184,8 @@ class ExecutionContext(object):
 
     def get_resource(self, resource, strict=True):
         result = self.resolver.get(resource, strict)
+        if result is None:
+            return result
         if os.path.isfile(result):
             with open(result, 'rb') as fh:
                 md5hash = hashlib.md5(fh.read())
