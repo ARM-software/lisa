@@ -106,11 +106,20 @@ policies (governors). The ``devlib`` module exposes the following interface
             target.cpufreq.set_min_frequency(cpu, frequency[, exact=True])
             target.cpufreq.set_max_frequency(cpu, frequency[, exact=True])
 
-   Get and set min and max frequencies on the specified CPU. "set" functions are
-   available with all governors other than ``userspace``.
+   Get the currently set, or set new min and max frequencies for the specified
+   CPU. "set" functions are available with all governors other than
+   ``userspace``.
 
    :param cpu: The cpu; could be a numeric or the corresponding string (e.g.
        ``1`` or ``"cpu1"``).
+
+.. method:: target.cpufreq.get_min_available_frequency(cpu)
+            target.cpufreq.get_max_available_frequency(cpu)
+
+    Retrieve the min or max DVFS frequency that is supported (as opposed to
+    currently enforced) for a given CPU. Returns an int or None if could not be
+    determined.
+
    :param frequency: Frequency to set.
 
 .. method:: target.cpufreq.get_frequency(cpu)
