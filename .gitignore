@@ -27,5 +27,9 @@ libs/armeabi
 **/uiauto/**/proguard-rules.pro
 **/uiauto/app/libs/
 **/uiauto/*.properties
+**/uiauto/**/.project
+**/uiauto/**/.settings
+**/uiauto/**/.classpath
 doc/source/developer_reference/instrument_method_map.rst
 doc/source/run_config/
+.eggs
