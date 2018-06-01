@@ -538,16 +538,14 @@ class CpufreqRuntimeConfig(RuntimeConfig):
     def commit(self):
         for cpu in self.config:
             config = self.config[cpu]
+            freq = self._resolve_freq(config.get('frequency'), cpu)
+            minf = self._resolve_freq(config.get('min_frequency'), cpu)
+            maxf = self._resolve_freq(config.get('max_frequency'), cpu)
+
             self.configure_governor(cpu,
                                     config.get('governor'),
                                     config.get('governor_tunables'))
-
-            freq = self._resolve_freq(config.get('frequency'), cpu)
-            self.configure_frequency(cpu,
-                                     freq,
-                                     config.get('min_frequency'),
-                                     config.get('max_frequency'),
-                                     config.get('governor'))
+            self.configure_frequency(cpu, freq, minf, maxf, config.get('governor'))
 
     def clear(self):
         self.config = defaultdict(dict)
