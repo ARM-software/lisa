@@ -140,6 +140,9 @@ class AgendaParser(object):
         sections = raw.pop("sections", [])
         if not isinstance(sections, list):
             raise ConfigError('Invalid entry "sections" - must be a list')
+        for section in sections:
+            if not hasattr(section, 'items'):
+                raise ConfigError('Invalid section "{}" - must be a dict'.format(section))
         return sections
 
     def _pop_workloads(self, raw):
