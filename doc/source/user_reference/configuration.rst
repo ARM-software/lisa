@@ -4,6 +4,12 @@
 Configuration
 =============
 
+.. include:: user_reference/agenda.rst
+
+---------------------
+
+.. _run-configuration:
+
 Run Configuration
 ------------------
 In addition to specifying run execution parameters through an agenda, the
@@ -17,9 +23,15 @@ Workload Automation by specifying an additional configuration file using
 ``--config`` option. Variables with specific names  will be picked up by the
 framework and used to modify the behaviour of Workload automation.
 
+---------------------
+
 .. _available_settings:
 
 .. include:: run_config/Run_Configuration.rst
+
+---------------------
+
+.. _meta-configuration:
 
 Meta Configuration
 ------------------
@@ -30,6 +42,7 @@ attach context to results.
 
 .. include:: run_config/Meta_Configuration.rst
 
+---------------------
 
 .. _envvars:
 
