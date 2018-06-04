@@ -317,18 +317,15 @@ def adb_get_device(timeout=None, adb_server=None):
 
 def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS):
     _check_env()
-    # Connect is required only for ADB-over-IP
-    if "." not in device:
-        logger.debug('Device connected via USB, connect not required')
-        return
     tries = 0
     output = None
     while tries <= attempts:
         tries += 1
         if device:
-            command = 'adb connect {}'.format(device)
-            logger.debug(command)
-            output, _ = check_output(command, shell=True, timeout=timeout)
+            if "." in device: # Connect is required only for ADB-over-IP
+                command = 'adb connect {}'.format(device)
+                logger.debug(command)
+                output, _ = check_output(command, shell=True, timeout=timeout)
         if _ping(device):
             break
         time.sleep(10)
