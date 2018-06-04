@@ -94,7 +94,6 @@ JOB_ABORTED = Signal('job-aborted',
 JOB_FAILED = Signal('job-failed', description='set if the job has failed')
 JOB_RESTARTED = Signal('job-restarted')
 JOB_COMPLETED = Signal('job-completed')
-JOB_FINALIZED = Signal('job-finalized')
 
 
 # Signals associated with particular stages of workload execution
