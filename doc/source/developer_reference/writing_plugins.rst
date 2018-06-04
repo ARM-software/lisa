@@ -884,7 +884,7 @@ The full interface of WA instruments is shown below::
         def setup(self, context):
             """
             This method is invoked after the workload is setup. All the
-            necessary setups should go inside this method. Setup, includes
+            necessary setup should go inside this method. Setup, includes
             operations like clearing logs, additional configuration etc.
             """
             pass
@@ -903,7 +903,7 @@ The full interface of WA instruments is shown below::
             """
             pass
 
-        def update_result(self, context):
+        def update_output(self, context):
             """
             It is invoked after the workload updated its result.
             update_result is where the taken measures are added to the result so it
@@ -1008,7 +1008,7 @@ Below is a simple instrument that measures the execution time of a workload::
         def stop(self, context):
             self.end_time = time.time()
 
-        def update_result(self, context):
+        def update_output(self, context):
             execution_time = self.end_time - self.start_time
             context.add_metric('execution_time', execution_time, 'seconds')
 
