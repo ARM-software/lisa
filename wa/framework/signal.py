@@ -173,12 +173,12 @@ SUCCESSFUL_TARGET_DISCONNECT = Signal('successful-target-disconnect')
 AFTER_TARGET_DISCONNECT = Signal('after-target-disconnect')
 
 
-BEFORE_OVERALL_RESULTS_PROCESSING = Signal(
-    'before-overall-results-process', invert_priority=True)
-SUCCESSFUL_OVERALL_RESULTS_PROCESSING = Signal(
-    'successful-overall-results-process')
-AFTER_OVERALL_RESULTS_PROCESSING = Signal(
-    'after-overall-results-process')
+BEFORE_RUN_OUTPUT_PROCESSED = Signal(
+    'before-run-output-processed', invert_priority=True)
+SUCCESSFUL_RUN_OUTPUT_PROCESSED = Signal(
+    'successful-run-output-processed')
+AFTER_RUN_OUTPUT_PROCESSED = Signal(
+    'after-run-output-processed')
 
 
 

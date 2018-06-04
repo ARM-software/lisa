@@ -491,8 +491,9 @@ class Runner(object):
         self.logger.info('Finalizing run')
         self.context.end_run()
         self.pm.enable_all()
-        self.pm.process_run_output(self.context)
-        self.pm.export_run_output(self.context)
+        with signal.wrap('RUN_OUTPUT_PROCESSED'):
+            self.pm.process_run_output(self.context)
+            self.pm.export_run_output(self.context)
         self.pm.finalize()
         signal.disconnect(self._error_signalled_callback, signal.ERROR_LOGGED)
         signal.disconnect(self._warning_signalled_callback, signal.WARNING_LOGGED)
