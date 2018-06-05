@@ -3,15 +3,17 @@
 Instrumentation Signal-Method Mapping
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Instrument methods get automatically hooked up to signals based on their names. Mostly, the method
-name correponds to the name of the signal, however there are a few convienience aliases defined
-(listed first) to make  easier to relate instrumenation code to the workload execution model.
+Instrument methods get automatically hooked up to signals based on their names.
+Mostly, the method name corresponds to the name of the signal, however there are
+a few convenience aliases defined (listed first) to make  easier to relate
+instrumentation code to the workload execution model.
 
 $signal_names
 
-The methods above may be decorated with on the listed decorators to  set the priority of the
-Instrument method realive to other callbacks registered for the signal (within the same priority
-level, callbacks are invoked in the order they were registered). The table below shows the mapping
-of the decorator to the corresponding priority:
+The methods above may be decorated with on the listed decorators to set the
+priority of the Instrument method relative to other callbacks registered for the
+signal (within the same priority level, callbacks are invoked in the order they
+were registered). The table below shows the mapping of the decorator to the
+corresponding priority:
 
 $priority_prefixes
