@@ -27,8 +27,8 @@ submitting a pull request:
                 pip install pep8
                 pip install pylint
 
-           It is recommened that you install via pip rather than through your
-           distribution's package mananger because the latter is likely to
+           It is recommended that you install via pip rather than through your
+           distribution's package manager because the latter is likely to
            contain out-of-date version of these tools.
 
 - ``./dev_scripts/pylint`` should be run without arguments and should produce no
