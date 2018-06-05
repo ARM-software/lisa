@@ -22,16 +22,7 @@ from wa.framework.instrument import SIGNAL_MAP
 from wa.framework.signal import CallbackPriority
 from wa.utils.doc import format_simple_table
 
-
-CONVINIENCE_ALIASES = ['initialize', 'setup', 'start', 'stop', 'process_workload_result',
-                       'update_result', 'teardown', 'finalize']
-
 OUTPUT_TEMPLATE_FILE =  os.path.join(os.path.dirname(__file__), 'source', 'instrument_method_map.template')
-
-
-def escape_trailing_underscore(value):
-    if value.endswith('_'):
-        return value[:-1] + '\_'
 
 
 def generate_instrument_method_map(outfile):
