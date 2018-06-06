@@ -416,26 +416,31 @@ ASSISTANTS = {
     'chromeos': ChromeOsAssistant
 }
 
-# name --> ((platform_class, conn_class), params_list, defaults)
+# name --> (((platform_class, conn_class), params_list, defaults), target_defaults)
 # Note: normally, connection is defined by the Target name, but
 #       platforms may choose to override it
+# Note: the target_defaults allows you to override common target_params for a
+# particular platform. Parameters you can override are in COMMON_TARGET_PARAMS
+# Example of overriding one of the target parameters: Replace last None with:
+# {'shell_prompt': CUSTOM__SHELL_PROMPT}
 PLATFORMS = {
-    'generic': ((Platform, None), COMMON_PLATFORM_PARAMS, None),
+    'generic': ((Platform, None), COMMON_PLATFORM_PARAMS, None, None),
     'juno': ((Juno, None), COMMON_PLATFORM_PARAMS + VEXPRESS_PLATFORM_PARAMS,
             {
                  'vemsd_mount': '/media/JUNO',
                  'baudrate': 115200,
                  'bootloader': 'u-boot',
                  'hard_reset_method': 'dtr',
-            }),
+            },
+            None),
     'tc2': ((TC2, None), COMMON_PLATFORM_PARAMS + VEXPRESS_PLATFORM_PARAMS,
             {
                  'vemsd_mount': '/media/VEMSD',
                  'baudrate': 38400,
                  'bootloader': 'bootmon',
                  'hard_reset_method': 'reboottxt',
-            }),
-    'gem5': ((Gem5SimulationPlatform, Gem5Connection), GEM5_PLATFORM_PARAMS, None),
+            }, None),
+    'gem5': ((Gem5SimulationPlatform, Gem5Connection), GEM5_PLATFORM_PARAMS, None, None),
 }
 
 
@@ -458,7 +463,12 @@ class DefaultTargetDescriptor(TargetDescriptor):
             assistant = ASSISTANTS[target_name]
             conn_params =  CONNECTION_PARAMS[conn]
             for platform_name, platform_tuple in PLATFORMS.items():
+                platform_target_defaults = platform_tuple[-1]
+                platform_tuple = platform_tuple[0:-1]
                 (platform, plat_conn), platform_params = self._get_item(platform_tuple)
+                # Add target defaults specified in the Platform tuple
+                target_params = self._apply_param_defaults(target_params,
+                                                           platform_target_defaults)
                 name = '{}_{}'.format(platform_name, target_name)
                 td = TargetDescription(name, self)
                 td.target = target
@@ -478,17 +488,23 @@ class DefaultTargetDescriptor(TargetDescriptor):
                 result.append(td)
         return result
 
-    def _get_item(self, item_tuple):
-        cls, params, defaults = item_tuple
+    def _apply_param_defaults(self, params, defaults):
+        '''Adds parameters in the defaults dict to params list.
+        Return updated params as a list (idempotent function).'''
         if not defaults:
-            return cls, params
-
+            return params
         param_map = OrderedDict((p.name, copy(p)) for p in params)
         for name, value in defaults.items():
             if name not in param_map:
                 raise ValueError('Unexpected default "{}"'.format(name))
             param_map[name].default = value
-        return cls, list(param_map.values())
+        # Convert the OrderedDict to a list to return the same type
+        return list(param_map.values())
+
+    def _get_item(self, item_tuple):
+        cls, params, defaults = item_tuple
+        updated_params = self._apply_param_defaults(params, defaults)
+        return cls, updated_params
 
 
 
