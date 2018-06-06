@@ -37,7 +37,7 @@ class CpufreqModule(Module):
                 return True
 
         # Generic CPUFreq support (single policy)
-        path = '/sys/devices/system/cpu/cpufreq'
+        path = '/sys/devices/system/cpu/cpufreq/policy0'
         if target.file_exists(path):
             return True
 
