@@ -112,6 +112,8 @@ class WaResultsCollector(object):
                      cached in the provided output directories. Set this param
                      to False to disable this caching.
     """
+    RE_WLTEST_DIR = re.compile(r"wa\.(?P<sha1>\w+)_(?P<name>.+)")
+
     def __init__(self, base_dir=None, wa_dirs=".*", platform=None,
                  kernel_repo_path=None, parse_traces=True,
                  use_cached_trace_metrics=True):
@@ -517,7 +519,21 @@ class WaResultsCollector(object):
         """
         with open(os.path.join(wa_dir, '__meta', 'target_info.json')) as f:
             target_info = json.load(f)
-        return KernelVersion(target_info['kernel_release']).sha1
+
+        # Read the kernel release reported by the target
+        sha1 = KernelVersion(target_info['kernel_release']).sha1
+        if sha1:
+            return sha1
+
+        # Couldn't get the release sha1, default to reading it from the
+        # directory name built by test_series
+        res_dir = os.path.basename(wa_dir)
+        match = re.search(WaResultsCollector.RE_WLTEST_DIR, res_dir)
+        if match:
+            return match.group("sha1")
+
+        raise RuntimeError("Couldn't find the sha1 of the kernel of the device "
+                           "that produced {}".format(wa_dir))
 
     @memoized
     def _select(self, tag='.*', kernel='.*', test='.*'):
