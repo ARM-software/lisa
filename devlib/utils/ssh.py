@@ -536,6 +536,10 @@ class Gem5Connection(TelnetConnection):
         """
         gem5_logger.info("Gracefully terminating the gem5 simulation.")
         try:
+            # Unmount the virtio device BEFORE we kill the
+            # simulation. This is done to simplify checkpointing at
+            # the end of a simulation!
+            self._unmount_virtio()
             self._gem5_util("exit")
             self.gem5simulation.wait()
         except EOF:
@@ -792,6 +796,15 @@ class Gem5Connection(TelnetConnection):
         self._gem5_shell('mkdir -p {}'.format(self.gem5_input_dir), as_root=True)
         mount_command = "mount -t 9p -o trans=virtio,version=9p2000.L,aname={} gem5 {}".format(self.gem5_interact_dir, self.gem5_input_dir)
         self._gem5_shell(mount_command, as_root=True)
+
+    def _unmount_virtio(self):
+        """
+        Unmount the VirtIO device in the simulated system.
+        """
+        gem5_logger.info("Unmounting VirtIO device in simulated system")
+
+        unmount_command = "umount {}".format(self.gem5_input_dir)
+        self._gem5_shell(unmount_command, as_root=True)
 
     def _move_to_temp_dir(self, source):
         """
