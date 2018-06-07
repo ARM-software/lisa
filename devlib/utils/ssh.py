@@ -806,6 +806,21 @@ class Gem5Connection(TelnetConnection):
         unmount_command = "umount {}".format(self.gem5_input_dir)
         self._gem5_shell(unmount_command, as_root=True)
 
+    def take_checkpoint(self):
+        """
+        Take a checkpoint of the simulated system.
+
+        In order to take a checkpoint we first unmount the virtio
+        device, take then checkpoint, and then remount the device to
+        allow us to continue the current run. This needs to be done to
+        ensure that future gem5 simulations are able to utilise the
+        virtio device (i.e., we need to drop the current state
+        information that the device has).
+        """
+        self._unmount_virtio()
+        self._gem5_util("checkpoint")
+        self._mount_virtio()
+
     def _move_to_temp_dir(self, source):
         """
         Move a file to the temporary directory on the host for copying to the
