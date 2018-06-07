@@ -15,6 +15,7 @@ Developer Reference
 -----------------
 
 .. include:: developer_reference/output_processing_api.rst
+.. include:: developer_reference/APIs.rst
 
 -----------------
 
