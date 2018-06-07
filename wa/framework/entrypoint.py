@@ -86,11 +86,13 @@ def main():
         argv = split_joined_options(sys.argv[1:])
 
         # 'Parse_known_args' automatically displays the default help and exits
-        # if '-h' is detected, we want our custom help messages so ensure this
-        # is never passed as a parameter.
+        # if '-h' or '--help' is detected, we want our custom help messages so
+        # ensure these are never passed as parameters.
         filtered_argv = list(argv)
         if '-h' in filtered_argv:
             filtered_argv.remove('-h')
+        elif '--help' in filtered_argv:
+            filtered_argv.remove('--help')
 
         args, _ = parser.parse_known_args(filtered_argv)
         settings.set("verbosity", args.verbose)
