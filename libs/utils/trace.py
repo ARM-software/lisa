@@ -41,15 +41,15 @@ class Trace(object):
     """
     The Trace object is the LISA trace events parser.
 
-    :param platform: a dictionary containing information about the target
-        platform
-    :type platform: dict or None
-
     :param data_dir: folder containing all trace data
     :type data_dir: str
 
-    :param events: events to be parsed (everything in the trace by default)
-    :type events: list(str)
+    :param events: events to be parsed (all the events by default)
+    :type events: str or list(str)
+
+    :param platform: a dictionary containing information about the target
+        platform
+    :type platform: dict
 
     :param window: time window to consider when parsing the trace
     :type window: tuple(int, int)
@@ -69,12 +69,28 @@ class Trace(object):
     :type plots_prefix: str
     """
 
-    def __init__(self, platform, data_dir, events,
+    def __init__(self, data_dir,
+                 events=None,
+                 platform=None,
                  window=(0, None),
                  normalize_time=True,
                  trace_format='FTrace',
                  plots_dir=None,
                  plots_prefix=''):
+
+        # Setup logging
+        self._log = logging.getLogger('Trace')
+
+        # Sanity check for API update:
+        # platform used to be the first mandatory argument, now is the third
+        # one and optional. We can still detect clients using the old API since
+        # the new first parameter is forced to be a string. If it's not,
+        # lekely the used is using the old API.
+        if not isinstance(data_dir, str):
+            logging.error("The first parameter of Trace() constructor is "
+                          "expected to be a sting path")
+            raise ValueError("Deprecated Trace() API usage detected: "
+                             "check constructor signature!")
 
         # The platform used to run the experiments
         self.platform = platform or {}
@@ -113,9 +129,6 @@ class Trace(object):
         # Folder containing all trace data
         self.data_dir = None
 
-        # Setup logging
-        self._log = logging.getLogger('Trace')
-
         # Folder containing trace
         if not os.path.isdir(data_dir):
             self.data_dir = os.path.dirname(data_dir) or '.'
@@ -140,6 +153,10 @@ class Trace(object):
             max_cpu = max(int(self.data_frame.trace_event(e)['__cpu'].max())
                           for e in self.available_events)
             self.platform['cpus_count'] = max_cpu + 1
+        # If a CPUs count is not available here, let's assume we are running on
+        # a unicore system and set cpus_count=1 so that the following analysis
+        # methods will not complain about the CPUs count not being available.
+        self.platform['cpus_count'] = self.platform.get('cpus_count', 1)
 
         self.analysis = AnalysisRegister(self)
 
@@ -183,6 +200,10 @@ class Trace(object):
         :param events: single event name or list of events names
         :type events: str or list(str)
         """
+        # Parse all events by default
+        if events is None:
+            self.events = []
+            return
         if isinstance(events, basestring):
             self.events = events.split(' ')
         elif isinstance(events, list):

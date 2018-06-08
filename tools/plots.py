@@ -142,7 +142,7 @@ def plotdir(run_dir, platform):
         logging.info('No performance data found')
 
     # Load Trace Analysis modules
-    trace = Trace(platform, run_dir)
+    trace = Trace(run_dir, platform=platform)
 
     # Define time ranges for all the temporal plots
     trace.setXTimeRange(args.tmin, args.tmax)
