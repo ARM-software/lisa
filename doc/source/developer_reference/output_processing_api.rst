@@ -16,8 +16,8 @@ directory we can initialize a ``RunOutput`` as follows:
 
     In [1]: from wa import RunOutput
        ...:
-       ...: output_folder = 'wa_output'
-       ...: run_output = RunOutput(output_folder)
+       ...: output_directory = 'wa_output'
+       ...: run_output = RunOutput(output_directory)
 
 
 

@@ -229,7 +229,7 @@ for most people APK files should be kept in the
 ``$WA_USER_DIRECTORY/dependencies/SOME_WORKLOAD/`` directory. (by default
 ``~/.workload_automation/dependencies/SOME_WORKLOAD/``). The
 ``WA_USER_DIRECTORY`` environment variable can be used to change the location of
-this folder. The APK files need to be put into the corresponding directories for
+this directory. The APK files need to be put into the corresponding directories for
 the workload they belong to. The name of the file can be anything but as
 explained below may need to contain certain pieces of information.
 

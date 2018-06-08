@@ -48,7 +48,7 @@ Notable methods of the context are:
 
 context.add_artifact(name, host_file_path, kind, description=None, classifier=None)
       Plugins can add :ref:`artifacts <artifact>` of various kinds to the run
-      output folder for WA and associate them with a description and/or
+      output directory for WA and associate them with a description and/or
       :ref:`classifier <classifiers>`.
 
 context.add_metric(name, value, units=None, lower_is_better=False, classifiers=None)

@@ -186,7 +186,7 @@ therefore we would choose the :ref:`ApkUiAutomator workload
     Workload created in $WA_USER_DIRECTORY/plugins/google_docs
 
 
-From here you can navigate to the displayed folder and you will find your
+From here you can navigate to the displayed directory and you will find your
 ``__init__.py``  and a ``uiauto`` directory. The former is your python WA
 workload and will look something like this
 

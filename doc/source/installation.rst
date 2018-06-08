@@ -216,7 +216,7 @@ process automatically accepts the licenses for the Android SDK, so please be
 sure that you are willing to accept these prior to building and running the
 image in a container.
 
-The Dockerfile can be found in the "extras" folder or online at
+The Dockerfile can be found in the "extras" directory or online at
 `<https://github.com/ARM-software /workload- automation/blob/next/extras/Dockerfile>`_
 which contains addional information about how to build and to use the file.
 
@@ -240,7 +240,7 @@ APKs are application packages used by Android. These are necessary to install on
 a device when running an :ref:`ApkWorkload <apk-workload>` or derivative. Please
 see the workload description using the :ref:`show <show-command>` command to see
 which version of the apk the UI automation has been tested with and place the
-apk in the corresponding workloads dependency folder. Automation may also work
+apk in the corresponding workloads dependency directory. Automation may also work
 with other versions (especially if it's only a minor or revision difference --
 major version differences are more likely to contain incompatible UI changes)
 but this has not been tested. As a general rule we do not guarantee support for

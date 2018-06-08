@@ -110,7 +110,7 @@ The :ref:`output directory <output_directory>`'s structure has changed layout
 and now includes additional subdirectories. There is now a ``__meta`` directory
 that contains copies of the agenda and config files supplied to WA for that
 particular run so that all the relevant config is self contained. Additionally
-if one or more jobs fail during a run then corresponding output folder will be
+if one or more jobs fail during a run then corresponding output directory will be
 moved into a ``__failed`` subdirectory to allow for quicker analysis.
 
 
@@ -144,7 +144,7 @@ workload was previously doing this in an ad-hoc manner this should be updated to
 utilize the new functionality. To make use of this functionality a list of
 assets should be set as the workload ``deployable_assets`` attribute, these will
 be automatically retrieved via WA's resource getters and deployed either to the
-targets working directory or a custom folder specified as the workloads
+targets working directory or a custom directory specified as the workloads
 ``assets_directory`` attribute. If a custom implementation is required the
 ``deploy_assets`` method should be overridden inside the workload. To allow for
 the removal of the additional assets any additional file paths should be added
