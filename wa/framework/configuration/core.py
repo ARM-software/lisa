@@ -758,8 +758,8 @@ class JobSpec(Configuration):
         ConfigurationPoint('label', kind=str,
                            description='''
                            Similar to IDs but do not have the uniqueness restriction.
-                           If specified, labels will be used by some result
-                           processes instead of (or in addition to) the workload
+                           If specified, labels will be used by some output
+                           processors instead of (or in addition to) the workload
                            name. For example, the csv output processor will put
                            the label in the "workload" column of the CSV file.
                            '''),
