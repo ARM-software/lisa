@@ -72,6 +72,31 @@ various assets when it starts.
     scans a very large number of locations; this may also be set to a lower
     value to reduce WA's memory footprint on memory-constrained hosts.
 
+---------------------
 
 .. include:: user_reference/runtime_parameters.rst
 
+---------------------
+
+.. _config-merging:
+
+Configuration Merging
+---------------------
+WA configuration can come from various sources of increasing priority, as well
+as being specified in a generic and specific manner. For example WA's global
+config file would be considered the least specific vs the parameters of a
+workload in an agenda which would be the most specific. WA has two rules for the
+priority of configuration:
+
+    - Configuration from higher priority sources overrides configuration from
+      lower priority sources.
+    - More specific configuration overrides less specific configuration.
+
+There is a situation where these two rules come into conflict. When a generic
+configuration is given in config source of high priority and a specific
+configuration is given in a config source of lower priority. In this situation
+it is not possible to know the end users intention and WA will error.
+
+This functionality allows for defaults for plugins, targets etc. to be
+configured at a global level and then seamless overridden without the need to
+remove the high level configuration.

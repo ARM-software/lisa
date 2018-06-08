@@ -21,7 +21,8 @@ config
 This section is used to provide overall configuration for WA and its run. The
 ``config`` section of an agenda will be merged with any other configuration
 files provided (including the default config file) and merged with the most
-specific configuration taking precedence.
+specific configuration taking precedence (see :ref:`here <config-merging>` for
+more information.
 
 Within this section there are multiple distinct types of configuration that can be
 provided.
