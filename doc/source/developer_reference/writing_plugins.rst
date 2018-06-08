@@ -347,7 +347,7 @@ These are specific differences in how they are handled:
   added by plugins). Metadata in only created by the framework and plugins.
 - Classifier values must be simple scalars; metadata values can be nested
   collections, such as lists or dicts.
-- Classifies are used by output processors to augment the output the latter
+- Classifiers are used by output processors to augment the output the latter
   generated; metadata typically isn't.
 - Classifiers are essentially associated with the individual metrics and
   artifacts (though in the agenda they're specified at workload, section, or
