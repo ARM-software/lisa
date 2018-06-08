@@ -62,12 +62,12 @@ context.workload
         :class:`wa.framework.workload` object that is currently being executed.
 
 context.tm
-        This is the target manager which can be used to access various information
+        This is the target manager that can be used to access various information
         about the target including initialization parameters.
 
 context.current_job
         This is an instance of :class:`wa.framework.job.Job` and contains all
-        the relevant information to the workload job being currently being executed.
+        the information relevant to the workload job currently being executed.
 
 context.current_job.spec
         The current workload specification being executed. This is an
@@ -99,7 +99,7 @@ possible, as they make your code too dependent on a particular environment and
 may mean having to make adjustments when moving to new (host and/or device)
 platforms. To help avoid hard-coded absolute paths, WA defines a number of
 standard locations. You should strive to define your paths relative
-to one of those.
+to one of these.
 
 On the host
 ~~~~~~~~~~~
@@ -182,7 +182,7 @@ Metrics can be added to WA output via the context:
 
 You only need to specify the name and the value for the metric. Units and
 classifiers are optional, and, if not specified otherwise, it will be assumed
-that higher values are better.
+that higher values are better (lower_is_better=False).
 
 The metric will be added to the result for the current job, if there is one;
 otherwise, it will be added to the overall run result.
@@ -226,7 +226,7 @@ also helps WA decide how it should be handled. Currently supported kinds are:
                         potentially (though unlikely) useful data is greater
                         than the time/space cost of handling the artifact (e.g.
                         a database uploader may choose to ignore ``raw``
-                        artifacts, where as a network filer archiver may choose
+                        artifacts, whereas a network filer archiver may choose
                         to archive them).
 
         .. note: The kind parameter is intended to represent the logical
@@ -247,7 +247,7 @@ As with :ref:`metrics`, artifacts are added via the context:
 The artifact will be added to the result of the current job, if there is one;
 otherwise, it will be added to the overall run result. In some situations, you
 may wish to add an artifact to the overall run while being inside a job context,
-this can be done with ``add_run_artifiact``:
+this can be done with ``add_run_artifact``:
 
 .. code-block:: python
 
@@ -264,7 +264,7 @@ Metadata
 ^^^^^^^^
 
 There may be additional data collected by your plugin that you want to record as
-part of the result, but that does not fall with the definition of a "metric".
+part of the result, but that does not fall under the definition of a "metric".
 For example, you may want to record the version of the binary you're executing.
 You can do this by adding a metadata entry:
 
@@ -291,7 +291,7 @@ If you attempt to add a metadata entry that already exists, an error will be
 raised, unless ``force=True`` is specified, in which case, it will be
 overwritten.
 
-Updating an existing entry who's value is a collection can be done with
+Updating an existing entry whose value is a collection can be done with
 ``update_metadata``:
 
 .. code-block:: python
@@ -378,12 +378,12 @@ An object looking for a resource invokes a resource resolver with an instance of
 getters registered for that resource type in priority order attempting to obtain
 the resource; once the resource is obtained, it is returned to the calling
 object. If none of the registered getters could find the resource,
-``NotFoundError`` is raised (or``None`` is returned instead, if invoked with
+``NotFoundError`` is raised (or ``None`` is returned instead, if invoked with
 ``strict=False``).
 
 The most common kind of object looking for resources is a ``Workload``, and the
 ``Workload`` class defines
-:py:meth:`wa.framework.workload.Workload.init_resources` method that may be
+:py:meth:`wa.framework.workload.Workload.init_resources` method, which may be
 overridden by subclasses to perform resource resolution. For example, a workload
 looking for an executable file would do so like this::
 
@@ -976,7 +976,7 @@ away. For example::
 *just* before the workload runs), and it will stopped before all other
 instruments (i.e. *just* after the workload runs).
 
-If more than one active instrument have specified fast (or slow) callbacks, then
+If more than one active instrument has specified fast (or slow) callbacks, then
 their execution order with respect to each other is not guaranteed. In general,
 having a lot of instruments enabled is going to negatively affect the
 readings. The best way to ensure accuracy of measurements is to minimize the
@@ -1060,8 +1060,8 @@ the following interface::
 The method names should be fairly self-explanatory. The difference between
 "process" and "export" methods is that export methods will be invoked after
 process methods for all output processors have been generated. Process methods
-may generated additional artifacts (metrics, files, etc), while export methods
-should not -- the should only handle existing results (upload them to  a
+may generate additional artifacts (metrics, files, etc.), while export methods
+should not -- they should only handle existing results (upload them to  a
 database, archive on a filer, etc).
 
 The output object passed to job methods is an instance of
@@ -1159,7 +1159,7 @@ directory appropriately::
 Adding a Target
 ---------------
 
-In WA3 a 'target' consists of a platform and a devlib target. The
+In WA3, a 'target' consists of a platform and a devlib target. The
 implementations of the targets are located in ``devlib``. WA3 will instantiate a
 devlib target passing relevant parameters parsed from the configuration. For
 more information about devlib targets please see `the documentation
@@ -1258,5 +1258,3 @@ the package contains plugin and it will load them next time it runs.
           uninstall your WA plugins package, you will have to manually remove
           it from ``~/.workload_automation/packages`` otherwise WA will complain
           about a missing package next time you try to run it.
-
-
