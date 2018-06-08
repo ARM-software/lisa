@@ -1645,8 +1645,14 @@ class KernelConfig(object):
                 name, value = line.split('=', 1)
                 self._config[name.strip()] = value.strip()
 
-    def get(self, name):
-        return self._config.get(self.get_config_name(name))
+    def get(self, name, strict=False):
+        name = self.get_config_name(name)
+        res = self._config.get(name)
+
+        if not res and strict:
+            raise IndexError("{} is not exposed in target's config")
+
+        return self._config.get(name)
 
     def like(self, name):
         regex = re.compile(name, re.I)
