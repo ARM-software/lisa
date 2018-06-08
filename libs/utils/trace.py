@@ -26,6 +26,7 @@ import json
 import warnings
 import operator
 import logging
+import webbrowser
 
 from analysis_register import AnalysisRegister
 from collections import namedtuple
@@ -429,6 +430,23 @@ class Trace(object):
                  name
         """
         return self._tasks_by_pid.TaskName.to_dict()
+
+    def show(self):
+        """
+        Open the parsed trace using the most appropriate native viewer.
+
+        The native viewer depends on the specified trace format:
+        - ftrace: open using kernelshark
+        - systrace: open using a browser
+
+        In both cases the native viewer is assumed to be available in the host
+        machine.
+        """
+        if isinstance(self.ftrace, trappy.FTrace):
+            return os.popen("kernelshark '{}'".format(self.ftrace.trace_path))
+        if isinstance(self.ftrace, trappy.SysTrace):
+            return webbrowser.open(self.ftrace.trace_path)
+        self._log.warning('No trace data available')
 
 
 ###############################################################################
