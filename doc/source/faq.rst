@@ -66,3 +66,10 @@ your device.
 been merged into the core framework and therefore no longer exists. To fix this
 error please remove the "standard" entry from the "augmentations" list in the
 WA3 config file.
+
+**Q:** My Juno board keeps resetting upon starting WA even if it hasn't crashed.
+--------------------------------------------------------------------------------
+Please ensure that you do not have any other terminals (e.g. ``screen``
+sessions) connected to the board's UART. When WA attempts to open the connection
+for its own use this can cause the board to reset if a connection is already
+present.
