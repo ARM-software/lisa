@@ -71,7 +71,7 @@ the install location of the SDK (i.e. ``<path_to_android_sdk>/sdk``).
 Python
 ------
 
-Workload Automation 3 requires Python 2.7 (Python 3 is not supported at the moment).
+Workload Automation 3 currently supports both Python 2.7 and Python 3.
 
 .. _pip:
 
@@ -126,6 +126,7 @@ Workload Automation 3 depends on the following additional libraries:
   * wrapt
   * requests
   * colorama
+  * future
 
 You can install these with pip::
 
@@ -140,6 +141,7 @@ You can install these with pip::
         sudo -H pip install wrapt
         sudo -H pip install requests
         sudo -H pip install colorama
+        sudo -H pip install future
 
 Some of these may also be available in your distro's repositories, e.g. ::
 

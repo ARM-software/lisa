@@ -33,7 +33,7 @@ New Features
 
 - Python 3 support. WA now runs on both Python 2 and Python 3.
 
-  .. warning:: Python 2 support should now be considered depricated. Python 2
+  .. warning:: Python 2 support should now be considered deprecated. Python 2
                will still be fully supported up to the next major release
                (v3.1). After that, Python 2 will be supported for existing
                functionality, however there will be no guarantee that newly
