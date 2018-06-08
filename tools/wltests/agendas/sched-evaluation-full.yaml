@@ -57,6 +57,7 @@ workloads:
     classifiers:
        tag: mov_720p_30s
     workload_parameters:
+      version: 2.4
       format: "mov_720p"
       landscape: True
       duration: 30
@@ -67,6 +68,7 @@ workloads:
     classifiers:
        tag: ogg_128kbps_30s
     workload_parameters:
+      version: 2.4
       format: "ogg_128kbps"
       duration: 30
 
@@ -98,7 +100,7 @@ workloads:
     classifiers:
       tag: iter_30
     workload_parameters:
-      test: list_view
+      test_ids: list_view
     iterations: 30
 
   - name: jankbench
@@ -106,7 +108,7 @@ workloads:
     classifiers:
       tag: iter_30
     workload_parameters:
-      test: image_list_view
+      test_ids: image_list_view
     iterations: 30
 
   - name: jankbench
@@ -114,7 +116,7 @@ workloads:
     classifiers:
       tag: iter_30
     workload_parameters:
-      test: shadow_grid
+      test_ids: shadow_grid
     iterations: 30
 
   - name: jankbench
@@ -122,7 +124,7 @@ workloads:
     classifiers:
       tag: iter_30
     workload_parameters:
-      test: low_hitrate_text
+      test_ids: low_hitrate_text
     iterations: 30
 
   - name: jankbench
@@ -130,5 +132,5 @@ workloads:
     classifiers:
       tag: iter_30
     workload_parameters:
-      test: edit_text
+      test_ids: edit_text
     iterations: 30
