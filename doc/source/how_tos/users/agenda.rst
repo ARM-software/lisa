@@ -498,7 +498,7 @@ Note that the ``config`` section still applies to every spec in the agenda. So
 the precedence order is -- spec settings override section settings, which in
 turn override global settings.
 
-
+.. _augmentations:
 
 Augmentations
 --------------

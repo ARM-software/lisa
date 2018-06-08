@@ -82,6 +82,7 @@ References
    :maxdepth: 2
 
    plugins
+   glossary
 
 .. Indices and tables
 .. ==================
