@@ -506,10 +506,10 @@ class Runner(object):
             log.indent()
             if self.context.reboot_policy.reboot_on_each_job:
                 self.logger.info('Rebooting on new job.')
-                self.context.tm.reboot()
+                self.context.tm.reboot(context)
             elif self.context.reboot_policy.reboot_on_each_spec and context.spec_changed:
                 self.logger.info('Rebooting on new spec.')
-                self.context.tm.reboot()
+                self.context.tm.reboot(context)
 
             with signal.wrap('JOB', self, context):
                 context.tm.start()
@@ -526,7 +526,7 @@ class Runner(object):
             if isinstance(e, TargetNotRespondingError):
                 raise e
             elif isinstance(e, TargetError):
-                context.tm.verify_target_responsive(context.reboot_policy.can_reboot)
+                context.tm.verify_target_responsive(context)
         finally:
             self.logger.info('Completing job {}'.format(job.id))
             self.send(signal.JOB_COMPLETED)
@@ -558,7 +558,7 @@ class Runner(object):
             job.set_status(Status.FAILED)
             log.log_error(e, self.logger)
             if isinstance(e, TargetError) or isinstance(e, TimeoutError):
-                context.tm.verify_target_responsive(context.reboot_policy.can_reboot)
+                context.tm.verify_target_responsive(context)
             self.context.record_ui_state('setup-error')
             raise e
 
@@ -574,7 +574,7 @@ class Runner(object):
                 job.set_status(Status.FAILED)
                 log.log_error(e, self.logger)
                 if isinstance(e, TargetError) or isinstance(e, TimeoutError):
-                    context.tm.verify_target_responsive(context.reboot_policy.can_reboot)
+                    context.tm.verify_target_responsive(context)
                 self.context.record_ui_state('run-error')
                 raise e
             finally:
@@ -586,7 +586,7 @@ class Runner(object):
                 except Exception as e:
                     job.set_status(Status.PARTIAL)
                     if isinstance(e, TargetError) or isinstance(e, TimeoutError):
-                        context.tm.verify_target_responsive(context.reboot_policy.can_reboot)
+                        context.tm.verify_target_responsive(context)
                     self.context.record_ui_state('output-error')
                     raise
 

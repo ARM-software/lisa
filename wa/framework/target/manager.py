@@ -74,9 +74,9 @@ class TargetManager(object):
     def get_target_info(self):
         return get_target_info(self.target)
 
-    def reboot(self):
-        with signal.wrap('REBOOT'):
-            self.target.reboot()
+    def reboot(self, context, hard=False):
+        with signal.wrap('REBOOT', self, context):
+            self.target.reboot(hard)
 
     def merge_runtime_parameters(self, parameters):
         return self.rpm.merge_runtime_parameters(parameters)
@@ -87,14 +87,15 @@ class TargetManager(object):
     def commit_runtime_parameters(self, parameters):
         self.rpm.commit_runtime_parameters(parameters)
 
-    def verify_target_responsive(self, can_reboot=True):
+    def verify_target_responsive(self, context):
+        can_reboot = context.reboot_policy.can_reboot
         if not self.target.check_responsive(explode=False):
             self.is_responsive = False
             if not can_reboot:
                 raise TargetNotRespondingError('Target unresponsive and is not allowed to reboot.')
             elif self.target.has('hard_reset'):
                 self.logger.info('Target unresponsive; performing hard reset')
-                self.target.reboot(hard=True)
+                self.reboot(context, hard=True)
                 self.is_responsive = True
                 raise ExecutionError('Target became unresponsive but was recovered.')
             else:
