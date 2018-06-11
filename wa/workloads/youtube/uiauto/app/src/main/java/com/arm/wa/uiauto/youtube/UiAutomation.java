@@ -122,7 +122,14 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void disableAutoplay() throws Exception {
-        clickUiObject(BY_DESC, "More options");
+        UiObject moreoptions = 
+            mDevice.findObject(new UiSelector().descriptionContains("More options"));
+        if (moreoptions.exists()) {
+            moreoptions.click();
+        }
+        else {
+            clickUiObject(BY_DESC, "Account");
+        }
         clickUiObject(BY_TEXT, "Settings", true);
         clickUiObject(BY_TEXT, "General", true);
 
