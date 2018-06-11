@@ -491,7 +491,7 @@ class Runner(object):
         self.logger.info('Finalizing run')
         self.context.end_run()
         self.pm.enable_all()
-        with signal.wrap('RUN_OUTPUT_PROCESSED'):
+        with signal.wrap('RUN_OUTPUT_PROCESSED', self):
             self.pm.process_run_output(self.context)
             self.pm.export_run_output(self.context)
         self.pm.finalize()
