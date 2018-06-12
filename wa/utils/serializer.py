@@ -72,7 +72,7 @@ POD_TYPES = [
     tuple,
     dict,
     set,
-    str,
+    basestring,
     str,
     int,
     float,
