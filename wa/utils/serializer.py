@@ -50,6 +50,8 @@ from datetime import datetime
 import yaml as _yaml
 import dateutil.parser
 
+from past.builtins import basestring
+
 from wa.framework.exception import SerializerSyntaxError
 from wa.utils.misc import isiterable
 from wa.utils.types import regex_type, none_type, level, cpu_mask
@@ -104,7 +106,7 @@ class WAJSONDecoder(_json.JSONDecoder):
         d = _json.JSONDecoder.decode(self, s, **kwargs)
 
         def try_parse_object(v):
-            if isinstance(v, str):
+            if isinstance(v, basestring):
                 if v.startswith('REGEX:'):
                     _, flags, pattern = v.split(':', 2)
                     return re.compile(pattern, int(flags or 0))
