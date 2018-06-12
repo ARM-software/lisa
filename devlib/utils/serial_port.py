@@ -49,7 +49,7 @@ def pulse_dtr(conn, state=True, duration=0.1):
 
 
 def get_connection(timeout, init_dtr=None, logcls=SerialLogger,
-                   *args, **kwargs):
+                   logfile=None, *args, **kwargs):
     if init_dtr is not None:
         kwargs['dsrdtr'] = True
     try:
@@ -60,7 +60,7 @@ def get_connection(timeout, init_dtr=None, logcls=SerialLogger,
         conn.setDTR(init_dtr)
     conn.nonblocking()
     conn.flushOutput()
-    target = fdpexpect.fdspawn(conn.fileno(), timeout=timeout)
+    target = fdpexpect.fdspawn(conn.fileno(), timeout=timeout, logfile=logfile)
     target.logfile_read = logcls('read')
     target.logfile_send = logcls('send')
 
