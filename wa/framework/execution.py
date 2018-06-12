@@ -388,13 +388,13 @@ class Executor(object):
 
         self.logger.info('Starting run')
         runner = Runner(context, pm)
-        signal.send(signal.RUN_STARTED, self)
+        signal.send(signal.RUN_STARTED, self, context)
         try:
             runner.run()
         finally:
             context.finalize()
             self.execute_postamble(context, output)
-            signal.send(signal.RUN_COMPLETED, self)
+            signal.send(signal.RUN_COMPLETED, self, context)
 
     def execute_postamble(self, context, output):
         self.logger.info('Done.')
