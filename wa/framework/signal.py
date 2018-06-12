@@ -128,7 +128,6 @@ BEFORE_WORKLOAD_FINALIZED = Signal('before-workload-finalized', invert_priority=
 SUCCESSFUL_WORKLOAD_FINALIZED = Signal('successful-workload-finalized')
 AFTER_WORKLOAD_FINALIZED = Signal('after-workload-finalized')
 
-
 # Signals indicating exceptional conditions
 ERROR_LOGGED = Signal('error-logged')
 WARNING_LOGGED = Signal('warning-logged')
@@ -145,6 +144,10 @@ AFTER_RUN_INIT = Signal('after-run-init')
 BEFORE_JOB = Signal('before-job', invert_priority=True)
 SUCCESSFUL_JOB = Signal('successful-job')
 AFTER_JOB = Signal('after-job')
+
+BEFORE_JOB_QUEUE_EXECUTION = Signal('before-job-queue-execution', invert_priority=True)
+SUCCESSFUL_JOB_QUEUE_EXECUTION = Signal('successful-job-queue-execution')
+AFTER_JOB_QUEUE_EXECUTION = Signal('after-job-queue-execution')
 
 BEFORE_JOB_TARGET_CONFIG = Signal('before-job-target-config', invert_priority=True)
 SUCCESSFUL_JOB_TARGET_CONFIG = Signal('successful-job-target-config')

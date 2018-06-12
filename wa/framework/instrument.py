@@ -140,6 +140,10 @@ SIGNAL_MAP = OrderedDict([
     ('on_job_failure', signal.JOB_FAILED),
     ('on_job_abort', signal.JOB_ABORTED),
 
+    ('before_job_queue_execution', signal.BEFORE_JOB_QUEUE_EXECUTION),
+    ('on_successful_job_queue_exection', signal.SUCCESSFUL_JOB_QUEUE_EXECUTION),
+    ('after_job_queue_execution', signal.AFTER_JOB_QUEUE_EXECUTION),
+
     ('before_job', signal.BEFORE_JOB),
     ('on_successful_job', signal.SUCCESSFUL_JOB),
     ('after_job', signal.AFTER_JOB),

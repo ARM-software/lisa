@@ -454,10 +454,11 @@ class Runner(object):
             self.initialize_run()
             self.send(signal.RUN_INITIALIZED)
 
-            while self.context.job_queue:
-                if self.context.run_interrupted:
-                    raise KeyboardInterrupt()
-                self.run_next_job(self.context)
+            with signal.wrap('JOB_QUEUE_EXECUTION', self, self.context):
+                while self.context.job_queue:
+                    if self.context.run_interrupted:
+                        raise KeyboardInterrupt()
+                    self.run_next_job(self.context)
 
         except KeyboardInterrupt as e:
             log.log_error(e, self.logger)
