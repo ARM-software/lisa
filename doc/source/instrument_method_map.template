@@ -19,3 +19,16 @@ were registered). The table below shows the mapping of the decorator to the
 corresponding priority:
 
 $priority_prefixes
+
+
+Unresponsive Targets
+~~~~~~~~~~~~~~~~~~~~
+
+If a target is believed to be unresponsive, instrument callbacks will be
+disabled to prevent a cascade of errors and potential corruptions of state, as
+it is generally assumed that instrument callbacks will want to do something with
+the target.
+
+If your callback only does something with the host, and does not require an
+active target connection, you can decorate it with ``@hostside`` decorator to
+ensure it gets invoked even if the target becomes unresponsive.

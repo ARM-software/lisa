@@ -186,6 +186,22 @@ very_fast = priority(signal.CallbackPriority.very_high)
 extremely_fast = priority(signal.CallbackPriority.extremely_high)
 
 
+def hostside(func):
+    """
+    Used as a hint that the callback only performs actions on the
+    host and does not rely on an active connection to the target.
+    This means the callback will be invoked even if the target is
+    thought to be unresponsive.
+
+    """
+    func.is_hostside = True
+    return func
+
+
+def is_hostside(func):
+    return getattr(func, 'is_hostside', False)
+
+
 installed = []
 
 
@@ -240,12 +256,13 @@ class ManagedCallback(object):
     def __init__(self, instrument, callback):
         self.instrument = instrument
         self.callback = callback
+        self.is_hostside = is_hostside(callback)
 
     def __call__(self, context):
         if self.instrument.is_enabled:
             try:
-                if not context.tm.is_responsive:
-                    logger.debug("Target unreponsive; skipping callback {}".format(self.callback))
+                if not context.tm.is_responsive and not self.is_hostside:
+                    logger.debug("Target unresponsive; skipping callback {}".format(self.callback))
                     return
                 self.callback(context)
             except (KeyboardInterrupt, TargetNotRespondingError, TimeoutError):  # pylint: disable=W0703
@@ -313,8 +330,9 @@ def install(instrument, context):
             raise ValueError(message.format(attr_name, arg_num))
 
         priority = get_priority(attr)
-        logger.debug('\tConnecting %s to %s with priority %s(%d)', attr.__name__,
-                     SIGNAL_MAP[attr_name], priority.name, priority.value)
+        hostside = ' [hostside]' if is_hostside(attr) else ''
+        logger.debug('\tConnecting %s to %s with priority %s(%d)%s', attr.__name__,
+                     SIGNAL_MAP[attr_name], priority.name, priority.value, hostside)
 
         mc = ManagedCallback(instrument, attr)
         _callbacks.append(mc)

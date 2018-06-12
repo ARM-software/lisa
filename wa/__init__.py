@@ -8,7 +8,7 @@ from wa.framework.exception import (CommandError, ConfigError, HostError, Instru
                                     TargetNotRespondingError, TimeoutError, ToolError,
                                     ValidationError, WAError, WorkloadError, WorkerThreadError)
 from wa.framework.instrument import (Instrument, extremely_slow, very_slow, slow, normal, fast,
-                                     very_fast, extremely_fast)
+                                     very_fast, extremely_fast, hostside)
 from wa.framework.output import RunOutput, discover_wa_outputs
 from wa.framework.output_processor import OutputProcessor
 from wa.framework.plugin import Plugin, Parameter, Alias
