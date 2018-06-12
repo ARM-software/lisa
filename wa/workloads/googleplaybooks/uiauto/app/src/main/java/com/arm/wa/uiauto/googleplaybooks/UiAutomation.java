@@ -617,6 +617,8 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         // becomes visible on the screen. Therefore add pause instead.
         sleep(3);
 
+        dismissNightLight();
+
         if (!activityReader.waitForExists(viewTimeout)) {
             throw new UiObjectNotFoundException("Could not find \"activity reader view\".");
         }
@@ -691,5 +693,13 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             page = searchPage(view, pagenum, updown, attempts - 1);
         }
         return page;
+    }
+
+    private void dismissNightLight() throws Exception {
+        UiObject night = 
+            mDevice.findObject(new UiSelector().text("Night Light makes reading easy"));
+        if (night.exists()) {
+            clickUiObject(BY_TEXT, "DISMISS");
+        }
     }
 }
