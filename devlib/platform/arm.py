@@ -88,6 +88,9 @@ class VersatileExpressPlatform(Platform):
     def _init_android_target(self, target):
         if target.connection_settings.get('device') is None:
             addr = self._get_target_ip_address(target)
+            if sys.version_info[0] == 3:
+                # Convert bytes to string for Python3 compatibility
+                addr = addr.decode("utf-8")
             target.connection_settings['device'] = addr + ':5555'
 
     def _init_linux_target(self, target):

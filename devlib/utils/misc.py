@@ -179,8 +179,9 @@ def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
     try:
         output, error = process.communicate(inputtext)
         if sys.version_info[0] == 3:
-            output = output.decode(sys.stdout.encoding)
-            error =  error.decode(sys.stderr.encoding)
+            # Currently errors=replace is needed as 0x8c throws an error
+            output = output.decode(sys.stdout.encoding, "replace")
+            error =  error.decode(sys.stderr.encoding, "replace")
     finally:
         if timeout:
             timer.cancel()
