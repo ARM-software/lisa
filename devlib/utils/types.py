@@ -26,6 +26,7 @@ is not the best language to use for configuration.
 
 """
 import math
+import sys
 from functools import total_ordering
 
 from past.builtins import basestring
@@ -124,3 +125,38 @@ def bitmask(value):
     if not isinstance(value, int):
         raise ValueError(value)
     return value
+
+
+regex_type = type(re.compile(''))
+
+
+if sys.version_info[0] == 3:
+    def regex(value):
+        if isinstance(value, regex_type):
+            if isinstance(value.pattern, str):
+                return value
+            return re.compile(value.pattern.decode())
+        else:
+            if isinstance(value, bytes):
+                value = value.decode()
+            return re.compile(value)
+
+
+    def bytes_regex(value):
+        if isinstance(value, regex_type):
+            if isinstance(value.pattern, bytes):
+                return value
+            return re.compile(value.pattern.encode(sys.stdout.encoding))
+        else:
+            if isinstance(value, str):
+                value = value.encode(sys.stdout.encoding)
+            return re.compile(value)
+else:
+    def regex(value):
+        if isinstance(value, regex_type):
+            return value
+        else:
+            return re.compile(value)
+
+
+    bytes_regex = regex
