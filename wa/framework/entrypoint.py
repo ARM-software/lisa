@@ -101,7 +101,9 @@ def main():
         logger.debug('Command Line: {}'.format(' '.join(sys.argv)))
 
         # each command will add its own subparser
-        commands = load_commands(parser.add_subparsers(dest='command'))
+        subparsers = parser.add_subparsers(dest='command')
+        subparsers.required = True
+        commands = load_commands(subparsers)
         args = parser.parse_args(argv)
 
         config = ConfigManager()
