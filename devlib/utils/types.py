@@ -26,6 +26,7 @@ is not the best language to use for configuration.
 
 """
 import math
+import re
 import sys
 from functools import total_ordering
 
@@ -135,7 +136,8 @@ if sys.version_info[0] == 3:
         if isinstance(value, regex_type):
             if isinstance(value.pattern, str):
                 return value
-            return re.compile(value.pattern.decode())
+            return re.compile(value.pattern.decode(),
+                              value.flags | re.UNICODE)
         else:
             if isinstance(value, bytes):
                 value = value.decode()
@@ -146,7 +148,8 @@ if sys.version_info[0] == 3:
         if isinstance(value, regex_type):
             if isinstance(value.pattern, bytes):
                 return value
-            return re.compile(value.pattern.encode(sys.stdout.encoding))
+            return re.compile(value.pattern.encode(sys.stdout.encoding),
+                              value.flags & ~re.UNICODE)
         else:
             if isinstance(value, str):
                 value = value.encode(sys.stdout.encoding)

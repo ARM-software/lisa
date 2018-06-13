@@ -20,7 +20,7 @@ from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
 from devlib.utils.misc import commonprefix, escape_double_quotes, merge_lists
 from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list
-from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string
+from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string, bytes_regex
 
 
 FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (.+) type (\S+) \((\S+)\)')
@@ -196,7 +196,7 @@ class Target(object):
         self.executables_directory = executables_directory
         self.modules = modules or []
         self.load_default_modules = load_default_modules
-        self.shell_prompt = shell_prompt
+        self.shell_prompt = bytes_regex(shell_prompt)
         self.conn_cls = conn_cls
         self.logger = logging.getLogger(self.__class__.__name__)
         self._installed_binaries = {}
