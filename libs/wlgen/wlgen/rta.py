@@ -102,6 +102,39 @@ class RTA(Workload):
         self.setCallback('postrun', self.__postrun)
 
     @staticmethod
+    def __setGovernorsPerformance(target):
+        if 'cpufreq' not in target.modules:
+            log = logging.getLogger('RTApp')
+            log.warning('cpufreq module not loaded,'
+                        ' skipping setting frequency to max')
+            return {}
+
+        # Save previous governors
+        old_governors = {}
+        for domain in target.cpufreq.iter_domains():
+            cpu = domain[0]
+            governor = target.cpufreq.get_governor(cpu)
+            tunables = target.cpufreq.get_governor_tunables(cpu)
+            old_governors[cpu] = governor, tunables
+
+        target.cpufreq.set_all_governors('performance')
+
+        return old_governors
+
+    @staticmethod
+    def __restoreGovernors(target, old_governors):
+        if 'cpufreq' not in target.modules:
+            return
+
+        # Restore previous governors
+        #   Setting a governor & tunables for a cpu will set them for all cpus
+        #   in the same clock domain, so only restoring them for one cpu
+        #   per domain is enough to restore them all.
+        for cpu, (governor, tunables) in old_governors.iteritems():
+            target.cpufreq.set_governor(cpu, governor)
+            target.cpufreq.set_governor_tunables(cpu, **tunables)
+
+    @staticmethod
     def calibrate(target):
         """
         Calibrate RT-App on each CPU in the system
@@ -115,15 +148,7 @@ class RTA(Workload):
         # Setup logging
         log = logging.getLogger('RTApp')
 
-        # Save previous governors
-        old_governors = {}
-        for domain in target.cpufreq.iter_domains():
-            cpu = domain[0]
-            governor = target.cpufreq.get_governor(cpu)
-            tunables = target.cpufreq.get_governor_tunables(cpu)
-            old_governors[cpu] = governor, tunables
-
-        target.cpufreq.set_all_governors('performance')
+        old_governors = RTA.__setGovernorsPerformance(target)
 
         # Create calibration task
         max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
@@ -154,13 +179,7 @@ class RTA(Workload):
                 pload[cpu] = int(pload_match.group(1))
                 log.debug('>>> cpu%d: %d', cpu, pload[cpu])
 
-        # Restore previous governors
-        #   Setting a governor & tunables for a cpu will set them for all cpus
-        #   in the same clock domain, so only restoring them for one cpu
-        #   per domain is enough to restore them all.
-        for cpu, (governor, tunables) in old_governors.iteritems():
-            target.cpufreq.set_governor(cpu, governor)
-            target.cpufreq.set_governor_tunables(cpu, **tunables)
+        RTA.__restoreGovernors(target, old_governors)
 
         log.info('Target RT-App calibration:')
         log.info("{" + ", ".join('"%r": %r' % (key, pload[key])
