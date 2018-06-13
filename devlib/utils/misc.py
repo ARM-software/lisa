@@ -143,7 +143,8 @@ check_output_logger = logging.getLogger('check_output')
 check_output_lock = threading.Lock()
 
 
-def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
+def check_output(command, timeout=None, ignore=None, inputtext=None,
+                 combined_output=False, **kwargs):
     """This is a version of subprocess.check_output that adds a timeout parameter to kill
     the subprocess if it does not return within the specified time."""
     # pylint: disable=too-many-branches
@@ -165,9 +166,10 @@ def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
             pass  # process may have already terminated.
 
     with check_output_lock:
+        stderr = subprocess.STDOUT if combined_output else subprocess.PIPE
         process = subprocess.Popen(command,
                                    stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE,
+                                   stderr=stderr,
                                    stdin=subprocess.PIPE,
                                    preexec_fn=preexec_function,
                                    **kwargs)
@@ -181,7 +183,8 @@ def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
         if sys.version_info[0] == 3:
             # Currently errors=replace is needed as 0x8c throws an error
             output = output.decode(sys.stdout.encoding, "replace")
-            error =  error.decode(sys.stderr.encoding, "replace")
+            if error:
+                error =  error.decode(sys.stderr.encoding, "replace")
     finally:
         if timeout:
             timer.cancel()
