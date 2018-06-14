@@ -111,6 +111,7 @@ class ComplexCommand(Command):
 
     def initialize(self, context):
         subparsers = self.parser.add_subparsers(dest='what', metavar='SUBCMD')
+        subparsers.required = True
         for subcmd_cls in self.subcmd_classes:
             subcmd = subcmd_cls(self.logger, subparsers)
             self.subcommands.append(subcmd)
