@@ -569,6 +569,15 @@ class level(object):
         else:
             return self.value < other
 
+    def __ne__(self, other):
+        if isinstance(other, level):
+            return self.value != other.value
+        elif isinstance(other, basestring):
+            return self.name != other
+        else:
+            return self.value != other
+
+
 
 class _EnumMeta(type):
 

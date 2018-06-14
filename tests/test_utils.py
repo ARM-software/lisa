@@ -114,6 +114,8 @@ class TestEnumLevel(TestCase):
         assert_in('names', e.levels)
         assert_list_equal(e.names, ['names', 'one', 'two'])
         assert_equal(e.NAMES, 'names')
+        result = not (e.NAMES != 'names')
+        assert_true(result)
 
     def test_enum_behavior(self):
         e = enum(['one', 'two', 'three'])
