@@ -69,6 +69,8 @@ class SerialTraceCollector(TraceCollector):
         if self._collecting:
             raise RuntimeError("get_trace was called whilst collecting")
 
+        self._tmpfile.flush()
+
         shutil.copy(self._tmpfile.name, outfile)
 
         self._tmpfile.close()
