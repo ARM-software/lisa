@@ -27,7 +27,7 @@ except ImportError:
 wa_dir = os.path.join(os.path.dirname(__file__), 'wa')
 
 sys.path.insert(0, os.path.join(wa_dir, 'framework'))
-from version import get_wa_version
+from version import get_wa_version_with_commit
 
 # happends if falling back to distutils
 warnings.filterwarnings('ignore', "Unknown distribution option: 'install_requires'")
@@ -62,7 +62,7 @@ scripts = [os.path.join('scripts', s) for s in os.listdir('scripts')]
 params = dict(
     name='wa',
     description='A framework for automating workload execution and measurement collection on ARM devices.',
-    version=get_wa_version(),
+    version=get_wa_version_with_commit(),
     packages=packages,
     package_data=data_files,
     scripts=scripts,
