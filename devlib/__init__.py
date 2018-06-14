@@ -30,3 +30,14 @@ from devlib.trace.serial_trace import SerialTraceCollector
 from devlib.host import LocalConnection
 from devlib.utils.android import AdbConnection
 from devlib.utils.ssh import SshConnection, TelnetConnection, Gem5Connection
+
+from devlib.utils.version import get_commit as __get_commit
+
+
+__version__ = '0.0.4'
+
+__commit = __get_commit()
+if __commit:
+    __full_version__ = '{}-{}'.format(__version__, __commit)
+else:
+    __full_version__ = __version__

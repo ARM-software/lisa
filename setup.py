@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import imp
 import os
 import sys
 import warnings
@@ -37,6 +38,26 @@ try:
 except OSError:
     pass
 
+
+with open(os.path.join(devlib_dir, '__init__.py')) as fh:
+    # Extract the version by parsing the text of the file,
+    # as may not be able to load as a module yet.
+    for line in fh:
+        if '__version__' in line:
+            parts = line.split("'")
+            __version__ = parts[1]
+            break
+    else:
+        raise RuntimeError('Did not see __version__')
+
+    vh_path = os.path.join(devlib_dir, 'utils', 'version.py')
+    # can load this, as it does not have any devlib imports
+    version_helper = imp.load_source('version_helper', vh_path)
+    commit = version_helper.get_commit()
+    if commit:
+        __version__ = '{}-{}'.format(__version__, commit)
+
+
 packages = []
 data_files = {}
 source_dir = os.path.dirname(__file__)
@@ -59,7 +80,7 @@ for root, dirs, files in os.walk(devlib_dir):
 params = dict(
     name='devlib',
     description='A framework for automating workload execution and measurment collection on ARM devices.',
-    version='0.0.4',
+    version=__version__,
     packages=packages,
     package_data=data_files,
     url='https://github.com/ARM-software/devlib',
