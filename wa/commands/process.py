@@ -123,6 +123,8 @@ class ProcessCommand(Command):
                 pm.process_job_output(pc)
                 pm.export_job_output(pc)
 
+                job_output.write_result()
+
             pm.enable_all()
             if not args.force:
                 for augmentation in run_output.augmentations:
