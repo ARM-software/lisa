@@ -22,7 +22,7 @@ from unittest import TestCase
 
 from nose.tools import assert_equal
 
-from wa.instruments.misc import _diff_interrupt_files
+from wa.utils.diff import diff_interrupt_files
 
 
 class InterruptDiffTest(TestCase):
@@ -34,7 +34,7 @@ class InterruptDiffTest(TestCase):
         expected_result_file = os.path.join(file_dir, 'result')
         output_file = tempfile.mktemp()
 
-        _diff_interrupt_files(before_file, after_file, output_file)
+        diff_interrupt_files(before_file, after_file, output_file)
         with open(output_file) as fh:
             output_diff = fh.read()
         with open(expected_result_file) as fh:

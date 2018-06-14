@@ -1,6 +1,7 @@
 import os
 import re
 
+from builtins import zip
 from future.moves.itertools import zip_longest
 
 from wa.utils.misc import as_relative, diff_tokens, write_table
