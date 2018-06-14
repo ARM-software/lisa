@@ -19,3 +19,9 @@ from wa.framework.target.descriptor import (TargetDescriptor, TargetDescription,
 from wa.framework.workload import (Workload, ApkWorkload, ApkUiautoWorkload,
                                    ApkReventWorkload, UIWorkload, UiautoWorkload,
                                    ReventWorkload)
+
+
+from wa.framework.version import get_wa_version, get_wa_version_with_commit
+
+__version__ = get_wa_version()
+__full_version__ = get_wa_version_with_commit()
