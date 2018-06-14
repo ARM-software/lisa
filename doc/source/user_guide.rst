@@ -353,7 +353,7 @@ to create an agenda file for running ``dhystrone`` on a 'generic android' device
 want to enable the ``execution_time`` and ``trace-cmd`` instruments and display the
 metrics using the ``csv`` output processor. We would use the following command::
 
-    wa create agenda generic_android dhrystone execution_time trace-cmd csv -d my_agenda.yaml
+    wa create agenda generic_android dhrystone execution_time trace-cmd csv -o my_agenda.yaml
 
 This will produce a `my_agenda.yaml` file containing all the relevant
 configuration for the specified plugins along with their default values as shown
