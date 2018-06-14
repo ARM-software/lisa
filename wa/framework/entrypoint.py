@@ -20,6 +20,8 @@ import logging
 import os
 import warnings
 
+import devlib
+
 from wa.framework import pluginloader
 from wa.framework.command import init_argument_parser
 from wa.framework.configuration import settings
@@ -98,6 +100,7 @@ def main():
         settings.set("verbosity", args.verbose)
         log.init(settings.verbosity)
         logger.debug('Version: {}'.format(get_wa_version_with_commit()))
+        logger.debug('devlib version: {}'.format(devlib.__full_version__))
         logger.debug('Command Line: {}'.format(' '.join(sys.argv)))
 
         # each command will add its own subparser
