@@ -299,6 +299,12 @@ def load(s, fmt='json', *args, **kwargs):
 def _read_pod(fh, fmt=None):
     if fmt is None:
         fmt = os.path.splitext(fh.name)[1].lower().strip('.')
+        if fmt == '':
+            # Special case of no given file extension
+            message = ("Could not determine format " +
+            "from file extension for \"{}\". ".format(getattr(fh, 'name', '<none>')) +
+            "Please specify it or modify the fmt parameter.")
+            raise ValueError(message)
     if fmt == 'yaml':
         return yaml.load(fh)
     elif fmt == 'json':
