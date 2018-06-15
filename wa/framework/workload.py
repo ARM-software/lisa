@@ -171,6 +171,10 @@ class ApkWorkload(Workload):
     package_names = []
     view = None
 
+    # Set this to True to mark that this workload requires the target apk to be run
+    # for initialisation purposes before the main run is performed.
+    requires_rerun = False
+
     parameters = [
         Parameter('package_name', kind=str,
                   description="""
@@ -261,7 +265,17 @@ class ApkWorkload(Workload):
     def setup(self, context):
         super(ApkWorkload, self).setup(context)
         self.apk.setup(context)
+        if self.requires_rerun:
+            self.setup_rerun()
+            self.apk.restart_activity()
         time.sleep(self.loading_time)
+
+    def setup_rerun(self):
+        """
+        Perform the setup necessary to rerun the workload. Only called if
+        ``requires_rerun`` is set.
+        """
+        pass
 
     def teardown(self, context):
         super(ApkWorkload, self).teardown(context)
@@ -785,6 +799,10 @@ class PackageHandler(object):
             self.target.execute('am force-stop {}'.format(self.apk_info.package))
             raise WorkloadError(output)
         self.logger.debug(output)
+
+    def restart_activity(self):
+        self.target.execute('am force-stop {}'.format(self.apk_info.package))
+        self.start_activity()
 
     def reset(self, context):  # pylint: disable=W0613
         self.target.execute('am force-stop {}'.format(self.apk_info.package))
