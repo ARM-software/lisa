@@ -72,6 +72,7 @@ def list_targets():
     for target in targets:
         output.add_item(target.description or '', target.name)
     print(output.format_data())
+    print('')
 
 
 def list_plugins(args, filters):
@@ -96,6 +97,8 @@ def list_plugins(args, filters):
         for result in sorted(filtered_results, key=lambda x: x.name):
             output.add_item(get_summary(result), result.name)
         print(output.format_data())
+
+    print('')
 
 
 def check_platform(plugin, platform):
