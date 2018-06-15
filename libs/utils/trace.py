@@ -129,6 +129,9 @@ class Trace(object):
         # Folder containing all trace data
         self.data_dir = None
 
+        # Version of the traced kernel
+        self.kernel_version = None
+
         # Folder containing trace
         if not os.path.isdir(data_dir):
             self.data_dir = os.path.dirname(data_dir) or '.'
@@ -157,6 +160,16 @@ class Trace(object):
         # a unicore system and set cpus_count=1 so that the following analysis
         # methods will not complain about the CPUs count not being available.
         self.platform['cpus_count'] = self.platform.get('cpus_count', 1)
+
+        # Setup kernel version
+        if self.platform.get('kernel', {}).get('parts'):
+            self.kernel_version = self.platform['kernel']['parts']
+            self._log.info('Kernel version loaded from platform data')
+        else:
+            self.kernel_version = (3, 18)
+            self._log.warning('Kernel version not available from platform data')
+        self._log.info('Parsing trace assuming kernel v%d.%d',
+                       self.kernel_version[0], self.kernel_version[1])
 
         self.analysis = AnalysisRegister(self)
 

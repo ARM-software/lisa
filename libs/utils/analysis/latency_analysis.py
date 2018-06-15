@@ -868,12 +868,7 @@ class LatencyAnalysis(AnalysisModule):
             512: "P", # TASK_PARKED
            1024: "N", # TASK_NOLOAD
         }
-        kver = self._trace.platform['kernel']['parts']
-        if kver is None:
-            kver = (3, 18)
-        self._log.info('Parsing sched_switch states assuming kernel v%d.%d',
-                       kver[0], kver[1])
-        if kver >= (4, 8):
+        if self._trace.kernel_version >= (4, 8):
             TASK_STATES[2048] = "n" # TASK_NEW
         TASK_MAX_STATE = 2 * max(TASK_STATES)
 
