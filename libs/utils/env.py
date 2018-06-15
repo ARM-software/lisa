@@ -458,7 +458,10 @@ class TestEnv(ShareState):
         # Setup board default if not specified by configuration
         self.nrg_model = None
         platform = None
+
+        default_modules = ['sched']
         self.__modules = ['cpufreq', 'cpuidle']
+
         if 'board' not in self.conf:
             self.conf['board'] = 'UNKNOWN'
 
@@ -522,7 +525,7 @@ class TestEnv(ShareState):
         # Modules configuration
         ########################################################################
 
-        modules = set(self.__modules)
+        modules = set(self.__modules + default_modules)
 
         # Refine modules list based on target.conf
         modules.update(self.conf.get('modules', []))
