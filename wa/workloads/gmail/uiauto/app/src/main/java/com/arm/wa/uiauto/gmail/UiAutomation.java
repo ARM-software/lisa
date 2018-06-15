@@ -39,6 +39,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
     protected String packageID;
     protected String recipient;
     protected String workdir_name;
+    protected boolean offlineMode;
 
     private int networkTimeoutSecs = 30;
     private long networkTimeout =  TimeUnit.SECONDS.toMillis(networkTimeoutSecs);
@@ -49,6 +50,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         packageID = getPackageID(parameters);
         recipient = parameters.getString("recipient");
         workdir_name = parameters.getString("workdir_name");
+        offlineMode = parameters.getBoolean("offline_mode");
     }
 
     @Test
@@ -110,6 +112,11 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
                                          .className("android.widget.TextView"));
         if (takeMeToBox.exists()) {
             takeMeToBox.clickAndWaitForNewWindow(uiAutoTimeout);
+        }
+
+        // If we're in offline mode we don't need to worry about syncing, so we're done
+        if (offlineMode) {
+            return;
         }
 
         UiObject syncNowButton =
