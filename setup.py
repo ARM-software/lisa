@@ -83,7 +83,7 @@ params = dict(
         'devlib>=0.0.4',  # Interacting with devices
         'louie-latest',  # callbacks dispatch
         'wrapt',  # better decorators
-        'pandas>=0.13.1',  # Data analysis and manipulation
+        'pandas>=0.23.0',  # Data analysis and manipulation
         'future',  # Python 2-3 compatiblity
     ],
     dependency_links=['https://github.com/ARM-software/devlib/tarball/master#egg=devlib-0.0.4'],
