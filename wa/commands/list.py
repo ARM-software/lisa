@@ -27,6 +27,7 @@ class ListCommand(Command):
 
     def initialize(self, context):
         kinds = get_kinds()
+        kinds.extend(['augmentations', 'all'])
         self.parser.add_argument('kind', metavar='KIND',
                                  help=('Specify the kind of plugin to list. Must be '
                                        'one of: {}'.format(', '.join(sorted(kinds)))),
@@ -52,6 +53,21 @@ class ListCommand(Command):
 
         if args.kind == 'targets':
             list_targets()
+        elif args.kind == 'augmentations':
+            print('instruments:')
+            args.kind = 'instruments'
+            list_plugins(args, filters)
+            print('\noutput processors:')
+            args.kind = 'output_processors'
+            list_plugins(args, filters)
+        elif args.kind == 'all':
+            for kind in sorted(get_kinds()):
+                print('\n{}:'.format(kind))
+                if kind == 'targets':
+                    list_targets()
+                else:
+                    args.kind = kind
+                    list_plugins(args, filters)
         else:
             list_plugins(args, filters)
 
