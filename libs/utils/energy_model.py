@@ -24,7 +24,7 @@ import re
 import pandas as pd
 import numpy as np
 
-from devlib.utils.misc import memoized, mask_to_list
+from devlib.utils.misc import memoized, mask_to_list, ranges_to_list
 from devlib import TargetError
 from trappy.stats.grammar import Parser
 
@@ -774,7 +774,105 @@ class EnergyModel(object):
         return sorted(ret, key=lambda x: x[0])
 
     @classmethod
-    def from_target(cls, target):
+    def from_simplifiedEM_target(cls, target,
+            directory='/sys/devices/system/cpu/energy_model'):
+        """
+        Create an EnergyModel by reading a target filesystem on a device with
+        the new Simplified Energy Model present.
+
+        This uses the energy_model sysctl added by EAS patches to exposes
+        the frequency domains, together with a tuple of capacity, frequency
+        and active power for each CPU. This feature is not upstream in mainline
+        Linux (as of v4.17), and only exists in Android kernels later than
+        android-4.14.
+
+        Wrt. idle states - the EnergyModel constructed won't be aware of
+        any power data or topological dependencies for entering "cluster"
+        idle states since the simplified model has no such concept.
+
+        Initialises only Active States for CPUs and clears all other levels.
+
+        :param target: Devlib target object to read filesystem from. Must have
+                       cpufreq and cpuidle modules enabled.
+        :returns: Constructed EnergyModel object based on the parameters
+                  reported by the target.
+        """
+        if 'cpuidle' not in target.modules:
+            raise TargetError('Requires cpuidle devlib module. Please ensure '
+                               '"cpuidle" is listed in your target/test modules')
+
+        # Simplified EM on-disk format (for each frequency domain):
+        #    /sys/devices/system/cpu/energy_model/<frequency_domain>/..
+        #        ../capacity
+        #           contains a space-separated list of capacities in increasing order
+        #        ../cpus
+        #           cpulist-formatted representation of the cpus in the frequency domain
+        #        ../frequency
+        #           space-separated list of frequencies in corresponding order to capacities
+        #        ../power
+        #           space-separated list of power consumption in corresponding order to capacities
+        # taken together, the contents of capacity, frequency and power give you the required
+        # tuple for ActiveStates.
+        # hence, domain should be supplied as a glob, and fields should be
+        #   capacity, cpus, frequency, power
+
+        sysfs_em = target.read_tree_values(directory, depth=3)
+
+        if not sysfs_em:
+            raise TargetError('Simplified Energy Model not exposed '
+                              'at {} in sysfs.'.format(directory))
+
+        cpu_to_fdom = {}
+        for fd, fields in sysfs_em.iteritems():
+            cpus = ranges_to_list(fields["cpus"])
+            for cpu in cpus:
+                cpu_to_fdom[cpu] = fd
+            sysfs_em[fd]['cpus'] = cpus
+            sysfs_em[fd]['frequency'] = map(int, sysfs_em[fd]['frequency'].split(' '))
+            sysfs_em[fd]['power'] =  map(int, sysfs_em[fd]['power'].split(' '))
+            sysfs_em[fd]['capacity'] = map(int, sysfs_em[fd]['capacity'].split(' '))
+
+        def read_active_states(cpu):
+            fd = sysfs_em[cpu_to_fdom[cpu]]
+            cstates = zip(fd['capacity'], fd['power'])
+            active_states = [ActiveState(c, p) for c, p in cstates]
+            return OrderedDict(zip(fd['frequency'], active_states))
+
+        def read_idle_states(cpu):
+            # idle states are not supported in the new model
+            # record 0 power for them all, but name them according to target
+            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            return OrderedDict((name, 0) for name in names)
+
+        # Read the CPU-level data
+        cpus = range(target.number_of_cpus)
+        cpu_nodes = []
+        for cpu in cpus:
+            node = EnergyModelNode(
+                cpu=cpu,
+                active_states=read_active_states(cpu),
+                idle_states=read_idle_states(cpu))
+            cpu_nodes.append(node)
+
+        root = EnergyModelRoot(children=cpu_nodes)
+        freq_domains = [sysfs_em[fdom]['cpus'] for fdom in sysfs_em]
+
+        # We don't have a way to read the idle power domains from sysfs (the kernel
+        # isn't even aware of them) so we'll just have to assume each CPU is its
+        # own power domain and all idle states are independent of each other.
+        cpu_pds = []
+        for cpu in cpus:
+            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            cpu_pds.append(PowerDomain(cpu=cpu, idle_states=names))
+
+        root_pd = PowerDomain(children=cpu_pds, idle_states=[])
+        return cls(root_node=root,
+                   root_power_domain=root_pd,
+                   freq_domains=freq_domains)
+
+    @classmethod
+    def from_sd_target(cls, target, filename=
+            '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}'):
         """
         Create an EnergyModel by reading a target filesystem
 
@@ -804,8 +902,7 @@ class EnergyModel(object):
                                '"cpuidle" is listed in your target/test modules')
 
         def sge_path(cpu, domain, group, field):
-            f = '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}'
-            return f.format(cpu, domain, group, field)
+            return filename.format(cpu, domain, group, field)
 
         # Read all the files we might need in one go, otherwise this will take
         # ages.
@@ -896,6 +993,49 @@ class EnergyModel(object):
         return cls(root_node=root,
                    root_power_domain=root_pd,
                    freq_domains=freq_domains)
+
+    @classmethod
+    def from_target(cls, target):
+        """
+        Create an EnergyModel by reading a target filesystem
+
+        If present, load an EM provided via dt using from_sd_target, since these
+        devices make the full EM available via the sched domain in sysfs. If
+        there is no EM at this location, attempt to load the simplified EM
+        made available via dedicated sysfs files.
+
+        :param target: Devlib target object to read filesystem from. Must have
+                       cpufreq and cpuidle modules enabled.
+        :returns: Constructed EnergyModel object based on the parameters
+                  reported by the target.
+        """
+        _log = logging.getLogger('EMReader')
+
+        def em_present_in_sd(target):
+            try:
+                cpu = target.list_online_cpus()[0]
+                d = '/proc/sys/kernel/sched_domain/cpu{}/domain0/group0/energy'.format(cpu)
+                _log.info('Checking if directory {} exists'.format(d))
+                return target.directory_exists(d)
+            except Exception:
+                return False
+
+        def simplified_em_present_in_cpusysfs(target):
+            try:
+                d = '/sys/devices/system/cpu/energy_model'
+                _log.info('Checking if directory {} exists'.format(d))
+                return target.directory_exists(d)
+            except Exception:
+                return False
+
+        if em_present_in_sd(target):
+            _log.info('Attempting to load EM from sched domains.')
+            return cls.from_sd_target(target)
+        elif simplified_em_present_in_cpusysfs(target):
+            _log.info('Attempting to load simplified EM.')
+            return cls.from_simplifiedEM_target(target)
+        else:
+            raise TargetError('Unable to probe for energy model on target.')
 
     def estimate_from_trace(self, trace):
         """
