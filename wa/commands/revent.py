@@ -285,7 +285,11 @@ class ReplayCommand(Command):
 
 # Used to satisfy the workload API
 class LightContext(object):
+
     def __init__(self, tm):
         self.tm = tm
         self.resolver = ResourceResolver()
         self.resolver.load()
+
+    def get_resource(self, resource, strict=True):
+        return self.resolver.get_resource(resource, strict)
