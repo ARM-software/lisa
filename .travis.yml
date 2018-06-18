@@ -1,6 +1,6 @@
 language: python
 python:
-  - "2.7"
+  - "2.7.12"
 before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -qq libfreetype6-dev
@@ -17,8 +17,6 @@ install:
 env:
   - MPLBACKEND=agg
 script: nosetests
-virtualenv:
-  system_site_packages: true
 notifications:
   email:
     recipients:
