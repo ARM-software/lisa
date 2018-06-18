@@ -158,6 +158,12 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         if len(trace_class.data_frame) < 1:
             return
 
+        # There's an unlikely scenario where some stray event(s) ends up not
+        # being sorted, and pandas suffers a stroke when trying to slice the
+        # dataframe - see tests/test_sort.py.
+        # Ensure it's sorted for good measure.
+        trace_class.data_frame.sort_index(inplace=True)
+
         if window[1]:
             trace_class.data_frame = trace_class.data_frame[
                 window[0]:window[1]]
