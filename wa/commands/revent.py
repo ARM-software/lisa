@@ -292,4 +292,6 @@ class LightContext(object):
         self.resolver.load()
 
     def get_resource(self, resource, strict=True):
-        return self.resolver.get_resource(resource, strict)
+        return self.resolver.get(resource, strict)
+
+    get = get_resource
