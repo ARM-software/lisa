@@ -40,18 +40,24 @@ def copyright_is_valid(fname):
     except IndexError:
         return False
 
-    # The copyright mentions ARM Limited
-    if "ARM Limited" not in lines[0]:
+    # The copyright mentions ARM/Arm Limited
+    if not any([name in lines[0] for name in ["ARM Limited", "Arm Limited"]]):
         return False
 
     apache_line = 6
     if "Google Inc" in lines[1]:
         apache_line += 1
 
-    # The Copyright includes the current year
+    # The Copyright includes valid years
     current_year = date.today().year
-    if str(current_year) not in lines[0]:
+    years = map(int, re.findall(r"[-\s](?P<year>\d+)", lines[0]))
+
+    if len(years) < 0:
         return False
+
+    for year in years:
+        if year < 1970 or year > current_year:
+            return False
 
     # It's the apache license
     if "http://www.apache.org/licenses/LICENSE-2.0" not in lines[apache_line]:
