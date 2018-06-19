@@ -105,10 +105,6 @@ class TestEnv(ShareState):
             calibrate RT-App on the target. A message will be logged with
             a value that can be copied here to avoid having to re-run
             calibration on subsequent tests.
-        **tftp**
-            Directory path containing kernels and DTB images for the
-            target. LISA does *not* manage this TFTP server, it must be
-            provided externally. Optional.
         **results_dir**
             location of results of the experiments.
         **ftrace**
@@ -125,18 +121,6 @@ class TestEnv(ShareState):
         **tools**
             List of tools (available under ./tools/$ARCH/) to install on
             the target. Names, not paths (e.g. ['ftrace']). Default is [].
-        **ping_time**, **reboot_time**
-            Override parameters to :meth:`reboot` method
-        **__features__**
-            List of test environment features to enable. Options are:
-
-            "no-kernel"
-                do not deploy kernel/dtb images
-            "no-reboot"
-                do not force reboot the target at each configuration change
-            "debug"
-                enable debugging messages
-
         **ftrace**
             Configuration for ftrace. Dictionary with keys:
 
@@ -206,10 +190,6 @@ class TestEnv(ShareState):
         # Keep track of target IP and MAC address
         self.ip = None
         self.mac = None
-
-        # Keep track of last installed kernel
-        self.kernel = None
-        self.dtb = None
 
         # Energy meter configuration
         self.emeter = None
@@ -988,150 +968,6 @@ class TestEnv(ShareState):
             raise ValueError('Unable to lookup for target IP/MAC address')
         self._log.info('Target (%s) at IP address: %s', macaddr, ipaddr)
         return (macaddr, ipaddr)
-
-    def reboot(self, reboot_time=120, ping_time=15):
-        """
-        Reboot target.
-
-        :param boot_time: Time to wait for the target to become available after
-                          reboot before declaring failure.
-        :param ping_time: Period between attempts to ping the target while
-                          waiting for reboot.
-        """
-        # Send remote target a reboot command
-        if self._feature('no-reboot'):
-            self._log.warning('Reboot disabled by conf features')
-        else:
-            if 'reboot_time' in self.conf:
-                reboot_time = int(self.conf['reboot_time'])
-
-            if 'ping_time' in self.conf:
-                ping_time = int(self.conf['ping_time'])
-
-            # Before rebooting make sure to have IP and MAC addresses
-            # of the target
-            (self.mac, self.ip) = self.parse_arp_cache(self.ip)
-
-            self.target.execute('sleep 2 && reboot -f &', as_root=True)
-
-            # Wait for the target to complete the reboot
-            self._log.info('Waiting up to %s[s] for target [%s] to reboot...',
-                           reboot_time, self.ip)
-
-            ping_cmd = "ping -c 1 {} >/dev/null".format(self.ip)
-            elapsed = 0
-            start = time.time()
-            while elapsed <= reboot_time:
-                time.sleep(ping_time)
-                self._log.debug('Trying to connect to [%s] target...', self.ip)
-                if os.system(ping_cmd) == 0:
-                    break
-                elapsed = time.time() - start
-            if elapsed > reboot_time:
-                if self.mac:
-                    self._log.warning('target [%s] not responding to PINGs, '
-                                      'trying to resolve MAC address...',
-                                      self.ip)
-                    (self.mac, self.ip) = self.resolv_host(self.mac)
-                else:
-                    self._log.warning('target [%s] not responding to PINGs, '
-                                      'trying to continue...',
-                                      self.ip)
-
-        # Force re-initialization of all the devlib modules
-        force = True
-
-        # Reset the connection to the target
-        self._init(force)
-
-        # Initialize FTrace events collection
-        self._init_ftrace(force)
-
-        # Initialize energy probe instrument
-        self._init_energy(force)
-
-    def install_kernel(self, tc, reboot=False):
-        """
-        Deploy kernel and DTB via TFTP, optionally rebooting
-
-        :param tc: Dicionary containing optional keys 'kernel' and 'dtb'. Values
-                   are paths to the binaries to deploy.
-        :type tc: dict
-
-        :param reboot: Reboot thet target after deployment
-        :type reboot: bool
-        """
-
-        # Default initialize the kernel/dtb settings
-        tc.setdefault('kernel', None)
-        tc.setdefault('dtb', None)
-
-        if self.kernel == tc['kernel'] and self.dtb == tc['dtb']:
-            return
-
-        self._log.info('Install kernel [%s] on target...', tc['kernel'])
-
-        # Install kernel/dtb via FTFP
-        if self._feature('no-kernel'):
-            self._log.warning('Kernel deploy disabled by conf features')
-
-        elif 'tftp' in self.conf:
-            self._log.info('Deploy kernel via TFTP...')
-
-            # Deploy kernel in TFTP folder (mandatory)
-            if 'kernel' not in tc or not tc['kernel']:
-                raise ValueError('Missing "kernel" parameter in conf: %s',
-                        'KernelSetup', tc)
-            self.tftp_deploy(tc['kernel'])
-
-            # Deploy DTB in TFTP folder (if provided)
-            if 'dtb' not in tc or not tc['dtb']:
-                self._log.debug('DTB not provided, using existing one')
-                self._log.debug('Current conf:\n%s', tc)
-                self._log.warning('Using pre-installed DTB')
-            else:
-                self.tftp_deploy(tc['dtb'])
-
-        else:
-            raise ValueError('Kernel installation method not supported')
-
-        # Keep track of last installed kernel
-        self.kernel = tc['kernel']
-        if 'dtb' in tc:
-            self.dtb = tc['dtb']
-
-        if not reboot:
-            return
-
-        # Reboot target
-        self._log.info('Rebooting taget...')
-        self.reboot()
-
-
-    def tftp_deploy(self, src):
-        """
-        .. TODO
-        """
-
-        tftp = self.conf['tftp']
-
-        dst = tftp['folder']
-        if 'kernel' in src:
-            dst = os.path.join(dst, tftp['kernel'])
-        elif 'dtb' in src:
-            dst = os.path.join(dst, tftp['dtb'])
-        else:
-            dst = os.path.join(dst, os.path.basename(src))
-
-        cmd = 'cp {} {} && sync'.format(src, dst)
-        self._log.info('Deploy %s into %s', src, dst)
-        result = os.system(cmd)
-        if result != 0:
-            self._log.error('Failed to deploy image: %s', src)
-            raise ValueError('copy error')
-
-    def _feature(self, feature):
-        return feature in self.conf['__features__']
 
     @contextlib.contextmanager
     def freeze_userspace(self):
