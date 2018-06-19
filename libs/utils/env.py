@@ -144,6 +144,166 @@ class TestEnv(object):
         if self._initialized and not force_new:
             return
 
+        # Setup logging
+        self._log = logging.getLogger('TestEnv')
+
+        # Compute base installation path
+        self._log.info('Using base path: %s', basepath)
+
+        self._pre_target_init(target_conf, wipe)
+        self._init_target()
+        self._post_target_init()
+
+        self._initialized = True
+
+    def _load_em(self, board):
+        em_path = os.path.join(basepath,
+                'libs/utils/platforms', board.lower() + '.json')
+        self._log.debug('Trying to load default EM from %s', em_path)
+        if not os.path.exists(em_path):
+            return None
+        self._log.info('Loading default EM:')
+        self._log.info('   %s', em_path)
+        board = JsonConf(em_path)
+        board.load()
+        if 'nrg_model' not in board.json:
+            return None
+        return board.json['nrg_model']
+
+    def _load_board(self, board):
+        board_path = os.path.join(basepath,
+                'libs/utils/platforms', board.lower() + '.json')
+        self._log.debug('Trying to load board descriptor from %s', board_path)
+        if not os.path.exists(board_path):
+            return None
+        self._log.info('Loading board:')
+        self._log.info('   %s', board_path)
+        board = JsonConf(board_path)
+        board.load()
+        if 'board' not in board.json:
+            return None
+        return board.json['board']
+
+    def _build_topology(self):
+        # Initialize target Topology for behavior analysis
+        CLUSTERS = []
+
+        # Build topology for a big.LITTLE systems
+        if self.target.big_core and \
+           (self.target.abi == 'arm64' or self.target.abi == 'armeabi'):
+            # Populate cluster for a big.LITTLE platform
+            if self.target.big_core:
+                # Load cluster of LITTLE cores
+                CLUSTERS.append(
+                    [i for i,t in enumerate(self.target.core_names)
+                                if t == self.target.little_core])
+                # Load cluster of big cores
+                CLUSTERS.append(
+                    [i for i,t in enumerate(self.target.core_names)
+                                if t == self.target.big_core])
+        # Build topology for an SMP systems
+        elif not self.target.big_core or \
+             self.target.abi == 'x86_64':
+            for c in set(self.target.core_clusters):
+                CLUSTERS.append(
+                    [i for i,v in enumerate(self.target.core_clusters)
+                                if v == c])
+        self.topology = Topology(clusters=CLUSTERS)
+        self._log.info('Topology:')
+        self._log.info('   %s', CLUSTERS)
+
+    def _init_platform_bl(self):
+        self.platform = {
+            'clusters' : {
+                'little'    : self.target.bl.littles,
+                'big'       : self.target.bl.bigs
+            },
+            'freqs' : {
+                'little'    : self.target.bl.list_littles_frequencies(),
+                'big'       : self.target.bl.list_bigs_frequencies()
+            }
+        }
+        self.platform['cpus_count'] = \
+            len(self.platform['clusters']['little']) + \
+            len(self.platform['clusters']['big'])
+
+    def _init_platform_smp(self):
+        self.platform = {
+            'clusters' : {},
+            'freqs' : {}
+        }
+        for cpu_id,node_id in enumerate(self.target.core_clusters):
+            if node_id not in self.platform['clusters']:
+                self.platform['clusters'][node_id] = []
+            self.platform['clusters'][node_id].append(cpu_id)
+
+        if 'cpufreq' in self.target.modules:
+            # Try loading frequencies using the cpufreq module
+            for cluster_id in self.platform['clusters']:
+                core_id = self.platform['clusters'][cluster_id][0]
+                self.platform['freqs'][cluster_id] = \
+                    self.target.cpufreq.list_frequencies(core_id)
+        else:
+            self._log.warning('Unable to identify cluster frequencies')
+
+        # TODO: get the performance boundaries in case of intel_pstate driver
+
+        self.platform['cpus_count'] = len(self.target.core_clusters)
+
+    def _get_clusters(self, core_names):
+        idx = 0
+        clusters = []
+        ids_map = { core_names[0] : 0 }
+        for name in core_names:
+            idx = ids_map.get(name, idx+1)
+            ids_map[name] = idx
+            clusters.append(idx)
+        return clusters
+
+    def _init_platform(self):
+        if 'bl' in self.target.modules:
+            self._init_platform_bl()
+        else:
+            self._init_platform_smp()
+
+        # Adding energy model information
+        if 'nrg_model' in self.conf:
+            self.platform['nrg_model'] = self.conf['nrg_model']
+        # Try to load the default energy model (if available)
+        else:
+            nrg_model = self._load_em(self.conf['board'])
+            # We shouldn't have an 'nrg_model' key if there is no energy model data
+            if nrg_model:
+                self.platform['nrg_model'] = nrg_model
+
+        # Adding topology information
+        self.platform['topology'] = self.topology.get_level("cluster")
+
+        # Adding kernel build information
+        kver = self.target.kernel_version
+        self.platform['kernel'] = {t: getattr(kver, t, None)
+            for t in [
+                'release', 'version',
+                'version_number', 'major', 'minor',
+                'rc', 'sha1', 'parts'
+            ]
+        }
+        self.platform['abi'] = self.target.abi
+        self.platform['os'] = self.target.os
+
+        self._log.debug('Platform descriptor initialized\n%s', self.platform)
+        # self.platform_dump('./')
+
+    def _init_energy(self, force):
+        # Initialize energy probe to board default
+        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force,
+                                              self.res_dir)
+
+    def _pre_target_init(self, target_conf, wipe):
+        """
+        Initialize everything that does not require a live target
+        """
+        self.wipe = wipe
         self.conf = {}
         self.target = None
         self.ftrace = None
@@ -167,12 +327,6 @@ class TestEnv(object):
         self.ANDROID_HOME = os.environ.get('ANDROID_HOME', None)
         self.CATAPULT_HOME = os.environ.get('CATAPULT_HOME',
                 os.path.join(self.LISA_HOME, 'tools', 'catapult'))
-
-        # Setup logging
-        self._log = logging.getLogger('TestEnv')
-
-        # Compute base installation path
-        self._log.info('Using base path: %s', basepath)
 
         # Setup target configuration
         if isinstance(target_conf, dict):
@@ -228,7 +382,7 @@ class TestEnv(object):
         if not os.path.isabs(self.res_dir):
             self.res_dir = os.path.join(basepath, OUT_PREFIX, self.res_dir)
 
-        if wipe and os.path.exists(self.res_dir):
+        if self.wipe and os.path.exists(self.res_dir):
             self._log.warning('Wipe previous contents of the results folder:')
             self._log.warning('   %s', self.res_dir)
             shutil.rmtree(self.res_dir, ignore_errors=True)
@@ -240,83 +394,10 @@ class TestEnv(object):
             os.remove(res_lnk)
         os.symlink(self.res_dir, res_lnk)
 
-        self._init()
-
-        # Initialize FTrace events collection
-        self._init_ftrace(True)
-
-        # Initialize RT-App calibration values
-        self.calibration()
-
-        # Initialize energy probe instrument
-        self._init_energy(True)
-
-        self._log.info('Set results folder to:')
-        self._log.info('   %s', self.res_dir)
-        self._log.info('Experiment results available also in:')
-        self._log.info('   %s', res_lnk)
-
-        self._initialized = True
-
-    def loadTargetConfig(self, filepath=None):
-        """
-        Load the target configuration from the specified file.
-
-        :param filepath: Path of the target configuration file. Relative to the
-                         root folder of the test suite.
-        :type filepath: str
-
-        """
-
-        # "" and None are replaced by the default 'target.config' value
-        filepath = filepath or 'target.config'
-
-        # Loading default target configuration
-        conf_file = os.path.join(basepath, filepath)
-
-        self._log.info('Loading target configuration [%s]...', conf_file)
-        conf = JsonConf(conf_file)
-        conf.load()
-        return conf.json
-
-    def _init(self, force = False):
-
-        # Initialize target
-        self._init_target(force)
-
-        # Initialize target Topology for behavior analysis
-        CLUSTERS = []
-
-        # Build topology for a big.LITTLE systems
-        if self.target.big_core and \
-           (self.target.abi == 'arm64' or self.target.abi == 'armeabi'):
-            # Populate cluster for a big.LITTLE platform
-            if self.target.big_core:
-                # Load cluster of LITTLE cores
-                CLUSTERS.append(
-                    [i for i,t in enumerate(self.target.core_names)
-                                if t == self.target.little_core])
-                # Load cluster of big cores
-                CLUSTERS.append(
-                    [i for i,t in enumerate(self.target.core_names)
-                                if t == self.target.big_core])
-        # Build topology for an SMP systems
-        elif not self.target.big_core or \
-             self.target.abi == 'x86_64':
-            for c in set(self.target.core_clusters):
-                CLUSTERS.append(
-                    [i for i,v in enumerate(self.target.core_clusters)
-                                if v == c])
-        self.topology = Topology(clusters=CLUSTERS)
-        self._log.info('Topology:')
-        self._log.info('   %s', CLUSTERS)
-
-        # Initialize the platform descriptor
-        self._init_platform()
-
-
     def _init_target(self, force = False):
-
+        """
+        Initialize the Target
+        """
         if not force and self.target is not None:
             return self.target
 
@@ -602,6 +683,50 @@ class TestEnv(object):
 
         return platform
 
+    def _post_target_init(self):
+        """
+        Initialize everything that requires a live target
+        """
+        self._build_topology()
+
+        # Initialize the platform descriptor
+        self._init_platform()
+
+        # Initialize FTrace events collection
+        self._init_ftrace(True)
+
+        # Initialize RT-App calibration values
+        self.calibration()
+
+        # Initialize energy probe instrument
+        self._init_energy(True)
+
+        self._log.info('Set results folder to:')
+        self._log.info('   %s', self.res_dir)
+        self._log.info('Experiment results available also in:')
+        self._log.info('   %s', res_lnk)
+
+    def loadTargetConfig(self, filepath=None):
+        """
+        Load the target configuration from the specified file.
+
+        :param filepath: Path of the target configuration file. Relative to the
+                         root folder of the test suite.
+        :type filepath: str
+
+        """
+
+        # "" and None are replaced by the default 'target.config' value
+        filepath = filepath or 'target.config'
+
+        # Loading default target configuration
+        conf_file = os.path.join(basepath, filepath)
+
+        self._log.info('Loading target configuration [%s]...', conf_file)
+        conf = JsonConf(conf_file)
+        conf.load()
+        return conf.json
+
     def install_tools(self, tools):
         """
         Install tools additional to those specified in the test config 'tools'
@@ -612,11 +737,7 @@ class TestEnv(object):
         """
         tools = set(tools)
 
-        # Add tools dependencies
-        if 'rt-app' in tools:
-            tools.update(['taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh'])
-
-        # Remove duplicates and already-instaled tools
+        # Remove duplicates and already-installed tools
         tools.difference_update(self.__installed_tools)
 
         tools_to_install = []
@@ -673,122 +794,6 @@ class TestEnv(object):
 
         return
 
-    def _init_energy(self, force):
-
-        # Initialize energy probe to board default
-        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force,
-                                              self.res_dir)
-
-    def _init_platform_bl(self):
-        self.platform = {
-            'clusters' : {
-                'little'    : self.target.bl.littles,
-                'big'       : self.target.bl.bigs
-            },
-            'freqs' : {
-                'little'    : self.target.bl.list_littles_frequencies(),
-                'big'       : self.target.bl.list_bigs_frequencies()
-            }
-        }
-        self.platform['cpus_count'] = \
-            len(self.platform['clusters']['little']) + \
-            len(self.platform['clusters']['big'])
-
-    def _init_platform_smp(self):
-        self.platform = {
-            'clusters' : {},
-            'freqs' : {}
-        }
-        for cpu_id,node_id in enumerate(self.target.core_clusters):
-            if node_id not in self.platform['clusters']:
-                self.platform['clusters'][node_id] = []
-            self.platform['clusters'][node_id].append(cpu_id)
-
-        if 'cpufreq' in self.target.modules:
-            # Try loading frequencies using the cpufreq module
-            for cluster_id in self.platform['clusters']:
-                core_id = self.platform['clusters'][cluster_id][0]
-                self.platform['freqs'][cluster_id] = \
-                    self.target.cpufreq.list_frequencies(core_id)
-        else:
-            self._log.warning('Unable to identify cluster frequencies')
-
-        # TODO: get the performance boundaries in case of intel_pstate driver
-
-        self.platform['cpus_count'] = len(self.target.core_clusters)
-
-    def _load_em(self, board):
-        em_path = os.path.join(basepath,
-                'libs/utils/platforms', board.lower() + '.json')
-        self._log.debug('Trying to load default EM from %s', em_path)
-        if not os.path.exists(em_path):
-            return None
-        self._log.info('Loading default EM:')
-        self._log.info('   %s', em_path)
-        board = JsonConf(em_path)
-        board.load()
-        if 'nrg_model' not in board.json:
-            return None
-        return board.json['nrg_model']
-
-    def _load_board(self, board):
-        board_path = os.path.join(basepath,
-                'libs/utils/platforms', board.lower() + '.json')
-        self._log.debug('Trying to load board descriptor from %s', board_path)
-        if not os.path.exists(board_path):
-            return None
-        self._log.info('Loading board:')
-        self._log.info('   %s', board_path)
-        board = JsonConf(board_path)
-        board.load()
-        if 'board' not in board.json:
-            return None
-        return board.json['board']
-
-    def _get_clusters(self, core_names):
-        idx = 0
-        clusters = []
-        ids_map = { core_names[0] : 0 }
-        for name in core_names:
-            idx = ids_map.get(name, idx+1)
-            ids_map[name] = idx
-            clusters.append(idx)
-        return clusters
-
-    def _init_platform(self):
-        if 'bl' in self.target.modules:
-            self._init_platform_bl()
-        else:
-            self._init_platform_smp()
-
-        # Adding energy model information
-        if 'nrg_model' in self.conf:
-            self.platform['nrg_model'] = self.conf['nrg_model']
-        # Try to load the default energy model (if available)
-        else:
-            nrg_model = self._load_em(self.conf['board'])
-            # We shouldn't have an 'nrg_model' key if there is no energy model data
-            if nrg_model:
-                self.platform['nrg_model'] = nrg_model
-
-        # Adding topology information
-        self.platform['topology'] = self.topology.get_level("cluster")
-
-        # Adding kernel build information
-        kver = self.target.kernel_version
-        self.platform['kernel'] = {t: getattr(kver, t, None)
-            for t in [
-                'release', 'version',
-                'version_number', 'major', 'minor',
-                'rc', 'sha1', 'parts'
-            ]
-        }
-        self.platform['abi'] = self.target.abi
-        self.platform['os'] = self.target.os
-
-        self._log.debug('Platform descriptor initialized\n%s', self.platform)
-        # self.platform_dump('./')
-
     def platform_dump(self, dest_dir, dest_file='platform.json'):
         plt_file = os.path.join(dest_dir, dest_file)
         self._log.debug('Dump platform descriptor in [%s]', plt_file)
@@ -810,11 +815,9 @@ class TestEnv(object):
         if not force and self._calib:
             return self._calib
 
-        required = force or 'rt-app' in self.__installed_tools
-
-        if not required:
-            self._log.debug('No RT-App workloads, skipping calibration')
-            return
+        required_tools = ['rt-app', 'taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh']
+        if not all([tool in self.__installed_tools for tool in required_tools]):
+            self.install_tools(required_tools)
 
         if not force and 'rtapp-calib' in self.conf:
             self._log.info('Using configuration provided RTApp calibration')
