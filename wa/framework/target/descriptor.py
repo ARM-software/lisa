@@ -416,7 +416,7 @@ ASSISTANTS = {
     'chromeos': ChromeOsAssistant
 }
 
-# name --> (((platform_class, conn_class), params_list, defaults), target_defaults)
+# name --> ((platform_class, conn_class), params_list, defaults, target_defaults)
 # Note: normally, connection is defined by the Target name, but
 #       platforms may choose to override it
 # Note: the target_defaults allows you to override common target_params for a
@@ -556,7 +556,7 @@ def add_description_for_target(target, description=None, **kwargs):
     if 'platform' not in kwargs:
         kwargs['platform'] = Platform
     if 'platform_params' not in kwargs:
-        for (plat, conn), params, _ in PLATFORMS.values():
+        for (plat, conn), params, _, _ in PLATFORMS.values():
             if plat == kwargs['platform']:
                 kwargs['platform_params'] = params
                 if conn is not None and kwargs['conn'] is None:
