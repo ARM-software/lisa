@@ -1011,31 +1011,51 @@ class EnergyModel(object):
         """
         _log = logging.getLogger('EMReader')
 
-        def em_present_in_sd(target):
-            try:
-                cpu = target.list_online_cpus()[0]
-                d = '/proc/sys/kernel/sched_domain/cpu{}/domain0/group0/energy'.format(cpu)
-                _log.info('Checking if directory {} exists'.format(d))
-                return target.directory_exists(d)
-            except Exception:
-                return False
+        # To add a new EM reader type, the following is required:
+        # 1. Create an inline function to test for EM presence which takes a
+        #    target as the first parameter. Any exceptions raised here will
+        #    be caught in the loader loop.
+        # 2. Create a function which returns an EnergyModel as a member of this
+        #    class, also with a target as the first parameter.
+        # 3. Add an entry to the em_loaders dict where 'check' contains the
+        #    inline function and 'load' contains the class member function
+        # 4. If you need any additional data, add it to the em_loaders dict - any
+        #    additional keys will be passed to both 'check' and 'load' functions
+        #    as named parameters.
 
-        def simplified_em_present_in_cpusysfs(target):
-            try:
-                d = '/sys/devices/system/cpu/energy_model'
-                _log.info('Checking if directory {} exists'.format(d))
-                return target.directory_exists(d)
-            except Exception:
-                return False
+        # Utility functions to determine if we should try to use a particular
+        # EM loader function.
+        def em_present_in_sd(target, filename=None):
+            cpu = target.list_online_cpus()[0]
+            f = filename.format(cpu, 0, 0, 'cap_states')
+            return target.file_exists(f)
+        def simplified_em_present_in_cpusysfs(target, directory=None):
+            return target.directory_exists(directory)
 
-        if em_present_in_sd(target):
-            _log.info('Attempting to load EM from sched domains.')
-            return cls.from_sd_target(target)
-        elif simplified_em_present_in_cpusysfs(target):
-            _log.info('Attempting to load simplified EM.')
-            return cls.from_simplifiedEM_target(target)
-        else:
-            raise TargetError('Unable to probe for energy model on target.')
+        # em_loaders dictionary joins EM loaders and the identifying functions
+        # with any associated metadata
+        em_loaders = {
+            'sd'    : { 'check': em_present_in_sd,
+                        'load': cls.from_sd_target,
+                        'filename': '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}' },
+            'sysfs' : { 'check': simplified_em_present_in_cpusysfs,
+                        'load': cls.from_simplifiedEM_target,
+                        'directory': '/sys/devices/system/cpu/energy_model' }
+                     }
+
+        for loader_type in em_loaders:
+            args = dict(em_loaders[loader_type])
+            check = args.pop('check')
+            load = args.pop('load')
+            try:
+                em_present = check(target, **args)
+            except Exception:
+                em_present = False
+            if em_present:
+                _log.info('Attempting to load EM using {}'.format(load.__name__))
+                return load(target, **args)
+
+        raise TargetError('Unable to probe for energy model on target.')
 
     def estimate_from_trace(self, trace):
         """
