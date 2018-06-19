@@ -621,11 +621,7 @@ class TestEnv(ShareState):
         """
         tools = set(tools)
 
-        # Add tools dependencies
-        if 'rt-app' in tools:
-            tools.update(['taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh'])
-
-        # Remove duplicates and already-instaled tools
+        # Remove duplicates and already-installed tools
         tools.difference_update(self.__installed_tools)
 
         tools_to_install = []
@@ -818,11 +814,9 @@ class TestEnv(ShareState):
         if not force and self._calib:
             return self._calib
 
-        required = force or 'rt-app' in self.__installed_tools
-
-        if not required:
-            self._log.debug('No RT-App workloads, skipping calibration')
-            return
+        required_tools = ['rt-app', 'taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh']
+        if not all([tool in self.__installed_tools for tool in required_tools]):
+            self.install_tools(required_tools)
 
         if not force and 'rtapp-calib' in self.conf:
             self._log.info('Using configuration provided RTApp calibration')
