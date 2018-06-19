@@ -65,10 +65,6 @@ class TestEnv(ShareState):
       want to use to run the experiments
     - a test configuration (test_conf) defining which SW setups we need on
       that HW target
-    - a folder to collect the experiments results, which can be specified using
-      the target_conf::results_dir option, or using LISA_RESULTS_DIR environment
-      variable and is by default wiped from all the previous contents
-      (if wipe=True)
 
     :param target_conf:
         Configuration defining the target to run experiments on. May be
@@ -105,8 +101,6 @@ class TestEnv(ShareState):
             calibrate RT-App on the target. A message will be logged with
             a value that can be copied here to avoid having to re-run
             calibration on subsequent tests.
-        **results_dir**
-            location of results of the experiments.
         **ftrace**
             Ftrace configuration merged with test-specific configuration.
             Currently, only additional events through "events" key is supported.
@@ -130,10 +124,6 @@ class TestEnv(ShareState):
                 functions to enable in the function tracer. Optional.
             buffsize
                 Size of buffer. Default is 10240.
-
-    :param wipe: set true to cleanup all previous content from the output
-                 folder
-    :type wipe: bool
 
     :param force_new: Create a new TestEnv object even if there is one available
                       for this session.  By default, TestEnv only creates one
@@ -170,8 +160,7 @@ class TestEnv(ShareState):
 
     _initialized = False
 
-    def __init__(self, target_conf=None, test_conf=None, wipe=True,
-                 force_new=False):
+    def __init__(self, target_conf=None, test_conf=None, force_new=False):
         super(TestEnv, self).__init__()
 
         if self._initialized and not force_new:
@@ -263,35 +252,6 @@ class TestEnv(ShareState):
         if '__features__' not in self.conf:
             self.conf['__features__'] = []
 
-        # Initialize local results folder.
-        # The test configuration overrides the target's one and the environment
-        # variable overrides everything else.
-        self.res_dir = (
-            os.getenv('LISA_RESULTS_DIR') or
-            self.conf.get('results_dir')
-        )
-        # Default result dir based on the current time
-        if not self.res_dir:
-            self.res_dir = datetime.now().strftime(
-                os.path.join(basepath, OUT_PREFIX, '%Y%m%d_%H%M%S')
-            )
-
-        # Relative paths are interpreted as relative to a fixed root.
-        if not os.path.isabs(self.res_dir):
-            self.res_dir = os.path.join(basepath, OUT_PREFIX, self.res_dir)
-
-        if wipe and os.path.exists(self.res_dir):
-            self._log.warning('Wipe previous contents of the results folder:')
-            self._log.warning('   %s', self.res_dir)
-            shutil.rmtree(self.res_dir, ignore_errors=True)
-        if not os.path.exists(self.res_dir):
-            os.makedirs(self.res_dir)
-
-        res_lnk = os.path.join(basepath, LATEST_LINK)
-        if os.path.islink(res_lnk):
-            os.remove(res_lnk)
-        os.symlink(self.res_dir, res_lnk)
-
         self._init()
 
         # Initialize FTrace events collection
@@ -303,8 +263,6 @@ class TestEnv(ShareState):
         # Initialize energy probe instrument
         self._init_energy(True)
 
-        self._log.info('Set results folder to:')
-        self._log.info('   %s', self.res_dir)
         self._log.info('Experiment results available also in:')
         self._log.info('   %s', res_lnk)
 
@@ -655,13 +613,46 @@ class TestEnv(ShareState):
             gem5_bin = simulator['bin'],
             gem5_args = args,
             gem5_virtio = virtio_args,
-            host_output_dir = self.res_dir,
+            host_output_dir = self.get_res_dir('gem5'),
             core_names = board['cores'] if board else None,
             core_clusters = self._get_clusters(board['cores']) if board else None,
             big_core = board.get('big_core', None) if board else None,
         )
 
         return platform
+
+    def get_res_dir(self, name=None):
+        """
+        Returns a directory managed by LISA to store results
+        """
+        # Initialize local results folder.
+        # The test configuration overrides the target's one and the environment
+        # variable overrides everything else.
+        res_dir = (
+            os.getenv('LISA_RESULTS_DIR') or
+            self.conf.get('results_dir')
+        )
+
+        # Default result dir based on the current time
+        if not res_dir:
+            if not name:
+                name = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+            res_dir = os.path.join(basepath, OUT_PREFIX, name)
+
+        # Relative paths are interpreted as relative to a fixed root.
+        if not os.path.isabs(res_dir):
+            res_dir = os.path.join(basepath, OUT_PREFIX, res_dir)
+
+        if not os.path.exists(res_dir):
+            os.makedirs(res_dir)
+
+        res_lnk = os.path.join(basepath, LATEST_LINK)
+        if os.path.islink(res_lnk):
+            os.remove(res_lnk)
+        os.symlink(res_dir, res_lnk)
+
+        return res_dir
 
     def install_tools(self, tools):
         """
@@ -737,8 +728,7 @@ class TestEnv(ShareState):
     def _init_energy(self, force):
 
         # Initialize energy probe to board default
-        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force,
-                                              self.res_dir)
+        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force)
 
     def _init_platform_bl(self):
         self.platform = {
