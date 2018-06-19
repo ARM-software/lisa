@@ -5,11 +5,14 @@ from collections import OrderedDict
 from copy import copy, deepcopy
 from datetime import datetime
 
+import devlib
+
 from wa.framework.configuration.core import JobSpec, Status
 from wa.framework.configuration.execution import CombinedConfig
 from wa.framework.exception import HostError
 from wa.framework.run import RunState, RunInfo
 from wa.framework.target.info import TargetInfo
+from wa.framework.version import get_wa_version_with_commit
 from wa.utils.misc import touch, ensure_directory_exists, isiterable
 from wa.utils.serializer import write_pod, read_pod, is_pod
 from wa.utils.types import enum, numeric
@@ -632,7 +635,11 @@ def init_run_output(path, wa_state, force=False):
     write_pod(RunState().to_pod(), os.path.join(path, '.run_state.json'))
     write_pod(Result().to_pod(), os.path.join(path, 'result.json'))
 
-    return RunOutput(path)
+    ro = RunOutput(path)
+    ro.update_metadata('versions', 'wa', get_wa_version_with_commit())
+    ro.update_metadata('versions', 'devlib', devlib.__full_version__)
+
+    return ro
 
 
 def init_job_output(run_output, job):
