@@ -294,4 +294,7 @@ class LightContext(object):
     def get_resource(self, resource, strict=True):
         return self.resolver.get(resource, strict)
 
+    def update_metadata(self, key, *args):
+        pass
+
     get = get_resource
