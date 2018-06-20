@@ -1155,23 +1155,56 @@ class AndroidTarget(Target):
 
     # Android-specific
 
+    def input_tap(self, x, y):
+        command = 'input tap {} {}'
+        self.execute(command.format(x, y))
+
+    def input_tap_pct(self, x, y):
+        width, height = self.screen_resolution
+
+        x = (x * width) // 100
+        y = (y * height) // 100
+
+        self.input_tap(x, y)
+
+    def input_swipe(self, x1, y1, x2, y2):
+        """
+        Issue a swipe on the screen from (x1, y1) to (x2, y2)
+        Uses absolute screen positions
+        """
+        command = 'input swipe {} {} {} {}'
+        self.execute(command.format(x1, y1, x2, y2))
+
+    def input_swipe_pct(self, x1, y1, x2, y2):
+        """
+        Issue a swipe on the screen from (x1, y1) to (x2, y2)
+        Uses percent-based positions
+        """
+        width, height = self.screen_resolution
+
+        x1 = (x1 * width) // 100
+        y1 = (y1 * height) // 100
+        x2 = (x2 * width) // 100
+        y2 = (y2 * height) // 100
+
+        self.input_swipe(x1, y1, x2, y2)
+
     def swipe_to_unlock(self, direction="diagonal"):
         width, height = self.screen_resolution
-        command = 'input swipe {} {} {} {}'
         if direction == "diagonal":
             start = 100
             stop = width - start
             swipe_height = height * 2 // 3
-            self.execute(command.format(start, swipe_height, stop, 0))
+            self.input_swipe(start, swipe_height, stop, 0)
         elif direction == "horizontal":
             swipe_height = height * 2 // 3
             start = 100
             stop = width - start
-            self.execute(command.format(start, swipe_height, stop, swipe_height))
+            self.input_swipe(start, swipe_height, stop, swipe_height)
         elif direction == "vertical":
             swipe_middle = width / 2
             swipe_height = height * 2 // 3
-            self.execute(command.format(swipe_middle, swipe_height, swipe_middle, 0))
+            self.input_swipe(swipe_middle, swipe_height, swipe_middle, 0)
         else:
             raise TargetError("Invalid swipe direction: {}".format(direction))
 
@@ -1373,6 +1406,14 @@ class AndroidTarget(Target):
     def get_brightness(self):
         cmd = 'settings get system screen_brightness'
         return integer(self.execute(cmd).strip())
+
+    def set_screen_timeout(self, timeout_ms):
+        cmd = 'settings put system screen_off_timeout {}'
+        self.execute(cmd.format(int(timeout_ms)))
+
+    def get_screen_timeout(self):
+        cmd = 'settings get system screen_off_timeout'
+        return int(self.execute(cmd).strip())
 
     def get_airplane_mode(self):
         cmd = 'settings get global airplane_mode_on'
