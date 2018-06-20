@@ -124,7 +124,7 @@ class SqliteResultProcessor(OutputProcessor):
         metrics = [(self._spec_oid, job_output.iteration, m.name, str(m.value), m.units, int(m.lower_is_better))
                    for m in job_output.metrics]
         if metrics:
-            with self._open_connecton() as conn:
+            with self._open_connection() as conn:
                 conn.executemany('INSERT INTO metrics VALUES (?,?,?,?,?,?)', metrics)
 
     def export_run_output(self, run_output, target_info):
@@ -134,11 +134,11 @@ class SqliteResultProcessor(OutputProcessor):
         metrics = [(self._spec_oid, run_output.iteration, m.name, str(m.value), m.units, int(m.lower_is_better))
                    for m in run_output.metrics]
         if metrics:
-            with self._open_connecton() as conn:
+            with self._open_connection() as conn:
                 conn.executemany('INSERT INTO metrics VALUES (?,?,?,?,?,?)', metrics)
 
         info = run_output.info
-        with self._open_connecton() as conn:
+        with self._open_connection() as conn:
             conn.execute('''UPDATE runs SET start_time=?, end_time=?, duration=?
                             WHERE OID=?''', (info.start_time, info.end_time, info.duration, self._run_oid))
 
@@ -164,12 +164,12 @@ class SqliteResultProcessor(OutputProcessor):
         self._run_initialized = True
 
     def _init_db(self):
-        with self._open_connecton() as conn:
+        with self._open_connection() as conn:
             for command in SCHEMA:
                 conn.execute(command)
 
     def _validate_schema_version(self):
-        with self._open_connecton() as conn:
+        with self._open_connection() as conn:
             try:
                 c = conn.execute('SELECT schema_version FROM __meta')
                 found_version = c.fetchone()[0]
@@ -181,7 +181,7 @@ class SqliteResultProcessor(OutputProcessor):
                 raise ResultProcessorError(message.format(self.database, found_version, SCHEMA_VERSION))
 
     def _update_run(self, run_uuid):
-        with self._open_connecton() as conn:
+        with self._open_connection() as conn:
             conn.execute('INSERT INTO runs (uuid) VALUES (?)', (run_uuid,))
             conn.commit()
             c = conn.execute('SELECT OID FROM runs WHERE uuid=?', (run_uuid,))
@@ -193,14 +193,14 @@ class SqliteResultProcessor(OutputProcessor):
                       json.dumps(spec.boot_parameters.to_pod()),
                       json.dumps(spec.runtime_parameters.to_pod()),
                       json.dumps(spec.workload_parameters.to_pod()))
-        with self._open_connecton() as conn:
+        with self._open_connection() as conn:
             conn.execute('INSERT INTO workload_specs VALUES (?,?,?,?,?,?,?,?)', spec_tuple)
             conn.commit()
             c = conn.execute('SELECT OID FROM workload_specs WHERE run_oid=? AND id=?', (self._run_oid, spec.id))
             self._spec_oid = c.fetchone()[0]
 
     @contextmanager
-    def _open_connecton(self):
+    def _open_connection(self):
         conn = sqlite3.connect(self.database)
         try:
             yield conn
