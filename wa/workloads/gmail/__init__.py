@@ -81,7 +81,7 @@ class Gmail(ApkUiautoWorkload):
         self.deployable_assets = [self.test_image]
         if self.offline_mode:
             self.deployable_assets.append('mailstore.tar')
-        self.clean_assets = True
+        self.cleanup_assets = True
 
     def initialize(self, context):
         super(Gmail, self).initialize(context)

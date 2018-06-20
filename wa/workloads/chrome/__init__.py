@@ -54,7 +54,7 @@ class Chrome(ApkUiautoWorkload):
         super(Chrome, self).__init__(target, **kwargs)
         if self.offline_mode:
             self.deployable_assets = ['pages.tar', 'OfflinePages.db']
-            self.clean_assets = True
+            self.cleanup_assets = True
 
     def initialize(self, context):
         super(Chrome, self).initialize(context)
