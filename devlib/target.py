@@ -1425,7 +1425,7 @@ class AndroidTarget(Target):
 
     def open_url(self, url):
         cmd = 'am start -a android.intent.action.VIEW -d "{}"'
-        self.execute(cmd.format(escape_double_quote(url)))
+        self.execute(cmd.format(escape_double_quotes(url)))
 
     def homescreen(self):
         self.execute('am start -a android.intent.action.MAIN -c android.intent.category.HOME')
