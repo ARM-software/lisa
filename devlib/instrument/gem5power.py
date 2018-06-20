@@ -16,7 +16,7 @@ from __future__ import division
 
 from devlib.platform.gem5 import Gem5SimulationPlatform
 from devlib.instrument import Instrument, CONTINUOUS, MeasurementsCsv
-from devlib.exception import TargetError
+from devlib.exception import TargetStableError
 from devlib.utils.csvutil import csvwriter
 
 
@@ -36,9 +36,9 @@ class Gem5PowerInstrument(Instrument):
             system.cluster0.cores0.power_model.static_power
         '''
         if not isinstance(target.platform, Gem5SimulationPlatform):
-            raise TargetError('Gem5PowerInstrument requires a gem5 platform')
+            raise TargetStableError('Gem5PowerInstrument requires a gem5 platform')
         if not target.has('gem5stats'):
-            raise TargetError('Gem5StatsModule is not loaded')
+            raise TargetStableError('Gem5StatsModule is not loaded')
         super(Gem5PowerInstrument, self).__init__(target)
 
         # power_sites is assumed to be a list later

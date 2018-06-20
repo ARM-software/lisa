@@ -20,7 +20,7 @@ import shutil
 from subprocess import CalledProcessError
 
 from devlib.module import HardRestModule, BootModule, FlashModule
-from devlib.exception import TargetError, HostError
+from devlib.exception import TargetError, TargetStableError, HostError
 from devlib.utils.serial_port import open_serial_connection, pulse_dtr, write_characters
 from devlib.utils.uefi import UefiMenu, UefiConfig
 from devlib.utils.uboot import UbootMenu
@@ -89,7 +89,7 @@ class VexpressReboottxtHardReset(HardRestModule):
         try:
             if self.target.is_connected:
                 self.target.execute('sync')
-        except TargetError:
+        except (TargetError, CalledProcessError):
             pass
 
         if not os.path.exists(self.path):
@@ -225,7 +225,7 @@ class VexpressUefiShellBoot(VexpressBootModule):
         try:
             menu.select(self.uefi_entry)
         except LookupError:
-            raise TargetError('Did not see "{}" UEFI entry.'.format(self.uefi_entry))
+            raise TargetStableError('Did not see "{}" UEFI entry.'.format(self.uefi_entry))
         tty.expect(self.efi_shell_prompt, timeout=self.timeout)
         if self.bootargs:
             tty.sendline('')  # stop default boot
@@ -344,7 +344,7 @@ class VersatileExpressFlashModule(FlashModule):
             os.system('sync')
         except (IOError, OSError) as e:
             msg = 'Could not deploy images to {}; got: {}'
-            raise TargetError(msg.format(self.vemsd_mount, e))
+            raise TargetStableError(msg.format(self.vemsd_mount, e))
         self.target.boot()
         self.target.connect(timeout=30)
 
@@ -390,4 +390,4 @@ def wait_for_vemsd(vemsd_mount, tty, mcc_prompt=DEFAULT_MCC_PROMPT, short_delay=
         time.sleep(short_delay * 3)
         if os.path.exists(path):
             return
-    raise TargetError('Could not mount {}'.format(vemsd_mount))
+    raise TargetStableError('Could not mount {}'.format(vemsd_mount))

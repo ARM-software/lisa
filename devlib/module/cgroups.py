@@ -18,7 +18,7 @@ import re
 from collections import namedtuple
 
 from devlib.module import Module
-from devlib.exception import TargetError
+from devlib.exception import TargetStableError
 from devlib.utils.misc import list_to_ranges, isiterable
 from devlib.utils.types import boolean
 
@@ -281,7 +281,7 @@ class CGroup(object):
             self.target.execute('[ -d {0} ]'\
                 .format(self.directory), as_root=True)
             return True
-        except TargetError:
+        except TargetStableError:
             return False
 
     def get(self):
@@ -319,7 +319,7 @@ class CGroup(object):
             # Set the attribute value
             try:
                 self.target.write_value(path, attrs[idx])
-            except TargetError:
+            except TargetStableError:
                 # Check if the error is due to a non-existing attribute
                 attrs = self.get()
                 if idx not in attrs:
@@ -389,9 +389,9 @@ class CgroupsModule(Module):
             controller = Controller(ss.name, hid, hierarchy[hid])
             try:
                 controller.mount(self.target, self.cgroup_root)
-            except TargetError:
+            except TargetStableError:
                 message = 'Failed to mount "{}" controller'
-                raise TargetError(message.format(controller.kind))
+                raise TargetStableError(message.format(controller.kind))
             self.logger.info('  %-12s : %s', controller.kind,
                              controller.mount_point)
             self.controllers[ss.name] = controller

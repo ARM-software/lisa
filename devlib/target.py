@@ -29,7 +29,7 @@ from collections import namedtuple
 from devlib.host import LocalConnection, PACKAGE_BIN_DIRECTORY
 from devlib.module import get_module
 from devlib.platform import Platform
-from devlib.exception import TargetError, TargetNotRespondingError, TimeoutError  # pylint: disable=redefined-builtin
+from devlib.exception import DevlibTransientError, TargetStableError, TargetNotRespondingError, TimeoutError # pylint: disable=redefined-builtin
 from devlib.utils.ssh import SshConnection
 from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect, INTENT_FLAGS
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
@@ -104,7 +104,7 @@ class Target(object):
         try:
             self.execute('ls /', timeout=5, as_root=True)
             return True
-        except (TargetError, TimeoutError):
+        except (TargetStableError, TimeoutError):
             return False
 
     @property
@@ -150,11 +150,11 @@ class Target(object):
     def config(self):
         try:
             return KernelConfig(self.execute('zcat /proc/config.gz'))
-        except TargetError:
+        except TargetStableError:
             for path in ['/boot/config', '/boot/config-$(uname -r)']:
                 try:
                     return KernelConfig(self.execute('cat {}'.format(path)))
-                except TargetError:
+                except TargetStableError:
                     pass
         return KernelConfig('')
 
@@ -203,7 +203,7 @@ class Target(object):
         # Check if the user hasn't given two different platforms
         if 'platform' in self.connection_settings:
             if connection_settings['platform'] is not platform:
-                raise TargetError('Platform specified in connection_settings '
+                raise TargetStableError('Platform specified in connection_settings '
                                    '({}) differs from that directly passed '
                                    '({})!)'
                                    .format(connection_settings['platform'],
@@ -282,14 +282,14 @@ class Target(object):
     def reboot(self, hard=False, connect=True, timeout=180):
         if hard:
             if not self.has('hard_reset'):
-                raise TargetError('Hard reset not supported for this target.')
+                raise TargetStableError('Hard reset not supported for this target.')
             self.hard_reset()  # pylint: disable=no-member
         else:
             if not self.is_connected:
                 message = 'Cannot reboot target becuase it is disconnected. ' +\
                           'Either connect() first, or specify hard=True ' +\
                           '(in which case, a hard_reset module must be installed)'
-                raise TargetError(message)
+                raise TargetTransientError(message)
             self.reset()
             # Wait a fixed delay before starting polling to give the target time to
             # shut down, otherwise, might create the connection while it's still shutting
@@ -346,7 +346,7 @@ class Target(object):
         try:
             self.execute('{} tar -cvf {} {}'.format(self.busybox, tar_file_name,
                                                      source_dir), as_root=as_root)
-        except TargetError:
+        except TargetStableError:
             self.logger.debug('Failed to run tar command on target! ' \
                               'Not pulling directory {}'.format(source_dir))
         # Pull the file
@@ -360,8 +360,10 @@ class Target(object):
 
     # execution
 
-    def execute(self, command, timeout=None, check_exit_code=True, as_root=False):
-        return self.conn.execute(command, timeout, check_exit_code, as_root)
+    def execute(self, command, timeout=None, check_exit_code=True,
+                as_root=False, will_succeed=False):
+        return self.conn.execute(command, timeout, check_exit_code, as_root,
+                will_succeed)
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         return self.conn.background(command, stdout, stderr, as_root)
@@ -459,12 +461,12 @@ class Target(object):
             output = self.read_value(path)
             if not output == value:
                 message = 'Could not set the value of {} to "{}" (read "{}")'.format(path, value, output)
-                raise TargetError(message)
+                raise TargetStableError(message)
 
     def reset(self):
         try:
             self.execute('reboot', as_root=self.needs_su, timeout=2)
-        except (TargetError, TimeoutError, subprocess.CalledProcessError):
+        except (DevlibTransientError, subprocess.CalledProcessError):
             # on some targets "reboot" doesn't return gracefully
             pass
         self._connected_as_root = None
@@ -473,7 +475,7 @@ class Target(object):
         try:
             self.conn.execute('ls /', timeout=5)
             return 1
-        except (TimeoutError, subprocess.CalledProcessError, TargetError):
+        except (DevlibTransientError, subprocess.CalledProcessError):
             if explode:
                 raise TargetNotRespondingError('Target {} is not responding'.format(self.conn.name))
             return 0
@@ -488,7 +490,7 @@ class Target(object):
         for pid in self.get_pids_of(process_name):
             try:
                 self.kill(pid, signal=signal, as_root=as_root)
-            except TargetError:
+            except TargetStableError:
                 pass
 
     def get_pids_of(self, process_name):
@@ -588,7 +590,7 @@ class Target(object):
                 try:
                     if name in self.list_directory(path):
                         return self.path.join(path, name)
-                except TargetError:
+                except TargetStableError:
                     pass  # directory does not exist or no executable permissions
 
     which = get_installed
@@ -779,7 +781,7 @@ class Target(object):
             try:
                 self.execute(command)
                 return True
-            except TargetError as e:
+            except TargetStableError as e:
                 err = str(e).lower()
                 if '100% packet loss' in err:
                     # We sent a packet but got no response.
@@ -823,15 +825,12 @@ class LinuxTarget(Target):
     @memoized
     def os_version(self):
         os_version = {}
-        try:
-            command = 'ls /etc/*-release /etc*-version /etc/*_release /etc/*_version 2>/dev/null'
-            version_files = self.execute(command, check_exit_code=False).strip().split()
-            for vf in version_files:
-                name = self.path.basename(vf)
-                output = self.read_value(vf)
-                os_version[name] = convert_new_lines(output.strip()).replace('\n', ' ')
-        except TargetError:
-            raise
+        command = 'ls /etc/*-release /etc*-version /etc/*_release /etc/*_version 2>/dev/null'
+        version_files = self.execute(command, check_exit_code=False).strip().split()
+        for vf in version_files:
+            name = self.path.basename(vf)
+            output = self.read_value(vf)
+            os_version[name] = convert_new_lines(output.strip()).replace('\n', ' ')
         return os_version
 
     @property
@@ -938,7 +937,7 @@ class LinuxTarget(Target):
             filepath = filepath.format(ts=ts)
             self.pull(tmpfile, filepath)
             self.remove(tmpfile)
-        except TargetError as e:
+        except TargetStableError as e:
             if "Can't open X dispay." not in e.message:
                 raise e
             message = e.message.split('OUTPUT:', 1)[1].strip()  # pylint: disable=no-member
@@ -1079,7 +1078,7 @@ class AndroidTarget(Target):
         try:
             self.execute('reboot {}'.format(fastboot and 'fastboot' or ''),
                          as_root=self.needs_su, timeout=2)
-        except (TargetError, TimeoutError, subprocess.CalledProcessError):
+        except (DevlibTransientError, subprocess.CalledProcessError):
             # on some targets "reboot" doesn't return gracefully
             pass
         self._connected_as_root = None
@@ -1091,7 +1090,9 @@ class AndroidTarget(Target):
             time.sleep(5)
             boot_completed = boolean(self.getprop('sys.boot_completed'))
         if not boot_completed:
-            raise TargetError('Connected but Android did not fully boot.')
+            # Raise a TargetStableError as this usually happens because of
+            # an issue with Android more than a timeout that is too small.
+            raise TargetStableError('Connected but Android did not fully boot.')
 
     def connect(self, timeout=30, check_boot_completed=True):  # pylint: disable=arguments-differ
         device = self.connection_settings.get('device')
@@ -1128,7 +1129,7 @@ class AndroidTarget(Target):
         self.ls_command = 'ls -1'
         try:
             self.execute('ls -1 {}'.format(self.working_directory), as_root=False)
-        except TargetError:
+        except TargetStableError:
             self.ls_command = 'ls'
 
     def list_directory(self, path, as_root=False):
@@ -1240,7 +1241,7 @@ class AndroidTarget(Target):
             swipe_height = height * 2 // 3
             self.input_swipe(swipe_middle, swipe_height, swipe_middle, 0)
         else:
-            raise TargetError("Invalid swipe direction: {}".format(direction))
+            raise TargetStableError("Invalid swipe direction: {}".format(direction))
 
     def getprop(self, prop=None):
         props = AndroidProperties(self.execute('getprop'))
@@ -1307,12 +1308,12 @@ class AndroidTarget(Target):
             self.logger.debug("Replace APK = {}, ADB flags = '{}'".format(replace, ' '.join(flags)))
             return adb_command(self.adb_name, "install {} '{}'".format(' '.join(flags), filepath), timeout=timeout)
         else:
-            raise TargetError('Can\'t install {}: unsupported format.'.format(filepath))
+            raise TargetStableError('Can\'t install {}: unsupported format.'.format(filepath))
 
     def grant_package_permission(self, package, permission):
         try:
             return self.execute('pm grant {} {}'.format(package, permission))
-        except TargetError as e:
+        except TargetStableError as e:
             if 'is not a changeable permission type' in e.message:
                 pass # Ignore if unchangeable
             elif 'Unknown permission' in e.message:
@@ -1411,7 +1412,7 @@ class AndroidTarget(Target):
         if match:
             return boolean(match.group(1))
         else:
-            raise TargetError('Could not establish screen state.')
+            raise TargetStableError('Could not establish screen state.')
 
     def ensure_screen_is_on(self):
         if not self.is_screen_on():
@@ -1456,7 +1457,7 @@ class AndroidTarget(Target):
     def set_airplane_mode(self, mode):
         root_required = self.get_sdk_version() > 23
         if root_required and not self.is_rooted:
-            raise TargetError('Root is required to toggle airplane mode on Android 7+')
+            raise TargetStableError('Root is required to toggle airplane mode on Android 7+')
         mode = int(boolean(mode))
         cmd = 'settings put global airplane_mode_on {}'
         self.execute(cmd.format(mode))
@@ -1540,7 +1541,7 @@ class AndroidTarget(Target):
                              as_root=True)
         else:
             message = 'Could not find mount point for executables directory {}'
-            raise TargetError(message.format(self.executables_directory))
+            raise TargetStableError(message.format(self.executables_directory))
 
     _charging_enabled_path = '/sys/class/power_supply/battery/charging_enabled'
 

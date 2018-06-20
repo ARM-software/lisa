@@ -16,7 +16,7 @@ from __future__ import division
 import re
 
 from devlib.instrument import Instrument, Measurement, INSTANTANEOUS
-from devlib.exception import TargetError
+from devlib.exception import TargetStableError
 
 
 class HwmonInstrument(Instrument):
@@ -35,7 +35,7 @@ class HwmonInstrument(Instrument):
 
     def __init__(self, target):
         if not hasattr(target, 'hwmon'):
-            raise TargetError('Target does not support HWMON')
+            raise TargetStableError('Target does not support HWMON')
         super(HwmonInstrument, self).__init__(target)
 
         self.logger.debug('Discovering available HWMON sensors...')

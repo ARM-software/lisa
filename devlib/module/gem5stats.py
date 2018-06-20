@@ -17,7 +17,7 @@ import sys
 import os.path
 from collections import defaultdict
 
-from devlib.exception import TargetError, HostError
+from devlib.exception import TargetStableError, HostError
 from devlib.module import Module
 from devlib.platform.gem5 import Gem5SimulationPlatform
 from devlib.utils.gem5 import iter_statistics_dump, GEM5STATS_ROI_NUMBER
@@ -87,13 +87,13 @@ class Gem5StatsModule(Module):
         if label not in self.rois:
             raise KeyError('Incorrect ROI label: {}'.format(label))
         if not self.rois[label].start():
-            raise TargetError('ROI {} was already running'.format(label))
+            raise TargetStableError('ROI {} was already running'.format(label))
 
     def roi_end(self, label):
         if label not in self.rois:
             raise KeyError('Incorrect ROI label: {}'.format(label))
         if not self.rois[label].stop():
-            raise TargetError('ROI {} was not running'.format(label))
+            raise TargetStableError('ROI {} was not running'.format(label))
 
     def start_periodic_dump(self, delay_ns=0, period_ns=10000000):
         # Default period is 10ms because it's roughly what's needed to have

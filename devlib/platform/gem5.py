@@ -19,7 +19,7 @@ import shutil
 import time
 import types
 
-from devlib.exception import TargetError
+from devlib.exception import TargetStableError
 from devlib.host import PACKAGE_BIN_DIRECTORY
 from devlib.platform import Platform
 from devlib.utils.ssh import AndroidGem5Connection, LinuxGem5Connection
@@ -86,12 +86,12 @@ class Gem5SimulationPlatform(Platform):
         Check if the command to start gem5 makes sense
         """
         if self.gem5args_binary is None:
-            raise TargetError('Please specify a gem5 binary.')
+            raise TargetStableError('Please specify a gem5 binary.')
         if self.gem5args_args is None:
-            raise TargetError('Please specify the arguments passed on to gem5.')
+            raise TargetStableError('Please specify the arguments passed on to gem5.')
         self.gem5args_virtio = str(self.gem5args_virtio).format(self.gem5_interact_dir)
         if self.gem5args_virtio is None:
-            raise TargetError('Please specify arguments needed for virtIO.')
+            raise TargetStableError('Please specify arguments needed for virtIO.')
 
     def _start_interaction_gem5(self):
         """
@@ -110,7 +110,7 @@ class Gem5SimulationPlatform(Platform):
             if not os.path.exists(self.stats_directory):
                 os.mkdir(self.stats_directory)
             if os.path.exists(self.gem5_out_dir):
-                raise TargetError("The gem5 stats directory {} already "
+                raise TargetStableError("The gem5 stats directory {} already "
                                   "exists.".format(self.gem5_out_dir))
             else:
                 os.mkdir(self.gem5_out_dir)
@@ -153,7 +153,7 @@ class Gem5SimulationPlatform(Platform):
         e.g. pid, input directory etc
         """
         self.logger("This functionality is not yet implemented")
-        raise TargetError()
+        raise TargetStableError()
 
     def _intercept_telnet_port(self):
         """
@@ -161,13 +161,13 @@ class Gem5SimulationPlatform(Platform):
         """
 
         if self.gem5 is None:
-            raise TargetError('The platform has no gem5 simulation! '
+            raise TargetStableError('The platform has no gem5 simulation! '
                               'Something went wrong')
         while self.gem5_port is None:
             # Check that gem5 is running!
             if self.gem5.poll():
                 message = "The gem5 process has crashed with error code {}!\n\tPlease see {} for details."
-                raise TargetError(message.format(self.gem5.poll(), self.stderr_file.name))
+                raise TargetStableError(message.format(self.gem5.poll(), self.stderr_file.name))
 
             # Open the stderr file
             with open(self.stderr_filename, 'r') as f:
@@ -185,7 +185,7 @@ class Gem5SimulationPlatform(Platform):
                     # Check if the sockets are not disabled
                     m = re.search(r"Sockets disabled, not accepting terminal connections", line)
                     if m:
-                        raise TargetError("The sockets have been disabled!"
+                        raise TargetStableError("The sockets have been disabled!"
                                           "Pass --listener-mode=on to gem5")
                 else:
                     time.sleep(1)
@@ -287,10 +287,10 @@ class Gem5SimulationPlatform(Platform):
 
 # Methods that will be monkey-patched onto the target
 def _overwritten_reset(self):  # pylint: disable=unused-argument
-    raise TargetError('Resetting is not allowed on gem5 platforms!')
+    raise TargetStableError('Resetting is not allowed on gem5 platforms!')
 
 def _overwritten_reboot(self):  # pylint: disable=unused-argument
-    raise TargetError('Rebooting is not allowed on gem5 platforms!')
+    raise TargetStableError('Rebooting is not allowed on gem5 platforms!')
 
 def _overwritten_capture_screen(self, filepath):
     connection_screencapped = self.platform.gem5_capture_screen(filepath)

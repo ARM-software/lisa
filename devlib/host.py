@@ -20,7 +20,7 @@ import subprocess
 import logging
 from getpass import getpass
 
-from devlib.exception import TargetError
+from devlib.exception import TargetTransientError, TargetStableError
 from devlib.utils.misc import check_output
 
 PACKAGE_BIN_DIRECTORY = os.path.join(os.path.dirname(__file__), 'bin')
@@ -59,11 +59,11 @@ class LocalConnection(object):
 
     # pylint: disable=unused-argument
     def execute(self, command, timeout=None, check_exit_code=True,
-                as_root=False, strip_colors=True):
+                as_root=False, strip_colors=True, will_succeed=False):
         self.logger.debug(command)
         if as_root:
             if self.unrooted:
-                raise TargetError('unrooted')
+                raise TargetStableError('unrooted')
             password = self._get_password()
             command = 'echo \'{}\' | sudo -S '.format(password) + command
         ignore = None if check_exit_code else 'all'
@@ -72,12 +72,15 @@ class LocalConnection(object):
         except subprocess.CalledProcessError as e:
             message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'.format(
                 e.returncode, command, e.output)
-            raise TargetError(message)
+            if will_succeed:
+                raise TargetTransientError(message)
+            else:
+                raise TargetStableError(message)
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         if as_root:
             if self.unrooted:
-                raise TargetError('unrooted')
+                raise TargetStableError('unrooted')
             password = self._get_password()
             command = 'echo \'{}\' | sudo -S '.format(password) + command
         return subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)

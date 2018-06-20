@@ -22,7 +22,7 @@ from collections import defaultdict
 from future.moves.itertools import zip_longest
 
 from devlib.instrument import Instrument, MeasurementsCsv, CONTINUOUS
-from devlib.exception import TargetError, HostError
+from devlib.exception import TargetStableError, HostError
 from devlib.utils.android import ApkInfo
 from devlib.utils.csvutil import csvwriter
 
@@ -84,7 +84,7 @@ class NetstatsInstrument(Instrument):
 
         """
         if target.os != 'android':
-            raise TargetError('netstats insturment only supports Android targets')
+            raise TargetStableError('netstats insturment only supports Android targets')
         if apk is None:
             apk = os.path.join(THIS_DIR, 'netstats.apk')
         if not os.path.isfile(apk):

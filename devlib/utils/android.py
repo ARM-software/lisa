@@ -29,7 +29,7 @@ import subprocess
 from collections import defaultdict
 import pexpect
 
-from devlib.exception import TargetError, HostError
+from devlib.exception import TargetTransientError, TargetStableError, HostError, DevlibError
 from devlib.utils.misc import check_output, which, ABI_MAP
 from devlib.utils.misc import escape_single_quotes, escape_double_quotes
 
@@ -257,9 +257,15 @@ class AdbConnection(object):
 
     # pylint: disable=unused-argument
     def execute(self, command, timeout=None, check_exit_code=False,
-                as_root=False, strip_colors=True):
-        return adb_shell(self.device, command, timeout, check_exit_code,
-                         as_root, adb_server=self.adb_server)
+                as_root=False, strip_colors=True, will_succeed=False):
+        try:
+            return adb_shell(self.device, command, timeout, check_exit_code,
+                             as_root, adb_server=self.adb_server)
+        except TargetStableError as e:
+            if will_succeed:
+                raise TargetTransientError(e)
+            else:
+                raise
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         return adb_background_shell(self.device, command, stdout, stderr, as_root)
@@ -357,7 +363,7 @@ def adb_disconnect(device):
         logger.debug(command)
         retval = subprocess.call(command, stdout=open(os.devnull, 'wb'), shell=True)
         if retval:
-            raise TargetError('"{}" returned {}'.format(command, retval))
+            raise TargetTransientError('"{}" returned {}'.format(command, retval))
 
 
 def _ping(device):
@@ -394,7 +400,7 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
     try:
         raw_output, _ = check_output(actual_command, timeout, shell=False, combined_output=True)
     except subprocess.CalledProcessError as e:
-        raise TargetError(str(e))
+        raise TargetStableError(str(e))
 
     if raw_output:
         try:
@@ -413,19 +419,19 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
             if int(exit_code):
                 message = ('Got exit code {}\nfrom target command: {}\n'
                            'OUTPUT: {}')
-                raise TargetError(message.format(exit_code, command, output))
+                raise TargetStableError(message.format(exit_code, command, output))
             elif re_search:
                 message = 'Could not start activity; got the following:\n{}'
-                raise TargetError(message.format(re_search[0]))
+                raise TargetStableError(message.format(re_search[0]))
         else:  # not all digits
             if re_search:
                 message = 'Could not start activity; got the following:\n{}'
-                raise TargetError(message.format(re_search[0]))
+                raise TargetStableError(message.format(re_search[0]))
             else:
                 message = 'adb has returned early; did not get an exit code. '\
                           'Was kill-server invoked?\nOUTPUT:\n-----\n{}\n'\
                           '-----'
-                raise TargetError(message.format(raw_output))
+                raise TargetTransientError(message.format(raw_output))
 
     return output
 
@@ -484,7 +490,7 @@ def grant_app_permissions(target, package):
     for permission in permissions:
         try:
             target.execute('pm grant {} {}'.format(package, permission))
-        except TargetError:
+        except TargetStableError:
             logger.debug('Cannot grant {}'.format(permission))
 
 

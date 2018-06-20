@@ -36,7 +36,8 @@ else:
 from pexpect import EOF, TIMEOUT, spawn
 
 # pylint: disable=redefined-builtin,wrong-import-position
-from devlib.exception import HostError, TargetError, TimeoutError
+from devlib.exception import (HostError, TargetStableError, TargetNotRespondingError,
+                              TimeoutError)
 from devlib.utils.misc import which, strip_bash_colors, check_output
 from devlib.utils.misc import (escape_single_quotes, escape_double_quotes,
                                escape_spaces)
@@ -72,7 +73,7 @@ def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeou
             timeout -= time.time() - start_time
             if timeout <= 0:
                 message = 'Could not connect to {}; is the host name correct?'
-                raise TargetError(message.format(host))
+                raise TargetTransientError(message.format(host))
             time.sleep(5)
 
     conn.setwinsize(500, 200)
@@ -194,7 +195,7 @@ class SshConnection(object):
         return self._scp(source, dest, timeout)
 
     def execute(self, command, timeout=None, check_exit_code=True,
-                as_root=False, strip_colors=True): #pylint: disable=unused-argument
+                as_root=False, strip_colors=True, will_succeed=False): #pylint: disable=unused-argument
         if command == '':
             # Empty command is valid but the __devlib_ec stuff below will
             # produce a syntax error with bash. Treat as a special case.
@@ -210,14 +211,19 @@ class SshConnection(object):
                         exit_code = int(exit_code_text)
                         if exit_code:
                             message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
-                            raise TargetError(message.format(exit_code, command, output))
+                            raise TargetStableError(message.format(exit_code, command, output))
                     except (ValueError, IndexError):
                         logger.warning(
                             'Could not get exit code for "{}",\ngot: "{}"'\
                             .format(command, exit_code_text))
                 return output
         except EOF:
-            raise TargetError('Connection lost.')
+            raise TargetNotRespondingError('Connection lost.')
+        except TargetStableError as e:
+            if will_succeed:
+                raise TargetTransientError(e)
+            else:
+                raise
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         try:
@@ -231,7 +237,7 @@ class SshConnection(object):
                 command = _give_password(self.password, command)
             return subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)
         except EOF:
-            raise TargetError('Connection lost.')
+            raise TargetNotRespondingError('Connection lost.')
 
     def close(self):
         logger.debug('Logging out {}@{}'.format(self.username, self.host))
@@ -352,7 +358,7 @@ class Gem5Connection(TelnetConnection):
         if host is not None:
             host_system = socket.gethostname()
             if host_system != host:
-                raise TargetError("Gem5Connection can only connect to gem5 "
+                raise TargetStableError("Gem5Connection can only connect to gem5 "
                                   "simulations on your current host {}, which "
                                   "differs from the one given {}!"
                                   .format(host_system, host))
@@ -497,16 +503,23 @@ class Gem5Connection(TelnetConnection):
             logger.debug("Pull complete.")
 
     def execute(self, command, timeout=1000, check_exit_code=True,
-                as_root=False, strip_colors=True):
+                as_root=False, strip_colors=True, will_succeed=False):
         """
         Execute a command on the gem5 platform
         """
         # First check if the connection is set up to interact with gem5
         self._check_ready()
 
-        output = self._gem5_shell(command,
-                                  check_exit_code=check_exit_code,
-                                  as_root=as_root)
+        try:
+            output = self._gem5_shell(command,
+                                      check_exit_code=check_exit_code,
+                                      as_root=as_root)
+        except TargetStableError as e:
+            if will_succeed:
+                raise TargetTransientError(e)
+            else:
+                raise
+
         if strip_colors:
             output = strip_bash_colors(output)
         return output
@@ -576,7 +589,7 @@ class Gem5Connection(TelnetConnection):
         # rather than spewing out pexpect errors.
         if gem5_simulation.poll():
             message = "The gem5 process has crashed with error code {}!\n\tPlease see {} for details."
-            raise TargetError(message.format(gem5_simulation.poll(), gem5_out_dir))
+            raise TargetNotRespondingError(message.format(gem5_simulation.poll(), gem5_out_dir))
         else:
             # Let's re-throw the exception in this case.
             raise err
@@ -604,7 +617,7 @@ class Gem5Connection(TelnetConnection):
         lock_file_name = '{}{}_{}.LOCK'.format(self.lock_directory, host, port)
         if os.path.isfile(lock_file_name):
             # There is already a connection to this gem5 simulation
-            raise TargetError('There is already a connection to the gem5 '
+            raise TargetStableError('There is already a connection to the gem5 '
                               'simulation using port {} on {}!'
                               .format(port, host))
 
@@ -623,7 +636,7 @@ class Gem5Connection(TelnetConnection):
                 self._gem5_EOF_handler(gem5_simulation, gem5_out_dir, err)
         else:
             gem5_simulation.kill()
-            raise TargetError("Failed to connect to the gem5 telnet session.")
+            raise TargetNotRespondingError("Failed to connect to the gem5 telnet session.")
 
         gem5_logger.info("Connected! Waiting for prompt...")
 
@@ -718,7 +731,7 @@ class Gem5Connection(TelnetConnection):
     def _gem5_util(self, command):
         """ Execute a gem5 utility command using the m5 binary on the device """
         if self.m5_path is None:
-            raise TargetError('Path to m5 binary on simulated system  is not set!')
+            raise TargetStableError('Path to m5 binary on simulated system  is not set!')
         self._gem5_shell('{} {}'.format(self.m5_path, command))
 
     def _gem5_shell(self, command, as_root=False, timeout=None, check_exit_code=True, sync=True):  # pylint: disable=R0912
@@ -732,7 +745,7 @@ class Gem5Connection(TelnetConnection):
         fails, warn, but continue with the potentially wrong output.
 
         The exit code is also checked by default, and non-zero exit codes will
-        raise a TargetError.
+        raise a TargetStableError.
         """
         if sync:
             self._sync_gem5_shell()
@@ -788,7 +801,7 @@ class Gem5Connection(TelnetConnection):
                 exit_code = int(exit_code_text.split()[0])
                 if exit_code:
                     message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
-                    raise TargetError(message.format(exit_code, command, output))
+                    raise TargetStableError(message.format(exit_code, command, output))
             except (ValueError, IndexError):
                 gem5_logger.warning('Could not get exit code for "{}",\ngot: "{}"'.format(command, exit_code_text))
 
@@ -843,7 +856,7 @@ class Gem5Connection(TelnetConnection):
         Check if the gem5 platform is ready
         """
         if not self.ready:
-            raise TargetError('Gem5 is not ready to interact yet')
+            raise TargetTransientError('Gem5 is not ready to interact yet')
 
     def _wait_for_boot(self):
         pass

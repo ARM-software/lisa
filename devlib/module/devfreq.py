@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from devlib.module import Module
-from devlib.exception import TargetError
+from devlib.exception import TargetStableError
 from devlib.utils.misc import memoized
 
 class DevfreqModule(Module):
@@ -64,13 +64,13 @@ class DevfreqModule(Module):
         Additional keyword arguments can be used to specify governor tunables for
         governors that support them.
 
-        :raises: TargetError if governor is not supported by the device, or if,
+        :raises: TargetStableError if governor is not supported by the device, or if,
                  for some reason, the governor could not be set.
 
         """
         supported = self.list_governors(device)
         if governor not in supported:
-            raise TargetError('Governor {} not supported for device {}'.format(governor, device))
+            raise TargetStableError('Governor {} not supported for device {}'.format(governor, device))
         sysfile = '/sys/class/devfreq/{}/governor'.format(device)
         self.target.write_value(sysfile, governor)
 
@@ -94,7 +94,7 @@ class DevfreqModule(Module):
         will try to read the minimum frequency and the following exception will
         be raised ::
 
-        :raises: TargetError if for some reason the frequency could not be read.
+        :raises: TargetStableError if for some reason the frequency could not be read.
 
         """
         sysfile = '/sys/class/devfreq/{}/min_freq'.format(device)
@@ -112,7 +112,7 @@ class DevfreqModule(Module):
 
         on the device.
 
-        :raises: TargetError if the frequency is not supported by the device, or if, for
+        :raises: TargetStableError if the frequency is not supported by the device, or if, for
                  some reason, frequency could not be set.
         :raises: ValueError if ``frequency`` is not an integer.
 
@@ -121,7 +121,7 @@ class DevfreqModule(Module):
         try:
             value = int(frequency)
             if exact and available_frequencies and value not in available_frequencies:
-                raise TargetError('Can\'t set {} frequency to {}\nmust be in {}'.format(device,
+                raise TargetStableError('Can\'t set {} frequency to {}\nmust be in {}'.format(device,
                                                                                         value,
                                                                                         available_frequencies))
             sysfile = '/sys/class/devfreq/{}/min_freq'.format(device)
@@ -137,7 +137,7 @@ class DevfreqModule(Module):
         will try to read the current frequency and the following exception will
         be raised ::
 
-        :raises: TargetError if for some reason the frequency could not be read.
+        :raises: TargetStableError if for some reason the frequency could not be read.
 
         """
         sysfile = '/sys/class/devfreq/{}/cur_freq'.format(device)
@@ -151,7 +151,7 @@ class DevfreqModule(Module):
         try to read the maximum frequency and the following exception will be
         raised ::
 
-        :raises: TargetError if for some reason the frequency could not be read.
+        :raises: TargetStableError if for some reason the frequency could not be read.
         """
         sysfile = '/sys/class/devfreq/{}/max_freq'.format(device)
         return self.target.read_int(sysfile)
@@ -168,7 +168,7 @@ class DevfreqModule(Module):
 
         on the device.
 
-        :raises: TargetError if the frequency is not supported by the device, or
+        :raises: TargetStableError if the frequency is not supported by the device, or
                  if, for some reason, frequency could not be set.
         :raises: ValueError if ``frequency`` is not an integer.
 
@@ -180,7 +180,7 @@ class DevfreqModule(Module):
             raise ValueError('Frequency must be an integer; got: "{}"'.format(frequency))
 
         if exact and value not in available_frequencies:
-            raise TargetError('Can\'t set {} frequency to {}\nmust be in {}'.format(device,
+            raise TargetStableError('Can\'t set {} frequency to {}\nmust be in {}'.format(device,
                                                                                     value,
                                                                                     available_frequencies))
         sysfile = '/sys/class/devfreq/{}/max_freq'.format(device)
@@ -202,13 +202,13 @@ class DevfreqModule(Module):
         try:
             return self.target._execute_util(  # pylint: disable=protected-access
                 'devfreq_set_all_governors {}'.format(governor), as_root=True)
-        except TargetError as e:
+        except TargetStableError as e:
             if ("echo: I/O error" in str(e) or
                 "write error: Invalid argument" in str(e)):
 
                 devs_unsupported = [d for d in self.target.list_devices()
                                     if governor not in self.list_governors(d)]
-                raise TargetError("Governor {} unsupported for devices {}".format(
+                raise TargetStableError("Governor {} unsupported for devices {}".format(
                     governor, devs_unsupported))
             else:
                 raise

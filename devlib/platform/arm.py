@@ -19,7 +19,7 @@ import tempfile
 import time
 import pexpect
 
-from devlib.exception import TargetError, HostError
+from devlib.exception import TargetStableError, HostError
 from devlib.host import PACKAGE_BIN_DIRECTORY
 from devlib.instrument import (Instrument, InstrumentChannel, MeasurementsCsv,
                                Measurement, CONTINUOUS, INSTANTANEOUS)
@@ -123,7 +123,7 @@ class VersatileExpressPlatform(Platform):
                     except pexpect.TIMEOUT:
                         pass  # We have our own timeout -- see below.
                     if (time.time() - wait_start_time) > self.ready_timeout:
-                        raise TargetError('Could not acquire IP address.')
+                        raise TargetTransientError('Could not acquire IP address.')
             finally:
                 tty.sendline('exit')  # exit shell created by "su" call at the start
 

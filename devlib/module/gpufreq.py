@@ -29,7 +29,7 @@
 
 import re
 from devlib.module import Module
-from devlib.exception import TargetError
+from devlib.exception import TargetStableError
 from devlib.utils.misc import memoized
 
 class GpufreqModule(Module):
@@ -56,7 +56,7 @@ class GpufreqModule(Module):
 
     def set_governor(self, governor):
         if governor not in self.governors:
-            raise TargetError('Governor {} not supported for gpu'.format(governor))
+            raise TargetStableError('Governor {} not supported for gpu'.format(governor))
         self.target.write_value("/sys/kernel/gpu/gpu_governor", governor)
 
     def get_frequencies(self):
@@ -73,7 +73,7 @@ class GpufreqModule(Module):
         try to read the current frequency and the following exception will be
         raised ::
 
-        :raises: TargetError if for some reason the frequency could not be read.
+        :raises: TargetStableError if for some reason the frequency could not be read.
 
         """
         return int(self.target.read_value("/sys/kernel/gpu/gpu_clock"))

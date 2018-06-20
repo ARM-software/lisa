@@ -15,7 +15,7 @@
 import re
 from collections import defaultdict
 
-from devlib import TargetError
+from devlib import TargetStableError
 from devlib.module import Module
 from devlib.utils.types import integer
 
@@ -118,7 +118,7 @@ class HwmonModule(Module):
     def probe(target):
         try:
             target.list_directory(HWMON_ROOT, as_root=target.is_rooted)
-        except TargetError:
+        except TargetStableError:
             # Doesn't exist or no permissions
             return False
         return True

@@ -22,12 +22,43 @@ class DevlibError(Exception):
         return str(self)
 
 
+class DevlibStableError(DevlibError):
+    """Non transient target errors, that are not subject to random variations
+    in the environment and can be reliably linked to for example a missing
+    feature on a target."""
+    pass
+
+
+class DevlibTransientError(DevlibError):
+    """Exceptions inheriting from ``DevlibTransientError`` represent random
+    transient events that are usually related to issues in the environment, as
+    opposed to programming errors, for example network failures or
+    timeout-related exceptions. When the error could come from
+    indistinguishable transient or non-transient issue, it can generally be
+    assumed that the configuration is correct and therefore, a transient
+    exception is raised."""
+    pass
+
+
 class TargetError(DevlibError):
     """An error has occured on the target"""
     pass
 
 
-class TargetNotRespondingError(DevlibError):
+class TargetTransientError(TargetError, DevlibTransientError):
+    """Transient target errors that can happen randomly when everything is
+    properly configured."""
+    pass
+
+
+class TargetStableError(TargetError, DevlibStableError):
+    """Non-transient target errors that can be linked to a programming error or
+    a configuration issue, and is not influenced by non-controllable parameters
+    such as network issues."""
+    pass
+
+
+class TargetNotRespondingError(TargetTransientError):
     """The target is unresponsive."""
     pass
 
@@ -38,7 +69,7 @@ class HostError(DevlibError):
 
 
 # pylint: disable=redefined-builtin
-class TimeoutError(DevlibError):
+class TimeoutError(DevlibTransientError):
     """Raised when a subprocess command times out. This is basically a ``DevlibError``-derived version
     of ``subprocess.CalledProcessError``, the thinking being that while a timeout could be due to
     programming error (e.g. not setting long enough timers), it is often due to some failure in the

@@ -34,7 +34,7 @@ import subprocess
 from shutil import copyfile
 from tempfile import NamedTemporaryFile
 
-from devlib.exception import TargetError, HostError
+from devlib.exception import TargetStableError, HostError
 from devlib.trace import TraceCollector
 from devlib.utils.android import platform_tools
 from devlib.utils.misc import memoized
@@ -109,12 +109,12 @@ class SystraceCollector(TraceCollector):
             if category not in self.available_categories:
                 message = 'Category [{}] not available for tracing'.format(category)
                 if strict:
-                    raise TargetError(message)
+                    raise TargetStableError(message)
                 self.logger.warning(message)
 
         self.categories = list(set(self.categories) & set(self.available_categories))
         if not self.categories:
-            raise TargetError('None of the requested categories are available')
+            raise TargetStableError('None of the requested categories are available')
 
     def __del__(self):
         self.reset()
