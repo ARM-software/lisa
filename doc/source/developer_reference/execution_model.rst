@@ -21,6 +21,12 @@ setup
         deployed to the devices, required services or applications are launched,
         etc. Run time configuration of the device for the workload is also
         performed at this time.
+setup_rerun (apk based workloads only)
+        For some apk based workloads the application is required to be started
+        twice. If the ``requires_rerun`` attribute of the workload is set to
+        ``True`` then after the first setup method is called the application
+        will be killed and then restarted. This method can then be used to
+        perform any additional setup required.
 run
         This is when the workload actually runs. This is defined as the part of
         the workload that is to be measured. Exactly what happens at this stage
