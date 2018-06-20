@@ -16,7 +16,7 @@ from devlib.module import get_module
 from devlib.platform import Platform
 from devlib.exception import TargetError, TargetNotRespondingError, TimeoutError
 from devlib.utils.ssh import SshConnection
-from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect
+from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect, INTENT_FLAGS
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
 from devlib.utils.misc import commonprefix, escape_double_quotes, merge_lists
 from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list
@@ -1423,8 +1423,23 @@ class AndroidTarget(Target):
         cmd = 'settings put system user_rotation {}'
         self.execute(cmd.format(rotation))
 
-    def open_url(self, url):
+    def open_url(self, url, force_new=False):
+        """
+        Start a view activity by specifying an URL
+
+        :param url: URL of the item to display
+        :type url: str
+
+        :param force_new: Force the viewing application to be relaunched
+            if it is already running
+        :type force_new: bool
+        """
         cmd = 'am start -a android.intent.action.VIEW -d "{}"'
+
+        if force_new:
+            cmd = cmd + ' -f {}'.format(INTENT_FLAGS['ACTIVITY_NEW_TASK'] |
+                                        INTENT_FLAGS['ACTIVITY_CLEAR_TASK'])
+
         self.execute(cmd.format(escape_double_quotes(url)))
 
     def homescreen(self):
