@@ -40,6 +40,12 @@ class ${class_name}(ApkWorkload):
         super(${class_name}, self).setup(context)
         # Perform any necessary setup before starting the application
 
+    def setup_rerun(self, context):
+        super(${class_name}, self).setup(context)
+        # If the workloads has the `requires_rerun` attribute set to `True` this
+        # method may be used to perform any necessary setup for the rerun of the
+        # application.
+
     def extract_results(self, context):
         super(${class_name}, self).extract_results(context)
         # Extract results on the target
