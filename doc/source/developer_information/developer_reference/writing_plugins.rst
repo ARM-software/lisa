@@ -1015,7 +1015,7 @@ Below is a simple instrument that measures the execution time of a workload::
             context.add_metric('execution_time', execution_time, 'seconds')
 
 
-.. include:: developer_reference/instrument_method_map.rst
+.. include:: developer_information/developer_reference/instrument_method_map.rst
 
 .. _adding-an-output-processor:
 

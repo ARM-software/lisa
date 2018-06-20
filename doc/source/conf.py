@@ -95,8 +95,8 @@ language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ['../build', 'developer_reference', 'user_reference',
-                    'how_tos', 'run_config']
+exclude_patterns = ['../build', 'developer_information',
+                    'user_information', 'run_config']
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -314,7 +314,8 @@ def setup(app):
     generate_target_documentation('plugins')
     generate_run_config_documentation('run_config')
     generate_meta_config_documentation('run_config')
-    generate_instrument_method_map(os.path.join('developer_reference', 'instrument_method_map.rst'))
+    generate_instrument_method_map(os.path.join('developer_information', 'developer_reference',
+                                                'instrument_method_map.rst'))
     app.add_object_type('confval', 'confval',
                         objname='configuration value',
                         indextemplate='pair: %s; configuration value')

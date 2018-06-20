@@ -6,7 +6,7 @@ Execution Model
 
 At the high level, the execution model looks as follows:
 
-.. image:: developer_reference/WA_Execution.svg
+.. image:: developer_information/developer_reference/WA_Execution.svg
    :scale: 100 %
 
 After some initial setup, the framework initializes the device, loads and
@@ -149,7 +149,7 @@ is also sent just after stage has been completed. The diagram also lists the
 conditional signals that can be sent at any time during execution if something
 unexpected happens, for example an error occurs or the user aborts the run.
 
-.. image:: developer_reference/WA_Signal_Dispatch.svg
+.. image:: developer_information/developer_reference/WA_Signal_Dispatch.svg
    :scale: 100 %
 
 See Also

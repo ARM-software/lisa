@@ -37,32 +37,14 @@ User Information
 ================
 
 This section lists general usage documentation. If you're new to WA3, it is
-recommended you start with the :doc:`user_guide` page. This section also contains
+recommended you start with the :ref:`User Guide <user-guide>` page. This section also contains
 installation and configuration guides.
-
-.. toctree::
-   :maxdepth: 2
-
-   installation
-   user_guide
-   user_reference
-
-
-How To Guides
-===============
 
 .. toctree::
    :maxdepth: 3
 
-   how_to
+   user_information
 
-FAQ
-====
-
-.. toctree::
-   :maxdepth: 2
-
-   faq
 
 .. _in-depth:
 
@@ -73,9 +55,9 @@ This section contains more advanced topics, such how to write your own Plugins
 and detailed descriptions of how WA functions under the hood.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
-   developer_reference
+   developer_information
 
 
 References
@@ -87,7 +69,6 @@ References
    plugins
    glossary
 
-
 API
 ===
 
@@ -96,9 +77,10 @@ API
 
     api
 
-.. Indices and tables
-.. ==================
+FAQ
+====
 
-.. .. * :ref:`genindex`
-.. .. * :ref:`modindex`
-.. * :ref:`search`
+.. toctree::
+   :maxdepth: 2
+
+   faq

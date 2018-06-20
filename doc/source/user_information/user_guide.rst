@@ -1,6 +1,8 @@
-==========
+.. _user-guide:
+
+**********
 User Guide
-==========
+**********
 
 This guide will show you how to quickly start running workloads using
 Workload Automation 3.
@@ -16,7 +18,7 @@ Install
 =======
 
 .. note:: This is a quick summary. For more detailed instructions, please see
-          the :doc:`installation` section.
+          the :ref:`installation` section.
 
 Make sure you have Python 2.7 and a recent Android SDK with API level 18 or above
 installed on your system. A complete install of the Android SDK is required, as

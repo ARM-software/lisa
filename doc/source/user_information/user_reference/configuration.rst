@@ -4,7 +4,7 @@
 Configuration
 =============
 
-.. include:: user_reference/agenda.rst
+.. include:: user_information/user_reference/agenda.rst
 
 ---------------------
 
@@ -74,7 +74,7 @@ various assets when it starts.
 
 ---------------------
 
-.. include:: user_reference/runtime_parameters.rst
+.. include:: user_information/user_reference/runtime_parameters.rst
 
 ---------------------
 
