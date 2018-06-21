@@ -747,33 +747,58 @@ Workload Interface
 ^^^^^^^^^^^^^^^^^^^
 The workload interface should be implemented as follows:
 
-    :name: This identifies the workload (e.g. it is used to specify the workload
-        in the :ref:`agenda <agenda>`).
-    :init_resources: This method may be optionally overridden to implement dynamic
-                     resource discovery for the workload. This method executes
-                     early on, before the device has been initialized, so it
-                     should only be used to initialize resources that do not
-                     depend on the device to resolve. This method is executed
-                     once per run for each workload instance.
-    :validate: This method can be used to validate any assumptions your workload
-               makes about the environment (e.g. that required files are
-               present, environment variables are set, etc) and should raise a
-               :class:`wa.WorkloadError <wa.framework.exception.WorkloadError>`
-               if that is not the case. The base class implementation only makes
-               sure sure that the name attribute has been set.
-    :initialize: This method is decorated with the ``@once_per_instance`` decorator,
-                 (for more information please see `Execution Decorators`_)
-                 therefore it will be executed exactly once per run (no matter
-                 how many instances of the workload there are). It will run
-                 after the device has been initialized, so it may be used to
-                 perform device-dependent initialization that does not need to
-                 be repeated on each iteration (e.g. as installing executables
-                 required by the workload on the device).
-    :setup: Everything that needs to be in place for workload execution should
+.. class:: <workload_type>(TargetedPlugin)
+
+    .. attribute:: name
+
+            This identifies the workload (e.g. it is used to specify the
+            workload in the :ref:`agenda <agenda>`).
+
+    .. method:: init_resources(context)
+
+            This method may be optionally overridden to implement dynamic
+            resource discovery for the workload. This method executes
+            early on, before the device has been initialized, so it
+            should only be used to initialize resources that do not
+            depend on the device to resolve. This method is executed
+            once per run for each workload instance.
+
+    .. method:: validate(
+            This method can be used to validate any assumptions your workload
+            makes about the environment (e.g. that required files are
+            present, environment variables are set, etc) and should raise a
+            :class:`wa.WorkloadError <wa.framework.exception.WorkloadError>`
+            if that is not the case. The base class implementation only makes
+            sure sure that the name attribute has been set.
+
+    .. method:: initialize(context)
+
+            This method is decorated with the ``@once_per_instance`` decorator,
+            (for more information please see `Execution Decorators`_)
+            therefore it will be executed exactly once per run (no matter
+            how many instances of the workload there are). It will run
+            after the device has been initialized, so it may be used to
+            perform device-dependent initialization that does not need to
+            be repeated on each iteration (e.g. as installing executables
+            required by the workload on the device).
+
+    .. method:: setup(context)
+
+            Everything that needs to be in place for workload execution should
             be done in this method. This includes copying files to the device,
             starting up an application, configuring communications channels,
             etc.
-    :run: This method should perform the actual task that is being measured.
+
+    .. method:: setup_rerun(context)
+
+            Everything that needs to be in place for workload execution should
+            be done in this method. This includes copying files to the device,
+            starting up an application, configuring communications channels,
+            etc.
+
+    .. method:: run(context)
+
+          This method should perform the actual task that is being measured.
           When this method exits, the task is assumed to be complete.
 
           .. note:: Instruments are kicked off just before calling this
@@ -784,17 +809,29 @@ The workload interface should be implemented as follows:
                     installing or starting applications, processing results, or
                     copying files to/from the device should be done elsewhere if
                     possible.
-    :extract_results: This method gets invoked after the task execution has
-                    finished and should be used to extract metrics from the target.
-    :update_output: This method should be used to update the output within the
-                    specified execution context with the metrics and artifacts
-                    from this workload iteration.
-    :teardown: This could be used to perform any cleanup you may wish to do,
-               e.g. Uninstalling applications, deleting file on the device, etc.
-    :finalize: This is the complement to ``initialize``. This will be executed
-               exactly once at the end of the run. This should be used to
-               perform any final clean up (e.g. uninstalling binaries installed
-               in the ``initialize``).
+
+    .. method:: extract_results(context)
+
+            This method gets invoked after the task execution has finished and
+            should be used to extract metrics from the target.
+
+    .. method:: update_output(context)
+
+            This method should be used to update the output within the specified
+            execution context with the metrics and artifacts from this
+            workload iteration.
+
+    .. method:: teardown(context)
+
+            This could be used to perform any cleanup you may wish to do, e.g.
+            Uninstalling applications, deleting file on the device, etc.
+
+    .. method:: finalize(context)
+
+            This is the complement to ``initialize``. This will be executed
+            exactly once at the end of the run. This should be used to
+            perform any final clean up (e.g. uninstalling binaries installed
+            in the ``initialize``).
 
 Workload methods (except for ``validate``) take a single argument that is a
 :class:`wa.framework.execution.ExecutionContext` instance. This object keeps
@@ -864,69 +901,62 @@ similar to the steps to add new workload and an example can be found in the
 
 .. _instrument-api:
 
-The full interface of WA instruments is shown below::
+To implement your own the relevant methods of the interface shown below should be implemented:
 
-    class Instrument(Plugin):
+.. class:: Instrument(TargetedInstrument)
 
-        name = None
-        description = None
+    .. attribute:: name
 
-        parameters = [
-        ]
+            The name of the instrument, this must be unique to WA.
 
-        def initialize(self, context):
-            """
-            This method will only be called once during the workload run
-            therefore operations that only need to be performed initially should
-            be performed her for example pushing the files to the target device,
-            installing them.
-            """
-            pass
+    .. attribute:: description
 
-        def setup(self, context):
-            """
-            This method is invoked after the workload is setup. All the
-            necessary setup should go inside this method. Setup, includes
-            operations like clearing logs, additional configuration etc.
-            """
-            pass
+            A description of what the instrument can be used for.
 
-        def start(self, context):
-            """
-            It is invoked just before the workload start execution. Here is
-             where instrument measures start being registered/taken.
-            """
-            pass
+    .. attribute:: parameters
 
-        def stop(self, context):
-            """
-            It is invoked just after the workload execution stops. The measures
-            should stop being taken/registered.
-            """
-            pass
+            A list of additional :class:`Parameters` the instrument can take.
 
-        def update_output(self, context):
-            """
-            It is invoked after the workload updated its result.
-            update_result is where the taken measures are added to the result so it
-            can be processed by Workload Automation.
-            """
-            pass
+    .. method:: initialize(context):
 
-        def teardown(self, context):
-            """
-            It is invoked after the workload is teared down. It is a good place
-            to clean any logs generated by the instrument.
-            """
-            pass
+                This method will only be called once during the workload run
+                therefore operations that only need to be performed initially should
+                be performed here for example pushing the files to the target device,
+                installing them.
 
-        def finalize(self, context):
-            """
-            This method is the complement to the initialize method and will also
-            only be called once so should be used to deleting/uninstalling files
-            pushed to the device.
-            """
-            pass
+    .. method:: setup(context):
+
+                This method is invoked after the workload is setup. All the
+                necessary setup should go inside this method. Setup, includes
+                operations like clearing logs, additional configuration etc.
+
+    .. method:: start(context):
+
+                It is invoked just before the workload start execution. Here is
+                where instrument measures start being registered/taken.
+
+    .. method:: stop(context):
+
+                It is invoked just after the workload execution stops. The measures
+                should stop being taken/registered.
+
+    .. method:: update_output(context):
+
+                It is invoked after the workload updated its result.
+                update_result is where the taken measures are added to the result so it
+                can be processed by Workload Automation.
+
+    .. method:: teardown(context):
+
+                It is invoked after the workload is torn down. It is a good place
+                to clean any logs generated by the instrument.
+
+    .. method:: finalize(context):
+
+                This method is the complement to the initialize method and will also
+                only be called once so should be used to deleting/uninstalling files
+                pushed to the device.
+
 
 This is similar to a ``Workload``, except all methods are optional. In addition to
 the workload-like methods, instruments can define a number of other methods that
@@ -1029,34 +1059,57 @@ results in a few common formats (such as csv or JSON).
 
 You can add your own output processors by creating a Python file in
 ``~/.workload_automation/plugins`` with a class that derives from
-:class:`wa.OutputProcessor <wa.framework.processor.OutputProcessor>`, which has
-the following interface::
+:class:`wa.OutputProcessor <wa.framework.processor.OutputProcessor>`, and should
+    implement the relevant methods from the following interface:
 
-    class OutputProcessor(Plugin):
+.. class:: OutputProcessor(Plugin):
 
-        name = None
-        description = None
+    .. attribute:: name
 
-        parameters = [
-        ]
+            The name of the output processor, this must be unique to WA.
 
-        def initialize(self):
-            pass
+    .. attribute:: description
 
-        def process_job_output(self, output, target_info, run_ouput):
-            pass
+            A description of what the output processor can be used for.
 
-        def export_job_output(self, output, target_info, run_ouput):
-            pass
+    .. attribute:: parameters
 
-        def process_run_output(self, output, target_info):
-            pass
+            A list of additional :class:`Parameters` the output processor can take.
 
-        def export_run_output(self, output, target_info):
-            pass
+    .. method:: initialize():
 
-        def finalize(self):
-            pass
+                This method will only be called once during the workload run
+                therefore operations that only need to be performed initially should
+                be performed here.
+
+    .. method:: process_job_output(output, target_info, run_ouput):
+
+                This method should be used to perform the processing of the
+                output from an individual job output. This is where any
+                additional artifacts should be generated if applicable.
+
+    .. method:: export_job_output(output, target_info, run_ouput):
+
+                This method should be used to perform the exportation of the
+                existing data collected/generated for an individual job. E.g.
+                uploading them to a database etc.
+
+    .. method:: process_run_output(output, target_info):
+
+                This method should be used to perform the processing of the
+                output from the run as a whole. This is where any
+                additional artifacts should be generated if applicable.
+
+    .. method:: export_run_output(output, target_info):
+
+                This method should be used to perform the exportation of the
+                existing data collected/generated for the run as a whole. E.g.
+                uploading them to a database etc.
+
+    .. method:: finalize():
+
+                This method is the complement to the initialize method and will also
+                only be called once.
 
 
 The method names should be fairly self-explanatory. The difference between
