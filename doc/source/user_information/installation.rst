@@ -261,7 +261,7 @@ surface. For these, an interaction session needs to be recorded so that it can
 be played back by WA. These recordings are device-specific, so they would need
 to be done for each device you're planning to use. The tool for doing is
 ``revent`` and it is packaged with WA. You can find instructions on how to use
-it :ref:`here <revent_files_creation>`.
+it in the :ref:`How To <revent_files_creation>` section.
 
 This is the list of workloads that rely on such recordings:
 

@@ -7,7 +7,7 @@ Glossary
         An agenda specifies what is to be done during a Workload Automation
         run. This includes which workloads will be run, with what configuration
         and which augmentations will be enabled, etc. (For more information
-        please see :ref:`here <agenda-reference>`.)
+        please see the :ref:`Agenda Reference <agenda-reference>`.)
 
     Alias
         An alias associated with a workload or a parameter. In case of
@@ -38,7 +38,8 @@ Glossary
         An artifact is something that was been generated as part of the run
         for example a file containing output or meta data in the form of log
         files. WA supports multiple "kinds" of artifacts and will handle them
-        accordingly, for more information please see :ref:`here <artifact>`.
+        accordingly, for more information please see the
+        :ref:`Developer Reference <artifact>`.
 
     Classifier
         An arbitrary key-value pair that may associated with a :term:`job`\ , a

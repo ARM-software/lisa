@@ -49,7 +49,8 @@ on using the create workload command see ``wa create workload -h``
 
 The first thing to decide is the type of workload you want to create depending
 on the OS you will be using and the aim of the workload. The are currently 6
-available workload types to choose as detailed :ref:`here<workload-types>`.
+available workload types to choose as detailed in the
+:ref:`Developer Reference <workload-types>`.
 
 Once you have decided what type of workload you wish to choose this can be
 specified with ``-k <workload_kind>`` followed by the workload name. This
@@ -383,8 +384,8 @@ The main difference between the two is that this workload will subclass
 Adding an Instrument Example
 =============================
 This is an example of how we would create a instrument which will trace device
-errors using a custom "trace" binary file. For more detailed information please see
-:ref:`here <instrument-reference>`. The first thing to do is to subclass
+errors using a custom "trace" binary file. For more detailed information please see the
+:ref:`Instrument Reference <instrument-reference>`. The first thing to do is to subclass
 :class:`Instrument`, overwrite the variable name with what we want our instrument
 to be called and locate our binary for our instrument.
 
@@ -400,8 +401,8 @@ to be called and locate our binary for our instrument.
                 self.binary_file = os.path.join(os.path.dirname(__file__), self.binary_name)
                 self.trace_on_target = None
 
-We then declare and implement the required methods as detailed
-:ref:`here <instrument-api>`. For the ``initialize`` method, we want to install
+We then declare and implement the required methods as detailed in the
+:ref:`Instrument API <instrument-api>`. For the ``initialize`` method, we want to install
 the executable file to the target so we can use the target's ``install``
 method which will try to copy the file to a location on the device that
 supports execution, change the file mode appropriately and return the
@@ -414,7 +415,8 @@ Then we implemented the start method, which will simply run the file to start
 tracing. Supposing that the call to this binary requires some overhead to begin
 collecting errors we might want to decorate the method with the ``@slow``
 decorator to try and reduce the impact on other running instruments. For more
-information on prioritization please see :ref:`here <prioritization>`. ::
+information on prioritization please see the
+:ref:`Developer Reference <prioritization>`. ::
 
     @slow
     def start(self, context):

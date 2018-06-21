@@ -7,8 +7,8 @@ Instrument methods get automatically hooked up to signals based on their names.
 Mostly, the method name corresponds to the name of the signal, however there are
 a few convenience aliases defined (listed first) to make  easier to relate
 instrumentation code to the workload execution model. For an overview on when
-these signals are dispatched during execution please see
-:ref:`here <signal_dispatch>`.
+these signals are dispatched during execution please see the
+:ref:`Developer Reference <signal_dispatch>`.
 
 $signal_names
 

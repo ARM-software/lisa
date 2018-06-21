@@ -859,8 +859,8 @@ Each method in ``Instrument`` must take two arguments, which are ``self`` and
 ``context``. Supported methods and their corresponding signals can be found in
 the :ref:`Signals Documentation <instruments_method_map>`. To make
 implementations easier and common, the basic steps to add new instrument is
-similar to the steps to add new workload and an example can be found
-:ref:`here <adding-an-instrument-example>`.
+similar to the steps to add new workload and an example can be found in the
+:ref:`How To <adding-an-instrument-example>` section.
 
 .. _instrument-api:
 

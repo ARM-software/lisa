@@ -44,7 +44,7 @@ dependencies.
 
 Alternatively we provide a Dockerfile that which can be used to create a Docker
 image for running WA along with its dependencies. More information can be found
-:ref:`here <dockerfile>`.
+in the :ref:`Installation <dockerfile>` section.
 
 (Optional) Verify installation
 -------------------------------

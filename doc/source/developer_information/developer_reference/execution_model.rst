@@ -120,8 +120,8 @@ for the run. Priority can then be specified by adding ``extremely_fast``,
 ``very_fast``, ``fast`` , ``slow``, ``very_slow`` or ``extremely_slow``
 :ref:`decorators <instruments_method_map>` to the method definitions.
 
-The full list of method names and the signals they map to may be viewed
-:ref:`here <instruments_method_map>`.
+The full list of method names and the signals they map to may be seen at the
+:ref:`instrument method map <instruments_method_map>`.
 
 Signal dispatching mechanism may also be used directly, for example to
 dynamically register callbacks at runtime or allow plugins other than
