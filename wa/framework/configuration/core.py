@@ -657,7 +657,7 @@ class RunConfiguration(Configuration):
             default=2,
             description='''
             The maximum number of times failed jobs will be retried before
-            giving up. If not set.
+            giving up.
 
             .. note:: This number does not include the original attempt
             ''',
