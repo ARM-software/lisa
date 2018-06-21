@@ -152,7 +152,4 @@ unexpected happens, for example an error occurs or the user aborts the run.
 .. image:: developer_information/developer_reference/WA_Signal_Dispatch.svg
    :scale: 100 %
 
-See Also
---------
-
-   - :ref:`Instrumentation Signal-Method Mapping <instruments_method_map>`.
+For more information see :ref:`Instrumentation Signal-Method Mapping <instruments_method_map>`.
