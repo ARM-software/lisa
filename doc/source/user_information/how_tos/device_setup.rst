@@ -34,24 +34,18 @@ The device interface may be configured through ``device_config`` setting, who's
 value is a ``dict`` mapping setting names to their values. Some of the most
 common parameters you might want to change are outlined below.
 
-.. confval:: device
-
-   If you have multiple Android devices connected to the host machine, you will
+:device: If you have multiple Android devices connected to the host machine, you will
    need to set this to indicate to WA which device you want it to use. The will
    be the adb name the is displayed when running ``adb devices``
 
-.. confval:: working_directory
-
-   WA needs a "working" directory on the device which it will use for collecting
+:working_directory: WA needs a "working" directory on the device which it will use for collecting
    traces, caching assets it pushes to the device, etc. By default, it will
    create one under ``/sdcard`` which should be mapped and writable on standard
    Android builds. If this is not the case for your device, you will need to
    specify an alternative working directory (e.g. under ``/data/local``).
 
 
-.. confval:: modules
-
-  A list of additional modules to be installed for the target. Devlib
+:modules: A list of additional modules to be installed for the target. Devlib
   implements functionality for particular subsystems as modules.  A number of
   "default" modules (e.g.  for cpufreq subsystem) are loaded automatically,
   unless explicitly disabled.  If additional modules need to be loaded, they
@@ -62,9 +56,7 @@ common parameters you might want to change are outlined below.
 
 .. _core-names:
 
-.. confval:: core_names
-
-   ``core_names`` should be a list of core names matching the order in which
+:core_names: ``core_names`` should be a list of core names matching the order in which
    they are exposed in sysfs. For example, Arm TC2 SoC is a 2x3 big.LITTLE
    system; its core_names would be ``['a7', 'a7', 'a7', 'a15', 'a15']``,
    indicating that cpu0-cpu2 in cpufreq sysfs structure are A7's and cpu3 and
@@ -187,31 +179,21 @@ value is a ``dict`` mapping setting names to their values. Some of the most
 common parameters you might want to change are outlined below.
 
 
-.. confval:: host
+:host: This should be either the the DNS name or IP address of the device.
 
-   This should be either the the DNS name or IP address of the device.
-
-.. confval:: username
-
-   The login name of the user on the device that WA will use. This user should
+:username: The login name of the user on the device that WA will use. This user should
    have a home directory (unless an alternative working directory is specified
    using ``working_directory`` config -- see below), and, for full
    functionality, the user should have sudo rights (WA will be able to use
    sudo-less acounts but some instruments or workload may not work).
 
-.. confval:: password
-
-   Password for the account on the device. Either this of a ``keyfile`` (see
+:password: Password for the account on the device. Either this of a ``keyfile`` (see
    below) must be specified.
 
-.. confval:: keyfile
-
-   If key-based authentication is used, this may be used to specify the SSH identity
+:keyfile: If key-based authentication is used, this may be used to specify the SSH identity
    file instead of the password.
 
-.. confval:: property_files
-
-   This is a list of paths that will be pulled for each WA run into the __meta
+:property_files: This is a list of paths that will be pulled for each WA run into the __meta
    subdirectory in the results. The intention is to collect meta-data about the
    device that may aid in reporducing the results later. The paths specified do
    not have to exist on the device (they will be ignored if they do not). The
@@ -261,9 +243,7 @@ subset of functionality can be performed.
 In order to distinguish between the two connections some of the android specific
 configuration has been renamed to reflect the destination.
 
-.. confval:: android_working_directory
-
-   WA needs a "working" directory on the device which it will use for collecting
+:android_working_directory: WA needs a "working" directory on the device which it will use for collecting
    traces, caching assets it pushes to the device, etc. By default, it will
    create one under ``/sdcard`` which should be mapped and writable on standard
    Android builds. If this is not the case for your device, you will need to

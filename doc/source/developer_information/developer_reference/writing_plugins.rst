@@ -479,12 +479,12 @@ All plugins can be parametrized. Parameters are specified using
 :class:`wa.framework.plugin.Parameter` instances. The following attributes can be
 specified on parameter creation:
 
-name
+:name:
         This is the only mandatory argument. The name will be used to create a
         corresponding attribute in the plugin instance, so it must be a valid
         Python identifier.
 
-kind
+:kind:
         This is the type of the value of the parameter. This must be an
         callable. Normally this should be a standard Python type, e.g. ``int``
         or ``float``, or one the types defined in :mod:`wa.utils.types`.
@@ -494,7 +494,7 @@ kind
                   valid value for a parameter. If you don't want to allow
                   ``None``, then set ``mandatory`` (see below) to ``True``.
 
-allowed_values
+:allowed_values:
         A list of the only allowed values for this parameter.
 
         .. note:: For composite types, such as ``list_of_strings`` or
@@ -502,11 +502,11 @@ allowed_values
                   the value  will be checked against ``allowed_values`` rather
                   than the composite value itself.
 
-default
+:default:
         The default value to be used for this parameter if one has not been
         specified by the user. Defaults to ``None``.
 
-mandatory
+:mandatory:
         A ``bool`` indicating whether this parameter is mandatory. Setting this
         to ``True`` will make ``None`` an illegal value for the parameter.
         Defaults to ``False``.
@@ -521,13 +521,13 @@ mandatory
                   (e.g. something like login credentials), should you consider
                   making it mandatory.
 
-constraint
+:constraint:
         This is an additional constraint to be enforced on the parameter beyond
         its type or fixed allowed values set. This should be a predicate (a function
         that takes a single argument -- the user-supplied value -- and returns
         a ``bool`` indicating whether the constraint has been satisfied).
 
-override
+:override:
         A parameter name must be unique not only within an plugin but also
         with that plugin's class hierarchy. If you try to declare a parameter
         with the same name as already exists, you will get an error. If you do
