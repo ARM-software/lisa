@@ -46,7 +46,10 @@ fi
 # Only clear the screen if stdout is a terminal, to avoid ASCII escape
 # characters to be sent to a log file for example.
 function clear {
-test -t 1 && command clear
+    case "$-" in
+        *i*) test -t 1 && command clear ;;
+        *) ;;
+    esac
 }
 
 ################################################################################
