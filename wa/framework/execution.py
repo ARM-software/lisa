@@ -132,9 +132,7 @@ class ExecutionContext(object):
         self.run_output.info.end_time = datetime.utcnow()
         self.run_output.info.duration = self.run_output.info.end_time -\
                                         self.run_output.info.start_time
-        self.run_output.write_info()
-        self.run_output.write_state()
-        self.run_output.write_result()
+        self.write_output()
 
     def finalize(self):
         self.tm.finalize()
@@ -184,6 +182,11 @@ class ExecutionContext(object):
 
     def write_state(self):
         self.run_output.write_state()
+
+    def write_output(self):
+        self.run_output.write_info()
+        self.run_output.write_state()
+        self.run_output.write_result()
 
     def get_resource(self, resource, strict=True):
         result = self.resolver.get(resource, strict)
