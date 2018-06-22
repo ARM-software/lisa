@@ -82,8 +82,14 @@ safe side, it's a good idea to call this once at the beginning of your scripts.
 Command Execution
 ~~~~~~~~~~~~~~~~~
 
-There are several ways to execute a command on the target. In each case, a
-:class:`TargetError` will be raised if something goes wrong. In each case, it is
+There are several ways to execute a command on the target. In each case, an
+instance of a subclass of :class:`TargetError` will be raised if something goes
+wrong. When a transient error is encountered such as the loss of the network
+connectivity, it will raise a :class:`TargetTransientError`. When the command
+fails, it will raise a :class:`TargetStableError` unless the
+``will_succeed=True`` parameter is specified, in which case a
+:class:`TargetTransientError` will be raised since it is assumed that the
+command cannot fail unless there is an environment issue. In each case, it is
 also possible to specify ``as_root=True`` if the specified command should be
 executed as root.
 
@@ -214,6 +220,66 @@ executables_directory
    # Since working_directory is a common base path for on-target locations,
    # there a short-hand for the above:
    t.push('/local/path/to/assets.tar.gz', t.get_workpath('assets.tar.gz'))
+
+
+Exceptions Handling
+-------------------
+
+Devlib custom exceptions all derive from :class:`DevlibError`. Some exceptions
+are further categorized into :class:`DevlibTransientError` and
+:class:`DevlibStableError`. Transient errors are raised when there is an issue
+in the environment that can happen randomly such as the loss of network
+connectivity. Even a properly configured environment can be subject to such
+transient errors. Stable errors are related to either programming errors or
+configuration issues in the broad sense. This distinction allows quicker
+analysis of failures, since most transient errors can be ignored unless they
+happen at an alarming rate. :class:`DevlibTransientError` usually propagates up
+to the caller of devlib APIs, since it means that an operation could not
+complete. Retrying it or bailing out is therefore a responsability of the caller.
+
+The hierarchy is as follows:
+
+- :class:`DevlibError`
+   
+   - :class:`WorkerThreadError`
+   - :class:`HostError`
+   - :class:`TargetError`
+      
+      - :class:`TargetStableError`
+      - :class:`TargetTransientError`
+      - :class:`TargetNotRespondingError`
+   
+   - :class:`DevlibStableError`
+      
+      - :class:`TargetStableError`
+
+   - :class:`DevlibTransientError`
+
+      - :class:`TimeoutError`
+      - :class:`TargetTransientError`
+      - :class:`TargetNotRespondingError`
+
+
+Extending devlib
+~~~~~~~~~~~~~~~~
+
+New devlib code is likely to face the decision of raising a transient or stable
+error. When it is unclear which one should be used, it can generally be assumed
+that the system is properly configured and therefore, the error is linked to an
+environment transient failure. If a function is somehow probing a property of a
+system in the broad meaning, it can use a stable error as a way to signal a
+non-expected value of that property even if it can also face transient errors.
+An example are the various ``execute()`` methods where the command can generally
+not be assumed to be supposed to succeed by devlib. Their failure does not
+usually come from an environment random issue, but for example a permission
+error. The user can use such expected failure to probe the system. Another
+example is boot completion detection on Android: boot failure cannot be
+distinguished from a timeout which is too small. A non-transient exception is
+still raised, since assuming the timeout comes from a network failure would
+either make the function useless, or force the calling code to handle a
+transient exception under normal operation. The calling code would potentially
+wrongly catch transient exceptions raised by other functions as well and attach
+a wrong meaning to them.
 
 
 Modules

@@ -40,7 +40,7 @@ class that implements the following methods.
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
        not  complete within this period, an exception will be raised.
 
-.. method:: execute(self, command, timeout=None, check_exit_code=False, as_root=False)
+.. method:: execute(self, command, timeout=None, check_exit_code=False, as_root=False, will_succeed=False)
 
    Execute the specified command on the connected device and return its output.
 
@@ -53,6 +53,11 @@ class that implements the following methods.
        raised if it is not ``0``.
    :param as_root: The command will be executed as root. This will fail on
        unrooted connected devices.
+   :param will_succeed: The command is assumed to always succeed, unless there is
+       an issue in the environment like the loss of network connectivity. That
+       will make the method always raise an instance of a subclass of 
+       :class:`DevlibTransientError' when the command fails, instead of a
+       :class:`DevlibStableError`.
 
 .. method:: background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False)
 
@@ -196,13 +201,12 @@ Connection Types
 
     :param host: Host on which the gem5 simulation is running
 
-                     .. note:: Even thought the input parameter for the ``host``
-                               will be ignored, the gem5 simulation needs to on
-                               the same host as the user as the user is
-                               currently on, so if the host given as input
-                               parameter is not the same as the actual host, a
-                               ``TargetError`` will be raised to prevent
-                               confusion.
+                     .. note:: Even though the input parameter for the ``host``
+                               will be ignored, the gem5 simulation needs to be
+                               on the same host the user is currently on, so if
+                               the host given as input parameter is not the
+                               same as the actual host, a ``TargetStableError``
+                               will be raised to prevent confusion.
 
     :param username: Username in the simulated system
     :param password: No password required in gem5 so does not need to be set
