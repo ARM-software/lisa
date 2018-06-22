@@ -84,7 +84,7 @@ class NetstatsInstrument(Instrument):
 
         """
         if target.os != 'android':
-            raise TargetStableError('netstats insturment only supports Android targets')
+            raise TargetStableError('netstats instrument only supports Android targets')
         if apk is None:
             apk = os.path.join(THIS_DIR, 'netstats.apk')
         if not os.path.isfile(apk):
