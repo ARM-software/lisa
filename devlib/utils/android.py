@@ -75,6 +75,12 @@ ANDROID_VERSION_MAP = {
     1: 'BASE',
 }
 
+# See https://developer.android.com/reference/android/content/Intent.html#setFlags(int)
+INTENT_FLAGS = {
+    'ACTIVITY_NEW_TASK' : 0x10000000,
+    'ACTIVITY_CLEAR_TASK' : 0x00008000
+}
+
 
 # Initialized in functions near the botton of the file
 android_home = None
