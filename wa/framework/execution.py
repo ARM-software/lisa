@@ -350,6 +350,7 @@ class Executor(object):
         self.target_manager = TargetManager(config.run_config.device,
                                        config.run_config.device_config,
                                        output.basepath)
+        self.target_manager.initialize()
 
         if config_manager.run_config.reboot_policy.perform_initial_reboot:
             self.logger.info('Performing inital reboot.')

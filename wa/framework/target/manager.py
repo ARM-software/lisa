@@ -34,9 +34,12 @@ class TargetManager(object):
         self.assistant = None
         self.platform_name = None
         self.is_responsive = None
+        self.rpm = None
         self.parameters = parameters
         self.disconnect = parameters.get('disconnect')
 
+
+    def initialize(self):
         self._init_target()
 
         # If target supports hotplugging, online all cpus before perform discovery
