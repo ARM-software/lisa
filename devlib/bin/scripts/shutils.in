@@ -48,6 +48,37 @@ cpufreq_trace_all_frequencies() {
 }
 
 ################################################################################
+# DevFrequency Utility Functions
+################################################################################
+
+devfreq_set_all_frequencies() {
+	FREQ=$1
+	for DEV in /sys/class/devfreq/*; do
+		echo $FREQ > $DEV/min_freq
+		echo $FREQ > $DEV/max_freq
+	done
+}
+
+devfreq_get_all_frequencies() {
+	for DEV in /sys/class/devfreq/*; do
+		echo "`basename $DEV` `cat $DEV/cur_freq`"
+	done
+}
+
+devfreq_set_all_governors() {
+	GOV=$1
+	for DEV in /sys/class/devfreq/*; do
+		echo $GOV > $DEV/governor
+	done
+}
+
+devfreq_get_all_governors() {
+	for DEV in /sys/class/devfreq/*; do
+		echo "`basename $DEV` `cat $DEV/governor`"
+	done
+}
+
+################################################################################
 # CPUIdle Utility Functions
 ################################################################################
 
@@ -252,6 +283,18 @@ cpufreq_get_all_governors)
     ;;
 cpufreq_trace_all_frequencies)
     cpufreq_trace_all_frequencies $*
+    ;;
+devfreq_set_all_frequencies)
+    devfreq_set_all_frequencies $*
+    ;;
+devfreq_get_all_frequencies)
+    devfreq_get_all_frequencies
+    ;;
+devfreq_set_all_governors)
+    devfreq_set_all_governors $*
+    ;;
+devfreq_get_all_governors)
+    devfreq_get_all_governors
     ;;
 cpuidle_wake_all_cpus)
     cpuidle_wake_all_cpus $*
