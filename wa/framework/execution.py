@@ -90,13 +90,16 @@ class ExecutionContext(object):
     def reboot_policy(self):
         return self.cm.run_config.reboot_policy
 
+    @property
+    def target_info(self):
+        return self.run_output.target_info
+
     def __init__(self, cm, tm, output):
         self.logger = logging.getLogger('context')
         self.cm = cm
         self.tm = tm
         self.run_output = output
         self.run_state = output.state
-        self.target_info = self.tm.get_target_info()
         self.logger.debug('Loading resource discoverers')
         self.resolver = ResourceResolver(cm.plugin_cache)
         self.resolver.load()
