@@ -87,6 +87,8 @@ class RunCommand(Command):
     def execute(self, config, args):
         output = self.set_up_output_directory(config, args)
         log.add_file(output.logfile)
+        output.add_artifact('runlog', output.logfile, kind='log',
+                            description='Run log.')
 
         disabled_augmentations = toggle_set([i != '~~' and "~{}".format(i) or i
                                            for i in args.augmentations_to_disable])
