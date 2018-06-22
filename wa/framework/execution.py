@@ -350,20 +350,43 @@ class Executor(object):
         signal.connect(self._error_signalled_callback, signal.ERROR_LOGGED)
         signal.connect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
+    def execute(self, config_manager, output):
         self.logger.info('Initializing run')
         self.logger.debug('Finalizing run configuration.')
         config = config_manager.finalize()
         output.write_config(config)
 
-        self.logger.info('Connecting to target')
         self.target_manager = TargetManager(config.run_config.device,
                                        config.run_config.device_config,
                                        output.basepath)
-        self.target_manager.initialize()
 
-        if config_manager.run_config.reboot_policy.perform_initial_reboot:
-            self.logger.info('Performing inital reboot.')
-            attempts = config_manager.run_config.max_retries
+        self.logger.info('Initializing execution context')
+        context = ExecutionContext(config_manager, self.target_manager, output)
+
+        try:
+            self.do_execute(context)
+        except KeyboardInterrupt as e:
+            context.run_output.status = 'ABORTED'
+            log.log_error(e, self.logger)
+            context.write_output()
+            raise
+        except Exception as e:
+            context.run_output.status = 'FAILED'
+            log.log_error(e, self.logger)
+            context.write_output()
+            raise
+        finally:
+            context.finalize()
+            self.execute_postamble(context, output)
+            signal.send(signal.RUN_COMPLETED, self, context)
+
+    def do_execute(self, context):
+        self.logger.info('Connecting to target')
+        context.tm.initialize()
+
+        if context.cm.run_config.reboot_policy.perform_initial_reboot:
+            self.logger.info('Performing initial reboot.')
+            attempts = context.cm.run_config.max_retries
             while attempts:
                 try:
                     self.target_manager.reboot()
@@ -375,36 +398,28 @@ class Executor(object):
                 else:
                     break
 
-        output.set_target_info(self.target_manager.get_target_info())
-
-        self.logger.info('Initializing execution context')
-        context = ExecutionContext(config_manager, self.target_manager, output)
+        context.output.set_target_info(self.target_manager.get_target_info())
 
         self.logger.info('Generating jobs')
-        config_manager.generate_jobs(context)
-        output.write_job_specs(config_manager.job_specs)
-        output.write_state()
+        context.cm.generate_jobs(context)
+        context.write_job_specs()
+        context.output.write_state()
 
         self.logger.info('Installing instruments')
-        for instrument_name in config_manager.get_instruments(self.target_manager.target):
+        for instrument_name in context.cm.get_instruments(self.target_manager.target):
             instrument.install(instrument_name, context)
         instrument.validate()
 
         self.logger.info('Installing output processors')
         pm = ProcessorManager()
-        for proc in config_manager.get_processors():
+        for proc in context.cm.get_processors():
             pm.install(proc, context)
         pm.validate()
 
         self.logger.info('Starting run')
         runner = Runner(context, pm)
         signal.send(signal.RUN_STARTED, self, context)
-        try:
-            runner.run()
-        finally:
-            context.finalize()
-            self.execute_postamble(context, output)
-            signal.send(signal.RUN_COMPLETED, self, context)
+        runner.run()
 
     def execute_postamble(self, context, output):
         self.logger.info('Done.')
