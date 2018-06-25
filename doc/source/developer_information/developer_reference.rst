@@ -13,11 +13,7 @@ Developer Reference
 
 -----------------
 
-.. include:: developer_information/developer_reference/writing_plugins.rst
-
------------------
-
-.. include:: developer_information/developer_reference/contributing.rst
+.. include:: developer_information/developer_reference/plugins.rst
 
 -----------------
 
@@ -26,3 +22,8 @@ Developer Reference
 -----------------
 
 .. include:: developer_information/developer_reference/serialization.rst
+
+-----------------
+
+.. include:: developer_information/developer_reference/contributing.rst
+

@@ -7,7 +7,7 @@ Installing binaries for a particular plugin should generally only be performed
 once during a run. This should typically be done in the ``initialize`` method,
 if the only functionality performed in the method is to install the required binaries
 then the ``initialize`` method should be decorated with the ``@once``
-:ref:`decorator <decorators>` otherwise this should be placed into a dedicated
+:ref:`decorator <execution-decorators>` otherwise this should be placed into a dedicated
 method which is decorated instead. Please note if doing this then any installed
 paths should be added as class attributes rather than instance variables. As a
 general rule if binaries are installed as part of ``initialize`` then they
@@ -75,7 +75,7 @@ to compress a file of a particular size on the device.
 
 
 .. note:: This is intended as an example of how to implement the Workload
-   :ref:`interface <workload-interface>`. The methodology used to
+   :ref:`interface <workload-api>`. The methodology used to
    perform the actual measurement is not necessarily sound, and this
    Workload should not be used to collect real measurements.
 

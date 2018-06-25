@@ -167,9 +167,10 @@ Python Workload Structure
   any results from the target back to the host system and to update the output
   with any metrics or artefacts for the specific workload iteration respectively.
 
-- WA now features :ref:`decorators <decorators>` which can be used to allow for more efficient
-  binary deployment and that they are only installed to the device once per run. For
-  more information of implementing this please see
+- WA now features :ref:`execution decorators <execution-decorators>` which can
+  be used to allow for more efficient binary deployment and that they are only
+  installed to the device once per run. For more information of implementing
+  this please see
   :ref:`deploying executables to a target <deploying-executables>`.
 
 

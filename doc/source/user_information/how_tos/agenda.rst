@@ -332,7 +332,7 @@ parameters used.
                   name: cyclictest
                   iterations: 10
 
-.. _classifiers:
+.. _using-classifiers:
 
 Classifiers
 ------------
