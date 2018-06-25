@@ -145,6 +145,11 @@ class LoggingConfig(dict):
     def to_pod(self):
         return self
 
+def expanded_path(path):
+    """
+    Ensure that the provided path has been expanded if applicable
+    """
+    return os.path.expanduser(str(path))
 
 def get_type_name(kind):
     typename = str(kind)
@@ -416,7 +421,7 @@ class MetaConfiguration(Configuration):
             Path to the user directory. This is the location WA will look for
             user configuration, additional plugins and plugin dependencies.
             """,
-            kind=str,
+            kind=expanded_path,
             default=os.path.join(os.path.expanduser('~'), '.workload_automation'),
         ),
         ConfigurationPoint(
