@@ -190,6 +190,7 @@ c_info "Platform configuration:"
 c_info "   PLATFORM_NAME         : ${PLATFORM_NAME}"
 c_info "   DEFCONFIG             : ${DEFCONFIG}"
 c_info "   CONFIG_CMD            : ${CONFIG_CMD}"
+c_info "   BUILD_FLAGS           : ${BUILD_FLAGS}"
 c_info "   ARCH                  : ${ARCH}"
 c_info "   CROSS_COMPILE         : ${CROSS_COMPILE}"
 c_info "   MODULES_INSTALL_DIR   : ${INSTALL_MOD_PATH}"
@@ -255,7 +256,7 @@ fi
 
 if [ ! -z "${DEFCONFIG}" ] && [ "${MAKE_KEEPCONFIG}" -eq $NO ]; then
 	c_info "Running DEFCONFIG [$DEFCONFIG]..."
-	(set -x; cd "${KERNEL_SRC}"; make ${DEFCONFIG})
+	(set -x; cd "${KERNEL_SRC}"; make ${BUILD_FLAGS} ${DEFCONFIG})
 fi
 
 if [ ! -z "${BUILD_CONFIG_LIST}" ]; then
@@ -287,49 +288,48 @@ fi
 
 if [ ${BUILD_IMAGE} -eq $YES ]; then
 	c_info "Making [Image]..."
-	(set -x; cd "${KERNEL_SRC}"; make -j${NCPUS} "$KERNEL_IMAGE" >${OUT})
+	(set -x; cd "${KERNEL_SRC}"; make ${BUILD_FLAGS} -j${NCPUS} "${KERNEL_IMAGE}" >${OUT})
 	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${BUILD_DTBS} -eq $YES ]; then
 	c_info "Making [dtbs]..."
-	(set -x; cd "${KERNEL_SRC}"; make -j${NCPUS} dtbs >${OUT})
+	(set -x; cd "${KERNEL_SRC}"; make ${BUILD_FLAGS} -j${NCPUS} dtbs >${OUT})
 	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${BUILD_DTBO_IMAGE} -eq $YES ]; then
 	c_info "Making [dtbo.img]..."
-	(set -x; cd "${KERNEL_SRC}"; make -j${NCPUS} dtbo.img >${OUT})
+	(set -x; cd "${KERNEL_SRC}"; make ${BUILD_FLAGS} -j${NCPUS} dtbo.img >${OUT})
 	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${BUILD_MODULES} -eq $YES ]; then
 	c_info "Making [modules]..."
-	(set -x; cd "${KERNEL_SRC}";  make -j${NCPUS} modules >${OUT})
+	(set -x; cd "${KERNEL_SRC}";  make ${BUILD_FLAGS} -j${NCPUS} modules >${OUT})
 	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${BUILD_MODULES_INSTALL} -eq $YES ]; then
 	c_info "Making [modules_install] to [${INSTALL_MOD_PATH}] ..."
-	(set -x; cd "${KERNEL_SRC}";  make -j${NCPUS} modules_install >${OUT})
+	(set -x; cd "${KERNEL_SRC}";  make ${BUILD_FLAGS} -j${NCPUS} modules_install >${OUT})
 	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${MAKE_MENUCONFIG} -eq $YES ]; then
 	c_info "Making [menuconfig]..."
-	(set -x; cd "${KERNEL_SRC}"; make menuconfig)
+	(set -x; cd "${KERNEL_SRC}"; make ${BUILD_FLAGS} menuconfig)
 	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${MAKE_SAVEDEFCONFIG} -eq $YES ]; then
 	c_info "Making [savedefconfig]..."
-	(set -x; cd "${KERNEL_SRC}"; make savedefconfig)
+	(set -x; cd "${KERNEL_SRC}"; make ${BUILD_FLAGS} savedefconfig)
 	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${BUILD_NOW} -eq $YES ]; then
 	c_info "Making default target..."
-	(set -x; cd "${KERNEL_SRC}" make -j${NCPUS} >${OUT})
+	(set -x; cd "${KERNEL_SRC}" make ${BUILD_FLAGS} -j${NCPUS} >${OUT})
 	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
-
