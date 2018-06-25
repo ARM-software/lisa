@@ -156,6 +156,28 @@ First step is to get an *IIO version* of the ACME BeagleBone black image. The re
 
 * [ACME Image (beta)](https://github.com/baylibre-acme/ACME/releases/download/b1/acme-beaglebone-black_b1-sdcard-image.xz)
 
+To change the IP address and avoid a buggy route to a /8 to be added on your host, edit:
+
+* Change the address of the board in /usr/bin/acme-usbgadget-udhcpd
+
+  ```bash
+  # Use an address that does not clash with your existing networks
+  #ifconfig usb0 up 10.65.34.1 netmask 255.255.255.0
+  ifconfig usb0 up 192.168.50.1 netmask 255.255.255.0
+  ```
+
+* Fix the DHCP server config on the ACME board to advertise a small subnet instead of a whole /8
+
+  ```
+  #start          10.65.34.20     #default: 192.168.0.20
+  #end            10.65.34.254    #default: 192.168.0.254
+
+  # Advertise a /24 subnet which contains both the allocated addresses and the address of the board itself
+  option  subnet  255.255.255.0
+  start           192.168.50.20 
+  end             192.168.50.254
+  ```
+
 #### Equipment
 To use this instrument you need the following equipment:
 
