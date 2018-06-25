@@ -9,6 +9,24 @@ Glossary
         and which augmentations will be enabled, etc. (For more information
         please see :ref:`here <agenda-reference>`.)
 
+    Alias
+        An alias associated with a workload or a parameter. In case of
+        parameters, this is simply an alternative name for a parameter; Usually
+        these are employed to provide backward compatibility for renamed
+        parameters, or in cases where a there are several commonly used terms,
+        each equally valid, for something.
+
+        In case of Workloads, aliases can also be merely alternatives to the
+        workload name, however they can also alter the default values for the
+        parameters the Workload is instantiated with. A common scenario is when
+        a single workload can be run under several distinct configurations (e.g.
+        has several alternative tests that might be run) that are configurable
+        via a parameter. An alias may be added for each such configuration. In
+        order to see the available aliases for a workload, one can use :ref:`show
+        command <show-command>`\ .
+
+        .. seealso:: :term:`Global Alias`
+
     Augmentation
         Augmentations are plugins that augment the execution of
         workload jobs with additional functionality; usually, that takes the
@@ -22,6 +40,28 @@ Glossary
         files. WA supports multiple "kinds" of artifacts and will handle them
         accordingly, for more information please see :ref:`here <artifact>`.
 
+    Classifier
+        An arbitrary key-value pair that may associated with a :term:`job`\ , a
+        :term:`metric`\ , or an :term:`artifact`. The key must be a string. The
+        value can be any simple scalar type (string, integer, boolean, etc).
+        These have no pre-defined meaning but may be used to aid
+        filtering/grouping of metrics and artifacts during output processing.
+
+        .. seealso:: :ref:`classifiers`.
+
+    Global Alias
+        Typically, values for plugin parameters are specified name spaced under
+        the plugin's name in the configuration. A global alias is an alias that
+        may be specified at the top level in configuration.
+
+        There two common reasons for this. First, several plugins might
+        specify the same global alias for the same parameter, thus allowing all
+        of them to be configured with one settings. Second, a plugin may not be
+        exposed directly to the user (e.g. resource getters) so it makes more
+        sense to treat its parameters as global configuration values.
+
+        .. seealso:: :term:`Alias`
+
     Instrument
         A WA "Instrument" can be quite diverse in its functionality, but
         the majority of those available in are there to collect some kind of
@@ -31,9 +71,13 @@ Glossary
         :ref:`Plugin Reference <instruments>`.
 
     Job
-        An individual instance of a workload. E.g. Even if you only have 1
-        workload to run but wanted 5 iterations then 5 individual jobs will be
-        generated to be ran.
+        An single execution of a workload. A job is defined by an associated
+        :term:`spec`. However, multiple jobs can share the same spec; e.g. Even
+        if you only have 1 workload to run but wanted 5 iterations then 5
+        individual jobs will be generated to be ran.
+
+    Metric
+        A single numeric measurement or score collected during job execution.
 
     Output Processor
         An "Output Processor" is what is used to process the output
@@ -42,6 +86,11 @@ Glossary
         To see available instruments please use the
         :ref:`list command <list-command>` or see the
         :ref:`Plugin Reference <instruments>`.
+
+    Run
+        A single execution of `wa run` command. A run consists of one or more
+        :term:`job`\ s, and results in a single output directory structure
+        containing job results and metadata.
 
     Spec
         A specification of a workload. For example you can have a single
