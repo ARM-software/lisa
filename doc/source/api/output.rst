@@ -1,3 +1,5 @@
+.. _output_processing_api:
+
 Output
 ======
 
@@ -441,3 +443,95 @@ description
 
 classifiers
     Job- and run-level :term:`classifier`\ s will be propagated to the artifact.
+
+
+Additional run info
+-------------------
+
+:class:`RunOutput` object has ``target_info``  and ``run_info`` attributes that
+contain structures that provide additional information about the run and device.
+
+.. _target-info-api:
+
+:class:`TargetInfo`
+~~~~~~~~~~~~~~~~~~~
+
+The :class:`TargetInfo` class presents various pieces of information about the
+target device. An instance of this class will be instantiated and populated
+automatically from the devlib `target
+<http://devlib.readthedocs.io/en/latest/target.html>`_ created during a WA run
+and serialized to a json file as part of the metadata exported
+by WA at the end of a run.
+
+The available attributes of the class are as follows:
+
+target
+    The name of the target class that was uised ot interact with the device
+    during the run E.g.  ``"AndroidTarget"``, ``"LinuxTarget"`` etc.
+
+cpus
+    A list of :class:`CpuInfo` objects describing the capabilities of each CPU.
+
+os
+    A generic name of the OS the target was running (e.g. ``"android"``).
+
+os_version
+    A dict that contains a mapping of OS version elements to their values. This
+    mapping is OS-specific.
+
+abi
+    The ABI of the target device.
+
+hostname
+    The hostname of the the device the run was executed on.
+
+is_rooted
+    A boolean value specifying whether root was detected on the device.
+
+kernel_version
+    The version of the kernel on the target device.  This returns a
+    :class:`KernelVersion` instance that has separate version and release
+    fields.
+
+kernel_config
+    A :class:`KernelConfig` instance that contains parsed kernel config from the
+    target device. This may be ``None`` if the kernel config could not be
+    extracted.
+
+sched_features
+    A list of the available tweaks to the scheduler, if available from the
+    device.
+
+hostid
+    The unique identifier of the particular device the WA run was executed on.
+
+
+.. _run-info-api:
+
+:class:`RunInfo`
+~~~~~~~~~~~~~~~~
+
+The :class:`RunInfo` provides general run information. It has the following
+attributes:
+
+
+uuid
+    A unique identifier for that particular run.
+
+run_name
+    The name of the run (if provided)
+
+project
+    The name of the project the run belongs to (if provided)
+
+project_stage
+    The project stage the run is associated with (if provided)
+
+duration
+    The length of time the run took to complete.
+
+start_time
+    The time the run was stared.
+
+end_time
+    The time at which the run finished.

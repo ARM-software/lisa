@@ -14,10 +14,6 @@ Developer Reference
 
 -----------------
 
-.. include:: developer_reference/APIs.rst
-
------------------
-
 .. include:: developer_reference/writing_plugins.rst
 
 -----------------
