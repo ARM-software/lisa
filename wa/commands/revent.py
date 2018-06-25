@@ -51,8 +51,8 @@ class RecordCommand(Command):
        from ``build.prop``, on Linux devices it is obtained from ``/proc/device-tree/model``.
      - suffix is used by WA to determine which part of the app execution the
        recording is for, currently these are either ``setup``, ``run``, ``extract_results``
-       or ``teardown``. All stages except ``run`` are optional and these should
-       be specified with the ``-s``, ``-e`` or ``-t`` arguments respectively,
+       or ``teardown``. All stages are optional for recording and these should
+       be specified with the ``-s``, ``-r``, ``-e`` or ``-t`` arguments respectively,
        or optionally ``-a`` to indicate all stages should be recorded.
     '''
 
