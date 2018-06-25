@@ -120,7 +120,7 @@ Device Description
 This section describes the input devices used in the recording. Its structure is
 determined by the value of ``Mode`` field in the header.
 
-general recording
+General Recording
 ^^^^^^^^^^^^^^^^^
 
 .. note:: This is the only format supported prior to version ``2``.
@@ -158,7 +158,7 @@ path is *not* NULL-terminated.
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-gamepad recording
+Gamepad Recording
 ^^^^^^^^^^^^^^^^^
 
 The recording has been made from a specific gamepad. All events in the stream
@@ -240,7 +240,7 @@ determined by the ``abs_bits`` field.
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-Event stream
+Event Stream
 ^^^^^^^^^^^^
 
 The majority of an revent recording will be made up of the input events that were
@@ -282,7 +282,7 @@ and start and end times for the recording.
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-Event structure
+Event Structure
 ^^^^^^^^^^^^^^^
 
 Each event entry structured as follows:

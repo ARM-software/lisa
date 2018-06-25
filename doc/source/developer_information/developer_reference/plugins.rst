@@ -50,7 +50,7 @@ This is what WA uses to store a single metric collected from executing a workloa
                         metric beyond current iteration (e.g. this can be used
                         to identify sub-tests).
 
-Metrics can be added to WA output via the context:
+Metrics can be added to WA output via the :ref:`context <context>`:
 
 
 .. code-block:: python
@@ -60,7 +60,7 @@ Metrics can be added to WA output via the context:
 
 You only need to specify the name and the value for the metric. Units and
 classifiers are optional, and, if not specified otherwise, it will be assumed
-that higher values are better (lower_is_better=False).
+that higher values are better (``lower_is_better=False``).
 
 The metric will be added to the result for the current job, if there is one;
 otherwise, it will be added to the overall run result.
@@ -112,7 +112,7 @@ also helps WA decide how it should be handled. Currently supported kinds are:
                  processing -- this is left entirely up to the output
                  processors.
 
-As with :ref:`metrics`, artifacts are added via the context:
+As with :ref:`metrics`, artifacts are added via the :ref:`context <context>`:
 
 .. code-block:: python
 
@@ -237,6 +237,7 @@ These are specific differences in how they are handled:
   global run levels); metadata is associated with a particular job or run, and
   not with metrics or artifacts.
 
+--------------------
 
 .. _execution-decorators:
 
@@ -280,10 +281,10 @@ The specified method will be invoked only once within the environment.
              normal propagation to be retained.
 
 
-
+--------------------
 
 Utils
-^^^^^
+-----
 
 Workload Automation defines a number of utilities collected under
 :mod:`wa.utils` subpackage. These utilities were created to help with the

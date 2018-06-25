@@ -503,6 +503,7 @@ So the full example would look something like::
             def finalize(self, context):
                 self.target.uninstall(self.binary_name)
 
+.. _adding-an-output-processor-example:
 
 Adding an Output Processor Example
 ===================================

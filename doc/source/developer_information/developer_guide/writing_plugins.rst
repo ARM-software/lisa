@@ -610,7 +610,9 @@ results in a few common formats (such as csv or JSON).
 You can add your own output processors by creating a Python file in
 ``~/.workload_automation/plugins`` with a class that derives from
 :class:`wa.OutputProcessor <wa.framework.processor.OutputProcessor>`, and should
-implement the relevant methods from the following interface:
+implement the relevant methods shown below, for more information and please
+see the
+:ref:`Adding an Output Processor <adding-an-output-processor-example>` section.
 
     :name:
 

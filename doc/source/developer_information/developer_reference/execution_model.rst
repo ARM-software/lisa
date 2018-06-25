@@ -109,9 +109,9 @@ Signal Dispatch
 WA uses the `louie <https://github.com/11craft/louie/>`_ (formerly,
 pydispatcher) library for signal dispatch. Callbacks can be registered for
 signals emitted during the run. WA uses a version of louie that has been
-modified to introduce priority to registered callbacks (so that callbacks that
-are know to be slow can be registered with a lower priority and therefore do not
-interfere with other callbacks).
+modified to introduce :ref:`priority <prioritization>` to registered callbacks
+(so that callbacks that are know to be slow can be registered with a lower
+priority and therefore do not interfere with other callbacks).
 
 This mechanism is abstracted for instruments. Methods of an
 :class:`wa.framework.Instrument` subclass automatically get hooked to
