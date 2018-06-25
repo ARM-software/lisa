@@ -746,6 +746,7 @@ directory appropriately::
     from wa import settings,
     from wa.framework.resource import ResourceGetter, SourcePriority
     from wa.framework.getters import get_from_location
+    from wa.utils.misc import ensure_directory_exists as _d
 
     class UserDirectory(ResourceGetter):
 
