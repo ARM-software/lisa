@@ -207,6 +207,8 @@ $ avahi-browse -a
 ```
 which will list all the reachable devices.
 
+If you do not want to use avahi, you can refer to it by the static IP of the ethernet-over-USB interface. That has the added benefit of not using the board of somebody else, since that IP is on the USB interface which can only be accessed from your local machine.
+
 You can now verify your installation and check that the probes are correctly detected by the `iio daemon` running on the BeagleBone with a simple command:
 
 ```bash
