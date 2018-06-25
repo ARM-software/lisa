@@ -20,7 +20,7 @@ higher-level semantics than are present in standard Python types (e.g.
 ``boolean`` will convert the string ``"false"`` to ``False``, where as
 non-empty strings are usually considered to be ``True``).
 
-A lot of these are intened to stpecify type conversions declaratively in place
+A lot of these are intended to specify type conversions declaratively in place
 like ``Parameter``'s ``kind`` argument. These are basically "hacks" around the
 fact that Python is not the best language to use for configuration.
 
@@ -104,7 +104,7 @@ def list_of_bools(value, interpret_strings=True):
 
 def list_of(type_):
     """Generates a "list of" callable for the specified type. The callable
-    attempts to convert all elements in the passed value to the specifed
+    attempts to convert all elements in the passed value to the specified
     ``type_``, raising ``ValueError`` on error."""
     def __init__(self, values):
         list.__init__(self, list(map(type_, values)))
@@ -218,7 +218,7 @@ def reset_all_counters(value=0):
 
 def counter(name=None):
     """
-    An auto incremeting value (kind of like an AUTO INCREMENT field in SQL).
+    An auto incrementing value (kind of like an AUTO INCREMENT field in SQL).
     Optionally, the name of the counter to be used is specified (each counter
     increments separately).
 
@@ -261,7 +261,7 @@ class prioritylist(object):
 
     def __init__(self):
         """
-        Returns an OrderedReceivers object that externaly behaves
+        Returns an OrderedReceivers object that externally behaves
         like a list but it maintains the order of its elements
         according to their priority.
         """
@@ -462,7 +462,7 @@ class ID(str):
 
 class obj_dict(MutableMapping):
     """
-    An object that behaves like a dict but each dict entry can also be accesed
+    An object that behaves like a dict but each dict entry can also be accessed
     as an attribute.
 
     :param not_in_dict: A list of keys that can only be accessed as attributes
