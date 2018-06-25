@@ -37,7 +37,9 @@ class Lmbench(Workload):
     measure latencies to memory (including caches). bw_mem can be used to
     measure bandwidth to/from memory over a range of operations.
     Further details, and source code are available from:
+
         http://sourceforge.net/projects/lmbench/.
+
     See lmbench/bin/README for license details.
     """
 
