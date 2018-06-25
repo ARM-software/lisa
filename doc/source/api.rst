@@ -5,3 +5,5 @@ Workload Automation API
     :maxdepth: 2
 
     api/output
+
+    api/workload
