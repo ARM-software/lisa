@@ -1,0 +1,55 @@
+################################################################################
+# Build definitions for the Xperia XZ2 (Akari - suitable for H8216/H8266/H8296)
+################################################################################
+
+PLATFORM_NAME="Akari"
+
+################################################################################
+# Boot Image Configuration
+################################################################################
+
+KERNEL_IMAGE="${KERNEL_IMAGE:-Image.gz-dtb}"
+KERNEL_CMDLINE="${KERNEL_CMDLINE:-\
+ androidboot.hardware=qcom\
+ video=vfb:640x400,bpp=32,memsize=3072000\
+ msm_rtb.filter=0x237\
+ ehci-hcd.park=3\
+ lpm_levels.sleep_disabled=1\
+ service_locator.enable=1\
+ swiotlb=2048\
+ androidboot.configfs=true\
+ androidboot.usbcontroller=a600000.dwc3\
+ zram.backend=z3fold\
+ msm_drm.dsi_display0=dsi_panel_cmd_display:config0\
+ buildvariant=userdebug
+}"
+
+ANDROID_BOOT_IMAGE="${ANDROID_BOOT_IMAGE:-boot.img}"
+ANDROID_IMAGE_BASE="${ANDROID_IMAGE_BASE:-0x0}"
+ANDROID_IMAGE_PAGESIZE="${ANDROID_IMAGE_PAGESIZE:-4096}"
+
+# Sensitive bits, manually replace if needed
+ANDROID_OS_VERSION="${ANDROID_OS_VERSION:-}"
+ANDROID_OS_PATCH_LEVEL="${ANDROID_OS_PATCH_LEVEL:-}"
+
+ANDROID_TAGS_OFFSET="${ANDROID_TAGS_OFFSET:-0x00000100}"
+ANDROID_KERNEL_OFFSET="${ANDROID_KERNEL_OFFSET:-0x00008000}"
+
+# No ramdisk
+RAMDISK_IMAGE=""
+
+################################################################################
+# Device Tree Configuration
+################################################################################
+
+# ANDROID_DTB_IMAGE="${ANDROID_DTB_IMAGE:-dts.img}"
+# ANDROID_DTB_COMPRESSED="${ANDROID_DTB_COMPRESSED:-YES}"
+
+################################################################################
+# Toolchain Configuration
+################################################################################
+
+DEFCONFIG="${DEFCONFIG:-sdm845-perf_defconfig}"
+CONFIG_CMD="${CONFIG_CMD:-}"
+ARCH="${ARCH:-arm64}"
+CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-android-}"

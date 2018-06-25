@@ -1,0 +1,107 @@
+#!/bin/bash
+
+SCRIPT_DIR=$(dirname $(realpath -s $0))
+BASE_DIR="$SCRIPT_DIR/../.."
+source "${BASE_DIR}/helpers"
+source "${PLATFORM_PATH}/definitions"
+
+PREBUILT_ERR_MSG="\
+It can be found at \
+https://android.googlesource.com/platform/prebuilts/misc/+/master/\
+"
+
+################################################################################
+# Utils
+################################################################################
+
+check_device_info() {
+    ERR_MSG="\
+Update the 'definitions' file if needed, but be aware that the values must \
+be in sync with the userspace currently flashed on the device or it won't boot\
+"
+    if [[ -z "$ANDROID_OS_VERSION" ]]; then
+	c_error "Could not read Android version from device"
+	c_error "$ERR_MSG"
+	exit $FATAL_ERROR
+    elif [[ -z "$ANDROID_OS_PATCH_LEVEL" ]]; then
+	c_error "Could not read Android patch level from device"
+	c_error "$ERR_MSG"
+	exit $FATAL_ERROR
+    fi
+}
+
+load_dependencies() {
+    if [ ! -z "$AOSP_PREBUILTS" ]; then
+	export DTC_EXT="$AOSP_PREBUILTS"/misc/linux-x86/dtc/dtc
+	export DTC_OVERLAY_TEST_EXT="$AOSP_PREBUILTS"/misc/linux-x86/libufdt/ufdt_apply_overlay
+	export MKDTIMG="$AOSP_PREBUILTS"/misc/linux-x86/libufdt/mkdtimg
+
+	# Check for required tools being available
+	for var in DTC_EXT DTC_OVERLAY_TEST_EXT MKDTIMG; do
+	    if [[ ! -f "${!var}" ]]; then
+		c_error "Could not find tool ${!var}"
+		c_error "Please ensure your prebuilts directory is intact"
+		c_error "$PREBUILT_ERR_MSG"
+		exit $FATAL_ERROR
+	    fi
+	done
+    else
+	c_warning "\$AOSP_PREBUILTS not set"
+	c_warning "Please set it to your AOSP prebuilts directory"
+	c_warning "$PREBUILT_ERR_MSG"
+	c_warning "Trying to find tools from your \$PATH instead..."
+
+	export DTC_EXT=$(which dtc)
+	export DTC_OVERLAY_TEST_EXT=$(which ufdt_apply_overlay)
+	export MKDTIMG=$(which mkdtimg)
+
+	# Check for required tools being available
+	for var in DTC_EXT DTC_OVERLAY_TEST_EXT MKDTIMG; do
+	    if [[ -z ${!var} ]]; then
+		c_error "Could not find all required tools"
+		exit $FATAL_ERROR
+	    fi
+	done
+    fi
+}
+
+################################################################################
+# Build all images required to test a new kernel
+################################################################################
+
+check_device_info
+load_dependencies
+
+c_info "Cleaning ${ARTIFACTS_PATH}..."
+rm -rf ${ARTIFACTS_PATH}
+
+export KCFLAGS=-mno-android
+export KBUILD_DIFFCONFIG=akari_diffconfig
+
+# The kernel is riddled with
+#     #include <something.h>
+# that should really be
+#     #include "something.h"
+# since those are local driver header files.
+# (see https://github.com/sonyxperiadev/kernel-copyleft/tree/51.1.A.2.xxx)
+#
+# As a tempfix, just use an outputdir
+OUTDIR="$ARTIFACTS_PATH/kernel_build"
+IMG_PATH=arch/arm64/boot/"${KERNEL_IMAGE}"
+export BUILD_FLAGS="CONFIG_BUILD_ARM64_DT_OVERLAY=y O=${OUTDIR}"
+
+./build --clean_all --image --silent; ERROR=$?
+[ $ERROR -eq 0 ] || exit $ERROR
+
+# Move the image back to where create_boot_img.sh expects it
+cp "${OUTDIR}"/"${IMG_PATH}" "${KERNEL_SRC}"/"${IMG_PATH}"
+
+./android/create_boot_img.sh; ERROR=$?
+[ $ERROR -eq 0 ] || exit $ERROR
+
+DTBO_FILES="$(find $OUTDIR/arch/arm64/boot/dts -name '*.dtbo')"
+"$MKDTIMG" create "$ARTIFACTS_PATH"/dtbo.img --page_size=4096 $DTBO_FILES; ERROR=$?
+if [ -z $ERROR ]; then
+    c_error ""
+    exit $ERROR
+fi
