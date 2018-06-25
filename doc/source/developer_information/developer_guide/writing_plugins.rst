@@ -239,7 +239,7 @@ binary has been previously deployed by WA and will not try to re-install.
 
   from wa import Executable
 
-  host_binary = context.resolver.get(Executable(self, self.target.abi, 'some_binary'))
+  host_binary = context.get(Executable(self, self.target.abi, 'some_binary'))
   target_binary = self.target.install_if_needed(host_binary)
 
 
