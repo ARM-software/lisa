@@ -12,7 +12,6 @@ build/
 dist/
 .ropeproject/
 wa_output/
-doc/source/api/
 doc/source/plugins/
 MANIFEST
 *.orig

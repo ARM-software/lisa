@@ -260,6 +260,8 @@ this can be done with ``add_run_artifact``:
 In this case, you also need to make sure that the file represented by the
 artifact is written to the output directory for the run and not the current job.
 
+.. _metadata:
+
 Metadata
 ^^^^^^^^
 
