@@ -58,6 +58,8 @@ will automatically generate a workload in the your ``WA_CONFIG_DIR/plugins``. If
 you wish to specify a custom location this can be provided with ``-p
 <path>``
 
+.. _adding-a-basic-workload:
+
 Adding a Basic Workload Example
 --------------------------------
 
@@ -79,6 +81,14 @@ to compress a file of a particular size on the device.
    perform the actual measurement is not necessarily sound, and this
    Workload should not be used to collect real measurements.
 
+The first step is to subclass our desired
+:ref:`workload type <workload-types>` depending on the purpose of our workload,
+in this example we are implementing a very simple workload and do not
+require any additional feature so shall inherit directly from the the base
+:class:`Workload` class. We then need to provide a ``name`` for our workload
+which is what will be used to identify your workload for example in an
+agenda or via the show command.
+
 .. code-block:: python
 
     import os
@@ -87,6 +97,125 @@ to compress a file of a particular size on the device.
     class ZipTestWorkload(Workload):
 
         name = 'ziptest'
+
+The ``description`` attribute should be a string in the structure of a short
+summary of the purpose of the workload, and will be shown when using the
+:ref:`list command <list-command>`, followed by a more in- depth explanation
+separated by a new line.
+
+.. code-block:: python
+
+        description = '''
+                      Times how long it takes to gzip a file of a particular size on a device.
+
+                      This workload was created for illustration purposes only. It should not be
+                      used to collect actual measurements.
+                      '''
+
+In order to allow for additional configuration of the workload from a user a
+list of :ref:`parameters <plugin-parmeters>` can be supplied. These can be
+configured in a variety of different ways. For example here we are ensuring that
+the value of the parameter is an integer and larger than 0 using the ``kind``
+and ``constraint`` options, also if no value is provided we are providing a
+``default`` value of 2000000. These parameters will automatically have their
+value set as an attribute of the workload so later on we will be able to use the
+value provided here as ``self.file_size``.
+
+.. code-block:: python
+
+        parameters = [
+                Parameter('file_size', kind=int, default=2000000,
+                          constraint=lambda x: 0 < x,
+                          description='Size of the file (in bytes) to be gzipped.')
+        ]
+
+Next we will implement our ``setup`` method. This is where we do any preparation
+that is required before the workload is ran, this is usually things like setting
+up required files on the device and generating commands from user input. In this
+case we will generate our input file on the host system and then push it to a
+known location on the target for use in the 'run' stage.
+
+.. code-block:: python
+
+        def setup(self, context):
+            super(ZipTestWorkload, self).setup(context)
+            # Generate a file of the specified size containing random garbage.
+            host_infile = os.path.join(context.output_directory, 'infile')
+            command = 'openssl rand -base64 {} > {}'.format(self.file_size, host_infile)
+            os.system(command)
+            # Set up on-device paths
+            devpath = self.target.path  # os.path equivalent for the target
+            self.target_infile = devpath.join(self.target.working_directory, 'infile')
+            self.target_outfile = devpath.join(self.target.working_directory, 'outfile')
+            # Push the file to the target
+            self.target.push(host_infile, self.target_infile)
+
+
+The ``run`` method is where the actual 'work' of the workload takes place and is
+what is measured by any instrumentation. So for this example this is the
+execution of creating the zip file on the target.
+
+.. code-block:: python
+
+        def run(self, context):
+            cmd = 'cd {} && (time gzip {}) &>> {}'
+            self.target.execute(cmd.format(self.target.working_directory,
+                                           self.target_infile,
+                                           self.target_outfile))
+
+The ``extract_results`` method is used to extract any results from the target
+for example we want to pull the file containing the timing information that we
+will use to generate metrics for our workload and then we add this file as an
+artifact with a 'raw' kind, which means once WA has finished processing it will
+allow it to decide whether to keep the file or not.
+
+.. code-block:: python
+
+        def extract_results(self, context):
+            super(ZipTestWorkload, self).extract_results(context)
+            # Pull the results file to the host
+            self.host_outfile = os.path.join(context.output_directory, 'timing_results')
+            self.target.pull(self.target_outfile, self.host_outfile)
+            context.add_artifact('ziptest-results', host_output_file, kind='raw')
+
+The ``update_output`` method we can do any generation of metrics that we wish to
+for our workload. In this case we are going to simply convert the times reported
+into seconds and add them as 'metrics' to WA which can then be displayed to the
+user along with any others in a format dependant on which output processors they
+have enabled for the run.
+
+.. code-block:: python
+
+        def update_output(self, context):
+            super(ZipTestWorkload, self).update_output(context)
+            # Extract metrics form the file's contents and update the result
+            # with them.
+            content = iter(open(self.host_outfile).read().strip().split())
+            for value, metric in zip(content, content):
+                mins, secs = map(float, value[:-1].split('m'))
+                context.add_metric(metric, secs + 60 * mins, 'seconds')
+
+Finally in the ``teardown`` method we will perform any required clean up for the
+workload so we will delete the input and output files from the device.
+
+.. code-block:: python
+
+        def teardown(self, context):
+            super(ZipTestWorkload, self).teardown(context)
+            self.target.remove(self.target_infile)
+            self.target.remove(self.target_outfile)
+
+The full implementation of this workload would look something like:
+
+.. code-block:: python
+
+    import os
+    from wa import Workload, Parameter
+
+    class ZipTestWorkload(Workload):
+
+        name = 'ziptest'
+
         description = '''
                       Times how long it takes to gzip a file of a particular size on a device.
 
@@ -96,18 +225,11 @@ to compress a file of a particular size on the device.
 
         parameters = [
                 Parameter('file_size', kind=int, default=2000000,
+                          constraint=lambda x: 0 < x,
                           description='Size of the file (in bytes) to be gzipped.')
         ]
 
         def setup(self, context):
-            """
-            In the setup method we do any preparation that is required before
-            the workload is ran, this is usually things like setting up required
-            files on the device and generating commands from user input. In this
-            case we will generate our input file on the host system and then
-            push it to a known location on the target for use in the 'run'
-            stage.
-            """
             super(ZipTestWorkload, self).setup(context)
             # Generate a file of the specified size containing random garbage.
             host_infile = os.path.join(context.output_directory, 'infile')
@@ -121,25 +243,11 @@ to compress a file of a particular size on the device.
             self.target.push(host_infile, self.target_infile)
 
         def run(self, context):
-            """
-            The run method is where the actual 'work' of the workload takes
-            place and is what is measured by any instrumentation. So for this
-            example this is the execution of creating the zip file on the
-            target.
-            """
             cmd = 'cd {} && (time gzip {}) &>> {}'
             self.target.execute(cmd.format(self.target.working_directory,
                                            self.target_infile,
                                            self.target_outfile))
         def extract_results(self, context):
-            """
-            This method is used to extract any results from the target for
-            example we want to pull the file containing the timing information
-            that we will use to generate metrics for our workload and then we
-            add this file as an artifact with a 'raw' kind, which means once WA
-            has finished processing it will allow it to decide whether to keep
-            the file or not.
-            """
             super(ZipTestWorkload, self).extract_results(context)
             # Pull the results file to the host
             self.host_outfile = os.path.join(context.output_directory, 'timing_results')
@@ -147,13 +255,6 @@ to compress a file of a particular size on the device.
             context.add_artifact('ziptest-results', host_output_file, kind='raw')
 
         def update_output(self, context):
-            """
-            In this method we can do any generation of metrics that we wish to
-            for our workload. In this case we are going to simply convert the
-            times reported into seconds and add them as 'metrics' to WA which can
-            then be displayed to the user along with any others in a format
-            dependant on which output processors they have enabled for the run.
-            """
             super(ZipTestWorkload, self).update_output(context)
             # Extract metrics form the file's contents and update the result
             # with them.
@@ -163,13 +264,10 @@ to compress a file of a particular size on the device.
                 context.add_metric(metric, secs + 60 * mins, 'seconds')
 
         def teardown(self, context):
-            """
-            Here we will perform any required clean up for the workload so we
-            will delete the input and output files from the device.
-            """
             super(ZipTestWorkload, self).teardown(context)
             self.target.remove(self.target_infile)
             self.target.remove(self.target_outfile)
+
 
 
 .. _apkuiautomator-example:
@@ -189,7 +287,9 @@ therefore we would choose the :ref:`ApkUiAutomator workload
 
 From here you can navigate to the displayed directory and you will find your
 ``__init__.py``  and a ``uiauto`` directory. The former is your python WA
-workload and will look something like this
+workload and will look something like this. For an example of what should be
+done in each of the main method please see
+:ref:`adding a basic example <adding-a-basic-workload>` above.
 
 .. code-block:: python
 
