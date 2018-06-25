@@ -11,7 +11,8 @@ source "${DEFINITIONS_PATH}"
 DEFAULT_KERNEL="${KERNEL_SRC}/arch/${ARCH}/boot/${KERNEL_IMAGE}"
 KERNEL="${KERNEL:-$DEFAULT_KERNEL}"
 
-DEFAULT_RAMDISK="${PLATFORM_OVERLAY_PATH}/${RAMDISK_IMAGE}"
+# Don't append a path if no ramdisk image is provided
+[ -z ${RAMDISK_IMAGE} ] || DEFAULT_RAMDISK="${PLATFORM_OVERLAY_PATH}/${RAMDISK_IMAGE}"
 RAMDISK="${RAMDISK:-$DEFAULT_RAMDISK}"
 
 DEFAULT_BOOT_IMAGE="${ARTIFACTS_PATH}/${ANDROID_BOOT_IMAGE}"
@@ -23,7 +24,7 @@ if [ ! -f ${KERNEL} ] ; then
 	c_error "KERNEL image not found: ${KERNEL}"
 	exit $ENOENT
 fi
-if [ ! -f ${RAMDISK} ] ; then
+if [ ! -z ${RAMDISK} ] && [ ! -f ${RAMDISK} ] ; then
 	c_error "RAMDISK image not found: ${RAMDISK}"
 	c_warning "A valid ramdisk image, which matches the device user-space"
 	c_warning "must be deployed by the user under the required path."
@@ -41,7 +42,13 @@ c_info "Generate BOOT image:"
 c_info "   $BOOT_IMAGE"
 c_info "using this configuration :"
 c_info "  KERNEL                 : $KERNEL"
+
+if [ -z "{$RAMDISK}" ]; then
+c_warning "  No RAMDISK provided, building image without ramdisk"
+else
 c_info "  RAMDISK                : $RAMDISK"
+fi
+
 c_info "  CMDLINE                : $CMDLINE"
 c_info "  ANDROID_IMAGE_BASE     : $ANDROID_IMAGE_BASE"
 c_info "  ANDROID_IMAGE_PAGESIZE : $ANDROID_IMAGE_PAGESIZE"
@@ -64,6 +71,10 @@ if [ "${ANDROID_RAMDISK_OFFSET}" ]; then
     ANDROID_RAMDISK_OFFSET="--ramdisk_offset ${ANDROID_RAMDISK_OFFSET}"
 fi
 
+if [ ! -z "${RAMDISK}" ]; then
+    RAMDISK_CMD="--ramdisk \"${RAMDISK}\""
+fi
+
 ################################################################################
 # Generate BOOT image
 ################################################################################
@@ -74,7 +85,7 @@ mkdir -p $(dirname $BOOT_IMAGE) &>/dev/null
 set -x
 "${ANDROID_SCRIPTS_PATH}/mkbootimg" \
 	--kernel "${KERNEL}" \
-	--ramdisk "${RAMDISK}" \
+	$RAMDISK_CMD \
 	--cmdline "${CMDLINE}" \
 	--base "${ANDROID_IMAGE_BASE}" \
 	--pagesize "${ANDROID_IMAGE_PAGESIZE}" \
@@ -85,4 +96,3 @@ set -x
 	${ANDROID_RAMDISK_OFFSET} \
 	--output "${BOOT_IMAGE}"
 set +x
-
