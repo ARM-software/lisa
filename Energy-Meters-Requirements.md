@@ -156,7 +156,7 @@ First step is to get an *IIO version* of the ACME BeagleBone black image. The re
 
 * [ACME Image (beta)](https://github.com/baylibre-acme/ACME/releases/download/b1/acme-beaglebone-black_b1-sdcard-image.xz)
 
-To change the IP address and avoid a buggy route to a /8 to be added on your host, edit:
+To change the IP address and avoid a buggy route to a /8 to be added on your host:
 
 * Change the address of the board in /usr/bin/acme-usbgadget-udhcpd
 
