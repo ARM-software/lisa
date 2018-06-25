@@ -814,8 +814,8 @@ wrap them in a Python package. You can use ``wa create package`` command to
 generate appropriate boiler plate. This will create a ``setup.py`` and a
 directory for your package that you can place your plugins into.
 
-For example, if you have a workload inside ``my_workload.py`` and a result
-processor in ``my_result_processor.py``, and you want to package them as
+For example, if you have a workload inside ``my_workload.py`` and an output
+processor in ``my_output_processor.py``, and you want to package them as
 ``my_wa_exts`` package, first run the create command ::
 
         wa create package my_wa_exts
@@ -827,7 +827,7 @@ the package directory for your plugins (you can rename the top-level
 setup.py and the package directory). Once you have that, you can then copy your
 plugins into the package directory, creating
 ``my_wa_exts/my_wa_exts/my_workload.py`` and
-``my_wa_exts/my_wa_exts/my_result_processor.py``. If you have a lot of
+``my_wa_exts/my_wa_exts/my_output_processor.py``. If you have a lot of
 plugins, you might want to organize them into subpackages, but only the
 top-level package directory is created by default, and it is OK to have
 everything in there.
