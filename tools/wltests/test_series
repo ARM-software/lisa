@@ -893,6 +893,16 @@ test_sha1() {
 	echo
 	c_info "Check current kernel..."
 	if device_in_adb; then
+		DEVICE_OS_VERSION=$($ADB shell getprop ro.build.version.release)
+		DEVICE_OS_PATCH_LEVEL=$($ADB shell getprop ro.build.version.security_patch)
+
+		export ANDROID_OS_VERSION=${ANDROID_OS_VERSION:-$DEVICE_OS_VERSION}
+		export ANDROID_OS_PATCH_LEVEL=${ANDROID_OS_PATCH_LEVEL:-$DEVICE_OS_PATCH_LEVEL}
+
+		echo
+		c_info "Android version      : $ANDROID_OS_VERSION"
+		c_info "Security patch level : $ANDROID_OS_PATCH_LEVEL"
+
 		match_sha1 $COMMIT_SHA1
 		if [ $? -ne $OK ]; then
 			c_info "Kernel update required!"
