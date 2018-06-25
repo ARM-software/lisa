@@ -288,13 +288,16 @@ the actual code of the automation and will look something like:
         public class UiAutomation extends BaseUiAutomation {
 
             protected Bundle parameters;
+            protected int example_parameter;
 
             public static String TAG = "google_docs";
 
             @Before
             public void initilize() throws Exception {
-                parameters = getParams();
                 // Perform any parameter initialization here
+                parameters = getParams(); // Required to decode passed parameters.
+                packageID = getPackageID(parameters);
+                example_parameter = parameters.getInt("example_parameter");
             }
 
             @Test
@@ -318,6 +321,20 @@ the actual code of the automation and will look something like:
                 // Optional: Perform any clean up for the workload
             }
         }
+
+A few items to note from the template:
+    - Each of the stages of execution for example ``setup``, ``runWorkload`` etc
+      are decorated with the ``@Test`` decorator, this is important to allow
+      these methods to be called at the appropriate time however any additional
+      methods you may add do not require this decorator.
+    - The ``initialize`` method has the ``@Before`` decorator, this is there to
+      ensure that this method is called before executing any of the workload
+      stages and therefore is used to decode and initialize any parameters that
+      are passed in.
+    - The code currently retrieves the ``example_parameter`` that was
+      provided to the python workload as an Integer, there are similar calls to
+      retrieve parameters of different types e.g. ``getString``, ``getBoolean``,
+      ``getDouble`` etc.
 
 Once you have implemented your java workload you can use the file
 ``uiauto/build.sh`` to compile your automation into an apk file to perform the

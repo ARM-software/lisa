@@ -25,13 +25,17 @@ import com.arm.wa.uiauto.BaseUiAutomation;
 public class UiAutomation extends BaseUiAutomation {
 
     protected Bundle parameters;
+    protected String packageID;
+    protected int example_parameter;
 
     public static String TAG = "${name}";
 
     @Before
     public void initialize() throws Exception {
-        parameters = getParams();
         // Perform any parameter initialization here
+        parameters = getParams();
+        packageID = getPackageID(parameters);
+        example_parameter = parameters.getInt("example_parameter");
     }
 
     @Test
