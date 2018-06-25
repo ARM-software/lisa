@@ -492,9 +492,9 @@ below should be implemented:
 
     :update_output(context):
 
-                It is invoked after the workload updated its result.
-                update_result is where the taken measures are added to the result so it
-                can be processed by Workload Automation.
+                This method is invoked after the workload updated its result and
+                where the taken measures should be added to the result so it can be
+                processed by WA.
 
     :teardown(context):
 
