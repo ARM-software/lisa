@@ -202,7 +202,7 @@ Create
 
 This aids in the creation of new WA-related objects for example agendas and workloads.
 For more detailed information on creating workloads please see the
-:ref:`adding a workload <adding-a-workload>` section for more details.
+:ref:`adding a workload <adding-a-workload-example>` section for more details.
 
 As an example to create an agenda that will run the dhrystone and memcpy workloads
 that will use the status and hwmon augmentations, run each test 3 times and save

@@ -1,7 +1,7 @@
 .. _deploying-executables-example:
 
-Deploying Executables Example
-==============================
+Deploying Executables
+=====================
 
 Installing binaries for a particular plugin should generally only be performed
 once during a run. This should typically be done in the ``initialize`` method,
@@ -36,10 +36,10 @@ Part of an example workload demonstrating this is shown below:
             self.target.uninstall('my_executable')
 
 
-.. _adding-a-workload:
+.. _adding-a-workload-example:
 
-Adding a Workload Examples
-==========================
+Adding a Workload
+=================
 
 The easiest way to create a new workload is to use the
 :ref:`create <create-command>` command. ``wa create workload <args>``.  This
@@ -58,10 +58,10 @@ will automatically generate a workload in the your ``WA_CONFIG_DIR/plugins``. If
 you wish to specify a custom location this can be provided with ``-p
 <path>``
 
-.. _adding-a-basic-workload:
+.. _adding-a-basic-workload-example:
 
-Adding a Basic Workload Example
---------------------------------
+Adding a Basic Workload
+-----------------------
 
 To add a basic workload you can simply use the command::
 
@@ -272,8 +272,8 @@ The full implementation of this workload would look something like:
 
 .. _apkuiautomator-example:
 
-Adding a ApkUiAutomator Workload Example
------------------------------------------
+Adding a ApkUiAutomator Workload
+--------------------------------
 
 If we wish to create a workload to automate the testing of the Google Docs
 android app, we would choose to perform the automation using UIAutomator and we
@@ -289,7 +289,7 @@ From here you can navigate to the displayed directory and you will find your
 ``__init__.py``  and a ``uiauto`` directory. The former is your python WA
 workload and will look something like this. For an example of what should be
 done in each of the main method please see
-:ref:`adding a basic example <adding-a-basic-workload>` above.
+:ref:`adding a basic example <adding-a-basic-workload-example>` above.
 
 .. code-block:: python
 
@@ -444,8 +444,8 @@ automation. The generated apk will be generated with the package name
 automatically detected by the resource getters and deployed to the device.
 
 
-Adding a ReventApk Workload Example
-------------------------------------
+Adding a ReventApk Workload
+---------------------------
 
 If we wish to create a workload to automate the testing of a UI based workload
 that we cannot / do not wish to use UiAutomator then we can perform the
@@ -481,8 +481,8 @@ The main difference between the two is that this workload will subclass
 
 .. _adding-an-instrument-example:
 
-Adding an Instrument Example
-=============================
+Adding an Instrument
+====================
 This is an example of how we would create a instrument which will trace device
 errors using a custom "trace" binary file. For more detailed information please see the
 :ref:`Instrument Reference <instrument-reference>`. The first thing to do is to subclass
@@ -605,8 +605,8 @@ So the full example would look something like::
 
 .. _adding-an-output-processor-example:
 
-Adding an Output Processor Example
-===================================
+Adding an Output Processor
+==========================
 
 This is an example of how we would create an output processor which will format
 the run metrics  as a column-aligned table. The first thing to do is to subclass
@@ -651,8 +651,8 @@ the :ref:`context <context>`.
 
 .. _adding-custom-target-example:
 
-Adding a Custom Target Example
-===============================
+Adding a Custom Target
+======================
 This is an example of how we would create a customised target, this is typically
 used where we would need to augment the existing functionality for example on
 development boards where we need to perform additional actions to implement some
