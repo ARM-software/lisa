@@ -60,14 +60,13 @@ and detailed descriptions of how WA functions under the hood.
    developer_information
 
 
-References
-==========
+Plugin Reference
+================
 
 .. toctree::
    :maxdepth: 2
 
    plugins
-   glossary
 
 API
 ===
@@ -76,6 +75,14 @@ API
     :maxdepth: 2
 
     api
+
+Glossary
+========
+
+.. toctree::
+    :maxdepth: 2
+
+    glossary
 
 FAQ
 ====

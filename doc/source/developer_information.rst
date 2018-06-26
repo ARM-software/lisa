@@ -8,11 +8,11 @@ Developer Information
 
 ------------------
 
-.. include:: developer_information/how_to.rst
+.. include:: developer_information/developer_guide.rst
 
 ------------------
 
-.. include:: developer_information/developer_guide.rst
+.. include:: developer_information/how_to.rst
 
 ------------------
 
