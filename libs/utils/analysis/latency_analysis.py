@@ -381,7 +381,6 @@ class LatencyAnalysis(AnalysisModule):
 
         return df, cdf
 
-
     @memoized
     def _dfg_latency_stats_df(self, task, kind='all', threshold_ms=1):
         """
@@ -402,9 +401,6 @@ class LatencyAnalysis(AnalysisModule):
 
         # Get latency events
         df, cdf = self._get_latency_df(task, kind, threshold_ms)
-        self._log.info('Total: %5d latency events', len(df))
-        self._log.info('%.1f %% samples below %d [ms] threshold',
-                       100. * cdf.below, threshold_ms)
 
         # Return statistics
         stats_df = df.describe(percentiles=[0.95, 0.99])
@@ -456,7 +452,6 @@ class LatencyAnalysis(AnalysisModule):
         td = self._getTaskData(task)
         if not td:
             return None
-
 
         # Setup plots
         gs = gridspec.GridSpec(2, 2, height_ratios=[2,1], width_ratios=[1,1])
