@@ -1,6 +1,10 @@
 from __future__ import division
 import os
-import urllib2
+
+from future.standard_library import install_aliases
+install_aliases()
+
+from urllib.request import urlopen
 
 from wa import Workload, Parameter, Alias, WorkloadError
 from wa.utils.exec_control import once
@@ -55,7 +59,7 @@ class ApacheBenchmark(Workload):
             msg = 'ab not found on host; make sure apache2-utils (or you distro equivalent) package is installed.'
             raise WorkloadError(msg)
 
-        response = urllib2.urlopen('http://{}:{}{}'.format(self.target.conn.host, self.port, self.path))
+        response = urlopen('http://{}:{}{}'.format(self.target.conn.host, self.port, self.path))
         code = response.getcode()
         if code != 200:
             msg = 'HTTP request failed with status {}; is Apache running on target?'
