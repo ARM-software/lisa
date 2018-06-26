@@ -323,18 +323,10 @@ class LatencyAnalysis(AnalysisModule):
         data = [(cpu, time) for  cpu, time in runtimes.iteritems()]
         return pd.DataFrame(data, columns=['CPU', 'runtime']).set_index('CPU')
 
-###############################################################################
-# Plotting Methods
-###############################################################################
-
-    def plotLatency(self, task, kind='all', tag=None, threshold_ms=1, bins=64):
+    @memoized
+    def _get_latency_df(self, task, kind='all', threshold_ms=1):
         """
-        Generate a set of plots to report the WAKEUP and PREEMPT latencies the
-        specified task has been subject to. A WAKEUP latencies is the time from
-        when a task becomes RUNNABLE till the first time it gets a CPU.
-        A PREEMPT latencies is the time from when a RUNNING task is suspended
-        because of the CPU is assigned to another task till when the task
-        enters the CPU again.
+        Compute statistics on latencies of the specified task.
 
         :param task: the task to report latencies for
         :type task: int or list(str)
@@ -342,17 +334,11 @@ class LatencyAnalysis(AnalysisModule):
         :param kind: the kind of latencies to report (WAKEUP and/or PREEMPT")
         :type kind: str
 
-        :param tag: a string to add to the plot title
-        :type tag: str
-
         :param threshold_ms: the minimum acceptable [ms] value to report
                              graphically in the generated plots
         :type threshold_ms: int or float
 
-        :param bins: number of bins to be used for the runtime's histogram
-        :type bins: int
-
-        :returns: a DataFrame with statistics on ploted latencies
+        :returns: a DataFrame with statistics on task latencies
         """
 
         if not self._trace.hasEvents('sched_switch'):
@@ -391,13 +377,86 @@ class LatencyAnalysis(AnalysisModule):
 
         # Join the two data frames
         df = wkp_df.append(prt_df)
-        ymax = 1.1 * df.latency.max()
-        self._log.info('Total: %5d latency events', len(df))
-
-        # Build the series for the CDF
         cdf = self._getCDF(df.latency, (threshold_ms / 1000.))
+
+        return df, cdf
+
+
+    @memoized
+    def _dfg_latency_stats_df(self, task, kind='all', threshold_ms=1):
+        """
+        Compute statistics on latencies of the specified task.
+
+        :param task: the task to report latencies for
+        :type task: int or list(str)
+
+        :param kind: the kind of latencies to report (WAKEUP and/or PREEMPT")
+        :type kind: str
+
+        :param threshold_ms: the minimum acceptable [ms] value to report
+                             graphically in the generated plots
+        :type threshold_ms: int or float
+
+        :returns: a DataFrame with statistics on task latencies
+        """
+
+        # Get latency events
+        df, cdf = self._get_latency_df(task, kind, threshold_ms)
+        self._log.info('Total: %5d latency events', len(df))
         self._log.info('%.1f %% samples below %d [ms] threshold',
                        100. * cdf.below, threshold_ms)
+
+        # Return statistics
+        stats_df = df.describe(percentiles=[0.95, 0.99])
+        label = '{:.1f}%'.format(100. * cdf.below)
+        stats = { label : cdf.threshold }
+        return stats_df.append(pd.DataFrame(
+            stats.values(), columns=['latency'], index=stats.keys()))
+
+
+###############################################################################
+# Plotting Methods
+###############################################################################
+
+    def plotLatency(self, task, kind='all', tag=None, threshold_ms=1, bins=64):
+        """
+        Generate a set of plots to report the WAKEUP and PREEMPT latencies the
+        specified task has been subject to. A WAKEUP latencies is the time from
+        when a task becomes RUNNABLE till the first time it gets a CPU.
+        A PREEMPT latencies is the time from when a RUNNING task is suspended
+        because of the CPU is assigned to another task till when the task
+        enters the CPU again.
+
+        :param task: the task to report latencies for
+        :type task: int or list(str)
+
+        :param kind: the kind of latencies to report (WAKEUP and/or PREEMPT")
+        :type kind: str
+
+        :param tag: a string to add to the plot title
+        :type tag: str
+
+        :param threshold_ms: the minimum acceptable [ms] value to report
+                             graphically in the generated plots
+        :type threshold_ms: int or float
+
+        :param bins: number of bins to be used for the runtime's histogram
+        :type bins: int
+
+        :returns: a DataFrame with statistics on ploted latencies
+        """
+
+        # Get latency events
+        df, cdf = self._get_latency_df(task, kind, threshold_ms)
+        self._log.info('Total: %5d latency events', len(df))
+        self._log.info('%.1f %% samples below %d [ms] threshold',
+                       100. * cdf.below, threshold_ms)
+
+        # Get task data
+        td = self._getTaskData(task)
+        if not td:
+            return None
+
 
         # Setup plots
         gs = gridspec.GridSpec(2, 2, height_ratios=[2,1], width_ratios=[1,1])
@@ -434,6 +493,7 @@ class LatencyAnalysis(AnalysisModule):
 
         # Histogram of all latencies
         axes = plt.subplot(gs[1,1])
+        ymax = 1.1 * df.latency.max()
         df.latency.plot(kind='hist', bins=bins, ax=axes,
                         xlim=(0,ymax), legend=False,
                         title='Latency histogram ({} bins, {} [ms] green threshold)'\
@@ -446,13 +506,6 @@ class LatencyAnalysis(AnalysisModule):
                   .format(self._trace.plots_dir, self._trace.plots_prefix,
                           td.pid, task_name)
         pl.savefig(figname, bbox_inches='tight')
-
-        # Return statistics
-        stats_df = df.describe(percentiles=[0.95, 0.99])
-        label = '{:.1f}%'.format(100. * cdf.below)
-        stats = { label : cdf.threshold }
-        return stats_df.append(pd.DataFrame(
-            stats.values(), columns=['latency'], index=stats.keys()))
 
 
     def plotLatencyBands(self, task, axes=None):
