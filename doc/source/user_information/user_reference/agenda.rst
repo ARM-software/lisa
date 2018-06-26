@@ -148,10 +148,10 @@ Plugins
       can then be overridden.
 
   :<global_alias>: Some plugins provide global aliases which can set one or more
-      configuration options at once, and these can also bee specified here. For
-      example specifying the entry ``remote_assets_url`` with a corresponding
-      value will set the URL the http resource getter will attempt to search for
-      any missing assets at.
+      configuration options at once, and these can also be specified here. For
+      example if you specify a value for the entry ``remote_assets_url`` this
+      will set the URL the http resource getter will use when searching for any
+      missing assets.
 
 ---------------------------
 
