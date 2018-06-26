@@ -46,14 +46,14 @@ usage() {
     -s, --savedefconfig             make savedefconfig
     -t, --dtbs                      make dtbs
     -x, --clean_all                 make distclean, remove toolchain
-        --modules                   make modules
-        --modules_install           make modules_install to INSTALL_MOD_PATH
-        --dtbo_image                make dtbo.img
+	--modules                   make modules
+	--modules_install           make modules_install to INSTALL_MOD_PATH
+	--dtbo_image                make dtbo.img
 
     -a, --use-ccache                prepend 'ccache' to CROSS_COMPILE
     -k, --keepconfig                keep exiting .config, i.e. no other config is applied
     -l, --config_list <list_confs>  merge this list of CONFIGs
-        --silent                    report only error/warning messages
+	--silent                    report only error/warning messages
 
     -h, --help                      print help and exit
 
@@ -272,7 +272,7 @@ if [ ! -z "${BUILD_CONFIG_LIST}" ]; then
 			.config ${tmp_file})
 	else
 		c_error "No merge_config.sh script found"
-	    	exit $ENOENT
+		exit $ENOENT
 	fi
 	rm -f ${tmp_file}
 	c_info "Running oldconfig after merge of configs"

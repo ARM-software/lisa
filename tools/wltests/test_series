@@ -804,7 +804,7 @@ match_sha1() {
 
 	# It may happen that a tag pointing to a given commit has
 	# a different SHA1 (signed tag), so check if this this is
-        # the case.
+	# the case.
 	TAG_NAME=$(git -C $KERNEL_SRC describe --exact-match $COMMIT_SHA1 2>/dev/null) || return $EAGAIN
 	TAG_SHA1=$(git -C $KERNEL_SRC show-ref --hash $TAG_NAME)
 	c_info "   CommitID of local repo corresponds to tag: $TAG_NAME"
@@ -1022,4 +1022,3 @@ done 10<$SELECTED_LIST
 report
 
 d_notify "Tests completed!" face-cool
-
