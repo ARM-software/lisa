@@ -10,7 +10,7 @@ Workload
 The base :class:`Workload` interface is as follows, and is the base class for
 all :ref:`workload types <workload-types>`. For more information about to
 implement your own workload please see the
-:ref:`Developer How Tos <adding-a-workload>`.
+:ref:`Developer How Tos <adding-a-workload-example>`.
 
 All instances of a workload will have the following attributes:
 

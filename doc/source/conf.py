@@ -314,7 +314,7 @@ def setup(app):
     generate_target_documentation('plugins')
     generate_run_config_documentation('run_config')
     generate_meta_config_documentation('run_config')
-    generate_instrument_method_map(os.path.join('developer_information', 'developer_reference',
+    generate_instrument_method_map(os.path.join('developer_information', 'developer_guide',
                                                 'instrument_method_map.rst'))
     app.add_object_type('confval', 'confval',
                         objname='configuration value',
