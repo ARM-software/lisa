@@ -104,7 +104,7 @@ class Deepbench(Workload):
     def run(self, context):
         self.output = None
         try:
-            timeout = 10800 if self.test == 'sparse' else 600
+            timeout = 10800
             self.output = self.target.execute(self.target_exe, timeout=timeout)
         except KeyboardInterrupt:
             self.target.killall(self.exe_name)
