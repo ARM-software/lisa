@@ -110,6 +110,8 @@ def write_table(rows, wfh, align='>', headers=None):  # pylint: disable=R0914
 
     cols = list(zip(*rows))
     col_widths = [max(list(map(len, c))) for c in cols]
+    if headers:
+        col_widths = [max([c, len(h)]) for c, h in zip(col_widths, headers)]
     row_format = ' '.join(['{:%s%s}' % (align[i], w) for i, w in enumerate(col_widths)])
     row_format += '\n'
 
