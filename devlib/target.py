@@ -809,7 +809,7 @@ class LinuxTarget(Target):
             for vf in version_files:
                 name = self.path.basename(vf)
                 output = self.read_value(vf)
-                os_version[name] = output.strip().replace('\n', ' ')
+                os_version[name] = convert_new_lines(output.strip()).replace('\n', ' ')
         except TargetError:
             raise
         return os_version
