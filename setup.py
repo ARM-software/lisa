@@ -55,7 +55,7 @@ with open(os.path.join(devlib_dir, '__init__.py')) as fh:
     version_helper = imp.load_source('version_helper', vh_path)
     commit = version_helper.get_commit()
     if commit:
-        __version__ = '{}-{}'.format(__version__, commit)
+        __version__ = '{}+{}'.format(__version__, commit)
 
 
 packages = []
