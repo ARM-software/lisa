@@ -42,17 +42,17 @@ FROM ubuntu:17.10
 
 # Please update the references below to use different versions of
 # devlib, WA or the Android SDK
-ARG DEVLIB_REF=17d32a4d40b2df958d2f26d29095d8671e77894c
-ARG WA_REF=71f0452b73a112e4aa2b5c63f18ff093d0b3f935
+ARG DEVLIB_REF=v1.0.0
+ARG WA_REF=v3.0.0
 ARG ANDROID_SDK_URL=https://dl.google.com/android/repository/sdk-tools-linux-3859397.zip
 
 RUN apt-get update
-RUN apt-get install -y python-pip git wget zip openjdk-8-jre-headless vim emacs nano curl sshpass ssh usbutils 
+RUN apt-get install -y python-pip git wget zip openjdk-8-jre-headless vim emacs nano curl sshpass ssh usbutils
 RUN pip install pandas
 
 # Let's get the two repos we need, and install them
 RUN git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && cd /tmp/devlib && git checkout $DEVLIB_REF && python setup.py install
-RUN git clone -v https://github.com/ARM-software/workload-automation.git -b next /tmp/wa && cd /tmp/wa && git checkout $WA_REF && python setup.py install
+RUN git clone -v https://github.com/ARM-software/workload-automation.git /tmp/wa && cd /tmp/wa && git checkout $WA_REF && python setup.py install
 
 # Clean-up
 RUN rm -R /tmp/devlib /tmp/wa
