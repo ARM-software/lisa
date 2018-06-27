@@ -34,7 +34,7 @@ def get_wa_version_with_commit():
     version_string = get_wa_version()
     commit = get_commit()
     if commit:
-        return '{}-{}'.format(version_string, commit)
+        return '{}+{}'.format(version_string, commit)
     else:
         return version_string
 
