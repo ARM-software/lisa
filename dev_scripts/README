@@ -12,6 +12,8 @@ Scripts
 
 :clear_env: Clears ~/.workload_automation.
 
+:copyright_updater: Checks and updates the year of the copyright in Python files.
+
 :get_apk_versions: Prints out a table of APKs and their versons found under the
                    path specified as the argument.
 
