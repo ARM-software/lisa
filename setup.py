@@ -94,11 +94,14 @@ params = dict(
         'pyserial',  # Serial port interface
         'wrapt',  # Basic for construction of decorator functions
         'future', # Python 2-3 compatibility
+        'pandas',
+        'numpy',
     ],
     extras_require={
         'daq': ['daqpower'],
         'doc': ['sphinx'],
         'monsoon': ['python-gflags'],
+        'acme': ['pandas', 'numpy'],
     },
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
