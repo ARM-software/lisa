@@ -311,11 +311,11 @@ Target
 
 .. method:: Target.read_int(self, path)
 
-   Equivalent to ``Target.read_value(path, kind=devlab.utils.types.integer)``
+   Equivalent to ``Target.read_value(path, kind=devlib.utils.types.integer)``
 
 .. method:: Target.read_bool(self, path)
 
-   Equivalent to ``Target.read_value(path, kind=devlab.utils.types.boolean)``
+   Equivalent to ``Target.read_value(path, kind=devlib.utils.types.boolean)``
 
 .. method:: Target.write_value(path, value [, verify])
 
