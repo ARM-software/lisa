@@ -343,7 +343,7 @@ the augmentations active during the execution of the workload.
 
 A :class:`Metric` has the following attributes:
 
-name
+``name``
     The name of the metric.
 
     .. note:: A name of the metric is not necessarily unique, even for the same
@@ -351,22 +351,22 @@ name
               generating a metric with the same name. In such cases,
               :term:`classifier`\ s are used to distinguish between them.
 
-value
+``value``
     The value of the metrics collected.
 
 
-units
+``units``
     The units of the metrics. This maybe ``None`` if the metric has no units.
 
 
-lower_is_better
+``lower_is_better``
     The default assumption is that higher metric values are better. This may be
     overridden by setting this to ``True``, e.g. if metrics such as "run time"
     or "latency". WA does not use this internally (at the moment) but this may
     be used by external parties to sensibly process WA results in a generic way.
 
 
-classifiers
+``classifiers``
     These can be user-defined :term:`classifier`\ s propagated from the job/run,
     or they may have been added by the workload to help distinguish between
     otherwise identical metrics.
@@ -384,20 +384,20 @@ associated with it.
 An :class:`Artifact` has  the following attributes:
 
 
-name
+``name``
     The name of this artifact. This will be unique for the job/run (unlike
     metric names). This is intended as a consistent "handle" for this artifact.
     The actual file name for the artifact may vary from job to job (e.g. some
     benchmarks that create files with results include timestamps in the file
     names), however the name will always be the same.
 
-path
+``path``
     Partial path to the file associated with this artifact. Often, this is just
     the file name. To get the complete path that maybe used to access the file,
     use :func:`get_artifact_path` of the corresponding output object.
 
 
-kind
+``kind``
     Describes the nature of this artifact to facilitate generic processing.
     Possible kinds are:
 
@@ -438,12 +438,12 @@ kind
               processing -- this is left entirely up to the output
               processors.
 
-description
+``description``
     This may be used by the artifact's creator to provide additional free-form
     information about the artifact. In practice, this is often ``None``
 
 
-classifiers
+``classifiers``
     Job- and run-level :term:`classifier`\ s will be propagated to the artifact.
 
 
@@ -467,44 +467,44 @@ by WA at the end of a run.
 
 The available attributes of the class are as follows:
 
-target
+``target``
     The name of the target class that was uised ot interact with the device
     during the run E.g.  ``"AndroidTarget"``, ``"LinuxTarget"`` etc.
 
-cpus
+``cpus``
     A list of :class:`CpuInfo` objects describing the capabilities of each CPU.
 
-os
+``os``
     A generic name of the OS the target was running (e.g. ``"android"``).
 
-os_version
+``os_version``
     A dict that contains a mapping of OS version elements to their values. This
     mapping is OS-specific.
 
-abi
+``abi``
     The ABI of the target device.
 
-hostname
+``hostname``
     The hostname of the the device the run was executed on.
 
-is_rooted
+``is_rooted``
     A boolean value specifying whether root was detected on the device.
 
-kernel_version
+``kernel_version``
     The version of the kernel on the target device.  This returns a
     :class:`KernelVersion` instance that has separate version and release
     fields.
 
-kernel_config
+``kernel_config``
     A :class:`KernelConfig` instance that contains parsed kernel config from the
     target device. This may be ``None`` if the kernel config could not be
     extracted.
 
-sched_features
+``sched_features``
     A list of the available tweaks to the scheduler, if available from the
     device.
 
-hostid
+``hostid``
     The unique identifier of the particular device the WA run was executed on.
 
 
@@ -517,23 +517,23 @@ The :class:`RunInfo` provides general run information. It has the following
 attributes:
 
 
-uuid
+``uuid``
     A unique identifier for that particular run.
 
-run_name
+``run_name``
     The name of the run (if provided)
 
-project
+``project``
     The name of the project the run belongs to (if provided)
 
-project_stage
+``project_stage``
     The project stage the run is associated with (if provided)
 
-duration
+``duration``
     The length of time the run took to complete.
 
-start_time
+``start_time``
     The time the run was stared.
 
-end_time
+``end_time``
     The time at which the run finished.
