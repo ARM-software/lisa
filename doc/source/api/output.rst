@@ -26,6 +26,8 @@ iterating over all WA output directories found.
 Example
 -------
 
+.. seealso:: :ref:`processing_output`
+
 To demonstrate how we can use the output API if we have an existing WA output
 called ``wa_output`` in the current working directory we can initialize a
 ``RunOutput`` as follows:
