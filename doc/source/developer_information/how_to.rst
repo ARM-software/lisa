@@ -7,3 +7,5 @@ How Tos
    :local:
 
 .. include:: developer_information/how_tos/adding_plugins.rst
+
+.. include:: developer_information/how_tos/processing_output.rst
