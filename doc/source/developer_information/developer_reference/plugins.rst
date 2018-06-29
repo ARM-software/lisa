@@ -35,7 +35,7 @@ This section contains reference information common to plugins of all types.
 .. _context:
 
 The Context
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 The majority of methods in plugins accept a context argument. This is an
 instance of :class:`wa.framework.execution.ExecutionContext`. It contains
@@ -93,7 +93,7 @@ In addition to these, context also defines a few useful paths (see below).
 
 
 Paths
-^^^^^
+~~~~~
 
 You should avoid using hard-coded absolute paths in your plugins whenever
 possible, as they make your code too dependent on a particular environment and
@@ -103,7 +103,7 @@ standard locations. You should strive to define your paths relative
 to one of these.
 
 On the host
-~~~~~~~~~~~
+^^^^^^^^^^^
 
 Host paths are available through the context object, which is passed to most
 plugin methods.
@@ -129,7 +129,7 @@ As per Python best practice, it is recommended that methods and values in
 ``os.path`` standard library module are used for host path manipulation.
 
 On the target
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
 Workloads and instruments have a ``target`` attribute, which is an interface to
 the target used by WA. It defines the following location:
@@ -158,7 +158,7 @@ irrespective of the host's path notation. For example:
 .. _plugin-parmeters:
 
 Parameters
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 All plugins can be parametrized. Parameters are specified using
 ``parameters`` class attribute. This should be a list of
@@ -227,7 +227,7 @@ specified on parameter creation:
 
 
 Validation and cross-parameter constraints
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A plugin will get validated at some point after construction. When exactly
 this occurs depends on the plugin type, but it *will* be validated before it
@@ -252,7 +252,7 @@ the parameters. In that case the dependent attribute should be left unspecified
 on creation and should instead be set inside ``validate``.
 
 Logging
-^^^^^^^
+~~~~~~~
 
 Every plugin class has it's own logger that you can access through
 ``self.logger`` inside the plugin's methods. Generally, a :class:`Target` will
@@ -266,7 +266,7 @@ amount of time, such as downloading a file.
 
 
 Documenting
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 All plugins and their parameter should be documented. For plugins
 themselves, this is done through ``description`` class attribute. The convention
@@ -295,7 +295,7 @@ plugin expects (including what the valid values are).
 
 
 Error Notification
-^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~
 
 When you detect an error condition, you should raise an appropriate exception to
 notify the user. The exception would typically be :class:`ConfigError` or
@@ -318,7 +318,7 @@ plugin's logger and to continue operation.
 .. _metrics:
 
 Metrics
-^^^^^^^
+~~~~~~~
 This is what WA uses to store a single metric collected from executing a workload.
 
     :name: the name of the metric. Uniquely identifies the metric
@@ -351,7 +351,7 @@ otherwise, it will be added to the overall run result.
 .. _artifact:
 
 Artifacts
-^^^^^^^^^
+~~~~~~~~~
 This is an artifact generated during execution/post-processing of a workload.
 Unlike :ref:`metrics <metrics>`, this represents an actual artifact, such as a
 file, generated.  This may be "output", such as trace, or it could be "meta
@@ -424,7 +424,7 @@ artifact is written to the output directory for the run and not the current job.
 .. _metadata:
 
 Metadata
-^^^^^^^^
+~~~~~~~~
 
 There may be additional data collected by your plugin that you want to record as
 part of the result, but that does not fall under the definition of a "metric".
@@ -473,7 +473,7 @@ specifically to ensure that the entry does not exist at the time of the call.
 .. _classifiers:
 
 Classifiers
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 Classifiers are key-value pairs of tags that can be attached to metrics,
 artifacts, jobs, or the entire run. Run and job classifiers get propagated to
@@ -494,7 +494,7 @@ additional classifiers, by specifying them in ``add_metric()`` and
 
 
 Metadata vs Classifiers
-^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~
 
 Both metadata and classifiers are sets of essentially opaque key-value pairs
 that get included in WA output. While they may seem somewhat similar and
@@ -544,17 +544,17 @@ once, we would use the decorator as follows:
         # ..
 
 @once_per_instance
-^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~
 The specified method will be invoked only once for every bound instance within
 the environment.
 
 @once_per_class
-^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~
 The specified method will be invoked only once for all instances of a class
 within the environment.
 
 @once
-^^^^^
+~~~~~
 The specified method will be invoked only once within the environment.
 
 .. warning:: If a method containing a super call is decorated, this will also cause
@@ -601,7 +601,7 @@ information please see `the context`_ documentation. ::
 .. _workload-types:
 
 Workload Types
-^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~
 
 There are multiple workload types that you can inherit from depending on the
 purpose of your workload, the different types along with an output of their
@@ -610,7 +610,7 @@ intended use cases are outlined below.
 .. _basic-workload:
 
 Basic (:class:`wa.Workload <wa.framework.workload.Workload>`)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 This type of the workload is the simplest type of workload and is left the to
 developer to implement its full functionality.
 
@@ -618,7 +618,7 @@ developer to implement its full functionality.
 .. _apk-workload:
 
 Apk (:class:`wa.ApkWorkload <wa.framework.workload.ApkWorkload>`)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 This workload will simply deploy and launch an android app in its basic form
 with no UI interaction.
 
@@ -626,7 +626,7 @@ with no UI interaction.
 
 
 UiAuto (:class:`wa.UiautoWorkload <wa.framework.workload.UiautoWorkload>`)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 This workload is for android targets which will use UiAutomator to interact with
 UI elements without a specific android app, for example performing manipulation
 of android itself. This is the preferred type of automation as the results are
@@ -636,7 +636,7 @@ appear rather than having to rely on human recordings.
 .. _apkuiautomator-workload:
 
 ApkUiAuto (:class:`wa.ApkUiautoWorkload <wa.framework.workload.ApkUiautoWorkload>`)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The is the same as the UiAuto workload however it is also associated with an
 android app e.g. AdobeReader and will automatically deploy and launch the
 android app before running the automation.
@@ -644,7 +644,7 @@ android app before running the automation.
 .. _revent-workload:
 
 Revent (:class:`wa.ReventWorkload <wa.framework.workload.ReventWorkload>`)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Revent workloads are designed primarily for games as these are unable to be
 automated with UiAutomator due to the fact that they are rendered within a
 single UI element. They require a recording to be performed manually and
@@ -654,7 +654,7 @@ information on revent workloads been please see :ref:`revent_files_creation`
 .. _apkrevent-workload:
 
 APKRevent (:class:`wa.ApkReventWorkload <wa.framework.workload.ApkReventWorkload>`)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The is the same as the Revent workload however it is also associated with an
 android app e.g. AngryBirds and will automatically deploy and launch the android
 app before running the automation.

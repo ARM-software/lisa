@@ -49,7 +49,7 @@ section is intended for those looking to extend revent in some way, or to
 utilize revent recordings for other purposes.
 
 Format Overview
-^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~
 
 Recordings are stored in a binary format. A recording consists of three
 sections::
@@ -79,7 +79,7 @@ All fields are either fixed size or prefixed with their length or the number of
 
 
 Recording Header
-^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~
 
 An revent recoding header has the following structure
 
@@ -115,13 +115,13 @@ An revent recoding header has the following structure
 
 
 Device Description
-^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~
 
 This section describes the input devices used in the recording. Its structure is
 determined by the value of ``Mode`` field in the header.
 
 General Recording
-^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~
 
 .. note:: This is the only format supported prior to version ``2``.
 
@@ -159,7 +159,7 @@ path is *not* NULL-terminated.
 
 
 Gamepad Recording
-^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~
 
 The recording has been made from a specific gamepad. All events in the stream
 will be for that device only. The section describes the device properties that
@@ -241,7 +241,7 @@ determined by the ``abs_bits`` field.
 
 
 Event Stream
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 The majority of an revent recording will be made up of the input events that were
 recorded. The event stream is prefixed with the number of events in the stream,
@@ -283,7 +283,7 @@ and start and end times for the recording.
 
 
 Event Structure
-^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~
 
 Each event entry structured as follows:
 
@@ -322,7 +322,7 @@ https://www.kernel.org/doc/Documentation/input/event-codes.txt
 
 
 Parser
-^^^^^^
+~~~~~~
 
 WA has a parser for revent recordings. This can be used to work with revent
 recordings in scripts. Here is an example:

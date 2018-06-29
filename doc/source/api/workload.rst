@@ -1,11 +1,11 @@
 .. _workloads-api:
 
 Workloads
-^^^^^^^^^
+~~~~~~~~~
 .. _workload-api:
 
 Workload
-""""""""
+^^^^^^^^
 
 The base :class:`Workload` interface is as follows, and is the base class for
 all :ref:`workload types <workload-types>`. For more information about to
@@ -39,7 +39,7 @@ All instances of a workload will have the following attributes:
     found by the resource getters
 
 methods
-~~~~~~~
+"""""""
 
 .. method:: Workload.init_resources(context)
 
@@ -155,7 +155,7 @@ methods
 .. _apkworkload-api:
 
 ApkWorkload
-""""""""""""
+^^^^^^^^^^^^
 
 The :class:`ApkWorkload` derives from the base :class:`Workload` class however
 this associates the workload with a package allowing for an apk to be found for
@@ -197,7 +197,7 @@ methods.
 .. _apkuiautoworkload-api:
 
 ApkUiautoWorkload
-"""""""""""""""""
+^^^^^^^^^^^^^^^^^
 
 The :class:`ApkUiautoWorkload` derives from :class:`ApkUIWorkload` which is an
 intermediate class which in turn inherits from
@@ -215,7 +215,7 @@ This class define these additional attributes:
 .. _apkreventworkload-api:
 
 ApkReventWorkload
-"""""""""""""""""
+^^^^^^^^^^^^^^^^^
 
 The :class:`ApkReventWorkload` derives from :class:`ApkUIWorkload` which is an
 intermediate class which in turn inherits from
@@ -245,7 +245,7 @@ This class define these additional attributes:
 .. _uiautoworkload-api:
 
 UiautoWorkload
-""""""""""""""
+^^^^^^^^^^^^^^
 
 The :class:`UiautoWorkload` derives from :class:`UIWorkload` which is an
 intermediate class which in turn inherits from
@@ -263,7 +263,7 @@ This class define these additional attributes:
 .. _reventworkload-api:
 
 ReventWorkload
-""""""""""""""
+^^^^^^^^^^^^^^
 
 The :class:`ReventWorkload` derives from :class:`UIWorkload` which is an
 intermediate class which in turn inherits from

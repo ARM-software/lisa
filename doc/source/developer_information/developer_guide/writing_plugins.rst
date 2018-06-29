@@ -37,7 +37,7 @@ proceeding onto guidance for specific plugin types.
 .. _resource-resolution:
 
 Dynamic Resource Resolution
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The idea is to decouple resource identification from resource discovery.
 Workloads/instruments/devices/etc state *what* resources they need, and not
@@ -85,7 +85,7 @@ Currently available resource types are defined in :py:mod:`wa.framework.resource
 .. _deploying-executables:
 
 Deploying executables to a target
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Some targets may have certain restrictions on where executable binaries may be
 placed and how they should be invoked. To ensure your plugin works with as
@@ -237,7 +237,7 @@ iteration). The full list of available methods can be found in
 .. _prioritization:
 
 Prioritization
-^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~
 
 Callbacks (e.g. ``setup()`` methods) for all instruments get executed at the
 same point during workload execution, one after another. The order in which the
@@ -422,7 +422,7 @@ could be a file path), or ``None`` if this getter was unable to discover
 that resource.
 
 Getter Prioritization
-^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~
 
 A priority is an integer with higher numeric values indicating a higher
 priority. The following standard priority aliases are defined for getters:
@@ -450,7 +450,7 @@ there is a good reason). Any integer is a valid priority. The standard prioritie
 range from 0 to 40 in increments of 10.
 
 Example
-^^^^^^^
+~~~~~~~
 
 The following is an implementation of a getter that searches for files in the
 users dependencies directory, typically
