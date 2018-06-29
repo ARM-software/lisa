@@ -1,5 +1,8 @@
-Contributing Code
-=================
+Contributing
+============
+
+Code
+----
 
 We welcome code contributions via GitHub pull requests. To help with
 maintainability of the code line we ask that the code uses a coding style
@@ -53,3 +56,130 @@ submitting a pull request:
 Once you have your contribution is ready, please follow instructions in `GitHub
 documentation <https://help.github.com/articles/creating-a-pull-request/>`_ to
 create a pull request.
+
+--------------------------------------------------------------------------------
+
+Documentation
+-------------
+
+Headings
+~~~~~~~~
+
+To allow for consistent headings to be used through out the document the
+following character sequences should be used when creating headings
+
+::
+
+        =========
+        Heading 1
+        =========
+
+        Only used for top level headings which should also have an entry in the
+        navigational side bar.
+
+        *********
+        Heading 2
+        *********
+
+        Main page heading used for page title, should not have a top level entry in the
+        side bar.
+
+        Heading 3
+        ==========
+
+        Regular section heading.
+
+        Heading 4
+        ---------
+
+        Sub-heading.
+
+        Heading 5
+        ~~~~~~~~~
+
+        Heading 6
+        ^^^^^^^^^
+
+        Heading 7
+        """""""""
+
+
+--------------------------------------------------------------------------------
+
+Configuration Listings
+~~~~~~~~~~~~~~~~~~~~~~
+
+To keep a consistent style for presenting configuration options, the preferred
+style is to use a `Field List`.
+
+(See: http://docutils.sourceforge.net/docs/user/rst/quickref.html#field-lists)
+
+Example::
+
+        :parameter: My Description
+
+Will render as:
+
+        :parameter: My Description
+
+
+--------------------------------------------------------------------------------
+
+API Style
+~~~~~~~~~
+
+When documenting an API the currently preferred style is to provide a short
+description of the class, followed by the attributes of the class in a
+`Definition List` followed by the methods using the `method` directive.
+
+(See: http://docutils.sourceforge.net/docs/user/rst/quickref.html#definition-lists)
+
+
+Example::
+
+        API
+        ===
+
+        :class:`MyClass`
+        ----------------
+
+        :class:`MyClass` is an example class to demonstrate API documentation.
+
+        ``attribute1``
+            The first attribute of the example class.
+
+        ``attribute2``
+            Another attribute example.
+
+        methods
+        """""""
+
+        .. method:: MyClass.retrieve_output(name)
+
+            Retrieve the output for ``name``.
+
+            :param name:  The output that should be returned.
+            :return: An :class:`Output` object for ``name``.
+            :raises NotFoundError: If no output can be found.
+
+
+Will render as:
+
+:class:`MyClass` is an example class to demonstrate API documentation.
+
+``attribute1``
+    The first attribute of the example class.
+
+``attribute2``
+    Another attribute example.
+
+methods
+^^^^^^^
+
+.. method:: MyClass.retrieve_output(name)
+
+    Retrieve the output for ``name``.
+
+    :param name:  The output that should be returned.
+    :return: An :class:`Output` object for ``name``.
+    :raises NotFoundError: If no output can be found.
