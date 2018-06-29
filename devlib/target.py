@@ -173,6 +173,7 @@ class Target(object):
                  load_default_modules=True,
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  conn_cls=None,
+                 is_container=False
                  ):
         self._connected_as_root = None
         self.connection_settings = connection_settings or {}
@@ -198,6 +199,7 @@ class Target(object):
         self.load_default_modules = load_default_modules
         self.shell_prompt = bytes_regex(shell_prompt)
         self.conn_cls = conn_cls
+        self.is_container = is_container
         self.logger = logging.getLogger(self.__class__.__name__)
         self._installed_binaries = {}
         self._installed_modules = {}
@@ -835,6 +837,7 @@ class LinuxTarget(Target):
                  load_default_modules=True,
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  conn_cls=SshConnection,
+                 is_container=False,
                  ):
         super(LinuxTarget, self).__init__(connection_settings=connection_settings,
                                           platform=platform,
@@ -844,7 +847,8 @@ class LinuxTarget(Target):
                                           modules=modules,
                                           load_default_modules=load_default_modules,
                                           shell_prompt=shell_prompt,
-                                          conn_cls=conn_cls)
+                                          conn_cls=conn_cls,
+                                          is_container=is_container)
 
     def wait_boot_complete(self, timeout=10):
         pass
@@ -1028,6 +1032,7 @@ class AndroidTarget(Target):
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  conn_cls=AdbConnection,
                  package_data_directory="/data/data",
+                 is_container=False,
                  ):
         super(AndroidTarget, self).__init__(connection_settings=connection_settings,
                                             platform=platform,
@@ -1037,7 +1042,8 @@ class AndroidTarget(Target):
                                             modules=modules,
                                             load_default_modules=load_default_modules,
                                             shell_prompt=shell_prompt,
-                                            conn_cls=conn_cls)
+                                            conn_cls=conn_cls,
+                                            is_container=is_container)
         self.package_data_directory = package_data_directory
         self.clear_logcat_lock = threading.Lock()
 
@@ -1743,6 +1749,7 @@ class LocalLinuxTarget(LinuxTarget):
                  load_default_modules=True,
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  conn_cls=LocalConnection,
+                 is_container=False,
                  ):
         super(LocalLinuxTarget, self).__init__(connection_settings=connection_settings,
                                                platform=platform,
@@ -1752,7 +1759,8 @@ class LocalLinuxTarget(LinuxTarget):
                                                modules=modules,
                                                load_default_modules=load_default_modules,
                                                shell_prompt=shell_prompt,
-                                               conn_cls=conn_cls)
+                                               conn_cls=conn_cls,
+                                               is_container=is_container)
 
     def _resolve_paths(self):
         if self.working_directory is None:
@@ -1824,6 +1832,7 @@ class ChromeOsTarget(LinuxTarget):
                  load_default_modules=True,
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  package_data_directory="/data/data",
+                 is_container=False
                  ):
 
         self.supports_android = None
@@ -1845,7 +1854,8 @@ class ChromeOsTarget(LinuxTarget):
                                              modules=modules,
                                              load_default_modules=load_default_modules,
                                              shell_prompt=shell_prompt,
-                                             conn_cls=SshConnection)
+                                             conn_cls=SshConnection,
+                                             is_container=is_container)
 
         # We can't determine if the target supports android until connected to the linux host so
         # create unconditionally.
@@ -1869,7 +1879,8 @@ class ChromeOsTarget(LinuxTarget):
                                                load_default_modules=False,
                                                shell_prompt=shell_prompt,
                                                conn_cls=AdbConnection,
-                                               package_data_directory=package_data_directory)
+                                               package_data_directory=package_data_directory,
+                                               is_container=True)
         if connect:
             self.connect()
 
