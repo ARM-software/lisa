@@ -49,7 +49,7 @@ from devlib.utils.ssh import SshConnection, TelnetConnection, Gem5Connection
 from devlib.utils.version import get_commit as __get_commit
 
 
-__version__ = '0.0.4'
+__version__ = '1.0.0'
 
 __commit = __get_commit()
 if __commit:
