@@ -97,7 +97,7 @@ class Jankbench(ApkWorkload):
         elif self.pull_results_db and not self.target.is_rooted:
             raise ConfigError('pull_results_db set for an unrooted device')
 
-        if self.target.os is 'android':
+        if not self.target.is_container:
             self.target.ensure_screen_is_on()
 
         self.command = self._build_command()
