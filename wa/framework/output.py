@@ -81,6 +81,12 @@ class Output(object):
             return []
         return self.result.events
 
+    @property
+    def metadata(self):
+        if self.result is None:
+            return {}
+        return self.result.metadata
+
     def __init__(self, path):
         self.basepath = path
         self.result = None
