@@ -42,7 +42,7 @@ class TestTrace(TestCase):
         self.platform = self._get_platform()
 
         self.trace_path = os.path.join(self.traces_dir, 'trace.txt')
-        self.trace = Trace(self.platform, self.trace_path, self.events)
+        self.trace = Trace(self.trace_path, self.events, self.platform)
 
     def make_trace(self, in_data):
         """
@@ -51,8 +51,8 @@ class TestTrace(TestCase):
         with open(self.test_trace, "w") as fout:
             fout.write(in_data)
 
-        return Trace(self.platform, self.test_trace, self.events,
-                     normalize_time=False)
+        return Trace(self.test_trace, self.events,
+                     self.platform, normalize_time=False)
 
     def get_trace(self, trace_name):
         """
@@ -61,7 +61,8 @@ class TestTrace(TestCase):
         dir = os.path.join(self.traces_dir, trace_name)
 
         trace_path = os.path.join(dir, 'trace.dat')
-        return Trace(self._get_platform(trace_name), trace_path, self.events)
+        return Trace(trace_path, self.events,
+                     self._get_platform(trace_name))
 
     def _get_platform(self, trace_name=None):
         trace_dir = self.traces_dir
@@ -113,8 +114,10 @@ class TestTrace(TestCase):
         """
         expected_duration = 6.676497
 
-        trace = Trace(self.platform, self.trace_path,
-                      self.events, normalize_time=False
+        trace = Trace(self.trace_path,
+                      self.events,
+                      self.platform,
+                      normalize_time=False
         )
 
         self.assertAlmostEqual(trace.time_range, expected_duration, places=6)
@@ -125,8 +128,10 @@ class TestTrace(TestCase):
         """
         expected_duration = 4.0
 
-        trace = Trace(self.platform, self.trace_path,
-                      self.events, normalize_time=False,
+        trace = Trace(self.trace_path,
+                      self.events,
+                      self.platform,
+                      normalize_time=False,
                       window=(76.402065, 80.402065)
         )
 

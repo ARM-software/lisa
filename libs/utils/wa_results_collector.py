@@ -353,7 +353,7 @@ class WaResultsCollector(object):
         metrics = []
         events = ['irq_handler_entry', 'cpu_frequency', 'nohz_kick', 'sched_switch',
                   'sched_load_cfs_rq', 'sched_load_avg_task', 'thermal_temperature']
-        trace = Trace(self.platform, trace_path, events)
+        trace = Trace(trace_path, events, self.platform)
 
         metrics.append(('cpu_wakeup_count', len(trace.data_frame.cpu_wakeups()), None))
 

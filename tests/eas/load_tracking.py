@@ -1001,7 +1001,7 @@ class _PELTTaskGroupsTest(LisaTest):
             cls._log.info('Collected FTrace binary trace: %s', trace_file)
 
         # Extract trace
-        cls.trace = Trace(None, test_dir, te.ftrace.events)
+        cls.trace = Trace(test_dir, te.ftrace.events)
 
     @classmethod
     def _migrate_task(cls, test_env):

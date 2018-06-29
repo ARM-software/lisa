@@ -288,40 +288,48 @@ fi
 if [ ${BUILD_IMAGE} -eq $YES ]; then
 	c_info "Making [Image]..."
 	(set -x; cd "${KERNEL_SRC}"; make -j${NCPUS} "$KERNEL_IMAGE" >${OUT})
+	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${BUILD_DTBS} -eq $YES ]; then
 	c_info "Making [dtbs]..."
 	(set -x; cd "${KERNEL_SRC}"; make -j${NCPUS} dtbs >${OUT})
+	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${BUILD_DTBO_IMAGE} -eq $YES ]; then
 	c_info "Making [dtbo.img]..."
 	(set -x; cd "${KERNEL_SRC}"; make -j${NCPUS} dtbo.img >${OUT})
+	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${BUILD_MODULES} -eq $YES ]; then
 	c_info "Making [modules]..."
 	(set -x; cd "${KERNEL_SRC}";  make -j${NCPUS} modules >${OUT})
+	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${BUILD_MODULES_INSTALL} -eq $YES ]; then
 	c_info "Making [modules_install] to [${INSTALL_MOD_PATH}] ..."
 	(set -x; cd "${KERNEL_SRC}";  make -j${NCPUS} modules_install >${OUT})
+	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${MAKE_MENUCONFIG} -eq $YES ]; then
 	c_info "Making [menuconfig]..."
 	(set -x; cd "${KERNEL_SRC}"; make menuconfig)
+	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${MAKE_SAVEDEFCONFIG} -eq $YES ]; then
 	c_info "Making [savedefconfig]..."
 	(set -x; cd "${KERNEL_SRC}"; make savedefconfig)
+	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 
 if [ ${BUILD_NOW} -eq $YES ]; then
 	c_info "Making default target..."
 	(set -x; cd "${KERNEL_SRC}" make -j${NCPUS} >${OUT})
+	ERROR=$?; [ $ERROR -eq 0 ] || exit $ERROR
 fi
 

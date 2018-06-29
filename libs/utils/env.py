@@ -716,7 +716,7 @@ class TestEnv(ShareState):
     def _init_ftrace(self, force=False, conf=None):
 
         if not force and self.ftrace is not None:
-            return self.ftrace
+            return
 
         ftrace = conf or self.conf.get('ftrace')
         if ftrace is None:
@@ -726,8 +726,9 @@ class TestEnv(ShareState):
         functions = ftrace.get('functions', None)
         buffsize = ftrace.get('buffsize', FTRACE_BUFSIZE_DEFAULT)
 
-        # If no events are specified, do not create the FtraceCollector
-        if not events:
+        # If no events or functions have been specified:
+        # do not create the FtraceCollector
+        if not (events or functions):
             return
 
         self.ftrace = devlib.FtraceCollector(
@@ -748,7 +749,7 @@ class TestEnv(ShareState):
             for function in functions:
                 self._log.info('   %s', function)
 
-        return self.ftrace
+        return
 
     def _init_energy(self, force):
 
