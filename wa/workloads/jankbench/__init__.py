@@ -150,7 +150,7 @@ class Jankbench(ApkWorkload):
                     context.add_metric(metric, value, units=None, lower_is_better=True,
                                        classifiers={'test_name': test_name, 'rep': rep})
 
-    def exract_metrics_from_logcat(self, context):
+    def extract_metrics_from_logcat(self, context):
         metric_names = ['mean', 'junk_p', 'std_dev', 'count_bad', 'count_junk']
         logcat_file = context.get_artifact_path('logcat')
         with open(logcat_file) as fh:
