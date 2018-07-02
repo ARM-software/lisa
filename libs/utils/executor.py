@@ -318,6 +318,30 @@ class Executor():
     def get_run_dir(target):
         return os.path.join(target.working_directory, TGT_RUN_DIR)
 
+    def _selinux_mode_unused(self):
+        return (self._old_selinux_mode is None or 'Disabled' in self._old_selinux_mode)
+
+    def _clear_selinux_mode(self):
+        try:
+            # First, save the old SELinux mode
+            self._old_selinux_mode = self.target.execute('getenforce')
+        except TargetError:
+            # Probably the target doesn't have SELinux. No problem.
+            pass
+        else:
+            if self._selinux_mode_unused():
+                self._log.info('Target SELinux not present or disabled')
+            else:
+                self._log.warning('Setting target SELinux in permissive mode')
+                self.target.execute('setenforce 0', as_root=True)
+
+    def _restore_selinux_mode(self):
+        if not self._selinux_mode_unused():
+            self._log.info('Restoring target SELinux mode: %s',
+                           self._old_selinux_mode)
+            self.target.execute('setenforce ' + self._old_selinux_mode,
+                                as_root=True)
+
     def _setup_rootfs(self, tc):
         # Initialize CGroups if required
         self._cgroups_init(tc)
@@ -339,16 +363,8 @@ class Executor():
             # (while other files we create have "shell_data_file"). That
             # prevents non-root users from creating files in tmpfs mounts. For
             # now, just put SELinux in permissive mode to get around that.
-            try:
-                # First, save the old SELinux mode
-                self._old_selinux_mode = self.target.execute('getenforce')
-            except TargetError:
-                # Probably the target doesn't have SELinux. No problem.
-                pass
-            else:
+            self._clear_selinux_mode()
 
-                self._log.warning('Setting target SELinux in permissive mode')
-                self.target.execute('setenforce 0', as_root=True)
         else:
             self._log.warning('Not mounting tmpfs because no root')
 
@@ -466,11 +482,7 @@ class Executor():
         return has_flag
 
     def _target_cleanup(self, tc):
-        if self._old_selinux_mode is not None:
-            self._log.info('Restoring target SELinux mode: %s',
-                           self._old_selinux_mode)
-            self.target.execute('setenforce ' + self._old_selinux_mode,
-                                as_root=True)
+        self._restore_selinux_mode()
 
 ################################################################################
 # Workload Setup and Execution
