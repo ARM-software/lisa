@@ -454,10 +454,10 @@ class toggle_set(set):
 class ID(str):
 
     def merge_with(self, other):
-        return '_'.join(self, other)
+        return '_'.join([self, other])
 
     def merge_into(self, other):
-        return '_'.join(other, self)
+        return '_'.join([other, self])
 
 
 class obj_dict(MutableMapping):
