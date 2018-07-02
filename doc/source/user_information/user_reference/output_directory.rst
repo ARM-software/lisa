@@ -43,6 +43,11 @@ iterations each of ``dhrystone`` and ``memcpy`` workloads with no augmentations
 enabled, and with the first attempt at the first iteration of dhrystone having
 failed.
 
+You may notice that a number of directories named ``wk*-x-x`` were generated in the
+output directory structure. Each of these directories represents a
+:term:`job`. The name of the output directory is as stated :ref:`here <job_execution_subd>`.
+
+
 Output Directory Entries
 ------------------------
 
@@ -81,6 +86,7 @@ __failed
         failed and were re-run. This directory contains output directories for
         the failed attempts.
 
+.. _job_execution_subd:
 job execution output subdirectory
         Each subdirectory will be named ``<job id>_<workload label>_<iteration
         number>``, and will, at minimum, contain a ``result.json`` (see above).

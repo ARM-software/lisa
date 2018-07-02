@@ -59,7 +59,7 @@ An example agenda can be seen here:
                 num_big_cores: 4
                 num_little_cores: 0
 
-    workloads:                  # List which workloads should be ran
+    workloads:                  # List which workloads should be run
     -   name: benchmarkpi
         augmentations:
             - ~trace-cmd        # Disable the trace-cmd instrument for this workload
@@ -160,15 +160,15 @@ Plugins
 workloads
 ^^^^^^^^^
 
-Here you can specify a list of workloads to be ran. If you wish to run a
+Here you can specify a list of workloads to be run. If you wish to run a
 workload with all default values then you can specify the workload name directly
 as an entry, otherwise a dict mapping should be provided. Any settings provided
 here will be the most specific and therefore override any other more generalised
 configuration for that particular workload spec. The valid entries are as
 follows:
 
-:workload_name: **(Mandatory)** The name of the workload to be ran
-:iterations: Specify how many iterations the workload should be ran
+:workload_name: **(Mandatory)** The name of the workload to be run
+:iterations: Specify how many iterations the workload should be run
 :label: Similar to IDs but do not have the uniqueness restriction.
     If specified, labels will be used by some output processors instead of (or in
     addition to) the workload name. For example, the csv output processor will put

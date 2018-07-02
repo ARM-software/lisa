@@ -90,7 +90,7 @@ to describe every single thing that happens.
    communication between the core framework and plugins. After this any required
    instruments and output processors are initialized and installed.
 #. Finally, the Executor instantiates a :class:`wa.framework.execution.Runner`,
-   initializes its job queue with workload specs from the RunConfiguraiton, and
+   initializes its job queue with workload specs from the RunConfiguration, and
    kicks it off.
 #. The Runner performs the run time configuration of the device and goes
    through the workload specs (in the order defined by ``execution_order``

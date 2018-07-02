@@ -1,3 +1,5 @@
+.. _glossary:
+
 Glossary
 ========
 
@@ -73,9 +75,9 @@ Glossary
 
     Job
         An single execution of a workload. A job is defined by an associated
-        :term:`spec`. However, multiple jobs can share the same spec; e.g. Even
-        if you only have 1 workload to run but wanted 5 iterations then 5
-        individual jobs will be generated to be ran.
+        :term:`spec`. However, multiple jobs can share the same spec;
+        E.g. Even if you only have 1 workload to run but wanted 5 iterations
+        then 5 individual jobs will be generated to be run.
 
     Metric
         A single numeric measurement or score collected during job execution.
@@ -93,11 +95,26 @@ Glossary
         :term:`job`\ s, and results in a single output directory structure
         containing job results and metadata.
 
+    Section
+        A set of configurations for how jobs should be run. The
+        settings in them take less precedence than workload-specific settings. For
+        every section, all jobs will be run again, with the changes
+        specified in the section's agenda entry. Sections
+        are useful for several runs in which global settings change.
+
     Spec
         A specification of a workload. For example you can have a single
         workload specification that is then executed multiple times if you
         desire multiple iterations but the configuration for the workload will
-        remain the same.
+        remain the same. In WA2 the term "iteration" used to refer to the same
+        underlying idea as spec now does. It should be noted however, that this
+        is no longer the case and an iteration is merely a configuration point
+        in WA3. Spec is to blueprint as job is to product.
 
     WA
         Workload Automation. The full name of this framework.
+
+    Workload
+        A workload is the lowest level specification for tasks that need to be run
+        on a target. A workload can have multiple iterations, and be run additional
+        multiples of times dependent on the number of sections.

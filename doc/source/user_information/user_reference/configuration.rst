@@ -21,7 +21,9 @@ if it does not already exist. This file must always exist and will always be
 loaded. You can add to or override the contents of that file on invocation of
 Workload Automation by specifying an additional configuration file using
 ``--config`` option. Variables with specific names  will be picked up by the
-framework and used to modify the behaviour of Workload automation.
+framework and used to modify the behaviour of Workload automation e.g.
+the ``iterations`` variable might be specified to tell WA how many times to run
+each workload.
 
 ---------------------
 
@@ -97,3 +99,9 @@ it is not possible to know the end users intention and WA will error.
 This functionality allows for defaults for plugins, targets etc. to be
 configured at a global level and then seamless overridden without the need to
 remove the high level configuration.
+
+Dependent on specificity, configuration parameters from different sources will
+have different inherent priorities. Within an agenda, the configuration in
+"workload" entries wil be more specific than "sections" entries, which in turn
+are more specific than parameters in the "config" entry.
+
