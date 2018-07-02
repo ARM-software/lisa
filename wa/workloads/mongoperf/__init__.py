@@ -32,7 +32,7 @@ class Mongoperf(Workload):
         Parameter('threads', kind=int, default=16,
                   description="""
                   Defines the number of threads mongoperf will use in the test.
-                  To saturate your system’s storage system you will need
+                  To saturate the system storage system you will need
                   multiple threads.
                   """),
         Parameter('file_size_mb', kind=int, default=1,
