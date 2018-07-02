@@ -212,9 +212,11 @@ __counters = defaultdict(int)
 def reset_counter(name=None, value=0):
     __counters[name] = value
 
+
 def reset_all_counters(value=0):
     for k in __counters:
         reset_counter(k, value)
+
 
 def counter(name=None):
     """
@@ -534,7 +536,7 @@ class level(object):
 
     @staticmethod
     def from_pod(pod):
-        name, value_part =  pod.split('(')
+        name, value_part = pod.split('(')
         return level(name, numeric(value_part.rstrip(')')))
 
     def __init__(self, name, value):
@@ -576,7 +578,6 @@ class level(object):
             return self.name != other
         else:
             return self.value != other
-
 
 
 class _EnumMeta(type):

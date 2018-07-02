@@ -100,6 +100,7 @@ POD_TYPES = [
     cpu_mask,
 ]
 
+
 class WAJSONEncoder(_json.JSONEncoder):
 
     def default(self, obj):  # pylint: disable=method-hidden
@@ -190,12 +191,15 @@ def _wa_regex_representer(dumper, data):
     text = '{}:{}'.format(data.flags, data.pattern)
     return dumper.represent_scalar(_regex_tag, text)
 
+
 def _wa_level_representer(dumper, data):
     text = '{}:{}'.format(data.name, data.level)
     return dumper.represent_scalar(_level_tag, text)
 
+
 def _wa_cpu_mask_representer(dumper, data):
     return dumper.represent_scalar(_cpu_mask_tag, data.mask())
+
 
 def _wa_dict_constructor(loader, node):
     pairs = loader.construct_pairs(node)
@@ -212,10 +216,12 @@ def _wa_regex_constructor(loader, node):
     flags, pattern = value.split(':', 1)
     return re.compile(pattern, int(flags or 0))
 
+
 def _wa_level_constructor(loader, node):
     value = loader.construct_scalar(node)
     name, value = value.split(':', 1)
     return level(name, value)
+
 
 def _wa_cpu_mask_constructor(loader, node):
     value = loader.construct_scalar(node)
@@ -317,9 +323,9 @@ def _read_pod(fh, fmt=None):
         if fmt == '':
             # Special case of no given file extension
             message = ("Could not determine format " +
-            "from file extension for \"{}\". ".format(getattr(fh, 'name', '<none>')) +
-            "Please specify it or modify the fmt parameter.")
-            raise ValueError(message)
+                       "from file extension for \"{}\". "
+                       "Please specify it or modify the fmt parameter.")
+            raise ValueError(message.format(getattr(fh, 'name', '<none>')))
     if fmt == 'yaml':
         return yaml.load(fh)
     elif fmt == 'json':
@@ -344,7 +350,7 @@ def _write_pod(pod, wfh, fmt=None):
 
 
 def is_pod(obj):
-    if  type(obj) not in POD_TYPES:
+    if type(obj) not in POD_TYPES:
         return False
     if hasattr(obj, 'items'):
         for k, v in obj.items():

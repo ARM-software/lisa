@@ -25,6 +25,7 @@ from wa.utils.types import numeric
 
 logger = logging.getLogger('trace-cmd')
 
+
 class TraceCmdEvent(object):
     """
     A single trace-cmd event. This will appear in the trace cmd report in the format ::
@@ -231,7 +232,7 @@ EMPTY_CPU_REGEX = re.compile(r'CPU \d+ is empty')
 
 class TraceCmdParser(object):
     """
-    A parser for textual representation of ftrace as reported by trace-cmd 
+    A parser for textual representation of ftrace as reported by trace-cmd
 
     """
 
@@ -240,7 +241,7 @@ class TraceCmdParser(object):
         Initialize a new trace parser.
 
         :param filter_markers: Specifies whether the trace before the start
-                               marker and after the stop marker should be 
+                               marker and after the stop marker should be
                                filtered out (so only events between the two
                                markers will be reported). This maybe overriden
                                based on `check_for_markers` parameter of

@@ -31,6 +31,7 @@ def activate_environment(name):
         init_environment(name)
     __active_environment = name
 
+
 def init_environment(name):
     """
     Create a new environment called ``name``, but do not set it as the
@@ -43,6 +44,7 @@ def init_environment(name):
         msg = "Environment {} already exists".format(name)
         raise ValueError(msg)
     __environments[name] = []
+
 
 def reset_environment(name=None):
     """
@@ -63,6 +65,7 @@ def reset_environment(name=None):
             activate_environment('default')
         __environments[__active_environment] = []
 
+
 # The decorators:
 def once_per_instance(method):
     """
@@ -80,6 +83,7 @@ def once_per_instance(method):
         return method(*args, **kwargs)
 
     return wrapper
+
 
 def once_per_class(method):
     """
@@ -99,6 +103,7 @@ def once_per_class(method):
         return method(*args, **kwargs)
 
     return wrapper
+
 
 def once(method):
     """

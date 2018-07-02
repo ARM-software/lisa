@@ -521,7 +521,6 @@ def merge_sequencies(s1, s2):
     return type(s2)(unique(chain(s1, s2)))
 
 
-
 def merge_maps(m1, m2):
     return type(m2)(chain(iter(m1.items()), iter(m2.items())))
 
@@ -603,6 +602,7 @@ def resolve_cpus(name, target):
         else:
             msg = 'Unexpected core name "{}"'
             raise ValueError(msg.format(name))
+
 
 @memoized
 def resolve_unique_domain_cpus(name, target):
