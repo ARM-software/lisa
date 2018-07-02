@@ -586,10 +586,10 @@ class _EnumMeta(type):
     def __str__(cls):
         return str(cls.levels)
 
-    def __getattr__(self, name):
+    def __getattr__(cls, name):
         name = name.lower()
-        if name in self.__dict__:
-                return self.__dict__[name]
+        if name in cls.__dict__:
+            return cls.__dict__[name]
 
 
 def enum(args, start=0, step=1):
