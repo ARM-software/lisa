@@ -32,11 +32,12 @@ import shlex
 import sys
 from bisect import insort
 if sys.version_info[0] == 3:
-    from urllib.parse import quote, unquote
-    from past.builtins import basestring
+    from urllib.parse import quote, unquote #pylint: disable=no-name-in-module, import-error
+    from past.builtins import basestring #pylint: disable=redefined-builtin
     long = int
 else:
     from urllib import quote, unquote
+#pylint: disable=wrong-import-position
 from collections import defaultdict, MutableMapping
 from copy import copy
 from functools import total_ordering
