@@ -73,6 +73,12 @@ class Workload(TargetedPlugin):
         self.asset_files = []
         self.deployed_assets = []
 
+        supported_platforms = getattr(self, 'supported_platforms', [])
+        if supported_platforms and self.target.os not in supported_platforms:
+            msg = 'Supported platforms for "{}" are "{}", attemping to run on "{}"'
+            raise WorkloadError(msg.format(self.name, ' '.join(self.supported_platforms),
+                                           self.target.os))
+
     def init_resources(self, resolver):
         """
         This method may be used to perform early resource discovery and
@@ -164,6 +170,8 @@ class Workload(TargetedPlugin):
 
 
 class ApkWorkload(Workload):
+
+    supported_platforms = ['android']
 
     # May be optionally overwritten by subclasses
     # Times are in seconds
@@ -326,8 +334,6 @@ class ApkUIWorkload(ApkWorkload):
 
 class ApkUiautoWorkload(ApkUIWorkload):
 
-    platform = 'android'
-
     parameters = [
         Parameter('markers_enabled', kind=bool, default=False,
                   description="""
@@ -407,7 +413,7 @@ class UIWorkload(Workload):
 
 class UiautoWorkload(UIWorkload):
 
-    platform = 'android'
+    supported_platforms = ['android']
 
     parameters = [
         Parameter('markers_enabled', kind=bool, default=False,
