@@ -18,7 +18,7 @@ class LogcatEvent(object):
     def __init__(self, timestamp, pid, tid, level, tag, message):
         self.timestamp = timestamp
         self.pid = pid
-        self.tid = pid
+        self.tid = tid
         self.level = level
         self.tag = tag
         self.message = message
