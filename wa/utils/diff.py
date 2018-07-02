@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 
 from builtins import zip
 from future.moves.itertools import zip_longest
@@ -8,6 +9,7 @@ from wa.utils.misc import as_relative, diff_tokens, write_table
 from wa.utils.misc import ensure_file_directory_exists as _f
 from wa.utils.misc import ensure_directory_exists as _d
 
+logger = logging.getLogger('diff')
 
 def diff_interrupt_files(before, after, result):  # pylint: disable=R0914
     output_lines = []
