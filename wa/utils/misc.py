@@ -19,18 +19,17 @@ Miscellaneous functions that don't fit anywhere else.
 
 """
 
-import os
-import sys
-import re
-import math
+import hashlib
 import imp
+import logging
+import math
+import os
+import random
+import re
 import string
 import subprocess
-import traceback
-import logging
-import random
-import hashlib
 import sys
+import traceback
 from datetime import datetime, timedelta
 from operator import mul
 if sys.version_info[0] == 3:

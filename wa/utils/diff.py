@@ -17,12 +17,12 @@ import os
 import re
 import logging
 
+#pyline disable=redefined-builtin
 from builtins import zip
 from future.moves.itertools import zip_longest
 
-from wa.utils.misc import as_relative, diff_tokens, write_table
+from wa.utils.misc import diff_tokens, write_table
 from wa.utils.misc import ensure_file_directory_exists as _f
-from wa.utils.misc import ensure_directory_exists as _d
 
 logger = logging.getLogger('diff')
 

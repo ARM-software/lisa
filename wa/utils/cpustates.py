@@ -15,12 +15,10 @@
 
 
 import os
-import sys
 import re
 import logging
 from ctypes import c_int32
 from collections import defaultdict
-import argparse
 
 from devlib.utils.csvutil import create_writer, csvwriter
 
