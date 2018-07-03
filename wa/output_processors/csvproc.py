@@ -13,8 +13,6 @@
 # limitations under the License.
 #
 
-import sys
-
 from devlib.utils.csvutil import csvwriter
 
 from wa import OutputProcessor, Parameter
@@ -62,6 +60,7 @@ class CsvReportProcessor(OutputProcessor):
         self.outputs_so_far = []  # pylint: disable=attribute-defined-outside-init
         self.artifact_added = False
 
+    #pylint: disable=unused-argument
     def process_job_output(self, output, target_info, run_output):
         self.outputs_so_far.append(output)
         self._write_outputs(self.outputs_so_far, run_output)
@@ -69,7 +68,7 @@ class CsvReportProcessor(OutputProcessor):
             run_output.add_artifact('run_result_csv', 'results.csv', 'export')
             self.artifact_added = True
 
-    def process_run_output(self, output, target_info):
+    def process_run_output(self, output, target_info): #pylint: disable=unused-argument
         self.outputs_so_far.append(output)
         self._write_outputs(self.outputs_so_far, output)
         if not self.artifact_added:

@@ -30,6 +30,7 @@ class UxperfProcessor(OutputProcessor):
     a agenda file by setting ``markers_enabled`` for the workload to ``True``.
     '''
 
+    #pylint: disable=too-many-locals,unused-argument
     def process_job_output(self, output, target_info, job_output):
         logcat = output.get_artifact('logcat')
         if not logcat:

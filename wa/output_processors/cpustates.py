@@ -13,13 +13,11 @@
 # limitations under the License.
 #
 
-import os
 from collections import OrderedDict
 
 from devlib.utils.csvutil import csvwriter
 
 from wa import OutputProcessor, Parameter
-from wa.utils.types import list_of_strings
 from wa.utils.cpustates import report_power_stats
 
 
@@ -90,7 +88,7 @@ class CpuStatesProcessor(OutputProcessor):
     def initialize(self):
         self.iteration_reports = OrderedDict()
 
-    def process_job_output(self, output, target_info, run_output):
+    def process_job_output(self, output, target_info, run_output): #pylint: disable=unused-argument
         trace_file = output.get_artifact_path('trace-cmd-txt')
         if not trace_file:
             self.logger.warning('Text trace does not appear to have been generated; skipping this iteration.')
@@ -112,6 +110,7 @@ class CpuStatesProcessor(OutputProcessor):
         iteration_id = (output.id, output.label, output.iteration)
         self.iteration_reports[iteration_id] = reports
 
+    #pylint: disable=too-many-locals,unused-argument
     def process_run_output(self, output, target_info):
         if not self.iteration_reports:
             self.logger.warning('No power state reports generated.')

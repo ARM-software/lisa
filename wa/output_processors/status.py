@@ -30,7 +30,7 @@ class StatusTxtReporter(OutputProcessor):
 
     """
 
-    def process_run_output(self, output, target_info):
+    def process_run_output(self, output, target_info): #pylint: disable=unused-argument
         counter = Counter()
         for jo in output.jobs:
             counter[jo.status] += 1
@@ -55,4 +55,3 @@ class StatusTxtReporter(OutputProcessor):
             write_table(status_lines, wfh, align='<<>><')
 
         output.add_artifact('run_status_summary', 'status.txt', 'export')
-

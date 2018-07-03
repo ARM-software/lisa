@@ -61,7 +61,7 @@ class TargzProcessor(OutputProcessor):
             self.logger.debug('Registering RUN_FINALIZED handler.')
             signal.connect(self.delete_output_directory, signal.RUN_FINALIZED, priority=-100)
 
-    def export_run_output(self, run_output, target_info):
+    def export_run_output(self, run_output, target_info): #pylint: disable=unused-argument
         if self.outfile:
             outfile_path = self.outfile.format(**run_output.info.to_pod())
         else:
@@ -74,5 +74,3 @@ class TargzProcessor(OutputProcessor):
     def delete_output_directory(self, context):
         self.logger.debug('Deleting output directory')
         shutil.rmtree(context.run_output.basepath)
-
-
