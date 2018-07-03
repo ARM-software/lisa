@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 from contextlib import contextmanager
 
 from wa import OutputProcessor, Parameter, OutputProcessorError
+from wa.framework.exception import OutputProcessorError
 from wa.utils.serializer import json
 from wa.utils.types import boolean
 
@@ -84,7 +85,7 @@ class SqliteResultProcessor(OutputProcessor):
     parameters = [
         Parameter('database', default=None,
                   global_alias='sqlite_database',
-                  description=""" 
+                  description="""
                   Full path to the sqlite database to be used. If this is not
                   specified then a new database file will be created in the
                   output directory. This setting can be used to accumulate
@@ -120,7 +121,7 @@ class SqliteResultProcessor(OutputProcessor):
 
         if self._last_spec != job_output.spec:
             self._update_spec(job_output.spec)
-            
+
         metrics = [(self._spec_oid, job_output.iteration, m.name, str(m.value), m.units, int(m.lower_is_better))
                    for m in job_output.metrics]
         if metrics:
@@ -175,10 +176,10 @@ class SqliteResultProcessor(OutputProcessor):
                 found_version = c.fetchone()[0]
             except sqlite3.OperationalError:
                 message = '{} does not appear to be a valid WA results database.'.format(self.database)
-                raise ResultProcessorError(message)
+                raise OutputProcessorError(message)
             if found_version != SCHEMA_VERSION:
                 message = 'Schema version in {} ({}) does not match current version ({}).'
-                raise ResultProcessorError(message.format(self.database, found_version, SCHEMA_VERSION))
+                raise OutputProcessorError(message.format(self.database, found_version, SCHEMA_VERSION))
 
     def _update_run(self, run_uuid):
         with self._open_connection() as conn:
