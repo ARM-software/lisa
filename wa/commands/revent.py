@@ -19,6 +19,7 @@ from time import sleep
 
 from wa import Command
 from wa.framework import pluginloader
+from wa.framework.exception import ConfigError
 from wa.framework.resource import ResourceResolver
 from wa.framework.target.manager import TargetManager
 from wa.utils.revent import ReventRecorder
