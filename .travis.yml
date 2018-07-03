@@ -1,0 +1,31 @@
+#    Copyright 2018 ARM Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+language: python
+
+python:
+    - "2.7"
+    - "3.4"
+    - "3.6"
+
+install:
+    - pip install nose
+    - pip install nose2
+
+script:
+    - git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && cd /tmp/devlib && python setup.py install
+    - cd $TRAVIS_BUILD_DIR && python setup.py install
+    - nose2 -s $TRAVIS_BUILD_DIR/tests
+
