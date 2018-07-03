@@ -194,6 +194,7 @@ def create_workload(name, kind='basic', where='local', check_name=True, **kwargs
     except KeyError:
         raise CommandError('Unknown workload type: {}'.format(kind))
 
+    # pylint: disable=superfluous-parens
     print('Workload created in {}'.format(workload_dir))
 
 

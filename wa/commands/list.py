@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+
 from wa import Command
 from wa.framework import pluginloader
 from wa.framework.target.descriptor import list_target_descriptions
@@ -45,7 +46,7 @@ class ListCommand(Command):
                                  Only list results that are supported by the
                                  specified platform.
                                  ''')
-
+    # pylint: disable=superfluous-parens
     def execute(self, state, args):
         filters = {}
         if args.name:
@@ -80,6 +81,7 @@ def get_kinds():
     return ['{}s'.format(name) for name in kinds]
 
 
+# pylint: disable=superfluous-parens
 def list_targets():
     targets = list_target_descriptions()
     targets = sorted(targets, key=lambda x: x.name)

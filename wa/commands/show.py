@@ -83,7 +83,7 @@ class ShowCommand(Command):
 
             call('echo "{}" | man -l -'.format(escape_double_quotes(output)), shell=True)
         else:
-            print(rst_output)
+            print(rst_output) # pylint: disable=superfluous-parens
 
 
 def get_target_description(name):
