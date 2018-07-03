@@ -314,5 +314,3 @@ class Meabo(Workload):
     @once
     def _uninstall_executable(self):
         self.target.uninstall_executable(self.target_exe)
-
-

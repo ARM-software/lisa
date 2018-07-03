@@ -162,4 +162,3 @@ class Dhrystone(Workload):
             raise ConfigError(msg)
         if not self.mloops and not self.duration:  # pylint: disable=E0203
             self.mloops = self.default_mloops
-

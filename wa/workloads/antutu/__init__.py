@@ -55,7 +55,7 @@ class Antutu(ApkUiautoWorkload):
                         try:
                             result = float(match.group(1))
                         except ValueError:
-                            result = 'NaN'
+                            result = 'NaN' #pylint: disable=redefined-variable-type
                         entry = regex.pattern.rsplit(None, 1)[0]
                         context.add_metric(entry, result, lower_is_better=False)
                         expected_results -= 1

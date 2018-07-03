@@ -19,9 +19,11 @@ import re
 import os
 import time
 
+#pylint: disable=wrong-import-position
 from future.standard_library import install_aliases
 install_aliases()
 
+#pylint: disable=import-error, wrong-import-order
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -111,6 +113,7 @@ class ExoPlayer(ApkWorkload):
                   """),
     ]
 
+    #pylint: disable=access-member-before-definition
     def validate(self):
         if self.format and self.filename:
             raise ConfigError('Either format *or* filename must be specified; but not both.')
@@ -153,7 +156,7 @@ class ExoPlayer(ApkWorkload):
                                      '"format" to specify a different file.')
                 return files[0]
 
-    def init_resources(self, context):
+    def init_resources(self, context): #pylint: disable=unused-argument
         # Needs to happen first, as it sets self.format, which is required by
         # _find_host_video_file
         self.validate()

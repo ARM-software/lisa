@@ -69,4 +69,3 @@ class Speedometer(UiautoWorkload):
             context.add_metric('Speedometer Score', result, 'Runs per minute', lower_is_better=False)
         else:
             raise WorkloadError("The Speedometer workload has failed. No score was obtainable.")
-

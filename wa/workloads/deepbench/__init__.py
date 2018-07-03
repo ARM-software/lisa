@@ -174,5 +174,3 @@ def read_result_table(filepath):
             pass
 
     return pd.DataFrame(entries, columns=columns)
-
-

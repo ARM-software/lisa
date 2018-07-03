@@ -71,7 +71,7 @@ class Memcpy(Workload):
 
     def setup(self, context):
         self.command = '{} -i {} -s {}'.format(Memcpy.target_exe, self.loops, self.buffer_size)
-        for c in (self.cpus.list()):
+        for c in self.cpus.list():
             self.command += ' -c {}'.format(c)
         self.result = None
 

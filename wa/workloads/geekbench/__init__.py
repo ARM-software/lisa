@@ -389,7 +389,7 @@ class GBScoreCalculator(object):
         context.add_metric('Geekbench Score', int(overall_score))
 
 
-class GeekbenchCorproate(Geekbench):
+class GeekbenchCorproate(Geekbench): #pylint: disable=too-many-ancestors
     name = "geekbench-corporate"
     is_corporate = True
     requires_network = False
