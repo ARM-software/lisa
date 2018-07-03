@@ -165,16 +165,16 @@ class TraceCmdInstrument(Instrument):
         if not self.target.is_rooted:
             raise InstrumentError('trace-cmd instrument cannot be used on an unrooted device.')
         collector_params = dict(
-                 events=self.events,
-                 functions=self.functions,
-                 buffer_size=self.buffer_size,
-                 buffer_size_step=1000,
-                 automark=False,
-                 autoreport=True,
-                 autoview=False,
-                 no_install=self.no_install,
-                 strict=False,
-                 report_on_target=False,
+            events=self.events,
+            functions=self.functions,
+            buffer_size=self.buffer_size,
+            buffer_size_step=1000,
+            automark=False,
+            autoreport=True,
+            autoview=False,
+            no_install=self.no_install,
+            strict=False,
+            report_on_target=False,
         )
         if self.report and self.report_on_target:
             collector_params['autoreport'] = True

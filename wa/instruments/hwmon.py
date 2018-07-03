@@ -21,6 +21,7 @@ from wa.framework.instrument import fast
 MOMENTARY_QUANTITIES = ['temperature', 'power', 'voltage', 'current', 'fps']
 CUMULATIVE_QUANTITIES = ['energy', 'tx', 'tx/rx', 'frames']
 
+
 class HwmonInstrument(Instrument):
     name = 'hwmon'
 
@@ -64,7 +65,7 @@ class HwmonInstrument(Instrument):
 
         for label, measurement_after in measurements_after.items():
             if label not in measurements_before:
-                continue # We've already warned about this
+                continue  # We've already warned about this
             measurement_before = measurements_before[label]
 
             if measurement_after.channel.kind in MOMENTARY_QUANTITIES:

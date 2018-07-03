@@ -48,7 +48,7 @@ class EnergyInstrumentBackend(Plugin):
     instrument = None
 
     def get_parameters(self):
-        return {p.name : p for p in self.parameters}
+        return {p.name: p for p in self.parameters}
 
     def validate_parameters(self, params):
         pass
@@ -66,7 +66,7 @@ class EnergyInstrumentBackend(Plugin):
 class DAQBackend(EnergyInstrumentBackend):
 
     name = 'daq'
-    description="""
+    description = """
     National Instruments Data Acquisition device
 
     For more information about the device, please see the NI website:
@@ -145,7 +145,7 @@ class DAQBackend(EnergyInstrumentBackend):
                   assumes DAQ 6363 and similar with AI channels on connectors
                   0-7 and 16-23.
                   """)
-        ]
+    ]
 
     instrument = DaqInstrument
 
@@ -161,7 +161,7 @@ class DAQBackend(EnergyInstrumentBackend):
 class EnergyProbeBackend(EnergyInstrumentBackend):
 
     name = 'energy_probe'
-    description="""
+    description = """
     Arm Energy Probe caiman version
 
     This backend relies on caiman utility:
@@ -205,7 +205,7 @@ class EnergyProbeBackend(EnergyInstrumentBackend):
 class ArmEnergyProbeBackend(EnergyInstrumentBackend):
 
     name = 'arm_energy_probe'
-    description="""
+    description = """
     Arm Energy Probe arm-probe version
 
     An alternative Arm Energy Probe backend that relies on arm-probe utility:
@@ -251,7 +251,7 @@ class ArmEnergyProbeBackend(EnergyInstrumentBackend):
 class AcmeCapeBackend(EnergyInstrumentBackend):
 
     name = 'acme_cape'
-    description="""
+    description = """
     BayLibre ACME cape
 
     This backend relies on iio-capture utility:
@@ -309,10 +309,11 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
                 iio_device=iio_device, buffer_size=buffer_size)
         return ret
 
+
 class MonsoonBackend(EnergyInstrumentBackend):
 
     name = 'monsoon'
-    description="""
+    description = """
     Monsoon Solutions power monitor
 
     To use this instrument, you need to install the monsoon.py script available
@@ -345,7 +346,7 @@ class MonsoonBackend(EnergyInstrumentBackend):
 class JunoEnergyBackend(EnergyInstrumentBackend):
 
     name = 'juno_readenergy'
-    description="""
+    description = """
     Arm Juno development board on-board energy meters
 
     For more information about Arm Juno board see:
@@ -373,15 +374,15 @@ class EnergyMeasurement(Instrument):
                   Specify the energy instruments to be enabled.
                   """),
         Parameter('instrument_parameters', kind=dict, default={},
-                   description="""
-                   Specify the parameters used to initialize the desired
-                   instruments. To see parameters available for a particular
-                   instrument, run
+                  description="""
+                  Specify the parameters used to initialize the desired
+                  instruments. To see parameters available for a particular
+                  instrument, run
 
                         wa show <instrument name>
 
-                   See help for ``instrument`` parameter to see available
-                   options for <instrument name>.
+                  See help for ``instrument`` parameter to see available
+                  options for <instrument name>.
 
                    """),
         Parameter('sites', kind=list_or_string,

@@ -21,6 +21,7 @@ from wa.framework.exception import InstrumentError
 from wa.framework.instrument import slow
 from wa.utils.misc import ensure_file_directory_exists as _f
 
+
 class DmesgInstrument(Instrument):
     # pylint: disable=no-member,attribute-defined-outside-init
     """
