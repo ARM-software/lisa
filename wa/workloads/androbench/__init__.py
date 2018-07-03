@@ -17,6 +17,7 @@ import re
 from wa import ApkUiautoWorkload
 from wa.framework.exception import WorkloadError
 
+
 class Androbench(ApkUiautoWorkload):
 
     name = 'androbench'
@@ -43,14 +44,14 @@ class Androbench(ApkUiautoWorkload):
         expected_results = len(self.regex_matches)
         logcat_file = context.get_artifact_path('logcat')
         with open(logcat_file) as fh:
-            for line in fh: 
+            for line in fh:
                 for regex in self.regex_matches:
                     match = regex.search(line)
-                    if match: 
+                    if match:
                         result = float(match.group(1))
                         entry = regex.pattern.rsplit(None, 1)[0]
                         context.add_metric(entry, result, 'MB/s', lower_is_better=False)
                         expected_results -= 1
         if expected_results > 0:
-            raise WorkloadError("The Androbench workload has failed. Expected {} scores, Detected {} scores."
-            .format(len(self.regex_matches), expected_results))
+            msg = "The Androbench workload has failed. Expected {} scores, Detected {} scores."
+            raise WorkloadError(msg.format(len(self.regex_matches), expected_results))

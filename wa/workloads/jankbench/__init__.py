@@ -118,7 +118,7 @@ class Jankbench(ApkWorkload):
         if self.pull_results_db:
             target_file = self.target.path.join(self.target.package_data_directory,
                                                 self.package, 'databases', self.results_db_file)
-            host_file = os.path.join(context.output_directory,self.results_db_file)
+            host_file = os.path.join(context.output_directory, self.results_db_file)
             self.target.pull(target_file, host_file, as_root=True)
             context.add_artifact('jankbench-results', host_file, 'data')
 

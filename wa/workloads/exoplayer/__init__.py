@@ -34,17 +34,17 @@ from devlib.utils.android import grant_app_permissions
 
 # Regexps for benchmark synchronization
 REGEXPS = {
-    'start'         : '.*Displayed com.google.android.exoplayer2.demo/.PlayerActivity',
-    'duration'      : '.*period \[(?P<duration>[0-9]+.*)\]',
-    'end'           : '.*state \[.+, .+, E\]',
+    'start': '.*Displayed com.google.android.exoplayer2.demo/.PlayerActivity',
+    'duration': '.*period \[(?P<duration>[0-9]+.*)\]',
+    'end': '.*state \[.+, .+, E\]',
     'dropped_frames': '.*droppedFrames \[(?P<session_time>[0-9]+\.[0-9]+), (?P<count>[0-9]+)\]'
 }
 
 
 DOWNLOAD_URLS = {
     'mp4_1080p': 'http://distribution.bbb3d.renderfarming.net/video/mp4/bbb_sunflower_1080p_30fps_normal.mp4',
-    'mov_720p':  'http://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_720p_h264.mov',
-    'mov_480p':  'http://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_480p_h264.mov',
+    'mov_720p': 'http://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_720p_h264.mov',
+    'mov_480p': 'http://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_480p_h264.mov',
     'ogg_128kbps': 'http://upload.wikimedia.org/wikipedia/commons/c/ca/Tchaikovsky_-_Romeo_and_Juliet_Ouverture_-_Antal_Dorati_(1959).ogg',
 }
 
@@ -200,12 +200,12 @@ class ExoPlayer(ApkWorkload):
 
         if self.duration:
             self.logger.info('Waiting {} seconds before ending playback'
-                           .format(self.duration))
+                             .format(self.duration))
             time.sleep(self.duration)
         else:
             self.logger.info('Waiting for playback completion ({} seconds)'
-                           .format(media_duration_s))
-            self.monitor.wait_for(REGEXPS['end'], timeout = media_duration_s + 30)
+                             .format(media_duration_s))
+            self.monitor.wait_for(REGEXPS['end'], timeout=media_duration_s + 30)
 
     def update_output(self, context):
         regex = re.compile(REGEXPS['dropped_frames'])

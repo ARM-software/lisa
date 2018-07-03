@@ -46,7 +46,7 @@ class Deepbench(Workload):
     """
 
     parameters = [
-        Parameter('test',  default='gemm',
+        Parameter('test', default='gemm',
                   allowed_values=['gemm', 'conv', 'sparse'],
                   description='''
                   Specifies which of the available benchmarks will be run.

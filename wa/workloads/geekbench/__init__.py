@@ -24,6 +24,7 @@ from wa import ApkUiautoWorkload, Parameter
 from wa.framework.exception import ConfigError, WorkloadError
 from wa.utils.misc import capitalize
 
+
 class Geekbench(ApkUiautoWorkload):
 
     name = 'geekbench'
@@ -168,7 +169,7 @@ class Geekbench(ApkUiautoWorkload):
             for section in data['sections']:
                 context.add_metric(namemify(section['name'] + '_score', i), section['score'])
                 context.add_metric(namemify(section['name'] + '_multicore_score', i),
-                                          section['multicore_score'])
+                                   section['multicore_score'])
 
     def update_result_4(self, context):
         outfile_glob = self.target.path.join(self.target.package_data_directory, self.package, 'files', '*gb*')
@@ -195,6 +196,7 @@ class Geekbench(ApkUiautoWorkload):
                                        workloads['score'])
 
     update_result_5 = update_result_4
+
 
 class GBWorkload(object):
     """
@@ -402,6 +404,7 @@ class GeekbenchCorproate(Geekbench):
                   default=sorted(versions)[-1], allowed_values=versions,
                   override=True)
     ]
+
 
 def namemify(basename, i):
     return basename + (' {}'.format(i) if i else '')

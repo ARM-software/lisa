@@ -69,6 +69,7 @@ class AdobeReader(ApkUiautoWorkload):
         self.asset_directory = self.target.path.join(self.target.external_storage,
                                                      'Android', 'data',
                                                      'com.adobe.reader', 'files')
+
     def init_resources(self, context):
         super(AdobeReader, self).init_resources(context)
         # Only accept certain file formats

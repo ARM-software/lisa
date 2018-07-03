@@ -149,8 +149,8 @@ class Lmbench(Workload):
         parts = []
         if self.cpus:
             parts.append('{} taskset {} {}'.format(self.target.busybox,
-                                                       self.cpus.mask(),
-                                                       self.target_exe))
+                                                   self.cpus.mask(),
+                                                   self.target_exe))
         else:
             parts.append(self.target_exe)
         if self.parallelism is not None:

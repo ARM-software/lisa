@@ -24,7 +24,7 @@ from wa.utils.misc import unique
 class Speedometer(UiautoWorkload):
 
     name = 'speedometer'
-    regex=re.compile(r'Speedometer Score ([\d.]+)')
+    regex = re.compile(r'Speedometer Score ([\d.]+)')
     versions = ['1.0', '2.0']
     description = '''
     A workload to execute the speedometer web based benchmark

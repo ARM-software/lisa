@@ -61,6 +61,7 @@ class Memcpy(Workload):
                   cores will be used.
                   '''),
     ]
+
     @once
     def initialize(self, context):
         self.binary_name = 'memcpy'

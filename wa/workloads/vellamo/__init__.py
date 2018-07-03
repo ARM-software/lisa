@@ -65,7 +65,6 @@ class Vellamo(ApkUiautoWorkload):
                                'listed, ``2`` -- the second, etc. Only valid for version ``3.0``.'))
     ]
 
-
     def setup(self, context):
         self.gui.uiauto_params['version'] = self.version
         self.gui.uiauto_params['browserToUse'] = self.browser
@@ -118,13 +117,13 @@ class Vellamo(ApkUiautoWorkload):
                 for benchmark in parser.benchmarks:
                     benchmark.name = benchmark.name.replace(' ', '_')
                     context.add_metric('{}_Total'.format(benchmark.name),
-                                                                benchmark.score)
+                                       benchmark.score)
                     for name, score in list(benchmark.metrics.items()):
                         name = name.replace(' ', '_')
                         context.add_metric('{}_{}'.format(benchmark.name,
-                                                                 name), score)
+                                                          name), score)
             context.add_artifact('vellamo_output', kind='raw',
-                                           path=filename)
+                                 path=filename)
 
     def update_output_v3_2(self, context):
         device_file = self.target.path.join(self.target.package_data_directory,

@@ -83,7 +83,7 @@ class Googlephotos(ApkUiautoWorkload):
 
         for i, f in enumerate(self.test_images):
             orig_file_path = self.target.path.join(d, f)
-            new_dir = self.target.path.join(e, 'wa', 'wa-{}'.format(i+1))
+            new_dir = self.target.path.join(e, 'wa', 'wa-{}'.format(i + 1))
             new_file_path = self.target.path.join(new_dir, f)
 
             self.target.execute('mkdir -p {}'.format(new_dir))

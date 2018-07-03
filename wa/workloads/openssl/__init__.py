@@ -47,7 +47,7 @@ class Openssl(Workload):
 
     parameters = [
         Parameter('algorithm', default='aes-256-cbc',
-                  allowed_values = EVP_NEW + CIPHER_PKI,
+                  allowed_values=EVP_NEW + CIPHER_PKI,
                   description='''
                   Algorithm to benchmark.
                   '''),
@@ -71,8 +71,8 @@ class Openssl(Workload):
         if self.use_system_binary:
             try:
                 cmd = '{0} md5sum < $({0} which openssl)'
-                output  = self.target.execute(cmd.format(self.target.busybox))
-                md5hash  = output.split()[0]
+                output = self.target.execute(cmd.format(self.target.busybox))
+                md5hash = output.split()[0]
                 version = self.target.execute('openssl version').strip()
                 context.update_metadata('hashes', 'openssl', md5hash)
                 context.update_metadata('versions', 'openssl', version)
@@ -115,9 +115,9 @@ class Openssl(Workload):
             if not line.startswith('+F'):
                 continue
 
-            parts =  line.split(':')
+            parts = line.split(':')
             if parts[0] == '+F':  # evp ciphers
-                for bs, value  in zip(BLOCK_SIZES, list(map(float, parts[3:]))):
+                for bs, value in zip(BLOCK_SIZES, list(map(float, parts[3:]))):
                     value = value / 2**20  # to MB
                     context.add_metric('score', value, 'MB/s',
                                        classifiers={'block_size': bs})
@@ -126,31 +126,31 @@ class Openssl(Workload):
                 sign = float(parts[3])
                 verify = float(parts[4])
                 context.add_metric('sign', sign, 'seconds',
-                                    classifiers={'key_length': key_len})
+                                   classifiers={'key_length': key_len})
                 context.add_metric('verify', verify, 'seconds',
-                                    classifiers={'key_length': key_len})
+                                   classifiers={'key_length': key_len})
             elif parts[0] == '+F4':  # ecdsa
                 ec_idx = int(parts[1])
                 key_len = int(parts[2])
                 sign = float(parts[3])
                 verify = float(parts[4])
                 context.add_metric('sign', sign, 'seconds',
-                                    classifiers={'key_length': key_len,
-                                                 'curve': ECD[ec_idx]})
+                                   classifiers={'key_length': key_len,
+                                                'curve': ECD[ec_idx]})
                 context.add_metric('verify', verify, 'seconds',
-                                    classifiers={'key_length': key_len,
-                                                 'curve': ECD[ec_idx]})
+                                   classifiers={'key_length': key_len,
+                                                'curve': ECD[ec_idx]})
             elif parts[0] == '+F5':  # ecdh
                 ec_idx = int(parts[1])
                 key_len = int(parts[2])
                 op_time = float(parts[3])
                 ops_per_sec = float(parts[4])
                 context.add_metric('op', op_time, 'seconds',
-                                    classifiers={'key_length': key_len,
-                                                 'curve': ECD[ec_idx]})
+                                   classifiers={'key_length': key_len,
+                                                'curve': ECD[ec_idx]})
                 context.add_metric('ops_per_sec', ops_per_sec, 'Hz',
-                                    classifiers={'key_length': key_len,
-                                                 'curve': ECD[ec_idx]})
+                                   classifiers={'key_length': key_len,
+                                                'curve': ECD[ec_idx]})
             else:
                 self.logger.warning('Unexpected result: "{}"'.format(line))
 

@@ -16,6 +16,7 @@ import re
 
 from wa import ApkUiautoWorkload, WorkloadError
 
+
 class Antutu(ApkUiautoWorkload):
 
     name = 'antutu'

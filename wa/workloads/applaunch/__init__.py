@@ -18,7 +18,6 @@ from wa import ApkUiautoWorkload, Parameter
 from wa.framework import pluginloader
 
 
-
 class Applaunch(ApkUiautoWorkload):
 
     name = 'applaunch'
@@ -85,7 +84,7 @@ class Applaunch(ApkUiautoWorkload):
                   description.
                   """),
         Parameter('applaunch_iterations', kind=int, default=1,
-                   description="""
+                  description="""
                   Number of iterations of the application launch
                   """),
     ]

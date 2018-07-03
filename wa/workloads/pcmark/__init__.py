@@ -19,12 +19,13 @@ import zipfile
 from wa import ApkUiautoWorkload
 from wa.framework.exception import WorkloadError
 
+
 class PcMark(ApkUiautoWorkload):
 
     name = 'pcmark'
     package_names = ['com.futuremark.pcmark.android.benchmark']
-    regex_matches = [re.compile(r'PcmaWebV2Score>([\d.]+)'), 
-                     re.compile(r'PcmaVideoEditingScore>([\d.]+)'), 
+    regex_matches = [re.compile(r'PcmaWebV2Score>([\d.]+)'),
+                     re.compile(r'PcmaVideoEditingScore>([\d.]+)'),
                      re.compile(r'PcmaDataManipulationScore>([\d.]+)'),
                      re.compile(r'PcmaPhotoEditingV2Score>([\d.]+)'),
                      re.compile(r'PcmaWorkv2Score>([\d.]+)'),

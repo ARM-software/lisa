@@ -89,7 +89,6 @@ class ApacheBenchmark(Workload):
                                        self.path)
         self.output = None
 
-
     def run(self, context):
         self.logger.debug(self.command)
         self.output, _ = check_output(self.command, timeout=300, shell=True)
@@ -111,7 +110,7 @@ class ApacheBenchmark(Workload):
 
             completed = int(get_line(fh, 'Complete requests').split(':')[1].strip())
             failed = int(get_line(fh, 'Failed requests').split(':')[1].strip())
-            fail_rate =  failed / completed * 100
+            fail_rate = failed / completed * 100
             context.add_metric('failed_request', fail_rate, units='percent',
                                lower_is_better=True)
 

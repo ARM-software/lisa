@@ -60,7 +60,6 @@ class HWUITest(Workload):
         super(HWUITest, self).__init__(target, *args, **kwargs)
         HWUITest.target_exe = None
 
-
     @once
     def initialize(self, context):
         host_exe = context.get_resource(Executable(self,
@@ -77,7 +76,7 @@ class HWUITest(Workload):
 
     def extract_results(self, context):
         if not self.output:
-          return
+            return
         outfile = os.path.join(context.output_directory, 'hwuitest.output')
         with open(outfile, 'w') as wfh:
             wfh.write(self.output)
@@ -110,7 +109,7 @@ class HWUITest(Workload):
                                    match['percent'],
                                    "%",
                                    classifiers={"loop": count,
-                                               "frames": self.frames})
+                                                "frames": self.frames})
             else:
                 match = normal.match(value_string).groupdict()
                 context.add_metric(metric,

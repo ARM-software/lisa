@@ -125,8 +125,8 @@ class Meabo(Workload):
             description='''
             Sets which cores each phase is run on.
             ''',
-            constraint=lambda x: all(v>=-1 for v in x),
-            default=[-1]*10,
+            constraint=lambda x: all(v >= -1 for v in x),
+            default=[-1] * 10,
         ),
         Parameter(
             'num_hwcntrs',
@@ -144,7 +144,7 @@ class Meabo(Workload):
             description='''
             Controls which phases to run.
             ''',
-            constraint=lambda x: all(0 < v <=10 for v in x),
+            constraint=lambda x: all(0 < v <= 10 for v in x),
             default=list(range(1, 11)),
         ),
         Parameter(
@@ -167,7 +167,7 @@ class Meabo(Workload):
             ''',
             constraint=lambda x: 0 <= x <= 1,
             default=1,
-            ),
+        ),
         Parameter(
             'llist_size',
             kind=int,
@@ -176,7 +176,7 @@ class Meabo(Workload):
             ''',
             constraint=lambda x: x > 0,
             default=16777216,
-            ),
+        ),
         Parameter(
             'num_particles',
             kind=int,
@@ -290,7 +290,7 @@ class Meabo(Workload):
         # We need to calculate the phase mask
         phase_mask = 0
         for phase in self.run_phases:
-            phase_mask |= 1<<(phase-1)
+            phase_mask |= 1 << (phase - 1)
 
         self.command += ' -P {:d}'.format(phase_mask)
 
