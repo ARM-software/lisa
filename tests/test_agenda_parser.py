@@ -127,7 +127,7 @@ class AgendaTest(TestCase):
     def test_duplicate_id(self):
         try:
             self.parser.load(self.config, duplicate_agenda, 'test')
-        except ConfigError, e:
+        except ConfigError as e:
             assert_in('duplicate', e.message.lower())  # pylint: disable=E1101
         else:
             raise Exception('ConfigError was not raised for an agenda with duplicate ids.')
@@ -135,7 +135,7 @@ class AgendaTest(TestCase):
     def test_yaml_missing_field(self):
         try:
             self.parser.load(self.config, invalid_agenda, 'test')
-        except ConfigError, e:
+        except ConfigError as e:
             assert_in('workload name', e.message)
         else:
             raise Exception('ConfigError was not raised for an invalid agenda.')

@@ -38,7 +38,7 @@ class TestPriorityList(TestCase):
         for key in elements:
             pl.add(elements[key], priority=key)
 
-        match = zip(sorted(elements.values()), pl[:])
+        match = list(zip(sorted(elements.values()), pl[:]))
         for pair in match:
             assert(pair[0] == pair[1])
 
@@ -54,7 +54,7 @@ class TestPriorityList(TestCase):
             pl.add(elements[key], priority=key)
         del elements[2]
         del pl[2]
-        match = zip(sorted(elements.values()), pl[:])
+        match = list(zip(sorted(elements.values()), pl[:]))
         for pair in match:
             assert(pair[0] == pair[1])
 
@@ -65,10 +65,10 @@ class TestPriorityList(TestCase):
         pl.add('3', 3)
         pl.add('2.2', 2)
         it = iter(pl)
-        assert_equal(it.next(), '3')
-        assert_equal(it.next(), '2.1')
-        assert_equal(it.next(), '2.2')
-        assert_equal(it.next(), '1')
+        assert_equal(next(it), '3')
+        assert_equal(next(it), '2.1')
+        assert_equal(next(it), '2.2')
+        assert_equal(next(it), '1')
 
     def test_iterator_break(self):
         pl = prioritylist()
