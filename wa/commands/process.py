@@ -48,7 +48,7 @@ class ProcessCommand(Command):
                                  Specify an output processor to add from the
                                  command line. This can be used to run a
                                  processor that is not normally used without
-                                 introducing permanent change to the config 
+                                 introducing permanent change to the config
                                  (which one might then forget to revert). This
                                  option may be specified multiple times.
                                  """)

@@ -202,10 +202,12 @@ def create_template_workload(path, name, kind, class_name):
     with open(source_file, 'w') as wfh:
         wfh.write(render_template('{}_workload'.format(kind), {'name': name, 'class_name': class_name}))
 
+
 def create_uiautomator_template_workload(path, name, kind, class_name):
     uiauto_path = os.path.join(path, 'uiauto')
     create_uiauto_project(uiauto_path, name)
     create_template_workload(path, name, kind, class_name)
+
 
 def create_uiauto_project(path, name):
     package_name = 'com.arm.wa.uiauto.' + name.lower()
@@ -239,13 +241,14 @@ def create_uiauto_project(path, name):
 
 # Mapping of workload types to their corresponding creation method
 create_funcs = {
-    'basic' : create_template_workload,
-    'apk' : create_template_workload,
-    'revent' : create_template_workload,
-    'apkrevent' : create_template_workload,
-    'uiauto' : create_uiautomator_template_workload,
-    'apkuiauto' : create_uiautomator_template_workload,
+    'basic': create_template_workload,
+    'apk': create_template_workload,
+    'revent': create_template_workload,
+    'apkrevent': create_template_workload,
+    'uiauto': create_uiautomator_template_workload,
+    'apkuiauto': create_uiautomator_template_workload,
 }
+
 
 # Utility functions
 def render_template(name, params):
@@ -259,6 +262,7 @@ def render_template(name, params):
 def get_class_name(name, postfix=''):
     name = identifier(name)
     return ''.join(map(capitalize, name.split('_'))) + postfix
+
 
 def touch(path):
     with open(path, 'w') as _:

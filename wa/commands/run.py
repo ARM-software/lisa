@@ -91,7 +91,7 @@ class RunCommand(Command):
                             description='Run log.')
 
         disabled_augmentations = toggle_set([i != '~~' and "~{}".format(i) or i
-                                           for i in args.augmentations_to_disable])
+                                            for i in args.augmentations_to_disable])
         config.jobs_config.disable_augmentations(disabled_augmentations)
         config.jobs_config.only_run_ids(args.only_run_ids)
 
@@ -122,7 +122,7 @@ class RunCommand(Command):
         try:
             return init_run_output(output_directory, config, args.force)
         except RuntimeError as e:
-            if  'path exists' in str(e):
+            if 'path exists' in str(e):
                 msg = 'Output directory "{}" exists.\nPlease specify another '\
                       'location, or use -f option to overwrite.'
                 self.logger.critical(msg.format(output_directory))

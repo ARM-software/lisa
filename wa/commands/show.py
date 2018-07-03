@@ -110,8 +110,9 @@ def get_rst_from_target(target):
 def get_rst_for_global_config():
     text = underline('Global Configuration')
     text += 'These parameters control the behaviour of WA/run as a whole, they ' \
-    'should be set inside a config file (either located in $WA_USER_DIRECTORY/config.yaml ' \
-    'or one which is specified with -c), or into config/global section of the agenda.\n\n'
+            'should be set inside a config file (either located in ' \
+            '$WA_USER_DIRECTORY/config.yaml or one which is specified with -c), ' \
+            'or into config/global section of the agenda.\n\n'
 
     cfg_points = MetaConfiguration.config_points + RunConfiguration.config_points
     text += get_params_rst(cfg_points)

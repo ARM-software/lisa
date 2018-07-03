@@ -231,6 +231,7 @@ class RecordCommand(Command):
 
         return output_path, file_name
 
+
 class ReplayCommand(Command):
 
     name = 'replay'
