@@ -564,7 +564,7 @@ class CpuUtilizationTimeline(object):
 
     def update(self, timestamp, core_states):  # NOQA
         row = [timestamp]
-        for core, [idle_state, frequency] in enumerate(core_states):
+        for core, [_, frequency] in enumerate(core_states):
             if frequency is not None:
                 frequency /= float(self._max_freq_list[core])
                 row.append(frequency)
@@ -584,7 +584,7 @@ def build_idle_state_map(cpus):
     for cpu_idx, cpu in enumerate(cpus):
         related_cpus = set(cpu.cpufreq.related_cpus) - set([cpu_idx])
         first_cluster_state = cpu.cpuidle.num_states - 1
-        for state_idx, state in enumerate(cpu.cpuidle.states):
+        for state_idx, _ in enumerate(cpu.cpuidle.states):
             if state_idx < first_cluster_state:
                 idle_state_map[(cpu_idx, state_idx)] = []
             else:

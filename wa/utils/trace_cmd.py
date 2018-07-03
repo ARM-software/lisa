@@ -266,6 +266,7 @@ class TraceCmdParser(object):
                          by trace-cmd
         """
         inside_maked_region = False
+        #pylint: disable=superfluous-parens
         filters = [re.compile('^{}$'.format(e)) for e in (self.events or [])]
         filter_markers = self.filter_markers
         if filter_markers and self.check_for_markers:

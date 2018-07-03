@@ -65,6 +65,7 @@ from datetime import datetime
 import yaml as _yaml
 import dateutil.parser
 
+#pylint: disable=redefined-builtin
 from past.builtins import basestring
 
 from wa.framework.exception import SerializerSyntaxError
@@ -274,7 +275,7 @@ class python(object):
             exec(s, pod)  # pylint: disable=exec-used
         except SyntaxError as e:
             raise SerializerSyntaxError(e.message, e.lineno)
-        for k in list(pod.keys()):
+        for k in list(pod.keys()): # pylint: disable=consider-iterating-dictionary
             if k.startswith('__'):
                 del pod[k]
         return pod
@@ -350,7 +351,7 @@ def _write_pod(pod, wfh, fmt=None):
 
 
 def is_pod(obj):
-    if type(obj) not in POD_TYPES:
+    if type(obj) not in POD_TYPES: #pylint: disable=unidiomatic-typecheck
         return False
     if hasattr(obj, 'items'):
         for k, v in obj.items():
@@ -361,6 +362,3 @@ def is_pod(obj):
             if not is_pod(v):
                 return False
     return True
-
-
-

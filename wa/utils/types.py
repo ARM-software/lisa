@@ -800,7 +800,7 @@ class cpu_mask(object):
         elif isinstance(cpus, list):
             self._mask = list_to_mask(cpus)
         elif isinstance(cpus, cpu_mask):
-            self._mask = cpus._mask
+            self._mask = cpus._mask # pylint: disable=protected-access
         else:
             msg = 'Unknown conversion from {} to cpu mask'
             raise ValueError(msg.format(cpus))

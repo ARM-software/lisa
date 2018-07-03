@@ -418,7 +418,7 @@ def categorize(v):
     else:
         return 'c'
 
-
+#pylint: disable=too-many-return-statements,too-many-branches
 def merge_config_values(base, other):
     """
     This is used to merge two objects, typically when setting the value of a

@@ -17,8 +17,8 @@ import os
 import re
 import logging
 
-#pyline disable=redefined-builtin
-from builtins import zip
+
+from builtins import zip #pyline disable=redefined-builtin
 from future.moves.itertools import zip_longest
 
 from wa.utils.misc import diff_tokens, write_table
@@ -70,7 +70,7 @@ def diff_interrupt_files(before, after, result):  # pylint: disable=R0914
 
 def diff_sysfs_dirs(before, after, result):  # pylint: disable=R0914
     before_files = []
-    for root, dirs, files in os.walk(before):
+    for root, _, files in os.walk(before):
         before_files.extend([os.path.join(root, f) for f in files])
     before_files = list(filter(os.path.isfile, before_files))
     files = [os.path.relpath(f, before) for f in before_files]
