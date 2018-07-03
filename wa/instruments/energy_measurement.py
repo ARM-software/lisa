@@ -20,7 +20,6 @@ from collections import defaultdict
 import os
 import shutil
 
-from wa.utils.types import list_of_numbers
 
 from devlib import DerivedEnergyMeasurements
 from devlib.instrument import CONTINUOUS
@@ -36,7 +35,8 @@ from wa import Instrument, Parameter
 from wa.framework import pluginloader
 from wa.framework.plugin import Plugin
 from wa.framework.exception import ConfigError, InstrumentError
-from wa.utils.types import list_of_strings, list_of_ints, list_or_string, obj_dict, identifier
+from wa.utils.types import (list_of_strings, list_of_ints, list_or_string,
+                            obj_dict, identifier, list_of_numbers)
 
 
 class EnergyInstrumentBackend(Plugin):
@@ -60,7 +60,7 @@ class EnergyInstrumentBackend(Plugin):
         Typically there is just a single device/instrument, in which case the
         device key is arbitrary.
         """
-        return {None: self.instrument(target, **kwargs)}
+        return {None: self.instrument(target, **kwargs)} #pylint: disable=not-callable
 
 
 class DAQBackend(EnergyInstrumentBackend):
@@ -284,6 +284,7 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
                   """),
     ]
 
+    #pylint: disable=arguments-differ
     def get_instruments(self, target, metadir,
                         iio_capture, host, iio_devices, buffer_size):
 
@@ -428,7 +429,7 @@ class EnergyMeasurement(Instrument):
         self.instruments = self.backend.get_instruments(self.target, context.run_output.metadir, **self.params)
 
         for instrument in self.instruments.values():
-            if not (instrument.mode & CONTINUOUS):
+            if not (instrument.mode & CONTINUOUS): #pylint: disable=superfluous-parens
                 msg = '{} instrument does not support continuous measurement collection'
                 raise ConfigError(msg.format(self.instrument))
             instrument.setup()
@@ -506,4 +507,3 @@ class EnergyMeasurement(Instrument):
                 units = metrics[0].units
                 value = sum(m.value for m in metrics)
                 context.add_metric(name, value, units)
-

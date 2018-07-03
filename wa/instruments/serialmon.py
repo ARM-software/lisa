@@ -17,7 +17,7 @@ import os
 
 from devlib import SerialTraceCollector
 
-from wa import Instrument, Parameter, InstrumentError, hostside
+from wa import Instrument, Parameter, hostside
 
 
 class SerialMon(Instrument):

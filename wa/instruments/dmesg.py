@@ -38,7 +38,7 @@ class DmesgInstrument(Instrument):
 
     loglevel_file = '/proc/sys/kernel/printk'
 
-    def initialize(self, context):
+    def initialize(self, context): #pylint: disable=unused-argument
         self.need_root = self.target.os == 'android'
         if self.need_root and not self.target.is_rooted:
             raise InstrumentError('Need root to collect dmesg on Android')

@@ -26,13 +26,10 @@ Some "standard" instruments to collect additional info about workload execution.
           precise data about specific operations.
 """
 import os
-import re
 import logging
 import time
 import tarfile
 from subprocess import CalledProcessError
-
-from future.moves.itertools import zip_longest
 
 from devlib.exception import TargetError
 from devlib.utils.android import ApkInfo
@@ -41,7 +38,7 @@ from wa import Instrument, Parameter, very_fast
 from wa.framework.exception import ConfigError
 from wa.framework.instrument import slow
 from wa.utils.diff import diff_sysfs_dirs, diff_interrupt_files
-from wa.utils.misc import as_relative, diff_tokens, write_table
+from wa.utils.misc import as_relative
 from wa.utils.misc import ensure_file_directory_exists as _f
 from wa.utils.misc import ensure_directory_exists as _d
 from wa.utils.types import list_of_strings
