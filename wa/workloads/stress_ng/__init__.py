@@ -18,6 +18,7 @@ import os
 import yaml
 
 from wa import Workload, Parameter, ConfigError, Executable
+from wa.framework.exception import WorkloadError
 from wa.utils.exec_control import once
 
 

@@ -1,5 +1,5 @@
 from wa import Parameter, ApkUiautoWorkload
-
+from wa.framework.exception import WorkloadError
 
 class GoogleMaps(ApkUiautoWorkload):
 

@@ -17,6 +17,7 @@ import re
 import zipfile
 
 from wa import ApkUiautoWorkload
+from wa.framework.exception import WorkloadError
 
 class PcMark(ApkUiautoWorkload):
 

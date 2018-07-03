@@ -18,6 +18,7 @@ import os
 import re
 import tempfile
 import json
+from collections import defaultdict
 
 from wa import ApkUiautoWorkload, Parameter
 from wa.framework.exception import ConfigError, WorkloadError

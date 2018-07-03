@@ -15,6 +15,7 @@
 import re
 
 from wa import ApkUiautoWorkload
+from wa.framework.exception import WorkloadError
 
 class Androbench(ApkUiautoWorkload):
 

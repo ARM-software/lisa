@@ -16,7 +16,7 @@ import os
 import re
 
 from wa import UiautoWorkload, Parameter
-from wa.framework.exception import ValidationError
+from wa.framework.exception import ValidationError, WorkloadError
 from wa.utils.types import list_of_strs
 from wa.utils.misc import unique
 
