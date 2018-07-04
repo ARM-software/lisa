@@ -12,8 +12,6 @@ Scripts
 
 :clear_env: Clears ~/.workload_automation.
 
-:copyright_updater: Checks and updates the year of the copyright in Python files.
-
 :get_apk_versions: Prints out a table of APKs and their versons found under the
                    path specified as the argument.
 
@@ -26,3 +24,6 @@ Scripts
 :rebuild_all_uiauto: Rebuild UIAutomator APKs for workloads that have them. This
                      is useful to make sure they're all using the latest
                      uiauto.arr after the latter has been updated.
+
+:update_copyrights: Checks and updates the year of the copyright in source files,
+                    adding a copyright header if it's not already there.
