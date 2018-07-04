@@ -89,6 +89,11 @@ class SerializerSyntaxError(Exception):
     """
     Error loading a serialized structure from/to a file handle.
     """
+    @property
+    def message(self):
+        if self.args:
+            return self.args[0]
+        return ''
 
     def __init__(self, message, line=None, column=None):
         super(SerializerSyntaxError, self).__init__(message)
