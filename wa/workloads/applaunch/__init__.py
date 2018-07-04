@@ -92,7 +92,7 @@ class Applaunch(ApkUiautoWorkload):
     def init_resources(self, context):
         super(Applaunch, self).init_resources(context)
         self.workload_params['markers_enabled'] = True
-        #pylint: disable=no-member
+        # pylint: disable=no-member
         self.workload = pluginloader.get_workload(self.workload_name, self.target,
                                                   **self.workload_params)
         self.workload.init_resources(context)

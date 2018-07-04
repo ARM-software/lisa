@@ -15,11 +15,11 @@
 
 from __future__ import division
 import os
-#pylint: disable=wrong-import-order,wrong-import-position
+# pylint: disable=wrong-import-order,wrong-import-position
 from future.standard_library import install_aliases
 install_aliases()
 
-from urllib.request import urlopen #pylint: disable=import-error
+from urllib.request import urlopen  # pylint: disable=import-error
 
 from wa import Workload, Parameter, Alias, WorkloadError
 from wa.utils.exec_control import once
@@ -99,7 +99,7 @@ class ApacheBenchmark(Workload):
             wfh.write(self.output)
             context.add_artifact('ab-output', outfile, kind='raw')
 
-    def update_output(self, context): #pylint: disable=too-many-locals
+    def update_output(self, context):  # pylint: disable=too-many-locals
         with open(context.get_artifact_path('ab-output')) as fh:
             server_software = get_line(fh, 'Server Software').split(':')[1].strip()
             context.add_metadata('server-software', server_software)

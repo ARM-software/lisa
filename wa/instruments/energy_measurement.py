@@ -60,7 +60,7 @@ class EnergyInstrumentBackend(Plugin):
         Typically there is just a single device/instrument, in which case the
         device key is arbitrary.
         """
-        return {None: self.instrument(target, **kwargs)} #pylint: disable=not-callable
+        return {None: self.instrument(target, **kwargs)}  # pylint: disable=not-callable
 
 
 class DAQBackend(EnergyInstrumentBackend):
@@ -284,7 +284,7 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
                   """),
     ]
 
-    #pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ
     def get_instruments(self, target, metadir,
                         iio_capture, host, iio_devices, buffer_size):
 
@@ -429,7 +429,7 @@ class EnergyMeasurement(Instrument):
         self.instruments = self.backend.get_instruments(self.target, context.run_output.metadir, **self.params)
 
         for instrument in self.instruments.values():
-            if not (instrument.mode & CONTINUOUS): #pylint: disable=superfluous-parens
+            if not (instrument.mode & CONTINUOUS):  # pylint: disable=superfluous-parens
                 msg = '{} instrument does not support continuous measurement collection'
                 raise ConfigError(msg.format(self.instrument))
             instrument.setup()

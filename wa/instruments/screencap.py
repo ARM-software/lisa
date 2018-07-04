@@ -50,8 +50,8 @@ class ScreenCaptureInstrument(Instrument):
                                                 output_path,
                                                 self.period)
 
-    def start(self, context): #pylint: disable=unused-argument
+    def start(self, context):  # pylint: disable=unused-argument
         self.collector.start()
 
-    def stop(self, context): #pylint: disable=unused-argument
+    def stop(self, context):  # pylint: disable=unused-argument
         self.collector.stop()

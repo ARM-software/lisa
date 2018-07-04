@@ -41,9 +41,9 @@ class Mongoperf(Workload):
 
     parameters = [
         Parameter('duration', kind=int, default=300,
-                 description="""
-                 Duration of of the workload.
-                 """),
+                  description="""
+                  Duration of of the workload.
+                  """),
         Parameter('threads', kind=int, default=16,
                   description="""
                   Defines the number of threads mongoperf will use in the test.

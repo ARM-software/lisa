@@ -46,6 +46,7 @@ class ListCommand(Command):
                                  Only list results that are supported by the
                                  specified platform.
                                  ''')
+
     # pylint: disable=superfluous-parens
     def execute(self, state, args):
         filters = {}

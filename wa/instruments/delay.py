@@ -14,7 +14,7 @@
 #
 
 
-#pylint: disable=W0613,E1101,E0203,W0201
+# pylint: disable=W0613,E1101,E0203,W0201
 import time
 
 from wa import Instrument, Parameter

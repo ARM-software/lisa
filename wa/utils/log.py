@@ -49,7 +49,8 @@ _indent_width = 4
 _console_handler = None
 _init_handler = None
 
-#pylint: disable=global-statement
+
+# pylint: disable=global-statement
 def init(verbosity=logging.INFO, color=True, indent_with=4,
          regular_fmt='%(levelname)-8s %(message)s',
          verbose_fmt='%(asctime)s %(levelname)-8s %(name)10.10s: %(message)s',
@@ -95,7 +96,7 @@ def set_level(level):
     _console_handler.setLevel(level)
 
 
-#pylint: disable=global-statement
+# pylint: disable=global-statement
 def add_file(filepath, level=logging.DEBUG,
              fmt='%(asctime)s %(levelname)-8s %(name)10.10s: %(message)s'):
     global _init_handler
@@ -140,13 +141,13 @@ def __disable_logger(logger):
     logger.propagate = False
 
 
-#pylint: disable=global-statement
+# pylint: disable=global-statement
 def indent():
     global _indent_level
     _indent_level += 1
 
 
-#pylint: disable=global-statement
+# pylint: disable=global-statement
 def dedent():
     global _indent_level
     _indent_level -= 1
@@ -161,7 +162,7 @@ def indentcontext():
         dedent()
 
 
-#pylint: disable=global-statement
+# pylint: disable=global-statement
 def set_indent_level(level):
     global _indent_level
     old_level = _indent_level

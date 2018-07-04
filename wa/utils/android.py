@@ -57,7 +57,7 @@ class LogcatParser(object):
                 if event:
                     yield event
 
-    def parse_line(self, line): #pylint: disable=no-self-use
+    def parse_line(self, line):  # pylint: disable=no-self-use
         line = line.strip()
         if not line or line.startswith('-') or ': ' not in line:
             return None

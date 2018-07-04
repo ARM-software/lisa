@@ -41,18 +41,18 @@ class HwmonInstrument(Instrument):
     hwmon data will be reported.
     """
 
-    def initialize(self, context): #pylint: disable=unused-argument
+    def initialize(self, context):  # pylint: disable=unused-argument
         self.instrument = _Instrument(self.target)
 
-    def setup(self, context): #pylint: disable=unused-argument
+    def setup(self, context):  # pylint: disable=unused-argument
         self.instrument.reset()
 
     @fast
-    def start(self, context): #pylint: disable=unused-argument
+    def start(self, context):  # pylint: disable=unused-argument
         self.before = self.instrument.take_measurement()
 
     @fast
-    def stop(self, context): #pylint: disable=unused-argument
+    def stop(self, context):  # pylint: disable=unused-argument
         self.after = self.instrument.take_measurement()
 
     def update_output(self, context):
@@ -85,5 +85,5 @@ class HwmonInstrument(Instrument):
                     "Don't know what to do with hwmon channel '{}'"
                     .format(measurement_after.channel))
 
-    def teardown(self, context): #pylint: disable=unused-argument
+    def teardown(self, context):  # pylint: disable=unused-argument
         self.instrument.teardown()

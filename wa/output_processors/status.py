@@ -30,7 +30,7 @@ class StatusTxtReporter(OutputProcessor):
 
     """
 
-    def process_run_output(self, output, target_info): #pylint: disable=unused-argument
+    def process_run_output(self, output, target_info):  # pylint: disable=unused-argument
         counter = Counter()
         for jo in output.jobs:
             counter[jo.status] += 1

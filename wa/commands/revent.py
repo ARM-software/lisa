@@ -26,7 +26,7 @@ from wa.utils.revent import ReventRecorder
 
 
 if sys.version_info[0] == 3:
-    raw_input = input #pylint: disable=redefined-builtin
+    raw_input = input  # pylint: disable=redefined-builtin
 
 
 class RecordCommand(Command):

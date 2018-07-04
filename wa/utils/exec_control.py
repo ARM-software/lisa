@@ -24,7 +24,7 @@ def activate_environment(name):
     environment with that name does not already exist, it will be
     created.
     """
-    #pylint: disable=W0603
+    # pylint: disable=W0603
     global __active_environment
 
     if name not in list(__environments.keys()):

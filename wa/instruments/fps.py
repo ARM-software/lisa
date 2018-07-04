@@ -119,7 +119,7 @@ class FpsInstrument(Instrument):
             return
 
         self._is_enabled = True
-        #pylint: disable=redefined-variable-type
+        # pylint: disable=redefined-variable-type
         if use_gfxinfo:
             self.collector = GfxInfoFramesInstrument(self.target, collector_target, self.period)
             self.processor = DerivedGfxInfoStats(self.drop_threshold, filename='fps.csv')
@@ -128,12 +128,12 @@ class FpsInstrument(Instrument):
             self.processor = DerivedSurfaceFlingerStats(self.drop_threshold, filename='fps.csv')
         self.collector.reset()
 
-    def start(self, context): #pylint: disable=unused-argument
+    def start(self, context):  # pylint: disable=unused-argument
         if not self._is_enabled:
             return
         self.collector.start()
 
-    def stop(self, context): #pylint: disable=unused-argument
+    def stop(self, context):  # pylint: disable=unused-argument
         if not self._is_enabled:
             return
         self.collector.stop()

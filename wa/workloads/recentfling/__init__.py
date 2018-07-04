@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-#pylint: disable=E1101,W0201
+# pylint: disable=E1101,W0201
 
 import os
 import re

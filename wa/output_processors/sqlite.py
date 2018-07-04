@@ -115,7 +115,7 @@ class SqliteResultProcessor(OutputProcessor):
         self._spec_oid = None
         self._run_initialized = False
 
-    def export_job_output(self, job_output, target_info, run_output): #pylint: disable=unused-argument
+    def export_job_output(self, job_output, target_info, run_output):  # pylint: disable=unused-argument
         if not self._run_initialized:
             self._init_run(run_output)
 
@@ -128,7 +128,7 @@ class SqliteResultProcessor(OutputProcessor):
             with self._open_connection() as conn:
                 conn.executemany('INSERT INTO metrics VALUES (?,?,?,?,?,?)', metrics)
 
-    def export_run_output(self, run_output, target_info): #pylint: disable=unused-argument
+    def export_run_output(self, run_output, target_info):  # pylint: disable=unused-argument
         if not self._run_initialized:
             self._init_run(run_output)
 

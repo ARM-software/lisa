@@ -199,7 +199,7 @@ class SysfileValuesRuntimeConfig(RuntimeConfig):
 
     name = 'rt-sysfiles'
 
-    #pylint: disable=unused-argument
+    # pylint: disable=unused-argument
     @staticmethod
     def set_sysfile(obj, values, core):
         for path, value in values.items():

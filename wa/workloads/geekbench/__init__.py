@@ -291,33 +291,31 @@ class GBScoreCalculator(object):
         'memory': 0.1926489,
         'stream': 0.1054738,
     }
-    #pylint: disable=C0326
+    # pylint: disable=C0326
     workloads = [
         #          ID    Name        Power Mac ST  Power Mac MT
-        GBWorkload(101, 'Blowfish',         43971,   40979),
-        GBWorkload(102, 'Text Compress',    3202,    3280),
-        GBWorkload(103, 'Text Decompress',  4112,    3986),
-        GBWorkload(104, 'Image Compress',   8272,    8412),
-        GBWorkload(105, 'Image Decompress', 16800,   16330),
-        GBWorkload(107, 'Lua',              385,     385),
+        GBWorkload(101, 'Blowfish',         43971,   40979),  # NOQA
+        GBWorkload(102, 'Text Compress',    3202,    3280),  # NOQA
+        GBWorkload(103, 'Text Decompress',  4112,    3986),  # NOQA
+        GBWorkload(104, 'Image Compress',   8272,    8412),  # NOQA
+        GBWorkload(105, 'Image Decompress', 16800,   16330),  # NOQA
+        GBWorkload(107, 'Lua',              385,     385),  # NOQA
 
-        GBWorkload(201, 'Mandelbrot',       665589,  653746),
-        GBWorkload(202, 'Dot Product',      481449,  455422),
-        GBWorkload(203, 'LU Decomposition', 889933,  877657),
-        GBWorkload(204, 'Primality Test',   149394,  185502),
-        GBWorkload(205, 'Sharpen Image',    2340,    2304),
-        GBWorkload(206, 'Blur Image',       791,     787),
+        GBWorkload(201, 'Mandelbrot',       665589,  653746),  # NOQA),
+        GBWorkload(202, 'Dot Product',      481449,  455422),  # NOQA,
+        GBWorkload(203, 'LU Decomposition', 889933,  877657),  # NOQA
+        GBWorkload(204, 'Primality Test',   149394,  185502),  # NOQA
+        GBWorkload(205, 'Sharpen Image',    2340,    2304),  # NOQA
+        GBWorkload(206, 'Blur Image',       791,     787),  # NOQA
 
-        GBWorkload(302, 'Read Sequential',  1226708, None),
-        GBWorkload(304, 'Write Sequential', 683782,  None),
-        GBWorkload(306, 'Stdlib Allocate',  3739,    None),
-        GBWorkload(307, 'Stdlib Write',     2070681, None),
-        GBWorkload(308, 'Stdlib Copy',      1030360, None),
-
-        GBWorkload(401, 'Stream Copy',      1367892, None),
-        GBWorkload(402, 'Stream Scale',     1296053, None),
-        GBWorkload(403, 'Stream Add',       1507115, None),
-        GBWorkload(404, 'Stream Triad',     1384526, None),
+        GBWorkload(302, 'Read Sequential',  1226708, None),  # NOQA
+        GBWorkload(304, 'Write Sequential', 683782,  None),  # NOQA
+        GBWorkload(306, 'Stdlib Allocate',  3739,    None),  # NOQA
+        GBWorkload(307, 'Stdlib Write',     2070681, None),  # NOQA
+        GBWorkload(401, 'Stream Copy',      1367892, None),  # NOQA
+        GBWorkload(402, 'Stream Scale',     1296053, None),  # NOQA
+        GBWorkload(403, 'Stream Add',       1507115, None),  # NOQA
+        GBWorkload(404, 'Stream Triad',     1384526, None),  # NOQA
     ]
 
     def __init__(self):
@@ -389,7 +387,7 @@ class GBScoreCalculator(object):
         context.add_metric('Geekbench Score', int(overall_score))
 
 
-class GeekbenchCorproate(Geekbench): #pylint: disable=too-many-ancestors
+class GeekbenchCorproate(Geekbench):  # pylint: disable=too-many-ancestors
     name = "geekbench-corporate"
     is_corporate = True
     requires_network = False

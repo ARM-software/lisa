@@ -129,7 +129,7 @@ class Jankbench(ApkWorkload):
         else:
             self.extract_metrics_from_logcat(context)
 
-    def extract_metrics_from_db(self, context): #pylint: disable=no-self-use
+    def extract_metrics_from_db(self, context):  # pylint: disable=no-self-use
         dbfile = context.get_artifact_path('jankbench-results')
         with sqlite3.connect(dbfile) as conn:
             df = pd.read_sql('select name, iteration, total_duration, jank_frame from ui_results', conn)
