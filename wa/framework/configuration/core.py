@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import re
 from copy import copy, deepcopy
 from collections import OrderedDict, defaultdict
 
@@ -494,8 +493,10 @@ class MetaConfiguration(Configuration):
     def additional_packages_file(self):
         return os.path.join(self.user_directory, 'packages')
 
-    def __init__(self, environ=os.environ):
+    def __init__(self, environ=None):
         super(MetaConfiguration, self).__init__()
+        if environ is None:
+            environ = os.environ
         user_directory = environ.pop('WA_USER_DIRECTORY', '')
         if user_directory:
             self.set('user_directory', user_directory)
@@ -730,6 +731,7 @@ class RunConfiguration(Configuration):
 
 
 class JobSpec(Configuration):
+    # pylint: disable=access-member-before-definition,attribute-defined-outside-init
 
     name = "Job Spec"
 
@@ -826,7 +828,7 @@ class JobSpec(Configuration):
         pod['id'] = self.id
         return pod
 
-    def update_config(self, source, check_mandatory=True):
+    def update_config(self, source, check_mandatory=True):  # pylint: disable=arguments-differ
         self._sources.append(source)
         values = source.config
         for k, v in values.items():

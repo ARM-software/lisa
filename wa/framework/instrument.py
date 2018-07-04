@@ -104,7 +104,7 @@ from collections import OrderedDict
 
 from wa.framework import signal
 from wa.framework.plugin import Plugin
-from wa.framework.exception import (WAError, TargetNotRespondingError, TimeoutError,
+from wa.framework.exception import (TargetNotRespondingError, TimeoutError,
                                     WorkloadError, TargetError)
 from wa.utils.log import log_error
 from wa.utils.misc import isiterable
@@ -165,7 +165,7 @@ def get_priority(func):
                    'priority', signal.CallbackPriority.normal)
 
 
-def priority(priority):
+def priority(priority):  # pylint: disable=redefined-outer-name
     def decorate(func):
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
@@ -225,7 +225,7 @@ def is_installed(instrument):
 
 
 def is_enabled(instrument):
-    if isinstance(instrument, Instrument) or isinstance(instrument, type):
+    if isinstance(instrument, (Instrument, type)):
         name = instrument.name
     else:  # assume string
         name = instrument
@@ -279,7 +279,7 @@ class ManagedCallback(object):
                 context.add_event(e.args[0] if e.args else str(e))
                 if isinstance(e, WorkloadError):
                     context.set_status('FAILED')
-                elif isinstance(e, TargetError) or isinstance(e, TimeoutError):
+                elif isinstance(e, (TargetError, TimeoutError)):
                     context.tm.verify_target_responsive(context)
                 else:
                     if context.current_job:
@@ -308,6 +308,7 @@ def install(instrument, context):
     :param instrument: Instrument instance to install.
 
     """
+    # pylint: disable=redefined-outer-name
     logger.debug('Installing instrument %s.', instrument)
 
     if is_installed(instrument):

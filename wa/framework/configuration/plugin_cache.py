@@ -292,9 +292,9 @@ def update_config_from_source(final_config, source, state):
                             'already been specified more specifically for '
                             '{specific_name} in:\n\t\t{sources}')
                     seen_sources = state.seen_specific_config[name]
-                    msg = msg.format(generic_name=generic_name,
+                    msg = msg.format(generic_name=state.generic_name,
                                         config_name=name,
-                                        specific_name=specific_name,
+                                        specific_name=state.specific_name,
                                         sources=", ".join(seen_sources))
                     raise ConfigError(msg)
                 value = state.generic_config[source].pop(name)

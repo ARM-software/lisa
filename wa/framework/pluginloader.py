@@ -65,7 +65,7 @@ class __LoaderWrapper(object):
             self.reset()
         return self._loader.get_plugin_class(name, kind)
 
-    def get_plugin(self, name=None, kind=None, *args, **kwargs):
+    def get_plugin(self, name=None, kind=None, *args, **kwargs):  # pylint: disable=keyword-arg-before-vararg
         if not self._loader:
             self.reset()
         return self._loader.get_plugin(name=name, kind=kind, *args, **kwargs)

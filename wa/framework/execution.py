@@ -350,7 +350,6 @@ class Executor(object):
         signal.connect(self._error_signalled_callback, signal.ERROR_LOGGED)
         signal.connect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
-    def execute(self, config_manager, output):
         self.logger.info('Initializing run')
         self.logger.debug('Finalizing run configuration.')
         config = config_manager.finalize()
@@ -444,11 +443,11 @@ class Executor(object):
             self.logger.warn('There were warnings during execution.')
             self.logger.warn('Please see {}'.format(output.logfile))
 
-    def _error_signalled_callback(self, record):
+    def _error_signalled_callback(self, _):
         self.error_logged = True
         signal.disconnect(self._error_signalled_callback, signal.ERROR_LOGGED)
 
-    def _warning_signalled_callback(self, record):
+    def _warning_signalled_callback(self, _):
         self.warning_logged = True
         signal.disconnect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 
@@ -492,7 +491,7 @@ class Runner(object):
         except Exception as e:
             message = e.args[0] if e.args else str(e)
             log.log_error(e, self.logger)
-            self.logger.error('Skipping remaining jobs due to "{}".'.format(e))
+            self.logger.error('Skipping remaining jobs due to "{}".'.format(message))
             self.context.skip_remaining_jobs()
             raise e
         finally:
@@ -563,6 +562,7 @@ class Runner(object):
             self.check_job(job)
 
     def do_run_job(self, job, context):
+        # pylint: disable=too-many-branches,too-many-statements
         rc = self.context.cm.run_config
         if job.workload.phones_home and not rc.allow_phone_home:
             self.logger.warning('Skipping job {} ({}) due to allow_phone_home=False'
@@ -583,7 +583,7 @@ class Runner(object):
         except Exception as e:
             job.set_status(Status.FAILED)
             log.log_error(e, self.logger)
-            if isinstance(e, TargetError) or isinstance(e, TimeoutError):
+            if isinstance(e, (TargetError, TimeoutError)):
                 context.tm.verify_target_responsive(context)
             self.context.record_ui_state('setup-error')
             raise e
@@ -599,7 +599,7 @@ class Runner(object):
             except Exception as e:
                 job.set_status(Status.FAILED)
                 log.log_error(e, self.logger)
-                if isinstance(e, TargetError) or isinstance(e, TimeoutError):
+                if isinstance(e, (TargetError, TimeoutError)):
                     context.tm.verify_target_responsive(context)
                 self.context.record_ui_state('run-error')
                 raise e
@@ -611,7 +611,7 @@ class Runner(object):
                     self.pm.export_job_output(context)
                 except Exception as e:
                     job.set_status(Status.PARTIAL)
-                    if isinstance(e, TargetError) or isinstance(e, TimeoutError):
+                    if isinstance(e, (TargetError, TimeoutError)):
                         context.tm.verify_target_responsive(context)
                     self.context.record_ui_state('output-error')
                     raise

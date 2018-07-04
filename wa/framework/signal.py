@@ -24,7 +24,7 @@ import logging
 from contextlib import contextmanager
 
 import wrapt
-from louie import dispatcher
+from louie import dispatcher  # pylint: disable=wrong-import-order
 
 from wa.utils.types import prioritylist, enum
 
@@ -73,7 +73,7 @@ class Signal(object):
 RUN_STARTED = Signal('run-started', 'sent at the beginning of the run')
 RUN_INITIALIZED = Signal('run-initialized', 'set after the run has been initialized')
 RUN_ABORTED = Signal('run-aborted', 'set when the run has been aborted due to a keyboard interrupt')
-RUN_FAILED = Signal('run-failed', 'set if the run has failed to complete all jobs.' )
+RUN_FAILED = Signal('run-failed', 'set if the run has failed to complete all jobs.')
 RUN_FINALIZED = Signal('run-finalized', 'set after the run has been finalized')
 RUN_COMPLETED = Signal('run-completed', 'set upon completion of the run (regardless of whether or not it has failed')
 
@@ -291,23 +291,25 @@ log_error_func = logger.error
 
 
 def safe_send(signal, sender=dispatcher.Anonymous,
-              propagate=[KeyboardInterrupt], *args, **kwargs):
+              propagate=None, *args, **kwargs):
     """
     Same as ``send``, except this will catch and log all exceptions raised
     by handlers, except those specified in ``propagate`` argument (defaults
     to just ``[KeyboardInterrupt]``).
     """
+    if propagate is None:
+        propagate = [KeyboardInterrupt]
     try:
         logger.debug('Safe-sending {} from {}'.format(signal, sender))
         send(signal, sender, *args, **kwargs)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         if any(isinstance(e, p) for p in propagate):
             raise e
         log_error_func(e)
 
 
 @contextmanager
-def wrap(signal_name, sender=dispatcher.Anonymous,*args, **kwargs):
+def wrap(signal_name, sender=dispatcher.Anonymous, *args, **kwargs):  # pylint: disable=keyword-arg-before-vararg
     """Wraps the suite in before/after signals, ensuring
     that after signal is always sent."""
     safe = kwargs.pop('safe', False)
@@ -324,7 +326,7 @@ def wrap(signal_name, sender=dispatcher.Anonymous,*args, **kwargs):
         yield
         send_func(success_signal, sender, *args, **kwargs)
     finally:
-        exc_type, exc, tb = sys.exc_info()
+        _, exc, _ = sys.exc_info()
         if exc:
             log_error_func(exc)
         send_func(after_signal, sender, *args, **kwargs)
@@ -333,10 +335,10 @@ def wrap(signal_name, sender=dispatcher.Anonymous,*args, **kwargs):
 def wrapped(signal_name, sender=dispatcher.Anonymous, safe=False):
     """A decorator for wrapping function in signal dispatch."""
     @wrapt.decorator
-    def signal_wrapped(wrapped, instance, args, kwargs):
+    def signal_wrapped(wrapped_func, _, args, kwargs):
         def signal_wrapper(*args, **kwargs):
             with wrap(signal_name, sender, safe):
-                return wrapped(*args, **kwargs)
+                return wrapped_func(*args, **kwargs)
 
         return signal_wrapper(*args, **kwargs)
 

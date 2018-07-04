@@ -40,6 +40,7 @@ class SubCommand(object):
     command line arguments.
 
     """
+    name = None
     help = None
     usage = None
     description = None
@@ -81,7 +82,7 @@ class SubCommand(object):
         raise NotImplementedError()
 
 
-class Command(Plugin, SubCommand):
+class Command(Plugin, SubCommand):  # pylint: disable=abstract-method
     """
     Defines a Workload Automation command. This will be executed from the
     command line as ``wa <command> [args ...]``. This defines the name to be

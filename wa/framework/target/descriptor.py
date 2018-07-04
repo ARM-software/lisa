@@ -54,6 +54,7 @@ def get_target_description(name, loader=pluginloader):
 
 
 def instantiate_target(tdesc, params, connect=None, extra_platform_params=None):
+    # pylint: disable=too-many-locals,too-many-branches
     target_params = get_config_point_map(tdesc.target_params)
     platform_params = get_config_point_map(tdesc.platform_params)
     conn_params = get_config_point_map(tdesc.conn_params)
@@ -136,7 +137,7 @@ class TargetDescription(object):
             vals = []
         elif isiterable(vals):
             if hasattr(vals, 'values'):
-                vals = list(v.values())
+                vals = list(vals.values())
         else:
             msg = '{} must be iterable; got "{}"'
             raise ValueError(msg.format(attr, vals))
@@ -147,7 +148,7 @@ class TargetDescriptor(Plugin):
 
     kind = 'target_descriptor'
 
-    def get_descriptions(self):
+    def get_descriptions(self):  # pylint: disable=no-self-use
         return []
 
 
@@ -472,11 +473,12 @@ class DefaultTargetDescriptor(TargetDescriptor):
     """
 
     def get_descriptions(self):
+        # pylint: disable=attribute-defined-outside-init,too-many-locals
         result = []
         for target_name, target_tuple in TARGETS.items():
             (target, conn), target_params = self._get_item(target_tuple)
             assistant = ASSISTANTS[target_name]
-            conn_params =  CONNECTION_PARAMS[conn]
+            conn_params = CONNECTION_PARAMS[conn]
             for platform_name, platform_tuple in PLATFORMS.items():
                 platform_target_defaults = platform_tuple[-1]
                 platform_tuple = platform_tuple[0:-1]
@@ -495,7 +497,7 @@ class DefaultTargetDescriptor(TargetDescriptor):
 
                 if plat_conn:
                     td.conn = plat_conn
-                    td.conn_params =  CONNECTION_PARAMS[plat_conn]
+                    td.conn_params = CONNECTION_PARAMS[plat_conn]
                 else:
                     td.conn = conn
                     td.conn_params = conn_params
@@ -503,7 +505,7 @@ class DefaultTargetDescriptor(TargetDescriptor):
                 result.append(td)
         return result
 
-    def _apply_param_defaults(self, params, defaults):
+    def _apply_param_defaults(self, params, defaults):  # pylint: disable=no-self-use
         '''Adds parameters in the defaults dict to params list.
         Return updated params as a list (idempotent function).'''
         if not defaults:
@@ -540,7 +542,7 @@ def create_target_description(name, *args, **kwargs):
     #  (frame_object, module_path, line_no, function_name, source_lines, source_lines_index)
     #
     # Here we assign the path of the calling module as the "source" for this description.
-    # because this might be invoked via the add_scription_for_target wrapper, we need to 
+    # because this might be invoked via the add_scription_for_target wrapper, we need to
     # check for that, and make sure that we get the info for *its* caller in that case.
     if stack[1][3] == 'add_description_for_target':
         source = stack[2][1]
@@ -555,15 +557,15 @@ def _get_target_defaults(target):
     res = ('linux', TARGETS['linux'])  # fallback to a generic linux target
     for name, ttup in TARGETS.items():
         if issubclass(target, ttup[0][0]):
-            new_spec =  len(inspect.getmro(ttup[0][0]))
+            new_spec = len(inspect.getmro(ttup[0][0]))
             if new_spec > specificity:
                 res = (name, ttup)
-                specificity  = new_spec
+                specificity = new_spec
     return res
 
 
 def add_description_for_target(target, description=None, **kwargs):
-    (base_name, ((base_target, base_conn), base_params, base_defaults)) = _get_target_defaults(target)
+    (base_name, ((_, base_conn), base_params, _)) = _get_target_defaults(target)
 
     if 'target_params' not in kwargs:
         kwargs['target_params'] = base_params
@@ -593,7 +595,7 @@ class SimpleTargetDescriptor(TargetDescriptor):
 
     name = 'adhoc_targets'
 
-    description="""
+    description = """
     Returns target descriptions added with ``create_target_description``.
 
     """

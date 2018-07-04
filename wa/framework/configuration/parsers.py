@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# pylint: disable=no-self-use
 
 import os
 import logging
+from functools import reduce  # pylint: disable=redefined-builtin
 
 from wa.framework.configuration.core import JobSpec
 from wa.framework.exception import ConfigError
 from wa.utils import log
 from wa.utils.serializer import json, read_pod, SerializerSyntaxError
 from wa.utils.types import toggle_set, counter
-from functools import reduce
 
 
 logger = logging.getLogger('config')
@@ -135,7 +136,7 @@ class AgendaParser(object):
                 logger.debug('Setting run name to "{}"'.format(value))
                 state.run_config.set('run_name', value)
 
-            state.load_config(entry, '{}/{}'.format(source, name), wrap_exceptions=False)
+            state.load_config(entry, '{}/{}'.format(source, name))
 
     def _pop_sections(self, raw):
         sections = raw.pop("sections", [])
@@ -264,8 +265,8 @@ def merge_augmentations(raw):
             conflicts = check_entry.conflicts_with(e)
             if conflicts:
                 msg = '"{}" and "{}" have conflicting entries: {}'
-                conflict_string  = ', '.join('"{}"'.format(c.strip("~"))
-                                             for c in conflicts)
+                conflict_string = ', '.join('"{}"'.format(c.strip("~"))
+                                            for c in conflicts)
                 raise ConfigError(msg.format(check_entry, e, conflict_string))
 
     if entries:
@@ -354,4 +355,3 @@ def _process_workload_entry(workload, seen_workload_ids, jobs_config):
     if "workload_name" not in workload:
         raise ConfigError('No workload name specified in entry {}'.format(workload['id']))
     return workload
-

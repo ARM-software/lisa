@@ -18,12 +18,11 @@ import shutil
 
 from wa.framework import pluginloader
 from wa.framework.configuration.core import (settings, ConfigurationPoint,
-                                             MetaConfiguration, RunConfiguration,
-                                             JobSpec)
+                                             MetaConfiguration, RunConfiguration)
 from wa.framework.configuration.default import (generate_default_config,
-                                                write_param_yaml, _format_yaml_comment)
+                                                write_param_yaml)
 from wa.framework.configuration.plugin_cache import PluginCache
-from wa.utils.misc import get_random_string, load_struct_from_python
+from wa.utils.misc import load_struct_from_python
 from wa.utils.serializer import yaml
 from wa.utils.types import identifier
 
@@ -138,7 +137,6 @@ def convert_wa2_agenda(filepath, output_path):
 
 def format_parameter(param):
     if isinstance(param, dict):
-         return {identifier(k) : v for k, v in param.items()}
+        return {identifier(k) : v for k, v in param.items()}
     else:
         return param
-

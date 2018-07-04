@@ -14,7 +14,6 @@
 #
 import logging
 import os
-import re
 import time
 
 from wa import Parameter
@@ -658,11 +657,12 @@ class PackageHandler(object):
         self.uninstall = uninstall
         self.exact_abi = exact_abi
         self.prefer_host_package = prefer_host_package
+        self.supported_abi = self.target.supported_abi
         self.apk_file = None
         self.apk_info = None
         self.apk_version = None
         self.logcat_log = None
-        self.supported_abi = self.target.supported_abi
+        self.error_msg = None
 
     def initialize(self, context):
         self.resolve_package(context)
@@ -683,9 +683,9 @@ class PackageHandler(object):
         if self.prefer_host_package:
             self.resolve_package_from_host(context)
             if not self.apk_file:
-                self.resolve_package_from_target(context)
+                self.resolve_package_from_target()
         else:
-            self.resolve_package_from_target(context)
+            self.resolve_package_from_target()
             if not self.apk_file:
                 self.resolve_package_from_host(context)
 
@@ -734,7 +734,7 @@ class PackageHandler(object):
                 msg = 'Multiple matching packages found for "{}" on host: {}'
                 self.error_msg = msg.format(self.owner, available_packages)
 
-    def resolve_package_from_target(self, context):
+    def resolve_package_from_target(self):  # pylint: disable=too-many-branches
         self.logger.debug('Resolving package on target')
         if self.package_name:
             if not self.target.package_is_installed(self.package_name):
@@ -754,13 +754,13 @@ class PackageHandler(object):
                 if len(matching_packages) == 1:
                     self.package_name = matching_packages[0]
                 elif len(matching_packages) > 1:
-                   msg = 'Multiple matches for version "{}" found on device.'
-                   self.error_msg = msg.format(self.version)
+                    msg = 'Multiple matches for version "{}" found on device.'
+                    self.error_msg = msg.format(self.version)
             else:
                 if len(installed_versions) == 1:
                     self.package_name = installed_versions[0]
                 elif len(installed_versions) > 1:
-                   self.error_msg = 'Package version not set and multiple versions found on device.'
+                    self.error_msg = 'Package version not set and multiple versions found on device.'
 
         if self.package_name:
             self.logger.debug('Found matching package on target; Pulling to host.')

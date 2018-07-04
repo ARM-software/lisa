@@ -19,7 +19,7 @@ from itertools import groupby, chain
 from future.moves.itertools import zip_longest
 
 from wa.framework.configuration.core import (MetaConfiguration, RunConfiguration,
-                                             JobGenerator, Status, settings)
+                                             JobGenerator, settings)
 from wa.framework.configuration.parsers import ConfigParser
 from wa.framework.configuration.plugin_cache import PluginCache
 from wa.framework.exception import NotFoundError
@@ -36,7 +36,7 @@ class CombinedConfig(object):
         instance.run_config = RunConfiguration.from_pod(pod.get('run_config', {}))
         return instance
 
-    def __init__(self, settings=None, run_config=None):
+    def __init__(self, settings=None, run_config=None):  # pylint: disable=redefined-outer-name
         self.settings = settings
         self.run_config = run_config
 
@@ -78,7 +78,7 @@ class ConfigManager(object):
             raise RuntimeError(msg)
         return self._jobs
 
-    def __init__(self, settings=settings):
+    def __init__(self, settings=settings):  # pylint: disable=redefined-outer-name
         self.settings = settings
         self.run_config = RunConfiguration()
         self.plugin_cache = PluginCache()
@@ -93,7 +93,7 @@ class ConfigManager(object):
         self._config_parser.load_from_path(self, filepath)
         self.loaded_config_sources.append(filepath)
 
-    def load_config(self, values, source, wrap_exceptions=True):
+    def load_config(self, values, source):
         self._config_parser.load(self, values, source)
         self.loaded_config_sources.append(source)
 
@@ -169,7 +169,7 @@ def permute_by_iteration(specs):
     X.A1, Y.A1, X.B1, Y.B1, X.A2, Y.A2, X.B2, Y.B2
 
     """
-    groups = [list(g) for k, g in groupby(specs, lambda s: s.workload_id)]
+    groups = [list(g) for _, g in groupby(specs, lambda s: s.workload_id)]
 
     all_tuples = []
     for spec in chain(*groups):
@@ -195,7 +195,7 @@ def permute_by_section(specs):
     X.A1, X.B1, Y.A1, Y.B1, X.A2, X.B2, Y.A2, Y.B2
 
     """
-    groups = [list(g) for k, g in groupby(specs, lambda s: s.section_id)]
+    groups = [list(g) for _, g in groupby(specs, lambda s: s.section_id)]
 
     all_tuples = []
     for spec in chain(*groups):

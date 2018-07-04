@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# pylint: disable=protected-access
 
 from copy import copy
 
@@ -261,6 +262,9 @@ class TargetInfo(object):
         self.kernel_version = None
         self.kernel_config = None
         self.sched_features = None
+        self.screen_resolution = None
+        self.prop = None
+        self.android_id = None
 
     def to_pod(self):
         pod = {}

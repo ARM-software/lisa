@@ -204,8 +204,8 @@ class SysfileValuesRuntimeConfig(RuntimeConfig):
 
     #pylint: disable=unused-argument
     @staticmethod
-    def set_sysfile(obj, value, core):
-        for path, value in value.items():
+    def set_sysfile(obj, values, core):
+        for path, value in values.items():
             verify = True
             if path.endswith('!'):
                 verify = False
@@ -323,14 +323,15 @@ class CpufreqRuntimeConfig(RuntimeConfig):
         super(CpufreqRuntimeConfig, self).__init__(target)
 
     def initialize(self):
+        # pylint: disable=too-many-statements
         if not self.target.has('cpufreq'):
             return
 
         self._retrive_cpufreq_info()
-        all_freqs, common_freqs, common_gov = self._get_common_values()
+        _, common_freqs, common_gov = self._get_common_values()
 
         # Add common parameters if available.
-        freq_val = FreqValue(all_freqs)
+        freq_val = FreqValue(common_freqs)
         param_name = 'frequency'
         self._runtime_params[param_name] = \
             RuntimeParameter(param_name, kind=freq_val,
@@ -873,7 +874,7 @@ class AndroidRuntimeConfig(RuntimeConfig):
                               the device
                               """)
 
-        if self.target.os is 'android':
+        if self.target.os == 'android':
             param_name = 'airplane_mode'
             self._runtime_params[param_name] = \
                 RuntimeParameter(param_name, kind=bool,

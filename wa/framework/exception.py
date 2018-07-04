@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# pylint: disable=unused-import
 from devlib.exception import (DevlibError, HostError, TimeoutError,
                               TargetError, TargetNotRespondingError)
 
@@ -152,4 +153,3 @@ class WorkerThreadError(WAError):
         message = text.format(orig_name, thread, get_traceback(self.exc_info),
                               orig_name, orig)
         super(WorkerThreadError, self).__init__(message)
-

@@ -180,7 +180,8 @@ class PluginMeta(type):
         return cls
 
     @classmethod
-    def _propagate_attributes(mcs, bases, attrs, clsname):
+    def _propagate_attributes(mcs, bases, attrs, clsname):  # pylint: disable=too-many-locals
+        # pylint: disable=protected-access
         """
         For attributes specified by to_propagate, their values will be a union of
         that specified for cls and its bases (cls values overriding those of bases
@@ -488,7 +489,7 @@ class PluginLoader(object):
             raise NotFoundError(msg.format(name, get_article(kind), kind))
         return store[name]
 
-    def get_plugin(self, name=None, kind=None, *args, **kwargs):
+    def get_plugin(self, name=None, kind=None, *args, **kwargs):  # pylint: disable=keyword-arg-before-vararg
         """
         Return plugin of the specified kind with the specified name. Any
         additional parameters will be passed to the plugin's __init__.

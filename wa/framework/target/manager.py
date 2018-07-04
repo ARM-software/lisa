@@ -122,7 +122,7 @@ class TargetManager(object):
     def _init_target(self):
         tdesc = get_target_description(self.target_name)
 
-        extra_plat_params={}
+        extra_plat_params = {}
         if tdesc.platform is Gem5SimulationPlatform:
             extra_plat_params['host_output_dir'] = self.outdir
 

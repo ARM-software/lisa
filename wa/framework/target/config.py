@@ -23,6 +23,7 @@ class TargetConfig(dict):
 
     """
     def __init__(self, config=None):
+        dict.__init__(self)
         if isinstance(config, TargetConfig):
             self.__dict__ = copy(config.__dict__)
         elif hasattr(config, 'iteritems'):

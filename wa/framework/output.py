@@ -29,7 +29,7 @@ from wa.framework.run import RunState, RunInfo
 from wa.framework.target.info import TargetInfo
 from wa.framework.version import get_wa_version_with_commit
 from wa.utils.misc import touch, ensure_directory_exists, isiterable
-from wa.utils.serializer import write_pod, read_pod, is_pod
+from wa.utils.serializer import write_pod, read_pod
 from wa.utils.types import enum, numeric
 
 
@@ -86,7 +86,7 @@ class Output(object):
     @classifiers.setter
     def classifiers(self, value):
         if self.result is None:
-            msg ='Attempting to set classifiers before output has been set'
+            msg = 'Attempting to set classifiers before output has been set'
             raise RuntimeError(msg)
         self.result.classifiers = value
 
@@ -114,7 +114,7 @@ class Output(object):
             else:
                 self.result = Result()
                 self.result.status = Status.PENDING
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             self.result = Result()
             self.result.status = Status.UNKNOWN
             self.add_event(str(e))
@@ -676,7 +676,7 @@ def init_job_output(run_output, job):
 
 
 def discover_wa_outputs(path):
-    for root, dirs, files in os.walk(path):
+    for root, dirs, _ in os.walk(path):
         if '__meta' in dirs:
             yield  RunOutput(root)
 
