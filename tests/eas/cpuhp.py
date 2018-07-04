@@ -21,44 +21,27 @@ import random
 import json
 import sys
 
+from env import TestEnv
 from test import LisaTest, experiment_test
 from target_script import TargetScript
 from devlib.module.hotplug import HotplugModule
+from devlib.exception import TimeoutError
 
 class _CpuHotplugTest(LisaTest):
     """
     "Abstract" base class for generic EAS tests under CPU hotplug stress
 
-    Subclasses should provide a .workloads member to populate the 'wloads' field
-    of the experiments_conf for the Executor. Furthermore, subclasses may
-    overwrite the .hp_stress member containing the configuration used while
-    generating the random hotplug stress sequence.
-
-    The test will be successful if the system does not halt or kill the
-    workloads because of hotplug stress. It means that the test passes if the
-    workload completes.
+    The test will be successful if the system does not crash during the hotplug
+    stress, and if all CPUs come back online properly.
     """
 
     test_conf = {
-        "ftrace" : {
-            "events" : [
-                "sched_overutilized",
-                "sched_energy_diff",
-                "sched_load_avg_task",
-                "sched_load_avg_cpu",
-                "sched_migrate_task",
-                "sched_switch",
-                "cpu_frequency",
-                "cpu_idle",
-                "cpu_capacity",
-                "cpuhp_enter",
-                "cpuhp_exit",
-                "cpuhp_multi_enter",
-            ],
-        },
-        "modules": ["cgroups", "hotplug"],
-        "tools": ["rt-app", "trace-cmd"],
+        "modules": ["hotplug"],
+        # Remove the modules that silently talk to the target
+        "exclude_modules": ["hwmon", "ftrace"],
     }
+
+    duration_sec = 10                   # Duration of the hotplug stress
 
     hp_stress = {
         'seed' : None,                  # Seed of the random number generator
@@ -75,21 +58,11 @@ class _CpuHotplugTest(LisaTest):
         super(_CpuHotplugTest, cls).runExperiments(*args, **kwargs)
 
     @classmethod
-    def _getExperimentsConf(cls, test_env):
-        conf = {
-            'tag' : 'energy_aware',
-            'flags' : ['ftrace', 'freeze_userspace'],
-            'sched_features' : 'ENERGY_AWARE',
-        }
-
-        return {
-            'wloads' : cls.workloads,
-            'confs' : [conf],
-        }
-
-    @classmethod
-    def _experimentsInit(cls, *args, **kwargs):
+    def runExperiments(cls):
+        cls.te = TestEnv(test_conf=cls._getTestConf())
+        cls.target = cls.te.target
         cls._log = logging.getLogger('CpuhpTest')
+
         # Choose a random seed explicitly if not given
         if cls.hp_stress.get('seed') is None:
             random.seed()
@@ -101,6 +74,7 @@ class _CpuHotplugTest(LisaTest):
             json.dump(cls.hp_stress, f, sort_keys=True, indent=4)
 
         # Play with (online) hotpluggable CPUs only
+        cls.target.hotplug.online_all()
         cls.hotpluggable_cpus = filter(
                 lambda cpu: cls.target.file_exists(cls._cpuhp_path(cpu)),
                 cls.target.list_online_cpus())
@@ -110,18 +84,26 @@ class _CpuHotplugTest(LisaTest):
         cls._log.info(cls.hotpluggable_cpus)
 
         # Run random hotplug sequence on target
-        cls.cpuhp_seq_script = cls._random_cpuhp_script()
+        cls.cpuhp_seq_script = cls._random_cpuhp_script(cls.duration_sec)
         cls.cpuhp_seq_script.push()
-        cls.cpuhp_seq_script.run(as_root=True, background=True)
-        cls._log.info('Hotplug stress has now started on target')
+        msg = 'Starting hotplug stress for {} seconds'
+        cls._log.info(msg.format(cls.duration_sec))
+        cls.target_alive = True
 
-    @classmethod
-    def _experimentsFinalize(cls, *args, **kwargs):
-        cls._log.info('Stopping hotplug stress on the target now')
-        cls.cpuhp_seq_script.kill()
-        # Resume to original state
-        cls.te._log.info('Plugging back in currently offline CPUs')
-        cls.target.hotplug.online(*cls.hotpluggable_cpus)
+        # The script should run on the target for 'cls.duration_sec' seconds.
+        # If there is no life sign of the target 1 minute after that, we
+        # consider it dead.
+        timeout = cls.duration_sec + 60
+        try:
+            cls.cpuhp_seq_script.run(as_root=True, timeout=timeout)
+        except TimeoutError:
+            msg = 'Target not responding after {} seconds ...'
+            cls._log.info(msg.format(timeout))
+            cls.target_alive = False
+            return
+
+        cls._log.info('Hotplug stress completed')
+        cls.target.hotplug.online_all()
 
     @classmethod
     def _cpuhp_path(cls, cpu):
@@ -129,25 +111,15 @@ class _CpuHotplugTest(LisaTest):
         return cls.target.path.join(HotplugModule.base_path, cpu, 'online')
 
     @classmethod
-    def _random_cpuhp_script(cls):
+    def _random_cpuhp_script(cls, timeout_s):
         '''
         Generate a script consisting of a random sequence of hotplugs operations
 
         Two consecutive hotplugs can be separated by a random (and configurable
-        through .hp_stress) sleep in the script. Each hotplug operation is
-        logged in a ftrace marker file for post processing. The return value is
-        the TargetScript object.
-
-        Example of generated script:
-        > while true; do
-        >     echo 0 > /sys/devices/system/cpu/cpu1/online
-        >     sleep 0.4245
-        >     echo 1 > /sys/devices/system/cpu/cpu1/online
-        >     sleep 0.178
-        > done
+        through .hp_stress) sleep in the script. The hotplug stress must be
+        stopped after some time using the timeout_s parameter (in seconds).
         '''
         shift = '    '
-        marker = cls.te.ftrace.marker_file
         sleep_min = cls.hp_stress['sleep']['min_ms']
         sleep_max = cls.hp_stress['sleep']['max_ms']
         script = TargetScript(cls.te, 'random_cpuhp.sh')
@@ -159,7 +131,9 @@ class _CpuHotplugTest(LisaTest):
         script.append('# Hotpluggable CPUs:')
         script.append('# {}'.format(cls.hotpluggable_cpus))
 
-        script.append('while true; do')
+
+        script.append('while true')
+        script.append('do')
         for cpu, plug_way in cls._random_cpuhp_seq():
             # Write in sysfs entry
             cmd = 'echo {} > {}'.format(plug_way, cls._cpuhp_path(cpu))
@@ -168,7 +142,13 @@ class _CpuHotplugTest(LisaTest):
             if sleep_max > 0:
                 sleep_dur_sec = random.randint(sleep_min, sleep_max)/1000.0
                 script.append(shift + 'sleep {}'.format(sleep_dur_sec))
-        script.append('done')
+        script.append('done &')
+
+        # Make sure to stop the hotplug stress after timeout_s seconds
+        script.append('LOOP_PID=$!')
+        script.append('sleep {}'.format(timeout_s))
+        script.append('kill -9 $LOOP_PID')
+
         return script
 
     @classmethod
@@ -209,71 +189,46 @@ class _CpuHotplugTest(LisaTest):
         for cpu in cur_off_cpus:
             yield cpu, 1
 
-    @classmethod
-    def _test_target_is_alive(cls):
-        '''Test that the target is responsive'''
-        try:
-            cls.target.check_responsive()
-        except Exception:
-            raise AssertionError("the target is not responsive")
+    def test_system_state(cls):
+        '''Check if system state is clean after hotplug stress'''
+        if not cls.target_alive:
+            raise AssertionError('Target crashed under hotplug stress')
 
-class ThreeSmallTasks(_CpuHotplugTest):
-    """
-    Test EAS for 3 20% tasks over 60 seconds
-    """
-    workloads = {
-        'cpuhp_three_small' : {
-            'type' : 'rt-app',
-            'conf' : {
-                'class' : 'periodic',
-                'params' : {
-                    'duty_cycle_pct': 20,
-                    'duration_s': 60,
-                    'period_ms': 16,
-                },
-                'tasks' : 3,
-                'prefix' : 'many',
-            },
-        },
-    }
+        # This should really be a separate test but there is no point
+        # in doing it if the target isn't alive, so let's leave it here until
+        # we find a way to express dependencies between tests
+        if cls.target.list_offline_cpus():
+            raise AssertionError('Some CPUs failed to come back online')
 
-    @experiment_test
-    def test_random_hotplugs(self, experiment, tasks):
-        '''Test that the system doesn't crash while under hotplug stress'''
-        self._test_target_is_alive()
-
-class Torture(_CpuHotplugTest):
+class _Torture(_CpuHotplugTest):
     """
-    Torture hotplug with 5 15% tasks over 5 minutes
+    Torture hotplug stress
     """
-    workloads = {
-        'cpuhp_five_small' : {
-            'type' : 'rt-app',
-            'conf' : {
-                'class' : 'periodic',
-                'params' : {
-                    'duty_cycle_pct': 15,
-                    'duration_s': 300,
-                    'period_ms': 16,
-                },
-                'tasks' : 5,
-                'prefix' : 'many',
-            },
-        },
-    }
 
     hp_stress = {
-        'seed' : None,                  # Seed of the random number generator
-        'sequence_len' : 100,           # Number of operations in the sequence
+        'seed' : None,
+        'sequence_len' : 100,
         'sleep' : {
-            'min_ms' : -1,              # Min sleep duration between hotplugs
-            'max_ms' : -1,              # Max sleep duration between hotplugs
-        },                              #   max_ms <= 0 will encode 'no sleep'
-        'max_cpus_off' : sys.maxint,    # Max number of CPUs plugged-off
+            'min_ms' : -1,
+            'max_ms' : -1, # No sleep time between hotplug
+        },
+        'max_cpus_off' : sys.maxint,
     }
 
-    @experiment_test
-    def test_random_hotplugs(self, experiment, tasks):
-        '''Test that the system doesn't crash while under hotplug stress'''
-        self._test_target_is_alive()
+    @classmethod
+    def setUpClass(cls, *args, **kwargs):
+        super(_Torture, cls).runExperiments(*args, **kwargs)
 
+
+class Torture10(_Torture):
+    """
+    Torture hotplug during 10 seconds
+    """
+    duration_sec = 10
+
+
+class Torture300(_Torture):
+    """
+    Torture hotplug during 5 minutes
+    """
+    duration_sec = 300
