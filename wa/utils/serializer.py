@@ -231,7 +231,7 @@ class yaml(object):
             lineno = None
             if hasattr(e, 'problem_mark'):
                 lineno = e.problem_mark.line  # pylint: disable=no-member
-            raise SerializerSyntaxError(e.message, lineno)
+            raise SerializerSyntaxError(e.args[0] if e.args else str(e), lineno)
 
     loads = load
 
