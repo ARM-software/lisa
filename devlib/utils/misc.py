@@ -192,9 +192,9 @@ def check_output(command, timeout=None, ignore=None, inputtext=None,
     retcode = process.poll()
     if retcode:
         if retcode == -9:  # killed, assume due to timeout callback
-            raise TimeoutError(command, output='\n'.join([output, error]))
+            raise TimeoutError(command, output='\n'.join([output or '', error or '']))
         elif ignore != 'all' and retcode not in ignore:
-            raise subprocess.CalledProcessError(retcode, command, output='\n'.join([str(output), str(error)]))
+            raise subprocess.CalledProcessError(retcode, command, output='\n'.join([output or '', error or '']))
     return output, error
 
 
