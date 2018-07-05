@@ -42,12 +42,13 @@ if [ "$result" == "2" ]; then
 fi
 
 THIS_DIR="`dirname \"$0\"`"
+CWD=$PWD
+pushd $THIS_DIR > /dev/null
 if [[ "$target" == "" ]]; then
-	pushd $THIS_DIR/.. > /dev/null
 	for dir in "${DEFAULT_DIRS[@]}"; do
-		pylint --rcfile extras/pylintrc $dir
+		PYTHONPATH=. pylint --rcfile ../extras/pylintrc --load-plugins pylint_plugins $CWD/$dir
 	done
-	popd > /dev/null
 else
-	pylint --rcfile $THIS_DIR/../extras/pylintrc $target
+	PYTHONPATH=. pylint --rcfile ../extras/pylintrc --load-plugins pylint_plugins $CWD/$target
 fi
+popd > /dev/null
