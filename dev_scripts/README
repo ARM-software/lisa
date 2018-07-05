@@ -15,8 +15,8 @@ Scripts
 :get_apk_versions: Prints out a table of APKs and their versons found under the
                    path specified as the argument.
 
-:pep8: Runs pep8 code checker (must be installed) over wlauto with the correct 
-       settings for WA.
+:pep8: Runs flake8 (formerly called "pep8") code checker (must be
+       installed) over wa/ with the correct settings for WA.
 
 :pylint: Runs pylint (must be installed) over wlauto with the correct settings
          for WA.

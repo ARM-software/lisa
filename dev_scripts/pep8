@@ -4,12 +4,12 @@ DEFAULT_DIRS=(
         wa
 )
 
-EXCLUDE=wa/tests
+EXCLUDE=wa/tests,wa/framework/target/descriptor.py
 EXCLUDE_COMMA=
-IGNORE=E501,E265,E266,W391,E401,E402,E731
+IGNORE=E501,E265,E266,W391,E401,E402,E731,W504,W605,F401
 
-if ! hash pep8 2>/dev/null; then
-	echo "pep8 not found in PATH"
+if ! hash flake8 2>/dev/null; then
+	echo "flake8 not found in PATH"
 	echo "you can install it with \"sudo pip install pep8\""
 	exit 1
 fi
@@ -18,11 +18,11 @@ if [[ "$1" == "" ]]; then
 	THIS_DIR="`dirname \"$0\"`"
 	pushd $THIS_DIR/.. > /dev/null
 	for dir in "${DEFAULT_DIRS[@]}"; do
-		pep8 --exclude=$EXCLUDE,$EXCLUDE_COMMA --ignore=$IGNORE $dir
+		flake8 --exclude=$EXCLUDE,$EXCLUDE_COMMA --ignore=$IGNORE $dir
 	done
-	pep8 --exclude=$EXCLUDE --ignore=$IGNORE,E241 $(echo "$EXCLUDE_COMMA" | sed 's/,/ /g')
+	flake8 --exclude=$EXCLUDE --ignore=$IGNORE,E241 $(echo "$EXCLUDE_COMMA" | sed 's/,/ /g')
 	popd > /dev/null
 else
-	pep8 --exclude=$EXCLUDE,$EXCLUDE_COMMA --ignore=$IGNORE $1
+	flake8 --exclude=$EXCLUDE,$EXCLUDE_COMMA --ignore=$IGNORE $1
 fi
 
