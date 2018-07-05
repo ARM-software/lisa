@@ -18,12 +18,14 @@ from wa.framework.configuration.plugin_cache import PluginCache
 from wa.utils.serializer import yaml
 from wa.utils.doc import strip_inlined_text
 
-DEFAULT_AUGMENTATIONS = ['execution_time',
-                         'interrupts',
-                         'cpufreq',
-                         'status',
-                         'csv'
-                        ]
+
+DEFAULT_AUGMENTATIONS = [
+    'execution_time',
+    'interrupts',
+    'cpufreq',
+    'status',
+    'csv',
+]
 
 
 def _format_yaml_comment(param, short_description=False):

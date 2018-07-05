@@ -289,117 +289,137 @@ GEM5_PLATFORM_PARAMS = [
 
 CONNECTION_PARAMS = {
     AdbConnection: [
-        Parameter('device', kind=str,
-                aliases=['adb_name'],
-                description="""
-                ADB device name
-                """),
-        Parameter('adb_server', kind=str,
-                description="""
-                ADB server to connect to.
-                """),
+        Parameter(
+            'device', kind=str,
+            aliases=['adb_name'],
+            description="""
+            ADB device name
+            """),
+        Parameter(
+            'adb_server', kind=str,
+            description="""
+            ADB server to connect to.
+            """),
     ],
     SshConnection: [
-        Parameter('host', kind=str, mandatory=True,
-                description="""
-                Host name or IP address of the target.
-                """),
-        Parameter('username', kind=str, mandatory=True,
-                description="""
-                User name to connect with
-                """),
-        Parameter('password', kind=str,
-                description="""
-                Password to use.
-                """),
-        Parameter('keyfile', kind=str,
-                description="""
-                Key file to use
-                """),
-        Parameter('port', kind=int,
-                description="""
-                The port SSH server is listening on on the target.
-                """),
-        Parameter('telnet', kind=bool, default=False,
-                description="""
-                If set to ``True``, a Telnet connection, rather than
-                SSH will be used.
-                """),
-        Parameter('password_prompt', kind=str,
-                description="""
-                Password prompt to expect
-                """),
-        Parameter('original_prompt', kind=str,
-                description="""
-                Original shell prompt to expect.
-                """),
-        Parameter('sudo_cmd', kind=str,
-                default="sudo -- sh -c '{}'",
-                description="""
-                Sudo command to use. Must have ``"{}"`` specified
-                somewhere in the string it indicate where the command
-                to be run via sudo is to go.
-                """),
+        Parameter(
+            'host', kind=str, mandatory=True,
+            description="""
+            Host name or IP address of the target.
+            """),
+        Parameter(
+            'username', kind=str, mandatory=True,
+            description="""
+            User name to connect with
+            """),
+        Parameter(
+            'password', kind=str,
+            description="""
+            Password to use.
+            """),
+        Parameter(
+            'keyfile', kind=str,
+            description="""
+            Key file to use
+            """),
+        Parameter(
+            'port', kind=int,
+            description="""
+            The port SSH server is listening on on the target.
+            """),
+        Parameter(
+            'telnet', kind=bool, default=False,
+            description="""
+            If set to ``True``, a Telnet connection, rather than
+            SSH will be used.
+            """),
+        Parameter(
+            'password_prompt', kind=str,
+            description="""
+            Password prompt to expect
+            """),
+        Parameter(
+            'original_prompt', kind=str,
+            description="""
+            Original shell prompt to expect.
+            """),
+        Parameter(
+            'sudo_cmd', kind=str,
+            default="sudo -- sh -c '{}'",
+            description="""
+            Sudo command to use. Must have ``"{}"`` specified
+            somewhere in the string it indicate where the command
+            to be run via sudo is to go.
+            """),
     ],
     Gem5Connection: [
-        Parameter('host', kind=str, mandatory=False,
-                description="""
-                Host name or IP address of the target.
-                """),
-        Parameter('username', kind=str, default='root',
-                description="""
-                User name to connect to gem5 simulation.
-                """),
-        Parameter('password', kind=str,
-                description="""
-                Password to use.
-                """),
-        Parameter('port', kind=int,
-                description="""
-                The port SSH server is listening on on the target.
-                """),
-        Parameter('password_prompt', kind=str,
-                description="""
-                Password prompt to expect
-                """),
-        Parameter('original_prompt', kind=str,
-                description="""
-                Original shell prompt to expect.
-                """),
+        Parameter(
+            'host', kind=str, mandatory=False,
+            description="""
+            Host name or IP address of the target.
+            """),
+        Parameter(
+            'username', kind=str, default='root',
+            description="""
+            User name to connect to gem5 simulation.
+            """),
+        Parameter(
+            'password', kind=str,
+            description="""
+            Password to use.
+            """),
+        Parameter(
+            'port', kind=int,
+            description="""
+            The port SSH server is listening on on the target.
+            """),
+        Parameter(
+            'password_prompt', kind=str,
+            description="""
+            Password prompt to expect
+            """),
+        Parameter(
+            'original_prompt', kind=str,
+            description="""
+            Original shell prompt to expect.
+            """),
     ],
     LocalConnection: [
-        Parameter('password', kind=str,
-                description="""
-                Password to use for sudo. if not specified, the user will
-                be prompted during intialization.
-                """),
-        Parameter('keep_password', kind=bool, default=True,
-                description="""
-                If ``True`` (the default), the password will be cached in
-                memory after it is first obtained from the user, so that the
-                user would not be prompted for it again.
-                """),
-        Parameter('unrooted', kind=bool, default=False,
-                description="""
-                Indicate that the target should be considered unrooted; do not
-                attempt sudo or ask the user for their password.
-                """),
+        Parameter(
+            'password', kind=str,
+            description="""
+            Password to use for sudo. if not specified, the user will
+            be prompted during intialization.
+            """),
+        Parameter(
+            'keep_password', kind=bool, default=True,
+            description="""
+            If ``True`` (the default), the password will be cached in
+            memory after it is first obtained from the user, so that the
+            user would not be prompted for it again.
+            """),
+        Parameter(
+            'unrooted', kind=bool, default=False,
+            description="""
+            Indicate that the target should be considered unrooted; do not
+            attempt sudo or ask the user for their password.
+            """),
     ],
 }
 
 CONNECTION_PARAMS['ChromeOsConnection'] = \
-        CONNECTION_PARAMS[AdbConnection] + CONNECTION_PARAMS[SshConnection]
+    CONNECTION_PARAMS[AdbConnection] + CONNECTION_PARAMS[SshConnection]
 
 
 # name --> ((target_class, conn_class), params_list, defaults)
 TARGETS = {
     'linux': ((LinuxTarget, SshConnection), COMMON_TARGET_PARAMS, None),
     'android': ((AndroidTarget, AdbConnection), COMMON_TARGET_PARAMS +
-                [Parameter('package_data_directory', kind=str, default='/data/data',
-                           description='''
-                           Directory containing Android data
-                           '''),
-                ], None),
+               [Parameter('package_data_directory', kind=str, default='/data/data',
+                          description='''
+                          Directory containing Android data
+                          '''),
+               ], None),
     'chromeos': ((ChromeOsTarget, 'ChromeOsConnection'), COMMON_TARGET_PARAMS +
                 [Parameter('package_data_directory', kind=str, default='/data/data',
                            description='''
@@ -522,7 +542,6 @@ class DefaultTargetDescriptor(TargetDescriptor):
         cls, params, defaults = item_tuple
         updated_params = self._apply_param_defaults(params, defaults)
         return cls, updated_params
-
 
 
 _adhoc_target_descriptions = []

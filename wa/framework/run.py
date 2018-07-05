@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+# Because of use of Enum (dynamic attrs)
+# pylint: disable=no-member
+
 import uuid
 from collections import OrderedDict, Counter
 from copy import copy
@@ -19,8 +23,6 @@ from datetime import datetime, timedelta
 
 from wa.framework.configuration.core import Status
 
-# Because of use of Enum (dynamic attrs)
-# pylint: disable=no-member
 
 class RunInfo(object):
     """
@@ -36,8 +38,7 @@ class RunInfo(object):
             uid = uuid.UUID(uid)
         instance = RunInfo(**pod)
         instance.uuid = uid
-        instance.duration = duration if duration is None else\
-                            timedelta(seconds=duration)
+        instance.duration = duration if duration is None else timedelta(seconds=duration)
         return instance
 
     def __init__(self, run_name=None, project=None, project_stage=None,

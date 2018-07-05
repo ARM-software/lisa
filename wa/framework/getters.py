@@ -75,7 +75,7 @@ def get_path_matches(resource, files):
     for f in files:
         if resource.match_path(f):
             matches.append(f)
-    return  matches
+    return matches
 
 
 def get_from_location(basepath, resource):

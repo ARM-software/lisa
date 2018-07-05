@@ -316,8 +316,8 @@ class Plugin(with_metaclass(PluginMeta, object)):
         appropriate exception.
 
         """
-        modules = list(reversed(self.core_modules)) +\
-                    list(reversed(self.modules or []))
+        modules = list(reversed(self.core_modules))
+        modules += list(reversed(self.modules or []))
         if not modules:
             return
         for module_spec in modules:

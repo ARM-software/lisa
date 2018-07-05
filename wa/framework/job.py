@@ -13,6 +13,9 @@
 # limitations under the License.
 #
 
+# Because of use of Enum (dynamic attrs)
+# pylint: disable=no-member
+
 import logging
 from copy import copy
 from datetime import datetime
@@ -21,8 +24,6 @@ from wa.framework import pluginloader, signal, instrument
 from wa.framework.configuration.core import Status
 from wa.utils.log import indentcontext
 
-# Because of use of Enum (dynamic attrs)
-# pylint: disable=no-member
 
 class Job(object):
 

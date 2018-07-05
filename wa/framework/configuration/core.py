@@ -144,11 +144,13 @@ class LoggingConfig(dict):
     def to_pod(self):
         return self
 
+
 def expanded_path(path):
     """
     Ensure that the provided path has been expanded if applicable
     """
     return os.path.expanduser(str(path))
+
 
 def get_type_name(kind):
     typename = str(kind)
@@ -377,11 +379,10 @@ class Configuration(object):
                                                                      name))
         try:
             self.configuration[name].set_value(self, value,
-                                            check_mandatory=check_mandatory)
+                                               check_mandatory=check_mandatory)
         except (TypeError, ValueError, ConfigError) as e:
             msg = 'Invalid value "{}" for "{}": {}'
             raise ConfigError(msg.format(value, name, e))
-
 
     def update_config(self, values, check_mandatory=True):
         for k, v in values.items():
@@ -897,7 +898,6 @@ class JobSpec(Configuration):
 
         if self.label is None:
             self.label = self.workload_name
-
 
 
 # This is used to construct the list of Jobs WA will run

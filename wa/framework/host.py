@@ -86,23 +86,28 @@ def convert_wa2_agenda(filepath, output_path):
     # Add additional config points to extract from config file.
     # Also allows for aliasing of renamed parameters
     config_points.extend([
-            ConfigurationPoint('augmentations',
-                            aliases=["instruments", "processors", "instrumentation",
-                                    "output_processors", "augment", "result_processors"],
-                            description='''The augmentations enabled by default.
-                                          This combines the "instrumentation"
-                                          and "result_processors" from previous
-                                          versions of WA (the old entries are
-                                          now aliases for this).'''),
-            ConfigurationPoint('device_config',
-                            description='''Generic configuration for device.''',
-                            default={}),
-            ConfigurationPoint('cleanup_assets',
-                            aliases=['clean_up'],
-                            description='''Specify whether to clean up assets
-                                           deployed to the target''',
-                            default=True),
-            ])
+        ConfigurationPoint(
+            'augmentations',
+            aliases=["instruments", "processors", "instrumentation",
+                     "output_processors", "augment", "result_processors"],
+            description='''
+                The augmentations enabled by default.
+                This combines the "instrumentation"
+                and "result_processors" from previous
+                versions of WA (the old entries are
+                now aliases for this).
+            '''),
+        ConfigurationPoint(
+            'device_config',
+            description='''Generic configuration for device.''',
+            default={}),
+        ConfigurationPoint(
+            'cleanup_assets',
+            aliases=['clean_up'],
+            description='''Specify whether to clean up assets
+                            deployed to the target''',
+            default=True),
+    ])
 
     for param in list(orig_agenda.keys()):
         for cfg_point in config_points:
@@ -137,6 +142,6 @@ def convert_wa2_agenda(filepath, output_path):
 
 def format_parameter(param):
     if isinstance(param, dict):
-        return {identifier(k) : v for k, v in param.items()}
+        return {identifier(k): v for k, v in param.items()}
     else:
         return param

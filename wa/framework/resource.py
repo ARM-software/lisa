@@ -27,7 +27,6 @@ from wa.utils.misc import get_object_name
 from wa.utils.types import enum, list_or_string, prioritylist
 
 
-
 SourcePriority = enum(['package', 'remote', 'lan', 'local',
                        'perferred'], start=0, step=10)
 
@@ -172,9 +171,8 @@ class ApkFile(Resource):
             abi_matches = apk_abi_matches(path, self.supported_abi,
                                           self.exact_abi)
         return name_matches and version_matches and \
-               uiauto_matches and package_matches and \
-               abi_matches
-
+            uiauto_matches and package_matches and \
+            abi_matches
 
     def __str__(self):
         text = '<{}\'s apk'.format(self.owner)
@@ -280,6 +278,7 @@ def apk_version_matches(path, version):
         return True
     return loose_version_matching(version, info.version_name)
 
+
 def loose_version_matching(config_version, apk_version):
     config_version = config_version.split('.')
     apk_version = apk_version.split('.')
@@ -301,13 +300,16 @@ def file_name_matches(path, pattern):
         return True
     return False
 
+
 def uiauto_test_matches(path, uiauto):
     info = ApkInfo(path)
     return uiauto == ('com.arm.wa.uiauto' in info.package)
 
+
 def package_name_matches(path, package):
     info = ApkInfo(path)
     return info.package == package
+
 
 def apk_abi_matches(path, supported_abi, exact_abi=False):
     supported_abi = list_or_string(supported_abi)

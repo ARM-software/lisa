@@ -53,7 +53,6 @@ class TargetManager(object):
         self.parameters = parameters
         self.disconnect = parameters.get('disconnect')
 
-
     def initialize(self):
         self._init_target()
 

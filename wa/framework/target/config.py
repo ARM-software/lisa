@@ -15,7 +15,6 @@
 
 from copy import copy
 
-#Not going to be used for now.
 
 class TargetConfig(dict):
     """

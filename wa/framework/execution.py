@@ -25,8 +25,8 @@ from datetime import datetime
 import wa.framework.signal as signal
 from wa.framework import instrument
 from wa.framework.configuration.core import Status
-from wa.framework.exception import TargetError, HostError, WorkloadError,\
-                                   TargetNotRespondingError, TimeoutError
+from wa.framework.exception import TargetError, HostError, WorkloadError
+from wa.framework.exception import TargetNotRespondingError, TimeoutError
 from wa.framework.job import Job
 from wa.framework.output import init_job_output
 from wa.framework.output_processor import ProcessorManager
@@ -130,8 +130,8 @@ class ExecutionContext(object):
         self.run_state.status = status
         self.run_output.status = status
         self.run_output.info.end_time = datetime.utcnow()
-        self.run_output.info.duration = self.run_output.info.end_time -\
-                                        self.run_output.info.start_time
+        self.run_output.info.duration = (self.run_output.info.end_time -
+                                         self.run_output.info.start_time)
         self.write_output()
 
     def finalize(self):
@@ -356,8 +356,8 @@ class Executor(object):
         output.write_config(config)
 
         self.target_manager = TargetManager(config.run_config.device,
-                                       config.run_config.device_config,
-                                       output.basepath)
+                                            config.run_config.device_config,
+                                            output.basepath)
 
         self.logger.info('Initializing execution context')
         context = ExecutionContext(config_manager, self.target_manager, output)
@@ -540,7 +540,7 @@ class Runner(object):
                 context.tm.start()
                 self.do_run_job(job, context)
                 job.set_status(Status.OK)
-        except (Exception, KeyboardInterrupt) as e: # pylint: disable=broad-except
+        except (Exception, KeyboardInterrupt) as e:  # pylint: disable=broad-except
             log.log_error(e, self.logger)
             if isinstance(e, KeyboardInterrupt):
                 context.run_interrupted = True

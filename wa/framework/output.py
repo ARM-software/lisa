@@ -119,7 +119,6 @@ class Output(object):
             self.result.status = Status.UNKNOWN
             self.add_event(str(e))
 
-
     def write_result(self):
         write_pod(self.result.to_pod(), self.resultfile)
 
@@ -165,7 +164,6 @@ class Output(object):
 
     def __str__(self):
         return os.path.basename(self.basepath)
-
 
 
 class RunOutput(Output):
@@ -648,10 +646,10 @@ def init_run_output(path, wa_state, force=False):
     touch(os.path.join(path, 'run.log'))
 
     info = RunInfo(
-            run_name=wa_state.run_config.run_name,
-            project=wa_state.run_config.project,
-            project_stage=wa_state.run_config.project_stage,
-           )
+        run_name=wa_state.run_config.run_name,
+        project=wa_state.run_config.project,
+        project_stage=wa_state.run_config.project_stage,
+    )
     write_pod(info.to_pod(), os.path.join(meta_dir, 'run_info.json'))
     write_pod(RunState().to_pod(), os.path.join(path, '.run_state.json'))
     write_pod(Result().to_pod(), os.path.join(path, 'result.json'))
@@ -678,7 +676,7 @@ def init_job_output(run_output, job):
 def discover_wa_outputs(path):
     for root, dirs, _ in os.walk(path):
         if '__meta' in dirs:
-            yield  RunOutput(root)
+            yield RunOutput(root)
 
 
 def _save_raw_config(meta_dir, state):

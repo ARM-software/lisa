@@ -114,7 +114,6 @@ class Workload(TargetedPlugin):
                 'Workload "{}" requires internet. Target does not appear '
                 'to be connected to the internet.'.format(self.name))
 
-
     def run(self, context):
         """
         Execute the workload. This is the method that performs the actual
@@ -288,7 +287,6 @@ class ApkWorkload(Workload):
         super(ApkWorkload, self).teardown(context)
         self.apk.teardown()
 
-
     def deploy_assets(self, context):
         super(ApkWorkload, self).deploy_assets(context)
         self.target.refresh_files(self.deployed_assets)
@@ -372,6 +370,7 @@ class ApkReventWorkload(ApkUIWorkload):
                              self.run_timeout,
                              self.extract_results_timeout,
                              self.teardown_timeout)
+
 
 class UIWorkload(Workload):
 
@@ -457,7 +456,6 @@ class ReventWorkload(UIWorkload):
                              self.run_timeout,
                              self.extract_results_timeout,
                              self.teardown_timeout)
-
 
 
 class UiAutomatorGUI(object):
@@ -571,12 +569,12 @@ class ReventGUI(object):
                                                        stage='run',
                                                        target=self.target.model))
         self.revent_extract_results_file = resolver.get(ReventFile(owner=self.workload,
-                                                                 stage='extract_results',
-                                                                 target=self.target.model),
+                                                                   stage='extract_results',
+                                                                   target=self.target.model),
                                                         strict=False)
         self.revent_teardown_file = resolver.get(resource=ReventFile(owner=self.workload,
-                                                            stage='teardown',
-                                                            target=self.target.model),
+                                                                     stage='teardown',
+                                                                     target=self.target.model),
                                                  strict=False)
 
     def deploy(self):
@@ -833,7 +831,7 @@ class PackageHandler(object):
             raise WorkloadError(message.format(package))
         package_info = self.target.get_package_info(package)
         self.target.pull(package_info.apk_path, self.owner.dependencies_directory,
-                                                timeout=self.install_timeout)
+                         timeout=self.install_timeout)
         apk_name = self.target.path.basename(package_info.apk_path)
         return os.path.join(self.owner.dependencies_directory, apk_name)
 

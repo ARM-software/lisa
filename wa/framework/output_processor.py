@@ -139,7 +139,7 @@ class ProcessorManager(object):
                     try:
                         self.logger.info(message.format(proc.name))
                         proc_func(*args)
-                    except Exception as e:  #  pylint: disable=broad-except
+                    except Exception as e:  # pylint: disable=broad-except
                         if isinstance(e, KeyboardInterrupt):
                             raise
                         log_error(e, self.logger)

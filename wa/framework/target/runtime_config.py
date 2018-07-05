@@ -131,49 +131,46 @@ class HotplugRuntimeConfig(RuntimeConfig):
             return
         param_name = 'num_cores'
         self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=int,
-                                 constraint=lambda x:
-                                         0 <= x <= self.target.number_of_cpus,
-                                 description="""
-                                 The number of cpu cores to be online
-                                 """,
-                                 setter=self.set_num_cores,
-                                 setter_params={'core': None})
+            RuntimeParameter(param_name, kind=int,
+                             constraint=lambda x: 0 <= x <= self.target.number_of_cpus,
+                             description="""
+                             The number of cpu cores to be online
+                             """,
+                             setter=self.set_num_cores,
+                             setter_params={'core': None})
 
         for name in unique(self.target.platform.core_names):
             param_name = 'num_{}_cores'.format(name)
             self._runtime_params[param_name] = \
-                    RuntimeParameter(param_name, kind=int,
-                                     constraint=lambda x, name=name:
-                                             0 <= x <= len(self.target.core_cpus(name)),
-                                     description="""
-                                     The number of {} cores to be online
-                                     """.format(name),
-                                     setter=self.set_num_cores,
-                                     setter_params={'core': name})
+                RuntimeParameter(param_name, kind=int,
+                                 constraint=lambda x, name=name: 0 <= x <= len(self.target.core_cpus(name)),
+                                 description="""
+                                 The number of {} cores to be online
+                                 """.format(name),
+                                 setter=self.set_num_cores,
+                                 setter_params={'core': name})
 
         for cpu_no in range(self.target.number_of_cpus):
             param_name = 'cpu{}_online'.format(cpu_no)
             self._runtime_params[param_name] = \
-                    RuntimeParameter(param_name, kind=bool,
-                                     description="""
-                                     Specify whether cpu{} should be online
-                                     """.format(cpu_no),
-                                     setter=self.set_num_cores,
-                                     setter_params={'core': cpu_no})
+                RuntimeParameter(param_name, kind=bool,
+                                 description="""
+                                 Specify whether cpu{} should be online
+                                 """.format(cpu_no),
+                                 setter=self.set_num_cores,
+                                 setter_params={'core': cpu_no})
 
         if self.target.has('bl'):
             for cluster in ['big', 'little']:
                 param_name = 'num_{}_cores'.format(cluster)
                 self._runtime_params[param_name] = \
-                        RuntimeParameter(param_name, kind=int,
-                                         constraint=lambda x, cluster=cluster:
-                                                   0 <= x <= len(resolve_cpus(cluster, self.target)),
-                                         description="""
-                                         The number of cores on the {} cluster to be online
-                                         """.format(cluster),
-                                         setter=self.set_num_cores,
-                                         setter_params={'core': cluster})
+                    RuntimeParameter(param_name, kind=int,
+                                     constraint=lambda x, c=cluster: 0 <= x <= len(resolve_cpus(c, self.target)),
+                                     description="""
+                                     The number of cores on the {} cluster to be online
+                                     """.format(cluster),
+                                     setter=self.set_num_cores,
+                                     setter_params={'core': cluster})
 
     def check_target(self):
         if not self.target.has('hotplug'):
@@ -224,11 +221,11 @@ class SysfileValuesRuntimeConfig(RuntimeConfig):
     def initialize(self):
         self._runtime_params['sysfile_values'] = \
             RuntimeParameter('sysfile_values', kind=dict, merge=True,
-                              setter=self.set_sysfile,
-                              setter_params={'core': None},
-                              description="""
-                              Sysfile path to be set
-                              """)
+                             setter=self.set_sysfile,
+                             setter_params={'core': None},
+                             description="""
+                             Sysfile path to be set
+                             """)
 
     def check_target(self):
         return True
@@ -334,49 +331,54 @@ class CpufreqRuntimeConfig(RuntimeConfig):
         freq_val = FreqValue(common_freqs)
         param_name = 'frequency'
         self._runtime_params[param_name] = \
-            RuntimeParameter(param_name, kind=freq_val,
-                        setter=self.set_frequency,
-                        setter_params={'core': None},
-                        description="""
-                        The desired frequency for all cores
-                        """)
+            RuntimeParameter(
+                param_name, kind=freq_val,
+                setter=self.set_frequency,
+                setter_params={'core': None},
+                description="""
+                The desired frequency for all cores
+                """)
         param_name = 'max_frequency'
         self._runtime_params[param_name] = \
-            RuntimeParameter(param_name, kind=freq_val,
-                        setter=self.set_max_frequency,
-                        setter_params={'core': None},
-                        description="""
-                        The maximum frequency for all cores
-                        """)
+            RuntimeParameter(
+                param_name, kind=freq_val,
+                setter=self.set_max_frequency,
+                setter_params={'core': None},
+                description="""
+                The maximum frequency for all cores
+                """)
         param_name = 'min_frequency'
         self._runtime_params[param_name] = \
-            RuntimeParameter(param_name, kind=freq_val,
-                        setter=self.set_min_frequency,
-                        setter_params={'core': None},
-                        description="""
-                        The minimum frequency for all cores
-                        """)
+            RuntimeParameter(
+                param_name, kind=freq_val,
+                setter=self.set_min_frequency,
+                setter_params={'core': None},
+                description="""
+                The minimum frequency for all cores
+                """)
 
         if common_gov:
             param_name = 'governor'
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=str,
-                          allowed_values=common_gov,
-                          setter=self.set_governor,
-                          setter_params={'core': None},
-                          description="""
-                          The governor to be set for all cores
-                          """)
+                RuntimeParameter(
+                    param_name, kind=str,
+                    allowed_values=common_gov,
+                    setter=self.set_governor,
+                    setter_params={'core': None},
+                    description="""
+                    The governor to be set for all cores
+                    """)
 
         param_name = 'governor_tunables'
         self._runtime_params[param_name] = \
-            RuntimeParameter(param_name, kind=dict,
-                           merge=True,
-                           setter=self.set_governor_tunables,
-                           setter_params={'core': None},
-                           description="""
-                           The governor tunables to be set for all cores
-                           """)
+            RuntimeParameter(
+                param_name, kind=dict,
+                merge=True,
+                setter=self.set_governor_tunables,
+                setter_params={'core': None},
+                description="""
+                The governor tunables to be set for all cores
+                """)
 
         # Add core name parameters
         for name in unique(self.target.platform.core_names):
@@ -386,46 +388,51 @@ class CpufreqRuntimeConfig(RuntimeConfig):
 
             param_name = '{}_frequency'.format(name)
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=freq_val,
-                          setter=self.set_frequency,
-                          setter_params={'core': name},
-                          description="""
-                          The desired frequency for the {} cores
-                          """.format(name))
+                RuntimeParameter(
+                    param_name, kind=freq_val,
+                    setter=self.set_frequency,
+                    setter_params={'core': name},
+                    description="""
+                    The desired frequency for the {} cores
+                    """.format(name))
             param_name = '{}_max_frequency'.format(name)
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=freq_val,
-                          setter=self.set_max_frequency,
-                          setter_params={'core': name},
-                          description="""
-                          The maximum frequency for the {} cores
-                          """.format(name))
+                RuntimeParameter(
+                    param_name, kind=freq_val,
+                    setter=self.set_max_frequency,
+                    setter_params={'core': name},
+                    description="""
+                    The maximum frequency for the {} cores
+                    """.format(name))
             param_name = '{}_min_frequency'.format(name)
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=freq_val,
-                          setter=self.set_min_frequency,
-                          setter_params={'core': name},
-                          description="""
-                          The minimum frequency for the {} cores
-                          """.format(name))
+                RuntimeParameter(
+                    param_name, kind=freq_val,
+                    setter=self.set_min_frequency,
+                    setter_params={'core': name},
+                    description="""
+                    The minimum frequency for the {} cores
+                    """.format(name))
             param_name = '{}_governor'.format(name)
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=str,
-                          allowed_values=avail_govs,
-                          setter=self.set_governor,
-                          setter_params={'core': name},
-                          description="""
-                          The governor to be set for the {} cores
-                          """.format(name))
+                RuntimeParameter(
+                    param_name, kind=str,
+                    allowed_values=avail_govs,
+                    setter=self.set_governor,
+                    setter_params={'core': name},
+                    description="""
+                    The governor to be set for the {} cores
+                    """.format(name))
             param_name = '{}_gov_tunables'.format(name)
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=dict,
-                          setter=self.set_governor_tunables,
-                          setter_params={'core': name},
-                          merge=True,
-                          description="""
-                          The governor tunables to be set for the {} cores
-                          """.format(name))
+                RuntimeParameter(
+                    param_name, kind=dict,
+                    setter=self.set_governor_tunables,
+                    setter_params={'core': name},
+                    merge=True,
+                    description="""
+                    The governor tunables to be set for the {} cores
+                    """.format(name))
 
         # Add cpuX parameters.
         for cpu_no in range(self.target.number_of_cpus):
@@ -434,46 +441,51 @@ class CpufreqRuntimeConfig(RuntimeConfig):
 
             param_name = 'cpu{}_frequency'.format(cpu_no)
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=freq_val,
-                          setter=self.set_frequency,
-                          setter_params={'core': cpu_no},
-                          description="""
-                          The desired frequency for cpu{}
-                          """.format(cpu_no))
+                RuntimeParameter(
+                    param_name, kind=freq_val,
+                    setter=self.set_frequency,
+                    setter_params={'core': cpu_no},
+                    description="""
+                    The desired frequency for cpu{}
+                    """.format(cpu_no))
             param_name = 'cpu{}_max_frequency'.format(cpu_no)
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=freq_val,
-                          setter=self.set_max_frequency,
-                          setter_params={'core': cpu_no},
-                          description="""
-                          The maximum frequency for cpu{}
-                          """.format(cpu_no))
+                RuntimeParameter(
+                    param_name, kind=freq_val,
+                    setter=self.set_max_frequency,
+                    setter_params={'core': cpu_no},
+                    description="""
+                    The maximum frequency for cpu{}
+                    """.format(cpu_no))
             param_name = 'cpu{}_min_frequency'.format(cpu_no)
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=freq_val,
-                          setter=self.set_min_frequency,
-                          setter_params={'core': cpu_no},
-                          description="""
-                          The minimum frequency for cpu{}
-                          """.format(cpu_no))
+                RuntimeParameter(
+                    param_name, kind=freq_val,
+                    setter=self.set_min_frequency,
+                    setter_params={'core': cpu_no},
+                    description="""
+                    The minimum frequency for cpu{}
+                    """.format(cpu_no))
             param_name = 'cpu{}_governor'.format(cpu_no)
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=str,
-                          allowed_values=avail_govs,
-                          setter=self.set_governor,
-                          setter_params={'core': cpu_no},
-                          description="""
-                          The governor to be set for cpu{}
-                          """.format(cpu_no))
+                RuntimeParameter(
+                    param_name, kind=str,
+                    allowed_values=avail_govs,
+                    setter=self.set_governor,
+                    setter_params={'core': cpu_no},
+                    description="""
+                    The governor to be set for cpu{}
+                    """.format(cpu_no))
             param_name = 'cpu{}_gov_tunables'.format(cpu_no)
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=dict,
-                          setter=self.set_governor_tunables,
-                          setter_params={'core': cpu_no},
-                          merge=True,
-                          description="""
-                          The governor tunables to be set for cpu{}
-                          """.format(cpu_no))
+                RuntimeParameter(
+                    param_name, kind=dict,
+                    setter=self.set_governor_tunables,
+                    setter_params={'core': cpu_no},
+                    merge=True,
+                    description="""
+                    The governor tunables to be set for cpu{}
+                    """.format(cpu_no))
 
         # Add big.little cores if present on device.
         if self.target.has('bl'):
@@ -484,46 +496,51 @@ class CpufreqRuntimeConfig(RuntimeConfig):
                 param_name = '{}_frequency'.format(cluster)
 
                 self._runtime_params[param_name] = \
-                    RuntimeParameter(param_name, kind=freq_val,
-                              setter=self.set_frequency,
-                              setter_params={'core': cluster},
-                              description="""
-                              The desired frequency for the {} cluster
-                              """.format(cluster))
+                    RuntimeParameter(
+                        param_name, kind=freq_val,
+                        setter=self.set_frequency,
+                        setter_params={'core': cluster},
+                        description="""
+                        The desired frequency for the {} cluster
+                        """.format(cluster))
                 param_name = '{}_max_frequency'.format(cluster)
                 self._runtime_params[param_name] = \
-                    RuntimeParameter(param_name, kind=freq_val,
-                              setter=self.set_max_frequency,
-                              setter_params={'core': cluster},
-                              description="""
-                              The maximum frequency for the {} cluster
-                              """.format(cluster))
+                    RuntimeParameter(
+                        param_name, kind=freq_val,
+                        setter=self.set_max_frequency,
+                        setter_params={'core': cluster},
+                        description="""
+                        The maximum frequency for the {} cluster
+                        """.format(cluster))
                 param_name = '{}_min_frequency'.format(cluster)
                 self._runtime_params[param_name] = \
-                    RuntimeParameter(param_name, kind=freq_val,
-                              setter=self.set_min_frequency,
-                              setter_params={'core': cluster},
-                              description="""
-                              The minimum frequency for the {} cluster
-                              """.format(cluster))
+                    RuntimeParameter(
+                        param_name, kind=freq_val,
+                        setter=self.set_min_frequency,
+                        setter_params={'core': cluster},
+                        description="""
+                        The minimum frequency for the {} cluster
+                        """.format(cluster))
                 param_name = '{}_governor'.format(cluster)
                 self._runtime_params[param_name] = \
-                    RuntimeParameter(param_name, kind=str,
-                              allowed_values=avail_govs,
-                              setter=self.set_governor,
-                              setter_params={'core': cluster},
-                              description="""
-                              The governor to be set for the {} cores
-                              """.format(cluster))
+                    RuntimeParameter(
+                        param_name, kind=str,
+                        allowed_values=avail_govs,
+                        setter=self.set_governor,
+                        setter_params={'core': cluster},
+                        description="""
+                        The governor to be set for the {} cores
+                        """.format(cluster))
                 param_name = '{}_gov_tunables'.format(cluster)
                 self._runtime_params[param_name] = \
-                    RuntimeParameter(param_name, kind=dict,
-                              setter=self.set_governor_tunables,
-                              setter_params={'core': cluster},
-                              merge=True,
-                              description="""
-                              The governor tunables to be set for the {} cores
-                              """.format(cluster))
+                    RuntimeParameter(
+                        param_name, kind=dict,
+                        setter=self.set_governor_tunables,
+                        setter_params={'core': cluster},
+                        merge=True,
+                        description="""
+                        The governor tunables to be set for the {} cores
+                        """.format(cluster))
 
     def check_target(self):
         if not self.target.has('cpufreq'):
@@ -679,6 +696,7 @@ class CpufreqRuntimeConfig(RuntimeConfig):
 
         return all_freqs, common_freqs, common_gov
 
+
 class IdleStateValue(object):
 
     def __init__(self, values):
@@ -750,35 +768,38 @@ class CpuidleRuntimeConfig(RuntimeConfig):
         if common_idle_states:
             param_name = 'idle_states'
             self._runtime_params[param_name] = \
-                    RuntimeParameter(param_name, kind=idle_state_val,
-                                     setter=self.set_idle_state,
-                                     setter_params={'core': None},
-                                     description="""
-                                     The idle states to be set for all cores
-                                     """)
+                RuntimeParameter(
+                    param_name, kind=idle_state_val,
+                    setter=self.set_idle_state,
+                    setter_params={'core': None},
+                    description="""
+                    The idle states to be set for all cores
+                    """)
 
         for name in unique(self.target.platform.core_names):
             cpu = resolve_cpus(name, self.target)[0]
             idle_state_val = IdleStateValue(self.supported_idle_states.get(cpu))
             param_name = '{}_idle_states'.format(name)
             self._runtime_params[param_name] = \
-                    RuntimeParameter(param_name, kind=idle_state_val,
-                                     setter=self.set_idle_state,
-                                     setter_params={'core': name},
-                                     description="""
-                                     The idle states to be set for {} cores
-                                     """.format(name))
+                RuntimeParameter(
+                    param_name, kind=idle_state_val,
+                    setter=self.set_idle_state,
+                    setter_params={'core': name},
+                    description="""
+                    The idle states to be set for {} cores
+                    """.format(name))
 
         for cpu_no in range(self.target.number_of_cpus):
             idle_state_val = IdleStateValue(self.supported_idle_states.get(cpu_no))
             param_name = 'cpu{}_idle_states'.format(cpu_no)
             self._runtime_params[param_name] = \
-                    RuntimeParameter(param_name, kind=idle_state_val,
-                                     setter=self.set_idle_state,
-                                     setter_params={'core': cpu_no},
-                                     description="""
-                                     The idle states to be set for cpu{}
-                                     """.format(cpu_no))
+                RuntimeParameter(
+                    param_name, kind=idle_state_val,
+                    setter=self.set_idle_state,
+                    setter_params={'core': cpu_no},
+                    description="""
+                    The idle states to be set for cpu{}
+                    """.format(cpu_no))
 
         if self.target.has('bl'):
             for cluster in ['big', 'little']:
@@ -786,12 +807,13 @@ class CpuidleRuntimeConfig(RuntimeConfig):
                 idle_state_val = IdleStateValue(self.supported_idle_states.get(cpu))
                 param_name = '{}_idle_states'.format(cluster)
                 self._runtime_params[param_name] = \
-                        RuntimeParameter(param_name, kind=idle_state_val,
-                                         setter=self.set_idle_state,
-                                         setter_params={'core': cluster},
-                                         description="""
-                                         The idle states to be set for the {} cores
-                                         """.format(cluster))
+                    RuntimeParameter(
+                        param_name, kind=idle_state_val,
+                        setter=self.set_idle_state,
+                        setter_params={'core': cluster},
+                        description="""
+                        The idle states to be set for the {} cores
+                        """.format(cluster))
 
     def check_target(self):
         if not self.target.has('cpuidle'):
@@ -825,6 +847,7 @@ class CpuidleRuntimeConfig(RuntimeConfig):
                 if state.name not in common_idle_states:
                     common_idle_states.append(state)
         return common_idle_states
+
 
 ScreenOrientation = enum(['NATURAL', 'LEFT', 'INVERTED', 'RIGHT'])
 
@@ -865,41 +888,45 @@ class AndroidRuntimeConfig(RuntimeConfig):
 
         param_name = 'brightness'
         self._runtime_params[param_name] = \
-            RuntimeParameter(param_name, kind=int,
-                              constraint=lambda x: 0 <= x <= 255,
-                              default=127,
-                              setter=self.set_brightness,
-                              description="""
-                              Specify the screen brightness to be set for
-                              the device
-                              """)
+            RuntimeParameter(
+                param_name, kind=int,
+                constraint=lambda x: 0 <= x <= 255,
+                default=127,
+                setter=self.set_brightness,
+                description="""
+                Specify the screen brightness to be set for
+                the device
+                """)
 
         if self.target.os == 'android':
             param_name = 'airplane_mode'
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=bool,
-                                  setter=self.set_airplane_mode,
-                                  description="""
-                                  Specify whether airplane mode should be
-                                  enabled for the device
-                                  """)
+                RuntimeParameter(
+                    param_name, kind=bool,
+                    setter=self.set_airplane_mode,
+                    description="""
+                    Specify whether airplane mode should be
+                    enabled for the device
+                    """)
 
             param_name = 'rotation'
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=ScreenOrientation,
-                                  setter=self.set_rotation,
-                                  description="""
-                                  Specify the screen orientation for the device
-                                  """)
+                RuntimeParameter(
+                    param_name, kind=ScreenOrientation,
+                    setter=self.set_rotation,
+                    description="""
+                    Specify the screen orientation for the device
+                    """)
 
             param_name = 'screen_on'
             self._runtime_params[param_name] = \
-                RuntimeParameter(param_name, kind=bool,
-                                  default=True,
-                                  setter=self.set_screen_state,
-                                  description="""
-                                  Specify whether the device screen should be on
-                                  """)
+                RuntimeParameter(
+                    param_name, kind=bool,
+                    default=True,
+                    setter=self.set_screen_state,
+                    description="""
+                    Specify whether the device screen should be on
+                    """)
 
     def check_target(self):
         if self.target.os != 'android' and self.target.os != 'chromeos':

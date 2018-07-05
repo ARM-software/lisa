@@ -81,7 +81,7 @@ class PluginCache(object):
 
         if caseless_string(plugin_name) in ['global', 'config']:
             msg = '"{}" entry specified inside config/global section; If this is ' \
-            'defined in a config file, move the entry content into the top level'
+                  'defined in a config file, move the entry content into the top level'
             raise ConfigError(msg.format((plugin_name)))
 
         if (not self.loader.has_plugin(plugin_name) and
@@ -270,7 +270,6 @@ class PluginCache(object):
         raise AttributeError(name)
 
 
-
 class MergeState(object):
 
     def __init__(self):
@@ -289,13 +288,13 @@ def update_config_from_source(final_config, source, state):
             if name in state.generic_config[source]:
                 if name in state.seen_specific_config:
                     msg = ('"{generic_name}" configuration "{config_name}" has '
-                            'already been specified more specifically for '
-                            '{specific_name} in:\n\t\t{sources}')
+                           'already been specified more specifically for '
+                           '{specific_name} in:\n\t\t{sources}')
                     seen_sources = state.seen_specific_config[name]
                     msg = msg.format(generic_name=state.generic_name,
-                                        config_name=name,
-                                        specific_name=state.specific_name,
-                                        sources=", ".join(seen_sources))
+                                     config_name=name,
+                                     specific_name=state.specific_name,
+                                     sources=", ".join(seen_sources))
                     raise ConfigError(msg)
                 value = state.generic_config[source].pop(name)
                 cfg_point.set_value(final_config, value, check_mandatory=False)

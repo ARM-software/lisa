@@ -130,7 +130,7 @@ class CpuidleInfo(object):
 
     def __repr__(self):
         return 'Cpuidle({}/{} {} states)'.format(
-                self.governor, self.driver, self.num_states)
+            self.governor, self.driver, self.num_states)
 
     __str__ = __repr__
 
