@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import logging
 import unittest
 
 from nose.tools import assert_equal, assert_true, assert_false
@@ -30,6 +31,11 @@ class Callable(object):
 
 
 class TestPriorityDispatcher(unittest.TestCase):
+
+    def setUp(self):
+        # Stop logger output interfering with nose output in the console.
+        logger = logging.getLogger('signal')
+        logger.setLevel(logging.CRITICAL)
 
     def test_ConnectNotify(self):
         one = Callable(1)
