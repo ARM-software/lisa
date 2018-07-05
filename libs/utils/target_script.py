@@ -101,7 +101,7 @@ class TargetScript(object):
         # Push it on target
         self._remote_path = self._target.install(self._local_path)
 
-    def run(self, as_root=False, background=False):
+    def run(self, as_root=False, background=False, timeout=None):
         """
         Run the previously pushed script
         """
@@ -112,7 +112,9 @@ class TargetScript(object):
                 self._bg_shell = self._target.background(self._remote_path,
                                                     as_root=self._run_as_root)
             else:
-                self._target.execute(self._remote_path, as_root=self._run_as_root)
+                self._target.execute(self._remote_path,
+                                     as_root=self._run_as_root,
+                                     timeout=timeout)
         else:
             raise IOError('Remote script was not found on target device')
 
