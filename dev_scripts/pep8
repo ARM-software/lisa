@@ -10,7 +10,7 @@ IGNORE=E501,E265,E266,W391,E401,E402,E731,W504,W605,F401
 
 if ! hash flake8 2>/dev/null; then
 	echo "flake8 not found in PATH"
-	echo "you can install it with \"sudo pip install pep8\""
+	echo "you can install it with \"sudo pip install flake8\""
 	exit 1
 fi
 
