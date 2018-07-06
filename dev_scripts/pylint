@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 DEFAULT_DIRS=(
 	wa
@@ -33,11 +34,11 @@ compare_versions() {
     return 0
 }
 
-pylint_version=$(python -c 'from pylint.__pkginfo__ import version; print version')
-compare_versions $pylint_version "1.5.1"
+pylint_version=$(python3 -c 'from pylint.__pkginfo__ import version; print(version)')
+compare_versions $pylint_version "1.9.2"
 result=$?
 if [ "$result" == "2" ]; then
-	echo "ERROR: pylint version must be at least 1.5.1; found $pylint_version"
+	echo "ERROR: pylint version must be at least 1.9.2; found $pylint_version"
 	exit 1
 fi
 
@@ -46,7 +47,7 @@ CWD=$PWD
 pushd $THIS_DIR > /dev/null
 if [[ "$target" == "" ]]; then
 	for dir in "${DEFAULT_DIRS[@]}"; do
-		PYTHONPATH=. pylint --rcfile ../extras/pylintrc --load-plugins pylint_plugins $CWD/$dir
+		PYTHONPATH=. pylint --rcfile ../extras/pylintrc --load-plugins pylint_plugins $THIS_DIR/../$dir
 	done
 else
 	PYTHONPATH=. pylint --rcfile ../extras/pylintrc --load-plugins pylint_plugins $CWD/$target
