@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+# TODO: because of some weirdness involving get_params_rst and underline
+#       functions from wa.utils.doc, pylint gets stuck here for a very
+#       long time. To avoid that, skip this file.
+# pylint: disable-all
+
 import sys
 from subprocess import call, Popen, PIPE
 
