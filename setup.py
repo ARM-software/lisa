@@ -20,14 +20,16 @@ from itertools import chain
 
 try:
     from setuptools import setup
+    from setuptools.command.sdist import sdist as orig_sdist
 except ImportError:
     from distutils.core import setup
+    from distutils.command.sdist import sdist as orig_sdist
 
 
 wa_dir = os.path.join(os.path.dirname(__file__), 'wa')
 
 sys.path.insert(0, os.path.join(wa_dir, 'framework'))
-from version import get_wa_version_with_commit
+from version import get_wa_version, get_wa_version_with_commit
 
 # happends if falling back to distutils
 warnings.filterwarnings('ignore', "Unknown distribution option: 'install_requires'")
@@ -66,7 +68,7 @@ params = dict(
     packages=packages,
     package_data=data_files,
     scripts=scripts,
-    url='N/A',
+    url='https://github.com/ARM-software/workload-automation',
     license='Apache v2',
     maintainer='ARM Architecture & Technology Device Lab',
     maintainer_email='workload-automation@arm.com',
@@ -107,5 +109,26 @@ params = dict(
 
 all_extras = list(chain(iter(params['extras_require'].values())))
 params['extras_require']['everything'] = all_extras
+
+
+class sdist(orig_sdist):
+
+    user_options = orig_sdist.user_options + [
+        ('strip-commit', 's',
+         "Strip git commit hash from package version ")
+    ]
+
+    def initialize_options(self):
+        orig_sdist.initialize_options(self)
+        self.strip_commit = False
+
+
+    def run(self):
+        if self.strip_commit:
+            self.distribution.get_version = get_wa_version
+        orig_sdist.run(self)
+
+
+params['cmdclass'] = {'sdist': sdist}
 
 setup(**params)
