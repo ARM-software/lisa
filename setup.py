@@ -62,7 +62,7 @@ for root, dirs, files in os.walk(wa_dir):
 scripts = [os.path.join('scripts', s) for s in os.listdir('scripts')]
 
 params = dict(
-    name='wa',
+    name='wlauto',
     description='A framework for automating workload execution and measurement collection on ARM devices.',
     version=get_wa_version_with_commit(),
     packages=packages,

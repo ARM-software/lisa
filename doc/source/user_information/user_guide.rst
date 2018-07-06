@@ -20,10 +20,11 @@ Install
 .. note:: This is a quick summary. For more detailed instructions, please see
           the :ref:`installation` section.
 
-Make sure you have Python 2.7 and a recent Android SDK with API level 18 or above
-installed on your system. A complete install of the Android SDK is required, as
-WA uses a number of its utilities, not just adb. For the SDK, make sure that either
-``ANDROID_HOME`` environment variable is set, or that ``adb`` is in your ``PATH``.
+Make sure you have Python 2.7 or Python 3 and a recent Android SDK with API
+level 18 or above installed on your system. A complete install of the Android
+SDK is required, as WA uses a number of its utilities, not just adb. For the
+SDK, make sure that either ``ANDROID_HOME`` environment variable is set, or that
+``adb`` is in your ``PATH``.
 
 .. Note:: If you plan to run Workload Automation on Linux devices only, SSH is required,
           and Android SDK is optional if you wish to run WA on Android devices at a
@@ -32,12 +33,12 @@ WA uses a number of its utilities, not just adb. For the SDK, make sure that eit
           However, you would be starting off with a limited number of workloads that
           will run on Linux devices.
 
-In addition to the base Python 2.7 install, you will also need to have ``pip``
+In addition to the base Python install, you will also need to have ``pip``
 (Python's package manager) installed as well. This is usually a separate package.
 
 Once you have those, you can install WA with::
 
-        sudo -H pip install wa
+        sudo -H pip install wlauto
 
 This will install Workload Automation on your system, along with its mandatory
 dependencies.
