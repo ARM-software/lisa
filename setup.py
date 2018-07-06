@@ -21,8 +21,10 @@ from itertools import chain
 
 try:
     from setuptools import setup
+    from setuptools.command.sdist import sdist as orig_sdist
 except ImportError:
     from distutils.core import setup
+    from distutils.command.sdist import sdist as orig_sdist
 
 
 devlib_dir = os.path.join(os.path.dirname(__file__), 'devlib')
@@ -109,5 +111,26 @@ params = dict(
 
 all_extras = list(chain(iter(params['extras_require'].values())))
 params['extras_require']['full'] = all_extras
+
+
+class sdist(orig_sdist):
+
+    user_options = orig_sdist.user_options + [
+        ('strip-commit', 's',
+         "Strip git commit hash from package version ")
+    ]
+
+    def initialize_options(self):
+        orig_sdist.initialize_options(self)
+        self.strip_commit = False
+
+
+    def run(self):
+        if self.strip_commit:
+            self.distribution.get_version = lambda : __version__.split('+')[0]
+        orig_sdist.run(self)
+
+
+params['cmdclass'] = {'sdist': sdist}
 
 setup(**params)
