@@ -72,10 +72,9 @@ class LogcatParser(object):
             tid = int(parts.pop(0))
             level = LogcatLogLevel.levels[log_level_map.index(parts.pop(0))]
             tag = (parts.pop(0) if parts else '').strip()
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             message = 'Invalid metadata for line:\n\t{}\n\tgot: "{}"'
             logger.warning(message.format(line, e))
             return None
 
         return LogcatEvent(timestamp, pid, tid, level, tag, message)
-

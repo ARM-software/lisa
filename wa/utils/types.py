@@ -36,7 +36,7 @@ if sys.version_info[0] == 3:
     from past.builtins import basestring  # pylint: disable=redefined-builtin
     long = int
 else:
-    from urllib import quote, unquote
+    from urllib import quote, unquote  # pylint: disable=no-name-in-module
 # pylint: disable=wrong-import-position
 from collections import defaultdict, MutableMapping
 from copy import copy
@@ -325,7 +325,7 @@ class prioritylist(object):
     def _delete(self, priority, priority_index):
         del self.elements[priority][priority_index]
         self.size -= 1
-        if len(self.elements[priority]) == 0:
+        if not self.elements[priority]:
             self.priorities.remove(priority)
         self._cached_elements = None
 

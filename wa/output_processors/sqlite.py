@@ -22,7 +22,6 @@ from datetime import datetime, timedelta
 from contextlib import contextmanager
 
 from wa import OutputProcessor, Parameter, OutputProcessorError
-from wa.framework.exception import OutputProcessorError
 from wa.utils.serializer import json
 from wa.utils.types import boolean
 

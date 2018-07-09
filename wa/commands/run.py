@@ -84,7 +84,7 @@ class RunCommand(Command):
                                  be specified multiple times.
                                  """)
 
-    def execute(self, config, args):
+    def execute(self, config, args):  # pylint: disable=arguments-differ
         output = self.set_up_output_directory(config, args)
         log.add_file(output.logfile)
         output.add_artifact('runlog', output.logfile, kind='log',

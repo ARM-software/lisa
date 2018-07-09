@@ -193,7 +193,7 @@ def log_error(e, logger, critical=False):
         old_level = set_indent_level(0)
         logger.info('Got CTRL-C. Aborting.')
         set_indent_level(old_level)
-    elif isinstance(e, WAError) or isinstance(e, DevlibError):
+    elif isinstance(e, (WAError, DevlibError)):
         log_func(str(e))
     elif isinstance(e, subprocess.CalledProcessError):
         tb = get_traceback()

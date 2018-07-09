@@ -17,7 +17,7 @@ from wa.framework import pluginloader, signal
 from wa.framework.command import Command, ComplexCommand, SubCommand
 from wa.framework.configuration import settings
 from wa.framework.configuration.core import Status
-from wa.framework.exception import (CommandError, ConfigError, HostError, InstrumentError,
+from wa.framework.exception import (CommandError, ConfigError, HostError, InstrumentError,  #pylint: disable=redefined-builtin
                                     JobError, NotFoundError, OutputProcessorError,
                                     PluginLoaderError, ResourceError, TargetError,
                                     TargetNotRespondingError, TimeoutError, ToolError,

@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 # pylint: disable=unused-import
-from devlib.exception import (DevlibError, HostError, TimeoutError,
+from devlib.exception import (DevlibError, HostError, TimeoutError,  # pylint: disable=redefined-builtin
                               TargetError, TargetNotRespondingError)
 
 from wa.utils.misc import get_traceback

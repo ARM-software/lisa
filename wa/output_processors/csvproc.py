@@ -57,7 +57,8 @@ class CsvReportProcessor(OutputProcessor):
             raise ConfigError(msg)
 
     def initialize(self):
-        self.outputs_so_far = []  # pylint: disable=attribute-defined-outside-init
+        # pylint: disable=attribute-defined-outside-init
+        self.outputs_so_far = []
         self.artifact_added = False
 
     # pylint: disable=unused-argument
@@ -66,14 +67,14 @@ class CsvReportProcessor(OutputProcessor):
         self._write_outputs(self.outputs_so_far, run_output)
         if not self.artifact_added:
             run_output.add_artifact('run_result_csv', 'results.csv', 'export')
-            self.artifact_added = True
+            self.artifact_added = True  # pylint: disable=attribute-defined-outside-init
 
     def process_run_output(self, output, target_info):  # pylint: disable=unused-argument
         self.outputs_so_far.append(output)
         self._write_outputs(self.outputs_so_far, output)
         if not self.artifact_added:
             output.add_artifact('run_result_csv', 'results.csv', 'export')
-            self.artifact_added = True
+            self.artifact_added = True  # pylint: disable=attribute-defined-outside-init
 
     def _write_outputs(self, outputs, output):
         if self.use_all_classifiers:

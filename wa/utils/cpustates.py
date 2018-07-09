@@ -449,7 +449,7 @@ class ParallelStats(object):
                         running_time_pc *= 100
                 else:
                     running_time_pc = 0
-                precision = self.use_ratios and 3 or 1
+                precision = 3 if self.use_ratios else 1
                 fmt = '{{:.{}f}}'.format(precision)
                 report.add([cluster, n,
                             fmt.format(time),
@@ -524,7 +524,7 @@ class PowerStateStats(object):
                     time_pc *= 100
                 state_stats[state][cpu] = time_pc
 
-        precision = self.use_ratios and 3 or 1
+        precision = 3 if self.use_ratios else 1
         return PowerStateStatsReport(self.filepath, state_stats, self.core_names, precision)
 
 
@@ -592,7 +592,7 @@ def build_idle_state_map(cpus):
     return idle_state_map
 
 
-def report_power_stats(trace_file, cpus, output_basedir, use_ratios=False, no_idle=None,
+def report_power_stats(trace_file, cpus, output_basedir, use_ratios=False, no_idle=None,  # pylint: disable=too-many-locals
                        split_wfi_states=False):
     """
     Process trace-cmd output to generate timelines and statistics of CPU power
@@ -704,4 +704,3 @@ def report_power_stats(trace_file, cpus, output_basedir, use_ratios=False, no_id
         report.write()
         reports[report.name] = report
     return reports
-

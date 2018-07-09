@@ -31,11 +31,13 @@ import subprocess
 import sys
 import traceback
 from datetime import datetime, timedelta
+from functools import reduce
 from operator import mul
 if sys.version_info[0] == 3:
     from io import StringIO
 else:
     from io import BytesIO as StringIO
+# pylint: disable=wrong-import-position,unused-import
 from itertools import chain, cycle
 from distutils.spawn import find_executable
 
@@ -257,13 +259,13 @@ def format_duration(seconds, sep=' ', order=['day', 'hour', 'minute', 'second'])
     result = []
     for item in order:
         value = getattr(dt, item, None)
-        if item is 'day':
+        if item == 'day':
             value -= 1
         if not value:
             continue
         suffix = '' if value == 1 else 's'
         result.append('{} {}{}'.format(value, item, suffix))
-    return result and sep.join(result) or 'N/A'
+    return sep.join(result) if result else 'N/A'
 
 
 def get_article(word):

@@ -26,7 +26,7 @@ import wa.framework.signal as signal
 from wa.framework import instrument
 from wa.framework.configuration.core import Status
 from wa.framework.exception import TargetError, HostError, WorkloadError
-from wa.framework.exception import TargetNotRespondingError, TimeoutError
+from wa.framework.exception import TargetNotRespondingError, TimeoutError  # pylint: disable=redefined-builtin
 from wa.framework.job import Job
 from wa.framework.output import init_job_output
 from wa.framework.output_processor import ProcessorManager
@@ -437,11 +437,11 @@ class Executor(object):
         self.logger.info('Results can be found in {}'.format(output.basepath))
 
         if self.error_logged:
-            self.logger.warn('There were errors during execution.')
-            self.logger.warn('Please see {}'.format(output.logfile))
+            self.logger.warning('There were errors during execution.')
+            self.logger.warning('Please see {}'.format(output.logfile))
         elif self.warning_logged:
-            self.logger.warn('There were warnings during execution.')
-            self.logger.warn('Please see {}'.format(output.logfile))
+            self.logger.warning('There were warnings during execution.')
+            self.logger.warning('Please see {}'.format(output.logfile))
 
     def _error_signalled_callback(self, _):
         self.error_logged = True

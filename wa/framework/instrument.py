@@ -104,7 +104,7 @@ from collections import OrderedDict
 
 from wa.framework import signal
 from wa.framework.plugin import Plugin
-from wa.framework.exception import (TargetNotRespondingError, TimeoutError,
+from wa.framework.exception import (TargetNotRespondingError, TimeoutError,  # pylint: disable=redefined-builtin
                                     WorkloadError, TargetError)
 from wa.utils.log import log_error
 from wa.utils.misc import isiterable
@@ -324,7 +324,7 @@ def install(instrument, context):
         if not callable(attr):
             msg = 'Attribute {} not callable in {}.'
             raise ValueError(msg.format(attr_name, instrument))
-        argspec = inspect.getargspec(attr)
+        argspec = inspect.getfullargspec(attr)
         arg_num = len(argspec.args)
         # Instrument callbacks will be passed exactly two arguments: self
         # (the instrument instance to which the callback is bound) and

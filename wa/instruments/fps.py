@@ -119,7 +119,6 @@ class FpsInstrument(Instrument):
             return
 
         self._is_enabled = True
-        # pylint: disable=redefined-variable-type
         if use_gfxinfo:
             self.collector = GfxInfoFramesInstrument(self.target, collector_target, self.period)
             self.processor = DerivedGfxInfoStats(self.drop_threshold, filename='fps.csv')

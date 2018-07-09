@@ -64,7 +64,7 @@ class ProcessCommand(Command):
                                  instead of just processing the root.
                                  """)
 
-    def execute(self, config, args):
+    def execute(self, config, args):  # pylint: disable=arguments-differ,too-many-branches,too-many-statements
         process_directory = os.path.expandvars(args.directory)
         self.logger.debug('Using process directory: {}'.format(process_directory))
         if not os.path.exists(process_directory):

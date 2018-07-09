@@ -150,10 +150,10 @@ class ExoPlayer(ApkWorkload):
                 return filepath
             else:
                 if len(files) > 1:
-                    self.logger.warn('Multiple files found for {} format. Using {}.'
-                                     .format(self.format, files[0]))
-                    self.logger.warn('Use "filename"parameter instead of '
-                                     '"format" to specify a different file.')
+                    self.logger.warning('Multiple files found for {} format. Using {}.'
+                                        .format(self.format, files[0]))
+                    self.logger.warning('Use "filename"parameter instead of '
+                                        '"format" to specify a different file.')
                 return files[0]
 
     def init_resources(self, context):  # pylint: disable=unused-argument

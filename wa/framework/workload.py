@@ -16,8 +16,7 @@ import logging
 import os
 import time
 
-from wa import Parameter
-from wa.framework.plugin import TargetedPlugin
+from wa.framework.plugin import TargetedPlugin, Parameter
 from wa.framework.resource import (ApkFile, ReventFile,
                                    File, loose_version_matching)
 from wa.framework.exception import WorkloadError, ConfigError
@@ -78,7 +77,7 @@ class Workload(TargetedPlugin):
             raise WorkloadError(msg.format(self.name, ' '.join(self.supported_platforms),
                                            self.target.os))
 
-    def init_resources(self, resolver):
+    def init_resources(self, context):
         """
         This method may be used to perform early resource discovery and
         initialization. This is invoked during the initial loading stage and
@@ -88,7 +87,7 @@ class Workload(TargetedPlugin):
 
         """
         for asset in self.deployable_assets:
-            self.asset_files.append(resolver.get(File(self, asset)))
+            self.asset_files.append(context.get(File(self, asset)))
 
     @once_per_instance
     def initialize(self, context):
@@ -298,9 +297,9 @@ class ApkUIWorkload(ApkWorkload):
         super(ApkUIWorkload, self).__init__(target, **kwargs)
         self.gui = None
 
-    def init_resources(self, resolver):
-        super(ApkUIWorkload, self).init_resources(resolver)
-        self.gui.init_resources(resolver)
+    def init_resources(self, context):
+        super(ApkUIWorkload, self).init_resources(context)
+        self.gui.init_resources(context)
 
     @once_per_instance
     def initialize(self, context):
@@ -378,9 +377,9 @@ class UIWorkload(Workload):
         super(UIWorkload, self).__init__(target, **kwargs)
         self.gui = None
 
-    def init_resources(self, resolver):
-        super(UIWorkload, self).init_resources(resolver)
-        self.gui.init_resources(resolver)
+    def init_resources(self, context):
+        super(UIWorkload, self).init_resources(context)
+        self.gui.init_resources(context)
 
     @once_per_instance
     def initialize(self, context):
@@ -819,7 +818,7 @@ class PackageHandler(object):
         if 'Failure' in output:
             if 'ALREADY_EXISTS' in output:
                 msg = 'Using already installed APK (did not uninstall properly?)'
-                self.logger.warn(msg)
+                self.logger.warning(msg)
             else:
                 raise WorkloadError(output)
         else:

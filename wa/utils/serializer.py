@@ -66,7 +66,7 @@ import yaml as _yaml
 import dateutil.parser
 
 # pylint: disable=redefined-builtin
-from past.builtins import basestring
+from past.builtins import basestring  # pylint: disable=wrong-import-order
 
 from wa.framework.exception import SerializerSyntaxError
 from wa.utils.misc import isiterable
@@ -104,7 +104,7 @@ POD_TYPES = [
 
 class WAJSONEncoder(_json.JSONEncoder):
 
-    def default(self, obj):  # pylint: disable=method-hidden
+    def default(self, obj):  # pylint: disable=method-hidden,arguments-differ
         if isinstance(obj, regex_type):
             return 'REGEX:{}:{}'.format(obj.flags, obj.pattern)
         elif isinstance(obj, datetime):
@@ -119,7 +119,7 @@ class WAJSONEncoder(_json.JSONEncoder):
 
 class WAJSONDecoder(_json.JSONDecoder):
 
-    def decode(self, s, **kwargs):
+    def decode(self, s, **kwargs):  # pylint: disable=arguments-differ
         d = _json.JSONDecoder.decode(self, s, **kwargs)
 
         def try_parse_object(v):

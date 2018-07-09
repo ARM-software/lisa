@@ -18,7 +18,8 @@
 import time
 from collections import Counter
 
-from wa import OutputProcessor, Status
+from wa.framework.output import Status
+from wa.framework.output_processor import OutputProcessor
 from wa.utils.misc import write_table
 
 

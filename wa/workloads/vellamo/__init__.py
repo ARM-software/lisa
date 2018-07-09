@@ -193,9 +193,9 @@ class VellamoResultParser(HTMLParser):
         self.failed = False
         self.benchmarks = []
 
-    def feed(self, text):
+    def feed(self, data):
         try:
-            HTMLParser.feed(self, text)
+            HTMLParser.feed(self, data)
         except self.StopParsingException:
             pass
 
@@ -230,3 +230,6 @@ class VellamoResultParser(HTMLParser):
                     self.benchmarks[-1].add_metric(data)
                 else:
                     self.failed = True
+
+    def error(self, message):
+        raise WorkloadError('Error parsing raw output: {}'.format(message))
