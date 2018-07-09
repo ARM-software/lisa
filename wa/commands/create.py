@@ -240,6 +240,7 @@ def create_uiauto_project(path, name):
         wfh.write(render_template(os.path.join('uiauto', 'UiAutomation.java'),
                                   {'name': name, 'package_name': package_name}))
 
+
 # Mapping of workload types to their corresponding creation method
 create_funcs = {
     'basic': create_template_workload,
@@ -266,5 +267,5 @@ def get_class_name(name, postfix=''):
 
 
 def touch(path):
-    with open(path, 'w') as _:
+    with open(path, 'w') as _: # NOQA
         pass

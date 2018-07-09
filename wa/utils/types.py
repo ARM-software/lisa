@@ -59,6 +59,7 @@ def list_of_strs(value):
         raise ValueError(value)
     return list(map(str, value))
 
+
 list_of_strings = list_of_strs
 
 
@@ -70,6 +71,7 @@ def list_of_ints(value):
     if not isiterable(value):
         raise ValueError(value)
     return list(map(int, value))
+
 
 list_of_integers = list_of_ints
 
@@ -652,8 +654,8 @@ def enum(args, start=0, step=1):
         n += step
 
     setattr(Enum, 'levels', levels)
-    setattr(Enum, 'values', [lv.value for lv in levels])
-    setattr(Enum, 'names', [lv.name for lv in levels])
+    setattr(Enum, 'values', [lvl.value for lvl in levels])
+    setattr(Enum, 'names', [lvl.name for lvl in levels])
 
     return Enum
 
