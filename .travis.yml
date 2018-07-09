@@ -22,10 +22,14 @@ python:
 install:
     - pip install nose
     - pip install nose2
+    - pip install flake8
+    - pip install pylint
 
 script:
     - git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && cd /tmp/devlib && python setup.py install
     - cd $TRAVIS_BUILD_DIR && python setup.py install
     - nose2 -s $TRAVIS_BUILD_DIR/tests
     - cd /tmp && wa run $TRAVIS_BUILD_DIR/tests/travis/idle_agenda.yaml -v -d idle_workload
+    - cd $TRAVIS_BUILD_DIR && ./dev_scripts/pylint wa
+    - cd $TRAVIS_BUILD_DIR && ./dev_scripts/pep8 wa
 
