@@ -269,6 +269,7 @@ class RunOutput(Output):
         write_pod(self.state.to_pod(), self.statefile)
 
     def write_config(self, config):
+        self._combined_config = config
         write_pod(config.to_pod(), self.configfile)
 
     def read_config(self):
