@@ -181,8 +181,10 @@ class TestWorkThroughput(BasicCheckTest):
 class TestEnergyModelPresent(BasicCheckTest):
     def test_energy_model_present(self):
         """Test that we can see the energy model in sysctl"""
-        if not self.target.file_exists(
-                '/proc/sys/kernel/sched_domain/cpu0/domain0/group0/energy/'):
+        em_path = '/proc/sys/kernel/sched_domain/cpu0/domain0/group0/energy/'
+        sem_path = '/sys/devices/system/cpu/energy_model'
+        if not (self.target.file_exists(em_path) or
+                self.target.file_exists(sem_path)):
             raise AssertionError(
                 'No energy model visible in procfs. Possible causes: \n'
                 '- Kernel built without (CONFIG_SCHED_DEBUG && CONFIG_SYSCTL)\n'
