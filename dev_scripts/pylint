@@ -1,6 +1,4 @@
 #!/bin/bash
-set -e
-
 DEFAULT_DIRS=(
 	wa
 )
@@ -34,7 +32,15 @@ compare_versions() {
     return 0
 }
 
-pylint_version=$(python3 -c 'from pylint.__pkginfo__ import version; print(version)')
+pylint_version=$(python -c 'from pylint.__pkginfo__ import version; print(version)' 2>/dev/null)
+if [ "x$pylint_version" == "x" ]; then
+	pylint_version=$(python3 -c 'from pylint.__pkginfo__ import version; print(version)' 2>/dev/null)
+fi
+if [ "x$pylint_version" == "x" ]; then
+	echo "ERROR: no pylint verison found; is it installed?"
+	exit 1
+fi
+
 compare_versions $pylint_version "1.9.2"
 result=$?
 if [ "$result" == "2" ]; then
@@ -42,6 +48,7 @@ if [ "$result" == "2" ]; then
 	exit 1
 fi
 
+set -e
 THIS_DIR="`dirname \"$0\"`"
 CWD=$PWD
 pushd $THIS_DIR > /dev/null
