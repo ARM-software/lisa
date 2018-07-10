@@ -18,14 +18,15 @@ import time
 from collections import defaultdict, OrderedDict
 from copy import copy
 
+from devlib.exception import TargetError
+from devlib.utils.misc import unique
+from devlib.utils.types import integer
+
 from wa.framework.exception import ConfigError
 from wa.framework.plugin import Plugin, Parameter
 from wa.utils.misc import resolve_cpus, resolve_unique_domain_cpus
 from wa.utils.types import caseless_string, enum
 
-from devlib.exception import TargetError
-from devlib.utils.misc import unique
-from devlib.utils.types import integer
 
 logger = logging.getLogger('RuntimeConfig')
 

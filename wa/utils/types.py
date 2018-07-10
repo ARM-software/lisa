@@ -34,7 +34,7 @@ from bisect import insort
 if sys.version_info[0] == 3:
     from urllib.parse import quote, unquote  # pylint: disable=no-name-in-module, import-error
     from past.builtins import basestring  # pylint: disable=redefined-builtin
-    long = int
+    long = int  # pylint: disable=redefined-builtin
 else:
     from urllib import quote, unquote  # pylint: disable=no-name-in-module
 # pylint: disable=wrong-import-position
@@ -478,6 +478,7 @@ class obj_dict(MutableMapping):
     def from_pod(pod):
         return obj_dict(pod)
 
+    # pylint: disable=super-init-not-called
     def __init__(self, values=None, not_in_dict=None):
         self.__dict__['dict'] = dict(values or {})
         self.__dict__['not_in_dict'] = not_in_dict if not_in_dict is not None else []

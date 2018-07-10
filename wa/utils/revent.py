@@ -20,10 +20,11 @@ import signal
 from datetime import datetime
 from collections import namedtuple
 
+from devlib.utils.misc import memoized
+
 from wa.framework.resource import Executable, NO_ONE, ResourceResolver
 from wa.utils.exec_control import once_per_class
 
-from devlib.utils.misc import memoized
 
 GENERAL_MODE = 0
 GAMEPAD_MODE = 1

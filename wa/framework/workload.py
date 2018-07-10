@@ -16,6 +16,8 @@ import logging
 import os
 import time
 
+from devlib.utils.android import ApkInfo
+
 from wa.framework.plugin import TargetedPlugin, Parameter
 from wa.framework.resource import (ApkFile, ReventFile,
                                    File, loose_version_matching)
@@ -23,8 +25,6 @@ from wa.framework.exception import WorkloadError, ConfigError
 from wa.utils.types import ParameterDict
 from wa.utils.revent import ReventRecorder
 from wa.utils.exec_control import once_per_instance
-
-from devlib.utils.android import ApkInfo
 
 
 class Workload(TargetedPlugin):

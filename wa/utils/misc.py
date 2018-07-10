@@ -31,7 +31,7 @@ import subprocess
 import sys
 import traceback
 from datetime import datetime, timedelta
-from functools import reduce
+from functools import reduce  # pylint: disable=redefined-builtin
 from operator import mul
 if sys.version_info[0] == 3:
     from io import StringIO
@@ -41,9 +41,10 @@ else:
 from itertools import chain, cycle
 from distutils.spawn import find_executable  # pylint: disable=no-name-in-module, import-error
 
-import yaml
 from dateutil import tz
+import yaml
 
+# pylint: disable=wrong-import-order
 from devlib.exception import TargetError
 from devlib.utils.misc import (ABI_MAP, check_output, walk_modules,
                                ensure_directory_exists, ensure_file_directory_exists,

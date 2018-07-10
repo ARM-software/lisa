@@ -22,14 +22,14 @@ import getpass
 from collections import OrderedDict
 from distutils.dir_util import copy_tree  # pylint: disable=no-name-in-module, import-error
 
+from devlib.utils.types import identifier
+
 from wa import ComplexCommand, SubCommand, pluginloader, settings
 from wa.framework.target.descriptor import list_target_descriptions
 from wa.framework.exception import ConfigError, CommandError
 from wa.utils.misc import (ensure_directory_exists as _d, capitalize,
                            ensure_file_directory_exists as _f)
 from wa.utils.serializer import yaml
-
-from devlib.utils.types import identifier
 
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')

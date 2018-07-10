@@ -15,6 +15,9 @@
 
 import logging
 
+from devlib import Gem5SimulationPlatform
+from devlib.utils.misc import memoized
+
 from wa.framework import signal
 from wa.framework.exception import ExecutionError, TargetError, TargetNotRespondingError
 from wa.framework.plugin import Parameter
@@ -23,9 +26,6 @@ from wa.framework.target.descriptor import (get_target_description,
                                             instantiate_assistant)
 from wa.framework.target.info import get_target_info
 from wa.framework.target.runtime_parameter_manager import RuntimeParameterManager
-
-from devlib import Gem5SimulationPlatform
-from devlib.utils.misc import memoized
 
 
 class TargetManager(object):
