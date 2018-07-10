@@ -20,7 +20,7 @@ import shutil
 import string
 import getpass
 from collections import OrderedDict
-from distutils.dir_util import copy_tree
+from distutils.dir_util import copy_tree  # pylint: disable=no-name-in-module, import-error
 
 from wa import ComplexCommand, SubCommand, pluginloader, settings
 from wa.framework.target.descriptor import list_target_descriptions

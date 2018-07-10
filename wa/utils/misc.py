@@ -39,7 +39,7 @@ else:
     from io import BytesIO as StringIO
 # pylint: disable=wrong-import-position,unused-import
 from itertools import chain, cycle
-from distutils.spawn import find_executable
+from distutils.spawn import find_executable  # pylint: disable=no-name-in-module, import-error
 
 import yaml
 from dateutil import tz
