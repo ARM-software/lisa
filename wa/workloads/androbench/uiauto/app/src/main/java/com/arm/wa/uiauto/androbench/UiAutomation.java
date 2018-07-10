@@ -18,6 +18,7 @@ package com.arm.wa.uiauto.androbench;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.graphics.Rect;
 import android.support.test.runner.AndroidJUnit4;
 import android.support.test.uiautomator.UiObject;
 import android.support.test.uiautomator.UiObjectNotFoundException;
@@ -59,7 +60,8 @@ public class UiAutomation extends BaseUiAutomation {
         } else {
             UiObject bench =
                 mDevice.findObject(new UiSelector().resourceIdMatches("com.andromeda.androbench2:id/btnStartingBenchmarking"));
-                bench.click();
+            Rect bounds = bench.getBounds();
+            mDevice.click(bounds.centerX(), bounds.centerY());
         }
         UiObject btn_yes= mDevice.findObject(selector.textContains("Yes")
                                                      .className("android.widget.Button"));
