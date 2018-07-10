@@ -323,3 +323,14 @@ class TestSchedDomainFlags(BasicCheckTest):
         finally:
             self.write_cpu_caps(old_caps)
             self._test_asym_cpucapacity(old_caps, old_caps_asym)
+
+    def test_sched_feat(self):
+        """
+        Check that ENERGY_AWARE is set if it is present.
+        """
+        path = '/sys/kernel/debug/sched_features'
+        sf = self.target.read_value(path)
+        if 'ENERGY_AWARE' not in sf:
+            raise SkipTest('ENERGY_AWARE sched feature not present')
+        if 'NO_ENERGY_AWARE' in sf:
+            raise AssertionError('ENERGY_AWARE sched feature is not set')
