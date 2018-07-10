@@ -76,19 +76,19 @@ public class UiAutomation extends BaseUiAutomation {
 
     public void getScores() throws Exception {
         UiSelector selector = new UiSelector();
-        UiObject seqRead = 
+        UiObject seqRead =
             mDevice.findObject(selector.text("Sequential Read").fromParent(selector.index(1)));
-        UiObject seqWrite = 
+        UiObject seqWrite =
             mDevice.findObject(selector.text("Sequential Write").fromParent(selector.index(1)));
-        UiObject ranRead = 
+        UiObject ranRead =
             mDevice.findObject(selector.text("Random Read").fromParent(selector.index(1)));
-        UiObject ranWrite = 
+        UiObject ranWrite =
             mDevice.findObject(selector.text("Random Write").fromParent(selector.index(1)));
-        UiObject sqlInsert = 
+        UiObject sqlInsert =
             mDevice.findObject(selector.text("SQLite Insert").fromParent(selector.index(1)));
-        UiObject sqlUpdate = 
+        UiObject sqlUpdate =
             mDevice.findObject(selector.text("SQLite Update").fromParent(selector.index(1)));
-        UiObject sqlDelete = 
+        UiObject sqlDelete =
             mDevice.findObject(selector.text("SQLite Delete").fromParent(selector.index(1)));
         Log.d(TAG, "Sequential Read Score " + seqRead.getText());
         Log.d(TAG, "Sequential Write Score " + seqWrite.getText());
