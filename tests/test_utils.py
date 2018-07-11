@@ -21,7 +21,7 @@ from nose.tools import raises, assert_equal, assert_not_equal, assert_in, assert
 from nose.tools import assert_true, assert_false, assert_raises, assert_is, assert_list_equal
 
 from wa.utils.types import (list_or_integer, list_or_bool, caseless_string,
-                            arguments, prioritylist, enum, level)
+                            arguments, prioritylist, enum, level, toggle_set)
 
 
 
@@ -149,3 +149,44 @@ class TestEnumLevel(TestCase):
         s = e.one.to_pod()
         l = e.from_pod(s)
         assert_equal(l, e.one)
+
+
+class  TestToggleSet(TestCase):
+
+    def test_equality(self):
+        ts1 = toggle_set(['one', 'two',])
+        ts2 = toggle_set(['one', 'two', '~three'])
+
+        assert_not_equal(ts1, ts2)
+        assert_equal(ts1.values(), ts2.values())
+        assert_equal(ts2, toggle_set(['two', '~three', 'one']))
+
+    def test_merge(self):
+        ts1 = toggle_set(['one', 'two', 'three', '~four', '~five'])
+        ts2 = toggle_set(['two', '~three', 'four', '~five'])
+
+        ts3 = ts1.merge_with(ts2)
+        assert_equal(ts1, toggle_set(['one', 'two', 'three', '~four', '~five']))
+        assert_equal(ts2, toggle_set(['two', '~three', 'four', '~five']))
+        assert_equal(ts3, toggle_set(['one', 'two', '~three', 'four', '~five']))
+        assert_equal(ts3.values(), set(['one', 'two','four']))
+
+        ts4 = ts1.merge_into(ts2)
+        assert_equal(ts1, toggle_set(['one', 'two', 'three', '~four', '~five']))
+        assert_equal(ts2, toggle_set(['two', '~three', 'four', '~five']))
+        assert_equal(ts4, toggle_set(['one', 'two', 'three', '~four', '~five']))
+        assert_equal(ts4.values(), set(['one', 'two', 'three']))
+
+    def test_drop_all_previous(self):
+        ts1 = toggle_set(['one', 'two', 'three'])
+        ts2 = toggle_set(['four', '~~', 'five'])
+        ts3 = toggle_set(['six', 'seven', '~three'])
+
+        ts4 = ts1.merge_with(ts2).merge_with(ts3)
+        assert_equal(ts4, toggle_set(['four', 'five', 'six', 'seven', '~three', '~~']))
+
+        ts5 = ts2.merge_into(ts3).merge_into(ts1)
+        assert_equal(ts5, toggle_set(['four', 'five', '~~']))
+
+        ts6 = ts2.merge_into(ts3).merge_with(ts1)
+        assert_equal(ts6, toggle_set(['one', 'two', 'three', 'four', 'five', '~~']))

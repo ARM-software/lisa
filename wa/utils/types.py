@@ -39,7 +39,6 @@ else:
     from urllib import quote, unquote  # pylint: disable=no-name-in-module
 # pylint: disable=wrong-import-position
 from collections import defaultdict, MutableMapping
-from copy import copy
 from functools import total_ordering
 
 from future.utils import with_metaclass
@@ -387,10 +386,11 @@ class toggle_set(set):
         return toggle_set(pod)
 
     @staticmethod
-    def merge(source, dest):
-        if '~~' in dest:
-            dest.remove('~~')
-            return dest
+    def merge(dest, source):
+        if '~~' in source:
+            return toggle_set(source)
+
+        dest = toggle_set(dest)
         for item in source:
             if item not in dest:
                 #Disable previously enabled item
@@ -411,12 +411,10 @@ class toggle_set(set):
         set.__init__(self, *args)
 
     def merge_with(self, other):
-        other = copy(other)
-        return toggle_set.merge(self, toggle_set(other))
+        return toggle_set.merge(self, other)
 
     def merge_into(self, other):
-        new_self = copy(self)
-        return toggle_set.merge(other, new_self)
+        return toggle_set.merge(other, self)
 
     def add(self, item):
         if item not in self:
