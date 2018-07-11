@@ -122,12 +122,15 @@ class ConfigManager(object):
             processors.append(proc)
         return processors
 
+    def get_config(self):
+        return CombinedConfig(self.settings, self.run_config)
+
     def finalize(self):
         if not self.agenda:
             msg = 'Attempting to finalize config before agenda has been set'
             raise RuntimeError(msg)
         self.run_config.merge_device_config(self.plugin_cache)
-        return CombinedConfig(self.settings, self.run_config)
+        return self.get_config()
 
     def generate_jobs(self, context):
         job_specs = self.jobs_config.generate_job_specs(context.tm)
