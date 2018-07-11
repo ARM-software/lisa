@@ -701,9 +701,11 @@ class RunConfiguration(Configuration):
 
         device_config = pod.pop('device_config', None)
         augmentations = pod.pop('augmentations', {})
+        getters = pod.pop('resource_getters', {})
         instance = super(RunConfiguration, cls).from_pod(pod)
         instance.device_config = device_config
         instance.augmentations = augmentations
+        instance.resource_getters = getters
         for cfg_point in cls.meta_data:
             cfg_point.set_value(instance, meta_pod[cfg_point.name])
 
@@ -715,6 +717,7 @@ class RunConfiguration(Configuration):
             confpoint.set_value(self, check_mandatory=False)
         self.device_config = None
         self.augmentations = {}
+        self.resource_getters = {}
 
     def merge_device_config(self, plugin_cache):
         """
@@ -733,10 +736,16 @@ class RunConfiguration(Configuration):
             raise ValueError('Augmentation "{}" already added.'.format(aug.name))
         self.augmentations[aug.name] = aug.get_config()
 
+    def add_resource_getter(self, getter):
+        if getter.name in self.resource_getters:
+            raise ValueError('Resource getter "{}" already added.'.format(getter.name))
+        self.resource_getters[getter.name] = getter.get_config()
+
     def to_pod(self):
         pod = super(RunConfiguration, self).to_pod()
         pod['device_config'] = dict(self.device_config or {})
         pod['augmentations'] = self.augmentations
+        pod['resource_getters'] = self.resource_getters
         return pod
 
 

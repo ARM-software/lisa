@@ -100,15 +100,13 @@ class ExecutionContext(object):
         self.tm = tm
         self.run_output = output
         self.run_state = output.state
-        self.logger.debug('Loading resource discoverers')
-        self.resolver = ResourceResolver(cm.plugin_cache)
-        self.resolver.load()
         self.job_queue = None
         self.completed_jobs = None
         self.current_job = None
         self.successful_jobs = 0
         self.failed_jobs = 0
         self.run_interrupted = False
+        self._load_resource_getters()
 
     def start_run(self):
         self.output.info.start_time = datetime.utcnow()
@@ -297,6 +295,13 @@ class ExecutionContext(object):
                 new_queue.append(job)
 
         self.job_queue = new_queue
+
+    def _load_resource_getters(self):
+        self.logger.debug('Loading resource discoverers')
+        self.resolver = ResourceResolver(self.cm.plugin_cache)
+        self.resolver.load()
+        for getter in self.resolver.getters:
+            self.cm.run_config.add_resource_getter(getter)
 
     def _get_unique_filepath(self, filename):
         filepath = os.path.join(self.output_directory, filename)
