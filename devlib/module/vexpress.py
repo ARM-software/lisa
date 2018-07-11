@@ -209,6 +209,7 @@ class VexpressUefiShellBoot(VexpressBootModule):
 
     name = 'vexpress-uefi-shell'
 
+    # pylint: disable=keyword-arg-before-vararg
     def __init__(self, target, uefi_entry='^Shell$',
                  efi_shell_prompt='Shell>',
                  image='kernel', bootargs=None,
@@ -239,6 +240,7 @@ class VexpressUBoot(VexpressBootModule):
 
     name = 'vexpress-u-boot'
 
+    # pylint: disable=keyword-arg-before-vararg
     def __init__(self, target, env=None,
                  *args, **kwargs):
         super(VexpressUBoot, self).__init__(target, *args, **kwargs)
@@ -260,6 +262,7 @@ class VexpressBootmon(VexpressBootModule):
 
     name = 'vexpress-bootmon'
 
+    # pylint: disable=keyword-arg-before-vararg
     def __init__(self, target,
                  image, fdt, initrd, bootargs,
                  uses_bootscript=False,
@@ -282,11 +285,11 @@ class VexpressBootmon(VexpressBootModule):
         with open_serial_connection(port=self.port,
                                     baudrate=self.baudrate,
                                     timeout=self.timeout,
-                                    init_dtr=0) as tty:
-            write_characters(tty, 'fl linux fdt {}'.format(self.fdt))
-            write_characters(tty, 'fl linux initrd {}'.format(self.initrd))
-            write_characters(tty, 'fl linux boot {} {}'.format(self.image,
-                                                               self.bootargs))
+                                    init_dtr=0) as tty_conn:
+            write_characters(tty_conn, 'fl linux fdt {}'.format(self.fdt))
+            write_characters(tty_conn, 'fl linux initrd {}'.format(self.initrd))
+            write_characters(tty_conn, 'fl linux boot {} {}'.format(self.image,
+                                                                    self.bootargs))
 
 
 class VersatileExpressFlashModule(FlashModule):
@@ -328,9 +331,10 @@ class VersatileExpressFlashModule(FlashModule):
                                     baudrate=self.target.platform.baudrate,
                                     timeout=self.timeout,
                                     init_dtr=0) as tty:
+            # pylint: disable=no-member
             i = tty.expect([self.mcc_prompt, AUTOSTART_MESSAGE, OLD_AUTOSTART_MESSAGE])
             if i:
-                tty.sendline('')
+                tty.sendline('')  # pylint: disable=no-member
             wait_for_vemsd(self.vemsd_mount, tty, self.mcc_prompt, self.short_delay)
         try:
             if image_bundle:
@@ -387,4 +391,3 @@ def wait_for_vemsd(vemsd_mount, tty, mcc_prompt=DEFAULT_MCC_PROMPT, short_delay=
         if os.path.exists(path):
             return
     raise TargetError('Could not mount {}'.format(vemsd_mount))
-

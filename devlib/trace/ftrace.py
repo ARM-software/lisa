@@ -50,6 +50,7 @@ STATS_RE = re.compile(r'([^ ]*) +([0-9]+) +([0-9.]+) us +([0-9.]+) us +([0-9.]+)
 
 class FtraceCollector(TraceCollector):
 
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def __init__(self, target,
                  events=None,
                  functions=None,
@@ -84,6 +85,7 @@ class FtraceCollector(TraceCollector):
         self.function_string = None
         self._reset_needed = True
 
+        # pylint: disable=bad-whitespace
         # Setup tracing paths
         self.available_events_file    = self.target.path.join(self.tracing_path, 'available_events')
         self.available_functions_file = self.target.path.join(self.tracing_path, 'available_filter_functions')
@@ -122,7 +124,7 @@ class FtraceCollector(TraceCollector):
                 _event = '*' + event
             event_re = re.compile(_event.replace('*', '.*'))
             # Select events matching the required ones
-            if len(list(filter(event_re.match, available_events))) == 0:
+            if not list(filter(event_re.match, available_events)):
                 message = 'Event [{}] not available for tracing'.format(event)
                 if strict:
                     raise TargetError(message)
@@ -133,7 +135,7 @@ class FtraceCollector(TraceCollector):
         # Thus, if not other events have been specified, try to add at least
         # a tracepoint which is always available and possibly triggered few
         # times.
-        if self.functions and len(selected_events) == 0:
+        if self.functions and not selected_events:
             selected_events = ['sched_wakeup_new']
         self.event_string = _build_trace_events(selected_events)
 
@@ -237,6 +239,7 @@ class FtraceCollector(TraceCollector):
 
         if os.path.isdir(outfile):
             outfile = os.path.join(outfile, OUTPUT_PROFILE_FILE)
+        # pylint: disable=protected-access
         output = self.target._execute_util('ftrace_get_function_stats',
                                             as_root=True)
 
@@ -264,7 +267,7 @@ class FtraceCollector(TraceCollector):
 
         self.logger.debug("FTrace stats output [%s]...", outfile)
         with open(outfile, 'w') as fh:
-           json.dump(function_stats, fh, indent=4)
+            json.dump(function_stats, fh, indent=4)
         self.logger.debug("FTrace function stats save in [%s]", outfile)
 
         return function_stats

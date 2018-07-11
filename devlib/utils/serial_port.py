@@ -20,6 +20,7 @@ from logging import Logger
 
 import serial
 
+# pylint: disable=import-error,wrong-import-position,ungrouped-imports,wrong-import-order
 import pexpect
 from distutils.version import StrictVersion as V
 if V(pexpect.__version__) < V('4.0.0'):
@@ -48,6 +49,7 @@ def pulse_dtr(conn, state=True, duration=0.1):
     conn.setDTR(not state)
 
 
+# pylint: disable=keyword-arg-before-vararg
 def get_connection(timeout, init_dtr=None, logcls=SerialLogger,
                    logfile=None, *args, **kwargs):
     if init_dtr is not None:
@@ -89,6 +91,7 @@ def write_characters(conn, line, delay=0.05):
     conn.sendline('')
 
 
+# pylint: disable=keyword-arg-before-vararg
 @contextmanager
 def open_serial_connection(timeout, get_conn=False, init_dtr=None,
                            logcls=SerialLogger, *args, **kwargs):
@@ -118,4 +121,3 @@ def open_serial_connection(timeout, get_conn=False, init_dtr=None,
 
     target.close()  # Closes the file descriptor used by the conn.
     del conn
-

@@ -25,6 +25,7 @@ from devlib.utils.misc import check_output
 
 PACKAGE_BIN_DIRECTORY = os.path.join(os.path.dirname(__file__), 'bin')
 
+# pylint: disable=redefined-outer-name
 def kill_children(pid, signal=signal.SIGKILL):
     with open('/proc/{0}/task/{0}/children'.format(pid), 'r') as fd:
         for cpid in map(int, fd.read().strip().split()):
@@ -35,6 +36,7 @@ class LocalConnection(object):
 
     name = 'local'
 
+    # pylint: disable=unused-argument
     def __init__(self, platform=None, keep_password=True, unrooted=False,
                  password=None, timeout=None):
         self.logger = logging.getLogger('local_connection')
@@ -55,6 +57,7 @@ class LocalConnection(object):
         else:
             shutil.copy(source, dest)
 
+    # pylint: disable=unused-argument
     def execute(self, command, timeout=None, check_exit_code=True,
                 as_root=False, strip_colors=True):
         self.logger.debug(command)

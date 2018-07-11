@@ -58,6 +58,7 @@ class MeasurementType(object):
             raise ValueError(msg.format(self.name, to.name))
         return self.conversions[to.name](value)
 
+    # pylint: disable=undefined-variable
     def __cmp__(self, other):
         if isinstance(other, MeasurementType):
             other = other.name
@@ -151,6 +152,7 @@ class Measurement(object):
         self.value = value
         self.channel = channel
 
+    # pylint: disable=undefined-variable
     def __cmp__(self, other):
         if hasattr(other, 'value'):
             return cmp(self.value, other.value)
@@ -204,7 +206,7 @@ class MeasurementsCsv(object):
             for mt in MEASUREMENT_TYPES:
                 suffix = '_{}'.format(mt)
                 if entry.endswith(suffix):
-                    site =  entry[:-len(suffix)]
+                    site = entry[:-len(suffix)]
                     measure = mt
                     break
             else:
@@ -218,6 +220,7 @@ class MeasurementsCsv(object):
             chan = InstrumentChannel(site, measure)
             self.channels.append(chan)
 
+    # pylint: disable=stop-iteration-return
     def _iter_rows(self):
         with csvreader(self.path) as reader:
             next(reader)  # headings
@@ -308,16 +311,16 @@ class Instrument(object):
                 msg = 'Unexpected channel "{}"; must be in {}'
                 raise ValueError(msg.format(e, self.channels.keys()))
         elif sites is None and kinds is None:
-            self.active_channels = sorted(self.channels.itervalues(), key=lambda x: x.label)
+            self.active_channels = sorted(self.channels.values(), key=lambda x: x.label)
         else:
             if isinstance(sites, basestring):
                 sites = [sites]
             if isinstance(kinds, basestring):
                 kinds = [kinds]
 
-            wanted = lambda ch : ((kinds is None or ch.kind in kinds) and
+            wanted = lambda ch: ((kinds is None or ch.kind in kinds) and
                                   (sites is None or ch.site in sites))
-            self.active_channels = filter(wanted, self.channels.itervalues())
+            self.active_channels = filter(wanted, self.channels.values())
 
     # instantaneous
 
@@ -332,6 +335,7 @@ class Instrument(object):
     def stop(self):
         pass
 
+    # pylint: disable=no-self-use
     def get_data(self, outfile):
         pass
 

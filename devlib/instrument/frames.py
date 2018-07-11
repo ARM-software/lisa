@@ -41,6 +41,7 @@ class FramesInstrument(Instrument):
 
     def reset(self, sites=None, kinds=None, channels=None):
         super(FramesInstrument, self).reset(sites, kinds, channels)
+        # pylint: disable=not-callable
         self.collector = self.collector_cls(self.target, self.period,
                                             self.collector_target, self.header)
         self._need_reset = False

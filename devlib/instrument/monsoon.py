@@ -21,12 +21,11 @@ from tempfile import NamedTemporaryFile
 
 from devlib.instrument import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import HostError
-from devlib.host import PACKAGE_BIN_DIRECTORY
 from devlib.utils.csvutil import csvwriter
 from devlib.utils.misc import which
 
 
-INSTALL_INSTRUCTIONS="""
+INSTALL_INSTRUCTIONS = """
 MonsoonInstrument requires the monsoon.py tool, available from AOSP:
 
 https://android.googlesource.com/platform/cts/+/master/tools/utils/monsoon.py
@@ -68,6 +67,7 @@ class MonsoonInstrument(Instrument):
 
         self.process = None
         self.output = None
+        self.buffer_file = None
 
         self.sample_rate_hz = 500
         self.add_channel('output', 'power')
@@ -110,7 +110,7 @@ class MonsoonInstrument(Instrument):
 
         process.send_signal(signal.SIGINT)
 
-        stderr =  process.stderr.read()
+        stderr = process.stderr.read()
 
         self.buffer_file.close()
         with open(self.buffer_file.name) as f:
@@ -124,7 +124,7 @@ class MonsoonInstrument(Instrument):
         if self.process:
             raise RuntimeError('`get_data` called before `stop`')
 
-        stdout, stderr = self.output
+        stdout, _ = self.output
 
         with csvwriter(outfile) as writer:
             active_sites = [c.site for c in self.active_channels]

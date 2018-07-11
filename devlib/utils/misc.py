@@ -19,27 +19,28 @@ Miscellaneous functions that don't fit anywhere else.
 
 """
 from __future__ import division
-import os
-import sys
-import re
-import string
-import threading
-import signal
-import subprocess
-import pkgutil
-import logging
-import random
-import ctypes
-import threading
-from operator import itemgetter
+from functools import partial, reduce
 from itertools import groupby
-from functools import partial
+from operator import itemgetter
 
+import ctypes
+import logging
+import os
+import pkgutil
+import random
+import re
+import signal
+import string
+import subprocess
+import sys
+import threading
 import wrapt
+
+
 from past.builtins import basestring
 
+# pylint: disable=redefined-builtin
 from devlib.exception import HostError, TimeoutError
-from functools import reduce
 
 
 # ABI --> architectures list
@@ -184,7 +185,7 @@ def check_output(command, timeout=None, ignore=None, inputtext=None,
             # Currently errors=replace is needed as 0x8c throws an error
             output = output.decode(sys.stdout.encoding, "replace")
             if error:
-                error =  error.decode(sys.stderr.encoding, "replace")
+                error = error.decode(sys.stderr.encoding, "replace")
     finally:
         if timeout:
             timer.cancel()
@@ -523,6 +524,12 @@ def get_random_string(length):
 
 class LoadSyntaxError(Exception):
 
+    @property
+    def message(self):
+        if self.args:
+            return self.args[0]
+        return str(self)
+
     def __init__(self, message, filepath, lineno):
         super(LoadSyntaxError, self).__init__(message)
         self.filepath = filepath
@@ -535,6 +542,7 @@ class LoadSyntaxError(Exception):
 
 RAND_MOD_NAME_LEN = 30
 BAD_CHARS = string.punctuation + string.whitespace
+# pylint: disable=no-member
 if sys.version_info[0] == 3:
     TRANS_TABLE = str.maketrans(BAD_CHARS, '_' * len(BAD_CHARS))
 else:
@@ -639,7 +647,7 @@ def __get_memo_id(obj):
 
 
 @wrapt.decorator
-def memoized(wrapped, instance, args, kwargs):
+def memoized(wrapped, instance, args, kwargs):  # pylint: disable=unused-argument
     """A decorator for memoizing functions and methods."""
     func_id = repr(wrapped)
 
@@ -652,4 +660,3 @@ def memoized(wrapped, instance, args, kwargs):
         return __memo_cache[id_string]
 
     return memoize_wrapper(*args, **kwargs)
-

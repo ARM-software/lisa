@@ -13,9 +13,9 @@
 # limitations under the License.
 #
 
-from pexpect.exceptions import TIMEOUT
 import shutil
 from tempfile import NamedTemporaryFile
+from pexpect.exceptions import TIMEOUT
 
 from devlib.trace import TraceCollector
 from devlib.utils.serial_port import get_connection

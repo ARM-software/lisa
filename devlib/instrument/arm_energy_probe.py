@@ -34,8 +34,6 @@ from __future__ import division
 import os
 import subprocess
 import signal
-import struct
-import sys
 
 import tempfile
 import shutil
@@ -109,8 +107,8 @@ class ArmEnergyProbeInstrument(Instrument):
                                        shell=True)
 
     def stop(self):
-       self.logger.debug("kill running arm-probe")
-       os.killpg(self.armprobe.pid, signal.SIGTERM)
+        self.logger.debug("kill running arm-probe")
+        os.killpg(self.armprobe.pid, signal.SIGTERM)
 
     def get_data(self, outfile):  # pylint: disable=R0914
         self.logger.debug("Parse data and compute consumed energy")
@@ -133,7 +131,7 @@ class ArmEnergyProbeInstrument(Instrument):
                     if len(row) < len(active_channels):
                         continue
                     # all data are in micro (seconds/watt)
-                    new = [ float(row[i])/1000000 for i in active_indexes ]
+                    new = [float(row[i])/1000000 for i in active_indexes]
                     writer.writerow(new)
 
         self.output_fd_error.close()

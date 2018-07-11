@@ -15,15 +15,14 @@
 
 import logging
 import os
-import re
 import shutil
 import sys
 import tempfile
 import threading
 import time
-from collections import namedtuple, OrderedDict
-from distutils.version import LooseVersion
+from collections import namedtuple
 
+# pylint: disable=redefined-builtin
 from devlib.exception  import WorkerThreadError, TargetNotRespondingError, TimeoutError
 from devlib.utils.csvutil import csvwriter
 
@@ -190,7 +189,7 @@ class GfxinfoFrameCollector(FrameCollector):
     def __init__(self, target, period, package, header=None):
         super(GfxinfoFrameCollector, self).__init__(target, period)
         self.package = package
-        self.header =  None
+        self.header = None
         self._init_header(header)
 
     def collect_frames(self, wfh):
@@ -261,7 +260,7 @@ def gfxinfo_get_last_dump(filepath):
 
                 ix = buf.find(' **\n')
                 if ix >= 0:
-                    buf =  next(fh_iter) + buf
+                    buf = next(fh_iter) + buf
                     ix = buf.find('** Graphics')
                     if ix < 0:
                         msg = '"{}" appears to be corrupted'

@@ -20,21 +20,18 @@ Utility functions for working with Android devices through adb.
 """
 # pylint: disable=E1103
 import os
-import pexpect
-import time
-import subprocess
-import logging
 import re
-import threading
-import tempfile
-import queue
 import sys
+import time
+import logging
+import tempfile
+import subprocess
 from collections import defaultdict
+import pexpect
 
-from devlib.exception import TargetError, HostError, DevlibError
-from devlib.utils.misc import check_output, which, memoized, ABI_MAP
+from devlib.exception import TargetError, HostError
+from devlib.utils.misc import check_output, which, ABI_MAP
 from devlib.utils.misc import escape_single_quotes, escape_double_quotes
-from devlib import host
 
 
 logger = logging.getLogger('android')
@@ -117,6 +114,7 @@ class AdbDevice(object):
         self.name = name
         self.status = status
 
+    # pylint: disable=undefined-variable
     def __cmp__(self, other):
         if isinstance(other, AdbDevice):
             return cmp(self.name, other.name)
@@ -146,6 +144,7 @@ class ApkInfo(object):
         self.permissions = []
         self.parse(path)
 
+    # pylint: disable=too-many-branches
     def parse(self, apk_path):
         _check_env()
         command = [aapt, 'dump', 'badging', apk_path]
@@ -222,6 +221,7 @@ class AdbConnection(object):
             self.ls_command = 'ls'
         logger.debug("ls command is set to {}".format(self.ls_command))
 
+    # pylint: disable=unused-argument
     def __init__(self, device=None, timeout=None, platform=None, adb_server=None):
         self.timeout = timeout if timeout is not None else self.default_timeout
         if device is None:
@@ -255,6 +255,7 @@ class AdbConnection(object):
         command = "pull '{}' '{}'".format(source, dest)
         return adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
 
+    # pylint: disable=unused-argument
     def execute(self, command, timeout=None, check_exit_code=False,
                 as_root=False, strip_colors=True):
         return adb_shell(self.device, command, timeout, check_exit_code,
@@ -365,12 +366,13 @@ def _ping(device):
     command = "adb{} shell \"ls /data/local/tmp > /dev/null\"".format(device_string)
     logger.debug(command)
     result = subprocess.call(command, stderr=subprocess.PIPE, shell=True)
-    if not result:
+    if not result:  # pylint: disable=simplifiable-if-statement
         return True
     else:
         return False
 
 
+# pylint: disable=too-many-locals
 def adb_shell(device, command, timeout=None, check_exit_code=False,
               as_root=False, adb_server=None):  # NOQA
     _check_env()
@@ -443,7 +445,7 @@ def adb_background_shell(device, command,
 
 
 def adb_list_devices(adb_server=None):
-    output = adb_command(None, 'devices',adb_server=adb_server)
+    output = adb_command(None, 'devices', adb_server=adb_server)
     devices = []
     for line in output.splitlines():
         parts = [p.strip() for p in line.split()]
@@ -575,6 +577,8 @@ class LogcatMonitor(object):
 
         self.target = target
         self._regexps = regexps
+        self._logcat = None
+        self._logfile = None
 
     def start(self, outfile=None):
         """
@@ -651,7 +655,7 @@ class LogcatMonitor(object):
             return [line for line in fh]
 
     def clear_log(self):
-        with open(self._logfile.name, 'w') as fh:
+        with open(self._logfile.name, 'w') as _:
             pass
 
     def search(self, regexp):
@@ -679,7 +683,7 @@ class LogcatMonitor(object):
         res = [line for line in log if re.match(regexp, line)]
 
         # Found some matches, return them
-        if len(res) > 0:
+        if res:
             return res
 
         # Store the number of lines we've searched already, so we don't have to

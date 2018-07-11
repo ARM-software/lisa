@@ -101,6 +101,7 @@ class NetstatsInstrument(Instrument):
             self.add_channel(package, 'tx')
             self.add_channel(package, 'rx')
 
+    # pylint: disable=keyword-arg-before-vararg,arguments-differ
     def setup(self, force=False, *args, **kwargs):
         if self.target.package_is_installed(self.package):
             if force:

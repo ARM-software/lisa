@@ -28,7 +28,7 @@ logger = logging.getLogger('gem5')
 
 def iter_statistics_dump(stats_file):
     '''
-    Yields statistics dumps as dicts. The parameter is assumed to be a stream 
+    Yields statistics dumps as dicts. The parameter is assumed to be a stream
     reading from the statistics log file.
     '''
     cur_dump = {}
@@ -40,14 +40,13 @@ def iter_statistics_dump(stats_file):
             yield cur_dump
             cur_dump = {}
         else:
-            res = GEM5STATS_FIELD_REGEX.match(line) 
+            res = GEM5STATS_FIELD_REGEX.match(line)
             if res:
                 k = res.group("key")
                 vtext = res.group("value")
                 try:
                     v = list(map(numeric, vtext.split()))
-                    cur_dump[k] = v[0] if len(v)==1 else set(v)
+                    cur_dump[k] = v[0] if len(v) == 1 else set(v)
                 except ValueError:
                     msg = 'Found non-numeric entry in gem5 stats ({}: {})'
                     logger.warning(msg.format(k, vtext))
-

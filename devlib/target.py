@@ -29,7 +29,7 @@ from collections import namedtuple
 from devlib.host import LocalConnection, PACKAGE_BIN_DIRECTORY
 from devlib.module import get_module
 from devlib.platform import Platform
-from devlib.exception import TargetError, TargetNotRespondingError, TimeoutError
+from devlib.exception import TargetError, TargetNotRespondingError, TimeoutError  # pylint: disable=redefined-builtin
 from devlib.utils.ssh import SshConnection
 from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect, INTENT_FLAGS
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
@@ -45,7 +45,7 @@ ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'mUnrestrictedScreen=\(\d+,\d+\)'
                                              r'\s+(?P<width>\d+)x(?P<height>\d+)')
 DEFAULT_SHELL_PROMPT = re.compile(r'^.*(shell|root|juno)@?.*:[/~]\S* *[#$] ',
                                   re.MULTILINE)
-KVERSION_REGEX =re.compile(
+KVERSION_REGEX = re.compile(
     r'(?P<version>\d+)(\.(?P<major>\d+)(\.(?P<minor>\d+)(-rc(?P<rc>\d+))?)?)?(.*-g(?P<sha1>[0-9a-fA-F]{7,}))?'
 )
 
@@ -222,6 +222,7 @@ class Target(object):
         self._cache = {}
         self._connections = {}
         self._shutils = None
+        self._file_transfer_cache = None
         self.busybox = None
 
         if load_default_modules:
@@ -257,7 +258,7 @@ class Target(object):
         self._connections = {}
 
     def get_connection(self, timeout=None):
-        if self.conn_cls == None:
+        if self.conn_cls is None:
             raise ValueError('Connection class not specified on Target creation.')
         return self.conn_cls(timeout=timeout, **self.connection_settings)  # pylint: disable=not-callable
 
@@ -332,8 +333,8 @@ class Target(object):
         # Host location of dir
         outdir = os.path.join(dest, tar_file_name)
         # Host location of archive
-        tar_file_name  = '{}.tar'.format(tar_file_name)
-        tempfile = os.path.join(dest, tar_file_name)
+        tar_file_name = '{}.tar'.format(tar_file_name)
+        tmpfile = os.path.join(dest, tar_file_name)
 
         # If root is required, use tmp location for tar creation.
         if as_root:
@@ -351,11 +352,11 @@ class Target(object):
         # Pull the file
         if not os.path.exists(dest):
             os.mkdir(dest)
-        self.pull(tar_file_name, tempfile)
+        self.pull(tar_file_name, tmpfile)
         # Decompress
-        f = tarfile.open(tempfile, 'r')
+        f = tarfile.open(tmpfile, 'r')
         f.extractall(outdir)
-        os.remove(tempfile)
+        os.remove(tmpfile)
 
     # execution
 
@@ -1113,7 +1114,7 @@ class AndroidTarget(Target):
             as_root = self.needs_su
         try:
             command = 'cd {} && {} nohup {} &'.format(self.working_directory, self.busybox, command)
-            output = self.execute(command, timeout=1, as_root=as_root)
+            self.execute(command, timeout=1, as_root=as_root)
         except TimeoutError:
             pass
 
@@ -1847,6 +1848,7 @@ class ChromeOsTarget(LinuxTarget):
 
     os = 'chromeos'
 
+    # pylint: disable=too-many-locals
     def __init__(self,
                  connection_settings=None,
                  platform=None,

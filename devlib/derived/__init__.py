@@ -36,25 +36,28 @@ class DerivedMetric(object):
                 msg = 'Unknown measurement type:  {}'
                 raise ValueError(msg.format(measurement_type))
 
-    def __cmp__(self, other):
-        if hasattr(other, 'value'):
-            return cmp(self.value, other.value)
-        else:
-            return cmp(self.value, other)
-
     def __str__(self):
         if self.units:
             return '{}: {} {}'.format(self.name, self.value, self.units)
         else:
             return '{}: {}'.format(self.name, self.value)
 
+    # pylint: disable=undefined-variable
+    def __cmp__(self, other):
+        if hasattr(other, 'value'):
+            return cmp(self.value, other.value)
+        else:
+            return cmp(self.value, other)
+
     __repr__ = __str__
 
 
 class DerivedMeasurements(object):
 
+    # pylint: disable=no-self-use,unused-argument
     def process(self, measurements_csv):
         return []
 
+    # pylint: disable=no-self-use
     def process_raw(self, *args):
         return []

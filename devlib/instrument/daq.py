@@ -156,4 +156,3 @@ class DaqInstrument(Instrument):
 
     def execute(self, command, **kwargs):
         return execute_command(self.server_config, command, **kwargs)
-

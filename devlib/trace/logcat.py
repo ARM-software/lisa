@@ -14,7 +14,6 @@
 #
 
 import os
-import re
 import shutil
 
 from devlib.trace import TraceCollector
@@ -27,6 +26,7 @@ class LogcatCollector(TraceCollector):
         self.regexps = regexps
         self._collecting = False
         self._prev_log = None
+        self._monitor = None
 
     def reset(self):
         """

@@ -26,6 +26,7 @@ import socket
 import sys
 import time
 
+# pylint: disable=import-error,wrong-import-position,ungrouped-imports,wrong-import-order
 import pexpect
 from distutils.version import StrictVersion as V
 if V(pexpect.__version__) < V('4.0.0'):
@@ -34,6 +35,7 @@ else:
     from pexpect import pxssh
 from pexpect import EOF, TIMEOUT, spawn
 
+# pylint: disable=redefined-builtin,wrong-import-position
 from devlib.exception import HostError, TargetError, TimeoutError
 from devlib.utils.misc import which, strip_bash_colors, check_output
 from devlib.utils.misc import (escape_single_quotes, escape_double_quotes,
@@ -73,7 +75,7 @@ def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeou
                 raise TargetError(message.format(host))
             time.sleep(5)
 
-    conn.setwinsize(500,200)
+    conn.setwinsize(500, 200)
     conn.sendline('')
     conn.prompt()
     conn.setecho(False)
@@ -147,12 +149,13 @@ class SshConnection(object):
 
     default_password_prompt = '[sudo] password'
     max_cancel_attempts = 5
-    default_timeout=10
+    default_timeout = 10
 
     @property
     def name(self):
         return self.host
 
+    # pylint: disable=unused-argument,super-init-not-called
     def __init__(self,
                  host,
                  username,
@@ -310,6 +313,7 @@ class SshConnection(object):
 
 class TelnetConnection(SshConnection):
 
+    # pylint: disable=super-init-not-called
     def __init__(self,
                  host,
                  username,
@@ -333,6 +337,7 @@ class TelnetConnection(SshConnection):
 
 class Gem5Connection(TelnetConnection):
 
+    # pylint: disable=super-init-not-called
     def __init__(self,
                  platform,
                  host=None,
@@ -348,9 +353,9 @@ class Gem5Connection(TelnetConnection):
             host_system = socket.gethostname()
             if host_system != host:
                 raise TargetError("Gem5Connection can only connect to gem5 "
-                                   "simulations on your current host, which "
-                                   "differs from the one given {}!"
-                                   .format(host_system, host))
+                                  "simulations on your current host {}, which "
+                                  "differs from the one given {}!"
+                                  .format(host_system, host))
         if username is not None and username != 'root':
             raise ValueError('User should be root in gem5!')
         if password is not None and password != '':
@@ -517,8 +522,8 @@ class Gem5Connection(TelnetConnection):
         trial = 0
         while os.path.isfile(redirection_file):
             # Log file already exists so add to name
-           redirection_file = 'BACKGROUND_{}{}.log'.format(command_name, trial)
-           trial += 1
+            redirection_file = 'BACKGROUND_{}{}.log'.format(command_name, trial)
+            trial += 1
 
         # Create the command to pass on to gem5 shell
         complete_command = '{} >> {} 2>&1 &'.format(command, redirection_file)
@@ -548,7 +553,7 @@ class Gem5Connection(TelnetConnection):
         try:
             shutil.rmtree(self.gem5_interact_dir)
         except OSError:
-            gem5_logger.warn("Failed to remove the temporary directory!")
+            gem5_logger.warning("Failed to remove the temporary directory!")
 
         # Delete the lock file
         os.remove(self.lock_file_name)
@@ -563,6 +568,7 @@ class Gem5Connection(TelnetConnection):
         self.connect_gem5(port, gem5_simulation, gem5_interact_dir, gem5_out_dir)
 
     # Handle the EOF exception raised by pexpect
+    # pylint: disable=no-self-use
     def _gem5_EOF_handler(self, gem5_simulation, gem5_out_dir, err):
         # If we have reached the "EOF", it typically means
         # that gem5 crashed and closed the connection. Let's
@@ -576,6 +582,7 @@ class Gem5Connection(TelnetConnection):
             raise err
 
     # This function connects to the gem5 simulation
+    # pylint: disable=too-many-statements
     def connect_gem5(self, port, gem5_simulation, gem5_interact_dir,
                       gem5_out_dir):
         """
@@ -754,7 +761,7 @@ class Gem5Connection(TelnetConnection):
                 # prompt has returned. Hence, we have a bit of an issue. We
                 # warn, and return the whole output.
                 if command_index == -1:
-                    gem5_logger.warn("gem5_shell: Unable to match command in "
+                    gem5_logger.warning("gem5_shell: Unable to match command in "
                                      "command output. Expect parsing errors!")
                     command_index = 0
 

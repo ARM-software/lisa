@@ -16,7 +16,6 @@
 from past.builtins import basestring
 
 from devlib.module import Module
-from devlib.utils.misc import memoized
 from devlib.utils.types import integer, boolean
 
 
@@ -51,6 +50,7 @@ class CpuidleState(object):
         self.desc = desc
         self.power = power
         self.latency = latency
+        self.residency = residency
         self.id = self.target.path.basename(self.path)
         self.cpu = self.target.path.basename(self.target.path.dirname(path))
 
@@ -166,7 +166,8 @@ class Cpuidle(Module):
         """
         Momentarily wake each CPU. Ensures cpu_idle events in trace file.
         """
-        output = self.target._execute_util('cpuidle_wake_all_cpus')
+        # pylint: disable=protected-access
+        self.target._execute_util('cpuidle_wake_all_cpus')
 
     def get_driver(self):
         return self.target.read_value(self.target.path.join(self.root_path, 'current_driver'))

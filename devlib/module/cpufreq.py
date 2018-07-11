@@ -200,7 +200,7 @@ class CpufreqModule(Module):
         could not be found.
         """
         freqs = self.list_frequencies(cpu)
-        return freqs and max(freqs) or None
+        return max(freqs) if freqs else None
 
     @memoized
     def get_min_available_frequency(self, cpu):
@@ -209,7 +209,7 @@ class CpufreqModule(Module):
         could not be found.
         """
         freqs = self.list_frequencies(cpu)
-        return freqs and min(freqs) or None
+        return min(freqs) if freqs else None
 
     def get_min_frequency(self, cpu):
         """
@@ -380,6 +380,7 @@ class CpufreqModule(Module):
         """
         Set the specified (minimum) frequency for all the (online) CPUs
         """
+        # pylint: disable=protected-access
         return self.target._execute_util(
                 'cpufreq_set_all_frequencies {}'.format(freq),
                 as_root=True)
@@ -388,6 +389,7 @@ class CpufreqModule(Module):
         """
         Get the current frequency for all the (online) CPUs
         """
+        # pylint: disable=protected-access
         output = self.target._execute_util(
                 'cpufreq_get_all_frequencies', as_root=True)
         frequencies = {}
@@ -403,6 +405,7 @@ class CpufreqModule(Module):
         Set the specified governor for all the (online) CPUs
         """
         try:
+            # pylint: disable=protected-access
             return self.target._execute_util(
                 'cpufreq_set_all_governors {}'.format(governor),
                 as_root=True)
@@ -421,6 +424,7 @@ class CpufreqModule(Module):
         """
         Get the current governor for all the (online) CPUs
         """
+        # pylint: disable=protected-access
         output = self.target._execute_util(
                 'cpufreq_get_all_governors', as_root=True)
         governors = {}
@@ -435,6 +439,7 @@ class CpufreqModule(Module):
         """
         Report current frequencies on trace file
         """
+        # pylint: disable=protected-access
         return self.target._execute_util('cpufreq_trace_all_frequencies', as_root=True)
 
     def get_affected_cpus(self, cpu):
@@ -478,7 +483,7 @@ class CpufreqModule(Module):
         """
         cpus = set(range(self.target.number_of_cpus))
         while cpus:
-            cpu = next(iter(cpus))
+            cpu = next(iter(cpus))  # pylint: disable=stop-iteration-return
             domain = self.target.cpufreq.get_related_cpus(cpu)
             yield domain
             cpus = cpus.difference(domain)

@@ -15,7 +15,6 @@
 import os
 import re
 import subprocess
-import sys
 import shutil
 import time
 import types
@@ -55,7 +54,7 @@ class Gem5SimulationPlatform(Platform):
         self.stdout_file = None
         self.stderr_file = None
         self.stderr_filename = None
-        if self.gem5_port is None:
+        if self.gem5_port is None:  # pylint: disable=simplifiable-if-statement
             # Allows devlib to pick up already running simulations
             self.start_gem5_simulation = True
         else:
@@ -234,6 +233,7 @@ class Gem5SimulationPlatform(Platform):
         # Call the general update_from_target implementation
         super(Gem5SimulationPlatform, self).update_from_target(target)
 
+
     def gem5_capture_screen(self, filepath):
         file_list = os.listdir(self.gem5_out_dir)
         screen_caps = []
@@ -243,6 +243,7 @@ class Gem5SimulationPlatform(Platform):
 
         if '{ts}' in filepath:
             cmd = '{} date -u -Iseconds'
+            # pylint: disable=no-member
             ts = self.target.execute(cmd.format(self.target.busybox)).strip()
             filepath = filepath.format(ts=ts)
 
@@ -258,6 +259,7 @@ class Gem5SimulationPlatform(Platform):
                 im.save(temp_image, "PNG")
                 shutil.copy(temp_image, filepath)
                 os.remove(temp_image)
+                # pylint: disable=undefined-variable
                 gem5_logger.info("capture_screen: using gem5 screencap")
                 successful_capture = True
 
@@ -266,12 +268,14 @@ class Gem5SimulationPlatform(Platform):
 
         return successful_capture
 
+    # pylint: disable=no-self-use
     def _deploy_m5(self, target):
         # m5 is not yet installed so install it
         host_executable = os.path.join(PACKAGE_BIN_DIRECTORY,
                                        target.abi, 'm5')
         return target.install(host_executable)
 
+    # pylint: disable=no-self-use
     def _resize_shell(self, target):
         """
         Resize the shell to avoid line wrapping issues.
@@ -282,18 +286,16 @@ class Gem5SimulationPlatform(Platform):
         target.execute('reset', check_exit_code=False)
 
 # Methods that will be monkey-patched onto the target
-def _overwritten_reset(self):
+def _overwritten_reset(self):  # pylint: disable=unused-argument
     raise TargetError('Resetting is not allowed on gem5 platforms!')
 
-def _overwritten_reboot(self):
+def _overwritten_reboot(self):  # pylint: disable=unused-argument
     raise TargetError('Rebooting is not allowed on gem5 platforms!')
 
 def _overwritten_capture_screen(self, filepath):
     connection_screencapped = self.platform.gem5_capture_screen(filepath)
-    if connection_screencapped == False:
+    if not connection_screencapped:
         # The connection was not able to capture the screen so use the target
         # implementation
         self.logger.debug('{} was not able to screen cap, using the original target implementation'.format(self.platform.__class__.__name__))
         self.target_impl_capture_screen(filepath)
-
-

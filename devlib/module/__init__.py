@@ -61,7 +61,7 @@ class Module(object):
         self.logger = logging.getLogger(self.name)
 
 
-class HardRestModule(Module):  # pylint: disable=R0921
+class HardRestModule(Module):
 
     kind = 'hard_reset'
 
@@ -69,7 +69,7 @@ class HardRestModule(Module):  # pylint: disable=R0921
         raise NotImplementedError()
 
 
-class BootModule(Module):  # pylint: disable=R0921
+class BootModule(Module):
 
     kind = 'boot'
 

@@ -122,6 +122,7 @@ class SystraceCollector(TraceCollector):
     def _build_cmd(self):
         self._tmpfile = NamedTemporaryFile()
 
+        # pylint: disable=attribute-defined-outside-init
         self.systrace_cmd = '{} -o {} -e {}'.format(
             self.systrace_binary,
             self._tmpfile.name,

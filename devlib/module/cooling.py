@@ -37,12 +37,14 @@ class MbedFanActiveCoolingModule(Module):
         with open_serial_connection(timeout=self.timeout,
                                     port=self.port,
                                     baudrate=self.baud) as target:
+            # pylint: disable=no-member
             target.sendline('motor_{}_1'.format(self.fan_pin))
 
     def stop(self):
         with open_serial_connection(timeout=self.timeout,
                                     port=self.port,
                                     baudrate=self.baud) as target:
+            # pylint: disable=no-member
             target.sendline('motor_{}_0'.format(self.fan_pin))
 
 

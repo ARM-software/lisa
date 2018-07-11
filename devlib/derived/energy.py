@@ -15,12 +15,13 @@
 from __future__ import division
 from collections import defaultdict
 
-from devlib import DerivedMeasurements, DerivedMetric
-from devlib.instrument import  MEASUREMENT_TYPES, InstrumentChannel
+from devlib.derived import DerivedMeasurements, DerivedMetric
+from devlib.instrument import  MEASUREMENT_TYPES
 
 
 class DerivedEnergyMeasurements(DerivedMeasurements):
 
+    # pylint: disable=too-many-locals,too-many-branches
     @staticmethod
     def process(measurements_csv):
 

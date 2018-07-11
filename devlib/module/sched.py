@@ -30,10 +30,10 @@
 import logging
 import re
 
+from past.builtins import basestring
+
 from devlib.module import Module
 from devlib.utils.misc import memoized
-
-from past.builtins import basestring
 
 
 class SchedProcFSNode(object):
@@ -156,6 +156,7 @@ class SchedDomain(SchedProcFSNode):
     """
     Represents a sched domain as seen through procfs
     """
+    # pylint: disable=bad-whitespace
     # Domain flags obtained from include/linux/sched/topology.h on v4.17
     # https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/v4.17/include/linux/sched/topology.h#20
     SD_LOAD_BALANCE        = 0x0001  # Do load balancing on this domain.

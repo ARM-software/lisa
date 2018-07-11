@@ -19,10 +19,11 @@ import tempfile
 import time
 import pexpect
 
-from devlib.platform import Platform
-from devlib.instrument import Instrument, InstrumentChannel, MeasurementsCsv, Measurement,  CONTINUOUS,  INSTANTANEOUS
 from devlib.exception import TargetError, HostError
 from devlib.host import PACKAGE_BIN_DIRECTORY
+from devlib.instrument import (Instrument, InstrumentChannel, MeasurementsCsv,
+                               Measurement, CONTINUOUS, INSTANTANEOUS)
+from devlib.platform import Platform
 from devlib.utils.csvutil import csvreader, csvwriter
 from devlib.utils.serial_port import open_serial_connection
 
@@ -99,6 +100,7 @@ class VersatileExpressPlatform(Platform):
             addr = self._get_target_ip_address(target)
             target.connection_settings['host'] = addr
 
+    # pylint: disable=no-member
     def _get_target_ip_address(self, target):
         with open_serial_connection(port=self.serial_port,
                                     baudrate=self.baudrate,
@@ -250,7 +252,7 @@ class JunoEnergyInstrument(Instrument):
         self.command = '{} -o {}'.format(self.binary, self.on_target_file)
         self.command2 = '{}'.format(self.binary)
 
-    def setup(self):
+    def setup(self):  # pylint: disable=arguments-differ
         self.binary = self.target.install(os.path.join(PACKAGE_BIN_DIRECTORY,
                                                        self.target.abi, self.binname))
         self.command = '{} -o {}'.format(self.binary, self.on_target_file)
@@ -266,6 +268,7 @@ class JunoEnergyInstrument(Instrument):
     def stop(self):
         self.target.killall(self.binname, signal='TERM', as_root=True)
 
+    # pylint: disable=arguments-differ
     def get_data(self, output_file):
         temp_file = tempfile.mktemp()
         self.target.pull(self.on_target_file, temp_file)
@@ -296,10 +299,9 @@ class JunoEnergyInstrument(Instrument):
         result = []
         output = self.target.execute(self.command2).split()
         with csvreader(output) as reader:
-            headings=next(reader)
+            headings = next(reader)
             values = next(reader)
             for chan in self.active_channels:
                 value = values[headings.index(chan.name)]
                 result.append(Measurement(value, chan))
         return result
-

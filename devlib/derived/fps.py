@@ -15,7 +15,6 @@
 
 from __future__ import division
 import os
-import re
 
 try:
     import pandas as pd
@@ -24,8 +23,9 @@ except ImportError:
 
 from past.builtins import basestring
 
-from devlib import DerivedMeasurements, DerivedMetric, MeasurementsCsv, InstrumentChannel
+from devlib.derived import DerivedMeasurements, DerivedMetric
 from devlib.exception import HostError
+from devlib.instrument import MeasurementsCsv
 from devlib.utils.csvutil import csvwriter
 from devlib.utils.rendering import gfxinfo_get_last_dump, VSYNC_INTERVAL
 from devlib.utils.types import numeric
@@ -45,6 +45,7 @@ class DerivedFpsStats(DerivedMeasurements):
         if filename is not None and os.sep in filename:
             raise ValueError('filename cannot be a path (cannot countain "{}"'.format(os.sep))
 
+    # pylint: disable=no-member
     def process(self, measurements_csv):
         if isinstance(measurements_csv, basestring):
             measurements_csv = MeasurementsCsv(measurements_csv)
@@ -65,6 +66,7 @@ class DerivedFpsStats(DerivedMeasurements):
 
 class DerivedGfxInfoStats(DerivedFpsStats):
 
+    #pylint: disable=arguments-differ
     @staticmethod
     def process_raw(filepath, *args):
         metrics = []
@@ -155,6 +157,7 @@ class DerivedGfxInfoStats(DerivedFpsStats):
 
 class DerivedSurfaceFlingerStats(DerivedFpsStats):
 
+    # pylint: disable=too-many-locals
     def _process_with_pandas(self, measurements_csv):
         data = pd.read_csv(measurements_csv.path)
 
@@ -193,7 +196,7 @@ class DerivedSurfaceFlingerStats(DerivedFpsStats):
             janks = 0
             not_at_vsync = 0
 
-        janks_pc =  0 if frame_count == 0 else janks * 100 / frame_count
+        janks_pc = 0 if frame_count == 0 else janks * 100 / frame_count
 
         return [DerivedMetric('fps', fps, 'fps'),
                 DerivedMetric('total_frames', frame_count, 'frames'),
@@ -202,6 +205,7 @@ class DerivedSurfaceFlingerStats(DerivedFpsStats):
                 DerivedMetric('janks_pc', janks_pc, 'percent'),
                 DerivedMetric('missed_vsync', not_at_vsync, 'count')]
 
+    # pylint: disable=unused-argument,no-self-use
     def _process_without_pandas(self, measurements_csv):
         # Given that SurfaceFlinger has been deprecated in favor of GfxInfo,
         # it does not seem worth it implementing this.

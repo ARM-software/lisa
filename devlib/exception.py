@@ -37,6 +37,7 @@ class HostError(DevlibError):
     pass
 
 
+# pylint: disable=redefined-builtin
 class TimeoutError(DevlibError):
     """Raised when a subprocess command times out. This is basically a ``DevlibError``-derived version
     of ``subprocess.CalledProcessError``, the thinking being that while a timeout could be due to
@@ -79,7 +80,7 @@ def get_traceback(exc=None):
     object, or for the current exception exc is not specified.
 
     """
-    import io, traceback, sys
+    import io, traceback, sys  # pylint: disable=multiple-imports
     if exc is None:
         exc = sys.exc_info()
     if not exc:

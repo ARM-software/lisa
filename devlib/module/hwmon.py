@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
 import re
 from collections import defaultdict
 
@@ -147,4 +146,3 @@ class HwmonModule(Module):
             self.logger.debug('Adding device {}'.format(name))
             device = HwmonDevice(self.target, path, name, fields)
             self.devices.append(device)
-

@@ -121,18 +121,20 @@ class Controller(object):
             cgroups.append(cg)
         return cgroups
 
-    def move_tasks(self, source, dest, exclude=[]):
+    def move_tasks(self, source, dest, exclude=None):
+        if exclude is None:
+            exclude = []
         try:
             srcg = self._cgroups[source]
             dstg = self._cgroups[dest]
         except KeyError as e:
-            raise ValueError('Unkown group: {}'.format(e))
-        output = self.target._execute_util(
+            raise ValueError('Unknown group: {}'.format(e))
+        self.target._execute_util(  # pylint: disable=protected-access
                     'cgroups_tasks_move {} {} \'{}\''.format(
                     srcg.directory, dstg.directory, exclude),
                     as_root=True)
 
-    def move_all_tasks_to(self, dest, exclude=[]):
+    def move_all_tasks_to(self, dest, exclude=None):
         """
         Move all the tasks to the specified CGroup
 
@@ -145,8 +147,10 @@ class Controller(object):
         tasks.
 
         :param exclude: list of commands to keep in the root CGroup
-        :type exlude: list(str)
+        :type exclude: list(str)
         """
+        if exclude is None:
+            exclude = []
 
         if isinstance(exclude, str):
             exclude = [exclude]
@@ -169,6 +173,7 @@ class Controller(object):
             if cgroup != dest:
                 self.move_tasks(cgroup, dest, grep_filters)
 
+    # pylint: disable=too-many-locals
     def tasks(self, cgroup,
               filter_tid='',
               filter_tname='',
@@ -203,8 +208,8 @@ class Controller(object):
         try:
             cg = self._cgroups[cgroup]
         except KeyError as e:
-            raise ValueError('Unkown group: {}'.format(e))
-        output = self.target._execute_util(
+            raise ValueError('Unknown group: {}'.format(e))
+        output = self.target._execute_util(  # pylint: disable=protected-access
                     'cgroups_tasks_in {}'.format(cg.directory),
                     as_root=True)
         entries = output.splitlines()
@@ -234,7 +239,7 @@ class Controller(object):
         try:
             cg = self._cgroups[cgroup]
         except KeyError as e:
-            raise ValueError('Unkown group: {}'.format(e))
+            raise ValueError('Unknown group: {}'.format(e))
         output = self.target.execute(
                     '{} wc -l {}/tasks'.format(
                     self.target.busybox, cg.directory),
@@ -286,7 +291,7 @@ class CGroup(object):
                 self.controller.kind)
         logging.debug('  %s',
                 self.directory)
-        output = self.target._execute_util(
+        output = self.target._execute_util(  # pylint: disable=protected-access
                     'cgroups_get_attributes {} {}'.format(
                     self.directory, self.controller.kind),
                     as_root=True)
@@ -302,7 +307,7 @@ class CGroup(object):
             if isiterable(attrs[idx]):
                 attrs[idx] = list_to_ranges(attrs[idx])
             # Build attribute path
-            if self.controller._noprefix:
+            if self.controller._noprefix:  # pylint: disable=protected-access
                 attr_name = '{}'.format(idx)
             else:
                 attr_name = '{}.{}'.format(self.controller.kind, idx)
@@ -363,7 +368,7 @@ class CgroupsModule(Module):
 
         # Get the list of the available controllers
         subsys = self.list_subsystems()
-        if len(subsys) == 0:
+        if subsys:
             self.logger.warning('No CGroups controller available')
             return
 
@@ -444,11 +449,11 @@ class CgroupsModule(Module):
         A regexps of tasks names can be used to defined tasks which should not
         be moved.
         """
-        return self.target._execute_util(
+        return self.target._execute_util(  # pylint: disable=protected-access
             'cgroups_tasks_move {} {} {}'.format(srcg, dstg, exclude),
             as_root=True)
 
-    def isolate(self, cpus, exclude=[]):
+    def isolate(self, cpus, exclude=None):
         """
         Remove all userspace tasks from specified CPUs.
 
@@ -465,6 +470,8 @@ class CgroupsModule(Module):
                  sandbox is the CGroup of sandboxed CPUs
                  isolated is the CGroup of isolated CPUs
         """
+        if exclude is None:
+            exclude = []
         all_cpus = set(range(self.target.number_of_cpus))
         sbox_cpus = list(all_cpus - set(cpus))
         isol_cpus = list(all_cpus - set(sbox_cpus))
@@ -483,7 +490,7 @@ class CgroupsModule(Module):
 
         return sbox_cg, isol_cg
 
-    def freeze(self, exclude=[], thaw=False):
+    def freeze(self, exclude=None, thaw=False):
         """
         Freeze all user-space tasks but the specified ones
 
@@ -501,6 +508,9 @@ class CgroupsModule(Module):
         :type thaw: bool
         """
 
+        if exclude is None:
+            exclude = []
+
         # Create Freezer CGroup
         freezer = self.controller('freezer')
         if freezer is None:
@@ -509,7 +519,8 @@ class CgroupsModule(Module):
         cmd = 'cgroups_freezer_set_state {{}} {}'.format(freezer_cg.directory)
 
         if thaw:
-            # Restart froozen tasks
+            # Restart frozen tasks
+            # pylint: disable=protected-access
             freezer.target._execute_util(cmd.format('THAWED'), as_root=True)
             # Remove all tasks from freezer
             freezer.move_all_tasks_to('/')
@@ -522,7 +533,7 @@ class CgroupsModule(Module):
         tasks = freezer.tasks('/')
 
         # Freeze all tasks
+        # pylint: disable=protected-access
         freezer.target._execute_util(cmd.format('FROZEN'), as_root=True)
 
         return tasks
-

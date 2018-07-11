@@ -28,18 +28,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import sys
 import getopt
-import subprocess
 import logging
 import signal
-import serial
-import time
-import math
+import sys
 
 logger = logging.getLogger('aep-parser')
 
+# pylint: disable=attribute-defined-outside-init
 class AepParser(object):
     prepared = False
 
@@ -94,7 +90,7 @@ class AepParser(object):
                 continue
 
             if parent not in virtual:
-                virtual[parent] = { supply : index }
+                virtual[parent] = {supply : index}
 
             virtual[parent][supply] = index
 
@@ -102,7 +98,7 @@ class AepParser(object):
         # child
         for supply in list(virtual.keys()):
             if len(virtual[supply]) == 1:
-                del virtual[supply];
+                del virtual[supply]
 
         for supply in list(virtual.keys()):
             # Add label, hide and duplicate columns for virtual domains
@@ -121,7 +117,7 @@ class AepParser(object):
 
         label[0] = array[0]
         unit[0] = "(S)"
-        for i in range(1,len(array)):
+        for i in range(1, len(array)):
             label[i] = array[i][:-3]
             unit[i] = array[i][-3:]
 
@@ -138,7 +134,7 @@ class AepParser(object):
         # By default we assume that there is no child
         duplicate = [0] * len(label)
 
-        for i in range(len(label)):
+        for i in range(len(label)):  # pylint: disable=consider-using-enumerate
             # We only care about time and Watt
             if label[i] == 'time':
                 hide[i] = 0
@@ -167,7 +163,7 @@ class AepParser(object):
     @staticmethod
     def parse_text(array, hide):
         data = [0]*len(array)
-        for i in range(len(array)):
+        for i in range(len(array)):  # pylint: disable=consider-using-enumerate
             if hide[i]:
                 continue
 
@@ -193,18 +189,18 @@ class AepParser(object):
         return data
 
     @staticmethod
-    def delta_nrj(array, delta, min, max, hide):
+    def delta_nrj(array, delta, minimu, maximum, hide):
     # Compute the energy consumed in this time slice and add it
     # delta[0] is used to save the last time stamp
 
-        if (delta[0] < 0):
+        if delta[0] < 0:
             delta[0] = array[0]
 
         time = array[0] - delta[0]
-        if (time <= 0):
+        if time <= 0:
             return delta
 
-        for i in range(len(array)):
+        for i in range(len(array)):  # pylint: disable=consider-using-enumerate
             if hide[i]:
                 continue
 
@@ -213,10 +209,10 @@ class AepParser(object):
             except ValueError:
                 continue
 
-            if (data < min[i]):
-                min[i] = data
-            if (data > max[i]):
-                max[i] = data
+            if data < minimu[i]:
+                minimu[i] = data
+            if data > maximum[i]:
+                maximum[i] = data
             delta[i] += time * data
 
         # save last time stamp
@@ -225,11 +221,11 @@ class AepParser(object):
         return delta
 
     def output_label(self, label, hide):
-        self.fo.write(label[0]+"(uS)")
+        self.fo.write(label[0] + "(uS)")
         for i in range(1, len(label)):
             if hide[i]:
                 continue
-            self.fo.write(" "+label[i]+"(uW)")
+            self.fo.write(" " + label[i] + "(uW)")
 
         self.fo.write("\n")
 
@@ -248,34 +244,34 @@ class AepParser(object):
 
         self.fo.write("\n")
 
-    def prepare(self, infile, outfile, summaryfile):
-
+    # pylint: disable-redefined-outer-name,
+    def prepare(self, input_file, outfile, summaryfile):
         try:
-            self.fi = open(infile, "r")
+            self.fi = open(input_file, "r")
         except IOError:
-            logger.warn('Unable to open input file {}'.format(infile))
-            logger.warn('Usage: parse_arp.py -i <inputfile> [-o <outputfile>]')
+            logger.warning('Unable to open input file {}'.format(input_file))
+            logger.warning('Usage: parse_arp.py -i <inputfile> [-o <outputfile>]')
             sys.exit(2)
 
         self.parse = True
-        if len(outfile) > 0:
+        if outfile:
             try:
                 self.fo = open(outfile, "w")
             except IOError:
-                logger.warn('Unable to create {}'.format(outfile))
+                logger.warning('Unable to create {}'.format(outfile))
                 self.parse = False
         else:
-                self.parse = False
+            self.parse = False
 
         self.summary = True
-        if len(summaryfile) > 0:
+        if summaryfile:
             try:
                 self.fs = open(summaryfile, "w")
             except IOError:
-                logger.warn('Unable to create {}'.format(summaryfile))
+                logger.warning('Unable to create {}'.format(summaryfile))
                 self.fs = sys.stdout
         else:
-                self.fs = sys.stdout
+            self.fs = sys.stdout
 
         self.prepared = True
 
@@ -291,7 +287,7 @@ class AepParser(object):
 
         self.prepared = False
 
-    # pylint: disable=too-many-branches,too-many-statements
+    # pylint: disable=too-many-branches,too-many-statements,redefined-outer-name,too-many-locals
     def parse_aep(self, start=0, length=-1):
     # Parse aep data and calculate the energy consumed
         begin = 0
@@ -303,7 +299,7 @@ class AepParser(object):
         lines = self.fi.readlines()
 
         for myline in lines:
-            array  = myline.split()
+            array = myline.split()
 
             if "#" in myline:
                 # update power topology
@@ -332,8 +328,8 @@ class AepParser(object):
 
                 # Init arrays
                 nrj = [0]*len(label)
-                min = [100000000]*len(label)
-                max = [0]*len(label)
+                minimum = [100000000]*len(label)
+                maximum = [0]*len(label)
                 offset = [0]*len(label)
 
                 continue
@@ -357,7 +353,7 @@ class AepParser(object):
             data = self.add_virtual_data(data, virtual)
 
             # extract power figures
-            self.delta_nrj(data, nrj, min, max, hide)
+            self.delta_nrj(data, nrj, minimum, maximum, hide)
 
             # write data into new file
             if self.parse:
@@ -366,7 +362,6 @@ class AepParser(object):
         # if there is no data just return
         if label_line or len(nrj) == 1:
             raise ValueError('No data found in the data file. Please check the Arm Energy Probe')
-            return
 
         # display energy consumption of each channel and total energy consumption
         total = 0
@@ -378,27 +373,33 @@ class AepParser(object):
             nrj[i] -= offset[i] * nrj[0]
 
             total_nrj = nrj[i]/1000000000000.0
-            duration = (max[0]-min[0])/1000000.0
+            duration = (maximum[0]-minimum[0])/1000000.0
             channel_name = label[i]
             average_power = total_nrj/duration
 
-            self.fs.write("Total nrj: %8.3f J for %s -- duration %8.3f sec -- min %8.3f W -- max %8.3f W\n" % (nrj[i]/1000000000000.0, label[i], (max[0]-min[0])/1000000.0, min[i]/1000000.0, max[i]/1000000.0))
+            total = nrj[i]/1000000000000.0
+            duration = (maximum[0]-minimum[0])/1000000.0
+            min_power = minimum[i]/1000000.0
+            max_power = maximum[i]/1000000.0
+            output = "Total nrj: %8.3f J for %s -- duration %8.3f sec -- min %8.3f W -- max %8.3f W\n"
+            self.fs.write(output.format(total, label[i], duration, min_power, max_power))
 
             # store each AEP channel info  except Platform in the results table
             results_table[channel_name] = total_nrj, average_power
 
-            if (min[i] < offset[i]):
-                self.fs.write ("!!! Min below offset\n")
+            if minimum[i] < offset[i]:
+                self.fs.write("!!! Min below offset\n")
 
             if duplicate[i]:
                 continue
 
             total += nrj[i]
 
-        self.fs.write ("Total nrj: %8.3f J for %s -- duration %8.3f sec\n" % (total/1000000000000.0, "Platform ", (max[0]-min[0])/1000000.0))
+        output = "Total nrj: %8.3f J for Platform  -- duration %8.3f sec\n"
+        self.fs.write(output.format(total/1000000000000.0, (maximum[0]-minimum[0])/1000000.0))
 
         total_nrj = total/1000000000000.0
-        duration = (max[0]-min[0])/1000000.0
+        duration = (maximum[0]-minimum[0])/1000000.0
         average_power = total_nrj/duration
 
         # store AEP Platform channel info in the results table
@@ -406,11 +407,12 @@ class AepParser(object):
 
         return results_table
 
+    # pylint: disable=too-many-branches,no-self-use,too-many-locals
     def topology_from_config(self, topofile):
         try:
             ft = open(topofile, "r")
         except IOError:
-            logger.warn('Unable to open config file {}'.format(topofile))
+            logger.warning('Unable to open config file {}'.format(topofile))
             return
         lines = ft.readlines()
 
@@ -452,10 +454,11 @@ class AepParser(object):
             topo[items[0]] = info
 
             # Increase index
-            index +=1
+            index += 1
 
 
         # Create an entry for each virtual parent
+        # pylint: disable=consider-iterating-dictionary
         for supply in topo.keys():
             # Parent is in the topology
             parent = topo[supply]['parent']
@@ -463,23 +466,25 @@ class AepParser(object):
                 continue
 
             if parent not in virtual:
-                virtual[parent] = { supply : topo[supply]['index'] }
+                virtual[parent] = {supply : topo[supply]['index']}
 
             virtual[parent][supply] = topo[supply]['index']
 
 
         # Remove parent with 1 child as they don't give more information than their
         # child
+        # pylint: disable=consider-iterating-dictionary
         for supply in list(virtual.keys()):
             if len(virtual[supply]) == 1:
-                del virtual[supply];
+                del virtual[supply]
 
         topo_list = ['']*(1+len(topo)+len(virtual))
         topo_list[0] = 'time'
+        # pylint: disable=consider-iterating-dictionary
         for chnl in topo.keys():
             topo_list[topo[chnl]['index']] = chnl
         for chnl in virtual.keys():
-            index +=1
+            index += 1
             topo_list[index] = chnl
 
         ft.close()
@@ -491,6 +496,7 @@ class AepParser(object):
 
 if __name__ == '__main__':
 
+    # pylint: disable=unused-argument
     def handleSigTERM(signum, frame):
         sys.exit(2)
 
@@ -502,8 +508,8 @@ if __name__ == '__main__':
     ch.setLevel(logging.DEBUG)
     logger.addHandler(ch)
 
-    infile = ""
-    outfile = ""
+    in_file = ""
+    out_file = ""
     figurefile = ""
     start = 0
     length = -1
@@ -516,22 +522,22 @@ if __name__ == '__main__':
 
     for o, a in opts:
         if o == "-i":
-            infile = a
+            in_file = a
         if o == "-v":
             logger.setLevel(logging.DEBUG)
         if o == "-o":
             parse = True
-            outfile = a
+            out_file = a
         if o == "-s":
             start = int(float(a)*1000000)
         if o == "-l":
             length = int(float(a)*1000000)
         if o == "-t":
-            topofile = a
+            topfile = a
             parser = AepParser()
-            print(parser.topology_from_config(topofile))
+            print(parser.topology_from_config(topfile))
             exit(0)
 
     parser = AepParser()
-    parser.prepare(infile, outfile, figurefile)
+    parser.prepare(in_file, out_file, figurefile)
     parser.parse_aep(start, length)

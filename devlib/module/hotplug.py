@@ -36,7 +36,7 @@ class HotplugModule(Module):
         return target.path.join(cls.base_path, cpu, 'online')
 
     def online_all(self):
-        self.target._execute_util('hotplug_online_all',
+        self.target._execute_util('hotplug_online_all',  # pylint: disable=protected-access
                                   as_root=self.target.is_rooted)
 
     def online(self, *args):
@@ -53,4 +53,3 @@ class HotplugModule(Module):
             return
         value = 1 if online else 0
         self.target.write_value(path, value)
-

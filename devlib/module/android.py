@@ -125,4 +125,3 @@ def get_mapping(base_dir, partition_file):
                 HostError('file {} was not found in the bundle or was misplaced'.format(pair[1]))
             mapping[pair[0]] = image_path
     return mapping
-

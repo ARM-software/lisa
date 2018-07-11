@@ -113,4 +113,3 @@ class UbootMenu(object):
         except TIMEOUT:
             pass
         self.conn.buffer = ''
-

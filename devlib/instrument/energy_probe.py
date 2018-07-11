@@ -114,7 +114,7 @@ class EnergyProbeInstrument(Instrument):
                         writer.writerow(row)
                     except struct.error:
                         if not_a_full_row_seen:
-                            self.logger.warn('possibly missaligned caiman raw data, row contained {} bytes'.format(len(data)))
+                            self.logger.warning('possibly missaligned caiman raw data, row contained {} bytes'.format(len(data)))
                             continue
                         else:
                             not_a_full_row_seen = True

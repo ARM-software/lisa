@@ -200,7 +200,7 @@ class DevfreqModule(Module):
         Set the specified governor for all the (available) devices
         """
         try:
-            return self.target._execute_util(
+            return self.target._execute_util(  # pylint: disable=protected-access
                 'devfreq_set_all_governors {}'.format(governor), as_root=True)
         except TargetError as e:
             if ("echo: I/O error" in str(e) or
@@ -217,7 +217,7 @@ class DevfreqModule(Module):
         """
         Get the current governor for all the (online) CPUs
         """
-        output = self.target._execute_util(
+        output = self.target._execute_util(  # pylint: disable=protected-access
                 'devfreq_get_all_governors', as_root=True)
         governors = {}
         for x in output.splitlines():
@@ -241,7 +241,7 @@ class DevfreqModule(Module):
         """
         Set the specified (minimum) frequency for all the (available) devices
         """
-        return self.target._execute_util(
+        return self.target._execute_util(  # pylint: disable=protected-access
                 'devfreq_set_all_frequencies {}'.format(freq),
                 as_root=True)
 
@@ -249,7 +249,7 @@ class DevfreqModule(Module):
         """
         Get the current frequency for all the (available) devices
         """
-        output = self.target._execute_util(
+        output = self.target._execute_util(  # pylint: disable=protected-access
                 'devfreq_get_all_frequencies', as_root=True)
         frequencies = {}
         for x in output.splitlines():
@@ -258,4 +258,3 @@ class DevfreqModule(Module):
                 break
             frequencies[kv[0]] = kv[1]
         return frequencies
-
