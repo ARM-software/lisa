@@ -191,6 +191,9 @@ class ExecutionContext(object):
     def write_job_specs(self):
         self.run_output.write_job_specs(self.cm.job_specs)
 
+    def add_augmentation(self, aug):
+        self.cm.run_config.add_augmentation(aug)
+
     def get_resource(self, resource, strict=True):
         result = self.resolver.get(resource, strict)
         if result is None:

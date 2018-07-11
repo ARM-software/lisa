@@ -345,6 +345,7 @@ def install(instrument, context):
 
     instrument.logger.context = context
     installed.append(instrument)
+    context.add_augmentation(instrument)
 
 
 def uninstall(instrument):

@@ -60,6 +60,7 @@ class ProcessorManager(object):
         self.logger.debug('Installing {}'.format(processor.name))
         processor.logger.context = context
         self.processors.append(processor)
+        context.add_augmentation(processor)
 
     def disable_all(self):
         for output_processor in self.processors:

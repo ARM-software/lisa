@@ -700,8 +700,10 @@ class RunConfiguration(Configuration):
             meta_pod[cfg_point.name] = pod.pop(cfg_point.name, None)
 
         device_config = pod.pop('device_config', None)
+        augmentations = pod.pop('augmentations', {})
         instance = super(RunConfiguration, cls).from_pod(pod)
         instance.device_config = device_config
+        instance.augmentations = augmentations
         for cfg_point in cls.meta_data:
             cfg_point.set_value(instance, meta_pod[cfg_point.name])
 
@@ -712,6 +714,7 @@ class RunConfiguration(Configuration):
         for confpoint in self.meta_data:
             confpoint.set_value(self, check_mandatory=False)
         self.device_config = None
+        self.augmentations = {}
 
     def merge_device_config(self, plugin_cache):
         """
@@ -725,9 +728,15 @@ class RunConfiguration(Configuration):
         self.device_config = plugin_cache.get_plugin_config(self.device,
                                                             generic_name="device_config")
 
+    def add_augmentation(self, aug):
+        if aug.name in self.augmentations:
+            raise ValueError('Augmentation "{}" already added.'.format(aug.name))
+        self.augmentations[aug.name] = aug.get_config()
+
     def to_pod(self):
         pod = super(RunConfiguration, self).to_pod()
         pod['device_config'] = dict(self.device_config or {})
+        pod['augmentations'] = self.augmentations
         return pod
 
 
