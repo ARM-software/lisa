@@ -23,7 +23,7 @@ from copy import copy
 from datetime import datetime
 
 import wa.framework.signal as signal
-from wa.framework import instrument
+from wa.framework import instrument as instrumentation
 from wa.framework.configuration.core import Status
 from wa.framework.exception import TargetError, HostError, WorkloadError
 from wa.framework.exception import TargetNotRespondingError, TimeoutError  # pylint: disable=redefined-builtin
@@ -405,9 +405,9 @@ class Executor(object):
         context.output.write_state()
 
         self.logger.info('Installing instruments')
-        for instrument_name in context.cm.get_instruments(self.target_manager.target):
-            instrument.install(instrument_name, context)
-        instrument.validate()
+        for instrument in context.cm.get_instruments(self.target_manager.target):
+            instrumentation.install(instrument, context)
+        instrumentation.validate()
 
         self.logger.info('Installing output processors')
         pm = ProcessorManager()
