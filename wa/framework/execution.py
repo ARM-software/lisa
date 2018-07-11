@@ -178,6 +178,9 @@ class ExecutionContext(object):
             self.skip_job(job)
         self.write_state()
 
+    def write_config(self):
+        self.run_output.write_config(self.cm.get_config())
+
     def write_state(self):
         self.run_output.write_state()
 
@@ -422,6 +425,8 @@ class Executor(object):
         for proc in context.cm.get_processors():
             pm.install(proc, context)
         pm.validate()
+
+        context.write_config()
 
         self.logger.info('Starting run')
         runner = Runner(context, pm)
