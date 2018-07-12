@@ -21,6 +21,8 @@ import logging
 import operator
 import re
 
+from serialization import YAMLSerializable
+
 import pandas as pd
 import numpy as np
 
@@ -75,6 +77,19 @@ class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
     """
     def __new__(cls, capacity=None, power=None):
         return super(ActiveState, cls).__new__(cls, capacity, power)
+
+    # helpers for yaml serialization
+    yaml_tag = u'em_active_state:capacity,power'
+
+    @classmethod
+    def to_yaml(cls, representer, node):
+        return representer.represent_scalar(cls.yaml_tag,
+                u'{.capacity},{.power}'.format(node, node))
+
+    @classmethod
+    def from_yaml(cls, constructor, node):
+        cap, power = (int(x) for x in node.value.split(','))
+        return cls(capacity=cap, power=power)
 
 class _CpuTree(object):
     """Internal class. Abstract representation of a CPU topology.
@@ -157,7 +172,7 @@ class EnergyModelNode(_CpuTree):
                  cpu=None, children=None, name=None):
         super(EnergyModelNode, self).__init__(cpu, children)
 
-        self._log = logging.getLogger('EnergyModel')
+        _log = logging.getLogger('EnergyModel')
 
         def is_monotonic(l, decreasing=False):
             op = operator.ge if decreasing else operator.le
@@ -167,14 +182,14 @@ class EnergyModelNode(_CpuTree):
             # Sanity check for active_states's frequencies
             freqs = active_states.keys()
             if not is_monotonic(freqs):
-                self._log.warning(
+                _log.warning(
                     'Active states frequencies are expected to be '
                     'monotonically increasing. Freqs: {}'.format(freqs))
 
             # Sanity check for active_states's powers
             power_vals = [s.power for s in active_states.values()]
             if not is_monotonic(power_vals):
-                self._log.warning(
+                _log.warning(
                     'Active states powers are expected to be '
                     'monotonically increasing. Values: {}'.format(power_vals))
 
@@ -187,7 +202,7 @@ class EnergyModelNode(_CpuTree):
             # Sanity check for idle_states powers
             power_vals = idle_states.values()
             if not is_monotonic(power_vals, decreasing=True):
-                self._log.warning(
+                _log.warning(
                     'Idle states powers are expected to be '
                     'monotonically decreasing. Values: {}'.format(power_vals))
 
@@ -365,14 +380,15 @@ class EnergyModel(object):
 
         self.root = root_node
         self.cpu_nodes = sorted_leaves(root_node)
+        self.pd = root_power_domain
         self.cpu_pds = sorted_leaves(root_power_domain)
         assert len(self.cpu_pds) == len(self.cpu_nodes)
 
-        self._log = logging.getLogger('EnergyModel')
+        _log = logging.getLogger('EnergyModel')
 
         max_cap = max(n.max_capacity for n in self.cpu_nodes)
         if max_cap != self.capacity_scale:
-            self._log.debug(
+            _log.debug(
                 'Unusual max capacity (%s), overriding capacity_scale', max_cap)
             self.capacity_scale = max_cap
 
@@ -679,7 +695,9 @@ class EnergyModel(object):
         tasks = capacities.keys()
 
         num_candidates = len(self.cpus) ** len(tasks)
-        self._log.debug(
+
+        _log = logging.getLogger('EnergyModel')
+        _log.debug(
             '%14s - Searching %d configurations for optimal task placement...',
             'EnergyModel', num_candidates)
 
@@ -717,7 +735,7 @@ class EnergyModel(object):
         min_power = min(p for p in candidates.itervalues())
         ret = [u for u, p in candidates.iteritems() if p == min_power]
 
-        self._log.debug('%14s - Done', 'EnergyModel')
+        _log.debug('%14s - Done', 'EnergyModel')
         return ret
 
     @classmethod
