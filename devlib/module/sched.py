@@ -104,7 +104,7 @@ class SchedProcFSNode(object):
             return SchedProcFSNode(node_data)
 
     @staticmethod
-    def _build_entry(node_name, node_data):
+    def _build_entry(node_data):
         value = node_data
 
         # Most nodes just contain numerical data, try to convert
@@ -120,7 +120,7 @@ class SchedProcFSNode(object):
         if isinstance(node_data, dict):
             return SchedProcFSNode._build_directory(node_name, node_data)
         else:
-            return SchedProcFSNode._build_entry(node_name, node_data)
+            return SchedProcFSNode._build_entry(node_data)
 
     def __getattr__(self, name):
         return self._dyn_attrs[name]
