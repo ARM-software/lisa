@@ -214,7 +214,7 @@ cgroups_freezer_set_state() {
 
     # Set the state of the freezer
     echo $STATE > $SYSFS_ENTRY
-    
+
     # And check it applied cleanly
     for i in `seq 1 10`; do
         [ $($CAT $SYSFS_ENTRY) = $STATE ] && exit 0
@@ -262,6 +262,20 @@ read_tree_values() {
     if [ $i -gt 1 ]; then
         $BUSYBOX grep -s '' $PATHS
     fi
+}
+
+get_linux_system_id() {
+	kernel=$($BUSYBOX uname -r)
+	hardware=$($BUSYBOX ip a | $BUSYBOX grep 'link/ether' | $BUSYBOX sed 's/://g' | $BUSYBOX awk '{print $2}' | $BUSYBOX tr -d '\n')
+	filesystem=$(ls /dev/disk/by-uuid | $BUSYBOX tr '\n' '-' | $BUSYBOX sed 's/-$//')
+	echo "$hardware/$kernel/$filesystem"
+}
+
+get_android_system_id() {
+	kernel=$($BUSYBOX uname -r)
+	hardware=$($BUSYBOX ip a | $BUSYBOX grep 'link/ether' | $BUSYBOX sed 's/://g' | $BUSYBOX awk '{print $2}' | $BUSYBOX tr -d '\n')
+	filesystem=$(content query --uri content://settings/secure --projection value --where "name='android_id'" | $BUSYBOX cut -f2 -d=)
+	echo "$hardware/$kernel/$filesystem"
 }
 
 ################################################################################
@@ -322,6 +336,12 @@ hotplug_online_all)
     ;;
 read_tree_values)
 	read_tree_values $*
+    ;;
+get_linux_system_id)
+	get_linux_system_id $*
+    ;;
+get_android_system_id)
+	get_android_system_id $*
     ;;
 *)
     echo "Command [$CMD] not supported"

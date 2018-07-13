@@ -59,6 +59,7 @@ class Target(object):
 
     path = None
     os = None
+    system_id = None
 
     default_modules = [
         'hotplug',
@@ -799,6 +800,7 @@ class Target(object):
             GOOGLE_DNS_SERVER_ADDRESS, attempts))
         return False
 
+
 class LinuxTarget(Target):
 
     path = posixpath
@@ -841,6 +843,11 @@ class LinuxTarget(Target):
             device_model_to_return = '_'.join(raw_model.split()[:2])
             return device_model_to_return.rstrip(' \t\r\n\0')
         return None
+
+    @property
+    @memoized
+    def system_id(self):
+        return self._execute_util('get_linux_system_id').strip()
 
     def __init__(self,
                  connection_settings=None,
@@ -1019,6 +1026,11 @@ class AndroidTarget(Target):
             return self.getprop(prop='ro.product.device')
         except KeyError:
             return None
+
+    @property
+    @memoized
+    def system_id(self):
+        return self._execute_util('get_android_system_id').strip()
 
     @property
     @memoized

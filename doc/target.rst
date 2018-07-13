@@ -120,6 +120,12 @@ Target
    This is a dict that contains a mapping of OS version elements to their
    values. This mapping is OS-specific.
 
+.. attribute:: Target.system_id
+
+   A unique identifier for the system running on the target. This identifier is
+   intended to be uninque for the combination of hardware, kernel, and file
+   system.
+
 .. attribute:: Target.cpuinfo
 
    This is a :class:`Cpuinfo` instance which contains parsed contents of
