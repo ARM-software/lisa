@@ -42,6 +42,7 @@ def init_user_directory(overwrite_existing=False):  # pylint: disable=R0914
     os.makedirs(settings.user_directory)
     os.makedirs(settings.dependencies_directory)
     os.makedirs(settings.plugins_directory)
+    os.makedirs(settings.cache_directory)
 
     generate_default_config(os.path.join(settings.user_directory, 'config.yaml'))
 

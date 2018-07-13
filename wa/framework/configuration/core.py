@@ -483,6 +483,10 @@ class MetaConfiguration(Configuration):
         return os.path.join(self.user_directory, 'plugins')
 
     @property
+    def cache_directory(self):
+        return os.path.join(self.user_directory, 'cache')
+
+    @property
     def plugin_paths(self):
         return [self.plugins_directory] + (self.extra_plugin_paths or [])
 
