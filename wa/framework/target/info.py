@@ -177,6 +177,7 @@ def get_target_info(target):
     info.target = target.__class__.__name__
     info.os = target.os
     info.os_version = target.os_version
+    info.system_id = target.system_id
     info.abi = target.abi
     info.is_rooted = target.is_rooted
     info.kernel_version = target.kernel_version
@@ -235,6 +236,7 @@ class TargetInfo(object):
         instance.cpus = [CpuInfo.from_pod(c) for c in pod['cpus']]
         instance.os = pod['os']
         instance.os_version = pod['os_version']
+        instance.system_id = pod['system_id']
         instance.hostid = pod['hostid']
         instance.hostname = pod['hostname']
         instance.abi = pod['abi']
@@ -255,6 +257,7 @@ class TargetInfo(object):
         self.cpus = []
         self.os = None
         self.os_version = None
+        self.system_id = None
         self.hostid = None
         self.hostname = None
         self.abi = None
@@ -273,6 +276,7 @@ class TargetInfo(object):
         pod['cpus'] = [c.to_pod() for c in self.cpus]
         pod['os'] = self.os
         pod['os_version'] = self.os_version
+        pod['system_id'] = self.system_id
         pod['hostid'] = self.hostid
         pod['hostname'] = self.hostname
         pod['abi'] = self.abi
