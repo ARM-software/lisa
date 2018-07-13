@@ -343,7 +343,7 @@ class AepParser(object):
 
             # get 1st time stamp
             if begin <= 0:
-                being = data[0]
+                begin = data[0]
 
             # skip data before start
             if (data[0]-begin) < start:
