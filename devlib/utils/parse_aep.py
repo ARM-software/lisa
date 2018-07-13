@@ -291,7 +291,8 @@ class AepParser(object):
 
         self.prepared = False
 
-    def parse_aep(self, start=0, lenght=-1):
+    # pylint: disable=too-many-branches,too-many-statements
+    def parse_aep(self, start=0, length=-1):
     # Parse aep data and calculate the energy consumed
         begin = 0
 
@@ -348,8 +349,8 @@ class AepParser(object):
             if (data[0]-begin) < start:
                 continue
 
-            # stop after lenght
-            if lenght >= 0 and (data[0]-begin) > (start + lenght):
+            # stop after length
+            if length >= 0 and (data[0]-begin) > (start + length):
                 continue
 
             # add virtual domains
@@ -505,7 +506,7 @@ if __name__ == '__main__':
     outfile = ""
     figurefile = ""
     start = 0
-    lenght = -1
+    length = -1
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], "i:vo:s:l:t:")
@@ -524,7 +525,7 @@ if __name__ == '__main__':
         if o == "-s":
             start = int(float(a)*1000000)
         if o == "-l":
-            lenght = int(float(a)*1000000)
+            length = int(float(a)*1000000)
         if o == "-t":
             topofile = a
             parser = AepParser()
@@ -533,4 +534,4 @@ if __name__ == '__main__':
 
     parser = AepParser()
     parser.prepare(infile, outfile, figurefile)
-    parser.parse_aep(start, lenght)
+    parser.parse_aep(start, length)
