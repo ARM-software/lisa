@@ -498,6 +498,10 @@ class MetaConfiguration(Configuration):
     def additional_packages_file(self):
         return os.path.join(self.user_directory, 'packages')
 
+    @property
+    def target_info_cache_file(self):
+        return os.path.join(self.cache_directory, 'targets.json')
+
     def __init__(self, environ=None):
         super(MetaConfiguration, self).__init__()
         if environ is None:

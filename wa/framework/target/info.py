@@ -14,11 +14,15 @@
 #
 # pylint: disable=protected-access
 
+import os
 from copy import copy
 
 from devlib import AndroidTarget, TargetError
 from devlib.target import KernelConfig, KernelVersion, Cpuinfo
 from devlib.utils.android import AndroidProperties
+
+from wa.framework.configuration.core import settings
+from wa.utils.serializer import read_pod, write_pod
 
 
 def cpuinfo_from_pod(pod):
@@ -224,6 +228,36 @@ def get_target_info(target):
         info.android_id = target.android_id
 
     return info
+
+
+def read_target_info_cache():
+    if not os.path.exists(settings.cache_directory):
+        os.makedirs(settings.cache_directory)
+    if not os.path.isfile(settings.target_info_cache_file):
+        return {}
+    return read_pod(settings.target_info_cache_file)
+
+
+def write_target_info_cache(cache):
+    if not os.path.exists(settings.cache_directory):
+        os.makedirs(settings.cache_directory)
+    write_pod(cache, settings.target_info_cache_file)
+
+
+def get_target_info_from_cache(system_id):
+    cache = read_target_info_cache()
+    pod = cache.get(system_id, None)
+    if not pod:
+        return None
+    return TargetInfo.from_pod(pod)
+
+
+def cache_target_info(target_info, overwrite=False):
+    cache = read_target_info_cache()
+    if target_info.system_id in cache and not overwrite:
+        raise ValueError('TargetInfo for {} is already in cache.'.format(target_info.system_id))
+    cache[target_info.system_id] = target_info.to_pod()
+    write_target_info_cache(cache)
 
 
 class TargetInfo(object):

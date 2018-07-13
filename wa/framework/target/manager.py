@@ -24,7 +24,7 @@ from wa.framework.plugin import Parameter
 from wa.framework.target.descriptor import (get_target_description,
                                             instantiate_target,
                                             instantiate_assistant)
-from wa.framework.target.info import get_target_info
+from wa.framework.target.info import get_target_info, get_target_info_from_cache, cache_target_info
 from wa.framework.target.runtime_parameter_manager import RuntimeParameterManager
 
 
@@ -89,7 +89,11 @@ class TargetManager(object):
 
     @memoized
     def get_target_info(self):
-        return get_target_info(self.target)
+        info = get_target_info_from_cache(self.target.system_id)
+        if info is None:
+            info = get_target_info(self.target)
+            cache_target_info(info)
+        return info
 
     def reboot(self, context, hard=False):
         with signal.wrap('REBOOT', self, context):
