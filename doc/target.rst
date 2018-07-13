@@ -126,6 +126,10 @@ Target
    intended to be uninque for the combination of hardware, kernel, and file
    system.
 
+.. attribute:: Target.model
+
+   The model name/number of the target device.
+
 .. attribute:: Target.cpuinfo
 
    This is a :class:`Cpuinfo` instance which contains parsed contents of
