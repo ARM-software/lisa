@@ -2,10 +2,12 @@ Overview
 ========
 
 A :class:`Target` instance serves as the main interface to the target device.
-There currently three target interfaces:
+There are currently four target interfaces:
 
 - :class:`LinuxTarget` for interacting with Linux devices over SSH.
-- :class:`AndroidTraget` for interacting with Android devices over adb.
+- :class:`AndroidTarget` for interacting with Android devices over adb.
+- :class:`ChromeOsTarget`: for interacting with ChromeOS devices over SSH, and
+                           their Android containers over adb.
 - :class:`LocalLinuxTarget`: for interacting with the local Linux host.
 
 They all work in more-or-less the same way, with the major difference being in
@@ -37,6 +39,7 @@ instantiating each of the three target types.
                                         'password': 'sekrit',
                                         # or
                                         'keyfile': '/home/me/.ssh/id_rsa'})
+   # ChromeOsTarget connection is performed in the same way as LinuxTarget
 
    # For an Android target, you will need to pass the device name as reported
    # by "adb devices". If there is only one device visible to adb, you can omit
