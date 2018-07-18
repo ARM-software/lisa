@@ -62,7 +62,7 @@ import json as _json
 from collections import OrderedDict
 from datetime import datetime
 import dateutil.parser
-import yaml as _yaml
+import yaml as _yaml  # pylint: disable=wrong-import-order
 
 # pylint: disable=redefined-builtin
 from past.builtins import basestring  # pylint: disable=wrong-import-order

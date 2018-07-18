@@ -41,8 +41,8 @@ else:
 from itertools import chain, cycle
 from distutils.spawn import find_executable  # pylint: disable=no-name-in-module, import-error
 
-from dateutil import tz
 import yaml
+from dateutil import tz
 
 # pylint: disable=wrong-import-order
 from devlib.exception import TargetError
