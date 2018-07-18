@@ -183,9 +183,9 @@ def check_output(command, timeout=None, ignore=None, inputtext=None,
         output, error = process.communicate(inputtext)
         if sys.version_info[0] == 3:
             # Currently errors=replace is needed as 0x8c throws an error
-            output = output.decode(sys.stdout.encoding, "replace")
+            output = output.decode(sys.stdout.encoding or 'utf-8', "replace")
             if error:
-                error = error.decode(sys.stderr.encoding, "replace")
+                error = error.decode(sys.stderr.encoding or 'utf-8', "replace")
     finally:
         if timeout:
             timer.cancel()
