@@ -368,7 +368,7 @@ class CgroupsModule(Module):
 
         # Get the list of the available controllers
         subsys = self.list_subsystems()
-        if subsys:
+        if not subsys:
             self.logger.warning('No CGroups controller available')
             return
 
