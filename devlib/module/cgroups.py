@@ -425,6 +425,9 @@ class CgroupsModule(Module):
         :param cgroup: Name of cgroup to run command into
         :returns: A command to run `cmdline` into `cgroup`
         """
+        if not cgroup.startswith('/'):
+            message = 'cgroup name "{}" must start with "/"'.format(cgroup)
+            raise ValueError(message)
         return 'CGMOUNT={} {} cgroups_run_into {} {}'\
                 .format(self.cgroup_root, self.target.shutils,
                         cgroup, cmdline)
