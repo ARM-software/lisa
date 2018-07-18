@@ -54,7 +54,7 @@ CWD=$PWD
 pushd $THIS_DIR > /dev/null
 if [[ "$target" == "" ]]; then
 	for dir in "${DEFAULT_DIRS[@]}"; do
-		PYTHONPATH=. pylint --rcfile ../extras/pylintrc --load-plugins pylint_plugins $THIS_DIR/../$dir
+		PYTHONPATH=. pylint --rcfile ../extras/pylintrc --load-plugins pylint_plugins ../$dir
 	done
 else
 	PYTHONPATH=. pylint --rcfile ../extras/pylintrc --load-plugins pylint_plugins $CWD/$target
