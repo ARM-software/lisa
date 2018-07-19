@@ -120,6 +120,7 @@ class RecordCommand(Command):
             outdir = os.getcwd()
 
         self.tm = TargetManager(device, device_config, outdir)
+        self.tm.initialize()
         self.target = self.tm.target
         self.revent_recorder = ReventRecorder(self.target)
         self.revent_recorder.deploy()
@@ -261,6 +262,7 @@ class ReplayCommand(Command):
             device_config = state.run_config.device_config or {}
 
         target_manager = TargetManager(device, device_config, None)
+        target_manager.initialize()
         self.target = target_manager.target
         revent_file = self.target.path.join(self.target.working_directory,
                                             os.path.split(args.recording)[1])
