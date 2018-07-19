@@ -90,8 +90,9 @@ class ConfigManager(object):
         self.agenda = None
 
     def load_config_file(self, filepath):
-        self._config_parser.load_from_path(self, filepath)
+        includes = self._config_parser.load_from_path(self, filepath)
         self.loaded_config_sources.append(filepath)
+        self.loaded_config_sources.extend(includes)
 
     def load_config(self, values, source):
         self._config_parser.load(self, values, source)
