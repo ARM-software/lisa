@@ -102,6 +102,91 @@ remove the high level configuration.
 
 Dependent on specificity, configuration parameters from different sources will
 have different inherent priorities. Within an agenda, the configuration in
-"workload" entries wil be more specific than "sections" entries, which in turn
+"workload" entries will be more specific than "sections" entries, which in turn
 are more specific than parameters in the "config" entry.
+
+.. _config-include:
+
+Configuration Includes
+----------------------
+
+It is possible to include other files in your config files and agendas. This is
+done by specifying ``include#`` (note the trailing hash) as a key in one of the
+mappings, with the value being the path to the file to be included. The path
+must be either absolute, or relative to the location of the file it is being
+included from (*not* to the current working directory). The path may also
+include ``~`` to indicate current user's home directory.
+
+The include is performed by removing the ``include#`` loading the contents of
+the specified into the mapping that contained it. In cases where the mapping
+already contains the key to be loaded, values will be merged using the usual
+merge method (for overwrites, values in the mapping take precedence over those
+from the included files).
+
+Below is an example of an agenda that includes other files. The assumption is
+that all of those files are in one directory
+
+.. code-block:: yaml
+
+    # agenda.yaml
+    config:
+       augmentations: [trace-cmd]
+       include#: ./my-config.yaml
+    sections:
+       - include#: ./section1.yaml
+       - include#: ./section2.yaml
+    include#: ./workloads.yaml
+
+.. code-block:: yaml
+
+   # my-config.yaml
+   augmentations: [cpufreq]
+
+
+.. code-block:: yaml
+
+   # section1.yaml
+   runtime_parameters:
+      frequency: max
+
+.. code-block:: yaml
+
+   # section2.yaml
+   runtime_parameters:
+      frequency: min
+
+.. code-block:: yaml
+
+   # workloads.yaml
+   workloads:
+      - dhrystone
+      - memcpy
+
+The above is equivalent to having a single file like this:
+
+.. code-block:: yaml
+
+    # agenda.yaml
+    config:
+       augmentations: [cpufreq, trace-cmd]
+    sections:
+       - runtime_parameters:
+            frequency: max
+       - runtime_parameters:
+            frequency: min
+    workloads:
+       - dhrystone
+       - memcpy
+
+Some additional details about the implementation and its limitations:
+
+- The ``include#`` *must* be a key in a mapping, and the contents of the
+  included file *must* be a mapping as well; it is not possible to include a
+  list (e.g. in the examples above ``workload:`` part *must* be in the included
+  file.
+- Being a key in a mapping, there can only be one ``include#`` entry per block.
+- The included file *must* have a ``.yaml`` extension.
+- Nested inclusions *are* allowed. I.e. included files may themselves include
+  files; in such cases the included paths must be relative to *that* file, and
+  not the "main" file.
 

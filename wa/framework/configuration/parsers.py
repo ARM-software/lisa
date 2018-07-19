@@ -25,6 +25,7 @@ from wa.framework.exception import ConfigError
 from wa.utils import log
 from wa.utils.serializer import json, read_pod, SerializerSyntaxError
 from wa.utils.types import toggle_set, counter
+from wa.utils.misc import merge_config_values, isiterable
 
 
 logger = logging.getLogger('config')
@@ -33,7 +34,9 @@ logger = logging.getLogger('config')
 class ConfigParser(object):
 
     def load_from_path(self, state, filepath):
-        self.load(state, _load_file(filepath, "Config"), filepath)
+        raw, includes = _load_file(filepath, "Config")
+        self.load(state, raw, filepath)
+        return includes
 
     def load(self, state, raw, source, wrap_exceptions=True):  # pylint: disable=too-many-branches
         logger.debug('Parsing config from "{}"'.format(source))
@@ -89,8 +92,9 @@ class ConfigParser(object):
 class AgendaParser(object):
 
     def load_from_path(self, state, filepath):
-        raw = _load_file(filepath, 'Agenda')
+        raw, includes = _load_file(filepath, 'Agenda')
         self.load(state, raw, filepath)
+        return includes
 
     def load(self, state, raw, source):
         logger.debug('Parsing agenda from "{}"'.format(source))
@@ -224,12 +228,45 @@ def _load_file(filepath, error_name):
         raise ValueError("{} does not exist".format(filepath))
     try:
         raw = read_pod(filepath)
+        includes = _process_includes(raw, filepath, error_name)
     except SerializerSyntaxError as e:
         raise ConfigError('Error parsing {} {}: {}'.format(error_name, filepath, e))
     if not isinstance(raw, dict):
         message = '{} does not contain a valid {} structure; top level must be a dict.'
         raise ConfigError(message.format(filepath, error_name))
-    return raw
+    return raw, includes
+
+
+def _process_includes(raw, filepath, error_name):
+    if not raw:
+        return []
+
+    source_dir = os.path.dirname(filepath)
+    included_files = []
+    replace_value = None
+
+    if hasattr(raw, 'items'):
+        for key, value in raw.items():
+            if key == 'include#':
+                include_path = os.path.expanduser(os.path.join(source_dir, value))
+                included_files.append(include_path)
+                replace_value, includes = _load_file(include_path, error_name)
+                included_files.extend(includes)
+            elif hasattr(value, 'items') or isiterable(value):
+                includes = _process_includes(value, filepath, error_name)
+                included_files.extend(includes)
+    elif isiterable(raw):
+        for element in raw:
+            if hasattr(element, 'items') or isiterable(element):
+                includes = _process_includes(element, filepath, error_name)
+                included_files.extend(includes)
+
+    if replace_value is not None:
+        del raw['include#']
+        for key, value in replace_value.items():
+            raw[key] = merge_config_values(value, raw.get(key, None))
+
+    return included_files
 
 
 def merge_augmentations(raw):
