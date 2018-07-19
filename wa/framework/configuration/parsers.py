@@ -18,6 +18,8 @@ import os
 import logging
 from functools import reduce  # pylint: disable=redefined-builtin
 
+from devlib.utils.types import identifier
+
 from wa.framework.configuration.core import JobSpec
 from wa.framework.exception import ConfigError
 from wa.utils import log
@@ -72,8 +74,8 @@ class ConfigParser(object):
             for name, values in raw.items():
                 # Assume that all leftover config is for a plug-in or a global
                 # alias it is up to PluginCache to assert this assumption
-                logger.debug('Caching "{}" with "{}"'.format(name, values))
-                state.plugin_cache.add_configs(name, values, source)
+                logger.debug('Caching "{}" with "{}"'.format(identifier(name), values))
+                state.plugin_cache.add_configs(identifier(name), values, source)
 
         except ConfigError as e:
             if wrap_exceptions:
