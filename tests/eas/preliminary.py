@@ -250,9 +250,14 @@ class TestSchedDomainFlags(BasicCheckTest):
         """
         Check that some domain exists with SD_SHARE_CAP_STATES set
 
-        EAS silently does nothing if this flag is not set at any level (see
-        use of sd_scs percpu variable in scheduler code).
+        On old kernels (4.14 and before), EAS silently does nothing if this
+        flag is not set at any level (see use of sd_scs percpu variable in
+        scheduler code).
         """
+        if self.target.kernel_version.parts > (4, 14):
+            raise SkipTest('Target kernel version greater than v4.14, '
+                           'SD_SHARE_CAP_STATES not required')
+
         cpu0_flags = []
         for flags in self.iter_cpu_sd_flags(0):
             if flags & self.SD_SHARE_CAP_STATES:
