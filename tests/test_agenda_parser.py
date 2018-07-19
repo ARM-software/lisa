@@ -17,19 +17,26 @@
 # pylint: disable=E0611
 # pylint: disable=R0201
 import os
+import sys
 import yaml
 from collections import defaultdict
 from unittest import TestCase
 
 from nose.tools import assert_equal, assert_in, raises, assert_true
 
+
+DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
+os.environ['WA_USER_DIRECTORY'] = os.path.join(DATA_DIR, 'includes')
+
 from wa.framework.configuration.execution import ConfigManager
 from wa.framework.configuration.parsers import AgendaParser
 from wa.framework.exception import ConfigError
 from wa.utils.types import reset_all_counters
 
-YAML_TEST_FILE = os.path.join(os.path.dirname(__file__), 'data', 'test-agenda.yaml')
-YAML_BAD_SYNTAX_FILE = os.path.join(os.path.dirname(__file__), 'data', 'bad-syntax-agenda.yaml')
+
+YAML_TEST_FILE = os.path.join(DATA_DIR, 'test-agenda.yaml')
+YAML_BAD_SYNTAX_FILE = os.path.join(DATA_DIR, 'bad-syntax-agenda.yaml')
+INCLUDES_TEST_FILE = os.path.join(DATA_DIR, 'includes', 'agenda.yaml')
 
 invalid_agenda_text = """
 workloads:
@@ -171,3 +178,37 @@ class AgendaTest(TestCase):
     @raises(ConfigError)
     def test_bad_syntax(self):
         self.parser.load_from_path(self.config, YAML_BAD_SYNTAX_FILE)
+
+
+class FakeTargetManager:
+
+    def merge_runtime_parameters(self, params):
+        return params
+
+    def validate_runtime_parameters(self, params):
+        pass
+
+
+class IncludesTest(TestCase):
+
+    def test_includes(self):
+        from pprint import pprint
+        parser = AgendaParser()
+        cm = ConfigManager()
+        tm = FakeTargetManager()
+
+        includes = parser.load_from_path(cm, INCLUDES_TEST_FILE)
+        include_set = set([os.path.basename(i) for i in includes])
+        assert_equal(include_set,
+            set(['test.yaml', 'section1.yaml', 'section2.yaml',
+                 'section-include.yaml', 'workloads.yaml']))
+
+        job_classifiers = {j.id: j.classifiers
+                           for j in cm.jobs_config.generate_job_specs(tm)}
+        assert_equal(job_classifiers,
+                {
+                    's1-wk1': {'section': 'one'},
+                    's2-wk1': {'section': 'two', 'included': True},
+                    's1-wk2': {'section': 'one', 'memcpy': True},
+                    's2-wk2': {'section': 'two', 'included': True, 'memcpy': True},
+                })
