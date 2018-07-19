@@ -830,7 +830,14 @@ class EnergyModel(object):
             sysfs_em[fd]['cpus'] = cpus
             sysfs_em[fd]['frequency'] = map(int, sysfs_em[fd]['frequency'].split(' '))
             sysfs_em[fd]['power'] =  map(int, sysfs_em[fd]['power'].split(' '))
-            sysfs_em[fd]['capacity'] = map(int, sysfs_em[fd]['capacity'].split(' '))
+
+            # Compute the capacity of the CPUs at each OPP with a linerar
+            # mapping to the frequencies
+            sysfs = '/sys/devices/system/cpu/cpu{}/cpu_capacity'
+            cap = target.read_value(sysfs.format(cpus[0]), int)
+            max_freq = max(sysfs_em[fd]['frequency'])
+            caps = [f * cap / max_freq for f in sysfs_em[fd]['frequency']]
+            sysfs_em[fd]['capacity'] = caps
 
         def read_active_states(cpu):
             fd = sysfs_em[cpu_to_fdom[cpu]]
