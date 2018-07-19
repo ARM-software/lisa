@@ -100,7 +100,7 @@ class RecordCommand(Command):
                                   args.teardown or args.all):
             self.logger.error("Cannot specify a recording stage without a Workload")
             sys.exit()
-        if not (args.all or args.teardown or args.extract_results or args.run or args.setup):
+        if args.workload and not any([args.all, args.teardown, args.extract_results, args.run, args.setup]):
             self.logger.error("Please specify which workload stages you wish to record")
             sys.exit()
 
