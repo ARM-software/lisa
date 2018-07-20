@@ -13,16 +13,26 @@
 # limitations under the License.
 #
 
+
 import os
 import sys
 import stat
 import shutil
 import string
+import re
+import uuid
 import getpass
 from collections import OrderedDict
 from distutils.dir_util import copy_tree  # pylint: disable=no-name-in-module, import-error
 
 from devlib.utils.types import identifier
+try:
+    import psycopg2
+    from psycopg2 import connect, OperationalError, extras
+    from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+except ImportError as e:
+    psycopg2 = None
+    import_error_msg = e.args[0] if e.args else str(e)
 
 from wa import ComplexCommand, SubCommand, pluginloader, settings
 from wa.framework.target.descriptor import list_target_descriptions
@@ -34,6 +44,142 @@ from wa.utils.serializer import yaml
 
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
+
+
+class CreateDatabaseSubcommand(SubCommand):
+
+    name = 'database'
+    description = """
+    Create a Postgresql database which is compatible with the WA Postgres
+    output processor.
+    """
+
+    schemafilepath = 'postgres_schema.sql'
+
+    def __init__(self, *args, **kwargs):
+        super(CreateDatabaseSubcommand, self).__init__(*args, **kwargs)
+        self.sql_commands = None
+        self.schemaversion = None
+        self.schema_major = None
+        self.schema_minor = None
+
+    def initialize(self, context):
+        self.parser.add_argument(
+            '-a', '--postgres-host', default='localhost',
+            help='The host on which to create the database.')
+        self.parser.add_argument(
+            '-k', '--postgres-port', default='5432',
+            help='The port on which the PostgreSQL server is running.')
+        self.parser.add_argument(
+            '-u', '--username', default='postgres',
+            help='The username with which to connect to the server.')
+        self.parser.add_argument(
+            '-p', '--password',
+            help='The password for the user account.')
+        self.parser.add_argument(
+            '-d', '--dbname', default='wa',
+            help='The name of the database to create.')
+        self.parser.add_argument(
+            '-f', '--force', action='store_true',
+            help='Force overwrite the existing database if one exists.')
+        self.parser.add_argument(
+            '-F', '--force-update-config', action='store_true',
+            help='Force update the config file if an entry exists.')
+        self.parser.add_argument(
+            '-r', '--config-file', default=settings.user_config_file,
+            help='Path to the config file to be updated.')
+        self.parser.add_argument(
+            '-x', '--schema-version', action='store_true',
+            help='Display the current schema version.')
+
+    def execute(self, state, args):  # pylint: disable=too-many-branches
+        if not psycopg2:
+            raise CommandError(
+                'The module psycopg2 is required for the wa ' +
+                'create database command.')
+        self.get_schema(self.schemafilepath)
+
+        # Display the version if needed and exit
+        if args.schema_version:
+            self.logger.info(
+                'The current schema version is {}'.format(self.schemaversion))
+            return
+
+        if args.dbname == 'postgres':
+            raise ValueError('Databasename to create cannot be postgres.')
+
+        # Open user configuration
+        with open(args.config_file, 'r') as config_file:
+            config = yaml.load(config_file)
+            if 'postgres' in config and not args.force_update_config:
+                raise CommandError(
+                    "The entry 'postgres' already exists in the config file. " +
+                    "Please specify the -F flag to force an update.")
+
+        possible_connection_errors = [
+            (
+                re.compile('FATAL:  role ".*" does not exist'),
+                'Username does not exist or password is incorrect'
+            ),
+            (
+                re.compile('FATAL:  password authentication failed for user'),
+                'Password was incorrect'
+            ),
+            (
+                re.compile('fe_sendauth: no password supplied'),
+                'Passwordless connection is not enabled. '
+                'Please enable trust in pg_hba for this host '
+                'or use a password'
+            ),
+            (
+                re.compile('FATAL:  no pg_hba.conf entry for'),
+                'Host is not allowed to connect to the specified database '
+                'using this user according to pg_hba.conf. Please change the '
+                'rules in pg_hba or your connection method'
+            ),
+            (
+                re.compile('FATAL:  pg_hba.conf rejects connection'),
+                'Connection was rejected by pg_hba.conf'
+            ),
+        ]
+
+        def predicate(error, handle):
+            if handle[0].match(str(error)):
+                raise CommandError(handle[1] + ': \n' + str(error))
+
+        # Attempt to create database
+        try:
+            self.create_database(args)
+        except OperationalError as e:
+            for handle in possible_connection_errors:
+                predicate(e, handle)
+            raise e
+
+        # Update the configuration file
+        _update_configuration_file(args, config)
+
+    def create_database(self, args):
+        _check_database_existence(args)
+
+        _create_database_postgres(args)
+
+        _apply_database_schema(args, self.sql_commands, self.schema_major, self.schema_minor)
+
+        self.logger.debug(
+            "Successfully created the database {}".format(args.dbname))
+
+    def get_schema(self, schemafilepath):
+        postgres_output_processor_dir = os.path.dirname(__file__)
+        sqlfile = open(os.path.join(
+            postgres_output_processor_dir, schemafilepath))
+        self.sql_commands = sqlfile.read()
+        sqlfile.close()
+        # Extract schema version
+        if self.sql_commands.startswith('--!VERSION'):
+            splitcommands = self.sql_commands.split('!ENDVERSION!\n')
+            self.schemaversion = splitcommands[0].strip('--!VERSION!')
+            (self.schema_major, self.schema_minor) = self.schemaversion.split('.')
+            self.sql_commands = splitcommands[1]
 
 
 class CreateAgendaSubcommand(SubCommand):
@@ -181,6 +327,7 @@ class CreateCommand(ComplexCommand):
     object-specific arguments.
     '''
     subcmd_classes = [
+        CreateDatabaseSubcommand,
         CreateWorkloadSubcommand,
         CreateAgendaSubcommand,
         CreatePackageSubcommand,
@@ -280,3 +427,62 @@ def get_class_name(name, postfix=''):
 def touch(path):
     with open(path, 'w') as _: # NOQA
         pass
+
+
+def _check_database_existence(args):
+    try:
+        connect(dbname=args.dbname, user=args.username,
+                password=args.password, host=args.postgres_host, port=args.postgres_port)
+    except OperationalError as e:
+        # Expect an operational error (database's non-existence)
+        if not re.compile('FATAL:  database ".*" does not exist').match(str(e)):
+            raise e
+    else:
+        if not args.force:
+            raise CommandError(
+                "Database {} already exists. ".format(args.dbname) +
+                "Please specify the -f flag to create it from afresh."
+            )
+
+
+def _create_database_postgres(args):  # pylint: disable=no-self-use
+    conn = connect(dbname='postgres', user=args.username,
+                   password=args.password, host=args.postgres_host, port=args.postgres_port)
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    cursor = conn.cursor()
+    cursor.execute('DROP DATABASE IF EXISTS ' + args.dbname)
+    cursor.execute('CREATE DATABASE ' + args.dbname)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def _apply_database_schema(args, sql_commands, schema_major, schema_minor):
+    conn = connect(dbname=args.dbname, user=args.username,
+                   password=args.password, host=args.postgres_host, port=args.postgres_port)
+    cursor = conn.cursor()
+    cursor.execute(sql_commands)
+
+    extras.register_uuid()
+    cursor.execute("INSERT INTO DatabaseMeta VALUES (%s, %s, %s)",
+                   (
+                       uuid.uuid4(),
+                       schema_major,
+                       schema_minor
+                   )
+                   )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def _update_configuration_file(args, config):
+    ''' Update the user configuration file with the newly created database's
+        configuration.
+        '''
+    config['postgres'] = OrderedDict(
+        [('host', args.postgres_host), ('port', args.postgres_port),
+         ('dbname', args.dbname), ('username', args.username), ('password', args.password)])
+    with open(args.config_file, 'w+') as config_file:
+        yaml.dump(config, config_file)

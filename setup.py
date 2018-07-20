@@ -31,7 +31,7 @@ wa_dir = os.path.join(os.path.dirname(__file__), 'wa')
 sys.path.insert(0, os.path.join(wa_dir, 'framework'))
 from version import get_wa_version, get_wa_version_with_commit
 
-# happends if falling back to distutils
+# happens if falling back to distutils
 warnings.filterwarnings('ignore', "Unknown distribution option: 'install_requires'")
 warnings.filterwarnings('ignore', "Unknown distribution option: 'extras_require'")
 
@@ -41,7 +41,7 @@ except OSError:
     pass
 
 packages = []
-data_files = {}
+data_files = {'': [os.path.join(wa_dir, 'commands', 'postgres_schema.sql')]}
 source_dir = os.path.dirname(__file__)
 for root, dirs, files in os.walk(wa_dir):
     rel_dir = os.path.relpath(root, source_dir)
@@ -67,6 +67,7 @@ params = dict(
     version=get_wa_version_with_commit(),
     packages=packages,
     package_data=data_files,
+    include_package_data=True,
     scripts=scripts,
     url='https://github.com/ARM-software/workload-automation',
     license='Apache v2',
