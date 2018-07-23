@@ -206,8 +206,8 @@ class TraceCmdInstrument(Instrument):
         self.collector.get_trace(outfile)
         context.add_artifact('trace-cmd-bin', outfile, 'data')
         if self.report:
+            textfile = os.path.join(context.output_directory, 'trace.txt')
             if not self.report_on_target:
-                textfile = os.path.join(context.output_directory, 'trace.txt')
                 self.collector.report(outfile, textfile)
             context.add_artifact('trace-cmd-txt', textfile, 'export')
 
