@@ -18,6 +18,8 @@ from itertools import groupby, chain
 
 from future.moves.itertools import zip_longest
 
+from devlib.utils.types import identifier
+
 from wa.framework.configuration.core import (MetaConfiguration, RunConfiguration,
                                              JobGenerator, settings)
 from wa.framework.configuration.parsers import ConfigParser
@@ -99,7 +101,7 @@ class ConfigManager(object):
         self.loaded_config_sources.append(source)
 
     def get_plugin(self, name=None, kind=None, *args, **kwargs):
-        return self.plugin_cache.get_plugin(name, kind, *args, **kwargs)
+        return self.plugin_cache.get_plugin(identifier(name), kind, *args, **kwargs)
 
     def get_instruments(self, target):
         instruments = []
