@@ -30,6 +30,9 @@ class ProcessContext(object):
         self.target_info = None
         self.job_output = None
 
+    def add_augmentation(self, aug):
+        pass
+
 
 class ProcessCommand(Command):
 
@@ -92,7 +95,7 @@ class ProcessCommand(Command):
 
             pm = ProcessorManager(loader=config.plugin_cache)
             for proc in config.get_processors():
-                pm.install(proc, None)
+                pm.install(proc, pc)
             if args.additional_processors:
                 for proc in args.additional_processors:
                     # Do not add any processors that are already present since
@@ -100,7 +103,7 @@ class ProcessCommand(Command):
                     try:
                         pm.get_output_processor(proc)
                     except ValueError:
-                        pm.install(proc, None)
+                        pm.install(proc, pc)
 
             pm.validate()
             pm.initialize()
