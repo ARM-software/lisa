@@ -33,11 +33,16 @@ env:
         - PEP8="cd $TRAVIS_BUILD_DIR && ./dev_scripts/pep8 wa"
         - NOSETESTS="nose2 -s $TRAVIS_BUILD_DIR/tests"
         - WORKLOAD="cd /tmp && wa run $TRAVIS_BUILD_DIR/tests/travis/idle_agenda.yaml -v -d idle_workload"
+        - PROCESS_CMD="$WORKLOAD && wa process -f -p csv idle_workload"
+        - SHOW_CMD="wa show dhrystone && wa show generic_android && wa show trace-cmd && wa show csv"
+        - LIST_CMD="wa list all"
+        - CREATE_CMD="wa create agenda dhrystone generic_android csv trace_cmd && wa create package test && wa create workload test"
     matrix:
         - TEST=$PYLINT
         - TEST=$PEP8
         - TEST=$NOSETESTS
         - TEST=$WORKLOAD
+        - TEST="$PROCESS_CMD && $SHOW_CMD && $LIST_CMD && $CREATE_CMD"
 script:
     - echo $TEST && eval $TEST
 
