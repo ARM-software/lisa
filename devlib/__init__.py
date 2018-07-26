@@ -53,6 +53,6 @@ __version__ = '1.0.0'
 
 __commit = __get_commit()
 if __commit:
-    __full_version__ = '{}-{}'.format(__version__, __commit)
+    __full_version__ = '{}+{}'.format(__version__, __commit)
 else:
     __full_version__ = __version__
