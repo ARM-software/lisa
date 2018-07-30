@@ -49,13 +49,7 @@ LATEST_LINK = 'results_latest'
 basepath = os.path.dirname(os.path.realpath(__file__))
 basepath = basepath.replace('/libs/utils', '')
 
-class ShareState(object):
-    __shared_state = {}
-
-    def __init__(self):
-        self.__dict__ = self.__shared_state
-
-class TestEnv(ShareState):
+class TestEnv(object):
     """
     Represents the environment configuring LISA, the target, and the test setup
 
