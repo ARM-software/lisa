@@ -54,6 +54,9 @@ class ShareState(object):
 
     def __init__(self):
         self.__dict__ = self.__shared_state
+IFCFG_BCAST_RE = re.compile(
+    r'Bcast:(.*) '
+)
 
 class TestEnv(ShareState):
     """
@@ -144,116 +147,44 @@ class TestEnv(ShareState):
         if self._initialized and not force_new:
             return
 
-        self.conf = {}
-        self.target = None
-        self.ftrace = None
-        self.workdir = None
-        self.__installed_tools = set()
-        self.__modules = []
-        self.__connection_settings = None
-        self._calib = None
-
-        # Keep track of target IP and MAC address
-        self.ip = None
-        self.mac = None
-
-        # Energy meter configuration
-        self.emeter = None
-
-        # The platform descriptor to be saved into the results folder
-        self.platform = {}
-
-        # Keep track of android support
-        self.LISA_HOME = os.environ.get('LISA_HOME', '/vagrant')
-        self.ANDROID_HOME = os.environ.get('ANDROID_HOME', None)
-        self.CATAPULT_HOME = os.environ.get('CATAPULT_HOME',
-                os.path.join(self.LISA_HOME, 'tools', 'catapult'))
-
         # Setup logging
         self._log = logging.getLogger('TestEnv')
 
-        # Compute base installation path
-        self._log.info('Using base path: %s', basepath)
-
-        # Setup target configuration
-        if isinstance(target_conf, dict):
-            self._log.info('Loading custom (inline) target configuration')
-            self.conf = target_conf
-        elif isinstance(target_conf, str):
-            self._log.info('Loading %s target configuration', target_conf)
-            self.conf = self.loadTargetConfig(target_conf)
-        else:
-            target_conf = os.environ.get('LISA_TARGET_CONF', '')
-            self._log.info('Loading [%s] target configuration',
-                    target_conf or 'default')
-            self.conf = self.loadTargetConfig(target_conf)
-
-        self._log.debug('Target configuration %s', self.conf)
-
-        # Setup target working directory
-        if 'workdir' in self.conf:
-            self.workdir = self.conf['workdir']
-
-        # Initialize binary tools to deploy
-        self.__tools = list(set(self.conf.get('tools', [])))
-
-        # Initialize ftrace events
-        # test configuration override target one
-        ftrace_conf = self.conf.get('ftrace', {})
-
-        # Merge the events from target config and test config
-        ftrace_conf['events'] = sorted(set(ftrace_conf.get('events', [])))
-        self.conf['ftrace'] = ftrace_conf
-
-        if ftrace_conf['events']:
-            self.__tools.append('trace-cmd')
-
-        # Initialize features
-        if '__features__' not in self.conf:
-            self.conf['__features__'] = []
-
-        self._init()
-
-        # Initialize FTrace events collection
-        self._init_ftrace(True)
-
-        # Initialize RT-App calibration values
-        self.calibration()
-
-        # Initialize energy probe instrument
-        self._init_energy(True)
-
-        self._log.info('Experiment results available also in:')
-        self._log.info('   %s', res_lnk)
+        self._pre_target_init(target_conf)
+        self._init_target()
+        self._post_target_init()
 
         self._initialized = True
 
-    def loadTargetConfig(self, filepath=None):
-        """
-        Load the target configuration from the specified file.
+    def _load_em(self, board):
+        em_path = os.path.join(basepath,
+                'libs/utils/platforms', board.lower() + '.json')
+        self._log.debug('Trying to load default EM from %s', em_path)
+        if not os.path.exists(em_path):
+            return None
+        self._log.info('Loading default EM:')
+        self._log.info('   %s', em_path)
+        board = JsonConf(em_path)
+        board.load()
+        if 'nrg_model' not in board.json:
+            return None
+        return board.json['nrg_model']
 
-        :param filepath: Path of the target configuration file. Relative to the
-                         root folder of the test suite.
-        :type filepath: str
+    def _load_board(self, board):
+        board_path = os.path.join(basepath,
+                'libs/utils/platforms', board.lower() + '.json')
+        self._log.debug('Trying to load board descriptor from %s', board_path)
+        if not os.path.exists(board_path):
+            return None
+        self._log.info('Loading board:')
+        self._log.info('   %s', board_path)
+        board = JsonConf(board_path)
+        board.load()
+        if 'board' not in board.json:
+            return None
+        return board.json['board']
 
-        """
-
-        # "" and None are replaced by the default 'target.config' value
-        filepath = filepath or 'target.config'
-
-        # Loading default target configuration
-        conf_file = os.path.join(basepath, filepath)
-
-        self._log.info('Loading target configuration [%s]...', conf_file)
-        conf = JsonConf(conf_file)
-        conf.load()
-        return conf.json
-
-    def _init(self, force = False):
-
-        # Initialize target
-        self._init_target(force)
-
+    def _build_topology(self):
         # Initialize target Topology for behavior analysis
         CLUSTERS = []
 
@@ -281,15 +212,156 @@ class TestEnv(ShareState):
         self._log.info('Topology:')
         self._log.info('   %s', CLUSTERS)
 
-        # Initialize the platform descriptor
-        self._init_platform()
+    def _init_platform_bl(self):
+        self.platform = {
+            'clusters' : {
+                'little'    : self.target.bl.littles,
+                'big'       : self.target.bl.bigs
+            },
+            'freqs' : {
+                'little'    : self.target.bl.list_littles_frequencies(),
+                'big'       : self.target.bl.list_bigs_frequencies()
+            }
+        }
+        self.platform['cpus_count'] = \
+            len(self.platform['clusters']['little']) + \
+            len(self.platform['clusters']['big'])
 
+    def _init_platform_smp(self):
+        self.platform = {
+            'clusters' : {},
+            'freqs' : {}
+        }
+        for cpu_id,node_id in enumerate(self.target.core_clusters):
+            if node_id not in self.platform['clusters']:
+                self.platform['clusters'][node_id] = []
+            self.platform['clusters'][node_id].append(cpu_id)
 
-    def _init_target(self, force = False):
+        if 'cpufreq' in self.target.modules:
+            # Try loading frequencies using the cpufreq module
+            for cluster_id in self.platform['clusters']:
+                core_id = self.platform['clusters'][cluster_id][0]
+                self.platform['freqs'][cluster_id] = \
+                    self.target.cpufreq.list_frequencies(core_id)
+        else:
+            self._log.warning('Unable to identify cluster frequencies')
 
-        if not force and self.target is not None:
-            return self.target
+        # TODO: get the performance boundaries in case of intel_pstate driver
 
+        self.platform['cpus_count'] = len(self.target.core_clusters)
+
+    def _get_clusters(self, core_names):
+        idx = 0
+        clusters = []
+        ids_map = { core_names[0] : 0 }
+        for name in core_names:
+            idx = ids_map.get(name, idx+1)
+            ids_map[name] = idx
+            clusters.append(idx)
+        return clusters
+
+    def _init_platform(self):
+        if 'bl' in self.target.modules:
+            self._init_platform_bl()
+        else:
+            self._init_platform_smp()
+
+        # Adding energy model information
+        if 'nrg_model' in self.conf:
+            self.platform['nrg_model'] = self.conf['nrg_model']
+        # Try to load the default energy model (if available)
+        else:
+            nrg_model = self._load_em(self.conf['board'])
+            # We shouldn't have an 'nrg_model' key if there is no energy model data
+            if nrg_model:
+                self.platform['nrg_model'] = nrg_model
+
+        # Adding topology information
+        self.platform['topology'] = self.topology.get_level("cluster")
+
+        # Adding kernel build information
+        kver = self.target.kernel_version
+        self.platform['kernel'] = {t: getattr(kver, t, None)
+            for t in [
+                'release', 'version',
+                'version_number', 'major', 'minor',
+                'rc', 'sha1', 'parts'
+            ]
+        }
+        self.platform['abi'] = self.target.abi
+        self.platform['os'] = self.target.os
+
+        self._log.debug('Platform descriptor initialized\n%s', self.platform)
+        # self.platform_dump('./')
+
+    def _init_energy(self, force):
+        # Initialize energy probe to board default
+        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force)
+
+    def _pre_target_init(self, target_conf):
+        """
+        Initialization code that doesn't need a :class:`devlib.Target` instance
+        """
+
+        self.conf = {}
+        self.target = None
+        self.ftrace = None
+        self.workdir = None
+        self.__installed_tools = set()
+        self.__modules = []
+        self.__connection_settings = None
+        self._calib = None
+
+        # Keep track of target IP and MAC address
+        self.ip = None
+        self.mac = None
+
+        # Energy meter configuration
+        self.emeter = None
+
+        # The platform descriptor to be saved into the results folder
+        self.platform = {}
+
+        # Keep track of android support
+        self.LISA_HOME = os.environ.get('LISA_HOME', '/vagrant')
+        self.ANDROID_HOME = os.environ.get('ANDROID_HOME', None)
+        self.CATAPULT_HOME = os.environ.get('CATAPULT_HOME',
+                os.path.join(self.LISA_HOME, 'tools', 'catapult'))
+
+        # Setup target configuration
+        if isinstance(target_conf, dict):
+            self._log.info('Loading custom (inline) target configuration')
+            self.conf = target_conf
+        elif isinstance(target_conf, str):
+            self._log.info('Loading %s target configuration', target_conf)
+            self.conf = self.loadTargetConfig(target_conf)
+        else:
+            target_conf = os.environ.get('LISA_TARGET_CONF', '')
+            self._log.info('Loading [%s] target configuration',
+                    target_conf or 'default')
+            self.conf = self.loadTargetConfig(target_conf)
+
+        self._log.debug('Target configuration %s', self.conf)
+
+        # Setup target working directory
+        if 'workdir' in self.conf:
+            self.workdir = self.conf['workdir']
+
+        # Initialize binary tools to deploy
+        self.__tools = list(set(self.conf.get('tools', [])))
+
+        # Initialize ftrace events
+        ftrace_conf = self.conf.get('ftrace', {})
+        ftrace_conf['events'] = sorted(set(ftrace_conf.get('events', [])))
+        self.conf['ftrace'] = ftrace_conf
+
+        if ftrace_conf['events']:
+            self.__tools.append('trace-cmd')
+
+    def _init_target(self):
+        """
+        Create a :class:`devlib.Target` object
+        """
         self.__connection_settings = {}
 
         # Configure username
@@ -578,6 +650,121 @@ class TestEnv(ShareState):
 
         return platform
 
+    def _post_target_init(self):
+        """
+        Initialization code that needs a :class:`devlib.Target` instance
+        """
+        self._build_topology()
+
+        # Initialize the platform descriptor
+        self._init_platform()
+
+         # Initialize FTrace events collection
+        self._init_ftrace(True)
+
+        # Initialize RT-App calibration values
+        self.calibration()
+
+        # Initialize energy probe instrument
+        self._init_energy(True)
+
+    def parse_arp_cache(self, host):
+        output = os.popen(r'arp -n')
+        if ':' in host:
+            # Assuming this is a MAC address
+            # TODO add a suitable check on MAC address format
+            # Query ARP for the specified HW address
+            ARP_RE = re.compile(
+                r'([^ ]*).*({}|{})'.format(host.lower(), host.upper())
+            )
+            macaddr = host
+            ipaddr = None
+            for line in output:
+                match = ARP_RE.search(line)
+                if not match:
+                    continue
+                ipaddr = match.group(1)
+                break
+        else:
+            # Assuming this is an IP address
+            # TODO add a suitable check on IP address format
+            # Query ARP for the specified IP address
+            ARP_RE = re.compile(
+                r'{}.*ether *([0-9a-fA-F:]*)'.format(host)
+            )
+            macaddr = None
+            ipaddr = host
+            for line in output:
+                match = ARP_RE.search(line)
+                if not match:
+                    continue
+                macaddr = match.group(1)
+                break
+            else:
+                # When target is accessed via WiFi, there is not MAC address
+                # reported by arp. In these cases we can know only the IP
+                # of the remote target.
+                macaddr = 'UNKNOWN'
+
+        if not ipaddr or not macaddr:
+            raise ValueError('Unable to lookup for target IP/MAC address')
+        self._log.info('Target (%s) at IP address: %s', macaddr, ipaddr)
+        return (macaddr, ipaddr)
+
+    def resolv_host(self, host=None):
+        """
+        Resolve a host name or IP address to a MAC address
+
+        .. TODO Is my networking terminology correct here?
+
+        :param host: IP address or host name to resolve. If None, use 'host'
+                    value from target_config.
+        :type host: str
+        """
+        if host is None:
+            host = self.conf['host']
+
+        # Refresh ARP for local network IPs
+        self._log.debug('Collecting all Bcast address')
+        output = os.popen(r'ifconfig').read().split('\n')
+        for line in output:
+            match = IFCFG_BCAST_RE.search(line)
+            if not match:
+                continue
+            baddr = match.group(1)
+            try:
+                cmd = r'nmap -T4 -sP {}/24 &>/dev/null'.format(baddr.strip())
+                self._log.debug(cmd)
+                os.popen(cmd)
+            except RuntimeError:
+                self._log.warning('Nmap not available, try IP lookup using broadcast ping')
+                cmd = r'ping -b -c1 {} &>/dev/null'.format(baddr)
+                self._log.debug(cmd)
+                os.popen(cmd)
+
+        return self.parse_arp_cache(host)
+
+    def loadTargetConfig(self, filepath=None):
+        """
+        Load the target configuration from the specified file.
+
+        :param filepath: Path of the target configuration file. Relative to the
+                         root folder of the test suite.
+        :type filepath: str
+
+        """
+
+        # "" and None are replaced by the default 'target.config' value
+        filepath = filepath or 'target.config'
+
+        # Loading default target configuration
+        conf_file = os.path.join(basepath, filepath)
+
+        self._log.info('Loading target configuration [%s]...', conf_file)
+        conf = JsonConf(conf_file)
+        conf.load()
+        return conf.json
+
     def get_res_dir(self, name=None):
         """
         Returns a directory managed by LISA to store results
@@ -678,121 +865,6 @@ class TestEnv(ShareState):
 
         return
 
-    def _init_energy(self, force):
-
-        # Initialize energy probe to board default
-        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force)
-
-    def _init_platform_bl(self):
-        self.platform = {
-            'clusters' : {
-                'little'    : self.target.bl.littles,
-                'big'       : self.target.bl.bigs
-            },
-            'freqs' : {
-                'little'    : self.target.bl.list_littles_frequencies(),
-                'big'       : self.target.bl.list_bigs_frequencies()
-            }
-        }
-        self.platform['cpus_count'] = \
-            len(self.platform['clusters']['little']) + \
-            len(self.platform['clusters']['big'])
-
-    def _init_platform_smp(self):
-        self.platform = {
-            'clusters' : {},
-            'freqs' : {}
-        }
-        for cpu_id,node_id in enumerate(self.target.core_clusters):
-            if node_id not in self.platform['clusters']:
-                self.platform['clusters'][node_id] = []
-            self.platform['clusters'][node_id].append(cpu_id)
-
-        if 'cpufreq' in self.target.modules:
-            # Try loading frequencies using the cpufreq module
-            for cluster_id in self.platform['clusters']:
-                core_id = self.platform['clusters'][cluster_id][0]
-                self.platform['freqs'][cluster_id] = \
-                    self.target.cpufreq.list_frequencies(core_id)
-        else:
-            self._log.warning('Unable to identify cluster frequencies')
-
-        # TODO: get the performance boundaries in case of intel_pstate driver
-
-        self.platform['cpus_count'] = len(self.target.core_clusters)
-
-    def _load_em(self, board):
-        em_path = os.path.join(basepath,
-                'libs/utils/platforms', board.lower() + '.json')
-        self._log.debug('Trying to load default EM from %s', em_path)
-        if not os.path.exists(em_path):
-            return None
-        self._log.info('Loading default EM:')
-        self._log.info('   %s', em_path)
-        board = JsonConf(em_path)
-        board.load()
-        if 'nrg_model' not in board.json:
-            return None
-        return board.json['nrg_model']
-
-    def _load_board(self, board):
-        board_path = os.path.join(basepath,
-                'libs/utils/platforms', board.lower() + '.json')
-        self._log.debug('Trying to load board descriptor from %s', board_path)
-        if not os.path.exists(board_path):
-            return None
-        self._log.info('Loading board:')
-        self._log.info('   %s', board_path)
-        board = JsonConf(board_path)
-        board.load()
-        if 'board' not in board.json:
-            return None
-        return board.json['board']
-
-    def _get_clusters(self, core_names):
-        idx = 0
-        clusters = []
-        ids_map = { core_names[0] : 0 }
-        for name in core_names:
-            idx = ids_map.get(name, idx+1)
-            ids_map[name] = idx
-            clusters.append(idx)
-        return clusters
-
-    def _init_platform(self):
-        if 'bl' in self.target.modules:
-            self._init_platform_bl()
-        else:
-            self._init_platform_smp()
-
-        # Adding energy model information
-        if 'nrg_model' in self.conf:
-            self.platform['nrg_model'] = self.conf['nrg_model']
-        # Try to load the default energy model (if available)
-        else:
-            nrg_model = self._load_em(self.conf['board'])
-            # We shouldn't have an 'nrg_model' key if there is no energy model data
-            if nrg_model:
-                self.platform['nrg_model'] = nrg_model
-
-        # Adding topology information
-        self.platform['topology'] = self.topology.get_level("cluster")
-
-        # Adding kernel build information
-        kver = self.target.kernel_version
-        self.platform['kernel'] = {t: getattr(kver, t, None)
-            for t in [
-                'release', 'version',
-                'version_number', 'major', 'minor',
-                'rc', 'sha1', 'parts'
-            ]
-        }
-        self.platform['abi'] = self.target.abi
-        self.platform['os'] = self.target.os
-
-        self._log.debug('Platform descriptor initialized\n%s', self.platform)
-        # self.platform_dump('./')
-
     def platform_dump(self, dest_dir, dest_file='platform.json'):
         plt_file = os.path.join(dest_dir, dest_file)
         self._log.debug('Dump platform descriptor in [%s]', plt_file)
@@ -834,82 +906,6 @@ class TestEnv(ShareState):
                                        for key in sorted(self._calib)) + "}")
         return self._calib
 
-    def resolv_host(self, host=None):
-        """
-        Resolve a host name or IP address to a MAC address
-
-        .. TODO Is my networking terminology correct here?
-
-        :param host: IP address or host name to resolve. If None, use 'host'
-                    value from target_config.
-        :type host: str
-        """
-        if host is None:
-            host = self.conf['host']
-
-        # Refresh ARP for local network IPs
-        self._log.debug('Collecting all Bcast address')
-        output = os.popen(r'ifconfig').read().split('\n')
-        for line in output:
-            match = IFCFG_BCAST_RE.search(line)
-            if not match:
-                continue
-            baddr = match.group(1)
-            try:
-                cmd = r'nmap -T4 -sP {}/24 &>/dev/null'.format(baddr.strip())
-                self._log.debug(cmd)
-                os.popen(cmd)
-            except RuntimeError:
-                self._log.warning('Nmap not available, try IP lookup using broadcast ping')
-                cmd = r'ping -b -c1 {} &>/dev/null'.format(baddr)
-                self._log.debug(cmd)
-                os.popen(cmd)
-
-        return self.parse_arp_cache(host)
-
-    def parse_arp_cache(self, host):
-        output = os.popen(r'arp -n')
-        if ':' in host:
-            # Assuming this is a MAC address
-            # TODO add a suitable check on MAC address format
-            # Query ARP for the specified HW address
-            ARP_RE = re.compile(
-                r'([^ ]*).*({}|{})'.format(host.lower(), host.upper())
-            )
-            macaddr = host
-            ipaddr = None
-            for line in output:
-                match = ARP_RE.search(line)
-                if not match:
-                    continue
-                ipaddr = match.group(1)
-                break
-        else:
-            # Assuming this is an IP address
-            # TODO add a suitable check on IP address format
-            # Query ARP for the specified IP address
-            ARP_RE = re.compile(
-                r'{}.*ether *([0-9a-fA-F:]*)'.format(host)
-            )
-            macaddr = None
-            ipaddr = host
-            for line in output:
-                match = ARP_RE.search(line)
-                if not match:
-                    continue
-                macaddr = match.group(1)
-                break
-            else:
-                # When target is accessed via WiFi, there is not MAC address
-                # reported by arp. In these cases we can know only the IP
-                # of the remote target.
-                macaddr = 'UNKNOWN'
-
-        if not ipaddr or not macaddr:
-            raise ValueError('Unable to lookup for target IP/MAC address')
-        self._log.info('Target (%s) at IP address: %s', macaddr, ipaddr)
-        return (macaddr, ipaddr)
-
     @contextlib.contextmanager
     def freeze_userspace(self):
         if 'cgroups' not in self.target.modules:
@@ -934,9 +930,5 @@ class TestEnv(ShareState):
         finally:
             self._log.info('Un-freezing userspace tasks')
             self.target.cgroups.freeze(thaw=True)
-
-IFCFG_BCAST_RE = re.compile(
-    r'Bcast:(.*) '
-)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
