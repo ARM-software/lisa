@@ -329,12 +329,12 @@ class TestEnv(object):
             self.conf = target_conf
         elif isinstance(target_conf, str):
             self._log.info('Loading %s target configuration', target_conf)
-            self.conf = self.loadTargetConfig(target_conf)
+            self.conf = self.load_target_config(target_conf)
         else:
             target_conf = os.environ.get('LISA_TARGET_CONF', '')
             self._log.info('Loading [%s] target configuration',
                     target_conf or 'default')
-            self.conf = self.loadTargetConfig(target_conf)
+            self.conf = self.load_target_config(target_conf)
 
         self._log.debug('Target configuration %s', self.conf)
 
@@ -730,7 +730,7 @@ class TestEnv(object):
 
         return self.parse_arp_cache(host)
 
-    def loadTargetConfig(self, filepath=None):
+    def load_target_config(self, filepath=None):
         """
         Load the target configuration from the specified file.
 
