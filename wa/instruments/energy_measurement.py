@@ -366,6 +366,9 @@ class EnergyMeasurement(Instrument):
     description = """
     This instrument is designed to be used as an interface to the various
     energy measurement instruments located in devlib.
+
+    This instrument should be used to provide configuration for any of the
+    Energy Instrument Backends rather than specifying configuration directly.
     """
 
     parameters = [
