@@ -79,11 +79,12 @@ class CreateAgendaSubcommand(SubCommand):
                 entry['params'] = config
                 agenda['workloads'].append(entry)
             else:
-                if extcls.kind == 'instrument':
-                    agenda['config']['augmentations'].append(name)
-                if extcls.kind == 'output_processor':
-                    agenda['config']['augmentations'].append(name)
-                agenda['config'][name] = config
+                if extcls.kind in ('instrument', 'output_processor'):
+                    if name not in agenda['config']['augmentations']:
+                        agenda['config']['augmentations'].append(name)
+
+                if name not in agenda['config']:
+                    agenda['config'][name] = config
 
         if args.output:
             wfh = open(args.output, 'w')
