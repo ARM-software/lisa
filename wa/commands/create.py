@@ -27,6 +27,7 @@ from devlib.utils.types import identifier
 from wa import ComplexCommand, SubCommand, pluginloader, settings
 from wa.framework.target.descriptor import list_target_descriptions
 from wa.framework.exception import ConfigError, CommandError
+from wa.instruments.energy_measurement import EnergyInstrumentBackend
 from wa.utils.misc import (ensure_directory_exists as _d, capitalize,
                            ensure_file_directory_exists as _f)
 from wa.utils.serializer import yaml
@@ -51,6 +52,7 @@ class CreateAgendaSubcommand(SubCommand):
         self.parser.add_argument('-o', '--output', metavar='FILE',
                                  help='Output file. If not specfied, STDOUT will be used instead.')
 
+    # pylint: disable=too-many-branches
     def execute(self, state, args):
         agenda = OrderedDict()
         agenda['config'] = OrderedDict(augmentations=[], iterations=args.iterations)
@@ -71,7 +73,15 @@ class CreateAgendaSubcommand(SubCommand):
             extcls = pluginloader.get_plugin_class(name)
             config = pluginloader.get_default_config(name)
 
-            if extcls.kind == 'workload':
+            # Handle special case for EnergyInstrumentBackends
+            if issubclass(extcls, EnergyInstrumentBackend):
+                if 'energy_measurement' not in agenda['config']['augmentations']:
+                    energy_config = pluginloader.get_default_config('energy_measurement')
+                    agenda['config']['augmentations'].append('energy_measurement')
+                    agenda['config']['energy_measurement'] = energy_config
+                agenda['config']['energy_measurement']['instrument'] = name
+                agenda['config']['energy_measurement']['instrument_parameters'] = config
+            elif extcls.kind == 'workload':
                 entry = OrderedDict()
                 entry['name'] = extcls.name
                 if name != extcls.name:
