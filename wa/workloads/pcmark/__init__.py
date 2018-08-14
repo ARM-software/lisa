@@ -14,6 +14,7 @@
 #
 import os
 import re
+import sys
 import zipfile
 
 from wa import ApkUiautoWorkload
@@ -58,6 +59,8 @@ class PcMark(ApkUiautoWorkload):
     def update_output(self, context):
         expected_results = len(self.regex_matches)
         zf = zipfile.ZipFile(os.path.join(context.output_directory, self.result_file), 'r').read('Result.xml')
+        if sys.version_info[0] == 3:
+            zf = zf.decode(sys.stdout.encoding)
         for line in zf.split('\n'):
             for regex in self.regex_matches:
                 match = regex.search(line)
