@@ -549,7 +549,15 @@ class RampDown(_EnergyModelTest):
     # This migration naturally happens some time _after_ it could possibly be
     # done, since there must be some hysteresis to avoid a performance cost.
     # Therefore allow a larger energy usage threshold
-    energy_est_threshold_pct = 15
+    #
+    # The number below has been found by trial and error on the platforms
+    # generally used for testing EAS (at the time of writing: Juno r0, Juno r2,
+    # Hikey960 and TC2). It would be better to estimate the amount of energy
+    # 'wasted' in the hysteresis (the overutilized band) and compute a threshold
+    # based on that. But implementing this isn't easy because it's very platform
+    # dependent, so until we have a way to do that easily in test classes, let's
+    # stick with the arbitrary threshold.
+    energy_est_threshold_pct = 18
 
     workloads = {
         "ramp_down" : {
