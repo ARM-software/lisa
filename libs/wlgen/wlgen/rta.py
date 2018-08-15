@@ -96,7 +96,6 @@ class RTA(Workload):
         self.loadref = None
         self.rta_cmd  = None
         self.rta_conf = None
-        self.test_label = None
 
         # Setup RTA callbacks
         self.setCallback('postrun', self.__postrun)
@@ -222,7 +221,7 @@ class RTA(Workload):
 
         rtapp_conf = self.params['custom']
 
-        self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
+        self.json = '{}.json'.format(self.name)
         ofile = open(self.json, 'w')
 
         calibration = self.getCalibrationConf()
@@ -433,7 +432,7 @@ class RTA(Workload):
             self.tasks[tid] = {'pid': -1}
 
         # Generate JSON configuration on local file
-        self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
+        self.json = '{0}.json'.format(self.name)
         with open(self.json, 'w') as outfile:
             json.dump(self.rta_profile, outfile,
                       indent=4, separators=(',', ': '))
@@ -447,7 +446,6 @@ class RTA(Workload):
              cpus=None,
              sched=None,
              run_dir=None,
-             exc_id=0,
              loadref='big'):
         """
         Configure a workload of a specified kind.
@@ -501,7 +499,7 @@ class RTA(Workload):
             sched = {'policy' : 'OTHER'}
 
         super(RTA, self).conf(kind, params, duration,
-                cpus, sched, run_dir, exc_id)
+                cpus, sched, run_dir)
 
         self.loadref = loadref
 
@@ -517,10 +515,6 @@ class RTA(Workload):
         self.rta_cmd  = self.target.executables_directory + '/rt-app'
         self.rta_conf = self.run_dir + '/' + self.json
         self.command = '{0:s} {1:s} 2>&1'.format(self.rta_cmd, self.rta_conf)
-
-        # Set and return the test label
-        self.test_label = '{0:s}_{1:02d}'.format(self.name, self.exc_id)
-        return self.test_label
 
 class RTATask(object):
     """
