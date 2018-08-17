@@ -53,10 +53,10 @@ class TestDynamicEvents(BaseTestSched):
         """
         cls = trappy.register_dynamic_ftrace("DynamicEvent", "dynamic_test_key",
               pivot="test_pivot")
-        self.assertEquals(cls.__name__, "DynamicEvent")
-        self.assertEquals(cls.name, "dynamic_event")
-        self.assertEquals(cls.unique_word, "dynamic_test_key")
-        self.assertEquals(cls.pivot, "test_pivot")
+        self.assertEqual(cls.__name__, "DynamicEvent")
+        self.assertEqual(cls.name, "dynamic_event")
+        self.assertEqual(cls.unique_word, "dynamic_test_key")
+        self.assertEqual(cls.pivot, "test_pivot")
 
         trappy.unregister_dynamic_ftrace(cls)
 

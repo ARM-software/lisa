@@ -223,8 +223,8 @@ class TestCaching(utils_tests.SetupDirectory):
 
         self.assertAlmostEquals(trace.get_duration(), 1.900002)
 
-        self.assertEquals(len(trace.sched_wakeup.data_frame), 2)
-        self.assertEquals(len(trace.sched_wakeup_new.data_frame), 1)
+        self.assertEqual(len(trace.sched_wakeup.data_frame), 2)
+        self.assertEqual(len(trace.sched_wakeup_new.data_frame), 1)
 
     def test_ftrace_metadata(self):
         """Test that caching keeps trace metadata"""
@@ -237,8 +237,8 @@ class TestCaching(utils_tests.SetupDirectory):
         version = int(trace._version)
         cpus = int(trace._cpus)
 
-        self.assertEquals(version, 6)
-        self.assertEquals(cpus, 6)
+        self.assertEqual(version, 6)
+        self.assertEqual(cpus, 6)
 
     def test_cache_delete_single(self):
         GenericFTrace.disable_cache = False
@@ -249,16 +249,16 @@ class TestCaching(utils_tests.SetupDirectory):
         trace_file = os.path.basename(trace_path)
         cache_dir = '.' + trace_file + '.cache'
         number_of_trace_categories = 31
-        self.assertEquals(len(os.listdir(cache_dir)), number_of_trace_categories)
+        self.assertEqual(len(os.listdir(cache_dir)), number_of_trace_categories)
 
         os.remove(os.path.join(cache_dir, 'SchedWakeup.csv'))
-        self.assertEquals(len(os.listdir(cache_dir)), number_of_trace_categories - 1)
+        self.assertEqual(len(os.listdir(cache_dir)), number_of_trace_categories - 1)
 
         # Generate trace again, should regenerate only the missing item
         trace = trappy.FTrace()
-        self.assertEquals(len(os.listdir(cache_dir)), number_of_trace_categories)
+        self.assertEqual(len(os.listdir(cache_dir)), number_of_trace_categories)
         for c in trace.trace_classes:
             if isinstance(c, trace.class_definitions['sched_wakeup']):
-                self.assertEquals(c.cached, False)
+                self.assertEqual(c.cached, False)
                 continue
-            self.assertEquals(c.cached, True)
+            self.assertEqual(c.cached, True)

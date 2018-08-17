@@ -358,6 +358,6 @@ class TestAggregator(BaseTestStats):
                       index=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
             ]
 
-        self.assertEquals(len(results), len(expected_results))
+        self.assertEqual(len(results), len(expected_results))
         for result, expected in zip(results, expected_results):
             assert_series_equal(result, expected)

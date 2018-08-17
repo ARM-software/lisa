@@ -71,7 +71,7 @@ class TestTrappy(BaseTestThermal):
         matplotlib.pyplot.close('all')
 
         # Sanity check that the test actually ran from another directory
-        self.assertEquals(os.getcwd(), other_random_dir)
+        self.assertEqual(os.getcwd(), other_random_dir)
 
     def test_summary_plots_only_power_allocator_trace(self):
         """Test that summary_plots() work if there is only power allocator

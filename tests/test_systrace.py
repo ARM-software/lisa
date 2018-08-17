@@ -35,15 +35,15 @@ class TestSystrace(utils_tests.SetupDirectory):
         trace = trappy.SysTrace("trace.html", events=events)
 
         self.assertTrue(hasattr(trace, "sched_switch"))
-        self.assertEquals(len(trace.sched_switch.data_frame), 4)
+        self.assertEqual(len(trace.sched_switch.data_frame), 4)
         self.assertTrue("prev_comm" in trace.sched_switch.data_frame.columns)
 
         self.assertTrue(hasattr(trace, "sched_wakeup"))
-        self.assertEquals(len(trace.sched_wakeup.data_frame), 4)
+        self.assertEqual(len(trace.sched_wakeup.data_frame), 4)
         self.assertTrue("target_cpu" in trace.sched_wakeup.data_frame.columns)
 
         self.assertTrue(hasattr(trace, "trace_event_clock_sync"))
-        self.assertEquals(len(trace.trace_event_clock_sync.data_frame), 1)
+        self.assertEqual(len(trace.trace_event_clock_sync.data_frame), 1)
         self.assertTrue("realtime_ts" in trace.trace_event_clock_sync.data_frame.columns)
 
     def test_cpu_counting(self):
@@ -52,7 +52,7 @@ class TestSystrace(utils_tests.SetupDirectory):
         trace = trappy.SysTrace("trace.html")
 
         self.assertTrue(hasattr(trace, "_cpus"))
-        self.assertEquals(trace._cpus, 3)
+        self.assertEqual(trace._cpus, 3)
 
     def test_systrace_userspace(self):
         """Test parsing of userspace events"""
@@ -60,38 +60,38 @@ class TestSystrace(utils_tests.SetupDirectory):
         # Test a 'B' event (begin)
         trace = trappy.SysTrace("trace_sf.html")
         dfr = trace.tracing_mark_write.data_frame
-        self.assertEquals(dfr['__pid'].iloc[2], 7591)
-        self.assertEquals(dfr['__comm'].iloc[2], 'RenderThread')
-        self.assertEquals(dfr['pid'].iloc[2], 7459)
-        self.assertEquals(dfr['event'].iloc[2], 'B')
-        self.assertEquals(dfr['func'].iloc[2], 'notifyFramePending')
-        self.assertEquals(dfr['data'].iloc[2], None)
+        self.assertEqual(dfr['__pid'].iloc[2], 7591)
+        self.assertEqual(dfr['__comm'].iloc[2], 'RenderThread')
+        self.assertEqual(dfr['pid'].iloc[2], 7459)
+        self.assertEqual(dfr['event'].iloc[2], 'B')
+        self.assertEqual(dfr['func'].iloc[2], 'notifyFramePending')
+        self.assertEqual(dfr['data'].iloc[2], None)
 
         # Test a 'C' event (count)
-        self.assertEquals(dfr['__pid'].iloc[-2], 612)
-        self.assertEquals(dfr['__comm'].iloc[-2], 'HwBinder:594_1')
-        self.assertEquals(dfr['pid'].iloc[-2], 594)
-        self.assertEquals(dfr['func'].iloc[-2], 'HW_VSYNC_0')
-        self.assertEquals(dfr['event'].iloc[-2], 'C')
-        self.assertEquals(dfr['data'].iloc[-2], '0')
+        self.assertEqual(dfr['__pid'].iloc[-2], 612)
+        self.assertEqual(dfr['__comm'].iloc[-2], 'HwBinder:594_1')
+        self.assertEqual(dfr['pid'].iloc[-2], 594)
+        self.assertEqual(dfr['func'].iloc[-2], 'HW_VSYNC_0')
+        self.assertEqual(dfr['event'].iloc[-2], 'C')
+        self.assertEqual(dfr['data'].iloc[-2], '0')
 
         # Test an 'E' event (end)
         edfr = dfr[dfr['event'] == 'E']
-        self.assertEquals(edfr['__pid'].iloc[0], 7591)
-        self.assertEquals(edfr['__comm'].iloc[0], 'RenderThread')
+        self.assertEqual(edfr['__pid'].iloc[0], 7591)
+        self.assertEqual(edfr['__comm'].iloc[0], 'RenderThread')
         self.assertTrue(np.isnan(edfr['pid'].iloc[0]))
-        self.assertEquals(edfr['func'].iloc[0], None)
-        self.assertEquals(edfr['event'].iloc[0], 'E')
-        self.assertEquals(edfr['data'].iloc[0], None)
+        self.assertEqual(edfr['func'].iloc[0], None)
+        self.assertEqual(edfr['event'].iloc[0], 'E')
+        self.assertEqual(edfr['data'].iloc[0], None)
 
     def test_systrace_line_num(self):
         """Test for line numbers in a systrace"""
         trace = trappy.SysTrace("trace_sf.html")
         dfr = trace.sched_switch.data_frame
-        self.assertEquals(trace.lines, 2506)
-        self.assertEquals(dfr['__line'].iloc[0], 0)
-        self.assertEquals(dfr['__line'].iloc[1], 6)
-        self.assertEquals(dfr['__line'].iloc[-1], 2505)
+        self.assertEqual(trace.lines, 2506)
+        self.assertEqual(dfr['__line'].iloc[0], 0)
+        self.assertEqual(dfr['__line'].iloc[1], 6)
+        self.assertEqual(dfr['__line'].iloc[-1], 2505)
 
     def test_parse_tracing_mark_write_events(self):
         """Check that tracing_mark_write events are parsed without errors"""
@@ -118,15 +118,15 @@ class TestLegacySystrace(utils_tests.SetupDirectory):
         trace = trappy.SysTrace("trace.html", events=events)
 
         self.assertTrue(hasattr(trace, "sched_switch"))
-        self.assertEquals(len(trace.sched_switch.data_frame), 3)
+        self.assertEqual(len(trace.sched_switch.data_frame), 3)
         self.assertTrue("prev_comm" in trace.sched_switch.data_frame.columns)
 
         self.assertTrue(hasattr(trace, "sched_wakeup"))
-        self.assertEquals(len(trace.sched_wakeup.data_frame), 2)
+        self.assertEqual(len(trace.sched_wakeup.data_frame), 2)
         self.assertTrue("target_cpu" in trace.sched_wakeup.data_frame.columns)
 
         self.assertTrue(hasattr(trace, "sched_contrib_scale_factor"))
-        self.assertEquals(len(trace.sched_contrib_scale_factor.data_frame), 2)
+        self.assertEqual(len(trace.sched_contrib_scale_factor.data_frame), 2)
         self.assertTrue("freq_scale_factor" in trace.sched_contrib_scale_factor.data_frame.columns)
 
     def test_cpu_counting(self):
@@ -135,4 +135,4 @@ class TestLegacySystrace(utils_tests.SetupDirectory):
         trace = trappy.SysTrace("trace.html")
 
         self.assertTrue(hasattr(trace, "_cpus"))
-        self.assertEquals(trace._cpus, 8)
+        self.assertEqual(trace._cpus, 8)

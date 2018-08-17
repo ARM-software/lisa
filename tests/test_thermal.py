@@ -77,7 +77,7 @@ class TestThermalGovernor(BaseTestThermal):
         dfr = trappy.FTrace().thermal_governor.data_frame
 
         self.assertTrue(len(dfr) > 0)
-        self.assertEquals(dfr["current_temperature"].iloc[0], 68775)
+        self.assertEqual(dfr["current_temperature"].iloc[0], 68775)
         self.assertTrue("total_granted_power" in dfr.columns)
         self.assertFalse("time" in dfr.columns)
 
@@ -172,7 +172,7 @@ CPU:7 [204600 EVENTS DROPPED]
 
     def test_empty_trace_txt(self):
         dfr = trappy.FTrace(normalize_time=False).thermal_governor.data_frame
-        self.assertEquals(len(dfr), 0)
+        self.assertEqual(len(dfr), 0)
 
     def test_empty_plot_temperature(self):
         """trace.thermal.plot_temperature() raises ValueError() on an empty

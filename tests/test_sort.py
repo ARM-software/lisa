@@ -36,4 +36,4 @@ class TestCpuIdle(utils_tests.SetupDirectory):
         """Test that unsorted events are handled correctly"""
 
         df = trappy.FTrace(normalize_time=False).cpu_idle.data_frame
-        self.assertEquals(df.index.size, 8)
+        self.assertEqual(df.index.size, 8)

@@ -35,7 +35,7 @@ class TestBaseMethods(unittest.TestCase):
         array_lengths = {"load": 4}
 
         result = trace_parser_explode_array(line, array_lengths)
-        self.assertEquals(result, expected)
+        self.assertEqual(result, expected)
 
     def test_trace_parser_explode_array_nop(self):
         """TestBaseMethods: trace_parser_explode_array() returns the same string if there's no array in it"""
@@ -44,7 +44,7 @@ class TestBaseMethods(unittest.TestCase):
         array_lengths = {"load": 0}
 
         result = trace_parser_explode_array(line, array_lengths)
-        self.assertEquals(result, line)
+        self.assertEqual(result, line)
 
     def test_trace_parser_explode_array_2(self):
         """TestBaseMethods: trace_parser_explode_array() works if there's two arrays in the string"""
@@ -54,7 +54,7 @@ class TestBaseMethods(unittest.TestCase):
         array_lengths = {'load': 4, 'req_power': 4}
 
         result = trace_parser_explode_array(line, array_lengths)
-        self.assertEquals(result, expected)
+        self.assertEqual(result, expected)
 
     def test_trace_parser_explode_array_diff_lengths(self):
         """TestBaseMethods: trace_parser_explode_array() expands arrays that are shorter than the expected length
@@ -69,7 +69,7 @@ class TestBaseMethods(unittest.TestCase):
         array_lengths = {'load': 4}
 
         result = trace_parser_explode_array(line, array_lengths)
-        self.assertEquals(result, expected)
+        self.assertEqual(result, expected)
 
 class TestBase(utils_tests.SetupDirectory):
     """Incomplete tests for the Base class"""
@@ -97,8 +97,8 @@ class TestBase(utils_tests.SetupDirectory):
         trace = trappy.FTrace()
         dfr = trace.cpu_in_power.data_frame
 
-        self.assertEquals(set(dfr.columns), expected_columns)
-        self.assertEquals(dfr["power"].iloc[0], 61)
+        self.assertEqual(set(dfr.columns), expected_columns)
+        self.assertEqual(dfr["power"].iloc[0], 61)
 
     def test_parse_special_fields(self):
         """TestBase: Task name, PID, CPU and timestamp are properly paresed """
@@ -143,14 +143,14 @@ class TestBase(utils_tests.SetupDirectory):
         trace = trappy.FTrace(normalize_time=False)
         dfr = trace.event0.data_frame
 
-        self.assertEquals(set(dfr.columns), expected_columns)
+        self.assertEqual(set(dfr.columns), expected_columns)
 
         for timestamp, event in events.iteritems():
             if type(timestamp) == int:
                 timestamp = float(timestamp) / 1e9
-            self.assertEquals(dfr["__comm"].loc[timestamp], event['task'])
-            self.assertEquals(dfr["__pid"].loc[timestamp],  event['pid'])
-            self.assertEquals(dfr["__cpu"].loc[timestamp],  event['cpu'])
+            self.assertEqual(dfr["__comm"].loc[timestamp], event['task'])
+            self.assertEqual(dfr["__pid"].loc[timestamp],  event['pid'])
+            self.assertEqual(dfr["__cpu"].loc[timestamp],  event['cpu'])
 
         trappy.unregister_dynamic_ftrace(ftrace_parser)
 
@@ -170,11 +170,11 @@ class TestBase(utils_tests.SetupDirectory):
         trace = trappy.FTrace()
         dfr = trace.sched_stat_runtime.data_frame
 
-        self.assertEquals(set(dfr.columns), expected_columns)
-        self.assertEquals(dfr["comm"].iloc[0], "Space separated taskname")
-        self.assertEquals(dfr["pid"].iloc[0], 7)
-        self.assertEquals(dfr["runtime"].iloc[0], 262875)
-        self.assertEquals(dfr["vruntime"].iloc[0], 17096359856)
+        self.assertEqual(set(dfr.columns), expected_columns)
+        self.assertEqual(dfr["comm"].iloc[0], "Space separated taskname")
+        self.assertEqual(dfr["pid"].iloc[0], 7)
+        self.assertEqual(dfr["runtime"].iloc[0], 262875)
+        self.assertEqual(dfr["vruntime"].iloc[0], 17096359856)
 
         trappy.unregister_dynamic_ftrace(ftrace_parser)
 
@@ -184,7 +184,7 @@ class TestBase(utils_tests.SetupDirectory):
         dfr = trappy.FTrace().thermal.data_frame
 
         self.assertTrue("thermal_zone" in dfr.columns)
-        self.assertEquals(dfr["temp"].iloc[0], 68786)
+        self.assertEqual(dfr["temp"].iloc[0], 68786)
 
     def test_write_csv(self):
         """TestBase: Base::write_csv() creates a valid csv"""
@@ -200,8 +200,8 @@ class TestBase(utils_tests.SetupDirectory):
             self.assertTrue("temp" in csv_reader.fieldnames)
 
             first_data = csv_reader.next()
-            self.assertEquals(first_data["Time"], "0.0")
-            self.assertEquals(first_data["temp"], "68786")
+            self.assertEqual(first_data["Time"], "0.0")
+            self.assertEqual(first_data["temp"], "68786")
 
     def test_normalize_time(self):
         """TestBase: Base::normalize_time() normalizes the time of the trace"""
@@ -215,21 +215,21 @@ class TestBase(utils_tests.SetupDirectory):
         last_time = thrm.data_frame.index[-1]
         expected_last_time = last_prev_time - basetime
 
-        self.assertEquals(round(thrm.data_frame.index[0], 7), 0)
-        self.assertEquals(round(last_time - expected_last_time, 7), 0)
+        self.assertEqual(round(thrm.data_frame.index[0], 7), 0)
+        self.assertEqual(round(last_time - expected_last_time, 7), 0)
 
     def test_line_num(self):
         """TestBase: Test line number functionality"""
         trace = trappy.FTrace()
-        self.assertEquals(trace.lines, 804)
+        self.assertEqual(trace.lines, 804)
 
         df = trace.thermal.data_frame
-        self.assertEquals(df.iloc[0]['__line'], 0);
-        self.assertEquals(df.iloc[-1]['__line'], 792);
+        self.assertEqual(df.iloc[0]['__line'], 0);
+        self.assertEqual(df.iloc[-1]['__line'], 792);
 
         df = trace.thermal_governor.data_frame
-        self.assertEquals(df.iloc[0]['__line'], 11);
-        self.assertEquals(df.iloc[-1]['__line'], 803)
+        self.assertEqual(df.iloc[0]['__line'], 11);
+        self.assertEqual(df.iloc[-1]['__line'], 803)
 
     def test_equals_in_field_value(self):
         """TestBase: Can parse events with fields with values containing '='"""

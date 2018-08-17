@@ -39,7 +39,7 @@ class TestDevfreqPower(BaseTestThermal):
         all_freqs = trappy.FTrace().devfreq_in_power.get_all_freqs()
         self.assertTrue(isinstance(all_freqs, pd.DataFrame))
 
-        self.assertEquals(all_freqs["freq"].iloc[0], 525)
+        self.assertEqual(all_freqs["freq"].iloc[0], 525)
 
     def test_get_outp_all_freqs(self):
         """Test that DevfreqOutPower get_all_freqs() work"""
@@ -47,4 +47,4 @@ class TestDevfreqPower(BaseTestThermal):
         all_freqs = trappy.FTrace().devfreq_out_power.get_all_freqs()
         self.assertTrue(isinstance(all_freqs, pd.DataFrame))
 
-        self.assertEquals(all_freqs["freq"].iloc[0], 525)
+        self.assertEqual(all_freqs["freq"].iloc[0], 525)

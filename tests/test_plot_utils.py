@@ -25,8 +25,8 @@ import plot_utils
 class TestPlotUtils(unittest.TestCase):
     def test_normalize_title(self):
         """Test normalize_title"""
-        self.assertEquals(plot_utils.normalize_title("Foo", ""), "Foo")
-        self.assertEquals(plot_utils.normalize_title("Foo", "Bar"), "Bar - Foo")
+        self.assertEqual(plot_utils.normalize_title("Foo", ""), "Foo")
+        self.assertEqual(plot_utils.normalize_title("Foo", "Bar"), "Bar - Foo")
 
     def test_set_lim(self):
         """Test set_lim()"""
@@ -46,16 +46,16 @@ class TestPlotUtils(unittest.TestCase):
         gs = GetSet()
 
         plot_utils.set_lim("default", gs.get, gs.set)
-        self.assertEquals(gs.min, 1)
-        self.assertEquals(gs.max, 2)
+        self.assertEqual(gs.min, 1)
+        self.assertEqual(gs.max, 2)
 
         plot_utils.set_lim("range", gs.get, gs.set)
-        self.assertEquals(gs.min, 0.9)
-        self.assertEquals(gs.max, 2.1)
+        self.assertEqual(gs.min, 0.9)
+        self.assertEqual(gs.max, 2.1)
 
         plot_utils.set_lim((0, 100), gs.get, gs.set)
-        self.assertEquals(gs.min, 0)
-        self.assertEquals(gs.max, 100)
+        self.assertEqual(gs.min, 0)
+        self.assertEqual(gs.max, 100)
 
     def test_set_ylim(self):
         """Test that set_ylim() doesn't bomb"""
@@ -81,12 +81,12 @@ class TestPlotUtils(unittest.TestCase):
         plot_utils.pre_plot_setup(3, 9)
 
         axis = plot_utils.pre_plot_setup(ncols=2)
-        self.assertEquals(len(axis), 2)
+        self.assertEqual(len(axis), 2)
 
         axis = plot_utils.pre_plot_setup(nrows=2, ncols=3)
-        self.assertEquals(len(axis), 2)
-        self.assertEquals(len(axis[0]), 3)
-        self.assertEquals(len(axis[1]), 3)
+        self.assertEqual(len(axis), 2)
+        self.assertEqual(len(axis[0]), 3)
+        self.assertEqual(len(axis[1]), 3)
 
     def test_post_plot_setup(self):
         """Test that post_plot_setup() doesn't bomb"""
@@ -119,7 +119,7 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
         trace_out = ""
 
         trace = trappy.FTrace()
-        self.assertEquals(plot_utils.number_freq_plots([trace], self.map_label),
+        self.assertEqual(plot_utils.number_freq_plots([trace], self.map_label),
                           3)
 
         # Strip out devfreq traces
@@ -134,7 +134,7 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
 
         # Without devfreq there should only be two plots
         trace = trappy.FTrace()
-        self.assertEquals(plot_utils.number_freq_plots([trace], self.map_label),
+        self.assertEqual(plot_utils.number_freq_plots([trace], self.map_label),
                           2)
 
     def test_plot_temperature(self):
