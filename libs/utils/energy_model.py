@@ -1025,14 +1025,13 @@ class EnergyModel(object):
                    root_power_domain=root_pd,
                    freq_domains=freq_domains)
 
-    @staticmethod
-    def save_em_yaml(em, yaml_path):
-        with open(yaml_path, "w") as f:
-            yaml.dump(em, f)
+    def to_disk(self, file_path):
+        with open(file_path, "w") as f:
+            yaml.dump(self, f)
 
-    @staticmethod
-    def load_em_yaml(yaml_path):
-        with open(yaml_path, "r") as f:
+    @classmethod
+    def from_disk(cls, file_path):
+        with open(file_path, "r") as f:
             return yaml.load(f)
 
     @classmethod
