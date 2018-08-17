@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 #    Copyright 2015-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +15,8 @@
 #
 
 
+from builtins import zip
+from builtins import str
 import pandas as pd
 import unittest
 
@@ -44,10 +47,10 @@ class TestConstraintManager(unittest.TestCase):
 
         self.assertEqual(len(c_mgr), 1)
 
-        constraint = iter(c_mgr).next()
+        constraint = next(iter(c_mgr))
         series = constraint.result[AttrConf.PIVOT_VAL]
-        self.assertEqual(series.to_dict().values(),
-                          dfr["load"].to_dict().values())
+        self.assertEqual(list(series.to_dict().values()),
+                          list(dfr["load"].to_dict().values()))
 
     def test_no_pivot_multiple_traces(self):
         """Test that the constraint manager works with multiple traces and no pivots"""
@@ -58,8 +61,8 @@ class TestConstraintManager(unittest.TestCase):
 
         for constraint, orig_dfr in zip(c_mgr, self.dfrs):
             series = constraint.result[AttrConf.PIVOT_VAL]
-            self.assertEqual(series.to_dict().values(),
-                              orig_dfr["load"].to_dict().values())
+            self.assertEqual(list(series.to_dict().values()),
+                              list(orig_dfr["load"].to_dict().values()))
 
     def test_no_pivot_zipped_columns_and_traces(self):
         """Test the constraint manager with multiple columns and traces zipped"""
@@ -70,8 +73,8 @@ class TestConstraintManager(unittest.TestCase):
 
         for constraint, orig_dfr, col in zip(c_mgr, self.dfrs, self.cols):
             series = constraint.result[AttrConf.PIVOT_VAL]
-            self.assertEqual(series.to_dict().values(),
-                              orig_dfr[col].to_dict().values())
+            self.assertEqual(list(series.to_dict().values()),
+                              list(orig_dfr[col].to_dict().values()))
 
     def test_no_pivot_multicolumns_multitraces(self):
         """Test the constraint manager with multiple traces that can have each multiple columns"""
@@ -98,12 +101,12 @@ class TestConstraintManager(unittest.TestCase):
         self.assertEqual(num_constraints, 2)
 
         constraint_iter = iter(c_mgr)
-        constraint = constraint_iter.next()
+        constraint = next(constraint_iter)
         self.assertEqual(len(constraint.result), 1)
 
-        constraint = constraint_iter.next()
+        constraint = next(constraint_iter)
         series_second_frame = constraint.result[AttrConf.PIVOT_VAL]
-        self.assertEqual(series_second_frame.to_dict().values(), [3, 2])
+        self.assertEqual(list(series_second_frame.to_dict().values()), [3, 2])
 
     def test_pivoted_data(self):
         """Test the constraint manager with a pivot and one trace"""
@@ -112,8 +115,8 @@ class TestConstraintManager(unittest.TestCase):
 
         self.assertEqual(len(c_mgr), 1)
 
-        constraint = iter(c_mgr).next()
-        results = dict([(k, v.to_dict().values()) for k, v in constraint.result.items()])
+        constraint = next(iter(c_mgr))
+        results = dict([(k, list(v.to_dict().values())) for k, v in list(constraint.result.items())])
         expected_results = {0: [1, 2], 1: [2, 3]}
 
         self.assertEqual(results, expected_results)
@@ -126,11 +129,11 @@ class TestConstraintManager(unittest.TestCase):
         self.assertEqual(len(c_mgr), 2)
 
         constraint_iter = iter(c_mgr)
-        constraint = constraint_iter.next()
-        self.assertEqual(constraint.result[0].to_dict().values(), [1, 2])
+        constraint = next(constraint_iter)
+        self.assertEqual(list(constraint.result[0].to_dict().values()), [1, 2])
 
-        constraint = constraint_iter.next()
-        self.assertEqual(constraint.result[1].to_dict().values(), [2, 2])
+        constraint = next(constraint_iter)
+        self.assertEqual(list(constraint.result[1].to_dict().values()), [2, 2])
 
     def test_pivoted_multitraces_multicolumns(self):
         """Test the constraint manager with multiple traces and columns"""
@@ -139,11 +142,11 @@ class TestConstraintManager(unittest.TestCase):
         self.assertEqual(len(c_mgr), 2)
 
         constraint_iter = iter(c_mgr)
-        constraint = constraint_iter.next()
-        self.assertEqual(constraint.result[1].to_dict().values(), [2, 3])
+        constraint = next(constraint_iter)
+        self.assertEqual(list(constraint.result[1].to_dict().values()), [2, 3])
 
-        constraint = constraint_iter.next()
-        self.assertEqual(constraint.result[0].to_dict().values(), [2, 1])
+        constraint = next(constraint_iter)
+        self.assertEqual(list(constraint.result[0].to_dict().values()), [2, 1])
 
     def test_pivoted_with_filters(self):
         """Test the constraint manager with pivoted data and filters"""
@@ -154,7 +157,7 @@ class TestConstraintManager(unittest.TestCase):
 
         self.assertEqual(len(c_mgr), 1)
 
-        constraint = iter(c_mgr).next()
+        constraint = next(iter(c_mgr))
         result = constraint.result
 
         self.assertEqual(result[0].iloc[0], 3)
@@ -165,7 +168,7 @@ class TestConstraintManager(unittest.TestCase):
         c_mgr = ConstraintManager(self.dfrs[0], "freq", None, AttrConf.PIVOT, {},
                                   window=(1, 3))
 
-        constraint = iter(c_mgr).next()
+        constraint = next(iter(c_mgr))
         series = constraint.result[AttrConf.PIVOT_VAL]
         self.assertEqual(len(series), 3)
 
@@ -174,14 +177,14 @@ class TestConstraintManager(unittest.TestCase):
         c_mgr = ConstraintManager(self.dfrs[0], "freq", None, AttrConf.PIVOT, {},
                                   window=(0.75, 1.5))
 
-        constraint = iter(c_mgr).next()
+        constraint = next(iter(c_mgr))
         series = constraint.result[AttrConf.PIVOT_VAL]
         self.assertEqual(series.index.tolist(), [0, 1, 2])
 
         c_mgr = ConstraintManager(self.dfrs[0], "freq", None, AttrConf.PIVOT, {},
                                   window=(0, 2))
 
-        constraint = iter(c_mgr).next()
+        constraint = next(iter(c_mgr))
         series = constraint.result[AttrConf.PIVOT_VAL]
         self.assertEqual(len(series), 3)
 

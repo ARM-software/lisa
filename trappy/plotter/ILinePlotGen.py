@@ -19,7 +19,14 @@ plotting. The Linear to 2-D co-ordination transformations
 are done by using the functionality in
 :mod:`trappy.plotter.PlotLayout`
 """
+from __future__ import division
+from __future__ import unicode_literals
 
+from builtins import zip
+from builtins import str
+from builtins import range
+from builtins import object
+from past.utils import old_div
 from trappy.plotter import AttrConf
 import uuid
 from collections import OrderedDict
@@ -186,7 +193,7 @@ class ILinePlotGen(object):
 
         if self.num_plots < self._attr["per_line"]:
             self._attr["per_line"] = self.num_plots
-        self._rows = (self.num_plots / self._attr["per_line"])
+        self._rows = (old_div(self.num_plots, self._attr["per_line"]))
 
         if self.num_plots % self._attr["per_line"] != 0:
             self._rows += 1
@@ -220,7 +227,7 @@ class ILinePlotGen(object):
         :type title: str
         """
 
-        datapoints = sum(len(v) for _, v in data_frame.iteritems())
+        datapoints = sum(len(v) for _, v in iter(data_frame.items()))
         if datapoints > self._attr["max_datapoints"]:
             msg = "This plot is too big and will probably make your browser unresponsive.  If you are happy to wait, pass max_datapoints={} to view()".\
                   format(datapoints + 1)

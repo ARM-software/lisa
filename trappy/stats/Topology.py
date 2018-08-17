@@ -29,7 +29,9 @@ as a group. For example:
     +--------+---------------------------------------+
 
 """
+from __future__ import unicode_literals
 
+from builtins import object
 class Topology(object):
     """Topology object allows grouping of
     pivot values (called nodes) at multiple levels.

@@ -18,7 +18,9 @@
 Definitions of filesystem (ext4) trace parsers
 registered by the FTrace class
 """
+from __future__ import unicode_literals
 
+from builtins import zip
 from trappy.base import Base
 from trappy.dynamic import register_ftrace_parser, register_dynamic_ftrace
 
@@ -27,7 +29,7 @@ class FilesystemExt4Base(Base):
         #filesystem traces are space delimited in the form:
         #fieldA valueA fieldB valueB ...
         data = data_str.split(' ')
-        return zip(data[0::2], data[1::2])
+        return list(zip(data[0::2], data[1::2]))
 
     def finalize_object(self):
         self.data_frame.rename(columns={'ino':'inode'}, inplace=True)

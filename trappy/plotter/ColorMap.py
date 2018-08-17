@@ -14,6 +14,11 @@
 #
 
 """Defines a generic indexable ColorMap Class"""
+from __future__ import division
+from __future__ import unicode_literals
+from builtins import str
+from builtins import object
+from past.utils import old_div
 import matplotlib.colors as clrs
 import matplotlib.cm as cmx
 from matplotlib.colors import ListedColormap, Normalize
@@ -72,7 +77,7 @@ class ColorMap(object):
         :type rgb_list: list of tuples
         """
 
-        rgb_list = [[x / 255.0 for x in rgb[:3]] for rgb in rgb_list]
+        rgb_list = [[old_div(x, 255.0) for x in rgb[:3]] for rgb in rgb_list]
 
         rgb_map = ListedColormap(rgb_list, name='default_color_map', N=None)
         num_colors = len(rgb_list)

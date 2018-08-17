@@ -17,6 +17,7 @@
 This class sublclasses :mod:`trappy.plotter.StaticPlot.StaticPlot` to
 implement a line plot.
 """
+from __future__ import unicode_literals
 
 from trappy.plotter import AttrConf
 from trappy.plotter.StaticPlot import StaticPlot

@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 """Base matplotlib plotter module"""
+from __future__ import unicode_literals
+from builtins import str
 from abc import abstractmethod, ABCMeta
 from collections import defaultdict as ddict
 import matplotlib.pyplot as plt
@@ -21,10 +23,11 @@ from trappy.plotter.Constraint import ConstraintManager
 from trappy.plotter.PlotLayout import PlotLayout
 from trappy.plotter.AbstractDataPlotter import AbstractDataPlotter
 from trappy.plotter.ColorMap import ColorMap
+from future.utils import with_metaclass
 
 
 
-class StaticPlot(AbstractDataPlotter):
+class StaticPlot(with_metaclass(ABCMeta, AbstractDataPlotter)):
     """
     This class uses :mod:`trappy.plotter.Constraint.Constraint` to
     represent different permutations of input parameters. These
@@ -109,7 +112,6 @@ class StaticPlot(AbstractDataPlotter):
         number of columns in the legend
     :type legend_ncol: int
     """
-    __metaclass__ = ABCMeta
 
     def __init__(self, traces, templates, **kwargs):
         self._fig = None
@@ -237,7 +239,7 @@ class StaticPlot(AbstractDataPlotter):
             legend_len = self.c_mgr._max_len
             pivots = [y for _, y in pivot_vals]
             c_dict = {c : str(c) for c in self.c_mgr}
-            c_list = sorted(c_dict.items(), key=lambda x: (x[1].split(":")[-1], x[1].split(":")[0]))
+            c_list = sorted(list(c_dict.items()), key=lambda x: (x[1].split(":")[-1], x[1].split(":")[0]))
             constraints = [c[0] for c in c_list]
             cp_pairs = [(c, p) for c in constraints for p in sorted(set(pivots))]
         else:
@@ -261,7 +263,7 @@ class StaticPlot(AbstractDataPlotter):
             figure_data[axis].append((constraint, pivot))
 
         # Plot each axis
-        for axis, series_list in figure_data.iteritems():
+        for axis, series_list in figure_data.items():
             self.plot_axis(
                 axis,
                 series_list,

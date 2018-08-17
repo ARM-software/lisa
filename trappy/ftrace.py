@@ -1,3 +1,5 @@
+from __future__ import division
+from __future__ import unicode_literals
 #    Copyright 2015-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +19,10 @@
 # pylint can't see any of the dynamically allocated classes of FTrace
 # pylint: disable=no-member
 
+from builtins import zip
+from builtins import next
+from builtins import str
+from past.utils import old_div
 import itertools
 import json
 import os
@@ -75,16 +81,16 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                  events=[], window=(0, None), abs_window=(0, None)):
         super(GenericFTrace, self).__init__(name)
 
-        self.class_definitions.update(self.dynamic_classes.items())
+        self.class_definitions.update(list(self.dynamic_classes.items()))
         self.__add_events(listify(events))
 
         if scope == "thermal":
-            self.class_definitions.update(self.thermal_classes.items())
+            self.class_definitions.update(list(self.thermal_classes.items()))
         elif scope == "sched":
-            self.class_definitions.update(self.sched_classes.items())
+            self.class_definitions.update(list(self.sched_classes.items()))
         elif scope != "custom":
-            self.class_definitions.update(self.thermal_classes.items() +
-                                          self.sched_classes.items())
+            self.class_definitions.update(list(self.thermal_classes.items()) +
+                                          list(self.sched_classes.items()))
 
         # Sanity check on the unique words
         for cls1, cls2 in itertools.combinations(self.class_definitions.values(), 2):
@@ -93,7 +99,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                 raise RuntimeError('Events unique words must not be a substring of the unique word of another event: "{cls1.unique_word}" {cls1} and "{cls2.unique_word}" {cls2}'.format(
                     cls1=cls1, cls2=cls2))
 
-        for attr, class_def in self.class_definitions.iteritems():
+        for attr, class_def in self.class_definitions.items():
             trace_class = class_def()
             setattr(self, attr, trace_class)
             self.trace_classes.append(trace_class)
@@ -139,7 +145,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         # TODO: scopes should not be hardcoded (nor here nor in the FTrace object)
         all_scopes = [cls.thermal_classes, cls.sched_classes,
                       cls.dynamic_classes]
-        known_events = ((n, c, sc) for sc in all_scopes for n, c in sc.items())
+        known_events = ((n, c, sc) for sc in all_scopes for n, c in list(sc.items()))
 
         for name, obj, scope_classes in known_events:
             if cobject == obj:
@@ -201,7 +207,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
     def _is_cache_valid(self, cache_metadata):
         for key in ["md5sum", "basetime"]:
-            if key not in cache_metadata.keys():
+            if key not in list(cache_metadata.keys()):
                 warnstr = "Cache metadata is erroneous, invalidating cache"
                 warnings.warn(warnstr)
                 return False
@@ -347,10 +353,10 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         # TODO: scopes should not be hardcoded (nor here nor in the FTrace object)
         all_scopes = [self.thermal_classes, self.sched_classes,
                       self.dynamic_classes]
-        known_events = {k: v for sc in all_scopes for k, v in sc.iteritems()}
+        known_events = {k: v for sc in all_scopes for k, v in iter(sc.items())}
 
         for event_name in events:
-            for cls in known_events.itervalues():
+            for cls in known_events.values():
                 if (event_name == cls.unique_word) or \
                    (event_name + ":" == cls.unique_word) or \
                    (event_name == cls.name):
@@ -367,7 +373,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
     def __get_trace_class(self, line, cls_word):
         trace_class = None
-        for unique_word, cls in cls_word.iteritems():
+        for unique_word, cls in cls_word.items():
             if unique_word in line:
                 trace_class = cls
                 if not cls.fallback:
@@ -453,7 +459,7 @@ is part of the trace.
 
         # Memoize the unique words to speed up parsing the trace file
         cls_for_unique_word = {}
-        for trace_name in self.class_definitions.iterkeys():
+        for trace_name in self.class_definitions.keys():
             trace_class = getattr(self, trace_name)
             if trace_class.cached:
                 continue
@@ -482,7 +488,7 @@ is part of the trace.
     def __getattr__(self, attr):
         """Raises useful exception when trying to access deprecated
         attributes."""
-        for name, cls in self.class_definitions.iteritems():
+        for name, cls in self.class_definitions.items():
             # We used to have a bug where when you had a known event whose
             # 'name' attribute != its 'unique_word', and you specified it
             # explicitly in the 'events' param, we had two attributes - one for
@@ -515,7 +521,7 @@ is part of the trace.
         cpu_out_freqs = self.cpu_out_power.get_all_freqs(map_label)
 
         ret = []
-        for label in map_label.values():
+        for label in list(map_label.values()):
             in_label = label + "_freq_in"
             out_label = label + "_freq_out"
 
@@ -556,10 +562,10 @@ is part of the trace.
             "sched_wakeup": callback_fn2
         })
         """
-        dfs = {event: getattr(self, event).data_frame for event in fn_map.keys()}
-        events = [event for event in fn_map.keys() if not dfs[event].empty]
+        dfs = {event: getattr(self, event).data_frame for event in list(fn_map.keys())}
+        events = [event for event in list(fn_map.keys()) if not dfs[event].empty]
         iters = {event: dfs[event].itertuples() for event in events}
-        next_rows = {event: iterator.next() for event,iterator in iters.iteritems()}
+        next_rows = {event: next(iterator) for event,iterator in iter(iters.items())}
 
         # Column names beginning with underscore will not be preserved in tuples
         # due to constraints on namedtuple field names, so store mappings from
@@ -579,7 +585,7 @@ is part of the trace.
             event_tuple = next_rows[event_name]
 
             event_dict = {
-                col: event_tuple[idx] for col, idx in col_idxs[event_name].iteritems()
+                col: event_tuple[idx] for col, idx in iter(col_idxs[event_name].items())
             }
             fn_map[event_name](event_dict)
             event_row = next(iters[event_name], None)
@@ -596,7 +602,7 @@ is part of the trace.
 
         """
 
-        in_base_idx = len(ax) / 2
+        in_base_idx = old_div(len(ax), 2)
 
         try:
             devfreq_out_all_freqs = self.devfreq_out_power.get_all_freqs()
@@ -888,7 +894,7 @@ class FTrace(GenericFTrace):
         self.raw_events = []
         # Generate list of events which need to be parsed in raw format
         for event_class in (self.thermal_classes, self.sched_classes, self.dynamic_classes):
-            for trace_class in event_class.itervalues():
+            for trace_class in event_class.values():
                 raw = getattr(trace_class, 'parse_raw', None)
                 if raw:
                     name = getattr(trace_class, 'name', None)
@@ -922,5 +928,5 @@ class FTrace(GenericFTrace):
     def __populate_trace_metadata(self, metadata):
         self.metadata = metadata
 
-        for key, value in metadata.iteritems():
+        for key, value in metadata.items():
             setattr(self, "_" + key, value)

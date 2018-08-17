@@ -17,7 +17,10 @@
 "pretty" table
 
 """
+from __future__ import division
+from __future__ import unicode_literals
 
+from past.utils import old_div
 import os
 import collections, csv, re
 import pandas as pd
@@ -42,7 +45,7 @@ class Result(pd.DataFrame):
         data_max = max(concat_data)
 
         # A good margin can be 10% of the data range
-        margin = (data_max - data_min) / 10
+        margin = old_div((data_max - data_min), 10)
         if margin < 1:
             margin = 1
 
@@ -140,11 +143,11 @@ def get_results(path=".", name=None):
                     bench_dict[bench] = {run_id: {run_number: result}}
 
     bench_dfrs = {}
-    for bench, run_id_dict in bench_dict.iteritems():
+    for bench, run_id_dict in bench_dict.items():
         bench_dfrs[bench] = pd.DataFrame(run_id_dict)
 
-    return Result(pd.concat(bench_dfrs.values(), axis=1,
-                            keys=bench_dfrs.keys()))
+    return Result(pd.concat(list(bench_dfrs.values()), axis=1,
+                            keys=list(bench_dfrs.keys())))
 
 def combine_results(data):
     """Combine two DataFrame results into one
@@ -161,6 +164,6 @@ def combine_results(data):
         concat_objs = [d[benchmark] for d in data]
         res_dict[benchmark] = pd.concat(concat_objs, axis=1)
 
-    combined = pd.concat(res_dict.values(), axis=1, keys=res_dict.keys())
+    combined = pd.concat(list(res_dict.values()), axis=1, keys=list(res_dict.keys()))
 
     return Result(combined)

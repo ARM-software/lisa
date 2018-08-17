@@ -16,6 +16,7 @@
 """Utils module has generic utils that will be used across
 objects
 """
+from __future__ import unicode_literals
 import collections
 import warnings
 from trappy.utils import listify

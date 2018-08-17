@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 #    Copyright 2015-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -78,7 +79,7 @@ class TestDynamicEvents(BaseTestSched):
 	"""
         cls = trappy.register_dynamic_ftrace("DynamicEvent", "dynamic_test_key")
         t1 = trappy.FTrace(name="first")
-	self.assertTrue(t1.class_definitions.has_key(cls.name))
+	self.assertTrue(cls.name in t1.class_definitions)
 
         trappy.unregister_dynamic_ftrace(cls)
 

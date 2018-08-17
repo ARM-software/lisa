@@ -14,20 +14,21 @@
 #
 
 """This is the template class that all Plotters inherit"""
+from __future__ import unicode_literals
+from builtins import object
 from abc import abstractmethod, ABCMeta
 from pandas import DataFrame
 import re
 from trappy.utils import listify
 from functools import reduce
+from future.utils import with_metaclass
 # pylint: disable=R0921
 # pylint: disable=R0903
 
 
-class AbstractDataPlotter(object):
+class AbstractDataPlotter(with_metaclass(ABCMeta, object)):
     """This is an abstract data plotting Class defining an interface
        for the various Plotting Classes"""
-
-    __metaclass__ = ABCMeta
 
     def __init__(self, traces=None, attr=None, templates=None):
         self._event_map = {}
@@ -55,7 +56,7 @@ class AbstractDataPlotter(object):
         data = listify(self.traces)
 
         if len(data):
-            mask = map(lambda x: isinstance(x, DataFrame), data)
+            mask = [isinstance(x, DataFrame) for x in data]
             data_frame = reduce(lambda x, y: x and y, mask)
             sig_or_template = self.templates or "signals" in self._attr
 

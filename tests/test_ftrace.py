@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 #    Copyright 2015-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +15,7 @@
 #
 
 
+from builtins import str
 import matplotlib
 import os
 import pandas as pd
@@ -38,7 +40,7 @@ class TestFTrace(BaseTestThermal):
 
         trace = trappy.FTrace()
 
-        for attr in trace.class_definitions.iterkeys():
+        for attr in trace.class_definitions.keys():
             self.assertTrue(hasattr(trace, attr))
 
     def test_ftrace_has_all_classes_scope_all(self):
@@ -46,7 +48,7 @@ class TestFTrace(BaseTestThermal):
 
         trace = trappy.FTrace(scope="all")
 
-        for attr in trace.class_definitions.iterkeys():
+        for attr in trace.class_definitions.keys():
             self.assertTrue(hasattr(trace, attr))
 
     def test_ftrace_has_all_classes_scope_thermal(self):
@@ -54,10 +56,10 @@ class TestFTrace(BaseTestThermal):
 
         trace = trappy.FTrace(scope="thermal")
 
-        for attr in trace.thermal_classes.iterkeys():
+        for attr in trace.thermal_classes.keys():
             self.assertTrue(hasattr(trace, attr))
 
-        for attr in trace.sched_classes.iterkeys():
+        for attr in trace.sched_classes.keys():
             self.assertFalse(hasattr(trace, attr))
 
     def test_ftrace_has_all_classes_scope_sched(self):
@@ -65,10 +67,10 @@ class TestFTrace(BaseTestThermal):
 
         trace = trappy.FTrace(scope="sched")
 
-        for attr in trace.thermal_classes.iterkeys():
+        for attr in trace.thermal_classes.keys():
             self.assertFalse(hasattr(trace, attr))
 
-        for attr in trace.sched_classes.iterkeys():
+        for attr in trace.sched_classes.keys():
             self.assertTrue(hasattr(trace, attr))
 
     def test_ftrace_has_no_classes_scope_dynamic(self):
@@ -76,10 +78,10 @@ class TestFTrace(BaseTestThermal):
 
         trace = trappy.FTrace(scope="custom")
 
-        for attr in trace.thermal_classes.iterkeys():
+        for attr in trace.thermal_classes.keys():
             self.assertFalse(hasattr(trace, attr))
 
-        for attr in trace.sched_classes.iterkeys():
+        for attr in trace.sched_classes.keys():
             self.assertFalse(hasattr(trace, attr))
 
         ftrace_parser = trappy.register_dynamic_ftrace("ADynamicEvent",
@@ -333,7 +335,7 @@ class TestFTrace(BaseTestThermal):
         expected_metadata["cpus"] = "6"
 
         trace = trappy.FTrace()
-        for key, value in expected_metadata.items():
+        for key, value in list(expected_metadata.items()):
             self.assertTrue(hasattr(trace, "_" + key))
             self.assertEqual(getattr(trace, "_" + key), value)
 

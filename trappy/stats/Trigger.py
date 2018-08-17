@@ -23,7 +23,10 @@
         - value based
         - function based
 """
+from __future__ import unicode_literals
 
+from builtins import range
+from builtins import object
 import types
 from trappy.utils import listify
 import pandas as pd
@@ -91,7 +94,7 @@ class Trigger(object):
 
         mask = [True for _ in range(len(data_frame))]
 
-        for key, value in self._filters.iteritems():
+        for key, value in self._filters.items():
             if hasattr(value, "__call__"):
                 mask = mask & (data_frame[key].apply(value))
             else:

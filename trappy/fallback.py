@@ -18,6 +18,7 @@ This module contains the class for representing fallback events used for ftrace
 events injected from userspace, which are free-form and could contain any
 string.
 """
+from __future__ import unicode_literals
 
 from trappy.base import Base
 from trappy.dynamic import register_ftrace_parser

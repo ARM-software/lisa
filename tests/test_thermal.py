@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 #    Copyright 2015-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +15,7 @@
 #
 
 
+from builtins import zip
 import unittest
 import matplotlib
 import os
@@ -109,7 +111,7 @@ class TestThermalGovernor(BaseTestThermal):
         """plot_weighted_input_power() doesn't bomb"""
 
         gov = trappy.FTrace().thermal_governor
-        weights = zip(self.actor_order, [1024, 256, 512])
+        weights = list(zip(self.actor_order, [1024, 256, 512]))
 
         _, ax = matplotlib.pyplot.subplots()
         gov.plot_weighted_input_power(weights, ax=ax)

@@ -15,6 +15,7 @@
 
 """Process the output of the power allocator's PID controller in the
 current directory's trace.dat"""
+from __future__ import unicode_literals
 
 from trappy.base import Base
 from trappy.dynamic import register_ftrace_parser

@@ -15,7 +15,10 @@
 
 """Process the output of the cpu_cooling devices in the current
 directory's trace.dat"""
+from __future__ import division
+from __future__ import unicode_literals
 
+from past.utils import old_div
 import pandas as pd
 
 from trappy.base import Base
@@ -75,7 +78,7 @@ def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
         try:
             label = mapping_label[col]
         except KeyError:
-            available_keys = ", ".join(mapping_label.keys())
+            available_keys = ", ".join(list(mapping_label.keys()))
             error_str = '"{}" not found, available keys: {}'.format(col,
                                                                  available_keys)
             raise KeyError(error_str)
@@ -118,7 +121,7 @@ class CpuOutPower(Base):
 
         dfr = self.data_frame
 
-        return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
+        return old_div(pivot_with_labels(dfr, "freq", "cpus", mapping_label), 1000)
 
 register_ftrace_parser(CpuOutPower, "thermal")
 
@@ -177,7 +180,7 @@ class CpuInPower(Base):
             num_cpus = num_cpus_in_mask(cpumask)
             idx = dfr["cpus"] == cpumask
             max_freq = max(dfr[idx]["freq"])
-            load_series[idx] = load_series[idx] / (max_freq * num_cpus)
+            load_series[idx] = old_div(load_series[idx], (max_freq * num_cpus))
 
         load_dfr = pd.DataFrame({"cpus": dfr["cpus"], "load": load_series})
 
@@ -193,6 +196,6 @@ class CpuInPower(Base):
 
         dfr = self.data_frame
 
-        return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
+        return old_div(pivot_with_labels(dfr, "freq", "cpus", mapping_label), 1000)
 
 register_ftrace_parser(CpuInPower, "thermal")

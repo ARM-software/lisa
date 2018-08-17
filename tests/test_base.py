@@ -1,3 +1,5 @@
+from __future__ import division
+from __future__ import unicode_literals
 #    Copyright 2015-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +16,8 @@
 #
 
 
+from builtins import str
+from past.utils import old_div
 import os
 import sys
 import unittest
@@ -105,21 +109,21 @@ class TestBase(utils_tests.SetupDirectory):
 
         events = {
                 # Trace events using [global] clock format ([us] resolution)
-                1001.456789 : { 'task': 'rcu_preempt',       'pid': 1123, 'cpu': 001 },
-                1002.456789 : { 'task': 'rs:main',           'pid': 2123, 'cpu': 002 },
-                1003.456789 : { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 003 },
-                1004.456789 : { 'task': 'kworker/1:1H',      'pid': 4123, 'cpu': 004 },
-                1005.456789 : { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 005 },
-                1006.456789 : { 'task': 'IntentService[',    'pid': 6123, 'cpu': 005 },
+                1001.456789 : { 'task': 'rcu_preempt',       'pid': 1123, 'cpu': 1 },
+                1002.456789 : { 'task': 'rs:main',           'pid': 2123, 'cpu': 2 },
+                1003.456789 : { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 3 },
+                1004.456789 : { 'task': 'kworker/1:1H',      'pid': 4123, 'cpu': 4 },
+                1005.456789 : { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 5 },
+                1006.456789 : { 'task': 'IntentService[',    'pid': 6123, 'cpu': 5 },
                 1006.456789 : { 'task': r'/system/bin/.s$_?.u- \a]}c\./ef[.12]*[[l]in]ger',
                                 'pid': 1234, 'cpu': 666 },
                 # Trace events using [boot] clock format ([ns] resolution)
-                1011456789000: { 'task': 'rcu_preempt',       'pid': 1123, 'cpu': 001 },
-                1012456789000: { 'task': 'rs:main',           'pid': 2123, 'cpu': 002 },
-                1013456789000: { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 003 },
-                1014456789000: { 'task': 'kworker/1:1H',      'pid': 4123, 'cpu': 004 },
-                1015456789000: { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 005 },
-                1016456789000: { 'task': 'IntentService[',    'pid': 6123, 'cpu': 005 },
+                1011456789000: { 'task': 'rcu_preempt',       'pid': 1123, 'cpu': 1 },
+                1012456789000: { 'task': 'rs:main',           'pid': 2123, 'cpu': 2 },
+                1013456789000: { 'task': 'AsyncTask #1',      'pid': 3123, 'cpu': 3 },
+                1014456789000: { 'task': 'kworker/1:1H',      'pid': 4123, 'cpu': 4 },
+                1015456789000: { 'task': 'jbd2/sda2-8',       'pid': 5123, 'cpu': 5 },
+                1016456789000: { 'task': 'IntentService[',    'pid': 6123, 'cpu': 5 },
                 1016456789000: { 'task': r'/system/bin/.s$_?.u- \a]}c\./ef[.12]*[[l]in]ger',
                                 'pid': 1234, 'cpu': 666 },
         }
@@ -145,9 +149,9 @@ class TestBase(utils_tests.SetupDirectory):
 
         self.assertEqual(set(dfr.columns), expected_columns)
 
-        for timestamp, event in events.iteritems():
+        for timestamp, event in events.items():
             if type(timestamp) == int:
-                timestamp = float(timestamp) / 1e9
+                timestamp = old_div(float(timestamp), 1e9)
             self.assertEqual(dfr["__comm"].loc[timestamp], event['task'])
             self.assertEqual(dfr["__pid"].loc[timestamp],  event['pid'])
             self.assertEqual(dfr["__cpu"].loc[timestamp],  event['cpu'])
@@ -199,7 +203,7 @@ class TestBase(utils_tests.SetupDirectory):
             self.assertTrue("Time" in csv_reader.fieldnames)
             self.assertTrue("temp" in csv_reader.fieldnames)
 
-            first_data = csv_reader.next()
+            first_data = next(csv_reader)
             self.assertEqual(first_data["Time"], "0.0")
             self.assertEqual(first_data["temp"], "68786")
 

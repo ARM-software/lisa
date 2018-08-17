@@ -16,6 +16,7 @@
 """HTML Exporter for TRAPPY plotter data. This allows
 * Custom Preprocessing
 """
+from __future__ import unicode_literals
 
 try:
     from trappy.nbexport.exporter import HTML

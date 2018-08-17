@@ -16,7 +16,10 @@
 """IPythonConf provides abstraction for the varying configurations in
 different versions of ipython/jupyter packages.
 """
-import urllib
+from __future__ import unicode_literals
+from future import standard_library
+standard_library.install_aliases()
+import urllib.request, urllib.parse, urllib.error
 import os
 import shutil
 from distutils.version import StrictVersion as V
@@ -59,7 +62,7 @@ def install_http_resource(url, to_path):
     :type to_path: str
     """
     try:
-        urllib.urlretrieve(url, filename=to_path)
+        urllib.request.urlretrieve(url, filename=to_path)
     except IOError:
         raise ImportError("Could not receive Web Resource {}"
                           .format(to_path))

@@ -14,18 +14,20 @@
 #
 
 """Init Module for the Plotter Code"""
+from __future__ import absolute_import
+from __future__ import unicode_literals
 
 
 import pandas as pd
-import LinePlot
-import AttrConf
+from . import LinePlot
+from . import AttrConf
 try:
     import trappy.plotter.EventPlot
 except ImportError:
     pass
-import Utils
+from . import Utils
 import trappy
-import IPythonConf
+from . import IPythonConf
 
 def register_forwarding_arg(arg_name):
     """Allows the user to register args to

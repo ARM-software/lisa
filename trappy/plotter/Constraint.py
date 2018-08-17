@@ -26,7 +26,12 @@ The underlying object that encapsulates a unique set of
 a data column, data event and the requisite filters is
 :mod:`trappy.plotter.Constraint.Constraint`
 """
+from __future__ import unicode_literals
 # pylint: disable=R0913
+from builtins import map
+from builtins import str
+from builtins import range
+from builtins import object
 from trappy.plotter.Utils import decolonize, normalize_list
 from trappy.utils import listify
 from trappy.plotter import AttrConf
@@ -129,7 +134,7 @@ class Constraint(object):
         for pivot_val in pivot_vals:
             criterion = values.map(lambda x: True)
 
-            for key in self._filters.keys():
+            for key in list(self._filters.keys()):
                 if key != self._pivot and key in data.columns:
                     criterion = criterion & data[key].map(
                         lambda x: x in self._filters[key])
@@ -240,7 +245,7 @@ class ConstraintManager(object):
         self._ip_vec.append(listify(columns))
         self._ip_vec.append(listify(templates))
 
-        self._lens = map(len, self._ip_vec)
+        self._lens = list(map(len, self._ip_vec))
         self._max_len = max(self._lens)
         self._pivot = pivot
         self._filters = filters
@@ -352,10 +357,10 @@ class ConstraintManager(object):
         """
         pivot_vals = []
         for constraint in self._constraints:
-            pivot_vals += constraint.result.keys()
+            pivot_vals += list(constraint.result.keys())
 
         p_list = list(set(pivot_vals))
-        traces = range(self._lens[0])
+        traces = list(range(self._lens[0]))
 
         try:
             sorted_plist = sorted(p_list, key=int)
@@ -377,7 +382,7 @@ class ConstraintManager(object):
             set of Constraints
 
         """
-        return map(str, self._constraints)
+        return list(map(str, self._constraints))
 
     def __len__(self):
         return len(self._constraints)

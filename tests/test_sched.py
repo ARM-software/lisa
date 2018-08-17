@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 #    Copyright 2015-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -174,5 +175,5 @@ class TestNoSchedTraces(utils_tests.SetupDirectory):
 
         trace = trappy.FTrace()
 
-        for attr in trace.sched_classes.iterkeys():
+        for attr in trace.sched_classes.keys():
             self.assertTrue(len(getattr(trace, attr).data_frame) == 0)

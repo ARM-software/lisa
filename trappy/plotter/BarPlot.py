@@ -17,6 +17,10 @@ This class sublclasses :mod:`trappy.plotter.StaticPlot.StaticPlot` to
 implement a bar plot.
 
 """
+from __future__ import division
+from __future__ import unicode_literals
+from builtins import zip
+from past.utils import old_div
 import numpy as np
 from trappy.plotter.StaticPlot import StaticPlot
 
@@ -90,7 +94,7 @@ class BarPlot(StaticPlot):
 
         #Get the width of a group
         group_width = 1.0 - self._attr["spacing"]
-        bar_width = group_width / bars_in_group
+        bar_width = old_div(group_width, bars_in_group)
 
         #Keep a list of the tops of bars to plot stacks
         #Start with a list of 0s to put the first bars at the bottom

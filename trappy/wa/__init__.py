@@ -21,6 +21,7 @@ please visit https://github.com/ARM-software/workload-automation
 
     TRAPpy does not have a dependency on workload automation
 """
+from __future__ import unicode_literals
 
 from trappy.wa.results import Result, get_results, combine_results
 from trappy.wa.sysfs_extractor import SysfsExtractor

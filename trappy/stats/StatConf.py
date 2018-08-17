@@ -14,6 +14,7 @@
 #
 
 """Config Parameters for the Statistics Framework"""
+from __future__ import unicode_literals
 
 # Default interval between a uniform time series
 DELTA_DEFAULT = 0.000025

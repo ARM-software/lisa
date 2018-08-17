@@ -14,9 +14,13 @@
 #
 
 """Small functions to help with plots"""
+from __future__ import division
+from __future__ import unicode_literals
 
 # pylint disable=star-args
 
+from builtins import zip
+from past.utils import old_div
 from matplotlib import pyplot as plt
 import os
 import re
@@ -85,7 +89,7 @@ def pre_plot_setup(width=None, height=None, ncols=1, nrows=1):
             height = 6
             width = 10
         else:
-            height = width / GOLDEN_RATIO
+            height = old_div(width, GOLDEN_RATIO)
     else:
         if width is None:
             width = height * GOLDEN_RATIO
@@ -160,7 +164,7 @@ def plot_temperature(runs, width=None, height=None, ylim="range", tz_id=None):
         try:
             current_temp = gov_dfr["current_temperature"]
             delta_temp = gov_dfr["delta_temperature"]
-            control_series = (current_temp + delta_temp) / 1000
+            control_series = old_div((current_temp + delta_temp), 1000)
         except KeyError:
             control_series = None
 
@@ -194,7 +198,7 @@ def plot_load(runs, map_label, width=None, height=None):
     if num_runs == 1:
         axis = [axis]
     else:
-        axis = zip(*axis)
+        axis = list(zip(*axis))
 
     for ax, run in zip(axis, runs):
         run.plot_load(map_label, title=run.name, ax=ax[0])
@@ -216,7 +220,7 @@ def plot_allfreqs(runs, map_label, width=None, height=None):
     elif nrows == 1:
         axis = [[ax] for ax in axis]
     else:
-        axis = zip(*axis)
+        axis = list(zip(*axis))
 
     for ax, run in zip(axis, runs):
         run.plot_allfreqs(map_label, ax=ax)
@@ -247,7 +251,7 @@ def plot_weighted_input_power(runs, actor_order, width=None, height=None):
             if re.match(r"cdev\d+_weight", param):
                 sorted_weights.append(thermal_params[param])
 
-        actor_weights.append(zip(actor_order, sorted_weights))
+        actor_weights.append(list(zip(actor_order, sorted_weights)))
 
     # Do nothing if we don't have actor weights for any run
     if not any(actor_weights):
@@ -298,7 +302,7 @@ def plot_freq_hists(runs, map_label):
     if num_runs == 1:
         axis = [axis]
     else:
-        axis = zip(*axis)
+        axis = list(zip(*axis))
 
     for ax, run in zip(axis, runs):
         run.plot_freq_hists(map_label, ax=ax)

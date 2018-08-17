@@ -15,7 +15,11 @@
 
 """Process the output of the power allocator trace in the current
 directory's trace.dat"""
+from __future__ import division
+from __future__ import unicode_literals
 
+from builtins import zip
+from past.utils import old_div
 from collections import OrderedDict
 import pandas as pd
 import re
@@ -88,7 +92,7 @@ class Thermal(Base):
             setup_plot = True
 
         temp_label = normalize_title("Temperature", legend_label)
-        (thermal_dfr["temp"] / 1000).plot(ax=ax, label=temp_label)
+        (old_div(thermal_dfr["temp"], 1000)).plot(ax=ax, label=temp_label)
         if control_temperature is not None:
             ct_label = normalize_title("Control", legend_label)
             control_temperature.plot(ax=ax, color="y", linestyle="--",
@@ -109,7 +113,7 @@ class Thermal(Base):
         """
         from trappy.plot_utils import normalize_title, plot_hist
 
-        temps = self.data_frame["temp"] / 1000
+        temps = old_div(self.data_frame["temp"], 1000)
         title = normalize_title("Temperature", title)
         xlim = (0, temps.max())
 
@@ -138,7 +142,7 @@ class ThermalGovernor(Base):
 
         dfr = self.data_frame
         curr_temp = dfr["current_temperature"]
-        control_temp_series = (curr_temp + dfr["delta_temperature"]) / 1000
+        control_temp_series = old_div((curr_temp + dfr["delta_temperature"]), 1000)
         title = normalize_title("Temperature", title)
 
         setup_plot = False
@@ -147,7 +151,7 @@ class ThermalGovernor(Base):
             setup_plot = True
 
         temp_label = normalize_title("Temperature", legend_label)
-        (curr_temp / 1000).plot(ax=ax, label=temp_label)
+        (old_div(curr_temp, 1000)).plot(ax=ax, label=temp_label)
         control_temp_series.plot(ax=ax, color="y", linestyle="--",
                                  label="control temperature")
 

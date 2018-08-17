@@ -19,6 +19,7 @@
 The static data is published as an anonymous gist. GitHub does not
 allow easy deletions of anonymous gists.
 """
+from __future__ import unicode_literals
 
 import os
 import argparse

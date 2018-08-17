@@ -18,6 +18,7 @@
 Definitions of common_clk (CONFIG_COMMON_CLK) trace parsers
 registered by the FTrace class
 """
+from __future__ import unicode_literals
 
 from trappy.base import Base
 from trappy.dynamic import register_ftrace_parser, register_dynamic_ftrace
