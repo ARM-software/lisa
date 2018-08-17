@@ -22,7 +22,6 @@ from __future__ import unicode_literals
 from builtins import zip
 from builtins import next
 from builtins import str
-from past.utils import old_div
 import itertools
 import json
 import os
@@ -602,7 +601,7 @@ is part of the trace.
 
         """
 
-        in_base_idx = old_div(len(ax), 2)
+        in_base_idx = len(ax) // 2
 
         try:
             devfreq_out_all_freqs = self.devfreq_out_power.get_all_freqs()

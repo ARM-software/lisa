@@ -18,7 +18,6 @@ directory's trace.dat"""
 from __future__ import division
 from __future__ import unicode_literals
 
-from past.utils import old_div
 import pandas as pd
 
 from trappy.base import Base
@@ -121,7 +120,7 @@ class CpuOutPower(Base):
 
         dfr = self.data_frame
 
-        return old_div(pivot_with_labels(dfr, "freq", "cpus", mapping_label), 1000)
+        return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
 register_ftrace_parser(CpuOutPower, "thermal")
 
@@ -180,7 +179,7 @@ class CpuInPower(Base):
             num_cpus = num_cpus_in_mask(cpumask)
             idx = dfr["cpus"] == cpumask
             max_freq = max(dfr[idx]["freq"])
-            load_series[idx] = old_div(load_series[idx], (max_freq * num_cpus))
+            load_series[idx] = load_series[idx] / (max_freq * num_cpus)
 
         load_dfr = pd.DataFrame({"cpus": dfr["cpus"], "load": load_series})
 
@@ -196,6 +195,6 @@ class CpuInPower(Base):
 
         dfr = self.data_frame
 
-        return old_div(pivot_with_labels(dfr, "freq", "cpus", mapping_label), 1000)
+        return pivot_with_labels(dfr, "freq", "cpus", mapping_label) / 1000
 
 register_ftrace_parser(CpuInPower, "thermal")

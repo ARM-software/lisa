@@ -17,7 +17,6 @@ from __future__ import unicode_literals
 
 
 from builtins import str
-from past.utils import old_div
 import os
 import sys
 import unittest
@@ -151,7 +150,7 @@ class TestBase(utils_tests.SetupDirectory):
 
         for timestamp, event in events.items():
             if type(timestamp) == int:
-                timestamp = old_div(float(timestamp), 1e9)
+                timestamp = timestamp / 1e9
             self.assertEqual(dfr["__comm"].loc[timestamp], event['task'])
             self.assertEqual(dfr["__pid"].loc[timestamp],  event['pid'])
             self.assertEqual(dfr["__cpu"].loc[timestamp],  event['cpu'])

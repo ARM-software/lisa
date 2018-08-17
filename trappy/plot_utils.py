@@ -20,7 +20,6 @@ from __future__ import unicode_literals
 # pylint disable=star-args
 
 from builtins import zip
-from past.utils import old_div
 from matplotlib import pyplot as plt
 import os
 import re
@@ -89,7 +88,7 @@ def pre_plot_setup(width=None, height=None, ncols=1, nrows=1):
             height = 6
             width = 10
         else:
-            height = old_div(width, GOLDEN_RATIO)
+            height = width // GOLDEN_RATIO
     else:
         if width is None:
             width = height * GOLDEN_RATIO
@@ -164,7 +163,7 @@ def plot_temperature(runs, width=None, height=None, ylim="range", tz_id=None):
         try:
             current_temp = gov_dfr["current_temperature"]
             delta_temp = gov_dfr["delta_temperature"]
-            control_series = old_div((current_temp + delta_temp), 1000)
+            control_series = (current_temp + delta_temp) / 1000
         except KeyError:
             control_series = None
 

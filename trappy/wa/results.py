@@ -20,7 +20,6 @@
 from __future__ import division
 from __future__ import unicode_literals
 
-from past.utils import old_div
 import os
 import collections, csv, re
 import pandas as pd
@@ -45,7 +44,7 @@ class Result(pd.DataFrame):
         data_max = max(concat_data)
 
         # A good margin can be 10% of the data range
-        margin = old_div((data_max - data_min), 10)
+        margin = (data_max - data_min) / 10
         if margin < 1:
             margin = 1
 

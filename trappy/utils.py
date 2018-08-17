@@ -18,7 +18,6 @@
 from __future__ import division
 from __future__ import unicode_literals
 
-from past.utils import old_div
 def listify(to_select):
     """Utitlity function to handle both single and
     list inputs
@@ -87,7 +86,7 @@ def handle_duplicate_index(data,
         # Calculate delta that needs to be added to each duplicate
         # index
         try:
-            delta = old_div((index[dup_index_right + 1] - dup), num_dups)
+            delta = (index[dup_index_right + 1] - dup) / num_dups
         except IndexError:
             # dup_index_right + 1 is outside of the series (i.e. the
             # dup is at the end of the series).

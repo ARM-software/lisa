@@ -20,7 +20,6 @@ from __future__ import division
 from __future__ import unicode_literals
 
 from builtins import object
-from past.utils import old_div
 import matplotlib.pyplot as plt
 from trappy.plotter import AttrConf
 
@@ -54,7 +53,7 @@ class PlotLayout(object):
 
         if self.num_plots < self.cols:
             self.cols = self.num_plots
-        self.rows = (old_div(self.num_plots, self.cols))
+        self.rows = (self.num_plots // self.cols)
         # Avoid Extra Allocation (shows up in savefig!)
         if self.num_plots % self.cols != 0:
             self.rows += 1
@@ -116,7 +115,7 @@ class PlotLayout(object):
             return linear_val % self.rows
 
         val_x = linear_val % self.cols
-        val_y = old_div(linear_val, self.cols)
+        val_y = linear_val // self.cols
         return val_y, val_x
 
     def finish(self, plot_index):

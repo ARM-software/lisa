@@ -19,7 +19,6 @@ directory's trace.dat"""
 from __future__ import division
 from __future__ import unicode_literals
 
-from past.utils import old_div
 import pandas as pd
 
 from trappy.base import Base
@@ -47,7 +46,7 @@ FTrace dump"""
         .. note:: Frequencies are in MHz.
         """
 
-        return pd.DataFrame(old_div(self.data_frame["freq"], 1000000))
+        return pd.DataFrame(self.data_frame["freq"] / 1000000)
 
 register_ftrace_parser(DevfreqInPower, "thermal")
 
@@ -73,6 +72,6 @@ ftrace dump"""
         .. note:: Frequencies are in MHz.
         """
 
-        return pd.DataFrame(old_div(self.data_frame["freq"], 1000000))
+        return pd.DataFrame(self.data_frame["freq"] / 1000000)
 
 register_ftrace_parser(DevfreqOutPower, "thermal")

@@ -26,7 +26,6 @@ from builtins import zip
 from builtins import str
 from builtins import range
 from builtins import object
-from past.utils import old_div
 from trappy.plotter import AttrConf
 import uuid
 from collections import OrderedDict
@@ -193,7 +192,7 @@ class ILinePlotGen(object):
 
         if self.num_plots < self._attr["per_line"]:
             self._attr["per_line"] = self.num_plots
-        self._rows = (old_div(self.num_plots, self._attr["per_line"]))
+        self._rows = (self.num_plots // self._attr["per_line"])
 
         if self.num_plots % self._attr["per_line"] != 0:
             self._rows += 1

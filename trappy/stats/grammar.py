@@ -21,7 +21,6 @@ and variable forwarding.
 from __future__ import division
 from __future__ import unicode_literals
 from builtins import object
-from past.utils import old_div
 from pyparsing import Literal, delimitedList, Optional, oneOf, nums,\
     alphas, alphanums, Forward, Word, opAssoc, operatorPrecedence, Combine, Group
 import importlib
@@ -80,7 +79,7 @@ OPERATOR_MAP = {
     "+": lambda a, b: a + b,
     "-": lambda a, b: a - b,
     "*": lambda a, b: a * b,
-    "/": lambda a, b: old_div(a, b),
+    "/": lambda a, b: a / b,
     "//": lambda a, b: a // b,
     "%": lambda a, b: a % b,
     "**": lambda a, b: a ** b,

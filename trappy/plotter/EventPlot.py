@@ -26,7 +26,6 @@ from __future__ import division
 from __future__ import unicode_literals
 
 from builtins import range
-from past.utils import old_div
 from trappy.plotter import AttrConf
 import uuid
 import json
@@ -130,7 +129,7 @@ class EventPlot(AbstractDataPlotter):
         self._html = []
         self._fig_name = self._generate_fig_name()
         # Function to get the average duration of each event
-        avgFunc = lambda x: old_div(sum([(evt[1] - evt[0]) for evt in x]), float(len(x) + 1))
+        avgFunc = lambda x: sum([(evt[1] - evt[0]) for evt in x]) / float(len(x) + 1)
         avg = {k: avgFunc(v) for k, v in iter(data.items())}
         # Filter keys with zero average time
         keys = [x for x in avg if avg[x] != 0]
