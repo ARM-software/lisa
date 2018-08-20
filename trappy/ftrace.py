@@ -1,5 +1,3 @@
-from __future__ import division
-from __future__ import unicode_literals
 #    Copyright 2015-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +13,11 @@ from __future__ import unicode_literals
 # limitations under the License.
 #
 
-
 # pylint can't see any of the dynamically allocated classes of FTrace
 # pylint: disable=no-member
+
+from __future__ import division
+from __future__ import unicode_literals
 
 from builtins import zip
 from builtins import next

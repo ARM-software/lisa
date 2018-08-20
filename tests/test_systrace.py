@@ -1,4 +1,3 @@
-from __future__ import unicode_literals
 #    Copyright 2016-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,11 +12,10 @@ from __future__ import unicode_literals
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import unicode_literals
 
 import utils_tests
-
 import trappy
-
 import numpy as np
 
 class TestSystrace(utils_tests.SetupDirectory):

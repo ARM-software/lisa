@@ -20,6 +20,7 @@ on the input parameters. Similar to a factory design
 pattern
 """
 from __future__ import unicode_literals
+
 from trappy.base import Base
 import re
 from trappy.ftrace import GenericFTrace

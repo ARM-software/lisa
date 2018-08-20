@@ -1,5 +1,3 @@
-from __future__ import print_function
-from __future__ import unicode_literals
 #    Copyright 2015-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +13,8 @@ from __future__ import unicode_literals
 # limitations under the License.
 #
 
+from __future__ import print_function
+from __future__ import unicode_literals
 
 from builtins import map
 from datetime import date
