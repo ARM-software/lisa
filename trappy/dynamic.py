@@ -52,7 +52,7 @@ class DynamicTypeFactory(type):
 
     def __new__(mcs, name, bases, dct):
         """Override the new method"""
-        return type.__new__(mcs, name, bases, dct)
+        return type.__new__(mcs, str(name), bases, dct)
 
     def __init__(cls, name, bases, dct):
         """Override the constructor"""
