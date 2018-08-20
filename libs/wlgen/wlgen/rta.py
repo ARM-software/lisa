@@ -137,7 +137,7 @@ class RTA(Workload):
                               sched={
                                   'policy': 'FIFO',
                                   'prio': max_rtprio
-                              }).get()
+                              })
         rta = RTA(target, 'rta_calib')
 
         for cpu in target.list_online_cpus():
@@ -324,10 +324,11 @@ class RTA(Workload):
             # Initialize task configuration
             task_conf = {}
 
-            if 'sched' not in task:
+            if not task.sched:
                 policy = 'DEFAULT'
             else:
-                policy = task['sched']['policy'].upper()
+                policy = task.sched['policy'].upper()
+
             if policy == 'DEFAULT':
                 task_conf['policy'] = global_conf['default_policy']
                 sched_descr = 'sched: using default policy'
@@ -335,7 +336,7 @@ class RTA(Workload):
                 raise ValueError('scheduling class {} not supported'\
                         .format(task['sclass']))
             else:
-                task_conf.update(task['sched'])
+                task_conf.update(task.sched)
                 task_conf['policy'] = 'SCHED_' + policy
                 sched_descr = 'sched: {0:s}'.format(task['sched'])
 
@@ -345,23 +346,23 @@ class RTA(Workload):
             self._log.info('------------------------')
             self._log.info('task [%s], %s', tid, sched_descr)
 
-            if 'delay' in task.keys():
-                if task['delay'] > 0:
-                    task_conf['delay'] = int(task['delay'] * 1e6)
-                    self._log.info(' | start delay: %.6f [s]',
-                            task['delay'])
+            if task.delay_s:
+                task_conf['delay'] = int(task.delay_s * 1e6)
+                self._log.info(' | start delay: %.6f [s]',
+                               task['delay'])
 
-            if 'loops' not in task.keys():
+            if not task.loops:
                 task['loops'] = 1
-            task_conf['loop'] = task['loops']
-            self._log.info(' | loops count: %d', task['loops'])
+
+            task_conf['loop'] = task.loops
+            self._log.info(' | loops count: %d', task.loops)
 
             # Setup task configuration
             self.rta_profile['tasks'][tid] = task_conf
 
             # Getting task phase descriptor
             pid=1
-            for phase in task['phases']:
+            for phase in task.phases:
 
                 # Convert time parameters to integer [us] units
                 duration = int(phase.duration_s * 1e6)
@@ -466,8 +467,7 @@ class RTA(Workload):
 
         Profile based workloads
           When ``kind`` is "profile", ``params`` is a dictionary mapping task
-          names to task specifications. The easiest way to create these task
-          specifications using :meth:`RTATask.get`.
+          names to task specifications.
 
           For example, the following configures an RTA workload with a single
           task, named 't1', using the default parameters for a Periodic RTATask:
@@ -475,7 +475,7 @@ class RTA(Workload):
           ::
 
             wl = RTA(...)
-            wl.conf(kind='profile', params={'t1': Periodic().get()})
+            wl.conf(kind='profile', params={'t1': Periodic()})
 
         :param kind: Either 'custom' or 'profile' - see above.
         :param params: RT-App parameters - see above.
@@ -536,19 +536,13 @@ class RTATask(object):
     def __init__(self, delay_s=0, loops=1, sched=None):
         self._task = {}
 
-        self._task['sched'] = sched or {'policy' : 'DEFAULT'}
-        self._task['delay'] = delay_s
-        self._task['loops'] = loops
-
-    def get(self):
-        """
-        Return a dict that can be passed as an element of the ``params`` field
-        to :meth:`RTA.conf`.
-        """
-        return self._task
+        self.sched = sched or {'policy' : 'DEFAULT'}
+        self.delay_s = delay_s
+        self.loops = loops
+        self.phases = []
 
     def __add__(self, next_phases):
-        if next_phases._task.get('delay', 0):
+        if next_phases.delay_s:
             # This won't work, because rt-app's "delay" field is per-task and
             # not per-phase. We might be able to implement it by adding a
             # "sleep" event here, but let's not bother unless such a need
@@ -556,7 +550,7 @@ class RTATask(object):
             raise ValueError("Can't compose rt-app tasks "
                              "when the second has nonzero 'delay_s'")
 
-        self._task['phases'].extend(next_phases._task['phases'])
+        self.phases.extend(next_phases.phases)
         return self
 
 
@@ -610,7 +604,7 @@ class Ramp(RTATask):
                 phase = Phase(time_s, period_ms, load, cpus)
             phases.append(phase)
 
-        self._task['phases'] = phases
+        self.phases = phases
 
 class Step(Ramp):
     """
@@ -693,8 +687,7 @@ class Pulse(RTATask):
             phase = Phase(time_s, period_ms, load, cpus)
             phases.append(phase)
 
-        self._task['phases'] = phases
-
+        self.phases = phases
 
 class Periodic(Pulse):
     """
@@ -747,5 +740,5 @@ class RunAndSync(RTATask):
 
         # This should translate into a phase containing a 'run' event and a
         # 'barrier' event
-        self._task['phases'] = [Phase(time_s, None, 100, cpus,
+        self.phases = [Phase(time_s, None, 100, cpus,
                                       barrier_after=barrier)]
