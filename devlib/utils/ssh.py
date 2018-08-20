@@ -25,6 +25,7 @@ import shutil
 import socket
 import sys
 import time
+import atexit
 
 # pylint: disable=import-error,wrong-import-position,ungrouped-imports,wrong-import-order
 import pexpect
@@ -181,6 +182,7 @@ class SshConnection(object):
         logger.debug('Logging in {}@{}'.format(username, host))
         timeout = timeout if timeout is not None else self.default_timeout
         self.conn = ssh_get_shell(host, username, password, self.keyfile, port, timeout, False, None)
+        atexit.register(self.close)
 
     def push(self, source, dest, timeout=30):
         dest = '"{}"@"{}":"{}"'.format(escape_double_quotes(self.username),
