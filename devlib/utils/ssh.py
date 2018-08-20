@@ -243,7 +243,11 @@ class SshConnection(object):
 
     def close(self):
         logger.debug('Logging out {}@{}'.format(self.username, self.host))
-        self.conn.logout()
+        try:
+            self.conn.logout()
+        except:
+            logger.debug('Connection lost.')
+            self.conn.close(force=True)
 
     def cancel_running_command(self):
         # simulate impatiently hitting ^C until command prompt appears
