@@ -63,8 +63,6 @@ class TestEnv(ShareState):
 
     - a target configuration (target_conf) defining which HW platform we
       want to use to run the experiments
-    - a test configuration (test_conf) defining which SW setups we need on
-      that HW target
     - a folder to collect the experiments results, which can be specified using
       the target_conf::results_dir option, or using LISA_RESULTS_DIR environment
       variable and is by default wiped from all the previous contents
@@ -108,32 +106,8 @@ class TestEnv(ShareState):
         **results_dir**
             location of results of the experiments.
         **ftrace**
-            Ftrace configuration merged with test-specific configuration.
+            Ftrace configuration.
             Currently, only additional events through "events" key is supported.
-
-    :param test_conf: Configuration of software for target experiments. Takes
-                      the same form as target_conf. Fields are:
-
-        **modules**
-            Devlib modules to be enabled. Default is []
-        **exclude_modules**
-            Devlib modules to be disabled. Default is [].
-        **tools**
-            List of tools (available under ./tools/$ARCH/) to install on
-            the target. Names, not paths (e.g. ['ftrace']). Default is [].
-        **ftrace**
-            Configuration for ftrace. Dictionary with keys:
-
-            events
-                events to enable.
-            functions
-                functions to enable in the function tracer. Optional.
-            buffsize
-                Size of buffer. Default is 10240.
-
-    :param wipe: set true to cleanup all previous content from the output
-                 folder
-    :type wipe: bool
 
     :param force_new: Create a new TestEnv object even if there is one available
                       for this session.  By default, TestEnv only creates one
@@ -170,15 +144,13 @@ class TestEnv(ShareState):
 
     _initialized = False
 
-    def __init__(self, target_conf=None, test_conf=None, wipe=True,
-                 force_new=False):
+    def __init__(self, target_conf=None, wipe=True, force_new=False):
         super(TestEnv, self).__init__()
 
         if self._initialized and not force_new:
             return
 
         self.conf = {}
-        self.test_conf = {}
         self.target = None
         self.ftrace = None
         self.workdir = None
@@ -224,39 +196,22 @@ class TestEnv(ShareState):
 
         self._log.debug('Target configuration %s', self.conf)
 
-        # Setup test configuration
-        if test_conf:
-            if isinstance(test_conf, dict):
-                self._log.info('Loading custom (inline) test configuration')
-                self.test_conf = test_conf
-            elif isinstance(test_conf, str):
-                self._log.info('Loading custom (file) test configuration')
-                self.test_conf = self.loadTargetConfig(test_conf)
-            else:
-                raise ValueError('test_conf must be either a dictionary or a filepath')
-            self._log.debug('Test configuration %s', self.conf)
-
         # Setup target working directory
         if 'workdir' in self.conf:
             self.workdir = self.conf['workdir']
 
         # Initialize binary tools to deploy
-        test_conf_tools = self.test_conf.get('tools', [])
-        target_conf_tools = self.conf.get('tools', [])
-        self.__tools = list(set(test_conf_tools + target_conf_tools))
+        self.__tools = list(set(self.conf.get('tools', [])))
 
         # Initialize ftrace events
         # test configuration override target one
-        test_ftrace = self.test_conf.get('ftrace', {})
-        target_ftrace = self.conf.get('ftrace', {})
-        ftrace = test_ftrace or target_ftrace
+        ftrace_conf = self.conf.get('ftrace', {})
+
         # Merge the events from target config and test config
-        ftrace['events'] = sorted(
-            set(test_ftrace.get('events', []))
-          | set(target_ftrace.get('events', []))
-        )
-        self.conf['ftrace'] = ftrace
-        if ftrace['events']:
+        ftrace_conf['events'] = sorted(set(ftrace_conf.get('events', [])))
+        self.conf['ftrace'] = ftrace_conf
+
+        if ftrace_conf['events']:
             self.__tools.append('trace-cmd')
 
         # Initialize features
@@ -509,11 +464,8 @@ class TestEnv(ShareState):
 
         # Refine modules list based on target.conf
         modules.update(self.conf.get('modules', []))
-        # Merge tests specific modules
-        modules.update(self.test_conf.get('modules', []))
 
-        remove_modules = set(self.conf.get('exclude_modules', []) +
-                             self.test_conf.get('exclude_modules', []))
+        remove_modules = set(self.conf.get('exclude_modules', []))
         modules.difference_update(remove_modules)
 
         self.__modules = list(modules)
