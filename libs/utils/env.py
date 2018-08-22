@@ -78,7 +78,7 @@ class TestEnv(object):
         the relevant features aren't needed. Has the following keys:
 
         **host**
-            Target IP or MAC address for SSH access
+            Target IP or hostname for SSH access
         **username**
             For SSH access
         **keyfile**
@@ -307,9 +307,8 @@ class TestEnv(object):
         self.__connection_settings = None
         self._calib = None
 
-        # Keep track of target IP and MAC address
+        # Keep track of target IP
         self.ip = None
-        self.mac = None
 
         # Energy meter configuration
         self.emeter = None
@@ -374,16 +373,10 @@ class TestEnv(object):
         if 'port' in self.conf:
             self.__connection_settings['port'] = self.conf['port']
 
-        # Configure the host IP/MAC address
+        # Configure the host IP
         if 'host' in self.conf:
-            try:
-                if ':' in self.conf['host']:
-                    (self.mac, self.ip) = self.resolv_host(self.conf['host'])
-                else:
-                    self.ip = self.conf['host']
-                self.__connection_settings['host'] = self.ip
-            except KeyError:
-                raise ValueError('Config error: missing [host] parameter')
+            self.ip = self.conf['host']
+            self.__connection_settings['host'] = self.ip
 
         try:
             platform_type = self.conf['platform']
@@ -653,82 +646,6 @@ class TestEnv(object):
 
         # Initialize energy probe instrument
         self._init_energy(True)
-
-    def parse_arp_cache(self, host):
-        output = os.popen(r'arp -n')
-        if ':' in host:
-            # Assuming this is a MAC address
-            # TODO add a suitable check on MAC address format
-            # Query ARP for the specified HW address
-            ARP_RE = re.compile(
-                r'([^ ]*).*({}|{})'.format(host.lower(), host.upper())
-            )
-            macaddr = host
-            ipaddr = None
-            for line in output:
-                match = ARP_RE.search(line)
-                if not match:
-                    continue
-                ipaddr = match.group(1)
-                break
-        else:
-            # Assuming this is an IP address
-            # TODO add a suitable check on IP address format
-            # Query ARP for the specified IP address
-            ARP_RE = re.compile(
-                r'{}.*ether *([0-9a-fA-F:]*)'.format(host)
-            )
-            macaddr = None
-            ipaddr = host
-            for line in output:
-                match = ARP_RE.search(line)
-                if not match:
-                    continue
-                macaddr = match.group(1)
-                break
-            else:
-                # When target is accessed via WiFi, there is not MAC address
-                # reported by arp. In these cases we can know only the IP
-                # of the remote target.
-                macaddr = 'UNKNOWN'
-
-        if not ipaddr or not macaddr:
-            raise ValueError('Unable to lookup for target IP/MAC address')
-        self._log.info('Target (%s) at IP address: %s', macaddr, ipaddr)
-        return (macaddr, ipaddr)
-
-    def resolv_host(self, host=None):
-        """
-        Resolve a host name or IP address to a MAC address
-
-        .. TODO Is my networking terminology correct here?
-
-        :param host: IP address or host name to resolve. If None, use 'host'
-                    value from target_config.
-        :type host: str
-        """
-        if host is None:
-            host = self.conf['host']
-
-        # Refresh ARP for local network IPs
-        self._log.debug('Collecting all Bcast address')
-        output = os.popen(r'ifconfig').read().split('\n')
-        for line in output:
-            match = IFCFG_BCAST_RE.search(line)
-            if not match:
-                continue
-            baddr = match.group(1)
-            try:
-                cmd = r'nmap -T4 -sP {}/24 &>/dev/null'.format(baddr.strip())
-                self._log.debug(cmd)
-                os.popen(cmd)
-            except RuntimeError:
-                self._log.warning('Nmap not available, try IP lookup using broadcast ping')
-                cmd = r'ping -b -c1 {} &>/dev/null'.format(baddr)
-                self._log.debug(cmd)
-                os.popen(cmd)
-
-        return self.parse_arp_cache(host)
 
     def load_target_config(self, filepath=None):
         """
