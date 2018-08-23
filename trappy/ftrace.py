@@ -22,6 +22,7 @@ from __future__ import unicode_literals
 from builtins import zip
 from builtins import next
 from builtins import str
+import io
 import itertools
 import json
 import os
@@ -476,7 +477,7 @@ is part of the trace.
             return
 
         try:
-            with open(trace_file) as fin:
+            with io.open(trace_file, 'r', encoding='utf-8') as fin:
                 self.lines = 0
                 self.__populate_data(
                     fin, cls_for_unique_word)
@@ -908,7 +909,7 @@ class FTrace(GenericFTrace):
         for key in metadata_keys:
             setattr(self, "_" + key, None)
 
-        with open(self.file_to_parse) as fin:
+        with io.open(self.file_to_parse, 'r', encoding='utf-8') as fin:
             for line in fin:
                 if not metadata_keys:
                     return res

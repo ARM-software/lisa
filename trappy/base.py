@@ -21,6 +21,7 @@ from __future__ import print_function
 from builtins import zip
 from builtins import range
 from builtins import object
+from past.builtins import basestring
 import re
 import pandas as pd
 import warnings
@@ -228,7 +229,7 @@ class Base(object):
                             "TRAPpy's parser for '{}' failed to parse the line:"
                             "\n{}".format(self.unique_word, data_str))
                 # Concatenation is supported only for "string" values
-                if type(data_dict[prev_key]) is not str:
+                if not isinstance(data_dict[prev_key], basestring):
                     continue
                 data_dict[prev_key] += ' ' + field
                 continue
