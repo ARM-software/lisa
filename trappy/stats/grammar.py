@@ -120,7 +120,7 @@ def iterate_binary_ops(tokens):
     itr = iter(tokens)
     while True:
         try:
-            yield(next(itr), next(itr))
+            yield (next(itr), next(itr))
         except StopIteration:
             break
 
