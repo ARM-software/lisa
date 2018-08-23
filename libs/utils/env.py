@@ -943,4 +943,16 @@ class TestEnv(ShareState):
             self._log.info('Un-freezing userspace tasks')
             self.target.cgroups.freeze(thaw=True)
 
+    @contextlib.contextmanager
+    def record_ftrace(self, output_file=None):
+        if not output_file:
+            output_file = os.path.join(self.get_res_dir(), "trace.dat")
+
+        self.ftrace.start()
+
+        yield
+
+        self.ftrace.stop()
+        self.ftrace.get_trace(output_file)
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
