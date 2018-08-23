@@ -35,6 +35,10 @@ class HotplugModule(Module):
             cpu = 'cpu{}'.format(cpu)
         return target.path.join(cls.base_path, cpu, 'online')
 
+    def list_hotpluggable_cpus(self):
+        return [cpu for cpu in range(self.target.number_of_cpus)
+                if self.target.file_exists(self._cpu_path(self.target, cpu))]
+
     def online_all(self):
         self.target._execute_util('hotplug_online_all',  # pylint: disable=protected-access
                                   as_root=self.target.is_rooted)
