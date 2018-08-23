@@ -662,9 +662,6 @@ class TestEnv(ShareState):
          # Initialize FTrace events collection
         self._init_ftrace(True)
 
-        # Initialize RT-App calibration values
-        self.calibration()
-
         # Initialize energy probe instrument
         self._init_energy(True)
 
