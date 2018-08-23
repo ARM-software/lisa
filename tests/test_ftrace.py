@@ -113,9 +113,7 @@ class TestFTrace(BaseTestThermal):
         try:
             trappy.FTrace(cwd)
         except IOError as exception:
-            pass
-
-        self.assertTrue(cwd in str(exception))
+            self.assertTrue(cwd in str(exception))
 
     def test_other_directory(self):
         """FTrace() can grab the trace.dat from other directories"""

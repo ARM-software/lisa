@@ -74,13 +74,13 @@ class TestDynamicEvents(BaseTestSched):
         trappy.unregister_dynamic_ftrace(cls)
 
     def test_dynamic_event_scope(self):
-	"""Test the case when an "all" scope class is
-	registered. it should appear in both thermal and sched
-	ftrace class definitions when scoped ftrace objects are created
-	"""
+        """Test the case when an "all" scope class is
+        registered. it should appear in both thermal and sched
+        ftrace class definitions when scoped ftrace objects are created
+        """
         cls = trappy.register_dynamic_ftrace("DynamicEvent", "dynamic_test_key")
         t1 = trappy.FTrace(name="first")
-	self.assertTrue(cls.name in t1.class_definitions)
+        self.assertTrue(cls.name in t1.class_definitions)
 
         trappy.unregister_dynamic_ftrace(cls)
 

@@ -244,9 +244,20 @@ class TestBase(utils_tests.SetupDirectory):
                              ["foo", "foo=bar", "foo=bar=baz", 1,
                               "1=2", "1=foo", "1foo=2"])
     def test_failed_to_parse(self):
+        ignored_warnings = [
+            'Reading from .txt file, .dat is preferred. Not only do .txt files occupy more disk space, it is also not possible to determine the format of the traces contained within them.'
+        ]
         with warnings.catch_warnings(record=True) as caught_warnings:
             trace = trappy.FTrace("trace_failed_to_parse.txt",
                                   events=['thermal_power_cpu_get_power'])
-        self.assertGreater(len(caught_warnings), 0)
-        for caught_warning in caught_warnings:
-            self.assertIn('trace-cmd', str(caught_warning.message))
+            caught_warnings = [
+                str(caught_warning.message)
+                for caught_warning in caught_warnings
+                if not any(
+                    ignored in str(caught_warning.message)
+                    for ignored in ignored_warnings
+                )
+            ]
+            self.assertGreater(len(caught_warnings), 0)
+            for caught_warning in caught_warnings:
+                self.assertIn('trace-cmd', caught_warning)

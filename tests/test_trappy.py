@@ -50,19 +50,17 @@ class TestTrappy(BaseTestThermal):
 
         try:
             trappy.summary_plots(self.map_label, self.actor_order)
-            self.fail()
         except TypeError as exception:
-            pass
-
-        self.assertTrue("actor_order" in str(exception))
+            self.assertTrue("actor_order" in str(exception))
+        else:
+            self.fail()
 
         try:
             trappy.summary_plots(self.actor_order, self.actor_order)
-            self.fail()
         except TypeError as exception:
-            pass
-
-        self.assertTrue("map_label" in str(exception))
+            self.assertTrue("map_label" in str(exception))
+        else:
+            self.fail()
 
     def test_summary_other_dir(self):
         """Test summary_plots() with another directory"""
