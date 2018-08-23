@@ -353,7 +353,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         # TODO: scopes should not be hardcoded (nor here nor in the FTrace object)
         all_scopes = [self.thermal_classes, self.sched_classes,
                       self.dynamic_classes]
-        known_events = {k: v for sc in all_scopes for k, v in iter(sc.items())}
+        known_events = {k: v for sc in all_scopes for k, v in sc.items()}
 
         for event_name in events:
             for cls in known_events.values():
@@ -565,7 +565,7 @@ is part of the trace.
         dfs = {event: getattr(self, event).data_frame for event in fn_map.keys()}
         events = [event for event in fn_map.keys() if not dfs[event].empty]
         iters = {event: dfs[event].itertuples() for event in events}
-        next_rows = {event: next(iterator) for event,iterator in iter(iters.items())}
+        next_rows = {event: next(iterator) for event,iterator in iters.items()}
 
         # Column names beginning with underscore will not be preserved in tuples
         # due to constraints on namedtuple field names, so store mappings from
@@ -585,7 +585,7 @@ is part of the trace.
             event_tuple = next_rows[event_name]
 
             event_dict = {
-                col: event_tuple[idx] for col, idx in iter(col_idxs[event_name].items())
+                col: event_tuple[idx] for col, idx in col_idxs[event_name].items()
             }
             fn_map[event_name](event_dict)
             event_row = next(iters[event_name], None)

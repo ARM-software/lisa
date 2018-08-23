@@ -130,7 +130,7 @@ class EventPlot(AbstractDataPlotter):
         self._fig_name = self._generate_fig_name()
         # Function to get the average duration of each event
         avgFunc = lambda x: sum([(evt[1] - evt[0]) for evt in x]) / float(len(x) + 1)
-        avg = {k: avgFunc(v) for k, v in iter(data.items())}
+        avg = {k: avgFunc(v) for k, v in data.items()}
         # Filter keys with zero average time
         keys = [x for x in avg if avg[x] != 0]
         graph = {}
