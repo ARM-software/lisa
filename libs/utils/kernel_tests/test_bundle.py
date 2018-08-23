@@ -123,6 +123,14 @@ class TestBundle(YAMLSerializable):
     from this class, you can define test methods that use this data, and return
     a :class:`ResultBundle`.
 
+    Thanks to :class:`YAMLSerializable`, instances of this class can be
+    serialized with minimal effort. As long as some information is stored
+    within an object's member, it will be automagically handled.
+
+    Please refrain from monkey-patching the object in :meth:`from_target`.
+    Data required by the object to run test assertions should be exposed as
+    :meth:`__init__` parameters.
+
     **Implementation example**::
 
         class DummyTestBundle(TestBundle):

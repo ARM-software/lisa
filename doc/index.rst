@@ -31,9 +31,13 @@ Contents:
 .. TODO: due to our slightly weird package structure the index here is wildly
    nested where it needn't be.
 
-.. toctree::
+.. TODO: Move wiki to here, wirte a proper module doc, proove Riemann's hypothesis
 
-  modules
+.. toctree::
+   :maxdepth: 2
+
+   tests
+
 
 Indices and tables
 ==================
@@ -46,5 +50,5 @@ Indices and tables
 Building this documentation
 ==============================
 - Install ``sphinx-doc``
-- From the root of the LISA source tree: ``source init_env && make -C doc/ html``
+- From the root of the LISA source tree: ``cd doc && make html``
 - Find the HTML in ``doc/_build/html``
