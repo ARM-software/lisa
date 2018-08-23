@@ -91,7 +91,6 @@ class RTA(Workload):
         self.executor = 'rt-app'
 
         # Default initialization
-        self.json = None
         self.rta_profile = None
         self.loadref = None
         self.rta_cmd  = None
@@ -188,9 +187,6 @@ class RTA(Workload):
             logfile = self.target.path.join(self.run_dir,
                                             '*{}*.log'.format(task))
             self.target.pull(logfile, destdir)
-        self._log.debug('Pulling JSON to [%s]...', destdir)
-        self.target.pull(self.target.path.join(self.run_dir, self.json),
-                         destdir)
         logfile = self.target.path.join(destdir, 'output.log')
         self._log.debug('Saving output on [%s]...', logfile)
         with open(logfile, 'w') as ofile:
@@ -221,8 +217,7 @@ class RTA(Workload):
 
         rtapp_conf = self.params['custom']
 
-        self.json = '{}.json'.format(self.name)
-        ofile = open(self.json, 'w')
+        ofile = open(self.local_json, 'w')
 
         calibration = self.getCalibrationConf()
         # Calibration can either be a string like "CPU1" or an integer, if the
@@ -264,12 +259,10 @@ class RTA(Workload):
             ifile.close()
         ofile.close()
 
-        with open(self.json) as f:
+        with open(self.local_json) as f:
             conf = json.load(f)
         for tid in conf['tasks']:
             self.tasks[tid] = {'pid': -1}
-
-        return self.json
 
     def _confProfile(self):
 
@@ -432,12 +425,9 @@ class RTA(Workload):
             self.tasks[tid] = {'pid': -1}
 
         # Generate JSON configuration on local file
-        self.json = '{0}.json'.format(self.name)
-        with open(self.json, 'w') as outfile:
+        with open(self.local_json, 'w') as outfile:
             json.dump(self.rta_profile, outfile,
                       indent=4, separators=(',', ': '))
-
-        return self.json
 
     def conf(self,
              kind,
@@ -445,6 +435,7 @@ class RTA(Workload):
              duration=None,
              cpus=None,
              sched=None,
+             work_dir='./',
              run_dir=None,
              loadref='big'):
         """
@@ -490,6 +481,10 @@ class RTA(Workload):
             The default scheduler policy. Choose from 'OTHER', 'FIFO', 'RR',
             and 'DEADLINE'.
 
+        :param work_dir: Local directory in which to store the resulting rt-app
+          configuration
+        :type work_dir: str
+
         :param run_dir: Target dir to store output and config files in.
 
         .. TODO: document or remove loadref
@@ -501,7 +496,12 @@ class RTA(Workload):
         super(RTA, self).conf(kind, params, duration,
                 cpus, sched, run_dir)
 
+        self.work_dir = work_dir
         self.loadref = loadref
+
+        json_name = '{}.json'.format(self.name)
+        self.local_json = os.path.join(self.work_dir, json_name)
+        self.remote_json = self.target.path.join(self.run_dir, json_name)
 
         # Setup class-specific configuration
         if kind == 'custom':
@@ -510,11 +510,10 @@ class RTA(Workload):
             self._confProfile()
 
         # Move configuration file to target
-        self.target.push(self.json, self.run_dir)
+        self.target.push(self.local_json, self.remote_json)
 
-        self.rta_cmd  = self.target.executables_directory + '/rt-app'
-        self.rta_conf = self.run_dir + '/' + self.json
-        self.command = '{0:s} {1:s} 2>&1'.format(self.rta_cmd, self.rta_conf)
+        self.rta_cmd  = self.target.which('rt-app')
+        self.command = '{0:s} {1:s} 2>&1'.format(self.rta_cmd, self.remote_json)
 
 class RTATask(object):
     """
