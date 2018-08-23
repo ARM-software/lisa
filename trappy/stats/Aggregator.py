@@ -19,6 +19,8 @@ both scalars and vectors and each aggregator implementation
 is expected to handle its "aggregation" mechanism.
 """
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 
 from builtins import object

@@ -19,6 +19,8 @@ Definitions of filesystem (ext4) trace parsers
 registered by the FTrace class
 """
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 from builtins import zip
 from trappy.base import Base

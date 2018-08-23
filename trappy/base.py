@@ -15,6 +15,8 @@
 
 """Base class to parse trace.dat dumps"""
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 from builtins import zip
 from builtins import range

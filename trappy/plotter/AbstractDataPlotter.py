@@ -15,6 +15,9 @@
 
 """This is the template class that all Plotters inherit"""
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
+
 from builtins import object
 from abc import abstractmethod, ABCMeta
 from pandas import DataFrame

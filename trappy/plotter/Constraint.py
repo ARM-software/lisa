@@ -27,6 +27,9 @@ a data column, data event and the requisite filters is
 :mod:`trappy.plotter.Constraint.Constraint`
 """
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
+
 # pylint: disable=R0913
 from builtins import map
 from builtins import str

@@ -14,6 +14,9 @@
 #
 """Base matplotlib plotter module"""
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
+
 from builtins import str
 from abc import abstractmethod, ABCMeta
 from collections import defaultdict as ddict

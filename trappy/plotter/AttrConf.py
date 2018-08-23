@@ -15,6 +15,9 @@
 
 """These are the default plotting Attributes"""
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
+
 WIDTH = 7
 """Default Width of a MatPlotlib Plot"""
 LENGTH = 7

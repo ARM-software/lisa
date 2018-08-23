@@ -19,6 +19,8 @@ classes.  This plot only works when run from an IPython notebook
 
 """
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 from builtins import str
 from collections import OrderedDict
