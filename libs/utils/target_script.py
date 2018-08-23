@@ -32,8 +32,7 @@ class TargetScript(object):
         that must really be executed instead of accumulated.
     :type env: TestEnv
 
-    :param script_name: Name of the script that will be pushed on the target,
-        defaults to "remote_script.sh"
+    :param script_name: Name of the script that will be pushed on the target
     :type script_name: str
     """
 
@@ -80,13 +79,8 @@ class TargetScript(object):
         """
         Push a script to the target
 
-        The script is created and stored on the host,
-        and is then sent to the target.
-
-        :param path: Path where the script will be locally created
-        :type path: str
-        :param actions: List of actions(commands) to run
-        :type actions: list(str)
+        The script is created and stored on the host, and is then sent
+        to the target.
         """
 
         actions = ['set -e'] + self.commands + ['set +e']
