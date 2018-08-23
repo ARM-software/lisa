@@ -24,7 +24,7 @@ import tarfile
 import tempfile
 import threading
 import xml.dom.minidom
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 from devlib.host import LocalConnection, PACKAGE_BIN_DIRECTORY
 from devlib.module import get_module
@@ -676,12 +676,15 @@ class Target(object):
         command = 'read_tree_values {} {}'.format(path, depth)
         output = self._execute_util(command, as_root=self.is_rooted,
                                     check_exit_code=check_exit_code)
-        result = {}
+
+        accumulator = defaultdict(list)
         for entry in output.strip().split('\n'):
             if ':' not in entry:
                 continue
             path, value = entry.strip().split(':', 1)
-            result[path] = value
+            accumulator[path].append(value)
+
+        result = {k: '\n'.join(v).strip() for k, v in accumulator.items()}
         return result
 
     def read_tree_values(self, path, depth=1, dictcls=dict, check_exit_code=True):
