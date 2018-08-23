@@ -16,7 +16,8 @@
 from setuptools import setup, find_packages
 
 
-execfile("trappy/version.py")
+with open("trappy/version.py") as f:
+    exec(f.read())
 
 LONG_DESCRIPTION = """TRAPpy is a framework written in python for
 analysing and plotting FTrace data by converting it into standardised
@@ -31,6 +32,7 @@ REQUIRES = [
     "numpy",
     "pyparsing",
     "pandas>=0.13.1",
+    "future",
 ]
 
 EXTRAS = {
@@ -65,6 +67,7 @@ setup(name='TRAPpy',
           "License :: OSI Approved :: Apache Software License",
           "Operating System :: POSIX :: Linux",
           "Programming Language :: Python :: 2.7",
+          "Programming Language :: Python :: 3",
           # As we depend on trace data from the Linux Kernel/FTrace
           "Topic :: System :: Operating System Kernels :: Linux",
           "Topic :: Scientific/Engineering :: Visualization"
