@@ -275,7 +275,7 @@ class TestPlotter(BaseTestThermal):
             'prev_comm': ["task2", "task1", "task2", "task3", "task1"],
             'prev_pid':  [15414, 15411, 15414, 15413, 15411],
             'prev_state': ["S", "R", "S", "S", "S"]},
-            index=pd.Series(list(range(1, 6)), name="Time"))
+            index=pd.Series(range(1, 6), name="Time"))
 
         trace.sched_switch.data_frame = broken_trace
 
@@ -287,7 +287,7 @@ class TestPlotter(BaseTestThermal):
             self.assertTrue("15411" in warn_str)
             self.assertTrue("4" in warn_str)
 
-        zipped_comms = list(zip(broken_trace["next_comm"], broken_trace["next_pid"]))
+        zipped_comms = zip(broken_trace["next_comm"], broken_trace["next_pid"])
         expected_procs = set("-".join([comm, str(pid)]) for comm, pid in zipped_comms)
 
         self.assertTrue([1, 2, 0] in data["task1-15411"])

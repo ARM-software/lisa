@@ -242,7 +242,7 @@ class StaticPlot(with_metaclass(ABCMeta, AbstractDataPlotter)):
             legend_len = self.c_mgr._max_len
             pivots = [y for _, y in pivot_vals]
             c_dict = {c : str(c) for c in self.c_mgr}
-            c_list = sorted(list(c_dict.items()), key=lambda x: (x[1].split(":")[-1], x[1].split(":")[0]))
+            c_list = sorted(c_dict.items(), key=lambda x: (x[1].split(":")[-1], x[1].split(":")[0]))
             constraints = [c[0] for c in c_list]
             cp_pairs = [(c, p) for c in constraints for p in sorted(set(pivots))]
         else:

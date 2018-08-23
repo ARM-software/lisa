@@ -145,8 +145,8 @@ def get_results(path=".", name=None):
     for bench, run_id_dict in bench_dict.items():
         bench_dfrs[bench] = pd.DataFrame(run_id_dict)
 
-    return Result(pd.concat(list(bench_dfrs.values()), axis=1,
-                            keys=list(bench_dfrs.keys())))
+    return Result(pd.concat(bench_dfrs.values(), axis=1,
+                            keys=bench_dfrs.keys()))
 
 def combine_results(data):
     """Combine two DataFrame results into one
@@ -163,6 +163,6 @@ def combine_results(data):
         concat_objs = [d[benchmark] for d in data]
         res_dict[benchmark] = pd.concat(concat_objs, axis=1)
 
-    combined = pd.concat(list(res_dict.values()), axis=1, keys=list(res_dict.keys()))
+    combined = pd.concat(res_dict.values(), axis=1, keys=res_dict.keys())
 
     return Result(combined)

@@ -77,7 +77,7 @@ def pivot_with_labels(dfr, data_col_name, new_col_name, mapping_label):
         try:
             label = mapping_label[col]
         except KeyError:
-            available_keys = ", ".join(list(mapping_label.keys()))
+            available_keys = ", ".join(mapping_label.keys())
             error_str = '"{}" not found, available keys: {}'.format(col,
                                                                  available_keys)
             raise KeyError(error_str)

@@ -55,7 +55,7 @@ def copyright_is_valid(fname):
     current_year = date.today().year
     years = list(map(int, re.findall(r"[-\s](?P<year>\d+)", lines[0])))
 
-    if len(years) < 0:
+    if not years:
         return False
 
     for year in years:

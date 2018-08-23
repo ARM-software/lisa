@@ -117,7 +117,7 @@ class TestConstraintManager(unittest.TestCase):
         self.assertEqual(len(c_mgr), 1)
 
         constraint = next(iter(c_mgr))
-        results = dict([(k, list(v.to_dict().values())) for k, v in list(constraint.result.items())])
+        results = dict([(k, list(v.to_dict().values())) for k, v in constraint.result.items()])
         expected_results = {0: [1, 2], 1: [2, 3]}
 
         self.assertEqual(results, expected_results)

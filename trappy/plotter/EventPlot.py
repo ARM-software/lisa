@@ -154,7 +154,7 @@ class EventPlot(AbstractDataPlotter):
         occuring simultaneously in different lanes.
         """
         lane_data = {}
-        for key, value in list(data.items()):
+        for key, value in data.items():
             lane_data[key] = defaultdict(list)
             for tsinfo in value:
                 lane_data[key][tsinfo[2]].append(tsinfo[:2])

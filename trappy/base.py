@@ -277,7 +277,7 @@ class Base(object):
 
         trace_arr_lengths = self.__get_trace_array_lengths()
 
-        if list(trace_arr_lengths.items()):
+        if trace_arr_lengths:
             for (idx, val) in enumerate(self.data_array):
                 expl_val = trace_parser_explode_array(val, trace_arr_lengths)
                 self.data_array[idx] = expl_val

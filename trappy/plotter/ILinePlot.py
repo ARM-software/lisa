@@ -300,7 +300,7 @@ class ILinePlot(AbstractDataPlotter):
 
         # 2) Merge the data frames to obtain common indexes
         df_columns = list(data_dict.keys())
-        dedup_data = [handle_duplicate_index(s) for s in list(data_dict.values())]
+        dedup_data = [handle_duplicate_index(s) for s in data_dict.values()]
         ret = pd.Series(dedup_data, index=df_columns)
         merged_df = pd.concat(ret.get_values(), axis=1)
         merged_df.columns = df_columns

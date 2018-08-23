@@ -334,7 +334,7 @@ class TestFTrace(BaseTestThermal):
         expected_metadata["cpus"] = "6"
 
         trace = trappy.FTrace()
-        for key, value in list(expected_metadata.items()):
+        for key, value in expected_metadata.items():
             self.assertTrue(hasattr(trace, "_" + key))
             self.assertEqual(getattr(trace, "_" + key), value)
 

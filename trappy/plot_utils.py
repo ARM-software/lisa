@@ -197,7 +197,7 @@ def plot_load(runs, map_label, width=None, height=None):
     if num_runs == 1:
         axis = [axis]
     else:
-        axis = list(zip(*axis))
+        axis = zip(*axis)
 
     for ax, run in zip(axis, runs):
         run.plot_load(map_label, title=run.name, ax=ax[0])
@@ -219,7 +219,7 @@ def plot_allfreqs(runs, map_label, width=None, height=None):
     elif nrows == 1:
         axis = [[ax] for ax in axis]
     else:
-        axis = list(zip(*axis))
+        axis = zip(*axis)
 
     for ax, run in zip(axis, runs):
         run.plot_allfreqs(map_label, ax=ax)
@@ -301,7 +301,7 @@ def plot_freq_hists(runs, map_label):
     if num_runs == 1:
         axis = [axis]
     else:
-        axis = list(zip(*axis))
+        axis = zip(*axis)
 
     for ax, run in zip(axis, runs):
         run.plot_freq_hists(map_label, ax=ax)

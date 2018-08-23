@@ -81,16 +81,16 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                  events=[], window=(0, None), abs_window=(0, None)):
         super(GenericFTrace, self).__init__(name)
 
-        self.class_definitions.update(list(self.dynamic_classes.items()))
+        self.class_definitions.update(self.dynamic_classes)
         self.__add_events(listify(events))
 
         if scope == "thermal":
-            self.class_definitions.update(list(self.thermal_classes.items()))
+            self.class_definitions.update(self.thermal_classes)
         elif scope == "sched":
-            self.class_definitions.update(list(self.sched_classes.items()))
+            self.class_definitions.update(self.sched_classes)
         elif scope != "custom":
-            self.class_definitions.update(list(self.thermal_classes.items()) +
-                                          list(self.sched_classes.items()))
+            self.class_definitions.update(self.thermal_classes)
+            self.class_definitions.update(self.sched_classes)
 
         # Sanity check on the unique words
         for cls1, cls2 in itertools.combinations(self.class_definitions.values(), 2):
@@ -145,11 +145,11 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         # TODO: scopes should not be hardcoded (nor here nor in the FTrace object)
         all_scopes = [cls.thermal_classes, cls.sched_classes,
                       cls.dynamic_classes]
-        known_events = ((n, c, sc) for sc in all_scopes for n, c in list(sc.items()))
 
-        for name, obj, scope_classes in known_events:
-            if cobject == obj:
-                del scope_classes[name]
+        for scope_classes in all_scopes:
+            for name, obj in list(scope_classes.items()):
+                if cobject == obj:
+                    del scope_classes[name]
 
     def _calc_max_window(self):
         """
@@ -207,7 +207,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
     def _is_cache_valid(self, cache_metadata):
         for key in ["md5sum", "basetime"]:
-            if key not in list(cache_metadata.keys()):
+            if key not in cache_metadata.keys():
                 warnstr = "Cache metadata is erroneous, invalidating cache"
                 warnings.warn(warnstr)
                 return False
@@ -521,7 +521,7 @@ is part of the trace.
         cpu_out_freqs = self.cpu_out_power.get_all_freqs(map_label)
 
         ret = []
-        for label in list(map_label.values()):
+        for label in map_label.values():
             in_label = label + "_freq_in"
             out_label = label + "_freq_out"
 
@@ -562,8 +562,8 @@ is part of the trace.
             "sched_wakeup": callback_fn2
         })
         """
-        dfs = {event: getattr(self, event).data_frame for event in list(fn_map.keys())}
-        events = [event for event in list(fn_map.keys()) if not dfs[event].empty]
+        dfs = {event: getattr(self, event).data_frame for event in fn_map.keys()}
+        events = [event for event in fn_map.keys() if not dfs[event].empty]
         iters = {event: dfs[event].itertuples() for event in events}
         next_rows = {event: next(iterator) for event,iterator in iter(iters.items())}
 
