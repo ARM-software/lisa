@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from contextlib import contextmanager
+
 from devlib.module import Module
 from devlib.exception import TargetStableError
 from devlib.utils.misc import memoized
@@ -94,6 +96,39 @@ class CpufreqModule(Module):
         sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_governor'.format(cpu)
         self.target.write_value(sysfile, governor)
         self.set_governor_tunables(cpu, governor, **kwargs)
+
+    @contextmanager
+    def use_governor(self, governor, cpus=None, **kwargs):
+        """
+        Use a given governor, then restore previous governor(s)
+
+        :param governor: Governor to use on all targeted CPUs (see :meth:`set_governor`)
+        :type governor: str
+
+        :param cpus: CPUs affected by the governor change (all by default)
+        :type cpus: list
+
+        :Keyword Arguments: Governor tunables, See :meth:`set_governor_tunables`
+        """
+        if not cpus:
+            cpus = range(self.target.number_of_cpus)
+
+        # Setting a governor & tunables for a cpu will set them for all cpus
+        # in the same clock domain, so only manipulating one cpu per domain
+        # is enough
+        domains = set(self.get_affected_cpus(cpu)[0] for cpu in cpus)
+        prev_governors = {cpu : (self.get_governor(cpu), self.get_governor_tunables(cpu))
+                          for cpu in domains}
+
+        for cpu in domains:
+            self.set_governor(cpu, governor, **kwargs)
+
+        try:
+            yield
+
+        finally:
+            for cpu, (governor, tunables) in prev_governors.items():
+                self.set_governor(cpu, governor, **tunables)
 
     def list_governor_tunables(self, cpu):
         """Returns a list of tunables available for the governor on the specified CPU."""
