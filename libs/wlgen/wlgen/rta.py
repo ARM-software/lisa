@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Copyright (C) 2015, ARM Limited and contributors.
+# Copyright (C) 2018, Arm Limited and contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License.
@@ -15,20 +15,364 @@
 # limitations under the License.
 #
 
-import fileinput
 import json
+import logging
 import os
 import re
-
+import sys
 from collections import OrderedDict
-from wlgen import Workload
-from devlib.utils.misc import ranges_to_list
 
-import logging
+from workload import Workload
 
-class Phase(object):
+from utilities import Loggable
+
+class RTA(Workload):
     """
-    Descriptor for an RT-App load phase
+    An rt-app workload
+
+    :param json_file: Path to the rt-app json description
+    :type json_file: str
+
+    The class constructor only deals with pre-constructed json files.
+    For creating rt-app workloads through other means, see :meth:`by_profile`
+    and :meth:`by_conf`.
+
+    For more information about rt-app itself, see
+    https://github.com/scheduler-tools/rt-app
+    """
+
+    required_tools = Workload.required_tools + ['rt-app']
+
+    sched_policies = ['OTHER', 'FIFO', 'RR', 'DEADLINE']
+
+    def __init__(self, te, name, res_dir=None, json_file=None):
+        # Don't add code here, use the early/late init methods instead.
+        # This lets us factorize some code for the class methods that serve as
+        # alternate constructors.
+        self._early_init(te, name, res_dir, json_file)
+        self._late_init()
+
+    def _early_init(self, te, name, res_dir, json_file):
+        """
+        Initialize everything that is not related to the contents of the json file
+        """
+        super(RTA, self).__init__(te, name, res_dir)
+
+        if not json_file:
+            json_file = '{}.json'.format(self.name)
+
+        self.local_json = os.path.join(self.res_dir, json_file)
+        self.remote_json = self.te.target.path.join(self.run_dir, json_file)
+
+        rta_cmd = self.te.target.which('rt-app')
+        if not rta_cmd:
+            raise RuntimeError("No rt-app executable found on the target")
+
+        self.command = '{0:s} {1:s} 2>&1'.format(rta_cmd, self.remote_json)
+
+    def _late_init(self, calibration=None, tasks_names=None):
+        """
+        Complete initialization with a ready json file
+
+        :parameters: Attributes that have been pre-computed and ended up
+          in the json file. Passing them can prevent a needless file read.
+        """
+        if not os.path.exists(self.local_json):
+            raise RuntimeError("Could not find {}".format(self.local_json))
+
+        if calibration or not tasks_names:
+            with open(self.local_json, "r") as fh:
+                desc = json.load(fh)
+
+                if calibration is None:
+                    calibration = desc["global"]["calibration"]
+                if not tasks_names:
+                    tasks_names = desc["tasks"].keys()
+
+        self.calibration = calibration
+        self.tasks = tasks_names
+
+        # Move configuration file to target
+        self.te.target.push(self.local_json, self.remote_json)
+
+    def run(self, cpus=None, cgroup=None, background=False, as_root=False):
+        super(RTA, self).run(cpus, cgroup, background, as_root)
+
+        if background:
+            # TODO: handle background case
+            return
+
+        self.logger.debug('Pulling logfiles to [%s]...', self.res_dir)
+        for task in self.tasks:
+            # RT-app appends some number to the logs, so we can't predict the
+            # exact filename
+            logfile = self.te.target.path.join(self.run_dir, '*{}*.log'.format(task))
+            self.te.target.pull(logfile, self.res_dir)
+
+    def _process_calibration(self, calibration):
+        """
+        Select CPU or pload value for task calibration
+        """
+        # This is done at init time rather than at run time, because the
+        # calibration value lives in the file
+        if isinstance(calibration, int):
+            pass
+        elif isinstance(calibration, basestring):
+            calibration = calibration.upper()
+        else:
+            cpus = range(self.te.target.number_of_cpus)
+            target_cpu = cpus[-1]
+            if 'bl'in self.te.target.modules:
+                candidates = sorted(set(self.te.target.bl.bigs).intersection(cpus))
+                if candidates:
+                    target_cpu = candidates[0]
+
+            calibration = 'CPU{0:d}'.format(target_cpu)
+
+        return calibration
+
+    @classmethod
+    def by_profile(cls, te, name, profile, res_dir=None, default_policy=None,
+                   max_duration_s=None, calibration=None):
+        """
+        Create an rt-app workload using :class:`RTATask` instances
+
+        :param profile: The workload description in a {task_name : :class:`RTATask`}
+          shape
+        :type profile: dict
+
+        :param default_policy: Default scheduler policy. See :attr:`sched_policies`
+        :type default_policy: str
+
+        :param max_duration_s: Maximum duration of the workload. Will be determined
+          by the longest running task if not specified.
+        :type max_duration_s: int
+
+        :param calibration:
+        :type calibration: int or str
+
+        A simple profile workload would be::
+
+            task = Periodic(duty_cycle_pct=5)
+            rta = RTA.by_profile(te, "test",  {"foo" : task})
+            rta.run()
+        """
+        self = cls.__new__(cls)
+        self._early_init(te, name, res_dir, None)
+
+        # Sanity check for task names
+        for task in profile.keys():
+            if len(task) > 15:
+                # rt-app uses pthread_setname_np(3) which limits the task name
+                # to 16 characters including the terminal '\0'.
+                raise ValueError(
+                    'Task name "{}" too long, please configure your tasks '
+                    'with names shorter than 16 characters'.format(task))
+
+        rta_profile = {
+            'tasks': {},
+            'global': {}
+        }
+
+        calibration = self._process_calibration(calibration)
+
+        global_conf = {
+            'default_policy': 'SCHED_OTHER',
+            'duration': -1 if not max_duration_s else max_duration_s,
+            'calibration': calibration,
+            'logdir': self.run_dir,
+        }
+
+        if max_duration_s:
+            self.logger.warn('Limiting workload duration to %d [s]', max_duration_s)
+
+        if default_policy:
+            if default_policy in self.sched_policies:
+                global_conf['default_policy'] = 'SCHED_{}'.format(default_policy)
+            else:
+                raise ValueError('scheduling class {} not supported'.format(default_policy))
+
+        self.logger.info('Calibration value: %s', global_conf['calibration'])
+        self.logger.info('Default policy: %s', global_conf['default_policy'])
+
+        rta_profile['global'] = global_conf
+
+        # Setup tasks parameters
+        for tid, task in profile.items():
+            task_conf = {}
+
+            if not task.sched_policy:
+                task_conf['policy'] = global_conf['default_policy']
+                sched_descr = 'sched: using default policy'
+            else:
+                task_conf['policy'] = 'SCHED_{}'.format(task.sched_policy)
+                if task.priority is not None:
+                    task_conf['prio'] = task.priority
+                sched_descr = 'sched: {0:s}'.format(task.sched_policy)
+
+
+            self.logger.info('------------------------')
+            self.logger.info('task [%s], %s', tid, sched_descr)
+
+            task_conf['delay'] = int(task.delay_s * 1e6)
+            self.logger.info(' | start delay: %.6f [s]', task.delay_s)
+
+            task_conf['loop'] = task.loops
+            self.logger.info(' | loops count: %d', task.loops)
+
+            task_conf['phases'] = OrderedDict()
+            rta_profile['tasks'][tid] = task_conf
+
+            pid = 1
+            for phase in task.phases:
+                phase_name = 'p{}'.format(str(pid).zfill(6))
+
+                self.logger.info(' + phase_%06d', pid)
+                rta_profile['tasks'][tid]['phases'][phase_name] = phase.get_rtapp_repr(tid)
+
+                pid += 1
+
+        # Generate JSON configuration on local file
+        with open(self.local_json, 'w') as outfile:
+            json.dump(rta_profile, outfile, indent=4, separators=(',', ': '))
+
+        self._late_init(calibration=calibration, tasks_names=profile.keys())
+        return self
+
+    @classmethod
+    def process_template(cls, template, output, duration=None, pload=None,
+                         log_dir=None, work_dir=None):
+        """
+        :param output: An open <thing>
+        :type output: yolo (IOStream?)
+        """
+        # pload can either be a string like "CPU1" or an integer, if the
+        # former we need to quote it.
+        if not isinstance(pload, int):
+            pload = '"{}"'.format(pload)
+
+        replacements = {
+            '__DURATION__' : duration,
+            '__PVALUE__'   : pload,
+            '__LOGDIR__'   : log_dir,
+            '__WORKDIR__'  : work_dir,
+        }
+
+        for line in template:
+            for token, replacement in replacements.iteritems():
+                if token not in line:
+                    continue
+
+                if replacement is None:
+                    raise RuntimeError("No replacement value given for {}".format(token))
+
+                line = line.replace(token, str(replacement))
+
+            output.write(line)
+
+    @classmethod
+    def by_conf(cls, te, name, conf, res_dir=None, max_duration_s=None,
+                calibration=None):
+
+        self = cls.__new__(cls)
+        self._early_init(te, name, res_dir, None)
+
+        str_conf = json.dumps(conf, indent=4, separators=(',', ': '),
+                              sort_keys=True).splitlines(True)
+
+        calibration = self._process_calibration(calibration)
+
+        with open(self.local_json, 'w') as fh:
+            self.process_template(str_conf, fh, max_duration_s, calibration,
+                                  self.run_dir, self.run_dir)
+
+        tasks_names = [tid for tid in conf['tasks']]
+        self._late_init(calibration=calibration, tasks_names=tasks_names)
+
+        return self
+
+    @classmethod
+    def _calibrate(cls, te, res_dir):
+        pload_regexp = re.compile(r'pLoad = ([0-9]+)ns')
+        pload = {}
+
+        log = logging.getLogger(cls.__name__)
+
+        # Create calibration task
+        max_rtprio = int(te.target.execute('ulimit -Hr').split('\r')[0])
+        log.debug('Max RT prio: %d', max_rtprio)
+
+        if max_rtprio > 10:
+            max_rtprio = 10
+
+        if not res_dir:
+            res_dir = te.get_res_dir("rta_calib")
+
+        for cpu in te.target.list_online_cpus():
+            log.info('CPU%d calibration...', cpu)
+
+            # RT-app will run a calibration for us, so we just need to
+            # run a dummy task and read the output
+            calib_task = Periodic(duty_cycle_pct=100, duration_s=0.001, period_ms=1)
+            rta = RTA.by_profile(te, name="rta_calib_cpu{}".format(cpu),
+                                 res_dir=res_dir, profile={'task1': calib_task},
+                                 calibration="CPU{}".format(cpu))
+            rta.run(as_root=True)
+
+            for line in rta.output.split('\n'):
+                pload_match = re.search(pload_regexp, line)
+                if pload_match is None:
+                    continue
+                pload[cpu] = int(pload_match.group(1))
+                log.debug('>>> cpu%d: %d', cpu, pload[cpu])
+
+        log.info('Target RT-App calibration:')
+        log.info("{" + ", ".join('"%r": %r' % (key, pload[key])
+                                 for key in pload) + "}")
+
+        if 'sched' not in te.target.modules:
+            return pload
+
+        # Sanity check calibration values for asymmetric systems
+        cpu_capacities = te.target.sched.get_capacities()
+        capa_pload = {capacity : sys.maxint for capacity in cpu_capacities.values()}
+
+        # Find the max pload per capacity level
+        # for capacity, index in enumerate(sorted_capacities):
+        for cpu, capacity in cpu_capacities.items():
+            capa_pload[capacity] = max(capa_pload[capacity], pload[cpu])
+
+        sorted_capas = sorted(capa_pload.keys())
+
+        # Make sure pload decreases with capacity
+        for index, capa in enumerate(sorted_capas[1:]):
+            if capa_pload[capa] > capa_pload[sorted_capas[index-1]]:
+                log.warning('Calibration values reports big cores less '
+                            'capable than LITTLE cores')
+                raise RuntimeError('Calibration failed: try again or file a bug')
+
+        return pload
+
+    @classmethod
+    def get_cpu_calibrations(cls, te, res_dir=None):
+        """
+        Get the rt-ap calibration value for all CPUs.
+
+        :param target: Devlib target to run calibration on.
+        :returns: Dict mapping CPU numbers to rt-app calibration values.
+        """
+
+        if 'cpufreq' not in te.target.modules:
+            logging.getLogger(cls.__name__).warning(
+                'cpufreq module not loaded, skipping setting frequency to max')
+            return cls._calibrate(te, res_dir)
+
+        with te.target.cpufreq.use_governor('performance'):
+            return cls._calibrate(te, res_dir)
+
+class Phase(Loggable):
+    """
+    Descriptor for an rt-app load phase
 
     :param duration_s: the phase duration in [s].
     :type duration_s: int
@@ -39,15 +383,15 @@ class Phase(object):
     :param duty_cycle_pct: the generated load in [%].
     :type duty_cycle_pct: int
 
-    :param cpus: the list of cpus on which task execution is restricted during
-                 this phase.
-    :type cpus: [int] or int
+    :param cpus: the CPUs on which task execution is restricted during this phase.
+    :type cpus: list(int)
 
     :param barrier_after: if provided, the name of the barrier to sync against
                           when reaching the end of this phase. Currently only
                           supported when duty_cycle_pct=100
     :type barrier_after: str
     """
+
     def __init__(self, duration_s, period_ms, duty_cycle_pct, cpus=None, barrier_after=None):
         if barrier_after and duty_cycle_pct != 100:
             # This could be implemented but currently don't foresee any use.
@@ -59,479 +403,86 @@ class Phase(object):
         self.cpus = cpus
         self.barrier_after = barrier_after
 
-class RTA(Workload):
-    """
-    Class for creating RT-App workloads
-    """
-
-    def __init__(self,
-                 target,
-                 name,
-                 calibration=None):
+    def get_rtapp_repr(self, task_name):
         """
-        :param target: Devlib target to run workload on.
-        :param name: Human-readable name for the workload.
-        :param calibration: CPU calibration specification. Can be obtained from
-                            :meth:`calibrate`.
+        Get a dictionnary representation of the phase as expected by rt-app
+
+        :param task_name: Name of the phase's task (needed for timers)
+        :type task_name: str
+
+        :returns: OrderedDict
         """
+        phase = OrderedDict()
+        # Convert time parameters to integer [us] units
+        duration = int(self.duration_s * 1e6)
 
-        # Setup logging
-        self._log = logging.getLogger('RTApp')
+        # A duty-cycle of 0[%] translates to a 'sleep' phase
+        if self.duty_cycle_pct == 0:
+            self.logger.info(' | sleep %.6f [s]', duration/1e6)
 
-        # rt-app calibration
-        self.pload = calibration
+            phase['loop'] = 1
+            phase['sleep'] = duration
 
-        # TODO: Assume rt-app is pre-installed on target
-        # self.target.setup('rt-app')
+        # A duty-cycle of 100[%] translates to a 'run-only' phase
+        elif self.duty_cycle_pct == 100:
+            self.logger.info(' | batch %.6f [s]', duration/1e6)
 
-        super(RTA, self).__init__(target, name)
+            phase['loop'] = 1
+            phase['run'] = duration
+            if self.barrier_after:
+                phase['barrier'] = self.barrier_after
 
-        # rt-app executor
-        self.wtype = 'rtapp'
-        self.executor = 'rt-app'
-
-        # Default initialization
-        self.rta_profile = None
-        self.loadref = None
-        self.rta_cmd  = None
-        self.rta_conf = None
-
-        # Setup RTA callbacks
-        self.setCallback('postrun', self.__postrun)
-
-    @staticmethod
-    def calibrate(target):
-        """
-        Calibrate RT-App on each CPU in the system
-
-        :param target: Devlib target to run calibration on.
-        :returns: Dict mapping CPU numbers to RT-App calibration values.
-        """
-        pload_regexp = re.compile(r'pLoad = ([0-9]+)ns')
-        pload = {}
-
-        # Setup logging
-        log = logging.getLogger('RTApp')
-
-        # Save previous governors
-        old_governors = {}
-        for domain in target.cpufreq.iter_domains():
-            cpu = domain[0]
-            governor = target.cpufreq.get_governor(cpu)
-            tunables = target.cpufreq.get_governor_tunables(cpu)
-            old_governors[cpu] = governor, tunables
-
-        target.cpufreq.set_all_governors('performance')
-
-        # Create calibration task
-        max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
-        log.debug('Max RT prio: %d', max_rtprio)
-        if max_rtprio > 10:
-            max_rtprio = 10
-
-        calib_task = Periodic(period_ms=100,
-                              duty_cycle_pct=50,
-                              duration_s=1,
-                              sched={
-                                  'policy': 'FIFO',
-                                  'prio': max_rtprio
-                              })
-        rta = RTA(target, 'rta_calib')
-
-        for cpu in target.list_online_cpus():
-
-            log.info('CPU%d calibration...', cpu)
-
-            rta.conf(kind='profile', params={'task1': calib_task}, cpus=[cpu])
-            rta.run(as_root=True)
-
-            for line in rta.getOutput().split('\n'):
-                pload_match = re.search(pload_regexp, line)
-                if pload_match is None:
-                    continue
-                pload[cpu] = int(pload_match.group(1))
-                log.debug('>>> cpu%d: %d', cpu, pload[cpu])
-
-        # Restore previous governors
-        #   Setting a governor & tunables for a cpu will set them for all cpus
-        #   in the same clock domain, so only restoring them for one cpu
-        #   per domain is enough to restore them all.
-        for cpu, (governor, tunables) in old_governors.iteritems():
-            target.cpufreq.set_governor(cpu, governor)
-            target.cpufreq.set_governor_tunables(cpu, **tunables)
-
-        log.info('Target RT-App calibration:')
-        log.info("{" + ", ".join('"%r": %r' % (key, pload[key])
-                                 for key in pload) + "}")
-
-        # Sanity check calibration values for big.LITTLE systems
-        if 'bl' in target.modules:
-            bcpu = target.bl.bigs_online[0]
-            lcpu = target.bl.littles_online[0]
-            if pload[bcpu] > pload[lcpu]:
-                log.warning('Calibration values reports big cores less '
-                            'capable than LITTLE cores')
-                raise RuntimeError('Calibration failed: try again or file a bug')
-            bigs_speedup = ((float(pload[lcpu]) / pload[bcpu]) - 1) * 100
-            log.info('big cores are ~%.0f%% more capable than LITTLE cores',
-                     bigs_speedup)
-
-        return pload
-
-    def __postrun(self, params):
-        destdir = params['destdir']
-        if destdir is None:
-            return
-        self._log.debug('Pulling logfiles to [%s]...', destdir)
-        for task in self.tasks.keys():
-            logfile = self.target.path.join(self.run_dir,
-                                            '*{}*.log'.format(task))
-            self.target.pull(logfile, destdir)
-        logfile = self.target.path.join(destdir, 'output.log')
-        self._log.debug('Saving output on [%s]...', logfile)
-        with open(logfile, 'w') as ofile:
-            for line in self.output['executor'].split('\n'):
-                ofile.write(line+'\n')
-
-    def getCalibrationConf(self):
-        # Select CPU for task calibration, which is the first little
-        # of big depending on the loadref tag
-        if self.pload is not None:
-            if self.loadref and self.loadref.upper() == 'LITTLE':
-                return max(self.pload.values())
-            else:
-                return min(self.pload.values())
+        # A certain number of loops is requires to generate the
+        # proper load
         else:
-            cpus = self.cpus or range(self.target.number_of_cpus)
+            period = int(self.period_ms * 1e3)
 
-            target_cpu = cpus[-1]
-            if 'bl'in self.target.modules:
-                cluster = self.target.bl.bigs
-                candidates = sorted(set(self.target.bl.bigs).intersection(cpus))
-                if candidates:
-                    target_cpu = candidates[0]
+            cloops = -1
+            if duration >= 0:
+                cloops = int(duration / period)
 
-            return 'CPU{0:d}'.format(target_cpu)
+            sleep_time = period * (100 - self.duty_cycle_pct) / 100
+            running_time = period - sleep_time
 
-    def _confCustom(self):
+            self.logger.info(' | duration %.6f [s] (%d loops)',
+                             duration/1e6, cloops)
+            self.logger.info(' |  period   %6d [us], duty_cycle %3d %%',
+                             period, self.duty_cycle_pct)
+            self.logger.info(' |  run_time %6d [us], sleep_time %6d [us]',
+                             running_time, sleep_time)
 
-        rtapp_conf = self.params['custom']
+            phase['loop'] = cloops
+            phase['run'] = running_time
+            phase['timer'] = {'ref': task_name, 'period': period}
 
-        ofile = open(self.local_json, 'w')
+        if self.cpus is not None:
+            phase['cpus'] = self.cpus
 
-        calibration = self.getCalibrationConf()
-        # Calibration can either be a string like "CPU1" or an integer, if the
-        # former we need to quote it.
-        if type(calibration) != int:
-            calibration = '"{}"'.format(calibration)
-
-        replacements = {
-            '__DURATION__' : str(self.duration),
-            '__PVALUE__'   : str(calibration),
-            '__LOGDIR__'   : str(self.run_dir),
-            '__WORKDIR__'  : '"'+self.target.working_directory+'"',
-        }
-
-        # Check for inline config
-        if not isinstance(self.params['custom'], basestring):
-            if isinstance(self.params['custom'], dict):
-                # Inline config present, turn it into a file repr
-                tmp_json = json.dumps(self.params['custom'],
-                    indent=4, separators=(',', ': '), sort_keys=True)
-                ifile = tmp_json.splitlines(True)
-            else:
-                raise ValueError("Value specified for 'params'  can only be "
-                                 "a filename or an embedded dictionary")
-        else:
-            # We assume we are being passed a filename instead of a dict
-            self._log.info('Loading custom configuration:')
-            self._log.info('   %s', rtapp_conf)
-            ifile = open(rtapp_conf, 'r')
-
-        for line in ifile:
-            if '__DURATION__' in line and self.duration is None:
-                raise ValueError('Workload duration not specified')
-            for src, target in replacements.iteritems():
-                line = line.replace(src, target)
-            ofile.write(line)
-
-        if isinstance(ifile, file):
-            ifile.close()
-        ofile.close()
-
-        with open(self.local_json) as f:
-            conf = json.load(f)
-        for tid in conf['tasks']:
-            self.tasks[tid] = {'pid': -1}
-
-    def _confProfile(self):
-
-        # Sanity check for task names
-        for task in self.params['profile'].keys():
-            if len(task) > 15:
-                # rt-app uses pthread_setname_np(3) which limits the task name
-                # to 16 characters including the terminal '\0'.
-                msg = ('Task name "{}" too long, please configure your tasks '
-                       'with names shorter than 16 characters').format(task)
-                raise ValueError(msg)
-
-        # Task configuration
-        self.rta_profile = {
-            'tasks': {},
-            'global': {}
-        }
-
-        # Initialize global configuration
-        global_conf = {
-                'default_policy': 'SCHED_OTHER',
-                'duration': -1,
-                'calibration': self.getCalibrationConf(),
-                'logdir': self.run_dir,
-            }
-
-        if self.duration is not None:
-            global_conf['duration'] = self.duration
-            self._log.warn('Limiting workload duration to %d [s]',
-                           global_conf['duration'])
-        else:
-            self._log.info('Workload duration defined by longest task')
-
-        # Setup default scheduling class
-        if 'policy' in self.sched:
-            policy = self.sched['policy'].upper()
-            if policy not in ['OTHER', 'FIFO', 'RR', 'DEADLINE']:
-                raise ValueError('scheduling class {} not supported'\
-                        .format(policy))
-            global_conf['default_policy'] = 'SCHED_' + self.sched['policy']
-
-        self._log.info('Default policy: %s', global_conf['default_policy'])
-
-        # Setup global configuration
-        self.rta_profile['global'] = global_conf
-
-        # Setup tasks parameters
-        for tid in sorted(self.params['profile'].keys()):
-            task = self.params['profile'][tid]
-
-            # Initialize task configuration
-            task_conf = {}
-
-            if not task.sched:
-                policy = 'DEFAULT'
-            else:
-                policy = task.sched['policy'].upper()
-
-            if policy == 'DEFAULT':
-                task_conf['policy'] = global_conf['default_policy']
-                sched_descr = 'sched: using default policy'
-            elif policy not in ['OTHER', 'FIFO', 'RR', 'DEADLINE']:
-                raise ValueError('scheduling class {} not supported'\
-                        .format(task['sclass']))
-            else:
-                task_conf.update(task.sched)
-                task_conf['policy'] = 'SCHED_' + policy
-                sched_descr = 'sched: {0:s}'.format(task['sched'])
-
-            # Initialize task phases
-            task_conf['phases'] = OrderedDict()
-
-            self._log.info('------------------------')
-            self._log.info('task [%s], %s', tid, sched_descr)
-
-            if task.delay_s:
-                task_conf['delay'] = int(task.delay_s * 1e6)
-                self._log.info(' | start delay: %.6f [s]',
-                               task['delay'])
-
-            if not task.loops:
-                task['loops'] = 1
-
-            task_conf['loop'] = task.loops
-            self._log.info(' | loops count: %d', task.loops)
-
-            # Setup task configuration
-            self.rta_profile['tasks'][tid] = task_conf
-
-            # Getting task phase descriptor
-            pid=1
-            for phase in task.phases:
-
-                # Convert time parameters to integer [us] units
-                duration = int(phase.duration_s * 1e6)
-
-                task_phase = OrderedDict()
-
-                # A duty-cycle of 0[%] translates on a 'sleep' phase
-                if phase.duty_cycle_pct == 0:
-
-                    self._log.info(' + phase_%06d: sleep %.6f [s]',
-                                   pid, duration/1e6)
-
-                    task_phase['loop'] = 1
-                    task_phase['sleep'] = duration
-
-                # A duty-cycle of 100[%] translates on a 'run-only' phase
-                elif phase.duty_cycle_pct == 100:
-
-                    self._log.info(' + phase_%06d: batch %.6f [s]',
-                                   pid, duration/1e6)
-
-                    task_phase['loop'] = 1
-                    task_phase['run'] = duration
-                    if phase.barrier_after:
-                        task_phase['barrier'] = phase.barrier_after
-
-                # A certain number of loops is requires to generate the
-                # proper load
-                else:
-                    period = int(phase.period_ms * 1e3)
-
-                    cloops = -1
-                    if duration >= 0:
-                        cloops = int(duration / period)
-
-                    sleep_time = period * (100 - phase.duty_cycle_pct) / 100
-                    running_time = period - sleep_time
-
-                    self._log.info('+ phase_%06d: duration %.6f [s] (%d loops)',
-                                   pid, duration/1e6, cloops)
-                    self._log.info('|  period   %6d [us], duty_cycle %3d %%',
-                                   period, phase.duty_cycle_pct)
-                    self._log.info('|  run_time %6d [us], sleep_time %6d [us]',
-                                   running_time, sleep_time)
-
-                    task_phase['loop'] = cloops
-                    task_phase['run'] = running_time
-                    task_phase['timer'] = {'ref': tid, 'period': period}
-
-                self.rta_profile['tasks'][tid]['phases']\
-                    ['p'+str(pid).zfill(6)] = task_phase
-
-                if phase.cpus is not None:
-                    if isinstance(phase.cpus, str):
-                        task_phase['cpus'] = ranges_to_list(phase.cpus)
-                    elif isinstance(phase.cpus, list):
-                        task_phase['cpus'] = phase.cpus
-                    elif isinstance(phase.cpus, int):
-                        task_phase['cpus'] = [phase.cpus]
-                    else:
-                        raise ValueError('phases cpus must be a list or string \
-                                          or int')
-                    self._log.info('|  CPUs affinity: {}'.format(phase.cpus))
-
-                pid+=1
-
-            # Append task name to the list of this workload tasks
-            self.tasks[tid] = {'pid': -1}
-
-        # Generate JSON configuration on local file
-        with open(self.local_json, 'w') as outfile:
-            json.dump(self.rta_profile, outfile,
-                      indent=4, separators=(',', ': '))
-
-    def conf(self,
-             kind,
-             params,
-             duration=None,
-             cpus=None,
-             sched=None,
-             work_dir='./',
-             run_dir=None,
-             loadref='big'):
-        """
-        Configure a workload of a specified kind.
-
-        The rt-app based workload allows to define different classes of
-        workloads. The classes supported so far are detailed hereafter.
-
-        Custom workloads
-          When 'kind' is 'custom' the tasks generated by this workload can be:
-          * Defined in a provided rt-app JSON configuration file. In this case
-            the 'params' parameter must be used to specify the complete path of
-            the rt-app JSON configuration file to use.
-          * Defined in a dictionnary that matches the format of an rt-app JSON
-            configuration file. This can be useful when you need to create a
-            more complex scenario not covered by the workload generator, as
-            you can create it with a dict and "feed" it directly to rtapp.
-
-        Profile based workloads
-          When ``kind`` is "profile", ``params`` is a dictionary mapping task
-          names to task specifications.
-
-          For example, the following configures an RTA workload with a single
-          task, named 't1', using the default parameters for a Periodic RTATask:
-
-          ::
-
-            wl = RTA(...)
-            wl.conf(kind='profile', params={'t1': Periodic()})
-
-        :param kind: Either 'custom' or 'profile' - see above.
-        :param params: RT-App parameters - see above.
-        :param duration: Maximum duration of the workload in seconds. Any
-                         remaining tasks are killed by rt-app when this time has
-                         elapsed.
-        :param cpus: CPUs to restrict this workload to, using ``taskset``.
-                    .. note:: if not specified, it can run on all CPUs
-        :type cpus: list(int)
-
-        :param sched: Global RT-App scheduler configuration. Dict with fields:
-
-          policy
-            The default scheduler policy. Choose from 'OTHER', 'FIFO', 'RR',
-            and 'DEADLINE'.
-
-        :param work_dir: Local directory in which to store the resulting rt-app
-          configuration
-        :type work_dir: str
-
-        :param run_dir: Target dir to store output and config files in.
-
-        .. TODO: document or remove loadref
-        """
-
-        if not sched:
-            sched = {'policy' : 'OTHER'}
-
-        super(RTA, self).conf(kind, params, duration,
-                cpus, sched, run_dir)
-
-        self.work_dir = work_dir
-        self.loadref = loadref
-
-        json_name = '{}.json'.format(self.name)
-        self.local_json = os.path.join(self.work_dir, json_name)
-        self.remote_json = self.target.path.join(self.run_dir, json_name)
-
-        # Setup class-specific configuration
-        if kind == 'custom':
-            self._confCustom()
-        elif kind == 'profile':
-            self._confProfile()
-
-        # Move configuration file to target
-        self.target.push(self.local_json, self.remote_json)
-
-        self.rta_cmd  = self.target.which('rt-app')
-        self.command = '{0:s} {1:s} 2>&1'.format(self.rta_cmd, self.remote_json)
+        return phase
 
 class RTATask(object):
     """
     Base class for conveniently constructing params to :meth:`RTA.conf`
 
-    This class represents an RT-App task which may contain multiple phases. It
-    implements ``__add__`` so that using ``+`` on two tasks concatenates their
+    This class represents an rt-app task which may contain multiple :class:`Phase`.
+    It implements ``__add__`` so that using ``+`` on two tasks concatenates their
     phases. For example ``Ramp() + Periodic()`` would yield an ``RTATask`` that
-    executes the default phases for ``Ramp`` followed by the default phases for
-    ``Periodic``.
+    executes the default phases for :class:`Ramp` followed by the default phases for
+    :class:`Periodic`.
     """
 
-    def __init__(self, delay_s=0, loops=1, sched=None):
-        self._task = {}
-
-        self.sched = sched or {'policy' : 'DEFAULT'}
+    def __init__(self, delay_s=0, loops=1, sched_policy=None, priority=None):
         self.delay_s = delay_s
         self.loops = loops
+
+        if isinstance(sched_policy, basestring):
+            sched_policy = sched_policy.upper()
+
+            if sched_policy not in RTA.sched_policies:
+                raise ValueError('scheduling class {} not supported'.format(sched_policy))
+
+        self.sched_policy = sched_policy
+        self.priority = priority
         self.phases = []
 
     def __add__(self, next_phases):
@@ -545,7 +496,6 @@ class RTATask(object):
 
         self.phases.extend(next_phases.phases)
         return self
-
 
 class Ramp(RTATask):
     """
@@ -564,8 +514,8 @@ class Ramp(RTATask):
     :param loops: number of time to repeat the ramp, with the specified delay in
                   between.
 
-    :param sched: the scheduler configuration for this task.
-    :type sched: dict
+    :param sched_policy: the scheduler configuration for this task.
+    :type sched_policy: dict
 
     :param cpus: the list of CPUs on which task can run.
                 .. note:: if not specified, it can run on all CPUs
@@ -573,10 +523,11 @@ class Ramp(RTATask):
     """
 
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
-                 period_ms=100, delay_s=0, loops=1, sched=None, cpus=None):
-        super(Ramp, self).__init__(delay_s, loops, sched)
+                 period_ms=100, delay_s=0, loops=1, sched_policy=None,
+                 priority=None, cpus=None):
+        super(Ramp, self).__init__(delay_s, loops, sched_policy, priority)
 
-        if start_pct not in range(0,101) or end_pct not in range(0,101):
+        if start_pct not in range(0, 101) or end_pct not in range(0, 101):
             raise ValueError('start_pct and end_pct must be in [0..100] range')
 
         if start_pct >= end_pct:
@@ -624,10 +575,11 @@ class Step(Ramp):
     """
 
     def __init__(self, start_pct=0, end_pct=100, time_s=1, period_ms=100,
-                 delay_s=0, loops=1, sched=None, cpus=None):
+                 delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None):
         delta_pct = abs(end_pct - start_pct)
         super(Step, self).__init__(start_pct, end_pct, delta_pct, time_s,
-                                   period_ms, delay_s, loops, sched, cpus)
+                                   period_ms, delay_s, loops, sched_policy,
+                                   priority, cpus)
 
 class Pulse(RTATask):
     """
@@ -662,13 +614,13 @@ class Pulse(RTATask):
     """
 
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
-                 delay_s=0, loops=1, sched=None, cpus=None):
-        super(Pulse, self).__init__(delay_s, loops, sched)
+                 delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None):
+        super(Pulse, self).__init__(delay_s, loops, sched_policy, priority)
 
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
 
-        if end_pct not in range(0,101) or start_pct not in range(0,101):
+        if end_pct not in range(0, 101) or start_pct not in range(0, 101):
             raise ValueError('end_pct and start_pct must be in [0..100] range')
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
@@ -703,9 +655,10 @@ class Periodic(Pulse):
     """
 
     def __init__(self, duty_cycle_pct=50, duration_s=1, period_ms=100,
-                 delay_s=0, sched=None, cpus=None):
+                 delay_s=0, sched_policy=None, priority=None, cpus=None):
         super(Periodic, self).__init__(duty_cycle_pct, 0, duration_s,
-                                       period_ms, delay_s, 1, sched, cpus)
+                                       period_ms, delay_s, 1, sched_policy,
+                                       priority, cpus)
 
 class RunAndSync(RTATask):
     """
@@ -727,11 +680,10 @@ class RunAndSync(RTATask):
     :type cpus: list(int)
 
     """
-    def __init__(self, barrier, time_s=1,
-                 delay_s=0, loops=1, sched=None, cpus=None):
-        super(RunAndSync, self).__init__(delay_s, loops, sched)
+    def __init__(self, barrier, time_s=1, delay_s=0, loops=1, sched_policy=None,
+                 priority=None, cpus=None):
+        super(RunAndSync, self).__init__(delay_s, loops, sched_policy, priority)
 
         # This should translate into a phase containing a 'run' event and a
         # 'barrier' event
-        self.phases = [Phase(time_s, None, 100, cpus,
-                                      barrier_after=barrier)]
+        self.phases = [Phase(time_s, None, 100, cpus, barrier_after=barrier)]
