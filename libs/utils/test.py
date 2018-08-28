@@ -132,12 +132,17 @@ class LisaTest(unittest.TestCase):
         """
 
     @memoized
-    def get_sched_assert(self, experiment, task):
+    def get_sched_assert(self, experiment, task, pid=0):
         """
         Return a SchedAssert over the task provided
         """
-        return SchedAssert(
-            self.get_trace(experiment).ftrace, self.te.topology, execname=task)
+
+        if pid:
+            return SchedAssert(
+                self.get_trace(experiment).ftrace, self.te.topology, pid=pid)
+        else:
+            return SchedAssert(
+                self.get_trace(experiment).ftrace, self.te.topology, execname=task)
 
     @memoized
     def get_multi_assert(self, experiment, task_filter=""):

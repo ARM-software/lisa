@@ -694,7 +694,7 @@ class _CPUMigrationBase(LisaTest):
                              start + phase_duration_s)
         return window
 
-    def _get_util_mean(self, start, end, df, cpus):
+    def _get_util_mean(self, experiment, phase, start, end, df, cpus):
         """
         Compute the mean utilization per CPU given a time interval
         :param start: start of the time interval
@@ -715,7 +715,26 @@ class _CPUMigrationBase(LisaTest):
         util_mean = {}
         df = df[start:end]
         for cpu in cpus:
-            util = df[(df.cpu == cpu) & (df.path == '/')].util
+            util = df[(df.cpu == cpu) & (df.path == '/')]
+            for task in util['__comm'].unique():
+                if task == "<idle>" or task in self.tasks_desc.keys():
+                    continue
+
+                # The same task might appear under several pids, calculate
+                # the total percentage of time for this task
+                pids = util[(util['__comm'] == task)]['__pid'].unique()
+                creep_time_pct = 0
+                for pid in pids:
+                    sched_assert = self.get_sched_assert(experiment, task, pid)
+                    creep_time_pct += sched_assert.getRuntime((start, end), True)
+
+                # Record any tasks that creeped in during the test and the
+                # percentage of time they ran
+                msg = "task {} creeped into CPU{} for {}% during phase {}"
+                msg = msg.format(task, cpu, creep_time_pct, phase)
+                self._log.info(msg)
+
+            util = util.util
             util_mean[cpu] = area_under_curve(util) / (end - start)
         return util_mean
 
@@ -776,7 +795,8 @@ class _CPUMigrationBase(LisaTest):
                 cpus.update(self._get_cpus(task[1], phase))
 
             # Get the mean utilization per CPU
-            util_mean = self._get_util_mean(window[phase][0], window[phase][1],
+            util_mean = self._get_util_mean(experiment, phase,
+                                            window[phase][0], window[phase][1],
                                             util_df, cpus)
             # Get the expected utilization per CPU
             expected = self._get_util_expected(self.tasks_desc, cpus, phase)
