@@ -193,7 +193,7 @@ IPADDR=$(/sbin/ifconfig $NETIF 2>/dev/null  | \
     sed 's/addr://')
 if [ "x$IPADDR" == "x" ]; then
     echo
-    echo "$NETIF is not a valid network interface"
+    echo "could not determine IP address of $NETIF"
     echo
     echo "Usage: $0 <NETIF>"
     echo " NETIF - The network interface to start the server on"
