@@ -188,9 +188,19 @@ function _lisa-ipython-usage {
 
 function _lisa-ipython-start {
 # Get IP address for the specified interface
-IPADDR=$(/sbin/ifconfig $NETIF 2>/dev/null  | \
-    awk '/inet / {print $2}' | \
-    sed 's/addr://')
+IPADDR=
+
+if [ -x /sbin/ifconfig ]; then
+    IPADDR=$(/sbin/ifconfig $NETIF 2>/dev/null  | \
+        awk '/inet / {print $2}' | \
+        sed 's/addr://')
+fi
+
+if [ "x$IPADDR" == "x" -a -x /sbin/ip ]; then
+    IPADDR=$(/sbin/ip a show dev $NETIF 2>/dev/null | \
+        awk '/inet / { gsub("/.*", ""); print $2; }')
+fi
+
 if [ "x$IPADDR" == "x" ]; then
     echo
     echo "could not determine IP address of $NETIF"
