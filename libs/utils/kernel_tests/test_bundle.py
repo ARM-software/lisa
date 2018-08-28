@@ -115,6 +115,8 @@ class TestBundle(YAMLSerializable):
       given directory (which should have been created by an earlier call
       to :meth:`from_target` and then :meth:`to_path`), and will then return
       a :class:`TestBundle`.
+    * :attr:`verify_serialization` is there to ensure both above methods remain
+      operationnal at all times.
 
     The point of a TestBundle is to bundle in a single object all of the
     required data to run some test assertion (hence the name). When inheriting
@@ -159,6 +161,14 @@ class TestBundle(YAMLSerializable):
         res_bundle = bundle.test_foo()
     """
 
+    verify_serialization = True
+    """
+    When True, this enforces a serialization/deserialization step in :meth:`from_target`.
+    Although it hinders performance (we end up creating two :class:`TestBundle`
+    instances), it's very valuable to ensure :meth:`from_path` does not get broken
+    for some particular class.
+    """
+
     def __init__(self, res_dir):
         self.res_dir = res_dir
 
@@ -190,8 +200,11 @@ class TestBundle(YAMLSerializable):
         # the information we need to execute the test code. However,
         # we enforce the use of the offline reloading path to ensure
         # it does not get broken.
-        bundle.to_path(res_dir)
-        return cls.from_path(res_dir)
+        if cls.verify_serialization:
+            bundle.to_path(res_dir)
+            bundle = cls.from_path(res_dir)
+
+        return bundle
 
     @classmethod
     def _filepath(cls, res_dir):
