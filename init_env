@@ -19,7 +19,11 @@
 # LISA Shell: Initialization
 grep "bash" /proc/$$/cmdline &>/dev/null
 if [ $? -eq 0 ]; then
-	source ./src/shell/lisa_shell
+	if [ -z "$PS1" ]; then
+		source ./src/shell/lisa_shell
+	else
+		bash --rcfile <(echo 'source ./src/shell/lisa_shell')
+	fi
 else
 	echo "WARNING: Current shell is not a BASH"
 	# Check if a bash shell is available
