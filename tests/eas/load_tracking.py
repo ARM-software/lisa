@@ -39,6 +39,8 @@ UTIL_SCALE = 1024
 UTIL_AVG_CONVERGENCE_TIME = 0.3
 # Allowed margin between expected and observed util_avg value
 ERROR_MARGIN_PCT = 15
+# Allowed error margin % for migration tests
+MIGRATION_ERROR_MARGIN_PCT = 2
 # PELT half-life value in ms
 HALF_LIFE_MS = 32
 
@@ -555,7 +557,7 @@ class _CPUMigrationBase(LisaTest):
     }
 
     # Allowed error margin
-    allowed_util_margin = UTIL_SCALE * 0.02
+    allowed_util_margin = UTIL_SCALE * (MIGRATION_ERROR_MARGIN_PCT / 100.)
 
     # Dictionary that contains the description of the tasks
     tasks_desc = {}
@@ -946,7 +948,7 @@ class _PELTTaskGroupsTest(LisaTest):
         'modules': ['cpufreq', 'cgroups'],
     }
     # Allowed error margin
-    allowed_util_margin = 0.02
+    allowed_util_margin = (MIGRATION_ERROR_MARGIN_PCT / 100.)
 
     @classmethod
     def runExperiments(cls):
