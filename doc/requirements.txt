@@ -1,7 +1,0 @@
-Cython>=0.25.1
-bart-py>=1.7.0
-devlib>=0.0.3
-psutil>=4.4.2
-wrapt>=1.10.8
-ipython>=4.2.0
-matplotlib>=1.4.2
