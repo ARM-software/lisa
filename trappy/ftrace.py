@@ -345,8 +345,9 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         for event_name in events:
             for cls in known_events.itervalues():
                 if (event_name == cls.unique_word) or \
-                   (event_name + ":" == cls.unique_word):
-                    self.class_definitions[event_name] = cls
+                   (event_name + ":" == cls.unique_word) or \
+                   (event_name == cls.name):
+                    self.class_definitions[cls.name] = cls
                     break
             else:
                 kwords = {
@@ -451,6 +452,12 @@ is part of the trace.
                 continue
 
             unique_word = trace_class.unique_word
+            if unique_word in cls_for_unique_word:
+                # This means TRAPpy has a nasty bug, like the one fixed in
+                # https://github.com/ARM-software/trappy/pull/276
+                raise RuntimeError('Found two parsers for unique word "{}" ({}, {})'
+                                   .format(unique_word, trace_class,
+                                           cls_for_unique_word[unique_word]))
             cls_for_unique_word[unique_word] = trace_class
 
         if len(cls_for_unique_word) == 0:
@@ -464,6 +471,32 @@ is part of the trace.
         except FTraceParseError as e:
             raise ValueError('Failed to parse ftrace file {}:\n{}'.format(
                 trace_file, str(e)))
+
+    def __getattr__(self, attr):
+        """Raises useful exception when trying to access deprecated
+        attributes."""
+        for name, cls in self.class_definitions.iteritems():
+            # We used to have a bug where when you had a known event whose
+            # 'name' attribute != its 'unique_word', and you specified it
+            # explicitly in the 'events' param, we had two attributes - one for
+            # the 'name' and one for the 'unique_word', and it was undefined
+            # which would be populated.  Now we just have the attribute from
+            # the 'name'. If there is any code out there that was relying on
+            # this bug (i.e. accessing the 'unique_word' atribute), this will
+            # tell them what they need to do to fix their code.
+            unique_word = cls.unique_word.rstrip(':')
+            if attr == unique_word:
+                if name == unique_word:
+                    break
+                raise AttributeError(
+                    'You are trying to access "{owner}.{attr}", instead you should '
+                    'access "{owner}.{name}". A bug in TRAPpy used to make this work '
+                    'non-deterministically, but that has now been fixed.'.format(
+                        owner=self,
+                        attr=attr,
+                        name=name
+                    ))
+        return super(GenericFTrace, self).__getattribute__(attr)
 
     # TODO: Move thermal specific functionality
 

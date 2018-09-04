@@ -553,3 +553,44 @@ class TestTraceTxtNoTrailingLine(utils_tests.SetupDirectory):
             set(ftrace.cpu_idle.data_frame['cpu_id'].unique()),
             set([0, 3]))
 
+
+class TestHelpfulAttributeError(utils_tests.SetupDirectory):
+    def __init__(self, *args, **kwargs):
+        super(TestHelpfulAttributeError, self).__init__(
+            [("trace.dat", "trace.dat")],
+            *args, **kwargs)
+
+    def test_helpful_error(self):
+        trace = trappy.FTrace(events=['sched_contrib_scale_f'])
+
+        with self.assertRaises(AttributeError) as assert_raises:
+            df = trace.sched_contrib_scale_f.data_frame
+
+        exception = assert_raises.exception
+        regex = (r'.*\.sched_contrib_scale_f", instead'
+                 r'.*\.sched_contrib_scale_factor"..*')
+
+        self.assertRegexpMatches(str(exception), regex)
+
+
+class DummyEvent(trappy.base.Base):
+    unique_word = 'dummy_unique_word'
+    name = 'dummy_name'
+
+class TestDynamicDoesntOverwrite(utils_tests.SetupDirectory):
+    def __init__(self, *args, **kwargs):
+        super(TestDynamicDoesntOverwrite, self).__init__(
+            [("trace.dat", "trace.dat")],
+            *args, **kwargs)
+
+    def setUp(self):
+        super(TestDynamicDoesntOverwrite, self).setUp()
+        trappy.register_ftrace_parser(DummyEvent)
+
+    def tearDown(self):
+        super(TestDynamicDoesntOverwrite, self).tearDown()
+        trappy.unregister_ftrace_parser(DummyEvent)
+
+    def test_not_overwritten(self):
+        trace = trappy.FTrace(events=['dummy_name'])
+        self.assertIsInstance(trace.dummy_name, DummyEvent)
