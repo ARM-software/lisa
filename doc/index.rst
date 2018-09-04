@@ -37,6 +37,7 @@ Contents:
    :maxdepth: 2
 
    tests
+   wlgen
 
 
 Indices and tables
