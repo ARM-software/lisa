@@ -106,7 +106,7 @@ class ProcessCommand(Command):
                         pm.install(proc, pc)
 
             pm.validate()
-            pm.initialize()
+            pm.initialize(pc)
 
             pc.run_output = run_output
             pc.target_info = run_output.target_info
@@ -139,7 +139,7 @@ class ProcessCommand(Command):
             self.logger.info('Processing run')
             pm.process_run_output(pc)
             pm.export_run_output(pc)
-            pm.finalize()
+            pm.finalize(pc)
 
             run_output.write_result()
             self.logger.info('Done.')

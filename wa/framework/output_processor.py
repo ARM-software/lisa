@@ -40,10 +40,10 @@ class OutputProcessor(Plugin):
                 msg = 'Instrument "{}" is required by {}, but is not installed.'
                 raise ConfigError(msg.format(instrument, self.name))
 
-    def initialize(self):
+    def initialize(self, context):
         pass
 
-    def finalize(self):
+    def finalize(self, context):
         pass
 
 
@@ -104,13 +104,13 @@ class ProcessorManager(object):
         for proc in self.processors:
             proc.validate()
 
-    def initialize(self):
+    def initialize(self, context):
         for proc in self.processors:
-            proc.initialize()
+            proc.initialize(context)
 
-    def finalize(self):
+    def finalize(self, context):
         for proc in self.processors:
-            proc.finalize()
+            proc.finalize(context)
 
     def process_job_output(self, context):
         self.do_for_each_proc('process_job_output', 'Processing using "{}"',

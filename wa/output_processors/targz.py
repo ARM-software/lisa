@@ -56,7 +56,7 @@ class TargzProcessor(OutputProcessor):
                   '''),
     ]
 
-    def initialize(self):
+    def initialize(self, context):
         if self.delete_output:
             self.logger.debug('Registering RUN_FINALIZED handler.')
             signal.connect(self.delete_output_directory, signal.RUN_FINALIZED, priority=-100)

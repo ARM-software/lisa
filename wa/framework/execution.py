@@ -516,7 +516,7 @@ class Runner(object):
         signal.connect(self._error_signalled_callback, signal.ERROR_LOGGED)
         signal.connect(self._warning_signalled_callback, signal.WARNING_LOGGED)
         self.context.start_run()
-        self.pm.initialize()
+        self.pm.initialize(self.context)
         with log.indentcontext():
             self.context.initialize_jobs()
         self.context.write_state()
@@ -532,7 +532,7 @@ class Runner(object):
         with signal.wrap('RUN_OUTPUT_PROCESSED', self):
             self.pm.process_run_output(self.context)
             self.pm.export_run_output(self.context)
-        self.pm.finalize()
+        self.pm.finalize(self.context)
         signal.disconnect(self._error_signalled_callback, signal.ERROR_LOGGED)
         signal.disconnect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 

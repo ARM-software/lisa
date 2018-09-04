@@ -108,7 +108,7 @@ class SqliteResultProcessor(OutputProcessor):
 
     ]
 
-    def initialize(self):
+    def initialize(self, context):
         self._last_spec = None
         self._run_oid = None
         self._spec_oid = None

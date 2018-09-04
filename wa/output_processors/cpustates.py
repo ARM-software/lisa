@@ -85,7 +85,7 @@ class CpuStatesProcessor(OutputProcessor):
                   """),
     ]
 
-    def initialize(self):
+    def initialize(self, context):
         self.iteration_reports = OrderedDict()  # pylint: disable=attribute-defined-outside-init
 
     def process_job_output(self, output, target_info, run_output):  # pylint: disable=unused-argument

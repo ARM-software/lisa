@@ -56,7 +56,7 @@ class CsvReportProcessor(OutputProcessor):
                   'use_all_classifiers is True'
             raise ConfigError(msg)
 
-    def initialize(self):
+    def initialize(self, context):
         # pylint: disable=attribute-defined-outside-init
         self.outputs_so_far = []
         self.artifact_added = False
