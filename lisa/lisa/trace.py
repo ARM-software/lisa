@@ -31,6 +31,7 @@ import webbrowser
 from analysis_register import AnalysisRegister
 from collections import namedtuple
 from devlib.utils.misc import memoized
+from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
 
 
@@ -72,7 +73,9 @@ class Trace(object):
 
     def __init__(self, data_dir,
                  events=None,
+                 # TODO: kill this parameter
                  platform=None,
+                 kernel_version=None,
                  window=(0, None),
                  normalize_time=True,
                  trace_format='FTrace',
@@ -130,6 +133,15 @@ class Trace(object):
         # Folder containing all trace data
         self.data_dir = None
 
+        if not kernel_version:
+            kernel_version = KernelVersion("3.18")
+            self._log.warning('Kernel version not available from platform data')
+
+        self.kernel_version = kernel_version
+
+        self._log.info('Parsing trace assuming kernel v%d.%d',
+                       self.kernel_version.parts[0], self.kernel_version.parts[1])
+
         # Version of the traced kernel
         self.kernel_version = None
 
@@ -161,17 +173,6 @@ class Trace(object):
         # a unicore system and set cpus_count=1 so that the following analysis
         # methods will not complain about the CPUs count not being available.
         self.platform['cpus_count'] = self.platform.get('cpus_count', 1)
-
-        # Setup kernel version
-        if self.platform.get('kernel', {}).get('parts'):
-            self.kernel_version = self.platform['kernel']['parts']
-            self._log.info('Kernel version loaded from platform data')
-        else:
-            self.kernel_version = (3, 18)
-            self._log.warning('Kernel version not available from platform data')
-        self._log.info('Parsing trace assuming kernel v%d.%d',
-                       self.kernel_version[0], self.kernel_version[1])
-
         self.analysis = AnalysisRegister(self)
 
     def _registerDataFrameGetters(self, module):
