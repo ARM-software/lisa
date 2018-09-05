@@ -86,6 +86,13 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             self.class_definitions.update(self.thermal_classes.items() +
                                           self.sched_classes.items())
 
+        # Sanity check on the unique words
+        for cls1, cls2 in itertools.combinations(self.class_definitions.values(), 2):
+            if cls1.unique_word in cls2.unique_word or \
+                cls2.unique_word in cls1.unique_word:
+                raise RuntimeError('Events unique words must not be a substring of the unique word of another event: "{cls1.unique_word}" {cls1} and "{cls2.unique_word}" {cls2}'.format(
+                    cls1=cls1, cls2=cls2))
+
         for attr, class_def in self.class_definitions.iteritems():
             trace_class = class_def()
             setattr(self, attr, trace_class)
