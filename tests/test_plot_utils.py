@@ -184,7 +184,7 @@ class TestPlotUtilsNeedTrace(BaseTestThermal):
     def test_plot_allfreqs_one_actor(self):
         """plot_utils.plot_allfreqs work when there is only one actor"""
 
-        in_data = """     kworker/4:1-397   [004]   720.741349: thermal_power_cpu_get: cpus=00000000,00000006 freq=1400000 raw_cpu_power=189 load={23, 12} power=14
+        in_data = """     kworker/4:1-397   [004]   720.741349: thermal_power_cpu_get_power: cpus=00000000,00000006 freq=1400000 raw_cpu_power=189 load={23, 12} power=14
      kworker/4:1-397   [004]   720.741679: thermal_power_cpu_limit: cpus=00000000,00000006 freq=1400000 cdev_state=1 power=14"""
 
         with open("trace.txt", "w") as fout:

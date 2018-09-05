@@ -85,8 +85,8 @@ class TestBase(utils_tests.SetupDirectory):
     def test_parse_empty_array(self):
         """TestBase: Trace with empty array creates a valid DataFrame"""
 
-        in_data = """     kworker/4:1-397   [004]   720.741315: thermal_power_cpu_get: cpus=000000f0 freq=1900000 raw_cpu_power=1259 load={} power=61
-     kworker/4:1-397   [004]   720.741349: thermal_power_cpu_get: cpus=0000000f freq=1400000 raw_cpu_power=189 load={} power=14"""
+        in_data = """     kworker/4:1-397   [004]   720.741315: thermal_power_cpu_get_power: cpus=000000f0 freq=1900000 raw_cpu_power=1259 load={} power=61
+     kworker/4:1-397   [004]   720.741349: thermal_power_cpu_get_power: cpus=0000000f freq=1400000 raw_cpu_power=189 load={} power=14"""
 
         expected_columns = set(["__comm", "__pid", "__cpu", "__line", "cpus", "freq",
                                 "raw_cpu_power", "power"])

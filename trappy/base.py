@@ -104,6 +104,7 @@ class Base(object):
     This class acts as a base class for all TRAPpy events
 
     """
+
     def __init__(self, parse_raw=False, fallback=False):
         self.fallback = fallback
         self.tracer = None

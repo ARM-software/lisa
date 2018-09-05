@@ -126,7 +126,7 @@ class CpuInPower(Base):
     """Process the cpufreq cooling power actor data in a ftrace dump
     """
 
-    unique_word = "thermal_power_cpu_get"
+    unique_word = "thermal_power_cpu_get_power"
     """The unique word that will be matched in a trace line"""
 
     name = "cpu_in_power"

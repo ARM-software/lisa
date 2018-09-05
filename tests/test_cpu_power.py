@@ -73,9 +73,9 @@ class TestCpuPower(BaseTestThermal):
 
     def test_cpuinpower_big_cpumask(self):
         """CpuInPower()'s data_frame is not confused by 64-bit cpumasks"""
-        in_data = """     kworker/2:2-679   [002]   676.256284: thermal_power_cpu_get:  cpus=00000000,0000000f freq=261888 cdev_state=5 power=12
-     kworker/2:2-679   [002]   676.276200: thermal_power_cpu_get:  cpus=00000000,00000030 freq=261888 cdev_state=5 power=0
-     kworker/2:2-679   [002]   676.416202: thermal_power_cpu_get:  cpus=00000000,0000000f freq=261888 cdev_state=5 power=0
+        in_data = """     kworker/2:2-679   [002]   676.256284: thermal_power_cpu_get_power:  cpus=00000000,0000000f freq=261888 cdev_state=5 power=12
+     kworker/2:2-679   [002]   676.276200: thermal_power_cpu_get_power:  cpus=00000000,00000030 freq=261888 cdev_state=5 power=0
+     kworker/2:2-679   [002]   676.416202: thermal_power_cpu_get_power:  cpus=00000000,0000000f freq=261888 cdev_state=5 power=0
         """
         with open("trace.txt", "w") as fout:
             fout.write(in_data)
@@ -90,8 +90,8 @@ class TestCpuPower(BaseTestThermal):
         That is 2 cpus in one cluster and 4 in another, like Juno
         """
         in_data = """
-     kworker/2:2-679   [002]   676.256261: thermal_power_cpu_get:   cpus=00000000,00000030 freq=1900000 raw_cpu_power=1259 load={74 49} power=451
-     kworker/2:2-679   [002]   676.256271: thermal_power_cpu_get:   cpus=00000000,0000000f freq=450000 raw_cpu_power=36 load={1 2 1 3} power=9
+     kworker/2:2-679   [002]   676.256261: thermal_power_cpu_get_power:   cpus=00000000,00000030 freq=1900000 raw_cpu_power=1259 load={74 49} power=451
+     kworker/2:2-679   [002]   676.256271: thermal_power_cpu_get_power:   cpus=00000000,0000000f freq=450000 raw_cpu_power=36 load={1 2 1 3} power=9
 """
 
         with open("trace.txt", "w") as fout:
