@@ -98,6 +98,7 @@ and the code to clear these file goes in teardown method. ::
 
 """
 
+import sys
 import logging
 import inspect
 from collections import OrderedDict
@@ -324,7 +325,10 @@ def install(instrument, context):
         if not callable(attr):
             msg = 'Attribute {} not callable in {}.'
             raise ValueError(msg.format(attr_name, instrument))
-        argspec = inspect.getfullargspec(attr)
+        if sys.version_info[0] == 3:
+            argspec = inspect.getfullargspec(attr)
+        else:
+            argspec = inspect.getargspec(attr)  # pylint: disable=deprecated-method
         arg_num = len(argspec.args)
         # Instrument callbacks will be passed exactly two arguments: self
         # (the instrument instance to which the callback is bound) and
