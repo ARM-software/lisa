@@ -343,7 +343,7 @@ see the
 
             A list of additional :class:`Parameters` the output processor can take.
 
-    :initialize():
+    :initialize(context):
 
                 This method will only be called once during the workload run
                 therefore operations that only need to be performed initially should
@@ -373,7 +373,7 @@ see the
                 existing data collected/generated for the run as a whole. E.g.
                 uploading them to a database etc.
 
-    :finalize():
+    :finalize(context):
 
                 This method is the complement to the initialize method and will also
                 only be called once.
