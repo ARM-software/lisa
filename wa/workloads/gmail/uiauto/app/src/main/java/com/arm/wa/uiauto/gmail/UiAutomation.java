@@ -184,7 +184,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
 
         // Show Roots menu
         UiObject rootMenu =
-            mDevice.findObject(new UiSelector().descriptionContains("Show roots")
+            mDevice.findObject(new UiSelector().descriptionContains("Show root")
                                                .className("android.widget.ImageButton"));
         if (rootMenu.exists()){
             rootMenu.click();
