@@ -90,8 +90,8 @@ class ResultBundle(object):
       It will also be used as the truth-value of a ResultBundle.
     :type passed: boolean
     """
-    def __init__(self, passed):
-        self.passed = passed
+    def __init__(self):
+        self.passed = False
         self.metrics = []
 
     def __nonzero__(self):

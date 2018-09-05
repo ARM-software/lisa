@@ -753,7 +753,7 @@ class TestEnv(object):
             functions = []
 
         def merge_conf(value, index, default):
-            return sorted(set(value), target_conf.get(index, default))
+            return sorted(set(value) | set(target_conf.get(index, default)))
 
         events = merge_conf(events, 'events', [])
         functions = merge_conf(functions, 'functions', [])
