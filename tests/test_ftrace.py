@@ -383,9 +383,10 @@ class TestFTrace(BaseTestThermal):
                       .format(e.message))
         # The second event is recognised as a cpu_frequency event and therefore
         # put under trace.cpu_frequency
-        self.assertEquals(trace.tracing_mark_write.data_frame.iloc[-1]["string"],
+        self.assertEquals(trace.tracing_mark_write.data_frame.iloc[0]["string"],
                           "TRACE_MARKER_START")
-        self.assertEquals(len(trace.tracing_mark_write.data_frame), 1)
+        self.assertEqual(len(trace.tracing_mark_write.data_frame), 1)
+        self.assertEqual(len(trace.cpu_frequency.data_frame), 1)
 
     def test_ftrace_metadata(self):
         """FTrace class correctly populates metadata"""
