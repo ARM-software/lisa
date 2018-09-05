@@ -1042,13 +1042,17 @@ class EnergyModel(object):
         # em_loaders dictionary joins EM loaders and the identifying functions
         # with any associated metadata
         em_loaders = {
-            'sd'    : { 'check': em_present_in_sd,
-                        'load': cls.from_sd_target,
-                        'filename': '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}' },
-            'sysfs' : { 'check': simplified_em_present_in_cpusysfs,
-                        'load': cls.from_simplifiedEM_target,
-                        'directory': '/sys/devices/system/cpu/energy_model' }
-                     }
+            'sched domain' : {
+                'check': em_present_in_sd,
+                'load': cls.from_sd_target,
+                'filename': '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}'
+            },
+            'CPU' : {
+                'check': simplified_em_present_in_cpusysfs,
+                'load': cls.from_simplifiedEM_target,
+                'directory': '/sys/devices/system/cpu/energy_model'
+            }
+        }
 
         for loader_type in em_loaders:
             args = dict(em_loaders[loader_type])
@@ -1059,7 +1063,7 @@ class EnergyModel(object):
             except Exception:
                 em_present = False
             if em_present:
-                _log.info('Attempting to load EM using {}'.format(load.__name__))
+                _log.info('Loading energy model from {} data'.format(loader_type))
                 return load(target, **args)
 
         raise TargetError('Unable to probe for energy model on target.')
