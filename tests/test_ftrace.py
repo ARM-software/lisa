@@ -312,7 +312,7 @@ class TestFTrace(BaseTestThermal):
     def test_plot_allfreqs_with_one_actor(self):
         """Check that plot_allfreqs() works with one actor"""
 
-        in_data = """     kworker/4:1-397   [004]   720.741349: thermal_power_cpu_get: cpus=00000000,00000006 freq=1400000 raw_cpu_power=189 load={23, 12} power=14
+        in_data = """     kworker/4:1-397   [004]   720.741349: thermal_power_cpu_get_power: cpus=00000000,00000006 freq=1400000 raw_cpu_power=189 load={23, 12} power=14
      kworker/4:1-397   [004]   720.741679: thermal_power_cpu_limit: cpus=00000000,00000006 freq=1400000 cdev_state=1 power=14"""
 
         with open("trace.txt", "w") as fout:
@@ -383,9 +383,10 @@ class TestFTrace(BaseTestThermal):
                       .format(e.message))
         # The second event is recognised as a cpu_frequency event and therefore
         # put under trace.cpu_frequency
-        self.assertEquals(trace.tracing_mark_write.data_frame.iloc[-1]["string"],
+        self.assertEquals(trace.tracing_mark_write.data_frame.iloc[0]["string"],
                           "TRACE_MARKER_START")
-        self.assertEquals(len(trace.tracing_mark_write.data_frame), 1)
+        self.assertEqual(len(trace.tracing_mark_write.data_frame), 1)
+        self.assertEqual(len(trace.cpu_frequency.data_frame), 1)
 
     def test_ftrace_metadata(self):
         """FTrace class correctly populates metadata"""

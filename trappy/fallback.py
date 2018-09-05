@@ -45,9 +45,3 @@ class TracingMarkWrite(FallbackEvent):
     unique_word = "tracing_mark_write:"
 
 register_ftrace_parser(TracingMarkWrite)
-
-class Print(FallbackEvent):
-    unique_word = "print:"
-    name = 'print_' # To avoid keyword collision
-
-register_ftrace_parser(Print)
