@@ -43,7 +43,9 @@ Where to start
 ++++++++++++++
 
 The main class of the kernel tests is :class:`~libs.utils.kernel_tests.test_bundle.TestBundle`.
-Have a look at its documentation for implementation and usage examples.
+Have a look at its documentation for implementation and usage examples. It can
+also be worth to look at a simple test, such as
+:class:`~libs.utils.kernel_tests.misc.capacity_sanity.CapacitySanityCheck`.
 
 Implementations of :class:`~libs.utils.kernel_tests.test_bundle.TestBundle` can
 execute any sort of arbitry Python code. This means that you are free to
@@ -82,4 +84,8 @@ Hotplug tests
 +++++++++++++
 .. automodule:: libs.utils.kernel_tests.hotplug.torture
    :members:
+
+Miscellaneous tests
++++++++++++++++++++
+.. automodule:: libs.utils.kernel_tests.misc.capacity_sanity
    :members:
