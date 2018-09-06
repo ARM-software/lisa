@@ -257,7 +257,7 @@ class SchedMultiAssert(object):
         """
         residencies = self.getResidency(level, node, window=window)
 
-        busy_time = sum(v["residency"] for v in iter(residencies.values()))
+        busy_time = sum(v["residency"] for v in residencies.values())
 
         if percent:
             if window:
