@@ -262,6 +262,7 @@ class TestRTACustom(RTABase):
         the workload.
         """
 
+        #TODO: update the path to mp3-short.json
         json_path = os.path.join(os.getenv('LISA_HOME'),
                                  'assets', 'mp3-short.json')
         rtapp = RTA(self.target, name='test', calibration=calibration)

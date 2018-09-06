@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-import matplotlib
+import matplotlib as _matplotlib
 # Prevent matplotlib from trying to connect to X11 server, for headless testing.
 # Must be done before importing matplotlib.pyplot or pylab
 matplotlib.use('Agg')

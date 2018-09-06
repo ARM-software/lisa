@@ -2,6 +2,8 @@ import json
 import os
 from conf import JsonConf
 
+#TODO: remove that
+
 # Add identifiers for each of the platforms we have JSON descriptors for
 this_dir = os.path.dirname(__file__)
 for file_name in os.listdir(this_dir):
