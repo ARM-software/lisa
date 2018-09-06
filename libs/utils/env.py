@@ -25,7 +25,7 @@ from devlib.utils.misc import which
 from devlib import Platform, TargetError
 from trappy.stats.Topology import Topology
 
-from wlgen import RTA
+from wlgen.rta import RTA
 from energy import EnergyMeter
 from energy_model import EnergyModel
 from conf import JsonConf
@@ -761,23 +761,23 @@ class TestEnv(Loggable):
             json.dump(self.platform, ofile, sort_keys=True, indent=4)
         return (self.platform, plt_file)
 
-    def calibration(self, force=False):
+    def get_rtapp_calibration(self, force=False, policy=lambda x: min(x.values())):
         """
         Get rt-app calibration. Run calibration on target if necessary.
 
-        :param force: Always run calibration on target, even if we have not
-                      installed rt-app or have already run calibration.
-        :returns: A dict with calibration results, which can be passed as the
-                  ``calibration`` parameter to :class:`RTA`, or ``None`` if
-                  force=False and we have not installed rt-app.
+        :param force: Always run calibration on target, even if we have already
+          stored some calibration result
+        :type force: bool
+
+        :param policy: Policy to select calibration value. Defaults to the
+          smallest calibration value, which means calibration will be based on
+          the biggest CPU in the system.
+        :type policy: callable
+
+        :returns: int
         """
-
         if not force and self._calib:
-            return self._calib
-
-        required_tools = ['rt-app', 'taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh']
-        if not all([tool in self.__installed_tools for tool in required_tools]):
-            self.install_tools(required_tools)
+            return policy(self._calib)
 
         if not force and 'rtapp-calib' in self.conf:
             self.logger.info('Using configuration provided RTApp calibration')
@@ -787,13 +787,13 @@ class TestEnv(Loggable):
             }
         else:
             self.logger.info('Calibrating RTApp...')
-            self._calib = RTA.calibrate(self.target)
+            self._calib = RTA.get_cpu_calibrations(self)
 
         self.logger.info('Using RT-App calibration values:')
         self.logger.info('   %s',
                          "{" + ", ".join('"%r": %r' % (key, self._calib[key])
                                          for key in sorted(self._calib)) + "}")
-        return self._calib
+        return policy(self._calib)
 
     @contextlib.contextmanager
     def freeze_userspace(self):
