@@ -1,5 +1,7 @@
-from __future__ import division
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
+
 from hypothesis import given
 from hypothesis.strategies import integers, tuples, none, one_of
 import unittest

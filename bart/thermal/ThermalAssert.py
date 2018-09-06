@@ -15,8 +15,9 @@
 """A thermal specific library to assert certain thermal
 behaviours
 """
-from __future__ import division
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 from builtins import object
 from bart.common import Utils

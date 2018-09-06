@@ -15,6 +15,8 @@
 
 """Utility functions for sheye"""
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 from past.builtins import basestring
 import trappy

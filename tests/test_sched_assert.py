@@ -1,4 +1,3 @@
-from __future__ import unicode_literals
 #    Copyright 2015-2016 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +12,9 @@ from __future__ import unicode_literals
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 from bart.sched.SchedAssert import SchedAssert
 from bart.sched.SchedMultiAssert import SchedMultiAssert

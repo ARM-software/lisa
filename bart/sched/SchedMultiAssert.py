@@ -16,6 +16,8 @@
 """A library for asserting scheduler scenarios based on the
 statistics aggregation framework"""
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 from builtins import object
 import re

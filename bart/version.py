@@ -1,4 +1,3 @@
-from __future__ import unicode_literals
 #    Copyright 2016-2016 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

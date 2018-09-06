@@ -31,8 +31,9 @@ Simulator. Both classes have configuration parameters to defined their specific
 behavior. Specifically, the Simulator requires also the PeriodicTask which signal
 has to be computed.
 """
-from __future__ import division
 from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 from builtins import range
 from builtins import object
