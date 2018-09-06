@@ -1,6 +1,5 @@
 from __future__ import division
 from __future__ import unicode_literals
-from past.utils import old_div
 from hypothesis import given
 from hypothesis.strategies import integers, tuples, none, one_of
 import unittest
@@ -76,7 +75,7 @@ class TestSimulator(unittest.TestCase):
         signal = sim.getSignal(task, start_s, end_s)
 
         # Should start no earlier than 1 sample before start_s
-        earliest_start = min(0, start_s - (old_div(sim._sample_us, 1.e6)))
+        earliest_start = min(0, start_s - (im._sample_us/1.e6))
         self.assertGreaterEqual(signal.index[0], earliest_start)
         # Should start no later than start_s
         self.assertLessEqual(signal.index[0], start_s)
@@ -84,7 +83,7 @@ class TestSimulator(unittest.TestCase):
         # Should start no earlier than end_s
         self.assertGreaterEqual(signal.index[-1], end_s)
         # Should end no later than 1 sample after end_s
-        latest_start = end_s + (old_div(sim._sample_us, 1.e6))
+        latest_start = end_s + (sim._sample_us/1.e6)
         self.assertLessEqual(signal.index[-1], latest_start)
 
 if __name__ == "__main__":

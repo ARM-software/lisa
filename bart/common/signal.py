@@ -47,9 +47,9 @@
 """
 from __future__ import division
 from __future__ import unicode_literals
+from __future__ import print_function
 
 from builtins import object
-from past.utils import old_div
 from trappy.stats.grammar import Parser
 from trappy.stats import StatConf
 from bart.common.Utils import area_under_curve, interval_sum
@@ -246,7 +246,7 @@ class SignalCompare(object):
             duration = min(a_piv.last_valid_index(), b_piv.last_valid_index())
             duration -= max(a_piv.first_valid_index(),
                             b_piv.first_valid_index())
-            duration = old_div(interval_sum(mask[pivot_val], step=step), duration)
+            duration = interval_sum(mask[pivot_val], step=step) / duration
 
             if self._pivot:
                 result[self._pivot][pivot_val] = area, duration

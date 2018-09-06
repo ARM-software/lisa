@@ -20,9 +20,9 @@ to aggregate statistics over processor hierarchies.
 """
 from __future__ import division
 from __future__ import unicode_literals
+from __future__ import print_function
 
 from builtins import object
-from past.utils import old_div
 import trappy
 import itertools
 import math
@@ -185,7 +185,7 @@ class SchedAssert(object):
         if percent:
             total = agg.aggregate(level="all", window=window)[0]
             node_value = node_value * 100
-            node_value = old_div(node_value, total)
+            node_value = node_value / total
 
         return node_value
 
@@ -396,7 +396,7 @@ class SchedAssert(object):
                 total_time = self._ftrace.get_duration()
 
             run_time = run_time * 100
-            run_time = old_div(run_time, total_time)
+            run_time = run_time / total_time
 
         return run_time
 

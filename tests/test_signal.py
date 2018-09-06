@@ -15,7 +15,6 @@ from __future__ import unicode_literals
 # limitations under the License.
 #
 
-from past.utils import old_div
 import pandas as pd
 import trappy
 from utils_tests import TestBART
@@ -43,7 +42,7 @@ class TestSignalCompare(TestBART):
         trace.add_parsed_event("event", df)
 
         s = SignalCompare(trace, "event:A", "event:B")
-        expected = (1.5, old_div(2.0, 7))
+        expected = (1.5, 2.0/7)
         self.assertEqual(
             s.conditional_compare(
                 "event:A > event:B",
@@ -61,7 +60,7 @@ class TestSignalCompare(TestBART):
         trace.add_parsed_event("event", df)
 
         s = SignalCompare(trace, "event:A", "event:B")
-        expected = (1.5, old_div(2.0, 7))
+        expected = (1.5, 2.0/7)
         self.assertEqual(
             s.get_overshoot(method="rect"),
             expected)
@@ -89,7 +88,7 @@ class TestSignalCompare(TestBART):
         trace.add_parsed_event("event", df)
 
         s = SignalCompare(trace, "event:A", "event:B")
-        expected = (old_div(4.0, 14.0), 1.0)
+        expected = (4.0/14.0, 1.0)
         self.assertEqual(
             s.get_undershoot(method="rect"),
             expected)

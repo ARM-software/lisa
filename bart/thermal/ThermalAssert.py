@@ -19,7 +19,6 @@ from __future__ import division
 from __future__ import unicode_literals
 
 from builtins import object
-from past.utils import old_div
 from bart.common import Utils
 from bart.common.Analyzer import Analyzer
 import numpy as np
@@ -81,8 +80,8 @@ class ThermalAssert(object):
             result[pivot] = sum((index - shift_index)[mask.values])
 
             if percent:
-                result[pivot] = old_div((
-                    result[pivot] * 100.0), self._ftrace.get_duration())
+                result[pivot] = (
+                    (result[pivot] * 100.0)/self._ftrace.get_duration())
 
         return result
 

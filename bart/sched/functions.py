@@ -58,8 +58,8 @@ can then be aggregated by specifying a Topology
 """
 from __future__ import division
 from __future__ import unicode_literals
+from __future__ import print_function
 
-from past.utils import old_div
 import numpy as np
 from trappy.stats.Trigger import Trigger
 
@@ -436,7 +436,7 @@ def binary_correlate(series_x, series_y):
     agree = len(series_x[series_x == series_y])
     disagree = len(series_x[series_x != series_y])
 
-    return old_div((agree - disagree), float(len(series_x)))
+    return (agree - disagree) / len(series_x)
 
 def get_pids_for_process(ftrace, execname, cls=None):
     """Get the PIDs for a given process

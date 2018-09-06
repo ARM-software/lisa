@@ -36,7 +36,6 @@ from __future__ import unicode_literals
 
 from builtins import range
 from builtins import object
-from past.utils import old_div
 import math
 
 from collections import namedtuple as namedtuple
@@ -148,8 +147,8 @@ class PeriodicTask(object):
     def __str__(self):
         return "PeriodicTask(start: {:.3f} [ms], period: {:.3f} [ms], run: {:.3f} [ms], "\
                "duty_cycle: {:.3f} [%], pelt_avg: {:d})"\
-            .format(old_div(self.start_us, 1e3), old_div(self.period_us, 1e3),
-                    old_div(self.run_us, 1e3), self.duty_cycle_pct,
+            .format(self.start_us/1e3, self.period_us/1e3,
+                    self.run_us/1e3, self.duty_cycle_pct,
                     self.pelt_avg)
 
 
@@ -254,7 +253,7 @@ class Simulator(object):
         self.half_life_ms = half_life_ms
         self.decay_cap_ms = decay_cap_ms
 
-        self._geom_y = pow(0.5, old_div(1., half_life_ms))
+        self._geom_y = pow(0.5, 1 / half_life_ms)
         self._geom_u = float(self._signal_max) * (1. - self._geom_y)
 
         self.task = None
@@ -318,7 +317,7 @@ class Simulator(object):
             raise ValueError("Wrong time for task parameter")
 
         def _to_pelt_samples(time_us):
-            return old_div(float(time_us), self._sample_us)
+            return time_us / self._sample_us
 
         # Compute max value
         max_pelt = (1. - pow(self._geom_y, _to_pelt_samples(task.run_us)))
@@ -433,8 +432,7 @@ class Simulator(object):
                 pelt_value = self._geomSum(pelt_value, active_us)
 
             # Append PELT sample
-            sample = (_us_to_s(t_us), old_div(t_us,
-                      self._sample_us), running, pelt_value)
+            sample = (_us_to_s(t_us), t_us/self._sample_us, running, pelt_value)
             samples.append(sample)
 
             # Prepare for next sample computation
@@ -542,7 +540,7 @@ class Simulator(object):
 
         :returns: int - Estimated value of PELT signal when the task starts
         """
-        geom_y = pow(0.5, old_div(1., half_life_ms))
+        geom_y = pow(0.5, 1/half_life_ms)
         geom_u = float(cls._signal_max) * (1. - geom_y)
 
         # Compute period of time between when the task started and when the
@@ -554,10 +552,10 @@ class Simulator(object):
                              'happens before the task starts')
         # Compute number of times the simulated PELT would be updated in this
         # period of time
-        updates_since_start = int(old_div(time_since_start, (old_div(cls._sample_us, 1e6))))
+        updates_since_start = int(time_since_start/(cls._sample_us/1e6))
         pelt_val = first_val
         for i in range(updates_since_start):
-            pelt_val = old_div((pelt_val - geom_u), geom_y)
+            pelt_val = (pelt_val - geom_u) / geom_y
 
         return pelt_val
 
@@ -593,8 +591,8 @@ def _s_to_us(time_s, interval_us=1e3, nearest_up=True):
     :type nearest_up: bool
     """
     if nearest_up:
-        return interval_us * int(math.ceil(old_div((1e6 * time_s), interval_us)))
-    return interval_us * int(math.floor(old_div((1e6 * time_s), interval_us)))
+        return interval_us * int(math.ceil((1e6 * time_s)/interval_us))
+    return interval_us * int(math.floor((1e6 * time_s)/interval_us))
 
 
 def _ms_to_us(time_ms, interval_us=1e3, nearest_up=True):
@@ -624,23 +622,23 @@ def _ms_to_us(time_ms, interval_us=1e3, nearest_up=True):
     :type nearest_up: bool
     """
     if nearest_up:
-        return interval_us * int(math.ceil(old_div((1e3 * time_ms), interval_us)))
-    return interval_us * int(math.floor(old_div((1e3 * time_ms), interval_us)))
+        return interval_us * int(math.ceil((1e3 * time_ms)/interval_us))
+    return interval_us * int(math.floor((1e3 * time_ms)/interval_us))
 
 
 def _us_to_s(time_us):
     """Convert [us] into (float) [s]
     """
-    return (old_div(float(time_us), 1e6))
+    return time_us/1e6
 
 
 def _us_to_ms(time_us):
     """Convert [us] into (float) [ms]
     """
-    return (old_div(float(time_us), 1e3))
+    return time_us/1e3
 
 
 def _ms_to_s(time_ms):
     """Convert [ms] into (float) [s]
     """
-    return (old_div(float(time_ms), 1e3))
+    return time_ms/1e3
