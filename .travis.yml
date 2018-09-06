@@ -19,7 +19,7 @@ sudo: required
 language: python
 install:
   - pip install --upgrade trappy bart-py devlib psutil wrapt matplotlib
-    future jupyter sphinx
+    future jupyter sphinx ruamel.yaml
 script:
   - cd $TRAVIS_BUILD_DIR
   - 'echo backend : Agg > matplotlibrc' # Otherwise it tries to use tkinter

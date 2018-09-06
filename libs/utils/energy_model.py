@@ -20,6 +20,9 @@ from itertools import product
 import logging
 import operator
 import re
+from ruamel.yaml import YAML, yaml_object
+
+yaml = YAML()
 
 import pandas as pd
 import numpy as np
@@ -67,6 +70,7 @@ class EnergyModelCapacityError(Exception):
     """Used by :meth:`EnergyModel.get_optimal_placements`"""
     pass
 
+@yaml_object(yaml)
 class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
     """Represents power and compute capacity at a given frequency
 
@@ -75,6 +79,19 @@ class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
     """
     def __new__(cls, capacity=None, power=None):
         return super(ActiveState, cls).__new__(cls, capacity, power)
+
+    # helpers for yaml serialization
+    yaml_tag = u'em_active_state:capacity,power'
+
+    @classmethod
+    def to_yaml(cls, representer, node):
+        return representer.represent_scalar(cls.yaml_tag,
+                u'{.capacity},{.power}'.format(node, node))
+
+    @classmethod
+    def from_yaml(cls, constructor, node):
+        cap, power = (int(x) for x in node.value.split(','))
+        return cls(capacity=cap, power=power)
 
 class _CpuTree(object):
     """Internal class. Abstract representation of a CPU topology.
@@ -128,6 +145,7 @@ class _CpuTree(object):
         """Iterate over leaves"""
         return self._iter(False)
 
+@yaml_object(yaml)
 class EnergyModelNode(_CpuTree):
     """Describes topology and energy data for an EnergyModel.
 
@@ -157,7 +175,7 @@ class EnergyModelNode(_CpuTree):
                  cpu=None, children=None, name=None):
         super(EnergyModelNode, self).__init__(cpu, children)
 
-        self._log = logging.getLogger('EnergyModel')
+        _log = logging.getLogger('EnergyModel')
 
         def is_monotonic(l, decreasing=False):
             op = operator.ge if decreasing else operator.le
@@ -167,14 +185,14 @@ class EnergyModelNode(_CpuTree):
             # Sanity check for active_states's frequencies
             freqs = active_states.keys()
             if not is_monotonic(freqs):
-                self._log.warning(
+                _log.warning(
                     'Active states frequencies are expected to be '
                     'monotonically increasing. Freqs: {}'.format(freqs))
 
             # Sanity check for active_states's powers
             power_vals = [s.power for s in active_states.values()]
             if not is_monotonic(power_vals):
-                self._log.warning(
+                _log.warning(
                     'Active states powers are expected to be '
                     'monotonically increasing. Values: {}'.format(power_vals))
 
@@ -187,7 +205,7 @@ class EnergyModelNode(_CpuTree):
             # Sanity check for idle_states powers
             power_vals = idle_states.values()
             if not is_monotonic(power_vals, decreasing=True):
-                self._log.warning(
+                _log.warning(
                     'Idle states powers are expected to be '
                     'monotonically decreasing. Values: {}'.format(power_vals))
 
@@ -212,6 +230,7 @@ class EnergyModelNode(_CpuTree):
 
         raise KeyError('No idle state with index {}'.format(idx))
 
+@yaml_object(yaml)
 class EnergyModelRoot(EnergyModelNode):
     """
     Convenience class for root of an EnergyModelNode tree.
@@ -224,6 +243,7 @@ class EnergyModelRoot(EnergyModelNode):
         return super(EnergyModelRoot, self).__init__(
             active_states, idle_states, cpu, children, name)
 
+@yaml_object(yaml)
 class PowerDomain(_CpuTree):
     """Describes the power domain hierarchy for an EnergyModel.
 
@@ -259,6 +279,7 @@ class PowerDomain(_CpuTree):
         super(PowerDomain, self).__init__(cpu, children)
         self.idle_states = idle_states
 
+@yaml_object(yaml)
 class EnergyModel(object):
     """Represents hierarchical CPU topology with power and capacity data
 
@@ -365,14 +386,15 @@ class EnergyModel(object):
 
         self.root = root_node
         self.cpu_nodes = sorted_leaves(root_node)
+        self.pd = root_power_domain
         self.cpu_pds = sorted_leaves(root_power_domain)
         assert len(self.cpu_pds) == len(self.cpu_nodes)
 
-        self._log = logging.getLogger('EnergyModel')
+        _log = logging.getLogger('EnergyModel')
 
         max_cap = max(n.max_capacity for n in self.cpu_nodes)
         if max_cap != self.capacity_scale:
-            self._log.debug(
+            _log.debug(
                 'Unusual max capacity (%s), overriding capacity_scale', max_cap)
             self.capacity_scale = max_cap
 
@@ -679,7 +701,9 @@ class EnergyModel(object):
         tasks = capacities.keys()
 
         num_candidates = len(self.cpus) ** len(tasks)
-        self._log.debug(
+
+        _log = logging.getLogger('EnergyModel')
+        _log.debug(
             '%14s - Searching %d configurations for optimal task placement...',
             'EnergyModel', num_candidates)
 
@@ -717,7 +741,7 @@ class EnergyModel(object):
         min_power = min(p for p in candidates.itervalues())
         ret = [u for u, p in candidates.iteritems() if p == min_power]
 
-        self._log.debug('%14s - Done', 'EnergyModel')
+        _log.debug('%14s - Done', 'EnergyModel')
         return ret
 
     @classmethod
@@ -1000,6 +1024,16 @@ class EnergyModel(object):
         return cls(root_node=root,
                    root_power_domain=root_pd,
                    freq_domains=freq_domains)
+
+    @staticmethod
+    def save_em_yaml(em, yaml_path):
+        with open(yaml_path, "w") as f:
+            yaml.dump(em, f)
+
+    @staticmethod
+    def load_em_yaml(yaml_path):
+        with open(yaml_path, "r") as f:
+            return yaml.load(f)
 
     @classmethod
     def from_target(cls, target):
