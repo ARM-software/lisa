@@ -277,7 +277,7 @@ class SchedMultiAssert(object):
         """
 
         events = {}
-        for s_assert in list(self._asserts.values()):
+        for s_assert in self._asserts.values():
             events[s_assert.name] = s_assert.generate_events(level, window=window)
 
         return events
@@ -295,7 +295,7 @@ class SchedMultiAssert(object):
                 xlim = list(window)
 
         events = self.generate_events(level, window)
-        names = [s.name for s in list(self._asserts.values())]
+        names = [s.name for s in self._asserts.values()]
         num_lanes = self._topology.level_span(level)
         lane_prefix = level.upper() + ": "
         return trappy.EventPlot(events, names, xlim,

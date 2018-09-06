@@ -126,7 +126,7 @@ class SchedAssert(object):
         :type: function(:mod:`pandas.Series`)
         """
 
-        if aggfunc not in list(self._aggs.keys()):
+        if aggfunc not in self._aggs.keys():
             self._aggs[aggfunc] = MultiTriggerAggregator(self._triggers,
                                                          self._topology,
                                                          aggfunc)
