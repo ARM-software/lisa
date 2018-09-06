@@ -14,7 +14,9 @@
 #
 
 """Utility functions for sheye"""
+from __future__ import unicode_literals
 
+from past.builtins import basestring
 import trappy
 import numpy as np
 

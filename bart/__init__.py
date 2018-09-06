@@ -14,6 +14,7 @@
 #
 
 """Initialization for bart"""
+from __future__ import unicode_literals
 
 import bart.sched
 import bart.common

@@ -14,6 +14,7 @@
 #
 
 """Initialization for bart.thermal"""
+from __future__ import unicode_literals
 
 
 import bart.thermal.ThermalAssert

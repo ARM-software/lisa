@@ -16,6 +16,7 @@
 """
 An example file for usage of Analyzer for thermal assertions
 """
+from __future__ import unicode_literals
 from bart.common.Analyzer import Analyzer
 from trappy.stats.Topology import Topology
 import unittest

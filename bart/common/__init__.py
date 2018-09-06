@@ -14,6 +14,7 @@
 #
 
 """Initialization for bart.common"""
+from __future__ import unicode_literals
 
 
 from bart.common import Utils

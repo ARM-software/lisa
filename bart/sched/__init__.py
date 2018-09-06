@@ -14,6 +14,7 @@
 #
 
 """Initialization for bart.sched"""
+from __future__ import unicode_literals
 
 
 from bart.sched import SchedAssert
