@@ -17,6 +17,8 @@
 "pretty" table
 
 """
+from __future__ import division
+from __future__ import unicode_literals
 
 import os
 import collections, csv, re
@@ -140,7 +142,7 @@ def get_results(path=".", name=None):
                     bench_dict[bench] = {run_id: {run_number: result}}
 
     bench_dfrs = {}
-    for bench, run_id_dict in bench_dict.iteritems():
+    for bench, run_id_dict in bench_dict.items():
         bench_dfrs[bench] = pd.DataFrame(run_id_dict)
 
     return Result(pd.concat(bench_dfrs.values(), axis=1,

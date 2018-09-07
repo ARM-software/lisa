@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 from test_thermal import BaseTestThermal
 import trappy
@@ -35,10 +37,10 @@ class TestStatsGrammar(BaseTestThermal):
         parser = Parser(trappy.BareTrace())
         # Simple equation
         eqn = "10 + 2 - 3"
-        self.assertEquals(parser.solve(eqn), 9)
+        self.assertEqual(parser.solve(eqn), 9)
         # Equation with bracket and unary ops
         eqn = "(10 + 2) - (-3 + 2)"
-        self.assertEquals(parser.solve(eqn), 13)
+        self.assertEqual(parser.solve(eqn), 13)
 
     @unittest.skipIf(V(pandas.__version__) < V('0.16.1'),
                      "check_names is not supported in pandas < 0.16.1")
@@ -63,14 +65,14 @@ trappy.thermal.Thermal:temp"
         parser = Parser(trappy.FTrace())
         # Equation with functions as parameters (Mixed)
         eqn = "numpy.mean(trappy.thermal.Thermal:temp) + 1000"
-        self.assertEquals(
+        self.assertEqual(
             parser.solve(eqn)[thermal_zone_id],
             np.mean(
                 parser.data.thermal.data_frame["temp"]) +
             1000)
         # Multiple func params
         eqn = "numpy.mean(trappy.thermal.Thermal:temp) + numpy.mean(trappy.thermal.Thermal:temp)"
-        self.assertEquals(
+        self.assertEqual(
             parser.solve(eqn)[thermal_zone_id],
             np.mean(
                 parser.data.thermal.data_frame["temp"]) *
@@ -83,7 +85,7 @@ trappy.thermal.Thermal:temp"
         parser = Parser(trappy.FTrace())
         # Equation with functions as parameters (Mixed)
         eqn = "numpy.mean(thermal:temp) + 1000"
-        self.assertEquals(
+        self.assertEqual(
             parser.solve(eqn)[thermal_zone_id],
             np.mean(
                 parser.data.thermal.data_frame["temp"]) + 1000)
@@ -97,7 +99,7 @@ trappy.thermal.Thermal:temp"
         eqn = "(trappy.thermal.ThermalGovernor:current_temperature > 77000)\
                 & (trappy.pid_controller.PIDController:output > 2500)"
         mask = parser.solve(eqn)
-        self.assertEquals(len(parser.ref(mask.dropna()[0])), 0)
+        self.assertEqual(len(parser.ref(mask.dropna()[0])), 0)
 
     def test_bool_ops_scalar(self):
         """Test Logical Operations: Vector"""
@@ -128,7 +130,7 @@ trappy.thermal.Thermal:temp"
         thermal_zone_id = 0
         parser = Parser(trappy.FTrace())
         eqn = "numpy.mean(trappy.thermal.Thermal:temp)"
-        self.assertEquals(
+        self.assertEqual(
             parser.solve(eqn)[thermal_zone_id],
             np.mean(
                 parser.data.thermal.data_frame["temp"]))
@@ -138,21 +140,21 @@ trappy.thermal.Thermal:temp"
 
         parser = Parser(trappy.BareTrace())
         eqn = "(10 * 2 / 10)"
-        self.assertEquals(parser.solve(eqn), 2)
+        self.assertEqual(parser.solve(eqn), 2)
         eqn = "-2 * 2 + 2 * 10 / 10"
-        self.assertEquals(parser.solve(eqn), -2)
+        self.assertEqual(parser.solve(eqn), -2)
         eqn = "3.5 // 2"
-        self.assertEquals(parser.solve(eqn), 1)
+        self.assertEqual(parser.solve(eqn), 1)
         eqn = "5 % 2"
-        self.assertEquals(parser.solve(eqn), 1)
+        self.assertEqual(parser.solve(eqn), 1)
 
     def test_exp_ops(self):
         """Test exponentiation: Numeric"""
         parser = Parser(trappy.BareTrace())
         eqn = "3**3 * 2**4"
-        self.assertEquals(parser.solve(eqn), 432)
+        self.assertEqual(parser.solve(eqn), 432)
         eqn = "3**(4/2)"
-        self.assertEquals(parser.solve(eqn), 9)
+        self.assertEqual(parser.solve(eqn), 9)
 
     @unittest.skipIf(V(pandas.__version__) < V('0.16.1'),
                      "check_names is not supported in pandas < 0.16.1")
@@ -229,12 +231,12 @@ trappy.thermal.Thermal:temp"
         dfr_res = prs.solve("thermal:temp")
 
         self.assertGreater(dfr_res.index[0], 4)
-        self.assertEquals(dfr_res.index[-1], trace.thermal.data_frame.index[-1])
+        self.assertEqual(dfr_res.index[-1], trace.thermal.data_frame.index[-1])
 
         prs = Parser(trace, window=(0, 1))
         dfr_res = prs.solve("thermal:temp")
 
-        self.assertEquals(dfr_res.index[0], trace.thermal.data_frame.index[0])
+        self.assertEqual(dfr_res.index[0], trace.thermal.data_frame.index[0])
         self.assertLess(dfr_res.index[-1], 1)
 
     def test_filtered_parse(self):
@@ -243,7 +245,7 @@ trappy.thermal.Thermal:temp"
 
         prs = Parser(trace, filters={"cdev_state": 3})
         dfr_res = prs.solve("devfreq_out_power:freq")
-        self.assertEquals(len(dfr_res), 1)
+        self.assertEqual(len(dfr_res), 1)
 
     def test_no_events(self):
         """Test trying to parse absent data"""

@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 import os
 import sys
@@ -36,4 +39,4 @@ class TestCpuIdle(utils_tests.SetupDirectory):
         """Test that unsorted events are handled correctly"""
 
         df = trappy.FTrace(normalize_time=False).cpu_idle.data_frame
-        self.assertEquals(df.index.size, 8)
+        self.assertEqual(df.index.size, 8)

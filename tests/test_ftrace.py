@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
-
+from builtins import str
 import matplotlib
 import os
 import pandas as pd
@@ -38,7 +41,7 @@ class TestFTrace(BaseTestThermal):
 
         trace = trappy.FTrace()
 
-        for attr in trace.class_definitions.iterkeys():
+        for attr in trace.class_definitions.keys():
             self.assertTrue(hasattr(trace, attr))
 
     def test_ftrace_has_all_classes_scope_all(self):
@@ -46,7 +49,7 @@ class TestFTrace(BaseTestThermal):
 
         trace = trappy.FTrace(scope="all")
 
-        for attr in trace.class_definitions.iterkeys():
+        for attr in trace.class_definitions.keys():
             self.assertTrue(hasattr(trace, attr))
 
     def test_ftrace_has_all_classes_scope_thermal(self):
@@ -54,10 +57,10 @@ class TestFTrace(BaseTestThermal):
 
         trace = trappy.FTrace(scope="thermal")
 
-        for attr in trace.thermal_classes.iterkeys():
+        for attr in trace.thermal_classes.keys():
             self.assertTrue(hasattr(trace, attr))
 
-        for attr in trace.sched_classes.iterkeys():
+        for attr in trace.sched_classes.keys():
             self.assertFalse(hasattr(trace, attr))
 
     def test_ftrace_has_all_classes_scope_sched(self):
@@ -65,10 +68,10 @@ class TestFTrace(BaseTestThermal):
 
         trace = trappy.FTrace(scope="sched")
 
-        for attr in trace.thermal_classes.iterkeys():
+        for attr in trace.thermal_classes.keys():
             self.assertFalse(hasattr(trace, attr))
 
-        for attr in trace.sched_classes.iterkeys():
+        for attr in trace.sched_classes.keys():
             self.assertTrue(hasattr(trace, attr))
 
     def test_ftrace_has_no_classes_scope_dynamic(self):
@@ -76,10 +79,10 @@ class TestFTrace(BaseTestThermal):
 
         trace = trappy.FTrace(scope="custom")
 
-        for attr in trace.thermal_classes.iterkeys():
+        for attr in trace.thermal_classes.keys():
             self.assertFalse(hasattr(trace, attr))
 
-        for attr in trace.sched_classes.iterkeys():
+        for attr in trace.sched_classes.keys():
             self.assertFalse(hasattr(trace, attr))
 
         ftrace_parser = trappy.register_dynamic_ftrace("ADynamicEvent",
@@ -110,9 +113,7 @@ class TestFTrace(BaseTestThermal):
         try:
             trappy.FTrace(cwd)
         except IOError as exception:
-            pass
-
-        self.assertTrue(cwd in str(exception))
+            self.assertTrue(cwd in str(exception))
 
     def test_other_directory(self):
         """FTrace() can grab the trace.dat from other directories"""
@@ -123,7 +124,7 @@ class TestFTrace(BaseTestThermal):
         dfr = trappy.FTrace(self.out_dir).thermal.data_frame
 
         self.assertTrue(len(dfr) > 0)
-        self.assertEquals(os.getcwd(), other_random_dir)
+        self.assertEqual(os.getcwd(), other_random_dir)
 
     def test_ftrace_arbitrary_trace_txt(self):
         """FTrace() works if the trace is called something other than trace.txt"""
@@ -143,7 +144,7 @@ class TestFTrace(BaseTestThermal):
 
         trace = trappy.FTrace()
 
-        self.assertEquals(round(trace.thermal.data_frame.index[0], 7), 0)
+        self.assertEqual(round(trace.thermal.data_frame.index[0], 7), 0)
 
     def test_ftrace_dont_normalize_time(self):
         """FTrace() doesn't normalize if asked not to"""
@@ -206,13 +207,13 @@ class TestFTrace(BaseTestThermal):
 
         trace._normalize_time()
 
-        self.assertEquals(round(trace.thermal.data_frame.index[0], 7), 0)
+        self.assertEqual(round(trace.thermal.data_frame.index[0], 7), 0)
 
         exp_inpower_first = prev_inpower_basetime - trace.basetime
-        self.assertEquals(round(trace.cpu_in_power.data_frame.index[0] - exp_inpower_first, 7), 0)
+        self.assertEqual(round(trace.cpu_in_power.data_frame.index[0] - exp_inpower_first, 7), 0)
 
         exp_inpower_last = prev_inpower_last - trace.basetime
-        self.assertEquals(round(trace.cpu_in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
+        self.assertEqual(round(trace.cpu_in_power.data_frame.index[-1] - exp_inpower_last, 7), 0)
 
     def test_ftrace_accepts_events(self):
         """The FTrace class accepts an events parameter with only the parameters interesting for a trace"""
@@ -231,16 +232,16 @@ class TestFTrace(BaseTestThermal):
         trace = trappy.FTrace(scope="custom", events=events)
 
         self.assertTrue(trace.sched_switch.parse_raw)
-        self.assertEquals(trace.sched_load_avg_sg.pivot, "cpus")
+        self.assertEqual(trace.sched_load_avg_sg.pivot, "cpus")
 
     def test_get_all_freqs_data(self):
         """Test get_all_freqs_data()"""
 
         allfreqs = trappy.FTrace().get_all_freqs_data(self.map_label)
 
-        self.assertEquals(allfreqs[1][1]["A53_freq_out"].iloc[3], 850)
-        self.assertEquals(allfreqs[1][1]["A53_freq_in"].iloc[1], 850)
-        self.assertEquals(allfreqs[0][1]["A57_freq_out"].iloc[2], 1100)
+        self.assertEqual(allfreqs[1][1]["A53_freq_out"].iloc[3], 850)
+        self.assertEqual(allfreqs[1][1]["A53_freq_in"].iloc[1], 850)
+        self.assertEqual(allfreqs[0][1]["A57_freq_out"].iloc[2], 1100)
         self.assertTrue("gpu_freq_in" in allfreqs[2][1].columns)
 
         # Make sure there are no NaNs in the middle of the array
@@ -335,7 +336,7 @@ class TestFTrace(BaseTestThermal):
         trace = trappy.FTrace()
         for key, value in expected_metadata.items():
             self.assertTrue(hasattr(trace, "_" + key))
-            self.assertEquals(getattr(trace, "_" + key), value)
+            self.assertEqual(getattr(trace, "_" + key), value)
 
     def test_missing_metadata(self):
         """Test if trappy.FTrace() works with a trace missing metadata info"""
@@ -351,21 +352,21 @@ class TestFTrace(BaseTestThermal):
             fil.close()
 
         trace = trappy.FTrace()
-        self.assertEquals(trace._cpus, None)
-        self.assertEquals(trace._version, None)
+        self.assertEqual(trace._cpus, None)
+        self.assertEqual(trace._version, None)
         self.assertTrue(len(trace.thermal.data_frame) > 0)
 
     def test_ftrace_accepts_window(self):
         """FTrace class accepts a window parameter"""
         trace = trappy.FTrace(window=(1.234726, 5.334726))
-        self.assertEquals(trace.thermal.data_frame.iloc[0]["temp"], 68989)
-        self.assertEquals(trace.thermal.data_frame.iloc[-1]["temp"], 69530)
+        self.assertEqual(trace.thermal.data_frame.iloc[0]["temp"], 68989)
+        self.assertEqual(trace.thermal.data_frame.iloc[-1]["temp"], 69530)
 
     def test_ftrace_accepts_abs_window(self):
         """FTrace class accepts an abs_window parameter"""
         trace = trappy.FTrace(abs_window=(1585, 1589.1))
-        self.assertEquals(trace.thermal.data_frame.iloc[0]["temp"], 68989)
-        self.assertEquals(trace.thermal.data_frame.iloc[-1]["temp"], 69530)
+        self.assertEqual(trace.thermal.data_frame.iloc[0]["temp"], 68989)
+        self.assertEqual(trace.thermal.data_frame.iloc[-1]["temp"], 69530)
 
     def test_parse_tracing_mark_write_events(self):
         """Check that tracing_mark_write events are parsed without errors"""
@@ -383,7 +384,7 @@ class TestFTrace(BaseTestThermal):
                       .format(e.message))
         # The second event is recognised as a cpu_frequency event and therefore
         # put under trace.cpu_frequency
-        self.assertEquals(trace.tracing_mark_write.data_frame.iloc[0]["string"],
+        self.assertEqual(trace.tracing_mark_write.data_frame.iloc[0]["string"],
                           "TRACE_MARKER_START")
         self.assertEqual(len(trace.tracing_mark_write.data_frame), 1)
         self.assertEqual(len(trace.cpu_frequency.data_frame), 1)
@@ -392,8 +393,8 @@ class TestFTrace(BaseTestThermal):
         """FTrace class correctly populates metadata"""
         trace = trappy.FTrace()
 
-        self.assertEquals(int(trace._version), 6)
-        self.assertEquals(int(trace._cpus), 6)
+        self.assertEqual(int(trace._version), 6)
+        self.assertEqual(int(trace._cpus), 6)
 
 @unittest.skipUnless(utils_tests.trace_cmd_installed(),
                      "trace-cmd not installed")

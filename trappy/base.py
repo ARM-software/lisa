@@ -14,7 +14,14 @@
 #
 
 """Base class to parse trace.dat dumps"""
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
+from builtins import zip
+from builtins import range
+from builtins import object
+from past.builtins import basestring
 import re
 import pandas as pd
 import warnings
@@ -222,7 +229,7 @@ class Base(object):
                             "TRAPpy's parser for '{}' failed to parse the line:"
                             "\n{}".format(self.unique_word, data_str))
                 # Concatenation is supported only for "string" values
-                if type(data_dict[prev_key]) is not str:
+                if not isinstance(data_dict[prev_key], basestring):
                     continue
                 data_dict[prev_key] += ' ' + field
                 continue
@@ -270,7 +277,7 @@ class Base(object):
 
         trace_arr_lengths = self.__get_trace_array_lengths()
 
-        if trace_arr_lengths.items():
+        if trace_arr_lengths:
             for (idx, val) in enumerate(self.data_array):
                 expl_val = trace_parser_explode_array(val, trace_arr_lengths)
                 self.data_array[idx] = expl_val

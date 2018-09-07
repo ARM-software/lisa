@@ -16,6 +16,10 @@
 """The module responsible for correlation
 and related functionality
 """
+from __future__ import division
+from __future__ import unicode_literals
+from builtins import zip
+from builtins import object
 from trappy.stats import StatConf
 from trappy.stats.Indexer import get_unified_indexer
 import numpy as np

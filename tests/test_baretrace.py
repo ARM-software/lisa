@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 import pandas as pd
 import trappy
@@ -36,18 +39,18 @@ class TestBareTrace(unittest.TestCase):
 
         trace = trappy.BareTrace(name="foo")
 
-        self.assertEquals(trace.name, "foo")
+        self.assertEqual(trace.name, "foo")
 
     def test_bare_trace_can_add_parsed_event(self):
         """The BareTrace() class can add parsed events to its collection of trace events"""
         trace = trappy.BareTrace()
         trace.add_parsed_event("pmu_counters", self.dfr[0])
 
-        self.assertEquals(len(trace.pmu_counters.data_frame), 3)
-        self.assertEquals(trace.pmu_counters.data_frame["l1_misses"].iloc[0], 24)
+        self.assertEqual(len(trace.pmu_counters.data_frame), 3)
+        self.assertEqual(trace.pmu_counters.data_frame["l1_misses"].iloc[0], 24)
 
         trace.add_parsed_event("pivoted_counters", self.dfr[0], pivot="cpu")
-        self.assertEquals(trace.pivoted_counters.pivot, "cpu")
+        self.assertEqual(trace.pivoted_counters.pivot, "cpu")
 
     def test_bare_trace_get_duration(self):
         """BareTrace.get_duration() works for a simple case"""
@@ -56,7 +59,7 @@ class TestBareTrace(unittest.TestCase):
         trace.add_parsed_event("pmu_counter", self.dfr[0])
         trace.add_parsed_event("load_event", self.dfr[1])
 
-        self.assertEquals(trace.get_duration(), self.dfr[1].index[-1] - self.dfr[0].index[0])
+        self.assertEqual(trace.get_duration(), self.dfr[1].index[-1] - self.dfr[0].index[0])
 
     def test_bare_trace_get_duration_normalized(self):
         """BareTrace.get_duration() works if the trace has been normalized"""
@@ -69,7 +72,7 @@ class TestBareTrace(unittest.TestCase):
         trace._normalize_time(basetime)
 
         expected_duration = self.dfr[1].index[-1] - basetime
-        self.assertEquals(trace.get_duration(), expected_duration)
+        self.assertEqual(trace.get_duration(), expected_duration)
 
     def test_bare_trace_normalize_time_accepts_basetime(self):
         """BareTrace().normalize_time() accepts an arbitrary basetime"""
@@ -82,7 +85,7 @@ class TestBareTrace(unittest.TestCase):
 
         trace._normalize_time(basetime)
 
-        self.assertEquals(trace.basetime, basetime)
+        self.assertEqual(trace.basetime, basetime)
 
         exp_first_time = prev_first_time - basetime
-        self.assertEquals(round(trace.pmu_counter.data_frame.index[0] - exp_first_time, 7), 0)
+        self.assertEqual(round(trace.pmu_counter.data_frame.index[0] - exp_first_time, 7), 0)

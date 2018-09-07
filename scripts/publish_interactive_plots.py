@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #    Copyright 2015-2017 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,9 @@
 The static data is published as an anonymous gist. GitHub does not
 allow easy deletions of anonymous gists.
 """
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 import os
 import argparse

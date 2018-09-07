@@ -18,6 +18,9 @@ between data events and perform basic logical and arithmetic
 operations on the data. The parser also handles super-indexing
 and variable forwarding.
 """
+from __future__ import division
+from __future__ import unicode_literals
+from builtins import object
 from pyparsing import Literal, delimitedList, Optional, oneOf, nums,\
     alphas, alphanums, Forward, Word, opAssoc, operatorPrecedence, Combine, Group
 import importlib
@@ -117,7 +120,7 @@ def iterate_binary_ops(tokens):
     itr = iter(tokens)
     while True:
         try:
-            yield(itr.next(), itr.next())
+            yield (next(itr), next(itr))
         except StopIteration:
             break
 
@@ -543,7 +546,7 @@ class Parser(object):
             criterion = pd.Series([True] * len(data_frame),
                                   index=data_frame.index)
 
-            for filter_col, wanted_vals in self._filters.iteritems():
+            for filter_col, wanted_vals in self._filters.items():
                 try:
                     dfr_col = data_frame[filter_col]
                 except KeyError:

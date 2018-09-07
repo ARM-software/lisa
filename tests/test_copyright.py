@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
-
+from builtins import map
 from datetime import date
 from glob import glob
 import os
@@ -50,9 +53,9 @@ def copyright_is_valid(fname):
 
     # The Copyright includes valid years
     current_year = date.today().year
-    years = map(int, re.findall(r"[-\s](?P<year>\d+)", lines[0]))
+    years = list(map(int, re.findall(r"[-\s](?P<year>\d+)", lines[0])))
 
-    if len(years) < 0:
+    if not years:
         return False
 
     for year in years:
@@ -83,7 +86,7 @@ class TestCopyRight(unittest.TestCase):
             patterns_to_ignore[root] = [l.strip() for l in lines]
 
             files_to_ignore = []
-            for directory, patterns in patterns_to_ignore.iteritems():
+            for directory, patterns in patterns_to_ignore.items():
                 if root.startswith(directory):
                     for pat in patterns:
                         pat = os.path.join(root, pat)

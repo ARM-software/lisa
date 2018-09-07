@@ -18,6 +18,9 @@
 Definitions of common_clk (CONFIG_COMMON_CLK) trace parsers
 registered by the FTrace class
 """
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 from trappy.base import Base
 from trappy.dynamic import register_ftrace_parser, register_dynamic_ftrace
@@ -28,7 +31,7 @@ class CommonClkBase(Base):
         clk_name, fields = data_str.split(' ', 1)
         ret = super(CommonClkBase, self).generate_data_dict(fields)
         ret['clk_name'] = clk_name
-        return ret 
+        return ret
 
 class CommonClkEnable(CommonClkBase):
     """Corresponds to Linux kernel trace event clock_enable"""

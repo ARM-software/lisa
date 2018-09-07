@@ -22,7 +22,10 @@ The EventPlot is used to represent Events with two characteristics:
 In the case of a cpu residency plot, the term lane can be equated to
 a CPU and the name attribute can be the PID of the task
 """
+from __future__ import division
+from __future__ import unicode_literals
 
+from builtins import range
 from trappy.plotter import AttrConf
 import uuid
 import json
@@ -127,9 +130,9 @@ class EventPlot(AbstractDataPlotter):
         self._fig_name = self._generate_fig_name()
         # Function to get the average duration of each event
         avgFunc = lambda x: sum([(evt[1] - evt[0]) for evt in x]) / float(len(x) + 1)
-        avg = {k: avgFunc(v) for k, v in data.iteritems()}
+        avg = {k: avgFunc(v) for k, v in data.items()}
         # Filter keys with zero average time
-        keys = filter(lambda x : avg[x] != 0, avg)
+        keys = [x for x in avg if avg[x] != 0]
         graph = {}
         graph["lanes"] = self._get_lanes(lanes, lane_prefix, num_lanes, _data)
         graph["xDomain"] = domain

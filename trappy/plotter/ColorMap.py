@@ -14,6 +14,10 @@
 #
 
 """Defines a generic indexable ColorMap Class"""
+from __future__ import division
+from __future__ import unicode_literals
+from builtins import str
+from builtins import object
 import matplotlib.colors as clrs
 import matplotlib.cm as cmx
 from matplotlib.colors import ListedColormap, Normalize

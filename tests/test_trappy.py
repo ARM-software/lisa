@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
-
+from builtins import str
 import os
 import re
 import matplotlib, tempfile
@@ -47,19 +50,17 @@ class TestTrappy(BaseTestThermal):
 
         try:
             trappy.summary_plots(self.map_label, self.actor_order)
-            self.fail()
         except TypeError as exception:
-            pass
-
-        self.assertTrue("actor_order" in str(exception))
+            self.assertTrue("actor_order" in str(exception))
+        else:
+            self.fail()
 
         try:
             trappy.summary_plots(self.actor_order, self.actor_order)
-            self.fail()
         except TypeError as exception:
-            pass
-
-        self.assertTrue("map_label" in str(exception))
+            self.assertTrue("map_label" in str(exception))
+        else:
+            self.fail()
 
     def test_summary_other_dir(self):
         """Test summary_plots() with another directory"""
@@ -71,7 +72,7 @@ class TestTrappy(BaseTestThermal):
         matplotlib.pyplot.close('all')
 
         # Sanity check that the test actually ran from another directory
-        self.assertEquals(os.getcwd(), other_random_dir)
+        self.assertEqual(os.getcwd(), other_random_dir)
 
     def test_summary_plots_only_power_allocator_trace(self):
         """Test that summary_plots() work if there is only power allocator

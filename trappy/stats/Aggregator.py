@@ -18,14 +18,19 @@ for further analysis. These aggregations can produce
 both scalars and vectors and each aggregator implementation
 is expected to handle its "aggregation" mechanism.
 """
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 
+from builtins import object
 from trappy.utils import listify
 from trappy.stats.Indexer import MultiTriggerIndexer
 from abc import ABCMeta, abstractmethod
+from future.utils import with_metaclass
 
 
-class AbstractAggregator(object):
+class AbstractAggregator(with_metaclass(ABCMeta, object)):
     """Abstract class for all aggregators
 
     :param indexer: Indexer is passed on by the Child class
@@ -36,8 +41,6 @@ class AbstractAggregator(object):
         process it for aggregation.
     :type aggfunc: function
     """
-
-    __metaclass__ = ABCMeta
 
     # The current implementation needs the index to
     # be unified across data frames to account for

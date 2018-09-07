@@ -19,6 +19,10 @@ returns a Type of a Class dynamically created based
 on the input parameters. Similar to a factory design
 pattern
 """
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
+
 from trappy.base import Base
 import re
 from trappy.ftrace import GenericFTrace
@@ -51,7 +55,7 @@ class DynamicTypeFactory(type):
 
     def __new__(mcs, name, bases, dct):
         """Override the new method"""
-        return type.__new__(mcs, name, bases, dct)
+        return type.__new__(mcs, str(name), bases, dct)
 
     def __init__(cls, name, bases, dct):
         """Override the constructor"""

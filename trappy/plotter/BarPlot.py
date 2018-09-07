@@ -17,6 +17,9 @@ This class sublclasses :mod:`trappy.plotter.StaticPlot.StaticPlot` to
 implement a bar plot.
 
 """
+from __future__ import division
+from __future__ import unicode_literals
+from builtins import zip
 import numpy as np
 from trappy.plotter.StaticPlot import StaticPlot
 

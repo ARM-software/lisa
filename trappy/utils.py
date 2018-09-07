@@ -15,6 +15,8 @@
 
 """Generic functions that can be used in multiple places in trappy
 """
+from __future__ import division
+from __future__ import unicode_literals
 
 def listify(to_select):
     """Utitlity function to handle both single and

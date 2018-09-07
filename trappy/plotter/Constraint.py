@@ -26,7 +26,15 @@ The underlying object that encapsulates a unique set of
 a data column, data event and the requisite filters is
 :mod:`trappy.plotter.Constraint.Constraint`
 """
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
+
 # pylint: disable=R0913
+from builtins import map
+from builtins import str
+from builtins import range
+from builtins import object
 from trappy.plotter.Utils import decolonize, normalize_list
 from trappy.utils import listify
 from trappy.plotter import AttrConf
@@ -129,10 +137,10 @@ class Constraint(object):
         for pivot_val in pivot_vals:
             criterion = values.map(lambda x: True)
 
-            for key in self._filters.keys():
+            for key, filter_ in self._filters.items():
                 if key != self._pivot and key in data.columns:
                     criterion = criterion & data[key].map(
-                        lambda x: x in self._filters[key])
+                        lambda x: x in filter_)
 
             if pivot_val != AttrConf.PIVOT_VAL:
                 criterion &= data[self._pivot] == pivot_val
@@ -240,7 +248,7 @@ class ConstraintManager(object):
         self._ip_vec.append(listify(columns))
         self._ip_vec.append(listify(templates))
 
-        self._lens = map(len, self._ip_vec)
+        self._lens = list(map(len, self._ip_vec))
         self._max_len = max(self._lens)
         self._pivot = pivot
         self._filters = filters
@@ -352,18 +360,18 @@ class ConstraintManager(object):
         """
         pivot_vals = []
         for constraint in self._constraints:
-            pivot_vals += constraint.result.keys()
+            pivot_vals += list(constraint.result.keys())
 
-        p_list = list(set(pivot_vals))
-        traces = range(self._lens[0])
+        p_set = set(pivot_vals)
+        traces = list(range(self._lens[0]))
 
         try:
-            sorted_plist = sorted(p_list, key=int)
+            sorted_plist = sorted(p_set, key=int)
         except (ValueError, TypeError):
             try:
-                sorted_plist = sorted(p_list, key=lambda x: int(x, 16))
+                sorted_plist = sorted(p_set, key=lambda x: int(x, 16))
             except (ValueError, TypeError):
-                sorted_plist = sorted(p_list)
+                sorted_plist = sorted(p_set)
 
         if permute:
             pivot_gen = ((trace_idx, pivot) for trace_idx in traces for pivot in sorted_plist)
@@ -377,7 +385,7 @@ class ConstraintManager(object):
             set of Constraints
 
         """
-        return map(str, self._constraints)
+        return list(map(str, self._constraints))
 
     def __len__(self):
         return len(self._constraints)

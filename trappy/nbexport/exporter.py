@@ -14,7 +14,9 @@
 # limitations under the License.
 #
 """Preprocessor to remove Marked Lines from IPython Output Cells"""
-
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 from nbconvert.exporters.html import HTMLExporter
 from nbconvert.preprocessors import Preprocessor

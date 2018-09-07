@@ -14,9 +14,12 @@
 #
 
 """Small functions to help with plots"""
+from __future__ import division
+from __future__ import unicode_literals
 
 # pylint disable=star-args
 
+from builtins import zip
 from matplotlib import pyplot as plt
 import os
 import re
@@ -85,7 +88,7 @@ def pre_plot_setup(width=None, height=None, ncols=1, nrows=1):
             height = 6
             width = 10
         else:
-            height = width / GOLDEN_RATIO
+            height = width // GOLDEN_RATIO
     else:
         if width is None:
             width = height * GOLDEN_RATIO
@@ -247,7 +250,7 @@ def plot_weighted_input_power(runs, actor_order, width=None, height=None):
             if re.match(r"cdev\d+_weight", param):
                 sorted_weights.append(thermal_params[param])
 
-        actor_weights.append(zip(actor_order, sorted_weights))
+        actor_weights.append(list(zip(actor_order, sorted_weights)))
 
     # Do nothing if we don't have actor weights for any run
     if not any(actor_weights):

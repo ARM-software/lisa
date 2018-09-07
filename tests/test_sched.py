@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 import os
 import sys
@@ -36,9 +38,9 @@ class TestSchedLoadAvgSchedGroup(BaseTestSched):
         dfr = trappy.FTrace().sched_load_avg_sg.data_frame
 
         self.assertTrue(len(dfr) == 1)
-        self.assertEquals(dfr["cpus"].iloc[0], "00000002")
-        self.assertEquals(dfr["load"].iloc[0], 0)
-        self.assertEquals(dfr["utilization"].iloc[0], 0)
+        self.assertEqual(dfr["cpus"].iloc[0], "00000002")
+        self.assertEqual(dfr["load"].iloc[0], 0)
+        self.assertEqual(dfr["utilization"].iloc[0], 0)
 
 class TestSchedLoadAvgTask(BaseTestSched):
 
@@ -47,13 +49,13 @@ class TestSchedLoadAvgTask(BaseTestSched):
         dfr = trappy.FTrace().sched_load_avg_task.data_frame
 
         self.assertTrue(len(dfr) == 1)
-        self.assertEquals(dfr["comm"].iloc[0], "sshd")
-        self.assertEquals(dfr["pid"].iloc[0], 2962)
-        self.assertEquals(dfr["load"].iloc[0], 0)
-        self.assertEquals(dfr["utilization"].iloc[0], 0)
-        self.assertEquals(dfr["runnable_avg_sum"].iloc[0], 0)
-        self.assertEquals(dfr["running_avg_sum"].iloc[0], 0)
-        self.assertEquals(dfr["avg_period"].iloc[0], 48595)
+        self.assertEqual(dfr["comm"].iloc[0], "sshd")
+        self.assertEqual(dfr["pid"].iloc[0], 2962)
+        self.assertEqual(dfr["load"].iloc[0], 0)
+        self.assertEqual(dfr["utilization"].iloc[0], 0)
+        self.assertEqual(dfr["runnable_avg_sum"].iloc[0], 0)
+        self.assertEqual(dfr["running_avg_sum"].iloc[0], 0)
+        self.assertEqual(dfr["avg_period"].iloc[0], 48595)
 
 class TestSchedLoadAvgCpu(BaseTestSched):
 
@@ -62,9 +64,9 @@ class TestSchedLoadAvgCpu(BaseTestSched):
         dfr = trappy.FTrace().sched_load_avg_cpu.data_frame
 
         self.assertTrue(len(dfr) == 1)
-        self.assertEquals(dfr["cpu"].iloc[0], 0)
-        self.assertEquals(dfr["load"].iloc[0], 13)
-        self.assertEquals(dfr["utilization"].iloc[0], 18)
+        self.assertEqual(dfr["cpu"].iloc[0], 0)
+        self.assertEqual(dfr["load"].iloc[0], 13)
+        self.assertEqual(dfr["utilization"].iloc[0], 18)
 
 class TestSchedContribScaleFactor(BaseTestSched):
 
@@ -73,9 +75,9 @@ class TestSchedContribScaleFactor(BaseTestSched):
         dfr = trappy.FTrace().sched_contrib_scale_factor.data_frame
 
         self.assertTrue(len(dfr) == 1)
-        self.assertEquals(dfr["cpu"].iloc[0], 0)
-        self.assertEquals(dfr["freq_scale_factor"].iloc[0], 426)
-        self.assertEquals(dfr["cpu_scale_factor"].iloc[0], 1024)
+        self.assertEqual(dfr["cpu"].iloc[0], 0)
+        self.assertEqual(dfr["freq_scale_factor"].iloc[0], 426)
+        self.assertEqual(dfr["cpu_scale_factor"].iloc[0], 1024)
 
 class TestSchedCpuCapacity(BaseTestSched):
 
@@ -84,9 +86,9 @@ class TestSchedCpuCapacity(BaseTestSched):
         dfr = trappy.FTrace().cpu_capacity.data_frame
 
         self.assertTrue(len(dfr) == 1)
-        self.assertEquals(dfr["cpu"].iloc[0], 3)
-        self.assertEquals(dfr["capacity"].iloc[0], 430)
-        self.assertEquals(dfr["rt_capacity"].iloc[0], 1024)
+        self.assertEqual(dfr["cpu"].iloc[0], 3)
+        self.assertEqual(dfr["capacity"].iloc[0], 430)
+        self.assertEqual(dfr["rt_capacity"].iloc[0], 1024)
 
 class TestSchedCpuFrequency(BaseTestSched):
 
@@ -95,8 +97,8 @@ class TestSchedCpuFrequency(BaseTestSched):
         dfr = trappy.FTrace().cpu_frequency.data_frame
 
         self.assertTrue(len(dfr) == 1)
-        self.assertEquals(dfr["cpu"].iloc[0], 0)
-        self.assertEquals(dfr["frequency"].iloc[0], 600000)
+        self.assertEqual(dfr["cpu"].iloc[0], 0)
+        self.assertEqual(dfr["frequency"].iloc[0], 600000)
         self.assertFalse("cpu_id" in dfr.columns)
 
 class TestSchedWakeup(BaseTestSched):
@@ -106,11 +108,11 @@ class TestSchedWakeup(BaseTestSched):
         dfr = trappy.FTrace().sched_wakeup.data_frame
 
         self.assertTrue(len(dfr) == 2)
-        self.assertEquals(dfr["comm"].iloc[0], "rcu_preempt")
-        self.assertEquals(dfr["pid"].iloc[0], 7)
-        self.assertEquals(dfr["prio"].iloc[0], 120)
-        self.assertEquals(dfr["success"].iloc[0], 1)
-        self.assertEquals(dfr["target_cpu"].iloc[0], 1)
+        self.assertEqual(dfr["comm"].iloc[0], "rcu_preempt")
+        self.assertEqual(dfr["pid"].iloc[0], 7)
+        self.assertEqual(dfr["prio"].iloc[0], 120)
+        self.assertEqual(dfr["success"].iloc[0], 1)
+        self.assertEqual(dfr["target_cpu"].iloc[0], 1)
 
 class TestSchedWakeupNew(BaseTestSched):
 
@@ -119,11 +121,11 @@ class TestSchedWakeupNew(BaseTestSched):
         dfr = trappy.FTrace().sched_wakeup_new.data_frame
 
         self.assertTrue(len(dfr) == 2)
-        self.assertEquals(dfr["comm"].iloc[0], "shutils")
-        self.assertEquals(dfr["pid"].iloc[0], 19428)
-        self.assertEquals(dfr["prio"].iloc[0], 120)
-        self.assertEquals(dfr["success"].iloc[0], 1)
-        self.assertEquals(dfr["target_cpu"].iloc[0], 2)
+        self.assertEqual(dfr["comm"].iloc[0], "shutils")
+        self.assertEqual(dfr["pid"].iloc[0], 19428)
+        self.assertEqual(dfr["prio"].iloc[0], 120)
+        self.assertEqual(dfr["success"].iloc[0], 1)
+        self.assertEqual(dfr["target_cpu"].iloc[0], 2)
 
 
 class TestGetFilters(BaseTestSched):
@@ -158,8 +160,8 @@ class TestSpacedValueAttributes(BaseTestSched):
 
         dfr = trappy.FTrace().sched_load_avg_task.data_frame
         self.assertTrue(len(dfr) == 2)
-        self.assertEquals(dfr["comm"].iloc[1], "AsyncTask #2")
-        self.assertEquals(dfr["pid"].iloc[1], 6163)
+        self.assertEqual(dfr["comm"].iloc[1], "AsyncTask #2")
+        self.assertEqual(dfr["pid"].iloc[1], 6163)
 
 class TestNoSchedTraces(utils_tests.SetupDirectory):
 
@@ -174,5 +176,5 @@ class TestNoSchedTraces(utils_tests.SetupDirectory):
 
         trace = trappy.FTrace()
 
-        for attr in trace.sched_classes.iterkeys():
+        for attr in trace.sched_classes.keys():
             self.assertTrue(len(getattr(trace, attr).data_frame) == 0)

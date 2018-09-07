@@ -15,6 +15,8 @@
 
 """Process the output of the cpu_cooling devices in the current
 directory's trace.dat"""
+from __future__ import division
+from __future__ import unicode_literals
 
 import pandas as pd
 

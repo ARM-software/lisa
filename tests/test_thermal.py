@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
-
+from builtins import zip
 import unittest
 import matplotlib
 import os
@@ -77,7 +80,7 @@ class TestThermalGovernor(BaseTestThermal):
         dfr = trappy.FTrace().thermal_governor.data_frame
 
         self.assertTrue(len(dfr) > 0)
-        self.assertEquals(dfr["current_temperature"].iloc[0], 68775)
+        self.assertEqual(dfr["current_temperature"].iloc[0], 68775)
         self.assertTrue("total_granted_power" in dfr.columns)
         self.assertFalse("time" in dfr.columns)
 
@@ -109,7 +112,7 @@ class TestThermalGovernor(BaseTestThermal):
         """plot_weighted_input_power() doesn't bomb"""
 
         gov = trappy.FTrace().thermal_governor
-        weights = zip(self.actor_order, [1024, 256, 512])
+        weights = list(zip(self.actor_order, [1024, 256, 512]))
 
         _, ax = matplotlib.pyplot.subplots()
         gov.plot_weighted_input_power(weights, ax=ax)
@@ -172,7 +175,7 @@ CPU:7 [204600 EVENTS DROPPED]
 
     def test_empty_trace_txt(self):
         dfr = trappy.FTrace(normalize_time=False).thermal_governor.data_frame
-        self.assertEquals(len(dfr), 0)
+        self.assertEqual(len(dfr), 0)
 
     def test_empty_plot_temperature(self):
         """trace.thermal.plot_temperature() raises ValueError() on an empty

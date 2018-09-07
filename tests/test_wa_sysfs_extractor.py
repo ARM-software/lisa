@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 import os
 import subprocess
@@ -39,10 +41,10 @@ class TestWASysfsExtractor(utils_tests.SetupDirectory):
 
         os.chdir("..")
         thermal_params = trappy.wa.SysfsExtractor(self.out_dir).get_parameters()
-        self.assertEquals(thermal_params["cdev0_weight"], 1024)
-        self.assertEquals(thermal_params["cdev1_weight"], 768)
-        self.assertEquals(thermal_params["trip_point_0_temp"], 72000)
-        self.assertEquals(thermal_params["policy"], "power_allocator")
+        self.assertEqual(thermal_params["cdev0_weight"], 1024)
+        self.assertEqual(thermal_params["cdev1_weight"], 768)
+        self.assertEqual(thermal_params["trip_point_0_temp"], 72000)
+        self.assertEqual(thermal_params["policy"], "power_allocator")
 
     def test_print_thermal_params(self):
         """Test that printing the thermal params doesn't bomb"""
@@ -56,6 +58,6 @@ class TestWASysfsExtractorFailMode(unittest.TestCase):
         """An invalid directory for trappy.wa.SysfsExtractor doesn't bomb"""
 
         sysfs_extractor = trappy.wa.SysfsExtractor(".")
-        self.assertEquals(sysfs_extractor.get_parameters(), {})
+        self.assertEqual(sysfs_extractor.get_parameters(), {})
 
         sysfs_extractor.pretty_print_in_ipython()

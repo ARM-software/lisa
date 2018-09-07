@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
-
+from builtins import zip
+from builtins import str
+from builtins import range
 import unittest
 import matplotlib
 import numpy as np
@@ -152,9 +157,9 @@ class TestPlotter(BaseTestThermal):
                          pivot="cpus")
 
         self.assertTrue(isinstance(l.templates[0], type(trappy.cpu_power.CpuInPower)))
-        self.assertEquals(l._attr["column"][0], "dynamic_power")
+        self.assertEqual(l._attr["column"][0], "dynamic_power")
         self.assertTrue(l.templates[1], type(trappy.cpu_power.CpuOutPower))
-        self.assertEquals(l._attr["column"][1], "power")
+        self.assertEqual(l._attr["column"][1], "power")
         self.assertTrue("colors" not in l._attr)
 
         # Check that plotting doesn't barf
@@ -215,11 +220,11 @@ class TestPlotter(BaseTestThermal):
                          pivot="cpus")
 
         self.assertTrue(isinstance(l.templates[0], type(trappy.thermal.Thermal)))
-        self.assertEquals(l._attr["column"][0], "temp")
-        self.assertEquals(l._attr["colors"][0], [1, 2, 3])
+        self.assertEqual(l._attr["column"][0], "temp")
+        self.assertEqual(l._attr["colors"][0], [1, 2, 3])
         self.assertTrue(l.templates[1], type(trappy.cpu_power.CpuInPower))
-        self.assertEquals(l._attr["column"][1], "load2")
-        self.assertEquals(l._attr["colors"][1], [200, 100, 0])
+        self.assertEqual(l._attr["column"][1], "load2")
+        self.assertEqual(l._attr["colors"][1], [200, 100, 0])
 
         # Check that plotting doesn't barf
         l.view(test=True)
@@ -228,7 +233,7 @@ class TestPlotter(BaseTestThermal):
         l = trappy.LinePlot([trace1, trace2],
                          signals=["thermal:prev_temp:0xff,0x3a,0x3"],
                          pivot="cpus")
-        self.assertEquals(l._attr["colors"][0], [0xff, 0x3a, 0x3])
+        self.assertEqual(l._attr["colors"][0], [0xff, 0x3a, 0x3])
 
     def test_lineplot_dataframe(self):
         """LinePlot plots DataFrames without exploding"""
@@ -276,7 +281,7 @@ class TestPlotter(BaseTestThermal):
 
         with warnings.catch_warnings(record=True) as warn:
             data, procs, window = get_trace_event_data(trace)
-            self.assertEquals(len(warn), 1)
+            self.assertEqual(len(warn), 1)
 
             warn_str = str(warn[-1])
             self.assertTrue("15411" in warn_str)
@@ -288,8 +293,8 @@ class TestPlotter(BaseTestThermal):
         self.assertTrue([1, 2, 0] in data["task1-15411"])
         self.assertTrue([2, 3, 0] in data["task2-15414"])
         self.assertTrue([4, 5, 1] in data["task1-15411"])
-        self.assertEquals(procs, expected_procs)
-        self.assertEquals(window, [1, 5])
+        self.assertEqual(procs, expected_procs)
+        self.assertEqual(window, [1, 5])
 
 class TestILinePlotter(unittest.TestCase):
     def test_simple_dfr(self):
@@ -348,7 +353,7 @@ class TestILinePlotter(unittest.TestCase):
 
         expected_index = index1 + index2
         expected_index.sort()
-        self.assertEquals(expected_index, sorted(merged["s1"].keys()))
+        self.assertEqual(expected_index, sorted(merged["s1"].keys()))
 
     def test_dygraph_colors(self):
         """Check that to_dygraph_colors() constructs a valid dygraph colors argument"""
@@ -356,11 +361,11 @@ class TestILinePlotter(unittest.TestCase):
 
         color_map = [[86, 58, 206]]
         expected = '["rgb(86, 58, 206)"]'
-        self.assertEquals(to_dygraph_colors(color_map), expected)
+        self.assertEqual(to_dygraph_colors(color_map), expected)
 
         color_map = [[0, 0, 0], [123, 23, 45]]
         expected = '["rgb(0, 0, 0)", "rgb(123, 23, 45)"]'
-        self.assertEquals(to_dygraph_colors(color_map), expected)
+        self.assertEqual(to_dygraph_colors(color_map), expected)
 
 class TestBarPlot(unittest.TestCase):
     def setUp(self):

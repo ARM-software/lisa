@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import print_function
 
 import unittest
 import matplotlib
@@ -53,10 +55,10 @@ class TestDynamicEvents(BaseTestSched):
         """
         cls = trappy.register_dynamic_ftrace("DynamicEvent", "dynamic_test_key",
               pivot="test_pivot")
-        self.assertEquals(cls.__name__, "DynamicEvent")
-        self.assertEquals(cls.name, "dynamic_event")
-        self.assertEquals(cls.unique_word, "dynamic_test_key")
-        self.assertEquals(cls.pivot, "test_pivot")
+        self.assertEqual(cls.__name__, "DynamicEvent")
+        self.assertEqual(cls.name, "dynamic_event")
+        self.assertEqual(cls.unique_word, "dynamic_test_key")
+        self.assertEqual(cls.pivot, "test_pivot")
 
         trappy.unregister_dynamic_ftrace(cls)
 
@@ -72,13 +74,13 @@ class TestDynamicEvents(BaseTestSched):
         trappy.unregister_dynamic_ftrace(cls)
 
     def test_dynamic_event_scope(self):
-	"""Test the case when an "all" scope class is
-	registered. it should appear in both thermal and sched
-	ftrace class definitions when scoped ftrace objects are created
-	"""
+        """Test the case when an "all" scope class is
+        registered. it should appear in both thermal and sched
+        ftrace class definitions when scoped ftrace objects are created
+        """
         cls = trappy.register_dynamic_ftrace("DynamicEvent", "dynamic_test_key")
         t1 = trappy.FTrace(name="first")
-	self.assertTrue(t1.class_definitions.has_key(cls.name))
+        self.assertTrue(cls.name in t1.class_definitions)
 
         trappy.unregister_dynamic_ftrace(cls)
 
