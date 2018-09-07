@@ -46,7 +46,6 @@ class TestSchedFunctions(utils_tests.SetupDirectory):
         from bart.sched.functions import get_pids_for_process
 
         trace_file = "trace.txt"
-        raw_trace_file = "trace.raw.txt"
         in_data = """          <idle>-0     [001] 10826.894644: sched_switch:          prev_comm=swapper/1 prev_pid=0 prev_prio=120 prev_state=0 next_comm=rt-app next_pid=3268 next_prio=120
             wmig-3268  [001] 10826.894778: sched_switch:          prev_comm=wmig prev_pid=3268 prev_prio=120 prev_state=1 next_comm=rt-app next_pid=3269 next_prio=120
            wmig1-3269  [001] 10826.905152: sched_switch:          prev_comm=wmig1 prev_pid=3269 prev_prio=120 prev_state=1 next_comm=wmig next_pid=3268 next_prio=120
@@ -57,16 +56,8 @@ class TestSchedFunctions(utils_tests.SetupDirectory):
            wmig1-3269  [005] 10827.031061: sched_switch:          prev_comm=wmig1 prev_pid=3269 prev_prio=120 prev_state=0 next_comm=wmig next_pid=3268 next_prio=120
             wmig-3268  [005] 10827.050645: sched_switch:          prev_comm=wmig prev_pid=3268 prev_prio=120 prev_state=1 next_comm=swapper/5 next_pid=0 next_prio=120
 """
-
-        # We create an empty trace.txt to please trappy ...
         with open(trace_file, "w") as fout:
-            fout.write("")
-
-        # ... but we only put the sched_switch events in the raw trace
-        # file because that's where trappy is going to look for
-        with open(raw_trace_file, "w") as fout:
             fout.write(in_data)
 
         trace = trappy.FTrace(trace_file)
-
         self.assertEquals(get_pids_for_process(trace, "wmig"), [3268])
