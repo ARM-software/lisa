@@ -948,10 +948,7 @@ class LinuxTarget(Target):
 
     def _resolve_paths(self):
         if self.working_directory is None:
-            if self.connected_as_root:
-                self.working_directory = '/root/devlib-target'
-            else:
-                self.working_directory = '/home/{}/devlib-target'.format(self.user)
+            self.working_directory = self.path.join(self.execute("pwd").strip(), 'devlib-target')
         self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
         if self.executables_directory is None:
             self.executables_directory = self.path.join(self.working_directory, 'bin')
