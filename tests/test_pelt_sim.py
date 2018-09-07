@@ -19,10 +19,12 @@ from __future__ import print_function
 from bart.sched.pelt import *
 from hypothesis import given
 from hypothesis.strategies import integers, tuples, none, one_of
-from sys import maxsize
 from utils_tests import TestBART
+import sys
+import math
 
-# Required to use `int` not `long` henx ma=maxint
+# Required to use `int` not `long` on Python 2 ,hence ma=maxint
+maxint = getattr(sys, 'maxint', sys.maxsize)
 nonneg_ints = lambda mi=0, ma=maxint: integers(min_value=mi, max_value=ma)
 
 # Generate a Simulator
