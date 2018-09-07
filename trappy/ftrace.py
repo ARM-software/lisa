@@ -925,6 +925,8 @@ class FTrace(GenericFTrace):
                     # Reached a valid trace line, abort metadata population
                     return res
 
+        return res
+
     def __populate_trace_metadata(self, metadata):
         self.metadata = metadata
 
