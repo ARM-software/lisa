@@ -226,7 +226,7 @@ class ILinePlotGen(object):
         :type title: str
         """
 
-        datapoints = sum(len(v) for _, v in data_frame.items())
+        datapoints = sum(len(v) for v in data_frame.values)
         if datapoints > self._attr["max_datapoints"]:
             msg = "This plot is too big and will probably make your browser unresponsive.  If you are happy to wait, pass max_datapoints={} to view()".\
                   format(datapoints + 1)
