@@ -22,6 +22,7 @@ from __future__ import print_function
 from builtins import object
 import re
 import inspect
+import functools
 import trappy
 from bart.sched import functions as sched_funcs
 from bart.sched.SchedAssert import SchedAssert
@@ -180,21 +181,23 @@ class SchedMultiAssert(object):
 
         return list(set(pids))
 
-    def _create_method(self, attr_name):
+    def _create_method(self, attr, attr_name):
         """A wrapper function to create a dispatch function"""
 
-        return lambda *args, **kwargs: self._dispatch(attr_name, *args, **kwargs)
+        @functools.wraps(attr)
+        def wrapper(*args, **kwargs):
+            return self._dispatch(attr_name, *args, **kwargs)
+
+        return wrapper
 
     def _populate_methods(self):
         """Populate Methods from SchedAssert"""
 
-        for attr_name in dir(SchedAssert):
-            attr = getattr(SchedAssert, attr_name)
-
+        for attr_name, attr in inspect.getmembers(SchedAssert):
             valid_method = attr_name.startswith("get") or \
                            attr_name.startswith("assert")
-            if inspect.ismethod(attr) and valid_method:
-                func = self._create_method(attr_name)
+            if callable(attr) and valid_method:
+                func = self._create_method(attr, attr_name)
                 setattr(self, attr_name, func)
 
     def get_task_name(self, pid):
