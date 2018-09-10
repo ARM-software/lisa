@@ -2,11 +2,10 @@
 .*
 *.pyc
 /results*
-*.json
 *.log
 /tools/android-sdk-linux
-/ipynb/*.pid
-/ipynb/server.url
+*.pid
+server.url
 /vagrant
 /tools/wa_venv
 /tools/wa_user_directory/dependencies
