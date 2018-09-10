@@ -100,6 +100,13 @@ class LoadTrackingTestBundle(TestBundle):
 
     @classmethod
     def create_cpufreq_params(cls, te):
+        """
+        :returns: a list of :class:`dict` containing a tag, 
+        the cpufreq governor and any additional cpufreq params
+
+        This is the method you want to override to specify what is
+        your cpufreq configuration for the workload run.
+        """
         raise NotImplementedError()
 
     @classmethod
@@ -142,12 +149,8 @@ class LoadTrackingTestBundle(TestBundle):
 
     @memoized
     @staticmethod
-    def _get_cpu_capacity(test_env, cpu):
-        if test_env.nrg_model:
-            return test_env.nrg_model.get_cpu_capacity(cpu)
-
-        return test_env.target.read_int(
-            '/sys/devices/system/cpu/cpu{}/cpu_capacity'.format(cpu))
+    def _get_cpu_capacity(te, cpu):
+        return te.target.sched.get_capacity(cpu)
 
     def get_sched_assert(self, cpufreq, cpu):
         task = self.task_name
@@ -268,7 +271,6 @@ class LoadTrackingTestBundle(TestBundle):
 
     def _test_signal(self, signal_name):
         res = ResultBundle()
-        passed = True
         for (cpu, cpu_cap) in zip(self.target_cpus, self.target_cpus_capacity):
             for cpufreq in self.cpufreq_params:
                 exp_util = self.get_expected_util_avg(cpufreq, cpu, cpu_cap)
@@ -293,7 +295,6 @@ class LoadTrackingTestBundle(TestBundle):
                 res.add_metric(Metric("expected_util_avg", exp_util))
                 res.add_metric(Metric("signal_mean", signal_mean))
         
-        res.passed = passed
         return res
 
     # @experiment_test
@@ -317,12 +318,10 @@ class LoadTrackingTestBundle(TestBundle):
 
 class FreqInvarianceTest(LoadTrackingTestBundle):
     """
-    Goal
-    ====
+    **Goal**
     Basic check for frequency invariant load tracking
 
-    Detailed Description
-    ====================
+    **Detailed Description**
     This test runs the same workload on the most capable CPU on the system at a
     cross section of available frequencies. The trace is then examined to find
     the average activation length of the workload, which is combined with the
@@ -334,8 +333,7 @@ class FreqInvarianceTest(LoadTrackingTestBundle):
     similarly compared with the expected util_avg mean, under the assumption
     that load_avg should equal util_avg when system load is light.
 
-    Expected Behaviour
-    ==================
+    **Expected Behaviour**
     Load tracking signals are scaled so that the workload results in roughly the
     same util & load values regardless of frequency.
     """
@@ -385,12 +383,10 @@ class FreqInvarianceTest(LoadTrackingTestBundle):
 
 class CpuInvarianceTest(LoadTrackingTestBundle):
     """
-    Goal
-    ====
+    **Goal**
     Basic check for CPU invariant load and utilization tracking
 
-    Detailed Description
-    ====================
+    **Detailed Description**
     This test runs the same workload on one CPU of each type in the system. The
     trace is then examined to estimate an expected mean value for util_avg for
     each CPU's workload. The util_avg value is extracted from scheduler trace
@@ -400,8 +396,7 @@ class CpuInvarianceTest(LoadTrackingTestBundle):
     similarly compared with the expected util_avg mean, under the assumption
     that load_avg should equal util_avg when system load is light.
 
-    Expected Behaviour
-    ==================
+    **Expected Behaviour**
     Load tracking signals are scaled so that the workload results in roughly the
     same util & load values regardless of compute power of the CPU
     used. Moreover, assuming that the extraneous system load is negligible, the
