@@ -226,7 +226,7 @@ class JankbenchRunMonitor(threading.Thread):
                 if ready:
                     line = ready[0].readline()
                     if sys.version_info[0] == 3:
-                        line = line.decode(sys.stdout.encoding)
+                        line = line.decode(sys.stdout.encoding, 'replace')
                     if self.regex.search(line):
                         self.run_ended.set()
 
