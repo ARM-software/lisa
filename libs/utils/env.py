@@ -160,7 +160,9 @@ class TestEnv(ShareState):
     critical_tasks = {
         'linux': [
             'init',
-            'systemd',
+            # We want to freeze everything except PID 1, we don't want to let
+            # sysmted-journald or systemd-timesyncd running.
+            'systemd[^-]',
             'dbus',
             'sh',
             'ssh',
