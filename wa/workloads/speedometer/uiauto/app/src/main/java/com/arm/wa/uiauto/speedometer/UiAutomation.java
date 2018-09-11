@@ -57,6 +57,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     @Test
     public void teardown() throws Exception{
+        clearTabs();
         unsetScreenOrientation();
     }
 
@@ -93,6 +94,20 @@ public class UiAutomation extends BaseUiAutomation {
         String textScore = scores.getText();
         Log.d(TAG, "Speedometer Score " + textScore);
         Log.d(TAG, "Speedometer Score " + scores.getContentDescription());
+    }
+
+    public void clearTabs() throws Exception {
+        UiObject tabselector = 
+            mDevice.findObject(new UiSelector().resourceId("com.android.chrome:id/tab_switcher_button")
+                .className("android.widget.ImageButton"));
+        tabselector.click();
+        UiObject menu = 
+            mDevice.findObject(new UiSelector().resourceId("com.android.chrome:id/menu_button")
+                .className("android.widget.ImageButton"));
+        menu.click();
+        UiObject closetabs = 
+            mDevice.findObject(new UiSelector().textContains("Close all tabs"));
+        closetabs.click();
     }
 }
 
