@@ -53,54 +53,46 @@ class TestEnv(object):
     """
     Represents the environment configuring LISA, the target, and the test setup
 
-    The test environment is defined by a target configuration (target_conf)
-    defining which HW platform we want to use to run the experiments.
+    :param target_conf: Configuration defining the target to use. It may be:
 
-    :param target_conf:
-        Configuration defining the target to run experiments on. May be
+      - A dict defining the values directly
+      - A path to a JSON file containing the configuration
+      - ``None``, in which case:
+        - $LISA_TARGET_CONF environment variable is read to locate a
+        config file.
+        - If the variable is not set, $LISA_HOME/target.config is used.
 
-            - A dict defining the values directly
-            - A path to a JSON file containing the configuration
-            - ``None``, in which case:
-                - LISA_TARGET_CONF environment variable is read to locate a
-                  config file.
-                - If the variable is not set, $LISA_HOME/target.config is used.
+      You need to provide the information needed to connect to the
+      target. For SSH targets that means "host", "username" and
+      either "password" or "keyfile". All other fields are optional if
+      the relevant features aren't needed.
 
-        You need to provide the information needed to connect to the
-        target. For SSH targets that means "host", "username" and
-        either "password" or "keyfile". All other fields are optional if
-        the relevant features aren't needed. Has the following keys:
-
-        **host**
-            Target IP or hostname for SSH access
-        **username**
-            For SSH access
-        **keyfile**
-            Path to SSH key (alternative to password)
-        **password**
-            SSH password (alternative to keyfile)
-        **device**
-            Target Android device ID if using ADB
-        **port**
-            Port for Android connection default port is 5555
-        **ANDROID_HOME**
-            Path to Android SDK. Defaults to ``$ANDROID_HOME`` from the
-            environment.
-        **rtapp-calib**
-            Calibration values for RT-App. If unspecified, LISA will
-            calibrate RT-App on the target. A message will be logged with
-            a value that can be copied here to avoid having to re-run
-            calibration on subsequent tests.
-        **results_dir**
-            location of results of the experiments.
-        **ftrace**
-            Ftrace configuration.
-            Currently, only additional events through "events" key is supported.
+    :target_conf parameters:
+        :platform: Type of target, can be either of:
+          - "linux" (ssh connection)
+          - "android" (adb connection)
+          - "host" for localhost
+        :host: Target IP or hostname for SSH access
+        :username: For SSH access
+        :keyfile: Path to SSH key (alternative to password)
+        :password: SSH password (alternative to keyfile)
+        :device:  Target Android device ID if using ADB
+        :port: Port for Android connection default port is 5555
+        :rtapp-calib: Calibration values for RT-App. If unspecified, LISA will
+          calibrate RT-App on the target. A message will be logged with
+          a value that can be copied here to avoid having to re-run
+          calibration on subsequent tests.
+        :ftrace: Ftrace configuration - see :meth:`configure_ftrace`.
 
     :param force_new: Create a new TestEnv object even if there is one available
                       for this session.  By default, TestEnv only creates one
                       object per session, use this to override this behaviour.
     :type force_new: bool
+
+    The role of :class:`TestEnv` is to bundle together Devlib
+    features (such as :mod:`libs.devlib.devlib.instrument`,
+    :mod:`libs.devlib.devlib.trace`, ...) and provide some helper methods to
+    manipulate them.
     """
 
     critical_tasks = {
@@ -127,7 +119,7 @@ class TestEnv(object):
     }
     """
     Dictionary mapping OS name to list of task names that we can't afford to
-    freeze when using freeeze_userspace.
+    freeze when using :meth:`freeze_userspace`.
     """
 
     def __init__(self, target_conf=None):
@@ -809,6 +801,9 @@ class TestEnv(object):
 
     @contextlib.contextmanager
     def freeze_userspace(self):
+        """
+        Context manager that lets you freeze the userspace
+        """
         if 'cgroups' not in self.target.modules:
             raise RuntimeError(
                 'Failed to freeze userspace. Ensure "cgroups" module is listed '
@@ -834,6 +829,12 @@ class TestEnv(object):
 
     @contextlib.contextmanager
     def record_ftrace(self, output_file=None):
+        """
+        Context manager that lets you record an Ftrace trace
+
+        :param output_file: Filepath for the trace to be created
+        :type output_file: str
+        """
         if not output_file:
             output_file = os.path.join(self.get_res_dir(), "trace.dat")
 
