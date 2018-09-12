@@ -26,14 +26,13 @@ setup(
     author='Arm Ltd',
     # TODO: figure out which email to put here
     # author_email=
-    # packages=['towelstuff', 'towelstuff.test'],
-    # scripts=['bin/stowe-towels.py','bin/wash-towels.py'],
+    packages=['lisa'],
     # url='http://pypi.python.org/pypi/TowelStuff/',
     license='LICENSE.txt',
-    description='A stick to prod the kernel with',
+    description='A stick to probe the kernel with',
     long_description=long_description,
-    # TODO: Python 3 only!
-    python_requires=">= 2.7, < 3.0",
+    # obfuscated way of asking for Python >= 2.7 or >= 3.4
+    python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*, !=3.3.*',
     install_requires=[
         "Cython >= 0.25.1",
         "psutil >= 4.4.2",
@@ -43,10 +42,9 @@ setup(
         "numpy",
         "future",
         "ruamel.yaml",
-        # XXX: this is to have the dependencies for those packages,
-        # but we have local copies so maybe we can do something smarter
         "devlib",
-        "TRAPpy"
+        "trappy",
+        "py-bart",
     ],
     extras_require={
         "notebook": [
