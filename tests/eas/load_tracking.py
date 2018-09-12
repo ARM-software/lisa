@@ -837,6 +837,11 @@ class OneTaskCPUMigrationTest(_CPUMigrationBase):
             Util            Util
     CPU 4:   35%             10%
     CPU 5:   5%              30%
+
+    Conditions
+    ==========
+    The CPU[s] on the which the test is running must be reasonably quiet or the
+    measured util_mean will be skewed by any creeping tasks/kthreads/softirqs.
     """
     @classmethod
     def _getExperimentsConf(cls, test_env):
@@ -903,6 +908,11 @@ class TwoTasksCPUMigrationTest(_CPUMigrationBase):
             Util            Util
     CPU 4:   20%             50%
     CPU 5:   50%             20%
+
+    Conditions
+    ==========
+    The CPU[s] on the which the test is running must be reasonably quiet or the
+    measured util_mean will be skewed by any creeping tasks/kthreads/softirqs.
     """
     @classmethod
     def _getExperimentsConf(cls, test_env):
