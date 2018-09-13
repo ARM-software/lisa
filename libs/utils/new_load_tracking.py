@@ -123,6 +123,7 @@ class LoadTrackingTestBundle(TestBundle):
             trace_path = os.path.join(iter_res_dir, "trace.dat")
             te.configure_ftrace(**cls.ftrace_conf)
 
+            # te.target.cpufreq.use_governor(cpufreq['governor'], **cpufreq['params'])
             te.target.cpufreq.set_all_governors(cpufreq['governor'])
 
             if 'freqs' in cpufreq:
@@ -251,24 +252,6 @@ class LoadTrackingTestBundle(TestBundle):
         signal = select_window(signal, window)
         return area_under_curve(signal) / (window[1] - window[0])
 
-    # def get_simulated_pelt(self, experiment, task, init_value):
-    #     """
-    #     Get simulated PELT signal and the periodic task used to model it.
-
-    #     :returns: tuple of
-    #         - :mod:`bart.sched.pelt.Simulator` the PELT simulator object
-    #         - :mod:`bart.sched.pelt.PeriodicTask` simulated periodic task
-    #         - :mod:`pandas.DataFrame` instance which reports the computed
-    #                 PELT values at each PELT sample interval.
-    #     """
-    #     phase = experiment.wload.params['profile'][task]['phases'][0]
-    #     pelt_task = pelt.PeriodicTask(period_samples=phase.period_ms,
-    #                                   duty_cycle_pct=phase.duty_cycle_pct)
-    #     peltsim = pelt.Simulator(init_value=init_value,
-    #                              half_life_ms=HALF_LIFE_MS)
-    #     df = peltsim.getSignal(pelt_task, 0, phase.duration_s + 1)
-    #     return peltsim, pelt_task, df
-
     def _test_signal(self, signal_name):
         res = ResultBundle()
         for (cpu, cpu_cap) in zip(self.target_cpus, self.target_cpus_capacity):
@@ -297,14 +280,12 @@ class LoadTrackingTestBundle(TestBundle):
         
         return res
 
-    # @experiment_test
     def test_task_util_avg(self):
         """
         Test that the mean of the util_avg signal matched the expected value
         """
         return self._test_signal('util_avg')
 
-    # @experiment_test
     def test_task_load_avg(self):
         """
         Test that the mean of the load_avg signal matched the expected value
@@ -441,3 +422,202 @@ class CpuInvarianceTest(LoadTrackingTestBundle):
             'tag' : 'cie_conf',
             'governor' : 'performance',
         }]
+
+class PELTTaskTest(LoadTrackingTestBundle):
+    """
+    **Goal**
+    Basic checks for tasks related PELT signals behaviour.
+
+    **Detailed Description**
+    This test runs a synthetic periodic task on a CPU in the system and
+    collects a trace from the target device. The util_avg values are extracted
+    from scheduler trace events and the behaviour of the signal is compared
+    against a simulated value of PELT.
+    This class runs the following tests:
+
+    - test_util_avg_range: test that util_avg's stable range matches with the
+        stable range of the simulated signal. In particular, this test compares
+        min, max and mean values of the two signals.
+
+    - test_util_avg_behaviour: check behaviour of util_avg against the simualted
+        PELT signal. This test assumes that PELT is configured with 32 ms half
+        life time and the samples are 1024 us. Also, it assumes that the first
+        trace event related to the task used for testing is generated 'after'
+        the task starts (hence, we compute the initial PELT value when the task
+        started).
+
+    **Expected Behaviour**
+    Simulated PELT signal and the signal extracted from the trace should have
+    very similar min, max and mean values in the stable range and the behaviour of
+    the signal should be very similar to simulated one.
+    """
+    task_name = 'pelt_behv'
+
+    @classmethod
+    def create_rtapp_params(cls, te):
+        # Run the 50% workload on a CPU with highest capacity
+        cpu = max(range(te.target.number_of_cpus),
+                key=lambda c: cls._get_cpu_capacity(te, c))
+        cls.target_cpus = [cpu]
+        cls.target_cpus_capacity = [cls._get_cpu_capacity(te, cpu)]
+
+        rtapp_params = {}
+        rtapp_params[cls.task_name] = Periodic(
+            duty_cycle_pct=50,
+            duration_s=2,
+            period_ms=16,
+            cpus=[cpu]
+        )
+        print(rtapp_params['pelt_behv'].__dict__)
+
+        return rtapp_params
+
+    @classmethod
+    def create_cpufreq_params(cls, te):
+        return [{
+            'tag' : 'pelt_behv_conf',
+            'governor' : 'performance',
+        }]
+
+    def get_simulated_pelt(self, task, init_value):
+        """
+        Get simulated PELT signal and the periodic task used to model it.
+
+        :returns: tuple of
+            - :mod:`bart.sched.pelt.Simulator` the PELT simulator object
+            - :mod:`bart.sched.pelt.PeriodicTask` simulated periodic task
+            - :mod:`pandas.DataFrame` instance which reports the computed
+                    PELT values at each PELT sample interval.
+        """
+        phase = self.rtapp_params[self.task_name].phases[0]
+        pelt_task = pelt.PeriodicTask(period_samples=phase.period_ms,
+                                      duty_cycle_pct=phase.duty_cycle_pct)
+        peltsim = pelt.Simulator(init_value=init_value,
+                                 half_life_ms=HALF_LIFE_MS)
+        df = peltsim.getSignal(pelt_task, 0, phase.duration_s + 1)
+        return peltsim, pelt_task, df
+
+    def isAlmostEqual(self, target, value, delta):
+        return (target - delta < value) and (value < target + delta)
+
+    def _test_range(self, signal_name):
+        res = ResultBundle()
+        passed = True
+        task = self.task_name
+        for cpu in self.target_cpus:
+            for cpufreq in self.cpufreq_params:
+                signal_df = self.get_sched_task_signals(cpufreq, cpu, [signal_name])
+                # Get stats and stable range of the simulated PELT signal
+                start_time = self.get_sched_assert(cpufreq, cpu).getStartTime()
+                init_pelt = pelt.Simulator.estimateInitialPeltValue(
+                    signal_df[signal_name].iloc[0], signal_df.index[0],
+                    start_time, HALF_LIFE_MS
+                )
+                peltsim, pelt_task, sim_df = self.get_simulated_pelt(task, init_pelt)
+                sim_range = peltsim.stableRange(pelt_task)
+                stable_time = peltsim.stableTime(pelt_task)
+                window = (start_time + stable_time,
+                          start_time + stable_time + 0.5)
+                # Get signal statistics in a period of time where the signal is
+                # supposed to be stable
+                signal_stats = signal_df[window[0]:window[1]][signal_name].describe()
+
+                # Narrow down simulated PELT signal to stable period
+                sim_df = sim_df[window[0]:window[1]].pelt_value
+
+                # Check min
+                error_margin = sim_range.min_value * (ERROR_MARGIN_PCT / 100.)
+                passed = passed and self.isAlmostEqual(sim_range.min_value, signal_stats['min'], error_margin)
+                res.add_metric(Metric("min_signal_value", signal_stats['min']))
+                res.add_metric(Metric("expected_min_signal_value", sim_range.min_value))
+
+                # Check max
+                error_margin = sim_range.max_value * (ERROR_MARGIN_PCT / 100.)
+                passed = passed and self.isAlmostEqual(sim_range.max_value, signal_stats['max'], error_margin)
+                res.add_metric(Metric("max_signal_value", signal_stats['max']))
+                res.add_metric(Metric("expected_max_signal_value", sim_range.max_value))
+
+                # Check mean
+                sim_mean = sim_df.mean()
+                error_margin = sim_mean * (ERROR_MARGIN_PCT / 100.)
+                passed = passed and self.isAlmostEqual(sim_mean, signal_stats['mean'], error_margin)
+                res.add_metric(Metric("mean_signal_value", signal_stats['mean']))
+                res.add_metric(Metric("expected_mean_signal_value", sim_mean))
+
+        res.passed = passed
+        return res
+
+    def _test_behaviour(self, signal_name):
+        res = ResultBundle()
+        passed = True
+        task = self.task_name
+
+        for cpu in self.target_cpus:
+            for cpufreq in self.cpufreq_params:
+                signal_df = self.get_sched_task_signals(cpufreq, cpu, [signal_name])
+                # Get instant of time when the task starts running
+                start_time = self.get_sched_assert(cpufreq, cpu).getStartTime()
+
+                # Get information about the task
+                phase = self.rtapp_params[self.task_name].phases[0]
+
+                # Create simulated PELT signal for a periodic task
+                init_pelt = pelt.Simulator.estimateInitialPeltValue(
+                    signal_df[signal_name].iloc[0], signal_df.index[0],
+                    start_time, HALF_LIFE_MS
+                )
+                peltsim, pelt_task, sim_df = self.get_simulated_pelt(task, init_pelt)
+
+                # Compare actual PELT signal with the simulated one
+                margin = 0.05
+                period_s = phase.period_ms / 1e3
+                sim_period_ms = phase.period_ms * (peltsim._sample_us / 1e6)
+                n_errors = 0
+                for entry in signal_df.iterrows():
+                    trace_val = entry[1][signal_name]
+                    timestamp = entry[0] - start_time
+                    # Next two instructions map the trace timestamp to a simulated
+                    # signal timestamp. This is due to the fact that the 1 ms is
+                    # actually 1024 us in the simulated signal.
+                    n_periods = timestamp / period_s
+                    nearest_timestamp = n_periods * sim_period_ms
+                    sim_val_loc = sim_df.index.get_loc(nearest_timestamp,
+                                                       method='nearest')
+                    sim_val = sim_df.pelt_value.iloc[sim_val_loc]
+                    res.add_metric(Metric("trace_val", trace_val))
+                    res.add_metric(Metric("simulated_val", sim_val))
+                    if trace_val > (sim_val * (1 + margin)) or \
+                       trace_val < (sim_val * (1 - margin)):
+                        n_errors += 1
+
+                res.add_metric(Metric("total_no_errors", (n_errors / len(signal_df))))
+                # Exclude possible outliers (these may be due to a kernel thread that
+                # for some reason gets coscheduled with our workload).
+                passed = passed and ((n_errors / len(signal_df)) < margin)
+        
+        res.passed = passed
+        return res
+
+    def test_util_avg_range(self):
+        """
+        Test util_avg stable range for a 50% periodic task
+        """
+        return self._test_range('util_avg')
+
+    def test_util_avg_behaviour(self):
+        """
+        Test util_avg behaviour for a 50% periodic task
+        """
+        return self._test_behaviour('util_avg')
+
+    def test_load_avg_range(self):
+        """
+        Test load_avg stable range for a 50% periodic task
+        """
+        return self._test_range('load_avg')
+
+    def test_load_avg_behaviour(self, ):
+        """
+        Test load_avg behaviour for a 50% periodic task
+        """
+        return self._test_behaviour('load_avg')
