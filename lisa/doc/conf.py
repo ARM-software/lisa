@@ -283,6 +283,8 @@ intersphinx_mapping = {'http://docs.python.org/': None}
 # Include __init__ docstrings (obviously)
 autoclass_content = 'both'
 
+autodoc_member_order = 'bysource'
+
 autodoc_default_flags = [
     'show-inheritance', # Show parent class
     'undoc-members',    # Show members even if they don't have docstrings
