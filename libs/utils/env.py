@@ -136,13 +136,8 @@ class TestEnv(object):
     freeze when using freeeze_userspace.
     """
 
-    _initialized = False
-
-    def __init__(self, target_conf=None, wipe=True, force_new=False):
+    def __init__(self, target_conf=None, wipe=True):
         super(TestEnv, self).__init__()
-
-        if self._initialized and not force_new:
-            return
 
         # Setup logging
         self._log = logging.getLogger('TestEnv')
@@ -153,8 +148,6 @@ class TestEnv(object):
         self._pre_target_init(target_conf, wipe)
         self._init_target()
         self._post_target_init()
-
-        self._initialized = True
 
     def _load_em(self, board):
         em_path = os.path.join(basepath,
@@ -394,13 +387,10 @@ class TestEnv(object):
             os.remove(res_lnk)
         os.symlink(self.res_dir, res_lnk)
 
-    def _init_target(self, force = False):
+    def _init_target(self):
         """
         Initialize the Target
         """
-        if not force and self.target is not None:
-            return self.target
-
         self.__connection_settings = {}
 
         # Configure username
