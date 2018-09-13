@@ -200,7 +200,7 @@ if [ "x$IPADDR" == "x" ]; then
     return 1
 fi
 # Setup paths
-PYDIR="$LISA_HOME/ipynb"
+PYDIR="$LISA_HOME/lisa/ipynb"
 LOGFILE="$PYDIR/server.log"
 PIDFILE="$PYDIR/server.pid"
 URLFILE="$PYDIR/server.url"
@@ -242,7 +242,6 @@ cd - >/dev/null
 }
 
 function _lisa-ipython-stop {
-PYDIR="$LISA_HOME/ipynb"
 PIDFILE="$PYDIR/server.pid"
 if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
     kill $(<$PIDFILE) 2>/dev/null
