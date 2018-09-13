@@ -19,10 +19,10 @@ from collections import OrderedDict, namedtuple
 import json
 import os
 
-from perf_analysis import PerfAnalysis
-from wlgen import RTA, Periodic, Ramp, Step, RunAndSync
+from lisa.perf_analysis import PerfAnalysis
+from lisa.wlgen import RTA, Periodic, Ramp, Step, RunAndSync
 
-from test_wlgen import WlgenSelfBase
+from lisa.self_tests.wlgen import WlgenSelfBase
 
 class RTABase(WlgenSelfBase):
     """

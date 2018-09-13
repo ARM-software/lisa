@@ -24,7 +24,7 @@ from time import sleep
 
 from subprocess import Popen, PIPE
 
-from android import Screen, System, Workload
+from lisa.android import Screen, System, Workload
 
 # screen density of the device with which this workload has been tested
 DEFAULT_DENSITY = '420'

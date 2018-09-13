@@ -25,10 +25,10 @@ import os
 import re
 import sys
 import logging
-
 from collections import defaultdict
-from colors import TestColors
-from results import Results
+
+from lisa.colors import TestColors
+from lisa.results import Results
 
 
 # By default compare all the possible combinations

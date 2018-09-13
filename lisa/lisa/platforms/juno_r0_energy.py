@@ -16,7 +16,7 @@
 #
 from collections import OrderedDict
 
-from energy_model import (ActiveState, EnergyModelNode, EnergyModelRoot,
+from lisa.energy_model import (ActiveState, EnergyModelNode, EnergyModelRoot,
                           PowerDomain, EnergyModel)
 
 a53_cluster_active_states = OrderedDict([

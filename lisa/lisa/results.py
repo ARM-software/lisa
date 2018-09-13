@@ -25,11 +25,9 @@ import os
 import re
 import sys
 import logging
-
 from collections import defaultdict
-from colors import TestColors
 
-
+from lisa.colors import TestColors
 
 class Results(object):
 

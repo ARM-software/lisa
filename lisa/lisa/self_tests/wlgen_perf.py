@@ -18,9 +18,8 @@
 import json
 import os
 
-from wlgen import PerfMessaging, PerfPipe
-
-from test_wlgen import WlgenSelfBase
+from lisa.wlgen import PerfMessaging, PerfPipe
+from lisa.self_tests.wlgen import WlgenSelfBase
 
 class PerfBenchBase(WlgenSelfBase):
     """Base class for common testing of PerfBench workloads"""

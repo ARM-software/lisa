@@ -30,7 +30,7 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_hex
 
-from conf import LisaLogging
+from lisa.conf import LisaLogging
 
 from bart.common.Utils import area_under_curve
 from devlib.target import KernelVersion
@@ -39,8 +39,8 @@ from trappy.utils import handle_duplicate_index
 
 from IPython.display import display
 
-from trace import Trace
-from git import Git
+from lisa.trace import Trace
+from lisa.git import Git
 
 class WaResultsCollector(object):
     """

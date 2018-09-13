@@ -21,9 +21,9 @@ import logging
 
 from time import sleep
 
-from target_script import TargetScript
-from android import Screen, System
-from android.workload import Workload
+from lisa.target_script import TargetScript
+from lisa.android import Screen, System
+from lisa.android.workload import Workload
 
 
 class CameraPreview(Workload):

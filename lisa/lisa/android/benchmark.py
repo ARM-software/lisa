@@ -23,9 +23,9 @@ import select
 from subprocess import Popen, PIPE
 from time import sleep
 
-from conf import LisaLogging
-from android import System, Workload
-from env import TestEnv
+from lisa.conf import LisaLogging
+from lisa.android import System, Workload
+from lisa.env import TestEnv
 
 from devlib.utils.misc import memoized
 from devlib.utils.android import fastboot_command

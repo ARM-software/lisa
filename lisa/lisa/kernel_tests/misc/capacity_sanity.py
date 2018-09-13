@@ -17,8 +17,8 @@
 
 import sys
 
-from libs.utils.kernel_tests.test_bundle import TestMetric, ResultBundle, TestBundle
-from wlgen.sysbench import Sysbench
+from lisa.kernel_tests.test_bundle import TestMetric, ResultBundle, TestBundle
+from lisa.wlgen.sysbench import Sysbench
 
 class CapacitySanityCheck(TestBundle):
     """

@@ -24,10 +24,10 @@ import pylab as pl
 
 from bart.common.Utils import area_under_curve
 
-from wlgen.rta import RTA, Periodic, Ramp, Step
-from trace import Trace
-from libs.utils.kernel_tests.test_bundle import RTATestBundle, ResultBundle
-from perf_analysis import PerfAnalysis
+from lisa.wlgen.rta import RTA, Periodic, Ramp, Step
+from lisa.trace import Trace
+from lisa.kernel_tests.test_bundle import RTATestBundle, ResultBundle
+from lisa.perf_analysis import PerfAnalysis
 
 class EASBehaviour(RTATestBundle):
     """
@@ -445,10 +445,10 @@ class RampUp(EASBehaviour):
             cls.task_name : Ramp(
                 start_pct=start_pct,
                 end_pct=end_pct,
-                delta_pct=5,
-                time_s=.5,
+            delta_pct=5,
+            time_s=.5,
                 period_ms=cls.TASK_PERIOD_MS
-            )
+        )
         }
 
         return rtapp_profile
@@ -467,10 +467,10 @@ class RampDown(EASBehaviour):
             cls.task_name : Ramp(
                 start_pct=start_pct,
                 end_pct=end_pct,
-                delta_pct=5,
-                time_s=.5,
+            delta_pct=5,
+            time_s=.5,
                 period_ms=cls.TASK_PERIOD_MS
-            )
+        )
         }
 
         return rtapp_profile

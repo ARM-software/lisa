@@ -21,7 +21,7 @@ import logging
 
 from subprocess import Popen, PIPE
 
-from android import Screen, System, Workload
+from lisa.android import Screen, System, Workload
 
 # Available test workloads
 _jankbench = {

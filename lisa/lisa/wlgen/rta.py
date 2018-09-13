@@ -22,7 +22,7 @@ import re
 import sys
 from collections import OrderedDict
 
-from workload import Workload
+from lisa.wlgen.workload import Workload
 
 from utilities import Loggable
 

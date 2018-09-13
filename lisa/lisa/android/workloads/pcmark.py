@@ -24,8 +24,8 @@ import json
 from subprocess import Popen, PIPE
 from zipfile import ZipFile
 
-from android import Screen, System
-from android.workload import Workload
+from lisa.android import Screen, System
+from lisa.android.workload import Workload
 
 PCMARK_TESTS = ['work']
 

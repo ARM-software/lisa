@@ -21,7 +21,7 @@ import logging
 
 from time import sleep
 
-from android import Screen, System, Workload
+from lisa.android import Screen, System, Workload
 
 class ViewerWorkload(Workload):
     """

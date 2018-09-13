@@ -17,11 +17,11 @@
 
 """Initialization for Android module"""
 
-from screen import Screen
-from system import System
-from workload import Workload
-from viewer import ViewerWorkload
-from benchmark import LisaBenchmark
+from lisa.android.screen import Screen
+from lisa.android.system import System
+from lisa.android.workload import Workload
+from lisa.android.viewer import ViewerWorkload
+from lisa.android.benchmark import LisaBenchmark
 
 # Initialization of Android Workloads
 import os

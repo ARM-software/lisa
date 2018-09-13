@@ -20,8 +20,8 @@ import shutil
 import os
 from unittest import TestCase
 
-from env import TestEnv
-from executor import Executor
+from lisa.env import TestEnv
+from lisa.executor import Executor
 
 class SetUpTarget(TestCase):
     @classmethod

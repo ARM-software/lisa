@@ -19,7 +19,7 @@ import re
 
 from devlib.utils.misc import memoized
 
-from workload import Workload
+from lisa.wlgen.workload import Workload
 
 class SysbenchOutput(str):
     """

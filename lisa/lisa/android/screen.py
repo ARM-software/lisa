@@ -16,7 +16,7 @@
 #
 
 import logging
-from system import System
+from lisa.android.system import System
 from time import sleep
 
 class Screen(object):

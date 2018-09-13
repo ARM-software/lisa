@@ -1,6 +1,6 @@
 import json
 import os
-from conf import JsonConf
+from lisa.conf import JsonConf
 
 #TODO: remove that
 

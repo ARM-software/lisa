@@ -17,11 +17,11 @@
 
 import os
 
-from trace import Trace
-from wlgen.rta import RTA
-from perf_analysis import PerfAnalysis
+from lisa.trace import Trace
+from lisa.wlgen.rta import RTA
+from lisa.perf_analysis import PerfAnalysis
 
-from serialization import YAMLSerializable
+from lisa.serialization import YAMLSerializable
 
 class TestMetric(object):
     """

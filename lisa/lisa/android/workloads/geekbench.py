@@ -22,7 +22,7 @@ from time import sleep
 
 from subprocess import Popen, PIPE
 
-from android import Screen, Workload, System
+from lisa.android import Screen, Workload, System
 
 # Regexps for benchmark synchronization
 GEEKBENCH_BENCHMARK_START_RE = re.compile(

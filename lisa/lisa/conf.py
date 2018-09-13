@@ -21,7 +21,6 @@ import re
 import logging
 import logging.config
 
-
 class LisaLogging(object):
 
     @classmethod

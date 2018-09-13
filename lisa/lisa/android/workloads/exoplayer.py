@@ -23,7 +23,7 @@ from subprocess import Popen, PIPE
 
 from time import sleep
 
-from android import Screen, System, Workload
+from lisa.android import Screen, System, Workload
 from devlib.utils.android import grant_app_permissions
 
 # Regexps for benchmark synchronization

@@ -20,7 +20,7 @@ import os
 import re
 import webbrowser
 
-from . import System
+from lisa.android import System
 
 class Workload(object):
     """

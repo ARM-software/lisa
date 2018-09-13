@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from energy_model import (ActiveState, EnergyModelNode, EnergyModelRoot,
+from lisa.energy_model import (ActiveState, EnergyModelNode, EnergyModelRoot,
                           PowerDomain, EnergyModel)
 
 from collections import OrderedDict

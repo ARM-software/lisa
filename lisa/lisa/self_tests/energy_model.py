@@ -21,9 +21,9 @@ import os
 import shutil
 from tempfile import mkdtemp
 
-from energy_model import (EnergyModel, ActiveState, EnergyModelCapacityError,
+from lisa.energy_model import (EnergyModel, ActiveState, EnergyModelCapacityError,
                           EnergyModelNode, EnergyModelRoot, PowerDomain)
-from trace import Trace
+from lisa.trace import Trace
 
 # Import these just to test that they can be constructed
 import libs.utils.platforms.juno_r0_energy

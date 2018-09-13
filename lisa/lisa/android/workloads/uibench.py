@@ -22,8 +22,8 @@ import logging
 from subprocess import Popen, PIPE
 from time import time, sleep
 
-from android import Screen, System, Workload
-from target_script import TargetScript
+from lisa.android import Screen, System, Workload
+from lisa.target_script import TargetScript
 
 class UiBench(Workload):
     """

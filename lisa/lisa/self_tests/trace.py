@@ -17,11 +17,11 @@
 
 import json
 import os
-import numpy as np
 from unittest import TestCase
-
-from trace import Trace
+import numpy as np
 import pandas as pd
+
+from lisa.trace import Trace
 
 class TestTrace(TestCase):
     """Smoke tests for LISA's Trace class"""
