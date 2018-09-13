@@ -53,14 +53,8 @@ class TestEnv(object):
     """
     Represents the environment configuring LISA, the target, and the test setup
 
-    The test environment is defined by:
-
-    - a target configuration (target_conf) defining which HW platform we
-      want to use to run the experiments
-    - a folder to collect the experiments results, which can be specified using
-      the target_conf::results_dir option, or using LISA_RESULTS_DIR environment
-      variable and is by default wiped from all the previous contents
-      (if wipe=True)
+    The test environment is defined by a target configuration (target_conf)
+    defining which HW platform we want to use to run the experiments.
 
     :param target_conf:
         Configuration defining the target to run experiments on. May be
@@ -136,7 +130,7 @@ class TestEnv(object):
     freeze when using freeeze_userspace.
     """
 
-    def __init__(self, target_conf=None, wipe=True):
+    def __init__(self, target_conf=None):
         super(TestEnv, self).__init__()
 
         # Setup logging
@@ -145,7 +139,7 @@ class TestEnv(object):
         # Compute base installation path
         self._log.info('Using base path: %s', basepath)
 
-        self._pre_target_init(target_conf, wipe)
+        self._pre_target_init(target_conf)
         self._init_target()
         self._post_target_init()
 
@@ -289,14 +283,12 @@ class TestEnv(object):
 
     def _init_energy(self, force):
         # Initialize energy probe to board default
-        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force,
-                                              self.res_dir)
+        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force)
 
-    def _pre_target_init(self, target_conf, wipe):
+    def _pre_target_init(self, target_conf):
         """
         Initialize everything that does not require a live target
         """
-        self.wipe = wipe
         self.conf = {}
         self.target = None
         self.ftrace = None
@@ -357,35 +349,6 @@ class TestEnv(object):
         # Initialize features
         if '__features__' not in self.conf:
             self.conf['__features__'] = []
-
-        # Initialize local results folder.
-        # The test configuration overrides the target's one and the environment
-        # variable overrides everything else.
-        self.res_dir = (
-            os.getenv('LISA_RESULTS_DIR') or
-            self.conf.get('results_dir')
-        )
-        # Default result dir based on the current time
-        if not self.res_dir:
-            self.res_dir = datetime.now().strftime(
-                os.path.join(basepath, OUT_PREFIX, '%Y%m%d_%H%M%S')
-            )
-
-        # Relative paths are interpreted as relative to a fixed root.
-        if not os.path.isabs(self.res_dir):
-            self.res_dir = os.path.join(basepath, OUT_PREFIX, self.res_dir)
-
-        if self.wipe and os.path.exists(self.res_dir):
-            self._log.warning('Wipe previous contents of the results folder:')
-            self._log.warning('   %s', self.res_dir)
-            shutil.rmtree(self.res_dir, ignore_errors=True)
-        if not os.path.exists(self.res_dir):
-            os.makedirs(self.res_dir)
-
-        res_lnk = os.path.join(basepath, LATEST_LINK)
-        if os.path.islink(res_lnk):
-            os.remove(res_lnk)
-        os.symlink(self.res_dir, res_lnk)
 
     def _init_target(self):
         """
@@ -665,7 +628,7 @@ class TestEnv(object):
             gem5_bin = simulator['bin'],
             gem5_args = args,
             gem5_virtio = virtio_args,
-            host_output_dir = self.res_dir,
+            host_output_dir = self.get_res_dir('gem5'),
             core_names = board['cores'] if board else None,
             core_clusters = self._get_clusters(board['cores']) if board else None,
             big_core = board.get('big_core', None) if board else None,
@@ -691,11 +654,6 @@ class TestEnv(object):
         # Initialize energy probe instrument
         self._init_energy(True)
 
-        self._log.info('Set results folder to:')
-        self._log.info('   %s', self.res_dir)
-        self._log.info('Experiment results available also in:')
-        self._log.info('   %s', res_lnk)
-
     def loadTargetConfig(self, filepath=None):
         """
         Load the target configuration from the specified file.
@@ -716,6 +674,45 @@ class TestEnv(object):
         conf = JsonConf(conf_file)
         conf.load()
         return conf.json
+
+    def get_res_dir(self, name=None, append_time=True, symlink=True):
+        """
+        Returns a directory managed by LISA to store results
+
+        :param name: Name of the results directory
+        :type name: str
+
+        :param append_time: If True and :attr:`name` is not None, the
+          current datetime will be appended to :attr:`name`
+        :type append_time: bool
+
+        :param symlink: Create a symlink named ``results_latest`` to the newly
+          create results directory
+        :type symlink: bool
+        """
+
+        time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+        if not name:
+            name = time_str
+        elif name and append_time:
+            name = "{}-{}".format(name, time_str)
+
+        res_dir = os.path.join(basepath, OUT_PREFIX, name)
+
+        # Relative paths are interpreted as relative to a fixed root.
+        if not os.path.isabs(res_dir):
+            res_dir = os.path.join(basepath, OUT_PREFIX, res_dir)
+
+        if not os.path.exists(res_dir):
+            os.makedirs(res_dir)
+
+        if symlink:
+            res_lnk = os.path.join(basepath, LATEST_LINK)
+            if os.path.islink(res_lnk):
+                os.remove(res_lnk)
+            os.symlink(res_dir, res_lnk)
+
+        return res_dir
 
     def install_tools(self, tools):
         """
