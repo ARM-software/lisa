@@ -38,7 +38,7 @@ class LisaLogging(object):
         """
 
         # Load the specified logfile using an absolute path
-        basepath = os.path.dirname(__file__).replace('/libs/utils', '')
+        basepath = os.getenv('LISA_HOME')
         filepath = os.path.join(basepath, filepath)
         if not os.path.exists(filepath):
             raise ValueError('Logging configuration file not found in: {}'\
