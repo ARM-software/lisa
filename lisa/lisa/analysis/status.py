@@ -22,16 +22,18 @@
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 
-from analysis_module import AnalysisModule
+from lisa.analysis.base import AnalysisBase
 
 
-class StatusAnalysis(AnalysisModule):
+class StatusAnalysis(AnalysisBase):
     """
     Support for System Status analysis
 
     :param trace: input Trace object
     :type trace: :class:`trace.Trace`
     """
+
+    name = 'status'
 
     def __init__(self, trace):
         super(StatusAnalysis, self).__init__(trace)

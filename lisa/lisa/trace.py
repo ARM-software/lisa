@@ -27,9 +27,9 @@ import warnings
 import operator
 import logging
 import webbrowser
-
-from analysis_register import AnalysisRegister
 from collections import namedtuple
+
+from lisa.analysis.proxy import AnalysisProxy
 from devlib.utils.misc import memoized
 from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
@@ -173,7 +173,7 @@ class Trace(object):
         # a unicore system and set cpus_count=1 so that the following analysis
         # methods will not complain about the CPUs count not being available.
         self.platform['cpus_count'] = self.platform.get('cpus_count', 1)
-        self.analysis = AnalysisRegister(self)
+        self.analysis = AnalysisProxy(self)
 
     def _registerDataFrameGetters(self, module):
         """

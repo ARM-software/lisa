@@ -21,16 +21,18 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import pylab as pl
 
-from analysis_module import AnalysisModule
+from base import AnalysisBase
 
 
-class EasAnalysis(AnalysisModule):
+class EasAnalysis(AnalysisBase):
     """
     Support for EAS signals anaysis
 
     :param trace: input Trace object
     :type trace: :class:`trace.Trace`
     """
+
+    name = 'eas'
 
     def __init__(self, trace):
         super(EasAnalysis, self).__init__(trace)

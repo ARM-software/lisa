@@ -26,7 +26,7 @@ import re
 import os
 
 from collections import namedtuple
-from analysis_module import AnalysisModule
+from lisa.analysis.base import AnalysisBase
 from devlib.utils.misc import memoized
 from trappy.utils import listify
 
@@ -35,13 +35,15 @@ TaskData = namedtuple('TaskData', ['pid', 'names', 'label'])
 
 CDF = namedtuple('CDF', ['df', 'threshold', 'above', 'below'])
 
-class LatencyAnalysis(AnalysisModule):
+class LatencyAnalysis(AnalysisBase):
     """
     Support for plotting Latency Analysis data
 
     :param trace: input Trace object
     :type trace: :class:`trace.Trace`
     """
+
+    name = 'latency'
 
     def __init__(self, trace):
         super(LatencyAnalysis, self).__init__(trace)

@@ -21,16 +21,18 @@ import matplotlib.pyplot as plt
 import pylab as pl
 import pandas as pd
 
-from analysis_module import AnalysisModule
+from lisa.analysis.base import AnalysisBase
 
 
-class CpusAnalysis(AnalysisModule):
+class CpusAnalysis(AnalysisBase):
     """
     Support for CPUs Signals Analysis
 
     :param trace: input Trace object
     :type trace: :class:`Trace`
     """
+
+    name = 'cpus'
 
     def __init__(self, trace):
         super(CpusAnalysis, self).__init__(trace)

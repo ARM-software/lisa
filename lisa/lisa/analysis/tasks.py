@@ -24,18 +24,20 @@ import pandas as pd
 import pylab as pl
 import re
 
-from analysis_module import AnalysisModule
+from lisa.analysis.base import AnalysisBase
 from devlib.utils.misc import memoized
 from trappy.utils import listify
 
 
-class TasksAnalysis(AnalysisModule):
+class TasksAnalysis(AnalysisBase):
     """
     Support for Tasks signals analysis.
 
     :param trace: input Trace object
     :type trace: :class:`trace.Trace`
     """
+
+    name = 'tasks'
 
     def __init__(self, trace):
         super(TasksAnalysis, self).__init__(trace)

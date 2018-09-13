@@ -27,7 +27,7 @@ from trappy.utils import listify
 """ Helper module for Analysis classes """
 
 
-class AnalysisModule(object):
+class AnalysisBase(object):
     """
     Base class for Analysis modules.
 
@@ -61,6 +61,19 @@ class AnalysisModule(object):
             self._little_cpus = self._platform['clusters']['little']
 
         trace._registerDataFrameGetters(self)
+
+    @classmethod
+    def get_subclasses(cls, cls_set=None):
+        """Get all indirect sublcasses of AnalysisBase."""
+        if cls_set is None:
+            cls_set = set()
+
+        for subcls in cls.__subclasses__():
+            if subcls not in cls_set:
+                cls_set.add(subcls)
+                cls_set.update(subcls.get_subclasses(cls_set))
+
+        return cls_set
 
     def _plot_setup(self, width=16, height=4, ncols=1, nrows=1):
         figure, axes = plt.subplots(

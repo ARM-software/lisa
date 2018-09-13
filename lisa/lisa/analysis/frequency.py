@@ -24,21 +24,23 @@ import os
 import pandas as pd
 import pylab as pl
 
-from analysis_module import AnalysisModule
+from lisa.analysis.base import AnalysisBase
 from bart.common.Utils import area_under_curve
 from devlib.utils.misc import memoized
 from matplotlib.ticker import FuncFormatter
 from trappy.utils import listify
-from trace import ResidencyTime, ResidencyData
+from lisa.trace import ResidencyTime, ResidencyData
 
 
-class FrequencyAnalysis(AnalysisModule):
+class FrequencyAnalysis(AnalysisBase):
     """
     Support for plotting Frequency Analysis data
 
     :param trace: input Trace object
     :type trace: :class:`trace.Trace`
     """
+
+    name = 'frequency'
 
     def __init__(self, trace):
         super(FrequencyAnalysis, self).__init__(trace)

@@ -22,18 +22,20 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pylab as pl
 
-from analysis_module import AnalysisModule
-from trace import ResidencyTime, ResidencyData
+from lisa.analysis.base import AnalysisBase
+from lisa.trace import ResidencyTime, ResidencyData
 from trappy.utils import listify
 
 
-class IdleAnalysis(AnalysisModule):
+class IdleAnalysis(AnalysisBase):
     """
     Support for plotting Idle Analysis data
 
     :param trace: input Trace object
     :type trace: :class:`trace.Trace`
     """
+
+    name = 'idle'
 
     def __init__(self, trace):
         super(IdleAnalysis, self).__init__(trace)

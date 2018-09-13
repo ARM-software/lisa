@@ -27,19 +27,21 @@ import os
 from trappy.utils import listify
 from devlib.utils.misc import memoized, list_to_mask, mask_to_list
 
-from analysis_module import AnalysisModule
-from trace import ResidencyTime, ResidencyData
+from lisa.analysis.base import AnalysisBase
+from lisa.trace import ResidencyTime, ResidencyData
 from bart.common.Utils import area_under_curve
 from matplotlib.ticker import MaxNLocator
 
 
-class ThermalAnalysis(AnalysisModule):
+class ThermalAnalysis(AnalysisBase):
     """
     Support for plotting Thermal Analysis data
 
     :param trace: input Trace object
     :type trace: :mod:`libs.utils.Trace`
     """
+
+    name = 'thermal'
 
 ###############################################################################
 # Analysis properties

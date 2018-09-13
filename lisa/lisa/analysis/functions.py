@@ -19,16 +19,18 @@
 
 from trappy.utils import listify
 
-from analysis_module import AnalysisModule
+from lisa.analysis.base import AnalysisBase
 
 
-class FunctionsAnalysis(AnalysisModule):
+class FunctionsAnalysis(AnalysisBase):
     """
     Support for kernel functions profiling and analysis
 
     :param trace: input Trace object
     :type trace: :class:`trace.Trace`
     """
+
+    name = 'functions'
 
     def __init__(self, trace):
         super(FunctionsAnalysis, self).__init__(trace)
