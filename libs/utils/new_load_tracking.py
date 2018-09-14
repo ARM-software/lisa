@@ -101,11 +101,11 @@ class LoadTrackingTestBundle(TestBundle):
     @classmethod
     def create_cpufreq_params(cls, te):
         """
-        :returns: a list of :class:`dict` containing a tag, 
+        :returns: a list of :class:`dict` each containing a unique tag, 
         the cpufreq governor and any additional cpufreq params
 
         This is the method you want to override to specify what is
-        your cpufreq configuration for the workload run.
+        your cpufreq configurations for the workload run.
         """
         raise NotImplementedError()
 
@@ -252,8 +252,12 @@ class LoadTrackingTestBundle(TestBundle):
         signal = select_window(signal, window)
         return area_under_curve(signal) / (window[1] - window[0])
 
+    def isAlmostEqual(self, target, value, delta):
+        return (target - delta < value) and (value < target + delta)
+
     def _test_signal(self, signal_name):
         res = ResultBundle()
+        passed = True
         for (cpu, cpu_cap) in zip(self.target_cpus, self.target_cpus_capacity):
             for cpufreq in self.cpufreq_params:
                 exp_util = self.get_expected_util_avg(cpufreq, cpu, cpu_cap)
@@ -261,23 +265,19 @@ class LoadTrackingTestBundle(TestBundle):
 
                 error_margin = exp_util * (ERROR_MARGIN_PCT / 100.)
 
-                if 'freqs' in cpufreq:
-                    [freq] = cpufreq['freqs'].values()
-                    msg = 'Saw {} around {}, expected {} at freq {}'.format(
-                        signal_name, signal_mean, exp_util, freq)
-                else:
-                    msg = 'Saw {} around {}, expected {} on cpu {}'.format(
-                        signal_name, signal_mean, exp_util, cpu)
+                passed = passed and \
+                        self.isAlmostEqual(exp_util, signal_mean, error_margin)
 
-                passed = (exp_util - error_margin < signal_mean) and \
-                        (signal_mean < exp_util + error_margin)
-                if not passed:
-                    res.passed = passed
-                    return res
-
-                res.add_metric(Metric("expected_util_avg", exp_util))
-                res.add_metric(Metric("signal_mean", signal_mean))
+                res.add_metric(
+                    Metric("expected_util_avg, cpu {}, cpufreq conf {}"
+                        .format(cpu, cpufreq['tag']), exp_util)
+                )
+                res.add_metric(
+                    Metric("signal_mean, cpu {}, cpufreq conf {}"
+                        .format(cpu, cpufreq['tag']), signal_mean)
+                )
         
+        res.passed = passed
         return res
 
     def test_task_util_avg(self):
@@ -468,7 +468,6 @@ class PELTTaskTest(LoadTrackingTestBundle):
             period_ms=16,
             cpus=[cpu]
         )
-        print(rtapp_params['pelt_behv'].__dict__)
 
         return rtapp_params
 
@@ -496,9 +495,6 @@ class PELTTaskTest(LoadTrackingTestBundle):
                                  half_life_ms=HALF_LIFE_MS)
         df = peltsim.getSignal(pelt_task, 0, phase.duration_s + 1)
         return peltsim, pelt_task, df
-
-    def isAlmostEqual(self, target, value, delta):
-        return (target - delta < value) and (value < target + delta)
 
     def _test_range(self, signal_name):
         res = ResultBundle()
@@ -528,21 +524,39 @@ class PELTTaskTest(LoadTrackingTestBundle):
                 # Check min
                 error_margin = sim_range.min_value * (ERROR_MARGIN_PCT / 100.)
                 passed = passed and self.isAlmostEqual(sim_range.min_value, signal_stats['min'], error_margin)
-                res.add_metric(Metric("min_signal_value", signal_stats['min']))
-                res.add_metric(Metric("expected_min_signal_value", sim_range.min_value))
+                res.add_metric(
+                    Metric("min_signal_value, cpu {}, cpufreq conf {}"
+                        .format(cpu, cpufreq['tag']), signal_stats['min'])
+                )
+                res.add_metric(
+                    Metric("expected_min_signal_value, cpu {}, cpufreq conf {}"
+                        .format(cpu, cpufreq['tag']), sim_range.min_value)
+                )
 
                 # Check max
                 error_margin = sim_range.max_value * (ERROR_MARGIN_PCT / 100.)
                 passed = passed and self.isAlmostEqual(sim_range.max_value, signal_stats['max'], error_margin)
-                res.add_metric(Metric("max_signal_value", signal_stats['max']))
-                res.add_metric(Metric("expected_max_signal_value", sim_range.max_value))
+                res.add_metric(
+                    Metric("max_signal_value, cpu {}, cpufreq conf {}"
+                        .format(cpu, cpufreq['tag']), signal_stats['max'])
+                )
+                res.add_metric(
+                    Metric("expected_max_signal_value, cpu {}, cpufreq conf {}"
+                        .format(cpu, cpufreq['tag']), sim_range.max_value)
+                )
 
                 # Check mean
                 sim_mean = sim_df.mean()
                 error_margin = sim_mean * (ERROR_MARGIN_PCT / 100.)
                 passed = passed and self.isAlmostEqual(sim_mean, signal_stats['mean'], error_margin)
-                res.add_metric(Metric("mean_signal_value", signal_stats['mean']))
-                res.add_metric(Metric("expected_mean_signal_value", sim_mean))
+                res.add_metric(
+                    Metric("mean_signal_value, cpu {}, cpufreq conf {}"
+                        .format(cpu, cpufreq['tag']), signal_stats['mean'])
+                )
+                res.add_metric(
+                    Metric("expected_mean_signal, cpu {}, cpufreq conf {}"
+                        .format(cpu, cpufreq['tag']), sim_mean)
+                )
 
         res.passed = passed
         return res
@@ -584,16 +598,24 @@ class PELTTaskTest(LoadTrackingTestBundle):
                     sim_val_loc = sim_df.index.get_loc(nearest_timestamp,
                                                        method='nearest')
                     sim_val = sim_df.pelt_value.iloc[sim_val_loc]
-                    res.add_metric(Metric("trace_val", trace_val))
-                    res.add_metric(Metric("simulated_val", sim_val))
+                    res.add_metric(
+                        Metric("trace_val at {}".format(timestamp), trace_val)
+                    )
+                    res.add_metric(
+                        Metric("sim_val at {}".format(timestamp), sim_val)
+                    )
                     if trace_val > (sim_val * (1 + margin)) or \
                        trace_val < (sim_val * (1 - margin)):
                         n_errors += 1
 
-                res.add_metric(Metric("total_no_errors", (n_errors / len(signal_df))))
+                total_no_errors = n_errors / len(signal_df)
+                res.add_metric(
+                    Metric("total_no_errors, cpu {}, cpufreq conf {}"
+                        .format(cpu, cpufreq['tag']), total_no_errors)
+                )
                 # Exclude possible outliers (these may be due to a kernel thread that
                 # for some reason gets coscheduled with our workload).
-                passed = passed and ((n_errors / len(signal_df)) < margin)
+                passed = passed and (total_no_errors < margin)
         
         res.passed = passed
         return res
