@@ -18,15 +18,10 @@
 from datetime import datetime
 import json
 import os
-import re
-import shutil
-import sys
-import time
-import unittest
 import contextlib
 
 import devlib
-from devlib.utils.misc import memoized, which
+from devlib.utils.misc import which
 from devlib import Platform, TargetError
 from trappy.stats.Topology import Topology
 
