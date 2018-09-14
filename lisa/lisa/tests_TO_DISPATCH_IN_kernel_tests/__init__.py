@@ -19,3 +19,5 @@ import matplotlib as _matplotlib
 # Prevent matplotlib from trying to connect to X11 server, for headless testing.
 # Must be done before importing matplotlib.pyplot or pylab
 matplotlib.use('Agg')
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

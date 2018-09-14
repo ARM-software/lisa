@@ -368,4 +368,4 @@ class Report(object):
 # List of workload types which can be parsed using the default test parser
 DEFAULT_WTYPES = ['perf_bench_messaging', 'perf_bench_pipe']
 
-#vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

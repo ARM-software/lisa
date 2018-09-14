@@ -124,3 +124,5 @@ class TargetScript(object):
         self._target.kill(cmd_pid, as_root=self._run_as_root)
         if self._bg_shell:
             self._bg_shell.kill()
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

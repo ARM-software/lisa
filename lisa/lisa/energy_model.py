@@ -1177,3 +1177,5 @@ class EnergyModel(object):
             return ret
 
         return inputs.apply(f, axis=1)
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -340,3 +340,5 @@ class TestRTACalibrationConf(RTABase):
         cpu = self.target.number_of_cpus - 1
         self.assertEqual(conf, 'CPU{}'.format(cpu),
                          'Calibration not set to highest numbered CPU')
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

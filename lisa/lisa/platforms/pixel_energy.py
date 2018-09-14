@@ -166,3 +166,5 @@ pixel_energy = EnergyModel(
         PowerDomain(idle_states=['cluster-sleep-0'], children=[
             cpu_pd(c) for c in golds])]),
     freq_domains=[silvers, golds])
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

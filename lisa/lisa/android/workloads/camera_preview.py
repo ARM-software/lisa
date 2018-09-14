@@ -103,3 +103,5 @@ class CameraPreview(Workload):
 
         # Switch off airplane mode
         System.set_airplane_mode(self._target, on=False)
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -66,3 +66,5 @@ class CapacitySanityCheck(TestBundle):
                 res.passed = False
 
         return res
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

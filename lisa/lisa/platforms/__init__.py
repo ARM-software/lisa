@@ -12,3 +12,5 @@ for file_name in os.listdir(this_dir):
         platform = JsonConf(os.path.join(this_dir, file_name)).load()
         identifier = name.replace('-', '_')
         globals()[identifier] = platform
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

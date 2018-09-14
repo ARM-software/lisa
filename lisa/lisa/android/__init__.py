@@ -42,3 +42,5 @@ for filepath in glob(os.path.join(workloads_dir, '*.py')):
         continue
     # Import workload module
     import_module(filename)
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

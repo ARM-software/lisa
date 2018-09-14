@@ -372,3 +372,5 @@ class TestTraceNoPlatform(TestTrace):
     """
     def _get_platform(self, trace_name=None):
         return None
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

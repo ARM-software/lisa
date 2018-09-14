@@ -158,3 +158,5 @@ class HotplugTorture(TestBundle):
         res.add_metric("hotpluggable CPUs", self.hotpluggable_cpus)
         res.add_metric("Online CPUs", self.live_cpus)
         return res
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

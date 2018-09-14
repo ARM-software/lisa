@@ -147,3 +147,5 @@ class Workload(Loggable):
 
             with open(logfile, 'w') as ofile:
                 ofile.write(self.output)
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

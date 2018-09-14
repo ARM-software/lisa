@@ -423,3 +423,5 @@ class TestEstimateFromTrace(TestCase):
             row = df.iloc[i]
             self.assertAlmostEqual(row.name, exp_index, places=4)
             self.assertDictEqual(row.to_dict(), exp_values)
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

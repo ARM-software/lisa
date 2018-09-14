@@ -74,3 +74,5 @@ class TestPerfPipe(PerfBenchBase):
 
         self._do_test_performance_json(
             ['ctime', 'performance', 'usec/op', 'ops/sec'])
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

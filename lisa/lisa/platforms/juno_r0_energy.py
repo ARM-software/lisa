@@ -113,3 +113,5 @@ juno_r0_energy = EnergyModel(
             children=[PowerDomain(idle_states=["WFI", "cpu-sleep-0"], cpu=c)
                       for c in a53s])]),
     freq_domains=[a53s, a57s])
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

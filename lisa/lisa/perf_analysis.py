@@ -188,3 +188,5 @@ class PerfAnalysis(object):
         figname = '{}/task_perf_{}.png'.format(self.datadir, task)
         pl.savefig(figname, bbox_inches='tight')
 
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -95,3 +95,5 @@ class WlgenSelfBase(TestCase):
             shutil.rmtree(self.host_out_dir)
 
         self.target.clear_execute_calls()
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -226,3 +226,5 @@ class CapacityCappingTest(unittest.TestCase):
         last_phase = (mig_end, self.wload_start_time + WORKLOAD_DURATION_S)
         self.check_residencies(self.env.target.bl.bigs, "big",
                                last_phase, "unconstrained")
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

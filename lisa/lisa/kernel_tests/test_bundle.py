@@ -413,3 +413,5 @@ class RTATestBundle(TestBundle):
 #         self.swipe_count = swipe_count
 
 #         super(GmapsWorkload, self).run("ftrace")
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

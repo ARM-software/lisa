@@ -20,3 +20,5 @@ class YAMLSerializable(object):
     def from_path(cls, filepath):
         with open(filepath, "r") as fh:
             return cls.from_stream(fh)
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -687,3 +687,5 @@ class RunAndSync(RTATask):
         # This should translate into a phase containing a 'run' event and a
         # 'barrier' event
         self.phases = [Phase(time_s, None, 100, cpus, barrier_after=barrier)]
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -1198,3 +1198,5 @@ class WaResultsCollector(object):
                 artifact_name, job_dir, list(artifacts.keys())))
 
         return artifacts[artifact_name]
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

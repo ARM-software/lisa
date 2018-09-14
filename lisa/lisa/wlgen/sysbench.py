@@ -111,3 +111,5 @@ class Sysbench(Workload):
         super(Sysbench, self).run(cpus, cgroup, background, as_root)
 
         self.output = SysbenchOutput(self.output)
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

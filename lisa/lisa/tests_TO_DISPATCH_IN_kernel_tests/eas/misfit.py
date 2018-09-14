@@ -430,3 +430,5 @@ class StaggeredFinishes(_MisfitMigrationBase):
                 ])
 
         self._test_idle_time(trace, latency_dfs, bigs)
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -104,3 +104,5 @@ class HeavyLoadTest(LisaTest):
                 "Some CPUs were less than {}% utilized\n"
                 " CPU active proportions:\n{}".format(
                     REQUIRED_CPU_ACTIVE_TIME_PCT, proportions_str))
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

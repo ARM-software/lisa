@@ -289,3 +289,5 @@ autodoc_default_flags = [
     'show-inheritance', # Show parent class
     'undoc-members',    # Show members even if they don't have docstrings
 ]
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

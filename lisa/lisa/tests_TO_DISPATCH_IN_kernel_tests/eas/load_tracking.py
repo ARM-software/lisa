@@ -1489,3 +1489,5 @@ class NestedCgroupsMigrationTest(_PELTTaskGroupsTest):
         """Test utilization update when a task leaves a group"""
         return self._test_group_util('/tg1/tg2')
 
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

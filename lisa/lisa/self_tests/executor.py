@@ -90,3 +90,5 @@ class TestMagicSmoke(SetUpTarget):
         self.assertTrue(
             os.path.isdir(result_1_dir),
             'Expected to find a directory at {}'.format(result_1_dir))
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

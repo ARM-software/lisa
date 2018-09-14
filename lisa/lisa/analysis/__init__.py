@@ -12,3 +12,5 @@ for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
     # classes defined inside.
     globals()[module_name] = module
 
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

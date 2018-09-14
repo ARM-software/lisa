@@ -387,3 +387,5 @@ class NormalBoostedTaskTestBoostAll(_SchedtuneHoldTest):
     @classmethod
     def test_cpu_frequency(cls):
         cls._test_cpu_frequency(lower_freq_tgt=True)
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

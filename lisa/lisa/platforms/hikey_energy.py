@@ -68,3 +68,5 @@ hikey_energy = EnergyModel(
         PowerDomain(idle_states=["cluster-sleep"], children=[
             cpu_pd(c) for c in [4, 5, 6, 7]])]),
     freq_domains=[[0, 1, 2, 3, 4, 5, 6, 7]])
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

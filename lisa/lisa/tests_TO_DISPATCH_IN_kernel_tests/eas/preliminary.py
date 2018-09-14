@@ -341,3 +341,5 @@ class TestSchedDomainFlags(BasicCheckTest):
             raise SkipTest('ENERGY_AWARE sched feature not present')
         if 'NO_ENERGY_AWARE' in sf:
             raise AssertionError('ENERGY_AWARE sched feature is not set')
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

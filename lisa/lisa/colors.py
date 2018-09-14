@@ -49,4 +49,4 @@ class TestColors:
 
         return str_color + str_val + TestColors.level['endc']
 
-#vim :set tabstop=4 shiftwidth=4 expandtab
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
