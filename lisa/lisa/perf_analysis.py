@@ -30,6 +30,8 @@ import logging
 # Regexp to match an rt-app generated logfile
 TASK_NAME_RE = re.compile('.*\/rt-app-(.+)-[0-9]+.log')
 
+#TODO: Should that class be renamed ? It is not an Analysis class like the one
+# in the lisa.analysis package, so it may be better to avoid that name here
 class PerfAnalysis(object):
 
     def __init__(self, datadir, tasks=None):
@@ -53,6 +55,8 @@ class PerfAnalysis(object):
 
         self.datadir = datadir
 
+    #TODO: remove the leading "__" since they are mangled and basically break
+    # inheritance and discovery of the API
     def __taskNameFromLog(self, logfile):
         tname_match = re.search(TASK_NAME_RE, logfile)
         if tname_match is None:
