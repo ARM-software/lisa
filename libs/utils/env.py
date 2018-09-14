@@ -49,26 +49,18 @@ LATEST_LINK = 'results_latest'
 basepath = os.path.dirname(os.path.realpath(__file__))
 basepath = basepath.replace('/libs/utils', '')
 
-class ShareState(object):
-    __shared_state = {}
+IFCFG_BCAST_RE = re.compile(
+    r'Bcast:(.*) '
+)
 
-    def __init__(self):
-        self.__dict__ = self.__shared_state
-
-class TestEnv(ShareState):
+class TestEnv(object):
     """
     Represents the environment configuring LISA, the target, and the test setup
 
     The test environment is defined by:
 
-    - a target configuration (target_conf) defining which HW platform we
+    a target configuration (target_conf) defining which HW platform we
       want to use to run the experiments
-    - a test configuration (test_conf) defining which SW setups we need on
-      that HW target
-    - a folder to collect the experiments results, which can be specified using
-      the target_conf::results_dir option, or using LISA_RESULTS_DIR environment
-      variable and is by default wiped from all the previous contents
-      (if wipe=True)
 
     :param target_conf:
         Configuration defining the target to run experiments on. May be
@@ -86,7 +78,7 @@ class TestEnv(ShareState):
         the relevant features aren't needed. Has the following keys:
 
         **host**
-            Target IP or MAC address for SSH access
+            Target IP or hostname for SSH access
         **username**
             For SSH access
         **keyfile**
@@ -105,51 +97,9 @@ class TestEnv(ShareState):
             calibrate RT-App on the target. A message will be logged with
             a value that can be copied here to avoid having to re-run
             calibration on subsequent tests.
-        **tftp**
-            Directory path containing kernels and DTB images for the
-            target. LISA does *not* manage this TFTP server, it must be
-            provided externally. Optional.
-        **results_dir**
-            location of results of the experiments.
         **ftrace**
-            Ftrace configuration merged with test-specific configuration.
+            Ftrace configuration.
             Currently, only additional events through "events" key is supported.
-
-    :param test_conf: Configuration of software for target experiments. Takes
-                      the same form as target_conf. Fields are:
-
-        **modules**
-            Devlib modules to be enabled. Default is []
-        **exclude_modules**
-            Devlib modules to be disabled. Default is [].
-        **tools**
-            List of tools (available under ./tools/$ARCH/) to install on
-            the target. Names, not paths (e.g. ['ftrace']). Default is [].
-        **ping_time**, **reboot_time**
-            Override parameters to :meth:`reboot` method
-        **__features__**
-            List of test environment features to enable. Options are:
-
-            "no-kernel"
-                do not deploy kernel/dtb images
-            "no-reboot"
-                do not force reboot the target at each configuration change
-            "debug"
-                enable debugging messages
-
-        **ftrace**
-            Configuration for ftrace. Dictionary with keys:
-
-            events
-                events to enable.
-            functions
-                functions to enable in the function tracer. Optional.
-            buffsize
-                Size of buffer. Default is 10240.
-
-    :param wipe: set true to cleanup all previous content from the output
-                 folder
-    :type wipe: bool
 
     :param force_new: Create a new TestEnv object even if there is one available
                       for this session.  By default, TestEnv only creates one
@@ -186,176 +136,50 @@ class TestEnv(ShareState):
 
     _initialized = False
 
-    def __init__(self, target_conf=None, test_conf=None, wipe=True,
-                 force_new=False):
+    def __init__(self, target_conf=None, force_new=False):
         super(TestEnv, self).__init__()
 
         if self._initialized and not force_new:
             return
 
-        self.conf = {}
-        self.test_conf = {}
-        self.target = None
-        self.ftrace = None
-        self.workdir = None
-        self.__installed_tools = set()
-        self.__modules = []
-        self.__connection_settings = None
-        self._calib = None
-
-        # Keep track of target IP and MAC address
-        self.ip = None
-        self.mac = None
-
-        # Keep track of last installed kernel
-        self.kernel = None
-        self.dtb = None
-
-        # Energy meter configuration
-        self.emeter = None
-
-        # The platform descriptor to be saved into the results folder
-        self.platform = {}
-
-        # Keep track of android support
-        self.LISA_HOME = os.environ.get('LISA_HOME', '/vagrant')
-        self.ANDROID_HOME = os.environ.get('ANDROID_HOME', None)
-        self.CATAPULT_HOME = os.environ.get('CATAPULT_HOME',
-                os.path.join(self.LISA_HOME, 'tools', 'catapult'))
-
         # Setup logging
         self._log = logging.getLogger('TestEnv')
 
-        # Compute base installation path
-        self._log.info('Using base path: %s', basepath)
-
-        # Setup target configuration
-        if isinstance(target_conf, dict):
-            self._log.info('Loading custom (inline) target configuration')
-            self.conf = target_conf
-        elif isinstance(target_conf, str):
-            self._log.info('Loading %s target configuration', target_conf)
-            self.conf = self.loadTargetConfig(target_conf)
-        else:
-            target_conf = os.environ.get('LISA_TARGET_CONF', '')
-            self._log.info('Loading [%s] target configuration',
-                    target_conf or 'default')
-            self.conf = self.loadTargetConfig(target_conf)
-
-        self._log.debug('Target configuration %s', self.conf)
-
-        # Setup test configuration
-        if test_conf:
-            if isinstance(test_conf, dict):
-                self._log.info('Loading custom (inline) test configuration')
-                self.test_conf = test_conf
-            elif isinstance(test_conf, str):
-                self._log.info('Loading custom (file) test configuration')
-                self.test_conf = self.loadTargetConfig(test_conf)
-            else:
-                raise ValueError('test_conf must be either a dictionary or a filepath')
-            self._log.debug('Test configuration %s', self.conf)
-
-        # Setup target working directory
-        if 'workdir' in self.conf:
-            self.workdir = self.conf['workdir']
-
-        # Initialize binary tools to deploy
-        test_conf_tools = self.test_conf.get('tools', [])
-        target_conf_tools = self.conf.get('tools', [])
-        self.__tools = list(set(test_conf_tools + target_conf_tools))
-
-        # Initialize ftrace events
-        # test configuration override target one
-        test_ftrace = self.test_conf.get('ftrace', {})
-        target_ftrace = self.conf.get('ftrace', {})
-        ftrace = test_ftrace or target_ftrace
-        # Merge the events from target config and test config
-        ftrace['events'] = sorted(
-            set(test_ftrace.get('events', []))
-          | set(target_ftrace.get('events', []))
-        )
-        self.conf['ftrace'] = ftrace
-        if ftrace['events']:
-            self.__tools.append('trace-cmd')
-
-        # Initialize features
-        if '__features__' not in self.conf:
-            self.conf['__features__'] = []
-
-        # Initialize local results folder.
-        # The test configuration overrides the target's one and the environment
-        # variable overrides everything else.
-        self.res_dir = (
-            os.getenv('LISA_RESULTS_DIR') or
-            self.conf.get('results_dir')
-        )
-        # Default result dir based on the current time
-        if not self.res_dir:
-            self.res_dir = datetime.now().strftime(
-                os.path.join(basepath, OUT_PREFIX, '%Y%m%d_%H%M%S')
-            )
-
-        # Relative paths are interpreted as relative to a fixed root.
-        if not os.path.isabs(self.res_dir):
-            self.res_dir = os.path.join(basepath, OUT_PREFIX, self.res_dir)
-
-        if wipe and os.path.exists(self.res_dir):
-            self._log.warning('Wipe previous contents of the results folder:')
-            self._log.warning('   %s', self.res_dir)
-            shutil.rmtree(self.res_dir, ignore_errors=True)
-        if not os.path.exists(self.res_dir):
-            os.makedirs(self.res_dir)
-
-        res_lnk = os.path.join(basepath, LATEST_LINK)
-        if os.path.islink(res_lnk):
-            os.remove(res_lnk)
-        os.symlink(self.res_dir, res_lnk)
-
-        self._init()
-
-        # Initialize FTrace events collection
-        self._init_ftrace(True)
-
-        # Initialize RT-App calibration values
-        self.calibration()
-
-        # Initialize energy probe instrument
-        self._init_energy(True)
-
-        self._log.info('Set results folder to:')
-        self._log.info('   %s', self.res_dir)
-        self._log.info('Experiment results available also in:')
-        self._log.info('   %s', res_lnk)
+        self._pre_target_init(target_conf)
+        self._init_target()
+        self._post_target_init()
 
         self._initialized = True
 
-    def loadTargetConfig(self, filepath=None):
-        """
-        Load the target configuration from the specified file.
+    def _load_em(self, board):
+        em_path = os.path.join(basepath,
+                'libs/utils/platforms', board.lower() + '.json')
+        self._log.debug('Trying to load default EM from %s', em_path)
+        if not os.path.exists(em_path):
+            return None
+        self._log.info('Loading default EM:')
+        self._log.info('   %s', em_path)
+        board = JsonConf(em_path)
+        board.load()
+        if 'nrg_model' not in board.json:
+            return None
+        return board.json['nrg_model']
 
-        :param filepath: Path of the target configuration file. Relative to the
-                         root folder of the test suite.
-        :type filepath: str
+    def _load_board(self, board):
+        board_path = os.path.join(basepath,
+                'libs/utils/platforms', board.lower() + '.json')
+        self._log.debug('Trying to load board descriptor from %s', board_path)
+        if not os.path.exists(board_path):
+            return None
+        self._log.info('Loading board:')
+        self._log.info('   %s', board_path)
+        board = JsonConf(board_path)
+        board.load()
+        if 'board' not in board.json:
+            return None
+        return board.json['board']
 
-        """
-
-        # "" and None are replaced by the default 'target.config' value
-        filepath = filepath or 'target.config'
-
-        # Loading default target configuration
-        conf_file = os.path.join(basepath, filepath)
-
-        self._log.info('Loading target configuration [%s]...', conf_file)
-        conf = JsonConf(conf_file)
-        conf.load()
-        return conf.json
-
-    def _init(self, force = False):
-
-        # Initialize target
-        self._init_target(force)
-
+    def _build_topology(self):
         # Initialize target Topology for behavior analysis
         CLUSTERS = []
 
@@ -383,15 +207,152 @@ class TestEnv(ShareState):
         self._log.info('Topology:')
         self._log.info('   %s', CLUSTERS)
 
-        # Initialize the platform descriptor
-        self._init_platform()
+    def _init_platform_bl(self):
+        self.platform = {
+            'clusters' : {
+                'little'    : self.target.bl.littles,
+                'big'       : self.target.bl.bigs
+            },
+            'freqs' : {
+                'little'    : self.target.bl.list_littles_frequencies(),
+                'big'       : self.target.bl.list_bigs_frequencies()
+            }
+        }
+        self.platform['cpus_count'] = \
+            len(self.platform['clusters']['little']) + \
+            len(self.platform['clusters']['big'])
 
+    def _init_platform_smp(self):
+        self.platform = {
+            'clusters' : {},
+            'freqs' : {}
+        }
+        for cpu_id,node_id in enumerate(self.target.core_clusters):
+            if node_id not in self.platform['clusters']:
+                self.platform['clusters'][node_id] = []
+            self.platform['clusters'][node_id].append(cpu_id)
 
-    def _init_target(self, force = False):
+        if 'cpufreq' in self.target.modules:
+            # Try loading frequencies using the cpufreq module
+            for cluster_id in self.platform['clusters']:
+                core_id = self.platform['clusters'][cluster_id][0]
+                self.platform['freqs'][cluster_id] = \
+                    self.target.cpufreq.list_frequencies(core_id)
+        else:
+            self._log.warning('Unable to identify cluster frequencies')
 
-        if not force and self.target is not None:
-            return self.target
+        # TODO: get the performance boundaries in case of intel_pstate driver
 
+        self.platform['cpus_count'] = len(self.target.core_clusters)
+
+    def _get_clusters(self, core_names):
+        idx = 0
+        clusters = []
+        ids_map = { core_names[0] : 0 }
+        for name in core_names:
+            idx = ids_map.get(name, idx+1)
+            ids_map[name] = idx
+            clusters.append(idx)
+        return clusters
+
+    def _init_platform(self):
+        if 'bl' in self.target.modules:
+            self._init_platform_bl()
+        else:
+            self._init_platform_smp()
+
+        # Adding energy model information
+        if 'nrg_model' in self.conf:
+            self.platform['nrg_model'] = self.conf['nrg_model']
+        # Try to load the default energy model (if available)
+        else:
+            nrg_model = self._load_em(self.conf['board'])
+            # We shouldn't have an 'nrg_model' key if there is no energy model data
+            if nrg_model:
+                self.platform['nrg_model'] = nrg_model
+
+        # Adding topology information
+        self.platform['topology'] = self.topology.get_level("cluster")
+
+        # Adding kernel build information
+        kver = self.target.kernel_version
+        self.platform['kernel'] = {t: getattr(kver, t, None)
+            for t in [
+                'release', 'version',
+                'version_number', 'major', 'minor',
+                'rc', 'sha1', 'parts'
+            ]
+        }
+        self.platform['abi'] = self.target.abi
+        self.platform['os'] = self.target.os
+
+        self._log.debug('Platform descriptor initialized\n%s', self.platform)
+        # self.platform_dump('./')
+
+    def _init_energy(self, force):
+        # Initialize energy probe to board default
+        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force)
+
+    def _pre_target_init(self, target_conf):
+        """
+        Initialization code that doesn't need a :class:`devlib.Target` instance
+        """
+
+        self.conf = {}
+        self.target = None
+        self.ftrace = None
+        self.workdir = None
+        self.__installed_tools = set()
+        self.__modules = []
+        self.__connection_settings = None
+        self._calib = None
+
+        # Keep track of target IP
+        self.ip = None
+
+        # Energy meter configuration
+        self.emeter = None
+
+        # The platform descriptor to be saved into the results folder
+        self.platform = {}
+
+        # Keep track of android support
+        self.LISA_HOME = os.environ.get('LISA_HOME', '/vagrant')
+        self.ANDROID_HOME = os.environ.get('ANDROID_HOME', None)
+        self.CATAPULT_HOME = os.environ.get('CATAPULT_HOME',
+                os.path.join(self.LISA_HOME, 'tools', 'catapult'))
+
+        # Setup target configuration
+        if isinstance(target_conf, dict):
+            self._log.info('Loading custom (inline) target configuration')
+            self.conf = target_conf
+        elif isinstance(target_conf, str):
+            self._log.info('Loading %s target configuration', target_conf)
+            self.conf = self.load_target_config(target_conf)
+        else:
+            target_conf = os.environ.get('LISA_TARGET_CONF', '')
+            self._log.info('Loading [%s] target configuration',
+                    target_conf or 'default')
+            self.conf = self.load_target_config(target_conf)
+
+        self._log.debug('Target configuration %s', self.conf)
+
+        # Setup target working directory
+        if 'workdir' in self.conf:
+            self.workdir = self.conf['workdir']
+
+        # Initialize binary tools to deploy
+        self.__tools = list(set(self.conf.get('tools', [])))
+
+        # Initialize ftrace events
+        ftrace_conf = self.conf.get('ftrace', {})
+        ftrace_conf['events'] = sorted(set(ftrace_conf.get('events', [])))
+        self.conf['ftrace'] = ftrace_conf
+
+    def _init_target(self):
+        """
+        Create a :class:`devlib.Target` object
+        """
         self.__connection_settings = {}
 
         # Configure username
@@ -412,16 +373,10 @@ class TestEnv(ShareState):
         if 'port' in self.conf:
             self.__connection_settings['port'] = self.conf['port']
 
-        # Configure the host IP/MAC address
+        # Configure the host IP
         if 'host' in self.conf:
-            try:
-                if ':' in self.conf['host']:
-                    (self.mac, self.ip) = self.resolv_host(self.conf['host'])
-                else:
-                    self.ip = self.conf['host']
-                self.__connection_settings['host'] = self.ip
-            except KeyError:
-                raise ValueError('Config error: missing [host] parameter')
+            self.ip = self.conf['host']
+            self.__connection_settings['host'] = self.ip
 
         try:
             platform_type = self.conf['platform']
@@ -529,11 +484,8 @@ class TestEnv(ShareState):
 
         # Refine modules list based on target.conf
         modules.update(self.conf.get('modules', []))
-        # Merge tests specific modules
-        modules.update(self.test_conf.get('modules', []))
 
-        remove_modules = set(self.conf.get('exclude_modules', []) +
-                             self.test_conf.get('exclude_modules', []))
+        remove_modules = set(self.conf.get('exclude_modules', []))
         modules.difference_update(remove_modules)
 
         self.__modules = list(modules)
@@ -675,13 +627,79 @@ class TestEnv(ShareState):
             gem5_bin = simulator['bin'],
             gem5_args = args,
             gem5_virtio = virtio_args,
-            host_output_dir = self.res_dir,
+            host_output_dir = self.get_res_dir('gem5'),
             core_names = board['cores'] if board else None,
             core_clusters = self._get_clusters(board['cores']) if board else None,
             big_core = board.get('big_core', None) if board else None,
         )
 
         return platform
+
+    def _post_target_init(self):
+        """
+        Initialization code that needs a :class:`devlib.Target` instance
+        """
+        self._build_topology()
+
+        # Initialize the platform descriptor
+        self._init_platform()
+
+        # Initialize energy probe instrument
+        self._init_energy(True)
+
+    def load_target_config(self, filepath=None):
+        """
+        Load the target configuration from the specified file.
+
+        :param filepath: Path of the target configuration file. Relative to the
+                         root folder of the test suite.
+        :type filepath: str
+
+        """
+
+        # "" and None are replaced by the default 'target.config' value
+        filepath = filepath or 'target.config'
+
+        # Loading default target configuration
+        conf_file = os.path.join(basepath, filepath)
+
+        self._log.info('Loading target configuration [%s]...', conf_file)
+        conf = JsonConf(conf_file)
+        conf.load()
+        return conf.json
+
+    def get_res_dir(self, name=None):
+        """
+        Returns a directory managed by LISA to store results
+        """
+        # Initialize local results folder.
+        # The test configuration overrides the target's one and the environment
+        # variable overrides everything else.
+        res_dir = (
+            os.getenv('LISA_RESULTS_DIR') or
+            self.conf.get('results_dir')
+        )
+
+        # Default result dir based on the current time
+        if not res_dir:
+            if not name:
+                name = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+            res_dir = os.path.join(basepath, OUT_PREFIX, name)
+
+        # Relative paths are interpreted as relative to a fixed root.
+        if not os.path.isabs(res_dir):
+            res_dir = os.path.join(basepath, OUT_PREFIX, res_dir)
+
+        if not os.path.exists(res_dir):
+            os.makedirs(res_dir)
+
+        res_lnk = os.path.join(basepath, LATEST_LINK)
+        if os.path.islink(res_lnk):
+            os.remove(res_lnk)
+        os.symlink(res_dir, res_lnk)
+
+        return res_dir
 
     def install_tools(self, tools):
         """
@@ -693,11 +711,7 @@ class TestEnv(ShareState):
         """
         tools = set(tools)
 
-        # Add tools dependencies
-        if 'rt-app' in tools:
-            tools.update(['taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh'])
-
-        # Remove duplicates and already-instaled tools
+        # Remove duplicates and already-installed tools
         tools.difference_update(self.__installed_tools)
 
         tools_to_install = []
@@ -713,26 +727,49 @@ class TestEnv(ShareState):
 
         self.__installed_tools.update(tools)
 
-    def ftrace_conf(self, conf):
-        self._init_ftrace(True, conf)
+    def configure_ftrace(self, events=None, functions=None,
+                         buffsize=FTRACE_BUFSIZE_DEFAULT):
+        """
+        Setup the environment's :class:`devlib.trace.FtraceCollector`
 
-    def _init_ftrace(self, force=False, conf=None):
+        :param events: The events to trace
+        :type events: list(str)
 
-        if not force and self.ftrace is not None:
-            return
+        :param functions: the kernel functions to trace
+        :type functions: list(str)
 
-        ftrace = conf or self.conf.get('ftrace')
-        if ftrace is None:
-            return
+        :param buffsize: The size of the Ftrace buffer
+        :type buffsize: int
 
-        events = ftrace.get('events', FTRACE_EVENTS_DEFAULT)
-        functions = ftrace.get('functions', None)
-        buffsize = ftrace.get('buffsize', FTRACE_BUFSIZE_DEFAULT)
+        :raises RuntimeError: If no event nor function is to be traced
+        """
+
+        # Merge with setup from target config
+        target_conf = self.conf.get('ftrace', {})
+
+        if events is None:
+            events = []
+        if functions is None:
+            functions = []
+
+        def merge_conf(value, index, default):
+            return sorted(set(value) | set(target_conf.get(index, default)))
+
+        events = merge_conf(events, 'events', [])
+        functions = merge_conf(functions, 'functions', [])
+        buffsize = max(buffsize, target_conf.get('buffsize', 0))
 
         # If no events or functions have been specified:
         # do not create the FtraceCollector
         if not (events or functions):
-            return
+            raise RuntimeError(
+                "Tried to configure Ftrace, but no events nor functions were"
+                "provided from neither method parameters nor target_config"
+            )
+
+        # Ensure we have trace-cmd on the target
+        if 'trace-cmd' not in self.__installed_tools:
+            self.install_tools(['trace-cmd'])
 
         self.ftrace = devlib.FtraceCollector(
             self.target,
@@ -751,124 +788,6 @@ class TestEnv(ShareState):
             self._log.info('Kernel functions profiled:')
             for function in functions:
                 self._log.info('   %s', function)
-
-        return
-
-    def _init_energy(self, force):
-
-        # Initialize energy probe to board default
-        self.emeter = EnergyMeter.getInstance(self.target, self.conf, force,
-                                              self.res_dir)
-
-    def _init_platform_bl(self):
-        self.platform = {
-            'clusters' : {
-                'little'    : self.target.bl.littles,
-                'big'       : self.target.bl.bigs
-            },
-            'freqs' : {
-                'little'    : self.target.bl.list_littles_frequencies(),
-                'big'       : self.target.bl.list_bigs_frequencies()
-            }
-        }
-        self.platform['cpus_count'] = \
-            len(self.platform['clusters']['little']) + \
-            len(self.platform['clusters']['big'])
-
-    def _init_platform_smp(self):
-        self.platform = {
-            'clusters' : {},
-            'freqs' : {}
-        }
-        for cpu_id,node_id in enumerate(self.target.core_clusters):
-            if node_id not in self.platform['clusters']:
-                self.platform['clusters'][node_id] = []
-            self.platform['clusters'][node_id].append(cpu_id)
-
-        if 'cpufreq' in self.target.modules:
-            # Try loading frequencies using the cpufreq module
-            for cluster_id in self.platform['clusters']:
-                core_id = self.platform['clusters'][cluster_id][0]
-                self.platform['freqs'][cluster_id] = \
-                    self.target.cpufreq.list_frequencies(core_id)
-        else:
-            self._log.warning('Unable to identify cluster frequencies')
-
-        # TODO: get the performance boundaries in case of intel_pstate driver
-
-        self.platform['cpus_count'] = len(self.target.core_clusters)
-
-    def _load_em(self, board):
-        em_path = os.path.join(basepath,
-                'libs/utils/platforms', board.lower() + '.json')
-        self._log.debug('Trying to load default EM from %s', em_path)
-        if not os.path.exists(em_path):
-            return None
-        self._log.info('Loading default EM:')
-        self._log.info('   %s', em_path)
-        board = JsonConf(em_path)
-        board.load()
-        if 'nrg_model' not in board.json:
-            return None
-        return board.json['nrg_model']
-
-    def _load_board(self, board):
-        board_path = os.path.join(basepath,
-                'libs/utils/platforms', board.lower() + '.json')
-        self._log.debug('Trying to load board descriptor from %s', board_path)
-        if not os.path.exists(board_path):
-            return None
-        self._log.info('Loading board:')
-        self._log.info('   %s', board_path)
-        board = JsonConf(board_path)
-        board.load()
-        if 'board' not in board.json:
-            return None
-        return board.json['board']
-
-    def _get_clusters(self, core_names):
-        idx = 0
-        clusters = []
-        ids_map = { core_names[0] : 0 }
-        for name in core_names:
-            idx = ids_map.get(name, idx+1)
-            ids_map[name] = idx
-            clusters.append(idx)
-        return clusters
-
-    def _init_platform(self):
-        if 'bl' in self.target.modules:
-            self._init_platform_bl()
-        else:
-            self._init_platform_smp()
-
-        # Adding energy model information
-        if 'nrg_model' in self.conf:
-            self.platform['nrg_model'] = self.conf['nrg_model']
-        # Try to load the default energy model (if available)
-        else:
-            nrg_model = self._load_em(self.conf['board'])
-            # We shouldn't have an 'nrg_model' key if there is no energy model data
-            if nrg_model:
-                self.platform['nrg_model'] = nrg_model
-
-        # Adding topology information
-        self.platform['topology'] = self.topology.get_level("cluster")
-
-        # Adding kernel build information
-        kver = self.target.kernel_version
-        self.platform['kernel'] = {t: getattr(kver, t, None)
-            for t in [
-                'release', 'version',
-                'version_number', 'major', 'minor',
-                'rc', 'sha1', 'parts'
-            ]
-        }
-        self.platform['abi'] = self.target.abi
-        self.platform['os'] = self.target.os
-
-        self._log.debug('Platform descriptor initialized\n%s', self.platform)
-        # self.platform_dump('./')
 
     def platform_dump(self, dest_dir, dest_file='platform.json'):
         plt_file = os.path.join(dest_dir, dest_file)
@@ -891,11 +810,9 @@ class TestEnv(ShareState):
         if not force and self._calib:
             return self._calib
 
-        required = force or 'rt-app' in self.__installed_tools
-
-        if not required:
-            self._log.debug('No RT-App workloads, skipping calibration')
-            return
+        required_tools = ['rt-app', 'taskset', 'trace-cmd', 'perf', 'cgroup_run_into.sh']
+        if not all([tool in self.__installed_tools for tool in required_tools]):
+            self.install_tools(required_tools)
 
         if not force and 'rtapp-calib' in self.conf:
             self._log.info('Using configuration provided RTApp calibration')
@@ -912,226 +829,6 @@ class TestEnv(ShareState):
                        "{" + ", ".join('"%r": %r' % (key, self._calib[key])
                                        for key in sorted(self._calib)) + "}")
         return self._calib
-
-    def resolv_host(self, host=None):
-        """
-        Resolve a host name or IP address to a MAC address
-
-        .. TODO Is my networking terminology correct here?
-
-        :param host: IP address or host name to resolve. If None, use 'host'
-                    value from target_config.
-        :type host: str
-        """
-        if host is None:
-            host = self.conf['host']
-
-        # Refresh ARP for local network IPs
-        self._log.debug('Collecting all Bcast address')
-        output = os.popen(r'ifconfig').read().split('\n')
-        for line in output:
-            match = IFCFG_BCAST_RE.search(line)
-            if not match:
-                continue
-            baddr = match.group(1)
-            try:
-                cmd = r'nmap -T4 -sP {}/24 &>/dev/null'.format(baddr.strip())
-                self._log.debug(cmd)
-                os.popen(cmd)
-            except RuntimeError:
-                self._log.warning('Nmap not available, try IP lookup using broadcast ping')
-                cmd = r'ping -b -c1 {} &>/dev/null'.format(baddr)
-                self._log.debug(cmd)
-                os.popen(cmd)
-
-        return self.parse_arp_cache(host)
-
-    def parse_arp_cache(self, host):
-        output = os.popen(r'arp -n')
-        if ':' in host:
-            # Assuming this is a MAC address
-            # TODO add a suitable check on MAC address format
-            # Query ARP for the specified HW address
-            ARP_RE = re.compile(
-                r'([^ ]*).*({}|{})'.format(host.lower(), host.upper())
-            )
-            macaddr = host
-            ipaddr = None
-            for line in output:
-                match = ARP_RE.search(line)
-                if not match:
-                    continue
-                ipaddr = match.group(1)
-                break
-        else:
-            # Assuming this is an IP address
-            # TODO add a suitable check on IP address format
-            # Query ARP for the specified IP address
-            ARP_RE = re.compile(
-                r'{}.*ether *([0-9a-fA-F:]*)'.format(host)
-            )
-            macaddr = None
-            ipaddr = host
-            for line in output:
-                match = ARP_RE.search(line)
-                if not match:
-                    continue
-                macaddr = match.group(1)
-                break
-            else:
-                # When target is accessed via WiFi, there is not MAC address
-                # reported by arp. In these cases we can know only the IP
-                # of the remote target.
-                macaddr = 'UNKNOWN'
-
-        if not ipaddr or not macaddr:
-            raise ValueError('Unable to lookup for target IP/MAC address')
-        self._log.info('Target (%s) at IP address: %s', macaddr, ipaddr)
-        return (macaddr, ipaddr)
-
-    def reboot(self, reboot_time=120, ping_time=15):
-        """
-        Reboot target.
-
-        :param boot_time: Time to wait for the target to become available after
-                          reboot before declaring failure.
-        :param ping_time: Period between attempts to ping the target while
-                          waiting for reboot.
-        """
-        # Send remote target a reboot command
-        if self._feature('no-reboot'):
-            self._log.warning('Reboot disabled by conf features')
-        else:
-            if 'reboot_time' in self.conf:
-                reboot_time = int(self.conf['reboot_time'])
-
-            if 'ping_time' in self.conf:
-                ping_time = int(self.conf['ping_time'])
-
-            # Before rebooting make sure to have IP and MAC addresses
-            # of the target
-            (self.mac, self.ip) = self.parse_arp_cache(self.ip)
-
-            self.target.execute('sleep 2 && reboot -f &', as_root=True)
-
-            # Wait for the target to complete the reboot
-            self._log.info('Waiting up to %s[s] for target [%s] to reboot...',
-                           reboot_time, self.ip)
-
-            ping_cmd = "ping -c 1 {} >/dev/null".format(self.ip)
-            elapsed = 0
-            start = time.time()
-            while elapsed <= reboot_time:
-                time.sleep(ping_time)
-                self._log.debug('Trying to connect to [%s] target...', self.ip)
-                if os.system(ping_cmd) == 0:
-                    break
-                elapsed = time.time() - start
-            if elapsed > reboot_time:
-                if self.mac:
-                    self._log.warning('target [%s] not responding to PINGs, '
-                                      'trying to resolve MAC address...',
-                                      self.ip)
-                    (self.mac, self.ip) = self.resolv_host(self.mac)
-                else:
-                    self._log.warning('target [%s] not responding to PINGs, '
-                                      'trying to continue...',
-                                      self.ip)
-
-        # Force re-initialization of all the devlib modules
-        force = True
-
-        # Reset the connection to the target
-        self._init(force)
-
-        # Initialize FTrace events collection
-        self._init_ftrace(force)
-
-        # Initialize energy probe instrument
-        self._init_energy(force)
-
-    def install_kernel(self, tc, reboot=False):
-        """
-        Deploy kernel and DTB via TFTP, optionally rebooting
-
-        :param tc: Dicionary containing optional keys 'kernel' and 'dtb'. Values
-                   are paths to the binaries to deploy.
-        :type tc: dict
-
-        :param reboot: Reboot thet target after deployment
-        :type reboot: bool
-        """
-
-        # Default initialize the kernel/dtb settings
-        tc.setdefault('kernel', None)
-        tc.setdefault('dtb', None)
-
-        if self.kernel == tc['kernel'] and self.dtb == tc['dtb']:
-            return
-
-        self._log.info('Install kernel [%s] on target...', tc['kernel'])
-
-        # Install kernel/dtb via FTFP
-        if self._feature('no-kernel'):
-            self._log.warning('Kernel deploy disabled by conf features')
-
-        elif 'tftp' in self.conf:
-            self._log.info('Deploy kernel via TFTP...')
-
-            # Deploy kernel in TFTP folder (mandatory)
-            if 'kernel' not in tc or not tc['kernel']:
-                raise ValueError('Missing "kernel" parameter in conf: %s',
-                        'KernelSetup', tc)
-            self.tftp_deploy(tc['kernel'])
-
-            # Deploy DTB in TFTP folder (if provided)
-            if 'dtb' not in tc or not tc['dtb']:
-                self._log.debug('DTB not provided, using existing one')
-                self._log.debug('Current conf:\n%s', tc)
-                self._log.warning('Using pre-installed DTB')
-            else:
-                self.tftp_deploy(tc['dtb'])
-
-        else:
-            raise ValueError('Kernel installation method not supported')
-
-        # Keep track of last installed kernel
-        self.kernel = tc['kernel']
-        if 'dtb' in tc:
-            self.dtb = tc['dtb']
-
-        if not reboot:
-            return
-
-        # Reboot target
-        self._log.info('Rebooting taget...')
-        self.reboot()
-
-
-    def tftp_deploy(self, src):
-        """
-        .. TODO
-        """
-
-        tftp = self.conf['tftp']
-
-        dst = tftp['folder']
-        if 'kernel' in src:
-            dst = os.path.join(dst, tftp['kernel'])
-        elif 'dtb' in src:
-            dst = os.path.join(dst, tftp['dtb'])
-        else:
-            dst = os.path.join(dst, os.path.basename(src))
-
-        cmd = 'cp {} {} && sync'.format(src, dst)
-        self._log.info('Deploy %s into %s', src, dst)
-        result = os.system(cmd)
-        if result != 0:
-            self._log.error('Failed to deploy image: %s', src)
-            raise ValueError('copy error')
-
-    def _feature(self, feature):
-        return feature in self.conf['__features__']
 
     @contextlib.contextmanager
     def freeze_userspace(self):
@@ -1158,8 +855,16 @@ class TestEnv(ShareState):
             self._log.info('Un-freezing userspace tasks')
             self.target.cgroups.freeze(thaw=True)
 
-IFCFG_BCAST_RE = re.compile(
-    r'Bcast:(.*) '
-)
+    @contextlib.contextmanager
+    def record_ftrace(self, output_file=None):
+        if not output_file:
+            output_file = os.path.join(self.get_res_dir(), "trace.dat")
+
+        self.ftrace.start()
+
+        yield
+
+        self.ftrace.stop()
+        self.ftrace.get_trace(output_file)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

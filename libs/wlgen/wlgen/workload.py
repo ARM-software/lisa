@@ -80,7 +80,6 @@ class Workload(object):
         # Task specific configuration parameters
         self.duration = None
         self.run_dir = None
-        self.exc_id = None
 
         # Setup kind specific parameters
         self.kind = None
@@ -137,15 +136,13 @@ class Workload(object):
              duration,
              cpus=None,
              sched={'policy': 'OTHER'},
-             run_dir=None,
-             exc_id=0):
+             run_dir=None):
         """Configure workload. See documentation for subclasses"""
 
         self.cpus = cpus
         self.sched = sched
         self.duration = duration
         self.run_dir = run_dir
-        self.exc_id = exc_id
 
         # Setup kind specific parameters
         self.kind = kind
@@ -288,7 +285,7 @@ class Workload(object):
         ftrace_dat = None
         if ftrace:
             ftrace.stop()
-            ftrace_dat = out_dir + '/' + self.test_label + '.dat'
+            ftrace_dat = os.path.join(out_dir, "{}_trace.dat".format(self.name))
             dirname = os.path.dirname(ftrace_dat)
             if not os.path.exists(dirname):
                 self._log.debug('Create ftrace results folder [%s]',

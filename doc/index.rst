@@ -31,9 +31,13 @@ Contents:
 .. TODO: due to our slightly weird package structure the index here is wildly
    nested where it needn't be.
 
-.. toctree::
+.. TODO: Move wiki to here, wirte a proper module doc, proove Riemann's hypothesis
 
-  modules
+.. toctree::
+   :maxdepth: 2
+
+   tests
+
 
 Indices and tables
 ==================

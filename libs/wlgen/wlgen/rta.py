@@ -91,12 +91,10 @@ class RTA(Workload):
         self.executor = 'rt-app'
 
         # Default initialization
-        self.json = None
         self.rta_profile = None
         self.loadref = None
         self.rta_cmd  = None
         self.rta_conf = None
-        self.test_label = None
 
         # Setup RTA callbacks
         self.setCallback('postrun', self.__postrun)
@@ -137,7 +135,7 @@ class RTA(Workload):
                               sched={
                                   'policy': 'FIFO',
                                   'prio': max_rtprio
-                              }).get()
+                              })
         rta = RTA(target, 'rta_calib')
 
         for cpu in target.list_online_cpus():
@@ -189,9 +187,6 @@ class RTA(Workload):
             logfile = self.target.path.join(self.run_dir,
                                             '*{}*.log'.format(task))
             self.target.pull(logfile, destdir)
-        self._log.debug('Pulling JSON to [%s]...', destdir)
-        self.target.pull(self.target.path.join(self.run_dir, self.json),
-                         destdir)
         logfile = self.target.path.join(destdir, 'output.log')
         self._log.debug('Saving output on [%s]...', logfile)
         with open(logfile, 'w') as ofile:
@@ -222,8 +217,7 @@ class RTA(Workload):
 
         rtapp_conf = self.params['custom']
 
-        self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
-        ofile = open(self.json, 'w')
+        ofile = open(self.local_json, 'w')
 
         calibration = self.getCalibrationConf()
         # Calibration can either be a string like "CPU1" or an integer, if the
@@ -265,12 +259,10 @@ class RTA(Workload):
             ifile.close()
         ofile.close()
 
-        with open(self.json) as f:
+        with open(self.local_json) as f:
             conf = json.load(f)
         for tid in conf['tasks']:
             self.tasks[tid] = {'pid': -1}
-
-        return self.json
 
     def _confProfile(self):
 
@@ -324,10 +316,11 @@ class RTA(Workload):
             # Initialize task configuration
             task_conf = {}
 
-            if 'sched' not in task:
+            if not task.sched:
                 policy = 'DEFAULT'
             else:
-                policy = task['sched']['policy'].upper()
+                policy = task.sched['policy'].upper()
+
             if policy == 'DEFAULT':
                 task_conf['policy'] = global_conf['default_policy']
                 sched_descr = 'sched: using default policy'
@@ -335,7 +328,7 @@ class RTA(Workload):
                 raise ValueError('scheduling class {} not supported'\
                         .format(task['sclass']))
             else:
-                task_conf.update(task['sched'])
+                task_conf.update(task.sched)
                 task_conf['policy'] = 'SCHED_' + policy
                 sched_descr = 'sched: {0:s}'.format(task['sched'])
 
@@ -345,23 +338,23 @@ class RTA(Workload):
             self._log.info('------------------------')
             self._log.info('task [%s], %s', tid, sched_descr)
 
-            if 'delay' in task.keys():
-                if task['delay'] > 0:
-                    task_conf['delay'] = int(task['delay'] * 1e6)
-                    self._log.info(' | start delay: %.6f [s]',
-                            task['delay'])
+            if task.delay_s:
+                task_conf['delay'] = int(task['delay'] * 1e6)
+                self._log.info(' | start delay: %.6f [s]',
+                               task['delay'])
 
-            if 'loops' not in task.keys():
+            if not task.loops:
                 task['loops'] = 1
-            task_conf['loop'] = task['loops']
-            self._log.info(' | loops count: %d', task['loops'])
+
+            task_conf['loop'] = task.loops
+            self._log.info(' | loops count: %d', task.loops)
 
             # Setup task configuration
             self.rta_profile['tasks'][tid] = task_conf
 
             # Getting task phase descriptor
             pid=1
-            for phase in task['phases']:
+            for phase in task.phases:
 
                 # Convert time parameters to integer [us] units
                 duration = int(phase.duration_s * 1e6)
@@ -432,12 +425,9 @@ class RTA(Workload):
             self.tasks[tid] = {'pid': -1}
 
         # Generate JSON configuration on local file
-        self.json = '{0:s}_{1:02d}.json'.format(self.name, self.exc_id)
-        with open(self.json, 'w') as outfile:
+        with open(self.local_json, 'w') as outfile:
             json.dump(self.rta_profile, outfile,
                       indent=4, separators=(',', ': '))
-
-        return self.json
 
     def conf(self,
              kind,
@@ -445,8 +435,8 @@ class RTA(Workload):
              duration=None,
              cpus=None,
              sched=None,
+             work_dir='./',
              run_dir=None,
-             exc_id=0,
              loadref='big'):
         """
         Configure a workload of a specified kind.
@@ -466,8 +456,7 @@ class RTA(Workload):
 
         Profile based workloads
           When ``kind`` is "profile", ``params`` is a dictionary mapping task
-          names to task specifications. The easiest way to create these task
-          specifications using :meth:`RTATask.get`.
+          names to task specifications.
 
           For example, the following configures an RTA workload with a single
           task, named 't1', using the default parameters for a Periodic RTATask:
@@ -475,7 +464,7 @@ class RTA(Workload):
           ::
 
             wl = RTA(...)
-            wl.conf(kind='profile', params={'t1': Periodic().get()})
+            wl.conf(kind='profile', params={'t1': Periodic()})
 
         :param kind: Either 'custom' or 'profile' - see above.
         :param params: RT-App parameters - see above.
@@ -492,6 +481,10 @@ class RTA(Workload):
             The default scheduler policy. Choose from 'OTHER', 'FIFO', 'RR',
             and 'DEADLINE'.
 
+        :param work_dir: Local directory in which to store the resulting rt-app
+          configuration
+        :type work_dir: str
+
         :param run_dir: Target dir to store output and config files in.
 
         .. TODO: document or remove loadref
@@ -501,9 +494,14 @@ class RTA(Workload):
             sched = {'policy' : 'OTHER'}
 
         super(RTA, self).conf(kind, params, duration,
-                cpus, sched, run_dir, exc_id)
+                cpus, sched, run_dir)
 
+        self.work_dir = work_dir
         self.loadref = loadref
+
+        json_name = '{}.json'.format(self.name)
+        self.local_json = os.path.join(self.work_dir, json_name)
+        self.remote_json = self.target.path.join(self.run_dir, json_name)
 
         # Setup class-specific configuration
         if kind == 'custom':
@@ -512,15 +510,10 @@ class RTA(Workload):
             self._confProfile()
 
         # Move configuration file to target
-        self.target.push(self.json, self.run_dir)
+        self.target.push(self.local_json, self.remote_json)
 
-        self.rta_cmd  = self.target.executables_directory + '/rt-app'
-        self.rta_conf = self.run_dir + '/' + self.json
-        self.command = '{0:s} {1:s} 2>&1'.format(self.rta_cmd, self.rta_conf)
-
-        # Set and return the test label
-        self.test_label = '{0:s}_{1:02d}'.format(self.name, self.exc_id)
-        return self.test_label
+        self.rta_cmd  = self.target.which('rt-app')
+        self.command = '{0:s} {1:s} 2>&1'.format(self.rta_cmd, self.remote_json)
 
 class RTATask(object):
     """
@@ -536,19 +529,13 @@ class RTATask(object):
     def __init__(self, delay_s=0, loops=1, sched=None):
         self._task = {}
 
-        self._task['sched'] = sched or {'policy' : 'DEFAULT'}
-        self._task['delay'] = delay_s
-        self._task['loops'] = loops
-
-    def get(self):
-        """
-        Return a dict that can be passed as an element of the ``params`` field
-        to :meth:`RTA.conf`.
-        """
-        return self._task
+        self.sched = sched or {'policy' : 'DEFAULT'}
+        self.delay_s = delay_s
+        self.loops = loops
+        self.phases = []
 
     def __add__(self, next_phases):
-        if next_phases._task.get('delay', 0):
+        if next_phases.delay_s:
             # This won't work, because rt-app's "delay" field is per-task and
             # not per-phase. We might be able to implement it by adding a
             # "sleep" event here, but let's not bother unless such a need
@@ -556,7 +543,7 @@ class RTATask(object):
             raise ValueError("Can't compose rt-app tasks "
                              "when the second has nonzero 'delay_s'")
 
-        self._task['phases'].extend(next_phases._task['phases'])
+        self.phases.extend(next_phases.phases)
         return self
 
 
@@ -610,7 +597,7 @@ class Ramp(RTATask):
                 phase = Phase(time_s, period_ms, load, cpus)
             phases.append(phase)
 
-        self._task['phases'] = phases
+        self.phases = phases
 
 class Step(Ramp):
     """
@@ -693,8 +680,7 @@ class Pulse(RTATask):
             phase = Phase(time_s, period_ms, load, cpus)
             phases.append(phase)
 
-        self._task['phases'] = phases
-
+        self.phases = phases
 
 class Periodic(Pulse):
     """
@@ -747,5 +733,5 @@ class RunAndSync(RTATask):
 
         # This should translate into a phase containing a 'run' event and a
         # 'barrier' event
-        self._task['phases'] = [Phase(time_s, None, 100, cpus,
+        self.phases = [Phase(time_s, None, 100, cpus,
                                       barrier_after=barrier)]

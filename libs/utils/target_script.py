@@ -32,17 +32,20 @@ class TargetScript(object):
         that must really be executed instead of accumulated.
     :type env: TestEnv
 
-    :param script_name: Name of the script that will be pushed on the target,
-        defaults to "remote_script.sh"
+    :param script_name: Name of the script that will be pushed on the target
     :type script_name: str
+
+    :param local_dir: Local directory to use to prepare the script
+    :type local_dir: str
     """
 
     _target_attrs = ['screen_resolution', 'android_id', 'abi', 'os_version', 'model']
 
-    def __init__(self, env, script_name=SCRIPT_NAME):
+    def __init__(self, env, script_name=SCRIPT_NAME, local_dir='./'):
         self._env = env
         self._target = env.target
         self._script_name = script_name
+        self.local_dir = local_dir
         self.commands = []
 
     # This is made to look like the devlib Target execute()
@@ -80,13 +83,8 @@ class TargetScript(object):
         """
         Push a script to the target
 
-        The script is created and stored on the host,
-        and is then sent to the target.
-
-        :param path: Path where the script will be locally created
-        :type path: str
-        :param actions: List of actions(commands) to run
-        :type actions: list(str)
+        The script is created and stored on the host, and is then sent
+        to the target.
         """
 
         actions = ['set -e'] + self.commands + ['set +e']
@@ -94,7 +92,7 @@ class TargetScript(object):
         actions = str.join('\n', actions)
 
         # Create script locally
-        self._local_path = os.path.join(self._env.res_dir, self._script_name)
+        self._local_path = os.path.join(self.local_dir, self._script_name)
         with open(self._local_path, 'w') as script:
             script.write(actions)
 
