@@ -40,8 +40,8 @@ class CapacitySanityCheck(TestBundle):
             sysbench = Sysbench(te, "sysbench", res_dir)
 
             cpu_capacities = te.target.sched.get_capacities()
-            capa_work = {capa : sys.maxint for capa in cpu_capacities.values()}
-            for cpu in cpu_capacities.keys():
+            capa_work = {capa : sys.maxsize for capa in list(cpu_capacities.values())}
+            for cpu in list(cpu_capacities.keys()):
                 sysbench.run(cpus=[cpu], max_duration_s=1)
                 # We could save the work done on each CPU, but we can make
                 # things simpler and just store the smallest amount of work done
@@ -58,7 +58,7 @@ class CapacitySanityCheck(TestBundle):
         sorted_capacities = sorted(self.capacity_work.keys())
         res = ResultBundle(True)
 
-        for capacity, work in self.capacity_work.items():
+        for capacity, work in list(self.capacity_work.items()):
             res.add_metric("Performance @{} capacity".format(capacity), work)
 
         for idx, capacity in enumerate(sorted_capacities[1:]):

@@ -87,7 +87,7 @@ class RTA(Workload):
                 if calibration is None:
                     calibration = desc["global"]["calibration"]
                 if not tasks_names:
-                    tasks_names = desc["tasks"].keys()
+                    tasks_names = list(desc["tasks"].keys())
 
         self.calibration = calibration
         self.tasks = tasks_names
@@ -117,10 +117,10 @@ class RTA(Workload):
         # calibration value lives in the file
         if isinstance(calibration, int):
             pass
-        elif isinstance(calibration, basestring):
+        elif isinstance(calibration, str):
             calibration = calibration.upper()
         else:
-            cpus = range(self.te.target.number_of_cpus)
+            cpus = list(range(self.te.target.number_of_cpus))
             target_cpu = cpus[-1]
             if 'bl'in self.te.target.modules:
                 candidates = sorted(set(self.te.target.bl.bigs).intersection(cpus))
@@ -161,7 +161,7 @@ class RTA(Workload):
         self._early_init(te, name, res_dir, None)
 
         # Sanity check for task names
-        for task in profile.keys():
+        for task in list(profile.keys()):
             if len(task) > 15:
                 # rt-app uses pthread_setname_np(3) which limits the task name
                 # to 16 characters including the terminal '\0'.
@@ -198,7 +198,7 @@ class RTA(Workload):
         rta_profile['global'] = global_conf
 
         # Setup tasks parameters
-        for tid, task in profile.items():
+        for tid, task in list(profile.items()):
             task_conf = {}
 
             if not task.sched_policy:
@@ -236,7 +236,7 @@ class RTA(Workload):
         with open(self.local_json, 'w') as outfile:
             json.dump(rta_profile, outfile, indent=4, separators=(',', ': '))
 
-        self._late_init(calibration=calibration, tasks_names=profile.keys())
+        self._late_init(calibration=calibration, tasks_names=list(profile.keys()))
         return self
 
     @classmethod
@@ -259,7 +259,7 @@ class RTA(Workload):
         }
 
         for line in template:
-            for token, replacement in replacements.iteritems():
+            for token, replacement in replacements.items():
                 if token not in line:
                     continue
 
@@ -335,11 +335,11 @@ class RTA(Workload):
 
         # Sanity check calibration values for asymmetric systems
         cpu_capacities = te.target.sched.get_capacities()
-        capa_pload = {capacity : sys.maxint for capacity in cpu_capacities.values()}
+        capa_pload = {capacity : sys.maxsize for capacity in list(cpu_capacities.values())}
 
         # Find the max pload per capacity level
         # for capacity, index in enumerate(sorted_capacities):
-        for cpu, capacity in cpu_capacities.items():
+        for cpu, capacity in list(cpu_capacities.items()):
             capa_pload[capacity] = max(capa_pload[capacity], pload[cpu])
 
         sorted_capas = sorted(capa_pload.keys())
@@ -475,7 +475,7 @@ class RTATask(object):
         self.delay_s = delay_s
         self.loops = loops
 
-        if isinstance(sched_policy, basestring):
+        if isinstance(sched_policy, str):
             sched_policy = sched_policy.upper()
 
             if sched_policy not in RTA.sched_policies:
@@ -527,7 +527,7 @@ class Ramp(RTATask):
                  priority=None, cpus=None):
         super(Ramp, self).__init__(delay_s, loops, sched_policy, priority)
 
-        if start_pct not in range(0, 101) or end_pct not in range(0, 101):
+        if start_pct not in list(range(0, 101)) or end_pct not in list(range(0, 101)):
             raise ValueError('start_pct and end_pct must be in [0..100] range')
 
         if start_pct >= end_pct:
@@ -540,7 +540,7 @@ class Ramp(RTATask):
             delta_adj = +1
 
         phases = []
-        steps = range(start_pct, end_pct+delta_adj, delta_pct)
+        steps = list(range(start_pct, end_pct+delta_adj, delta_pct))
         for load in steps:
             if load == 0:
                 phase = Phase(time_s, 0, 0, cpus)
@@ -620,7 +620,7 @@ class Pulse(RTATask):
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
 
-        if end_pct not in range(0, 101) or start_pct not in range(0, 101):
+        if end_pct not in list(range(0, 101)) or start_pct not in list(range(0, 101)):
             raise ValueError('end_pct and start_pct must be in [0..100] range')
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')

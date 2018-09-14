@@ -109,7 +109,7 @@ class IdleAnalysis(AnalysisBase):
             return None
 
         _cluster = cluster
-        if isinstance(cluster, str) or isinstance(cluster, unicode):
+        if isinstance(cluster, str) or isinstance(cluster, str):
             try:
                 _cluster = self._platform['clusters'][cluster.lower()]
             except KeyError:
@@ -187,7 +187,7 @@ class IdleAnalysis(AnalysisBase):
         if cpus is None:
             # Generate plots only for available CPUs
             cpuidle_data = self._dfg_trace_event('cpu_idle')
-            _cpus = range(cpuidle_data.cpu_id.max() + 1)
+            _cpus = list(range(cpuidle_data.cpu_id.max() + 1))
         else:
             _cpus = listify(cpus)
 
@@ -229,7 +229,7 @@ class IdleAnalysis(AnalysisBase):
 
         # Sanitize clusters
         if clusters is None:
-            _clusters = self._platform['clusters'].keys()
+            _clusters = list(self._platform['clusters'].keys())
         else:
             _clusters = listify(clusters)
 

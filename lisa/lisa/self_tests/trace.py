@@ -159,12 +159,12 @@ class TestTrace(TestCase):
         df1 = Trace.squash_df(df, 16.5, 17.5,)
         head = df1.head(1)
         tail = df1.tail(1)
-        self.assertEquals(len(df1.index), 2)
-        self.assertEquals(df1.index.tolist(), [16.5, 17])
+        self.assertEqual(len(df1.index), 2)
+        self.assertEqual(df1.index.tolist(), [16.5, 17])
         self.assertAlmostEqual(head['delta'].values[0], 0.5, places=self.FLOAT_PLACES)
         self.assertAlmostEqual(tail['delta'].values[0], 0.5, places=self.FLOAT_PLACES)
-        self.assertEquals(head['state'].values[0], 0)
-        self.assertEquals(tail['state'].values[0], 1)
+        self.assertEqual(head['state'].values[0], 0)
+        self.assertEqual(tail['state'].values[0], 1)
 
         ## Test slice where no event exists in the interval
 
@@ -172,10 +172,10 @@ class TestTrace(TestCase):
         # Time delta state
         # 16.2  .6   0
         df2 = Trace.squash_df(df, 16.2, 16.8)
-        self.assertEquals(len(df2.index), 1)
-        self.assertEquals(df2.index[0], 16.2)
+        self.assertEqual(len(df2.index), 1)
+        self.assertEqual(df2.index[0], 16.2)
         self.assertAlmostEqual(df2['delta'].values[0], 0.6, places=self.FLOAT_PLACES)
-        self.assertEquals(df2['state'].values[0], 0)
+        self.assertEqual(df2['state'].values[0], 0)
 
         ## Test slice that matches an event's index
 
@@ -183,28 +183,28 @@ class TestTrace(TestCase):
         # Time delta state
         # 16   1   0
         df3 = Trace.squash_df(df, 16, 17)
-        self.assertEquals(len(df3.index), 1)
-        self.assertEquals(df3.index[0], 16)
+        self.assertEqual(len(df3.index), 1)
+        self.assertEqual(df3.index[0], 16)
         self.assertAlmostEqual(df3['delta'].values[0], 1, places=self.FLOAT_PLACES)
-        self.assertEquals(df3['state'].values[0], 0)
+        self.assertEqual(df3['state'].values[0], 0)
 
         ## Test slice past last event
         # The df here should be:
         # Time delta state
         # 19.5  .5  1
         df4 = Trace.squash_df(df, 19.5, 22)
-        self.assertEquals(len(df4.index), 1)
-        self.assertEquals(df4.index[0], 19.5)
+        self.assertEqual(len(df4.index), 1)
+        self.assertEqual(df4.index[0], 19.5)
         self.assertAlmostEqual(df4['delta'].values[0], 0.5, places=self.FLOAT_PLACES)
-        self.assertEquals(df4['state'].values[0], 1)
+        self.assertEqual(df4['state'].values[0], 1)
 
         ## Test slice where there's no past event
         df5 = Trace.squash_df(df, 10, 30)
-        self.assertEquals(len(df5.index), 5)
+        self.assertEqual(len(df5.index), 5)
 
         ## Test slice where that should contain nothing
         df6 = Trace.squash_df(df, 8, 9)
-        self.assertEquals(len(df6.index), 0)
+        self.assertEqual(len(df6.index), 0)
 
     def test_overutilized_time(self):
         """

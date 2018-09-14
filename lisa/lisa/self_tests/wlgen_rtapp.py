@@ -48,7 +48,7 @@ class RTABase(WlgenSelfBase):
         # - Need to use SCHED_FIFO + high priority
         # We probably don't have permissions so use a dummy calibration.
         self.calibration = {c: 100
-                           for c in range(len(self.target.cpuinfo.cpu_names))}
+                           for c in list(range(len(self.target.cpuinfo.cpu_names)))}
 
         os.makedirs(self.host_out_dir)
 
@@ -77,7 +77,7 @@ class TestRTAProfile(RTABase):
             conf = json.load(f, object_pairs_hook=OrderedDict)
 
         # Check that the configuration looks like we expect it to
-        phases = conf['tasks']['my_task']['phases'].values()
+        phases = list(conf['tasks']['my_task']['phases'].values())
         self.assertEqual(len(phases), len(exp_phases), 'Wrong number of phases')
         for phase, exp_phase in zip(phases, exp_phases):
             self.assertDictEqual(phase, exp_phase)
@@ -275,7 +275,7 @@ class TestRTACustom(RTABase):
             conf = json.load(f)
 
         # Convert k to str because the json loader gives us unicode strings
-        tasks = set([str(k) for k in conf['tasks'].keys()])
+        tasks = set([str(k) for k in list(conf['tasks'].keys())])
         self.assertSetEqual(
             tasks,
             set(['AudioTick', 'AudioOut', 'AudioTrack',
@@ -321,8 +321,8 @@ class TestRTACalibrationConf(RTABase):
 
     def test_calibration_conf_pload(self):
         """Test that the smallest pload value is used, if provided"""
-        cpus = range(self.target.number_of_cpus)
-        conf = self._get_calib_conf(dict(zip(cpus, [c + 100 for c in cpus])))
+        cpus = list(range(self.target.number_of_cpus))
+        conf = self._get_calib_conf(dict(list(zip(cpus, [c + 100 for c in cpus]))))
         self.assertEqual(conf, 100,
                          'Calibration not set to minimum pload value')
 

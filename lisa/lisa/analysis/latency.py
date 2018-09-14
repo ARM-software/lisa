@@ -302,7 +302,7 @@ class LatencyAnalysis(AnalysisBase):
         :param task: the task to report runtimes for
         :type task: int or str
         """
-        cpus = range(self._platform['cpus_count'])
+        cpus = list(range(self._platform['cpus_count']))
         runtimes = {cpu : 0.0 for cpu in cpus}
 
         df = self._dfg_latency_df(task)
@@ -322,7 +322,7 @@ class LatencyAnalysis(AnalysisBase):
 
             runtimes[cpu] += data['t_delta']
 
-        data = [(cpu, time) for  cpu, time in runtimes.iteritems()]
+        data = [(cpu, time) for  cpu, time in runtimes.items()]
         return pd.DataFrame(data, columns=['CPU', 'runtime']).set_index('CPU')
 
     @memoized
@@ -409,7 +409,7 @@ class LatencyAnalysis(AnalysisBase):
         label = '{:.1f}%'.format(100. * cdf.below)
         stats = { label : cdf.threshold }
         return stats_df.append(pd.DataFrame(
-            stats.values(), columns=['latency'], index=stats.keys()))
+            list(stats.values()), columns=['latency'], index=list(stats.keys())))
 
 
 ###############################################################################
@@ -701,7 +701,7 @@ class LatencyAnalysis(AnalysisBase):
         label = '{:.1f}%'.format(100. * cdf.below)
         stats = { label : cdf.threshold }
         return stats_df.append(pd.DataFrame(
-            stats.values(), columns=['activation_interval'], index=stats.keys()))
+            list(stats.values()), columns=['activation_interval'], index=list(stats.keys())))
 
 
     def plotRuntimes(self, task, tag=None, threshold_ms=8, bins=64):
@@ -832,7 +832,7 @@ class LatencyAnalysis(AnalysisBase):
         label = '{:.1f}%'.format(100. * cdf.below)
         stats = { label : cdf.threshold }
         return stats_df.append(pd.DataFrame(
-            stats.values(), columns=['running_time'], index=stats.keys()))
+            list(stats.values()), columns=['running_time'], index=list(stats.keys())))
 
     def plotTaskResidency(self, task):
         """
@@ -925,7 +925,7 @@ class LatencyAnalysis(AnalysisBase):
         res = "R"
         if state & (TASK_MAX_STATE - 1) != 0:
             res = ""
-        for key in TASK_STATES.keys():
+        for key in list(TASK_STATES.keys()):
             if key & state:
                 res += TASK_STATES[key]
         if state & TASK_MAX_STATE:

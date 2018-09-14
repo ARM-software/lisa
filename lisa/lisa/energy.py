@@ -149,7 +149,7 @@ class HWMon(EnergyMeter):
         self._channels = conf.get('channel_map')
         if self._channels:
             # If the user provides a channel_map then require it to be correct.
-            if not all (s in available_sites for s in self._channels.values()):
+            if not all (s in available_sites for s in list(self._channels.values())):
                 raise RuntimeError(
                     "Found sites {} but channel_map contains {}".format(
                         sorted(available_sites), sorted(self._channels.values())))
@@ -158,15 +158,15 @@ class HWMon(EnergyMeter):
                         self._target.little_core.upper()]
             if all(s in available_sites for s in bl_sites):
                 self._log.info('Using default big.LITTLE hwmon channels')
-                self._channels = dict(zip(['big', 'LITTLE'], bl_sites))
+                self._channels = dict(list(zip(['big', 'LITTLE'], bl_sites)))
 
         if not self._channels:
             self._log.info('Using all hwmon energy channels')
             self._channels = {site: site for site in available_sites}
 
         # Configure channels for energy measurements
-        self._log.debug('Enabling channels %s', self._channels.values())
-        self._hwmon.reset(kinds=['energy'], sites=self._channels.values())
+        self._log.debug('Enabling channels %s', list(self._channels.values()))
+        self._hwmon.reset(kinds=['energy'], sites=list(self._channels.values()))
 
         # Logging enabled channels
         self._log.info('Channels selected for energy sampling:')
@@ -213,11 +213,11 @@ class HWMon(EnergyMeter):
         nrg = self.sample()
         # Reformat data for output generation
         clusters_nrg = {}
-        for channel, site in self._channels.iteritems():
+        for channel, site in self._channels.items():
             if site not in nrg:
                 raise RuntimeError('hwmon channel "{}" not available. '
                                    'Selected channels: {}'.format(
-                                       channel, nrg.keys()))
+                                       channel, list(nrg.keys())))
             nrg_total = nrg[site]['total']
             self._log.debug('Energy [%16s]: %.6f', site, nrg_total)
             clusters_nrg[channel] = nrg_total
@@ -514,7 +514,7 @@ class Gem5EnergyMeter(_DevlibContinuousEnergyMeter):
     def __init__(self, target, conf, res_dir):
         super(Gem5EnergyMeter, self).__init__(target, res_dir)
 
-        power_sites = conf['channel_map'].values()
+        power_sites = list(conf['channel_map'].values())
         self._instrument = devlib.Gem5PowerInstrument(self._target, power_sites)
 
     def reset(self):

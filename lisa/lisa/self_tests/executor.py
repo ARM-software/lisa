@@ -35,7 +35,7 @@ class SetUpTarget(TestCase):
                 'platform': 'host',
                 # With no cpufreq (see below), we won't be able to do
                 # calibration. Provide dummy.
-                'rtapp-calib': {c: 100 for c in range(64)}
+                'rtapp-calib': {c: 100 for c in list(range(64))}
             },
             test_conf={
                 # Don't load cpufreq, it won't work when platform=host

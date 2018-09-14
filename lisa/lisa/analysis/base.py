@@ -48,7 +48,7 @@ class AnalysisBase(object):
         # By default assume SMP system
         self._big_cap = 1024
         self._little_cap = 1024
-        self._big_cpus = range(self._platform['cpus_count'])
+        self._big_cpus = list(range(self._platform['cpus_count']))
         self._little_cpus = []
 
         if self._trace.has_big_little:
@@ -160,7 +160,7 @@ class AnalysisBase(object):
         if filters is None:
             filters = {}
 
-        for col, vals in filters.iteritems():
+        for col, vals in filters.items():
             dfr = dfr[dfr[col].isin(vals)]
 
         setup_plot = False

@@ -77,7 +77,7 @@ class PerfAnalysis(object):
         """
         if self.datadir is None:
             raise ValueError("rt-app performance data not (yet) loaded")
-        return self.perf_data.keys()
+        return list(self.perf_data.keys())
 
     def logfile(self, task):
         """
@@ -121,7 +121,7 @@ class PerfAnalysis(object):
                 self._log.debug('Found rt-app logfile for task [%s]', task_name)
 
         # Load all the found logfile into a dataset
-        for task in self.perf_data.keys():
+        for task in list(self.perf_data.keys()):
             self._log.debug('Loading dataframe for task [%s]...', task)
             df = pd.read_table(self.logfile(task),
                     sep='\s+',

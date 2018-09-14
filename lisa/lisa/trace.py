@@ -33,6 +33,7 @@ from lisa.analysis.proxy import AnalysisProxy
 from devlib.utils.misc import memoized
 from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
+from functools import reduce
 
 
 NON_IDLE_STATE = -1
@@ -219,7 +220,7 @@ class Trace(object):
         if events is None:
             self.events = []
             return
-        if isinstance(events, basestring):
+        if isinstance(events, str):
             self.events = events.split(' ')
         elif isinstance(events, list):
             self.events = events
@@ -741,7 +742,7 @@ class Trace(object):
                 # Inject "initial" devlib frequencies
                 os_df = df
                 dl_df = devlib_freq.iloc[:self.platform['cpus_count']]
-                for _,c in self.platform['clusters'].iteritems():
+                for _,c in self.platform['clusters'].items():
                     dl_freqs = dl_df[dl_df.cpu.isin(c)]
                     os_freqs = os_df[os_df.cpu.isin(c)]
                     self._log.debug("First freqs for %s:\n%s", c, dl_freqs)
@@ -755,7 +756,7 @@ class Trace(object):
                 # Inject "final" devlib frequencies
                 os_df = df
                 dl_df = devlib_freq.iloc[self.platform['cpus_count']:]
-                for _,c in self.platform['clusters'].iteritems():
+                for _,c in self.platform['clusters'].items():
                     dl_freqs = dl_df[dl_df.cpu.isin(c)]
                     os_freqs = os_df[os_df.cpu.isin(c)]
                     self._log.debug("Last freqs for %s:\n%s", c, dl_freqs)
@@ -771,7 +772,7 @@ class Trace(object):
             setattr(self.ftrace.cpu_frequency, 'data_frame', df)
 
         # Frequency Coherency Check
-        for _, cpus in clusters.iteritems():
+        for _, cpus in clusters.items():
             cluster_df = df[df.cpu.isin(cpus)]
             for chunk in self._chunker(cluster_df, len(cpus)):
                 f = chunk.iloc[0].frequency
@@ -828,12 +829,12 @@ class Trace(object):
 
         # Build DataFrame of function stats
         frames = {}
-        for cpu, data in trace_stats.iteritems():
+        for cpu, data in trace_stats.items():
             frames[int(cpu)] = pd.DataFrame.from_dict(data, orient='index')
 
         # Build and keep track of the DataFrame
-        self._functions_stats_df = pd.concat(frames.values(),
-                                             keys=frames.keys())
+        self._functions_stats_df = pd.concat(list(frames.values()),
+                                             keys=list(frames.keys()))
 
         return len(self._functions_stats_df) > 0
 
@@ -917,7 +918,7 @@ class Trace(object):
         cluster_active = reduce(
             operator.or_,
             [cpu_active.astype(int) for _, cpu_active in
-             active.iteritems()]
+             active.items()]
         )
 
         return cluster_active

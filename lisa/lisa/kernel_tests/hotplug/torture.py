@@ -110,11 +110,11 @@ class HotplugTorture(TestBundle):
     @classmethod
     def _from_target(cls, te, res_dir=None, seed=None, nr_operations=100,
             sleep_min_ms=10, sleep_max_ms=100, duration_s=10,
-            max_cpus_off=sys.maxint):
+            max_cpus_off=sys.maxsize):
 
         if not seed:
             random.seed()
-            seed = random.randint(0, sys.maxint)
+            seed = random.randint(0, sys.maxsize)
 
         te.target.hotplug.online_all()
         hotpluggable_cpus = te.target.hotplug.list_hotpluggable_cpus()

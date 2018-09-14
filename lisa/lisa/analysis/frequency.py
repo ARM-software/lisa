@@ -371,7 +371,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         if cpus is None:
             # Generate plots only for available CPUs
-            cpus = range(df.cpu.max()+1)
+            cpus = list(range(df.cpu.max()+1))
         else:
             # Generate plots only specified CPUs
             cpus = listify(cpus)
@@ -427,7 +427,7 @@ class FrequencyAnalysis(AnalysisBase):
 
             # Set plot limit based on CPU min/max frequencies
             if 'clusters' in self._platform:
-                for cluster,cpus in self._platform['clusters'].iteritems():
+                for cluster,cpus in self._platform['clusters'].items():
                     if cpu_id not in cpus:
                         continue
                     freqs = self._platform['freqs'][cluster]
@@ -494,7 +494,7 @@ class FrequencyAnalysis(AnalysisBase):
         if cpus is None:
             # Generate plots only for available CPUs
             cpufreq_data = self._dfg_trace_event('cpu_frequency')
-            _cpus = range(cpufreq_data.cpu.max()+1)
+            _cpus = list(range(cpufreq_data.cpu.max()+1))
         else:
             _cpus = listify(cpus)
 
@@ -558,7 +558,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         # Sanitize clusters
         if clusters is None:
-            _clusters = self._platform['clusters'].keys()
+            _clusters = list(self._platform['clusters'].keys())
         else:
             _clusters = listify(clusters)
 
@@ -596,7 +596,7 @@ class FrequencyAnalysis(AnalysisBase):
         df = self._dfg_trace_event('cpu_frequency')
 
         if cpus is None:
-            _cpus = range(df.cpu.max() + 1)
+            _cpus = list(range(df.cpu.max() + 1))
         else:
             _cpus = listify(cpus)
 
@@ -687,7 +687,7 @@ class FrequencyAnalysis(AnalysisBase):
             return
 
         if clusters is None:
-            _clusters = self._platform['clusters'].keys()
+            _clusters = list(self._platform['clusters'].keys())
         else:
             _clusters = listify(clusters)
 

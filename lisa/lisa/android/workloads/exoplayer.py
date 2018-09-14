@@ -80,7 +80,7 @@ class ExoPlayer(Workload):
             remote_file = self.media_file
 
         # Prepare logcat monitor
-        monitor = self._target.get_logcat_monitor(REGEXPS.values())
+        monitor = self._target.get_logcat_monitor(list(REGEXPS.values()))
         monitor.start()
 
         # Play media file

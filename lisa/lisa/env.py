@@ -783,7 +783,7 @@ class TestEnv(Loggable):
             self.logger.info('Using configuration provided RTApp calibration')
             self._calib = {
                     int(key): int(value)
-                    for key, value in self.conf['rtapp-calib'].items()
+                    for key, value in list(self.conf['rtapp-calib'].items())
                 }
         else:
             self.logger.info('Calibrating RTApp...')

@@ -90,7 +90,7 @@ class EASBehaviour(RTATestBundle):
         """
         Get the time where the first task spawned
         """
-        tasks = self.rtapp_profile.keys()
+        tasks = list(self.rtapp_profile.keys())
         sdf = self.trace.data_frame.trace_event('sched_switch')
         start_time = self.trace.start_time + self.trace.time_range
 
@@ -120,7 +120,7 @@ class EASBehaviour(RTATestBundle):
 
         # First we'll build a dict D {time: {task_name: util}} where D[t][n] is
         # the expected utilization of task n from time t.
-        for task, params in self.rtapp_profile.iteritems():
+        for task, params in self.rtapp_profile.items():
             # time = self.get_start_time(experiment) + params.get('delay', 0)
             time = params.delay_s
             add_transition(time, task, 0)
@@ -146,7 +146,7 @@ class EASBehaviour(RTATestBundle):
         :returns: A Pandas DataFrame with a column for each task, showing the
                   CPU that the task was "on" at each moment in time
         """
-        tasks = self.rtapp_profile.keys()
+        tasks = list(self.rtapp_profile.keys())
 
         df = self.trace.ftrace.sched_switch.data_frame[['next_comm', '__cpu']]
         df = df[df['next_comm'].isin(tasks)]
@@ -191,7 +191,7 @@ class EASBehaviour(RTATestBundle):
             # Grey-out areas where utilization == 0
             ffill = False
             prev = 0.0
-            for time, util in tdf.iteritems():
+            for time, util in tdf.items():
                 if ffill:
                     ax[cpu].axvspan(prev, time, facecolor='gray', alpha=0.1, linewidth=0.0)
                     ffill = False
@@ -230,7 +230,7 @@ class EASBehaviour(RTATestBundle):
             task_utils = row.to_dict()
             expected_utils = self.nrg_model.get_optimal_placements(task_utils)[0]
             power = self.nrg_model.estimate_from_cpu_util(expected_utils)
-            columns = power.keys()
+            columns = list(power.keys())
 
             # Assemble a dataframe to plot the expected utilization
             data.append(expected_utils)
@@ -260,7 +260,7 @@ class EASBehaviour(RTATestBundle):
         task_cpu_df = self._get_task_cpu_df()
         task_utils_df = self._get_expected_task_utils_df()
         task_utils_df.index = [time + self._get_start_time() for time in task_utils_df.index]
-        tasks = self.rtapp_profile.keys()
+        tasks = list(self.rtapp_profile.keys())
 
         # Create a combined DataFrame with the utilization of a task and the CPU
         # it was running on at each moment. Looks like:
@@ -282,7 +282,7 @@ class EASBehaviour(RTATestBundle):
                 if not isnan(cpu):
                     cpu_utils[int(cpu)] += util
             power = self.nrg_model.estimate_from_cpu_util(cpu_utils)
-            columns = power.keys()
+            columns = list(power.keys())
             return pd.Series([power[c] for c in columns], index=columns)
         return self._sort_power_df_columns(df.apply(est_power, axis=1))
 
@@ -487,7 +487,7 @@ class EnergyModelWakeMigration(EASBehaviour):
     def create_rtapp_profile(cls, te):
         rtapp_profile = {}
         capacities = te.target.sched.get_capacities()
-        bigs = [cpu for cpu, capacity in capacities.items()
+        bigs = [cpu for cpu, capacity in list(capacities.items())
                 if capacity == cls.max_cpu_capacity(te)]
 
         start_pct = cls.unscaled_utilization(cls.min_cpu_capacity(te), 20)

@@ -173,7 +173,7 @@ class TestOptimalPlacement(TestCase):
                                                    [0, 0, 0, 350]])
 
     def test_packing(self):
-        tasks = {'task' + str(i) : 10 for i in range(5)}
+        tasks = {'task' + str(i) : 10 for i in list(range(5))}
         placements = em.get_optimal_placements(tasks)
         total_util = sum(tasks.values())
         self.assertPlacementListEqual(placements, [[total_util, 0, 0, 0],
@@ -187,7 +187,7 @@ class TestOptimalPlacement(TestCase):
         total_cap = 400 * 2 + 200 * 2
         task_size = 200
         tasks = {'task' + str(i): task_size
-                 for i in range((total_cap / task_size) + 1)}
+                 for i in list(range((total_cap / task_size) + 1))}
         self.assertRaises(EnergyModelCapacityError,
                           em.get_optimal_placements, tasks)
 
@@ -222,7 +222,7 @@ class TestEnergyEst(TestCase):
             (0, 1): { 'active': little_cluster, 'idle': 0},
             (2, 3): { 'active': big_cluster, 'idle': 0}
         }
-        for k, v in power.iteritems():
+        for k, v in power.items():
             self.assertAlmostEqual(v, power[k])
 
     def test_all_idle(self):
@@ -303,7 +303,7 @@ class TestGetCpuCapacity(TestCase):
         for node in em.root.iter_leaves():
             [cpu] = node.cpus
             self.assertEqual(em.get_cpu_capacity(cpu), node.max_capacity)
-            for freq, active_state in node.active_states.iteritems():
+            for freq, active_state in node.active_states.items():
                 self.assertEqual(em.get_cpu_capacity(cpu, freq),
                                  active_state.capacity)
 

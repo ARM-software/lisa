@@ -102,7 +102,7 @@ class Sysbench(Workload):
             command = "{} --max-requests={}".format(command, max_requests)
 
         extra_args = " ".join(["--{}={}".format(arg.replace("_", "-"), value)
-                               for arg, value in kwargs.items()])
+                               for arg, value in list(kwargs.items())])
         if extra_args:
             command = "{} {}".format(command, extra_args)
 

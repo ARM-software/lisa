@@ -74,7 +74,7 @@ class Workload(object):
                 cls._availables[sc.__name__.lower()] = sc
 
         _log.info('Supported workloads available on target:')
-        _log.info('  %s', ', '.join(cls._availables.keys()))
+        _log.info('  %s', ', '.join(list(cls._availables.keys())))
 
     @classmethod
     def getInstance(cls, test_env, name):

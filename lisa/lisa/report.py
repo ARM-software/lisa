@@ -76,7 +76,7 @@ class Report(object):
 
     def __rtapp_report(self, formats):
 
-        if 'rtapp' not in self.results.keys():
+        if 'rtapp' not in list(self.results.keys()):
             self._log.debug('No RTApp workloads to report')
             return
 
@@ -88,25 +88,25 @@ class Report(object):
             prf_lable = 'Performance Indexes (Absolute)'
             self._log.info('')
             self._log.info('Absolute comparisions:')
-            print ''
+            print('')
         else:
             nrg_lable = 'Energy Indexes (Relative)'
             prf_lable = 'Performance Indexes (Relative)'
             self._log.info('')
             self._log.info('Relative comparisions:')
-            print ''
+            print('')
 
         # Dump headers
-        print '{:13s}   {:20s} |'\
+        print('{:13s}   {:20s} |'\
                 ' {:33s} | {:54s} |'\
                 .format('Test Id', 'Comparision',
-                        nrg_lable, prf_lable)
-        print '{:13s}   {:20s} |'\
+                        nrg_lable, prf_lable))
+        print('{:13s}   {:20s} |'\
                 ' {:>10s} {:>10s} {:>10s}  |'\
                 ' {:>10s} {:>10s} {:>10s} {:>10s} {:>10s} |'\
                 .format('', '',
                         'LITTLE', 'big', 'Total',
-                        'PerfIndex', 'NegSlacks', 'EDP1', 'EDP2', 'EDP3')
+                        'PerfIndex', 'NegSlacks', 'EDP1', 'EDP2', 'EDP3'))
 
         # For each test
         _results = self.results['rtapp']
@@ -123,15 +123,15 @@ class Report(object):
                         if test_idx == base_idx:
                             continue
                         if new_test:
-                            print '{:-<37s}+{:-<35s}+{:-<56s}+'\
-                                    .format('','', '')
+                            print('{:-<37s}+{:-<35s}+{:-<56s}+'\
+                                    .format('','', ''))
                             self.__rtapp_reference(tid, base_idx)
                             new_test = False
                         if test_rexp.match(test_idx) == None:
                             continue
                         self.__rtapp_compare(tid, base_idx, test_idx, formats)
 
-        print ''
+        print('')
 
     def __rtapp_reference(self, tid, base_idx):
         _results = self.results['rtapp']
@@ -148,8 +148,8 @@ class Report(object):
         res_line += ' |'
 
         # If available, dump also performance results
-        if 'performance' not in _results[tid][base_idx].keys():
-            print res_line
+        if 'performance' not in list(_results[tid][base_idx].keys()):
+            print(res_line)
             return
 
         for pidx in ['perf_avg', 'slack_pct', 'edp1', 'edp2', 'edp3']:
@@ -168,7 +168,7 @@ class Report(object):
                 res_line += ' {0:10.2e}'.format(res_base)
                 continue
         res_line += ' |'
-        print res_line
+        print(res_line)
 
     def __rtapp_compare(self, tid, base_idx, test_idx, formats):
         _results = self.results['rtapp']
@@ -195,8 +195,8 @@ class Report(object):
         res_line += ' |'
 
         # If available, dump also performance results
-        if 'performance' not in _results[tid][base_idx].keys():
-            print res_line
+        if 'performance' not in list(_results[tid][base_idx].keys()):
+            print(res_line)
             return
 
         for pidx in ['perf_avg', 'slack_pct', 'edp1', 'edp2', 'edp3']:
@@ -224,7 +224,7 @@ class Report(object):
                     res_line += ' {0:s}'.format(TestColors.rate(speedup_pct))
 
         res_line += ' |'
-        print res_line
+        print(res_line)
 
     ############################### REPORT DEFAULT #############################
 
@@ -233,7 +233,7 @@ class Report(object):
         # Build list of workload types which can be rendered using the default parser
         wtypes = []
         for supported_wtype in DEFAULT_WTYPES:
-            if supported_wtype in self.results.keys():
+            if supported_wtype in list(self.results.keys()):
                 wtypes.append(supported_wtype)
 
         if len(wtypes) == 0:
@@ -248,25 +248,25 @@ class Report(object):
             prf_lable = 'Performance Indexes (Absolute)'
             self._log.info('')
             self._log.info('Absolute comparisions:')
-            print ''
+            print('')
         else:
             nrg_lable = 'Energy Indexes (Relative)'
             prf_lable = 'Performance Indexes (Relative)'
             self._log.info('')
             self._log.info('Relative comparisions:')
-            print ''
+            print('')
 
         # Dump headers
-        print '{:9s}   {:20s} |'\
+        print('{:9s}   {:20s} |'\
                 ' {:33s} | {:54s} |'\
                 .format('Test Id', 'Comparision',
-                        nrg_lable, prf_lable)
-        print '{:9s}   {:20s} |'\
+                        nrg_lable, prf_lable))
+        print('{:9s}   {:20s} |'\
                 ' {:>10s} {:>10s} {:>10s}  |'\
                 ' {:>10s} {:>10s} {:>10s} {:>10s} {:>10s} |'\
                 .format('', '',
                         'LITTLE', 'big', 'Total',
-                        'Perf', 'CTime', 'EDP1', 'EDP2', 'EDP3')
+                        'Perf', 'CTime', 'EDP1', 'EDP2', 'EDP3'))
 
         # For each default test
         for wtype in wtypes:
@@ -284,14 +284,14 @@ class Report(object):
                             if test_idx == base_idx:
                                 continue
                             if new_test:
-                                print '{:-<37s}+{:-<35s}+{:-<56s}+'\
-                                        .format('','', '')
+                                print('{:-<37s}+{:-<35s}+{:-<56s}+'\
+                                        .format('','', ''))
                                 new_test = False
                             if not test_rexp.match(test_idx):
                                 continue
                             self.__default_compare(wtype, tid, base_idx, test_idx, formats)
 
-        print ''
+        print('')
 
     def __default_compare(self, wtype, tid, base_idx, test_idx, formats):
         _results = self.results[wtype]
@@ -328,8 +328,8 @@ class Report(object):
         res_line += ' |'
 
         # If available, dump also performance results
-        if 'performance' not in _results[tid][base_idx].keys():
-            print res_line
+        if 'performance' not in list(_results[tid][base_idx].keys()):
+            print(res_line)
             return
 
         for pidx in ['perf_avg', 'ctime_avg', 'edp1', 'edp2', 'edp3']:
@@ -363,7 +363,7 @@ class Report(object):
                         speedup_pct =  100.0 * speedup_cnt / res_base
                 res_line += ' {0:s}'.format(TestColors.rate(speedup_pct))
         res_line += ' |'
-        print res_line
+        print(res_line)
 
 # List of workload types which can be parsed using the default test parser
 DEFAULT_WTYPES = ['perf_bench_messaging', 'perf_bench_pipe']

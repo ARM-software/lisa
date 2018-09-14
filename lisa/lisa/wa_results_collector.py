@@ -129,7 +129,7 @@ class WaResultsCollector(object):
 
         if base_dir:
             base_dir = os.path.expanduser(base_dir)
-            if not isinstance(wa_dirs, basestring):
+            if not isinstance(wa_dirs, str):
                 raise ValueError(
                     'If base_dir is provided, wa_dirs should be a regexp')
             regex = wa_dirs
@@ -166,8 +166,8 @@ class WaResultsCollector(object):
                 if ref:
                     kernel_refs[sha1] = ref
 
-        common_prefix = os.path.commonprefix(kernel_refs.values())
-        for sha1, ref in kernel_refs.iteritems():
+        common_prefix = os.path.commonprefix(list(kernel_refs.values()))
+        for sha1, ref in kernel_refs.items():
             kernel_refs[sha1] = ref[len(common_prefix):]
 
         df['kernel'] = df['kernel_sha1'].replace(kernel_refs)
@@ -306,7 +306,7 @@ class WaResultsCollector(object):
                 # different workload parameters will be amalgamated.
                 test = workload
 
-            rich_tag = ';'.join('{}={}'.format(k, v) for k, v in classifiers.iteritems())
+            rich_tag = ';'.join('{}={}'.format(k, v) for k, v in iter(classifiers.items()))
             tag = classifiers.get('tag', rich_tag)
 
             if job_id in tag_map:
@@ -361,7 +361,7 @@ class WaResultsCollector(object):
         if extra_dfs:
             df = df.append(extra_dfs)
 
-        for iteration, job_ids in skipped_jobs.iteritems():
+        for iteration, job_ids in skipped_jobs.items():
             self._log.warning("Skipped failed iteration %d for jobs:", iteration)
             self._log.warning("   %s", ', '.join(job_ids))
 
@@ -408,7 +408,7 @@ class WaResultsCollector(object):
 
         clusters = trace.platform.get('clusters')
         if clusters:
-            for cluster in clusters.values():
+            for cluster in list(clusters.values()):
                 name = '-'.join(str(c) for c in cluster)
 
                 df = trace.data_frame.cluster_frequency_residency(cluster)
@@ -433,7 +433,7 @@ class WaResultsCollector(object):
                                 get_cpu_time(trace, cluster), 'cpu-seconds'))
 
         metrics.append(('cpu_time_total',
-                        get_cpu_time(trace, range(trace.platform['cpus_count'])),
+                        get_cpu_time(trace, list(range(trace.platform['cpus_count']))),
                         'cpu-seconds'))
 
         event = None
@@ -515,7 +515,7 @@ class WaResultsCollector(object):
         # that was used, which WA doesn't currently report directly.
         # TODO: once WA's reporting of this data has been cleaned up a bit I
         # think we can simplify this.
-        for artifact_name, path in artifacts.iteritems():
+        for artifact_name, path in artifacts.items():
             if os.stat(path).st_size == 0:
                 self._log.info(" no data for %s",  path)
                 continue
@@ -723,7 +723,7 @@ class WaResultsCollector(object):
         gb = df.groupby(by)
 
         # Convert the groupby into a DataFrame with a column for each group
-        max_group_size = max(len(group) for group in gb.groups.itervalues())
+        max_group_size = max(len(group) for group in iter(gb.groups.values()))
         _df = pd.DataFrame()
         for group_name, group in gb:
             # Need to pad the group's column so that they all have the same
@@ -1195,6 +1195,6 @@ class WaResultsCollector(object):
 
         if not artifact_name in artifacts:
             raise ValueError("No '{}' artifact found in {} (have {})".format(
-                artifact_name, job_dir, artifacts.keys()))
+                artifact_name, job_dir, list(artifacts.keys())))
 
         return artifacts[artifact_name]

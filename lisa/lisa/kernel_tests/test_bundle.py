@@ -79,14 +79,14 @@ class ResultBundle(object):
         self.passed = passed
         self.metrics = {}
 
-    def __nonzero__(self):
+    def __bool__(self):
         return self.passed
 
     def __str__(self):
         res = ''
         if self.metrics:
             metrics_str = ', '.join(
-                ['{} = {}'.format(key, val) for key, val in self.metrics.items()])
+                ['{} = {}'.format(key, val) for key, val in list(self.metrics.items())])
             res = metrics_str
 
         return res
@@ -337,7 +337,7 @@ class RTATestBundle(TestBundle):
 
             slacks[task] = bad_activations_pct
 
-        for task, slack in slacks.iteritems():
+        for task, slack in slacks.items():
             res.add_metric("slack_{}".format(task), slack, '%')
 
         return res

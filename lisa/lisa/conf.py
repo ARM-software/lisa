@@ -120,7 +120,7 @@ class JsonConf(object):
         """
         Pretty-print content of parsed JSON
         """
-        print json.dumps(self.json, indent=4)
+        print(json.dumps(self.json, indent=4))
 
 # Regular expression for comments
 JSON_COMMENTS_RE = re.compile(

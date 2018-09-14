@@ -110,7 +110,7 @@ class UiBench(Workload):
                 actions = self.test_actions[test_name]
         # Format actions as a list if it is just a single string item,
         # or an empty list if it is None
-        actions = [actions] if isinstance(actions, basestring) else actions if actions else []
+        actions = [actions] if isinstance(actions, str) else actions if actions else []
 
         # Keep track of mandatory parameters
         self.out_dir = out_dir

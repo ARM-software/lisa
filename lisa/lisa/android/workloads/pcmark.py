@@ -102,7 +102,7 @@ class PCMark(Workload):
         # Force screen in PORTRAIT mode
         Screen.set_orientation(self._target, portrait=True)
 
-        monitor = self._target.get_logcat_monitor(REGEXPS.values())
+        monitor = self._target.get_logcat_monitor(list(REGEXPS.values()))
 
         # Start PCMark on the target device
         System.start_activity(self._target, self.package, self.activity)

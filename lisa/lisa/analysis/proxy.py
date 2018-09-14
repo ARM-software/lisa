@@ -60,7 +60,7 @@ class AnalysisProxy(object):
                 except Exception:
                     logger = logging.getLogger('Analysis {} not found'.format(attr))
                     logger.debug('Registered analysis:')
-                    for name, cls in self._class_map.items():
+                    for name, cls in list(self._class_map.items()):
                         try:
                             src_file = inspect.getsourcefile(cls)
                         except TypeError:

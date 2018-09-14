@@ -21,7 +21,7 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import pylab as pl
 
-from base import AnalysisBase
+from .base import AnalysisBase
 
 
 class EasAnalysis(AnalysisBase):
@@ -128,8 +128,8 @@ class EasAnalysis(AnalysisBase):
         axes = plt.subplot(gs[1, :])
         axes.set_title('Energy vs Capacity Variations')
 
-        colors_labels = zip('gbyr', ['Optimal Accept', 'SchedTune Accept',
-                                     'SchedTune Reject', 'Suboptimal Reject'])
+        colors_labels = list(zip('gbyr', ['Optimal Accept', 'SchedTune Accept',
+                                     'SchedTune Reject', 'Suboptimal Reject']))
         for color, label in colors_labels:
             subset = df[df.nrg_payoff_group == label]
             if len(subset) == 0:
@@ -315,8 +315,8 @@ class EasAnalysis(AnalysisBase):
         # Plot: per usage_delta values
         axes = plt.subplot(gs[0, 1])
 
-        colors_labels = zip('gbyr', ['Optimal Accept', 'SchedTune Accept',
-                                     'SchedTune Reject', 'Suboptimal Reject'])
+        colors_labels = list(zip('gbyr', ['Optimal Accept', 'SchedTune Accept',
+                                     'SchedTune Reject', 'Suboptimal Reject']))
         for color, label in colors_labels:
             subset = df[df.nrg_payoff_group == label]
             if len(subset) == 0:

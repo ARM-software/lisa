@@ -54,7 +54,7 @@ class CpusAnalysis(AnalysisBase):
             return None
 
         sched_df = self._dfg_trace_event('sched_switch')
-        cpus = range(self._platform['cpus_count'])
+        cpus = list(range(self._platform['cpus_count']))
         ctx_sw_df = pd.DataFrame(
             [len(sched_df[sched_df['__cpu'] == cpu]) for cpu in cpus],
             index=cpus,
@@ -79,7 +79,7 @@ class CpusAnalysis(AnalysisBase):
                               'get CPU wakeup events.')
             return None
 
-        cpus = cpus or range(self._trace.platform['cpus_count'])
+        cpus = cpus or list(range(self._trace.platform['cpus_count']))
 
         sr = pd.Series()
         for cpu in cpus:

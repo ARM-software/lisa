@@ -82,13 +82,13 @@ class Test(object):
 
         # Create required JSON entries
         wtype = match.group(1)
-        if wtype not in res.keys():
+        if wtype not in list(res.keys()):
             res[wtype] = {}
         wload_idx = match.group(3)
-        if wload_idx not in res[wtype].keys():
+        if wload_idx not in list(res[wtype].keys()):
             res[wtype][wload_idx] = {}
         conf_idx = match.group(2)
-        if conf_idx not in res[wtype][wload_idx].keys():
+        if conf_idx not in list(res[wtype][wload_idx].keys()):
             res[wtype][wload_idx][conf_idx] = {}
 
         # Set the workload type for this test

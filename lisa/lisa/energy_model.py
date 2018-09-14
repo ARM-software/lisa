@@ -63,7 +63,7 @@ def read_multiple_oneline_files(target, glob_patterns):
     if len(contents) != len(paths):
         raise RuntimeError('File count mismatch while reading multiple files')
 
-    return dict(zip(paths, contents))
+    return dict(list(zip(paths, contents)))
 
 class EnergyModelCapacityError(Exception):
     """Used by :meth:`EnergyModel.get_optimal_placements`"""
@@ -79,12 +79,12 @@ class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
         return super(ActiveState, cls).__new__(cls, capacity, power)
 
     # helpers for yaml serialization
-    yaml_tag = u'em_active_state:capacity,power'
+    yaml_tag = 'em_active_state:capacity,power'
 
     @classmethod
     def to_yaml(cls, representer, node):
         return representer.represent_scalar(cls.yaml_tag,
-                u'{.capacity},{.power}'.format(node, node))
+                '{.capacity},{.power}'.format(node, node))
 
     @classmethod
     def from_yaml(cls, constructor, node):
@@ -176,18 +176,18 @@ class EnergyModelNode(_CpuTree):
 
         def is_monotonic(l, decreasing=False):
             op = operator.ge if decreasing else operator.le
-            return all(op(a, b) for a, b in zip(l, l[1:]))
+            return all(op(a, b) for a, b in list(zip(l, l[1:])))
 
         if active_states:
             # Sanity check for active_states's frequencies
-            freqs = active_states.keys()
+            freqs = list(active_states.keys())
             if not is_monotonic(freqs):
                 _log.warning(
                     'Active states frequencies are expected to be '
                     'monotonically increasing. Freqs: {}'.format(freqs))
 
             # Sanity check for active_states's powers
-            power_vals = [s.power for s in active_states.values()]
+            power_vals = [s.power for s in list(active_states.values())]
             if not is_monotonic(power_vals):
                 _log.warning(
                     'Active states powers are expected to be '
@@ -200,7 +200,7 @@ class EnergyModelNode(_CpuTree):
                 raise ValueError(f.format(type(self.idle_states)))
 
             # Sanity check for idle_states powers
-            power_vals = idle_states.values()
+            power_vals = list(idle_states.values())
             if not is_monotonic(power_vals, decreasing=True):
                 _log.warning(
                     'Idle states powers are expected to be '
@@ -216,14 +216,14 @@ class EnergyModelNode(_CpuTree):
     @property
     def max_capacity(self):
         """Compute capacity at highest frequency"""
-        return max(s.capacity for s in self.active_states.values())
+        return max(s.capacity for s in list(self.active_states.values()))
 
     def idle_state_by_idx(self, idx):
         """Return the idle state with index ``idx``"""
         # NB self.idle_states must be ordered for this to work. __init__
         # enforces that it is an OrderedDict
         if self.idle_states and idx < len(self.idle_states):
-            return self.idle_states.keys()[idx]
+            return list(self.idle_states.keys())[idx]
 
         raise KeyError('No idle state with index {}'.format(idx))
 
@@ -516,7 +516,7 @@ class EnergyModel(object):
 
         """
         states = self._guess_idle_states(cpus_active)
-        return [s or c.idle_states.keys()[0]
+        return [s or list(c.idle_states.keys())[0]
                 for s, c in zip(states, self.cpu_nodes)]
 
     def _guess_freqs(self, cpu_utils):
@@ -528,7 +528,7 @@ class EnergyModel(object):
             [cpu] = node.cpus
             required_cap = cpu_utils[cpu]
 
-            possible_freqs = [f for f, s in node.active_states.iteritems()
+            possible_freqs = [f for f, s in node.active_states.items()
                               if s.capacity >= required_cap]
 
             if possible_freqs:
@@ -692,7 +692,7 @@ class EnergyModel(object):
                   that result in the same CPU utilizations are considered
                   equivalent.
         """
-        tasks = capacities.keys()
+        tasks = list(capacities.keys())
 
         num_candidates = len(self.cpus) ** len(tasks)
 
@@ -704,10 +704,10 @@ class EnergyModel(object):
         candidates = {}
         excluded = []
         for cpus in product(self.cpus, repeat=len(tasks)):
-            placement = {task: cpu for task, cpu in zip(tasks, cpus)}
+            placement = {task: cpu for task, cpu in list(zip(tasks, cpus))}
 
             util = [0 for _ in self.cpus]
-            for task, cpu in placement.items():
+            for task, cpu in list(placement.items()):
                 util[cpu] += capacities[task]
             util = tuple(util)
 
@@ -732,8 +732,8 @@ class EnergyModel(object):
                     sum(capacities.values())))
 
         # Whittle down to those that give the lowest energy estimate
-        min_power = min(p for p in candidates.itervalues())
-        ret = [u for u, p in candidates.iteritems() if p == min_power]
+        min_power = min(p for p in iter(candidates.values()))
+        ret = [u for u, p in candidates.items() if p == min_power]
 
         _log.debug('%14s - Done', 'EnergyModel')
         return ret
@@ -747,7 +747,7 @@ class EnergyModel(object):
         :returns: A list of tuples of ints, representing the partition of core
                   siblings
         """
-        cpus = range(target.number_of_cpus)
+        cpus = list(range(target.number_of_cpus))
 
         topology_base = '/sys/devices/system/cpu/'
 
@@ -765,7 +765,7 @@ class EnergyModel(object):
 
         ret = set()
 
-        for path, mask_str in file_values.iteritems():
+        for path, mask_str in file_values.items():
             match = regex.match(path)
             cpu = int(match.groups()[0])
             level = match.groups()[1]
@@ -841,13 +841,13 @@ class EnergyModel(object):
                               'at {} in sysfs.'.format(directory))
 
         cpu_to_fdom = {}
-        for fd, fields in sysfs_em.iteritems():
+        for fd, fields in sysfs_em.items():
             cpus = ranges_to_list(fields["cpus"])
             for cpu in cpus:
                 cpu_to_fdom[cpu] = fd
             sysfs_em[fd]['cpus'] = cpus
-            sysfs_em[fd]['frequency'] = map(int, sysfs_em[fd]['frequency'].split(' '))
-            sysfs_em[fd]['power'] =  map(int, sysfs_em[fd]['power'].split(' '))
+            sysfs_em[fd]['frequency'] = list(map(int, sysfs_em[fd]['frequency'].split(' ')))
+            sysfs_em[fd]['power'] =  list(map(int, sysfs_em[fd]['power'].split(' ')))
 
             # Compute the capacity of the CPUs at each OPP with a linerar
             # mapping to the frequencies
@@ -859,9 +859,9 @@ class EnergyModel(object):
 
         def read_active_states(cpu):
             fd = sysfs_em[cpu_to_fdom[cpu]]
-            cstates = zip(fd['capacity'], fd['power'])
+            cstates = list(zip(fd['capacity'], fd['power']))
             active_states = [ActiveState(c, p) for c, p in cstates]
-            return OrderedDict(zip(fd['frequency'], active_states))
+            return OrderedDict(list(zip(fd['frequency'], active_states)))
 
         def read_idle_states(cpu):
             # idle states are not supported in the new model
@@ -870,7 +870,7 @@ class EnergyModel(object):
             return OrderedDict((name, 0) for name in names)
 
         # Read the CPU-level data
-        cpus = range(target.number_of_cpus)
+        cpus = list(range(target.number_of_cpus))
         cpu_nodes = []
         for cpu in cpus:
             node = EnergyModelNode(
@@ -963,7 +963,7 @@ class EnergyModel(object):
                           for c, p in zip(cap_states_strs[0::2],
                                           cap_states_strs[1::2])]
             freqs = target.cpufreq.list_frequencies(cpu)
-            return OrderedDict(zip(sorted(freqs), cap_states))
+            return OrderedDict(list(zip(sorted(freqs), cap_states)))
 
         def read_idle_states(cpu, domain_level):
             idle_states_path = sge_path(cpu, domain_level, 0, 'idle_states')
@@ -973,10 +973,10 @@ class EnergyModel(object):
             names = [s.name for s in target.cpuidle.get_states(cpu)]
             # idle_states is a list of power values in increasing order of
             # idle-depth/decreasing order of power.
-            return OrderedDict(zip(names, [int(p) for p in idle_states_strs]))
+            return OrderedDict(list(zip(names, [int(p) for p in idle_states_strs])))
 
         # Read the CPU-level data from sched_domain level 0
-        cpus = range(target.number_of_cpus)
+        cpus = list(range(target.number_of_cpus))
         cpu_nodes = []
         for cpu in cpus:
             node = EnergyModelNode(
@@ -1170,7 +1170,7 @@ class EnergyModel(object):
             # (i.e. df[(0, 1)] sometimes means df[0][1]). So we'll give them
             # awkward names.
 
-            nrg = {'-'.join(str(c) for c in k): v for k, v in nrg.iteritems()}
+            nrg = {'-'.join(str(c) for c in k): v for k, v in iter(nrg.items())}
 
             ret = pd.Series(nrg)
             memo_cache[memo_key] = ret
