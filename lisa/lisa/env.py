@@ -644,12 +644,12 @@ class TestEnv(Loggable):
         """
 
         time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-            if not name:
+        if not name:
             name = time_str
         elif name and append_time:
             name = "{}-{}".format(name, time_str)
 
-            res_dir = os.path.join(basepath, OUT_PREFIX, name)
+        res_dir = os.path.join(basepath, OUT_PREFIX, name)
 
         # Relative paths are interpreted as relative to a fixed root.
         if not os.path.isabs(res_dir):
@@ -659,7 +659,7 @@ class TestEnv(Loggable):
             os.makedirs(res_dir)
 
         if symlink:
-        res_lnk = os.path.join(basepath, LATEST_LINK)
+            res_lnk = os.path.join(basepath, LATEST_LINK)
         if os.path.islink(res_lnk):
             os.remove(res_lnk)
         os.symlink(res_dir, res_lnk)
