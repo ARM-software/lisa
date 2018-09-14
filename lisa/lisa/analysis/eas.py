@@ -21,7 +21,7 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import pylab as pl
 
-from .base import AnalysisBase
+from lisa.analysis.base import AnalysisBase
 
 
 class EasAnalysis(AnalysisBase):

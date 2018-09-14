@@ -16,6 +16,7 @@
 #
 
 import logging
+from collections import namedtuple
 
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
@@ -26,6 +27,8 @@ from trappy.utils import listify
 
 """ Helper module for Analysis classes """
 
+ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
+ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
 
 class AnalysisBase(object):
     """

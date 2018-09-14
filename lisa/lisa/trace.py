@@ -27,7 +27,6 @@ import warnings
 import operator
 import logging
 import webbrowser
-from collections import namedtuple
 
 from lisa.analysis.proxy import AnalysisProxy
 from devlib.utils.misc import memoized
@@ -37,8 +36,6 @@ from functools import reduce
 
 
 NON_IDLE_STATE = -1
-ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
-ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
 
 class Trace(object):
     """
