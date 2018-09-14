@@ -128,8 +128,8 @@ class TestEnv(Loggable):
         self._post_target_init()
 
     def _load_em(self, board):
-        em_path = os.path.join(basepath,
-                'libs/utils/platforms', board.lower() + '.json')
+        em_path = os.path.join(
+            basepath, 'libs/utils/platforms', board.lower() + '.json')
         self.logger.debug('Trying to load default EM from %s', em_path)
         if not os.path.exists(em_path):
             return None
@@ -142,8 +142,8 @@ class TestEnv(Loggable):
         return board.json['nrg_model']
 
     def _load_board(self, board):
-        board_path = os.path.join(basepath,
-                'libs/utils/platforms', board.lower() + '.json')
+        board_path = os.path.join(
+            basepath, 'libs/utils/platforms', board.lower() + '.json')
         self.logger.debug('Trying to load board descriptor from %s', board_path)
         if not os.path.exists(board_path):
             return None
@@ -157,7 +157,7 @@ class TestEnv(Loggable):
 
     def _build_topology(self):
         # Initialize target Topology for behavior analysis
-        CLUSTERS = []
+        clusters = []
 
         # Build topology for a big.LITTLE systems
         if self.target.big_core and \
@@ -165,23 +165,23 @@ class TestEnv(Loggable):
             # Populate cluster for a big.LITTLE platform
             if self.target.big_core:
                 # Load cluster of LITTLE cores
-                CLUSTERS.append(
-                    [i for i,t in enumerate(self.target.core_names)
-                                if t == self.target.little_core])
+                clusters.append(
+                    [i for i, t in enumerate(self.target.core_names)
+                     if t == self.target.little_core])
                 # Load cluster of big cores
-                CLUSTERS.append(
-                    [i for i,t in enumerate(self.target.core_names)
-                                if t == self.target.big_core])
+                clusters.append(
+                    [i for i, t in enumerate(self.target.core_names)
+                     if t == self.target.big_core])
         # Build topology for an SMP systems
         elif not self.target.big_core or \
              self.target.abi == 'x86_64':
-            for c in set(self.target.core_clusters):
-                CLUSTERS.append(
-                    [i for i,v in enumerate(self.target.core_clusters)
-                                if v == c])
-        self.topology = Topology(clusters=CLUSTERS)
+            for core in set(self.target.core_clusters):
+                clusters.append(
+                    [i for i, v in enumerate(self.target.core_clusters)
+                     if v == core])
+        self.topology = Topology(clusters=clusters)
         self.logger.info('Topology:')
-        self.logger.info('   %s', CLUSTERS)
+        self.logger.info('   %s', clusters)
 
     def _init_platform_bl(self):
         self.platform = {
@@ -203,7 +203,7 @@ class TestEnv(Loggable):
             'clusters' : {},
             'freqs' : {}
         }
-        for cpu_id,node_id in enumerate(self.target.core_clusters):
+        for cpu_id, node_id in enumerate(self.target.core_clusters):
             if node_id not in self.platform['clusters']:
                 self.platform['clusters'][node_id] = []
             self.platform['clusters'][node_id].append(cpu_id)
@@ -224,7 +224,7 @@ class TestEnv(Loggable):
     def _get_clusters(self, core_names):
         idx = 0
         clusters = []
-        ids_map = { core_names[0] : 0 }
+        ids_map = {core_names[0] : 0}
         for name in core_names:
             idx = ids_map.get(name, idx+1)
             ids_map[name] = idx
@@ -252,8 +252,8 @@ class TestEnv(Loggable):
 
         # Adding kernel build information
         kver = self.target.kernel_version
-        self.platform['kernel'] = {t: getattr(kver, t, None)
-            for t in [
+        self.platform['kernel'] = {
+            t: getattr(kver, t, None) for t in [
                 'release', 'version',
                 'version_number', 'major', 'minor',
                 'rc', 'sha1', 'parts'
@@ -303,7 +303,7 @@ class TestEnv(Loggable):
         else:
             target_conf = os.environ.get('LISA_TARGET_CONF', '')
             self.logger.info('Loading [%s] target configuration',
-                    target_conf or 'default')
+                             target_conf or 'default')
             self.conf = self.load_target_config(target_conf)
 
         self.logger.debug('Target configuration %s', self.conf)
@@ -398,7 +398,7 @@ class TestEnv(Loggable):
         # Initialized HiKey board
         elif board_name == 'HIKEY':
             self.nrg_model = hikey_energy
-            self.__modules = [ "cpufreq", "cpuidle" ]
+            self.__modules = ["cpufreq", "cpuidle"]
             platform = Platform(model='hikey')
 
         # Initialize HiKey960 board
@@ -414,7 +414,7 @@ class TestEnv(Loggable):
 
         # Initialize gem5 platform
         elif board_name == 'GEM5':
-            self.__modules=['cpufreq']
+            self.__modules = ['cpufreq']
             platform = self._init_target_gem5()
 
         elif board_name != 'UNKNOWN':
@@ -425,7 +425,7 @@ class TestEnv(Loggable):
                 platform = Platform(
                     model=self.conf['board'],
                     core_names=core_names,
-                    core_clusters = self._get_clusters(core_names),
+                    core_clusters=self._get_clusters(core_names),
                     big_core=board.get('big_core', None)
                 )
                 if 'modules' in board:
@@ -474,7 +474,7 @@ class TestEnv(Loggable):
             self.logger.info('Connecting %s target:', platform_type)
             for key in self.__connection_settings:
                 self.logger.info('%10s : %s', key,
-                               self.__connection_settings[key])
+                                 self.__connection_settings[key])
 
         self.logger.info('Connection settings:')
         self.logger.info('   %s', self.__connection_settings)
@@ -485,28 +485,32 @@ class TestEnv(Loggable):
                 raise ValueError('Missing "host" param in Linux target conf')
 
             self.target = devlib.LinuxTarget(
-                    platform = platform,
-                    connection_settings = self.__connection_settings,
-                    working_directory = self.workdir,
-                    load_default_modules = False,
-                    modules = self.__modules)
+                platform=platform,
+                connection_settings=self.__connection_settings,
+                working_directory=self.workdir,
+                load_default_modules=False,
+                modules=self.__modules)
+
         elif platform_type.lower() == 'android':
             self.logger.debug('Setup ANDROID target...')
+
             self.target = devlib.AndroidTarget(
-                    platform = platform,
-                    connection_settings = self.__connection_settings,
-                    working_directory = self.workdir,
-                    load_default_modules = False,
-                    modules = self.__modules)
+                platform=platform,
+                connection_settings=self.__connection_settings,
+                working_directory=self.workdir,
+                load_default_modules=False,
+                modules=self.__modules)
+
         elif platform_type.lower() == 'host':
             self.logger.debug('Setup HOST target...')
+
             self.target = devlib.LocalLinuxTarget(
-                    platform = platform,
-                    working_directory = '/tmp/devlib-target',
-                    executables_directory = '/tmp/devlib-target/bin',
-                    load_default_modules = False,
-                    modules = self.__modules,
-                    connection_settings = {'unrooted': True})
+                platform=platform,
+                working_directory='/tmp/devlib-target',
+                executables_directory='/tmp/devlib-target/bin',
+                load_default_modules=False,
+                modules=self.__modules,
+                connection_settings={'unrooted': True})
         else:
             raise ValueError('Config error: not supported [platform] type {}'\
                     .format(platform_type))
@@ -529,16 +533,16 @@ class TestEnv(Loggable):
             if not hasattr(self.target, module):
                 self.logger.warning('Unable to initialize [%s] module', module)
                 self.logger.error('Fix your target kernel configuration or '
-                                'disable module from configuration')
+                                  'disable module from configuration')
                 raise RuntimeError('Failed to initialized [{}] module, '
-                        'update your kernel or test configurations'.format(module))
+                                   'update your kernel or test configurations'.format(module))
 
         if not self.nrg_model:
             try:
                 self.logger.info('Attempting to read energy model from target')
                 self.nrg_model = EnergyModel.from_target(self.target)
-            except (TargetError, RuntimeError, ValueError) as e:
-                self.logger.error("Couldn't read target energy model: %s", e)
+            except (TargetError, RuntimeError, ValueError) as err:
+                self.logger.error("Couldn't read target energy model: %s", err)
 
     def _init_target_gem5(self):
         system = self.conf['gem5']['system']
@@ -578,14 +582,14 @@ class TestEnv(Loggable):
 
         # Merge all arguments
         platform = devlib.platform.gem5.Gem5SimulationPlatform(
-            name = 'gem5',
-            gem5_bin = simulator['bin'],
-            gem5_args = args,
-            gem5_virtio = virtio_args,
-            host_output_dir = self.get_res_dir('gem5'),
-            core_names = board['cores'] if board else None,
-            core_clusters = self._get_clusters(board['cores']) if board else None,
-            big_core = board.get('big_core', None) if board else None,
+            name='gem5',
+            gem5_bin=simulator['bin'],
+            gem5_args=args,
+            gem5_virtio=virtio_args,
+            host_output_dir=self.get_res_dir('gem5'),
+            core_names=board['cores'] if board else None,
+            core_clusters=self._get_clusters(board['cores']) if board else None,
+            big_core=board.get('big_core', None) if board else None,
         )
 
         return platform
@@ -734,11 +738,11 @@ class TestEnv(Loggable):
 
         self.ftrace = devlib.FtraceCollector(
             self.target,
-            events      = events,
-            functions   = functions,
-            buffer_size = buffsize,
-            autoreport  = False,
-            autoview    = False
+            events=events,
+            functions=functions,
+            buffer_size=buffsize,
+            autoreport=False,
+            autoview=False
         )
 
         if events:
@@ -778,17 +782,17 @@ class TestEnv(Loggable):
         if not force and 'rtapp-calib' in self.conf:
             self.logger.info('Using configuration provided RTApp calibration')
             self._calib = {
-                    int(key): int(value)
-                    for key, value in self.conf['rtapp-calib'].items()
-                }
+                int(key): int(value)
+                for key, value in self.conf['rtapp-calib'].items()
+            }
         else:
             self.logger.info('Calibrating RTApp...')
             self._calib = RTA.calibrate(self.target)
 
         self.logger.info('Using RT-App calibration values:')
         self.logger.info('   %s',
-                       "{" + ", ".join('"%r": %r' % (key, self._calib[key])
-                                       for key in sorted(self._calib)) + "}")
+                         "{" + ", ".join('"%r": %r' % (key, self._calib[key])
+                                         for key in sorted(self._calib)) + "}")
         return self._calib
 
     @contextlib.contextmanager
@@ -804,7 +808,7 @@ class TestEnv(Loggable):
         controllers = [s.name for s in self.target.cgroups.list_subsystems()]
         if 'freezer' not in controllers:
             self.logger.warning('No freezer cgroup controller on target. '
-                              'Not freezing userspace')
+                                'Not freezing userspace')
             yield
             return
 
