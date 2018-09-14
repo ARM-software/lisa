@@ -44,7 +44,7 @@ setup(
         "ruamel.yaml",
         "devlib",
         "trappy",
-        "py-bart",
+        "bart-py",
     ],
     extras_require={
         "notebook": [
