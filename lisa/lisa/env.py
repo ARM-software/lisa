@@ -41,8 +41,8 @@ FTRACE_BUFSIZE_DEFAULT = 10240
 OUT_PREFIX = 'results'
 LATEST_LINK = 'results_latest'
 
-basepath = os.path.dirname(os.path.realpath(__file__))
-basepath = basepath.replace('/libs/utils', '')
+basepath = os.getenv('LISA_HOME')
+platforms_path = os.path.join(basepath, 'lisa', 'lisa', 'platforms')
 
 class TestEnv(Loggable):
     """
@@ -129,7 +129,7 @@ class TestEnv(Loggable):
 
     def _load_em(self, board):
         em_path = os.path.join(
-            basepath, 'libs/utils/platforms', board.lower() + '.json')
+            platforms_path, board.lower() + '.json')
         self.logger.debug('Trying to load default EM from %s', em_path)
         if not os.path.exists(em_path):
             return None
@@ -143,7 +143,7 @@ class TestEnv(Loggable):
 
     def _load_board(self, board):
         board_path = os.path.join(
-            basepath, 'libs/utils/platforms', board.lower() + '.json')
+            platforms_path, board.lower() + '.json')
         self.logger.debug('Trying to load board descriptor from %s', board_path)
         if not os.path.exists(board_path):
             return None
