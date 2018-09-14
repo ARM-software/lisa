@@ -200,7 +200,7 @@ if [ "x$IPADDR" == "x" ]; then
     return 1
 fi
 # Setup paths
-PYDIR="$LISA_HOME/lisa/ipynb"
+PYDIR="$LISA_HOME/ipynb"
 LOGFILE="$PYDIR/server.log"
 PIDFILE="$PYDIR/server.pid"
 URLFILE="$PYDIR/server.url"
