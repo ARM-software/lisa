@@ -42,7 +42,7 @@ def read_multiple_oneline_files(target, glob_patterns):
     number of files.
 
     This will only work safely on stationary files, don't try to use it where
-    the glob expansion will change often - for example /proc/**/autogroup would
+    the glob expansion will change often - for example ``/proc/**/autogroup`` would
     not work because /proc/ entries will likely appear & disappear while we're
     reading them.
 
@@ -485,7 +485,7 @@ class EnergyModel(object):
         - 4 CPUs, with CPUs [0, 1] in PD0 and CPUs [2, 3] in PD1
 
         - 4 idle states: "WFI", "cpu-sleep", "cluster-sleep-0" and
-          "cluster-sleep-1", where the "cluster-sleep-*" states domain states,
+          "cluster-sleep-1", where the "cluster-sleep-\*" states domain states,
           i.e. a CPU can only enter those states when both CPUs in the domain
           are idle.
 
@@ -1109,7 +1109,7 @@ class EnergyModel(object):
         :returns: A DataFrame with a column for each node in the energy model,
                   labelled with the CPU members of the node joined by  '-'s.
                   Shows the energy use by each node at each given moment.
-                  If you don't care about those details, call ``.sum(axis=1)` on
+                  If you don't care about those details, call ``.sum(axis=1)`` on
                   the returned DataFrame to get a Series that shows overall
                   estimated power usage over time.
         """

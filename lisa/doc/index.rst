@@ -38,6 +38,7 @@ Contents:
 
    tests
    wlgen
+   internals
 
 
 Indices and tables
