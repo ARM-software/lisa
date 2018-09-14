@@ -19,14 +19,14 @@
 
 # LISA Shell: the Linux Integrated System Analysis Shell
 
-# Setup colors
-source src/shell/lisa_colors
-
 # By default use internal libraries
 DEVMODE=${DEVMODE:-1}
 
 # Get base installation path of LISA
 export LISA_HOME="$(readlink -f "$(dirname "$BASH_SOURCE")/../")"
+
+# Setup colors
+source "$LISA_HOME/lisa_shell/lisa_colors"
 
 # In devmode, we provide the lisa package and some of its dependencies within
 # the git tree
