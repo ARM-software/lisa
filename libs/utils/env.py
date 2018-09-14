@@ -17,7 +17,6 @@
 
 from datetime import datetime
 import json
-import logging
 import os
 import re
 import shutil
@@ -35,6 +34,7 @@ from wlgen import RTA
 from energy import EnergyMeter
 from energy_model import EnergyModel
 from conf import JsonConf
+from utilities import Loggable
 from platforms.juno_r0_energy import juno_r0_energy
 from platforms.hikey_energy import hikey_energy
 from platforms.pixel_energy import pixel_energy
@@ -49,7 +49,7 @@ LATEST_LINK = 'results_latest'
 basepath = os.path.dirname(os.path.realpath(__file__))
 basepath = basepath.replace('/libs/utils', '')
 
-class TestEnv(object):
+class TestEnv(Loggable):
     """
     Represents the environment configuring LISA, the target, and the test setup
 
@@ -125,11 +125,8 @@ class TestEnv(object):
     def __init__(self, target_conf=None):
         super(TestEnv, self).__init__()
 
-        # Setup logging
-        self._log = logging.getLogger('TestEnv')
-
         # Compute base installation path
-        self._log.info('Using base path: %s', basepath)
+        self.logger.info('Using base path: %s', basepath)
 
         self._pre_target_init(target_conf)
         self._init_target()
@@ -138,11 +135,11 @@ class TestEnv(object):
     def _load_em(self, board):
         em_path = os.path.join(basepath,
                 'libs/utils/platforms', board.lower() + '.json')
-        self._log.debug('Trying to load default EM from %s', em_path)
+        self.logger.debug('Trying to load default EM from %s', em_path)
         if not os.path.exists(em_path):
             return None
-        self._log.info('Loading default EM:')
-        self._log.info('   %s', em_path)
+        self.logger.info('Loading default EM:')
+        self.logger.info('   %s', em_path)
         board = JsonConf(em_path)
         board.load()
         if 'nrg_model' not in board.json:
@@ -152,11 +149,11 @@ class TestEnv(object):
     def _load_board(self, board):
         board_path = os.path.join(basepath,
                 'libs/utils/platforms', board.lower() + '.json')
-        self._log.debug('Trying to load board descriptor from %s', board_path)
+        self.logger.debug('Trying to load board descriptor from %s', board_path)
         if not os.path.exists(board_path):
             return None
-        self._log.info('Loading board:')
-        self._log.info('   %s', board_path)
+        self.logger.info('Loading board:')
+        self.logger.info('   %s', board_path)
         board = JsonConf(board_path)
         board.load()
         if 'board' not in board.json:
@@ -188,8 +185,8 @@ class TestEnv(object):
                     [i for i,v in enumerate(self.target.core_clusters)
                                 if v == c])
         self.topology = Topology(clusters=CLUSTERS)
-        self._log.info('Topology:')
-        self._log.info('   %s', CLUSTERS)
+        self.logger.info('Topology:')
+        self.logger.info('   %s', CLUSTERS)
 
     def _init_platform_bl(self):
         self.platform = {
@@ -223,7 +220,7 @@ class TestEnv(object):
                 self.platform['freqs'][cluster_id] = \
                     self.target.cpufreq.list_frequencies(core_id)
         else:
-            self._log.warning('Unable to identify cluster frequencies')
+            self.logger.warning('Unable to identify cluster frequencies')
 
         # TODO: get the performance boundaries in case of intel_pstate driver
 
@@ -270,7 +267,7 @@ class TestEnv(object):
         self.platform['abi'] = self.target.abi
         self.platform['os'] = self.target.os
 
-        self._log.debug('Platform descriptor initialized\n%s', self.platform)
+        self.logger.debug('Platform descriptor initialized\n%s', self.platform)
         # self.platform_dump('./')
 
     def _init_energy(self, force):
@@ -303,18 +300,18 @@ class TestEnv(object):
 
         # Setup target configuration
         if isinstance(target_conf, dict):
-            self._log.info('Loading custom (inline) target configuration')
+            self.logger.info('Loading custom (inline) target configuration')
             self.conf = target_conf
         elif isinstance(target_conf, str):
-            self._log.info('Loading %s target configuration', target_conf)
+            self.logger.info('Loading %s target configuration', target_conf)
             self.conf = self.load_target_config(target_conf)
         else:
             target_conf = os.environ.get('LISA_TARGET_CONF', '')
-            self._log.info('Loading [%s] target configuration',
+            self.logger.info('Loading [%s] target configuration',
                     target_conf or 'default')
             self.conf = self.load_target_config(target_conf)
 
-        self._log.debug('Target configuration %s', self.conf)
+        self.logger.debug('Target configuration %s', self.conf)
 
         # Setup target working directory
         if 'workdir' in self.conf:
@@ -452,7 +449,7 @@ class TestEnv(object):
         modules.difference_update(remove_modules)
 
         self.__modules = list(modules)
-        self._log.info('Devlib modules to load: %s', self.__modules)
+        self.logger.info('Devlib modules to load: %s', self.__modules)
 
         ########################################################################
         # Devlib target setup (based on target.config::platform)
@@ -477,18 +474,18 @@ class TestEnv(object):
                     port = str(self.conf['port'])
                 device = '{}:{}'.format(host, port)
                 self.__connection_settings = {'device' : device}
-            self._log.info('Connecting Android target [%s]', device)
+            self.logger.info('Connecting Android target [%s]', device)
         else:
-            self._log.info('Connecting %s target:', platform_type)
+            self.logger.info('Connecting %s target:', platform_type)
             for key in self.__connection_settings:
-                self._log.info('%10s : %s', key,
+                self.logger.info('%10s : %s', key,
                                self.__connection_settings[key])
 
-        self._log.info('Connection settings:')
-        self._log.info('   %s', self.__connection_settings)
+        self.logger.info('Connection settings:')
+        self.logger.info('   %s', self.__connection_settings)
 
         if platform_type.lower() == 'linux':
-            self._log.debug('Setup LINUX target...')
+            self.logger.debug('Setup LINUX target...')
             if "host" not in self.__connection_settings:
                 raise ValueError('Missing "host" param in Linux target conf')
 
@@ -499,7 +496,7 @@ class TestEnv(object):
                     load_default_modules = False,
                     modules = self.__modules)
         elif platform_type.lower() == 'android':
-            self._log.debug('Setup ANDROID target...')
+            self.logger.debug('Setup ANDROID target...')
             self.target = devlib.AndroidTarget(
                     platform = platform,
                     connection_settings = self.__connection_settings,
@@ -507,7 +504,7 @@ class TestEnv(object):
                     load_default_modules = False,
                     modules = self.__modules)
         elif platform_type.lower() == 'host':
-            self._log.debug('Setup HOST target...')
+            self.logger.debug('Setup HOST target...')
             self.target = devlib.LocalLinuxTarget(
                     platform = platform,
                     working_directory = '/tmp/devlib-target',
@@ -519,34 +516,34 @@ class TestEnv(object):
             raise ValueError('Config error: not supported [platform] type {}'\
                     .format(platform_type))
 
-        self._log.debug('Checking target connection...')
-        self._log.debug('Target info:')
-        self._log.debug('      ABI: %s', self.target.abi)
-        self._log.debug('     CPUs: %s', self.target.cpuinfo)
-        self._log.debug(' Clusters: %s', self.target.core_clusters)
+        self.logger.debug('Checking target connection...')
+        self.logger.debug('Target info:')
+        self.logger.debug('      ABI: %s', self.target.abi)
+        self.logger.debug('     CPUs: %s', self.target.cpuinfo)
+        self.logger.debug(' Clusters: %s', self.target.core_clusters)
 
-        self._log.info('Initializing target workdir:')
-        self._log.info('   %s', self.target.working_directory)
+        self.logger.info('Initializing target workdir:')
+        self.logger.info('   %s', self.target.working_directory)
 
         self.target.setup()
         self.install_tools(self.__tools)
 
         # Verify that all the required modules have been initialized
         for module in self.__modules:
-            self._log.debug('Check for module [%s]...', module)
+            self.logger.debug('Check for module [%s]...', module)
             if not hasattr(self.target, module):
-                self._log.warning('Unable to initialize [%s] module', module)
-                self._log.error('Fix your target kernel configuration or '
+                self.logger.warning('Unable to initialize [%s] module', module)
+                self.logger.error('Fix your target kernel configuration or '
                                 'disable module from configuration')
                 raise RuntimeError('Failed to initialized [{}] module, '
                         'update your kernel or test configurations'.format(module))
 
         if not self.nrg_model:
             try:
-                self._log.info('Attempting to read energy model from target')
+                self.logger.info('Attempting to read energy model from target')
                 self.nrg_model = EnergyModel.from_target(self.target)
             except (TargetError, RuntimeError, ValueError) as e:
-                self._log.error("Couldn't read target energy model: %s", e)
+                self.logger.error("Couldn't read target energy model: %s", e)
 
     def _init_target_gem5(self):
         system = self.conf['gem5']['system']
@@ -626,7 +623,7 @@ class TestEnv(object):
         # Loading default target configuration
         conf_file = os.path.join(basepath, filepath)
 
-        self._log.info('Loading target configuration [%s]...', conf_file)
+        self.logger.info('Loading target configuration [%s]...', conf_file)
         conf = JsonConf(conf_file)
         conf.load()
         return conf.json
@@ -750,17 +747,17 @@ class TestEnv(object):
         )
 
         if events:
-            self._log.info('Enabled tracepoints:')
+            self.logger.info('Enabled tracepoints:')
             for event in events:
-                self._log.info('   %s', event)
+                self.logger.info('   %s', event)
         if functions:
-            self._log.info('Kernel functions profiled:')
+            self.logger.info('Kernel functions profiled:')
             for function in functions:
-                self._log.info('   %s', function)
+                self.logger.info('   %s', function)
 
     def platform_dump(self, dest_dir, dest_file='platform.json'):
         plt_file = os.path.join(dest_dir, dest_file)
-        self._log.debug('Dump platform descriptor in [%s]', plt_file)
+        self.logger.debug('Dump platform descriptor in [%s]', plt_file)
         with open(plt_file, 'w') as ofile:
             json.dump(self.platform, ofile, sort_keys=True, indent=4)
         return (self.platform, plt_file)
@@ -784,17 +781,17 @@ class TestEnv(object):
             self.install_tools(required_tools)
 
         if not force and 'rtapp-calib' in self.conf:
-            self._log.info('Using configuration provided RTApp calibration')
+            self.logger.info('Using configuration provided RTApp calibration')
             self._calib = {
                     int(key): int(value)
                     for key, value in self.conf['rtapp-calib'].items()
                 }
         else:
-            self._log.info('Calibrating RTApp...')
+            self.logger.info('Calibrating RTApp...')
             self._calib = RTA.calibrate(self.target)
 
-        self._log.info('Using RT-App calibration values:')
-        self._log.info('   %s',
+        self.logger.info('Using RT-App calibration values:')
+        self.logger.info('   %s',
                        "{" + ", ".join('"%r": %r' % (key, self._calib[key])
                                        for key in sorted(self._calib)) + "}")
         return self._calib
@@ -811,20 +808,20 @@ class TestEnv(object):
 
         controllers = [s.name for s in self.target.cgroups.list_subsystems()]
         if 'freezer' not in controllers:
-            self._log.warning('No freezer cgroup controller on target. '
+            self.logger.warning('No freezer cgroup controller on target. '
                               'Not freezing userspace')
             yield
             return
 
         exclude = self.critical_tasks[self.target.os]
-        self._log.info('Freezing all tasks except: %s', ','.join(exclude))
+        self.logger.info('Freezing all tasks except: %s', ','.join(exclude))
         self.target.cgroups.freeze(exclude)
 
         try:
             yield
 
         finally:
-            self._log.info('Un-freezing userspace tasks')
+            self.logger.info('Un-freezing userspace tasks')
             self.target.cgroups.freeze(thaw=True)
 
     @contextlib.contextmanager
