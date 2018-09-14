@@ -265,8 +265,7 @@ class Trace(object):
             window_kw['abs_window'] = window
 
         # Make sure event names are not unicode strings
-        events = [e.encode('ascii') for e in self.events]
-        self.ftrace = trace_class(path, scope="custom", events=events,
+        self.ftrace = trace_class(path, scope="custom", events=self.events,
                                   normalize_time=self.normalize_time, **window_kw)
 
         # Load Functions profiling data
