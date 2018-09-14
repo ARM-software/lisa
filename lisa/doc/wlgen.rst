@@ -17,7 +17,7 @@ binaries while providing some help for managing tasksets, cgroups, and more.
 Base API
 ========
 
-.. automodule:: libs.utils.wlgen2.workload
+.. automodule:: lisa.wlgen.workload
    :members:
 
 Implemented workloads
@@ -29,7 +29,7 @@ rt-app
 Base class
 ----------
 
-.. autoclass:: libs.utils.wlgen2.rta.RTA
+.. autoclass:: lisa.wlgen.rta.RTA
    :members:
 
 rt-app profile classes
@@ -39,18 +39,18 @@ To make rt-app workload description easier, rt-app tasks can be described using
 the :meth:`RTA.by_profile` class method. This method is powered by :class:`RTATask`
 and its siblings.
 
-.. autoclass:: libs.utils.wlgen2.rta.Phase
+.. autoclass:: lisa.wlgen.rta.Phase
    :members:
 
-.. autoclass:: libs.utils.wlgen2.rta.RTATask
+.. autoclass:: lisa.wlgen.rta.RTATask
    :members:
 
-.. automodule:: libs.utils.wlgen2.rta
+.. automodule:: lisa.wlgen.rta
    :exclude-members: RTA, RTATask, Phase
    :members:
 
 sysbench
 ++++++++
 
-.. automodule:: libs.utils.wlgen2.sysbench
+.. automodule:: lisa.wlgen.sysbench
    :members:
