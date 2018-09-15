@@ -22,7 +22,7 @@ with open('README.md', 'r') as fh:
 
 setup(
     name='LISA',
-    version='yolo',
+    version='2.0',
     author='Arm Ltd',
     # TODO: figure out which email to put here
     # author_email=
