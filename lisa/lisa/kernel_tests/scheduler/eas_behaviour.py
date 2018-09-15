@@ -322,7 +322,7 @@ class EASBehaviour(RTATestBundle):
         """
         Convert a scaled utilization value to a 'raw', unscaled one.
 
-        :param capacity: The capacity of the CPU :param:`utilization_pct` is scaled
+        :param capacity: The capacity of the CPU :attr:`utilization_pct` is scaled
           against
         :type capacity: int
 
