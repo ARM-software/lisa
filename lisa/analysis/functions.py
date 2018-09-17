@@ -35,7 +35,7 @@ class FunctionsAnalysis(AnalysisBase):
     def __init__(self, trace):
         super(FunctionsAnalysis, self).__init__(trace)
 
-    def plotProfilingStats(self, functions=None, metrics='avg'):
+    def plot_profiling_stats(self, functions=None, metrics='avg'):
         """
         Plot functions profiling metrics for the specified kernel functions.
 
@@ -56,7 +56,7 @@ class FunctionsAnalysis(AnalysisBase):
             return
 
         metrics = listify(metrics)
-        df = self._trace.data_frame.functions_stats(functions)
+        df = self._trace.df_functions_stats(functions)
 
         # Check that all the required metrics are acutally availabe
         available_metrics = df.columns.tolist()

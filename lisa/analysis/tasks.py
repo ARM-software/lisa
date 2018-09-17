@@ -47,7 +47,7 @@ class TasksAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    def _dfg_top_big_tasks(self, min_samples=100, min_utilization=None):
+    def df_top_big_tasks(self, min_samples=100, min_utilization=None):
         """
         Tasks which had 'utilization' samples bigger than the specified
         threshold
@@ -59,7 +59,7 @@ class TasksAnalysis(AnalysisBase):
             default: capacity of a little cluster
         :type min_utilization: int
         """
-        if self._dfg_task_load_events() is None:
+        if self.df_load() is None:
             self._log.warning('No trace events for task signals, plot DISABLED')
             return None
 
@@ -67,7 +67,7 @@ class TasksAnalysis(AnalysisBase):
             min_utilization = self._little_cap
 
         # Get utilization samples >= min_utilization
-        df = self._dfg_task_load_events()
+        df = self.df_load()
         big_tasks_events = df[df.util_avg > min_utilization]
         if not len(big_tasks_events):
             self._log.warning('No tasks with with utilization samples > %d',
@@ -108,7 +108,7 @@ class TasksAnalysis(AnalysisBase):
 
         return big_tasks_stats
 
-    def _dfg_top_wakeup_tasks(self, min_wakeups=100):
+    def df_top_wakeup(self, min_wakeups=100):
         """
         Tasks which wakeup more frequently than a specified threshold.
 
@@ -119,7 +119,7 @@ class TasksAnalysis(AnalysisBase):
             self._log.warning('Events [sched_wakeup] not found')
             return None
 
-        df = self._dfg_trace_event('sched_wakeup')
+        df = self.df_events('sched_wakeup')
 
         # Compute number of wakeups above threshold
         wkp_tasks_stats = df.groupby('pid').describe(include=['object'])
@@ -146,7 +146,7 @@ class TasksAnalysis(AnalysisBase):
 
         return wkp_tasks_stats
 
-    def _dfg_rt_tasks(self, min_prio=100):
+    def df_rt_tasks(self, min_prio=100):
         """
         Tasks with RT priority
 
@@ -162,7 +162,7 @@ class TasksAnalysis(AnalysisBase):
             self._log.warning('Events [sched_switch] not found')
             return None
 
-        df = self._dfg_trace_event('sched_switch')
+        df = self.df_events('sched_switch')
 
         # Filters tasks which have a priority bigger than threshold
         df = df[df.next_prio <= min_prio]
@@ -188,7 +188,7 @@ class TasksAnalysis(AnalysisBase):
 
         return rt_tasks
 
-    def _dfg_task_load_events(self):
+    def df_load(self):
         """
         Get a DataFrame with the scheduler's per-task load-tracking signals
 
@@ -201,10 +201,10 @@ class TasksAnalysis(AnalysisBase):
         df = None
 
         if 'sched_load_avg_task' in self._trace.available_events:
-            df = self._dfg_trace_event('sched_load_avg_task')
+            df = self.df_events('sched_load_avg_task')
 
         elif 'sched_load_se' in self._trace.available_events:
-            df = self._trace._dfg_trace_event('sched_load_se')
+            df = self._trace.df_events('sched_load_se')
             df = df.rename(columns={'util': 'util_avg', 'load': 'load_avg'})
             # In sched_load_se, PID shows -1 for task groups.
             df = df[df.pid != -1]
@@ -231,7 +231,7 @@ class TasksAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    def plotTasks(self, tasks, signals=None):
+    def plot_tasks(self, tasks, signals=None):
         """
         Generate a common set of useful plots for each of the specified tasks
 
@@ -273,7 +273,7 @@ class TasksAnalysis(AnalysisBase):
                        'residencies']
 
         # Check for the minimum required signals to be available
-        if self._dfg_task_load_events() is None:
+        if self.df_load() is None:
             self._log.warning('No trace events for task signals, plot DISABLED')
             return
 
@@ -343,7 +343,7 @@ class TasksAnalysis(AnalysisBase):
                                .format(tid, task_name))
                 plot_id = plot_id + 1
                 is_last = (plot_id == plots_count)
-                self._plotTaskSignals(axes, tid, signals, is_last)
+                self._plot_task_signals(axes, tid, signals, is_last)
                 savefig = True
 
             # Plot CPUs residency
@@ -363,7 +363,7 @@ class TasksAnalysis(AnalysisBase):
                     is_last = (plot_id == plots_count)
                     if 'sched_overutilized' in signals:
                         signals_to_plot.append('sched_overutilized')
-                    self._plotTaskResidencies(axes, tid, signals_to_plot, is_last)
+                    self._plot_task_residencies(axes, tid, signals_to_plot, is_last)
                     savefig = True
 
             # Plot PELT signals
@@ -376,7 +376,7 @@ class TasksAnalysis(AnalysisBase):
                 plot_id = plot_id + 1
                 if 'sched_overutilized' in signals:
                     signals_to_plot.append('sched_overutilized')
-                self._plotTaskPelt(axes, tid, signals_to_plot)
+                self._plot_task_pelt(axes, tid, signals_to_plot)
                 savefig = True
 
             if not savefig:
@@ -393,7 +393,7 @@ class TasksAnalysis(AnalysisBase):
                               tid, task_name)
             pl.savefig(figname, bbox_inches='tight')
 
-    def plotBigTasks(self, max_tasks=10, min_samples=100,
+    def plot_big_tasks(self, max_tasks=10, min_samples=100,
                      min_utilization=None):
         """
         For each big task plot utilization and show the smallest cluster
@@ -411,7 +411,7 @@ class TasksAnalysis(AnalysisBase):
         """
 
         # Get PID of big tasks
-        big_frequent_task_df = self._dfg_top_big_tasks(
+        big_frequent_task_df = self.df_top_big_tasks(
             min_samples, min_utilization)
         if big_frequent_task_df is None:
             # (Logged already)
@@ -427,7 +427,7 @@ class TasksAnalysis(AnalysisBase):
             return
 
         # Get the list of events for all big frequent tasks
-        df = self._dfg_task_load_events()
+        df = self.df_load()
         big_frequent_tasks_events = df[df.pid.isin(big_frequent_task_pids)]
 
         # Define axes for side-by-side plottings
@@ -459,7 +459,7 @@ class TasksAnalysis(AnalysisBase):
             ax.set_ylabel('util_avg')
             ax.set_xlabel('')
             ax.grid(True)
-            self._trace.analysis.status.plotOverutilized(ax)
+            self._trace.analysis.status.plot_overutilized(ax)
 
             plot_idx += 1
 
@@ -468,7 +468,7 @@ class TasksAnalysis(AnalysisBase):
         self._log.info('Tasks which have been a "utilization" of %d for at least %d samples',
                        self._little_cap, min_samples)
 
-    def plotWakeupTasks(self, max_tasks=10, min_wakeups=0, per_cluster=False):
+    def plot_wakeup(self, max_tasks=10, min_wakeups=0, per_cluster=False):
         """
         Show waking up tasks over time and newly forked tasks in two separate
         plots.
@@ -500,7 +500,7 @@ class TasksAnalysis(AnalysisBase):
         if per_cluster:
 
             # Get per cluster wakeup events
-            df = self._dfg_trace_event('sched_wakeup_new')
+            df = self.df_events('sched_wakeup_new')
             big_frequent = df.target_cpu.isin(self._big_cpus)
             ntbc = df[big_frequent]
             ntbc_count = len(ntbc)
@@ -522,19 +522,19 @@ class TasksAnalysis(AnalysisBase):
             ax.set_xticklabels([])
             ax.set_xlabel('')
             ax.grid(True)
-            self._trace.analysis.status.plotOverutilized(ax)
+            self._trace.analysis.status.plot_overutilized(ax)
 
             ax = axes[1]
             ax.set_title('Tasks Forks on LITTLE CPUs');
             ntlc.pid.plot(style=['g.'], ax=ax);
             ax.set_xlim(self._trace.x_min, self._trace.x_max);
             ax.grid(True)
-            self._trace.analysis.status.plotOverutilized(ax)
+            self._trace.analysis.status.plot_overutilized(ax)
 
             return
 
         # Keep events of defined big tasks
-        wkp_task_pids = self._dfg_top_wakeup_tasks(min_wakeups)
+        wkp_task_pids = self.df_top_wakeup(min_wakeups)
         if len(wkp_task_pids):
             wkp_task_pids = wkp_task_pids.index.values[:max_tasks]
             self._log.info('Plotting %d frequent wakeup tasks',
@@ -542,7 +542,7 @@ class TasksAnalysis(AnalysisBase):
 
         ax = axes[0]
         ax.set_title('Tasks WakeUps Events')
-        df = self._dfg_trace_event('sched_wakeup')
+        df = self.df_events('sched_wakeup')
         if len(df):
             df = df[df.pid.isin(wkp_task_pids)]
             df.pid.astype(int).plot(style=['b.'], ax=ax)
@@ -550,19 +550,19 @@ class TasksAnalysis(AnalysisBase):
             ax.set_xticklabels([])
             ax.set_xlabel('')
             ax.grid(True)
-            self._trace.analysis.status.plotOverutilized(ax)
+            self._trace.analysis.status.plot_overutilized(ax)
 
         ax = axes[1]
         ax.set_title('Tasks Forks Events')
-        df = self._dfg_trace_event('sched_wakeup_new')
+        df = self.df_events('sched_wakeup_new')
         if len(df):
             df = df[df.pid.isin(wkp_task_pids)]
             df.pid.astype(int).plot(style=['r.'], ax=ax)
             ax.set_xlim(self._trace.x_min, self._trace.x_max)
             ax.grid(True)
-            self._trace.analysis.status.plotOverutilized(ax)
+            self._trace.analysis.status.plot_overutilized(ax)
 
-    def plotBigTasksVsCapacity(self, min_samples=1,
+    def plot_big_tasks_vs_capacity(self, min_samples=1,
                                min_utilization=None, big_cluster=True):
         """
         Draw a plot that shows whether tasks are placed on the correct cluster
@@ -585,7 +585,7 @@ class TasksAnalysis(AnalysisBase):
             return
 
         # Get all utilization update events
-        df = self._dfg_task_load_events()
+        df = self.df_load()
         if df is None:
             self._log.warning('No trace events for task signals, plot DISABLED')
             return
@@ -598,7 +598,7 @@ class TasksAnalysis(AnalysisBase):
             cpus = self._little_cpus
 
         # Keep events of defined big tasks
-        big_task_pids = self._dfg_top_big_tasks(
+        big_task_pids = self.df_top_big_tasks(
             min_samples, min_utilization)
         if big_task_pids is not None:
             big_task_pids = big_task_pids.index.values
@@ -624,7 +624,7 @@ class TasksAnalysis(AnalysisBase):
         # - tasks with util_avg <= little_cap are running on a LITTLe cpu
         df.loc[:,'ccap_mutil'] = np.select([(bu_bc | su_lc)], [True], False)
 
-        df_freq = self._dfg_trace_event('cpu_frequency')
+        df_freq = self.df_events('cpu_frequency')
         df_freq = df_freq[df_freq.cpu == cpus[0]]
 
         ax = axes[0]
@@ -638,14 +638,14 @@ class TasksAnalysis(AnalysisBase):
         ax.set_xticklabels([])
         ax.set_xlabel('')
         ax.grid(True)
-        self._trace.analysis.status.plotOverutilized(ax)
+        self._trace.analysis.status.plot_overutilized(ax)
 
         ax = axes[1]
         ax.set_title('Frequencies on "{}" cluster'.format(cluster_correct))
         df_freq['frequency'].plot(style=['-b'], ax=ax, drawstyle='steps-post')
         ax.set_xlim(self._trace.x_min, self._trace.x_max);
         ax.grid(True)
-        self._trace.analysis.status.plotOverutilized(ax)
+        self._trace.analysis.status.plot_overutilized(ax)
 
         legend_y = axes[0].get_ylim()[1]
         axes[0].annotate('Utilization-Capacity Matches',
@@ -662,7 +662,7 @@ class TasksAnalysis(AnalysisBase):
 # Utility Methods
 ###############################################################################
 
-    def _plotTaskSignals(self, axes, tid, signals, is_last=False):
+    def _plot_task_signals(self, axes, tid, signals, is_last=False):
         """
         For task with ID `tid` plot the specified signals.
 
@@ -679,7 +679,7 @@ class TasksAnalysis(AnalysisBase):
         :type is_last: bool
         """
         # Get dataframe for the required task
-        util_df = self._dfg_task_load_events()
+        util_df = self.df_load()
         if util_df is None:
             self._log.warning('No trace events for task signals, plot DISABLED')
             return
@@ -695,7 +695,7 @@ class TasksAnalysis(AnalysisBase):
         # Plot boost utilization if available
         if 'boosted_util' in signals and \
            self._trace.hasEvents('sched_boost_task'):
-            boost_df = self._dfg_trace_event('sched_boost_task')
+            boost_df = self.df_events('sched_boost_task')
             data = boost_df[boost_df.pid == tid][['boosted_util']]
             if len(data):
                 data.plot(ax=axes, style=['y-'], drawstyle='steps-post')
@@ -727,9 +727,9 @@ class TasksAnalysis(AnalysisBase):
             axes.set_xticklabels([])
             axes.set_xlabel('')
         if 'sched_overutilized' in signals:
-            self._trace.analysis.status.plotOverutilized(axes)
+            self._trace.analysis.status.plot_overutilized(axes)
 
-    def _plotTaskResidencies(self, axes, tid, signals, is_last=False):
+    def _plot_task_residencies(self, axes, tid, signals, is_last=False):
         """
         For task with ID `tid` plot residency information.
 
@@ -745,7 +745,7 @@ class TasksAnalysis(AnalysisBase):
         :param is_last: if True this is the last plot
         :type is_last: bool
         """
-        util_df = self._dfg_task_load_events()
+        util_df = self.df_load()
         if util_df is None:
             self._log.warning('No trace events for task signals, plot DISABLED')
             return
@@ -768,9 +768,9 @@ class TasksAnalysis(AnalysisBase):
             axes.set_xticklabels([])
             axes.set_xlabel('')
         if 'sched_overutilized' in signals:
-            self._trace.analysis.status.plotOverutilized(axes)
+            self._trace.analysis.status.plot_overutilized(axes)
 
-    def _plotTaskPelt(self, axes, tid, signals):
+    def _plot_task_pelt(self, axes, tid, signals):
         """
         For task with ID `tid` plot PELT-related signals.
 
@@ -788,7 +788,7 @@ class TasksAnalysis(AnalysisBase):
                 'No sched_load_avg_task events, skipping PELT plot')
             return
 
-        util_df = self._dfg_trace_event('sched_load_avg_task')
+        util_df = self.df_events('sched_load_avg_task')
         data = util_df[util_df.pid == tid][['load_sum',
                                             'util_sum',
                                             'period_contrib']]
@@ -798,6 +798,6 @@ class TasksAnalysis(AnalysisBase):
                               axis='y', useOffset=False)
         axes.grid(True)
         if 'sched_overutilized' in signals:
-            self._trace.analysis.status.plotOverutilized(axes)
+            self._trace.analysis.status.plot_overutilized(axes)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

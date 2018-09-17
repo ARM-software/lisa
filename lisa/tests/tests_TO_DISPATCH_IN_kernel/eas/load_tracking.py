@@ -757,10 +757,10 @@ class _CPUMigrationBase(LisaTest):
         cpus = set()
 
         # Filter the event related to the tasks
-        sw_df = trace.data_frame.trace_event('sched_switch')
+        sw_df = trace.df_events('sched_switch')
         sw_df = sw_df[sw_df.next_comm.isin(self.tasks_desc.keys())]
 
-        util_df = trace.data_frame.trace_event('sched_load_cfs_rq')
+        util_df = trace.df_events('sched_load_cfs_rq')
         phases = self._get_phases_names(self._get_one_task(self.tasks_desc, 0))
 
         # Compute the interval where the signal is stable for the phases
@@ -1019,9 +1019,9 @@ class _PELTTaskGroupsTest(LisaTest):
                              'Does the kernel support them?')
 
         max_duration = 0
-        task_util_df = self.trace.data_frame.trace_event('sched_load_se')
-        tg_util_df = self.trace.data_frame.trace_event('sched_load_cfs_rq')
-        sw_df = self.trace.data_frame.trace_event('sched_switch')
+        task_util_df = self.trace.df_events('sched_load_se')
+        tg_util_df = self.trace.df_events('sched_load_cfs_rq')
+        sw_df = self.trace.df_events('sched_switch')
 
         tg = None
         for se in self.root_group.iter_nodes():

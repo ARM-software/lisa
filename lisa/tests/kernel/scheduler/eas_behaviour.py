@@ -91,7 +91,7 @@ class EASBehaviour(RTATestBundle):
         Get the time where the first task spawned
         """
         tasks = list(self.rtapp_profile.keys())
-        sdf = self.trace.data_frame.trace_event('sched_switch')
+        sdf = self.trace.df_events('sched_switch')
         start_time = self.trace.start_time + self.trace.time_range
 
         for task in tasks:

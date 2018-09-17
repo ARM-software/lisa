@@ -158,13 +158,10 @@ class Trace(object):
         self.__registerTraceEvents(events)
         self.__parseTrace(data_dir, window, trace_format)
 
-        self.data_frame = TraceData()
-        self._registerDataFrameGetters(self)
-
         # If we don't know the number of CPUs, check the trace for the
         # highest-numbered CPU that traced an event.
         if 'cpus_count' not in self.platform:
-            max_cpu = max(int(self.data_frame.trace_event(e)['__cpu'].max())
+            max_cpu = max(int(self.df_events(e)['__cpu'].max())
                           for e in self.available_events)
             self.platform['cpus_count'] = max_cpu + 1
         # If a CPUs count is not available here, let's assume we are running on
@@ -172,23 +169,6 @@ class Trace(object):
         # methods will not complain about the CPUs count not being available.
         self.platform['cpus_count'] = self.platform.get('cpus_count', 1)
         self.analysis = AnalysisProxy(self)
-
-    def _registerDataFrameGetters(self, module):
-        """
-        Internal utility function that looks up getter functions with a "_dfg_"
-        prefix in their name and bounds them to the specified module.
-
-        :param module: module to which the function is added
-        :type module: class
-        """
-        self._log.debug('Registering [%s] local data frames', module)
-        for func in dir(module):
-            if not func.startswith('_dfg_'):
-                continue
-            dfg_name = func.replace('_dfg_', '')
-            dfg_func = getattr(module, func)
-            self._log.debug('   %s', dfg_name)
-            setattr(self.data_frame, dfg_name, dfg_func)
 
     def setXTimeRange(self, t_min=None, t_max=None):
         """
@@ -316,7 +296,7 @@ class Trace(object):
         Try to load tasks names using one of the supported events.
         """
         def load(event, name_key, pid_key):
-            df = self._dfg_trace_event(event)
+            df = self.df_events(event)
             self._scanTasks(df, name_key=name_key, pid_key=pid_key)
 
         if 'sched_switch' in self.available_events:
@@ -461,12 +441,12 @@ class Trace(object):
         """
         warnings.simplefilter('always', DeprecationWarning) #turn off filter
         warnings.warn("\n\tUse of Trace::df() is deprecated and will be soon removed."
-                      "\n\tUse Trace::data_frame.trace_event(event_name) instead.",
+                      "\n\tUse Trace::df_events(event_name) instead.",
                       category=DeprecationWarning)
         warnings.simplefilter('default', DeprecationWarning) #reset filter
-        return self._dfg_trace_event(event)
+        return self.df_events(event)
 
-    def _dfg_trace_event(self, event):
+    def df_events(self, event):
         """
         Get a dataframe containing all occurrences of the specified trace event
         in the parsed trace.
@@ -482,7 +462,7 @@ class Trace(object):
                          'Supported events are: {}'
                          .format(event, self.available_events))
 
-    def _dfg_functions_stats(self, functions=None):
+    def df_functions_stats(self, functions=None):
         """
         Get a DataFrame of specified kernel functions profile data
 
@@ -525,7 +505,7 @@ class Trace(object):
            or not self.has_big_little:
             return
 
-        df = self._dfg_trace_event('cpu_capacity')
+        df = self.df_events('cpu_capacity')
 
         # Add column with LITTLE and big CPUs max capacities
         nrg_model = self.platform['nrg_model']
@@ -547,7 +527,7 @@ class Trace(object):
         """
         if not self.hasEvents('sched_load_avg_cpu'):
             return
-        df = self._dfg_trace_event('sched_load_avg_cpu')
+        df = self.df_events('sched_load_avg_cpu')
         if 'utilization' in df:
             df.rename(columns={'utilization': 'util_avg'}, inplace=True)
             df.rename(columns={'load': 'load_avg'}, inplace=True)
@@ -558,7 +538,7 @@ class Trace(object):
         """
         if not self.hasEvents('sched_load_avg_task'):
             return
-        df = self._dfg_trace_event('sched_load_avg_task')
+        df = self.df_events('sched_load_avg_task')
         if 'utilization' in df:
             df.rename(columns={'utilization': 'util_avg'}, inplace=True)
             df.rename(columns={'load': 'load_avg'}, inplace=True)
@@ -575,7 +555,7 @@ class Trace(object):
         """
         if not self.hasEvents('sched_boost_cpu'):
             return
-        df = self._dfg_trace_event('sched_boost_cpu')
+        df = self.df_events('sched_boost_cpu')
         if 'usage' in df:
             df.rename(columns={'usage': 'util'}, inplace=True)
         df['boosted_util'] = df['util'] + df['margin']
@@ -589,7 +569,7 @@ class Trace(object):
         """
         if not self.hasEvents('sched_boost_task'):
             return
-        df = self._dfg_trace_event('sched_boost_task')
+        df = self.df_events('sched_boost_task')
         if 'utilization' in df:
             # Convert signals name from to v5.1 format
             df.rename(columns={'utilization': 'util'}, inplace=True)
@@ -620,7 +600,7 @@ class Trace(object):
         self._log.debug(
             "Maximum estimated system energy: {0:d}".format(power_max))
 
-        df = self._dfg_trace_event('sched_energy_diff')
+        df = self.df_events('sched_energy_diff')
 
         translations = {'nrg_d' : 'nrg_diff',
                         'utl_d' : 'usage_delta',
@@ -648,7 +628,7 @@ class Trace(object):
         if not self.hasEvents('sched_overutilized'):
             return
 
-        df = self._dfg_trace_event('sched_overutilized')
+        df = self.df_events('sched_overutilized')
         self.addEventsDeltas(df, 'len')
 
         # Build a stat on trace overutilization
@@ -670,7 +650,7 @@ class Trace(object):
         if not self.hasEvents('thermal_power_cpu_get_power'):
             return
 
-        df = self._dfg_trace_event('thermal_power_cpu_get_power')
+        df = self.df_events('thermal_power_cpu_get_power')
 
         df['cpus'] = df['cpus'].apply(
             self._sanitize_ThermalPowerCpuMask
@@ -680,7 +660,7 @@ class Trace(object):
         if not self.hasEvents('thermal_power_cpu_limit'):
             return
 
-        df = self._dfg_trace_event('thermal_power_cpu_limit')
+        df = self.df_events('thermal_power_cpu_limit')
 
         df['cpus'] = df['cpus'].apply(
             self._sanitize_ThermalPowerCpuMask
@@ -708,11 +688,11 @@ class Trace(object):
            or 'clusters' not in self.platform:
             return
 
-        devlib_freq = self._dfg_trace_event('cpu_frequency_devlib')
+        devlib_freq = self.df_events('cpu_frequency_devlib')
         devlib_freq.rename(columns={'cpu_id':'cpu'}, inplace=True)
         devlib_freq.rename(columns={'state':'frequency'}, inplace=True)
 
-        df = self._dfg_trace_event('cpu_frequency')
+        df = self.df_events('cpu_frequency')
         clusters = self.platform['clusters']
 
         # devlib always introduces fake cpu_frequency events, in case the
@@ -855,7 +835,7 @@ class Trace(object):
                               'cannot compute CPU active signal!')
             return None
 
-        idle_df = self._dfg_trace_event('cpu_idle')
+        idle_df = self.df_events('cpu_idle')
         cpu_df = idle_df[idle_df.cpu_id == cpu]
 
         cpu_active = cpu_df.state.apply(
@@ -927,9 +907,9 @@ class Trace(object):
         if not self.hasEvents('clock_set_rate'):
             self._log.warning('Events [clock_set_rate] not found, returning None!')
             return
-        rate_df = self._dfg_trace_event('clock_set_rate')
-        enable_df = self._dfg_trace_event('clock_enable')
-        disable_df = self._dfg_trace_event('clock_disable')
+        rate_df = self.df_events('clock_set_rate')
+        enable_df = self.df_events('clock_enable')
+        disable_df = self.df_events('clock_disable')
         pd.set_option('display.expand_frame_repr', False)
 
         freq = rate_df[rate_df.clk_name == clk_name]
@@ -1073,9 +1053,5 @@ class Trace(object):
                 res_df.at[res_df.index[-1], column] = delta
 
         return res_df
-
-class TraceData:
-    """ A DataFrame collector exposed to Trace's clients """
-    pass
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

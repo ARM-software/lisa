@@ -399,7 +399,7 @@ class WaResultsCollector(object):
                   'sched_load_cfs_rq', 'sched_load_avg_task', 'thermal_temperature']
         trace = Trace(trace_path, events, self.platform)
 
-        metrics.append(('cpu_wakeup_count', len(trace.data_frame.cpu_wakeups()), None))
+        metrics.append(('cpu_wakeup_count', len(trace.analysis.cpus.df_cpu_wakeups()), None))
 
         # Helper to get area under curve of multiple CPU active signals
         def get_cpu_time(trace, cpus):
@@ -411,7 +411,7 @@ class WaResultsCollector(object):
             for cluster in list(clusters.values()):
                 name = '-'.join(str(c) for c in cluster)
 
-                df = trace.data_frame.cluster_frequency_residency(cluster)
+                df = trace.analysis.frequency.df_cluster_frequency_residency(cluster)
                 if df is None or df.empty:
                     self._log.warning("Can't get cluster freq residency from %s",
                                       trace.data_dir)
@@ -421,7 +421,7 @@ class WaResultsCollector(object):
                     metric = 'avg_freq_cluster_{}'.format(name)
                     metrics.append((metric, avg_freq, 'MHz'))
 
-                df = trace.data_frame.trace_event('cpu_frequency')
+                df = trace.df_events('cpu_frequency')
                 df = df[df.cpu == cluster[0]]
                 metrics.append(('freq_transition_count_{}'.format(name), len(df), None))
 
@@ -446,14 +446,14 @@ class WaResultsCollector(object):
             row_filter = lambda r: True
             column = 'util_avg'
         if event:
-            df = trace.data_frame.trace_event(event)
+            df = trace.df_events(event)
             util_sum = (handle_duplicate_index(df)[row_filter]
                         .pivot(columns='cpu')[column].ffill().sum(axis=1))
             avg_util_sum = area_under_curve(util_sum) / (util_sum.index[-1] - util_sum.index[0])
             metrics.append(('avg_util_sum', avg_util_sum, None))
 
         if trace.hasEvents('thermal_temperature'):
-            df = trace.data_frame.trace_event('thermal_temperature')
+            df = trace.df_events('thermal_temperature')
             for zone, zone_df in df.groupby('thermal_zone'):
                 metrics.append(('tz_{}_start_temp'.format(zone),
                                 zone_df.iloc[0]['temp_prev'],

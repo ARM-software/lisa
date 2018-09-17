@@ -42,7 +42,7 @@ class CpusAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    def _dfg_context_switches(self):
+    def df_context_switches(self):
         """
         Compute number of context switches on each CPU.
 
@@ -53,7 +53,7 @@ class CpusAnalysis(AnalysisBase):
                               'computation not possible!')
             return None
 
-        sched_df = self._dfg_trace_event('sched_switch')
+        sched_df = self.df_events('sched_switch')
         cpus = list(range(self._platform['cpus_count']))
         ctx_sw_df = pd.DataFrame(
             [len(sched_df[sched_df['__cpu'] == cpu]) for cpu in cpus],
@@ -63,7 +63,7 @@ class CpusAnalysis(AnalysisBase):
         ctx_sw_df.index.name = 'cpu'
         return ctx_sw_df
 
-    def _dfg_cpu_wakeups(self, cpus=None):
+    def df_cpu_wakeups(self, cpus=None):
         """"
         Get a DataFrame showing when a CPU was woken from idle
 
@@ -94,7 +94,7 @@ class CpusAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    def plotCPU(self, cpus=None):
+    def plot_cpu(self, cpus=None):
         """
         Plot CPU-related signals for both big and LITTLE clusters.
 
@@ -113,19 +113,19 @@ class CpusAnalysis(AnalysisBase):
         # Plot: big CPUs
         bcpus = set(cpus).intersection(self._big_cpus)
         if bcpus:
-            self._plotCPU(bcpus, "big")
+            self._plot_cpu(bcpus, "big")
 
         # Plot: LITTLE CPUs
         lcpus = set(cpus).intersection(self._little_cpus)
         if lcpus:
-            self._plotCPU(lcpus, "LITTLE")
+            self._plot_cpu(lcpus, "LITTLE")
 
 
 ###############################################################################
 # Utility Methods
 ###############################################################################
 
-    def _plotCPU(self, cpus, label=''):
+    def _plot_cpu(self, cpus, label=''):
         """
         Internal method that generates plots for all input CPUs.
 
@@ -149,14 +149,14 @@ class CpusAnalysis(AnalysisBase):
 
             # Add CPU utilization
             axes.set_title('{0:s}CPU [{1:d}]'.format(label1, cpu))
-            df = self._dfg_trace_event('sched_load_avg_cpu')
+            df = self.df_events('sched_load_avg_cpu')
             df = df[df.cpu == cpu]
             if len(df):
                 df[['util_avg']].plot(ax=axes, drawstyle='steps-post',
                                       alpha=0.4)
 
             # if self._trace.hasEvents('sched_boost_cpu'):
-            #     df = self._dfg_trace_event('sched_boost_cpu')
+            #     df = self.df_events('sched_boost_cpu')
             #     df = df[df.cpu == cpu]
             #     if len(df):
             #         df[['usage', 'boosted_usage']].plot(
@@ -166,7 +166,7 @@ class CpusAnalysis(AnalysisBase):
 
             # Add Capacities data if avilable
             if self._trace.hasEvents('cpu_capacity'):
-                df = self._dfg_trace_event('cpu_capacity')
+                df = self.df_events('cpu_capacity')
                 df = df[df.cpu == cpu]
                 if len(df):
                     # data = df[['capacity', 'tip_capacity', 'max_capacity']]
@@ -176,7 +176,7 @@ class CpusAnalysis(AnalysisBase):
                               drawstyle='steps-post')
 
             # Add overutilized signal to the plot
-            self._trace.analysis.status.plotOverutilized(axes)
+            self._trace.analysis.status.plot_overutilized(axes)
 
             axes.set_ylim(0, 1100)
             axes.set_xlim(self._trace.x_min, self._trace.x_max)
@@ -199,7 +199,7 @@ class CpusAnalysis(AnalysisBase):
                                            self._trace.plots_prefix, label2)
         pl.savefig(figname, bbox_inches='tight')
 
-    def plotContextSwitch(self):
+    def plot_context_switch(self):
         """
         Plot histogram of context switches on each CPU.
         """
@@ -207,7 +207,7 @@ class CpusAnalysis(AnalysisBase):
             self._log.warning('Events [sched_switch] not found, plot DISABLED!')
             return
 
-        ctx_sw_df = self._dfg_context_switches()
+        ctx_sw_df = self.df_context_switches()
         ax = ctx_sw_df.plot.bar(title="Per-CPU Task Context Switches",
                                 legend=False,
                                 figsize=(16, 8))

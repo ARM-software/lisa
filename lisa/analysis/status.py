@@ -43,7 +43,7 @@ class StatusAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    def _dfg_overutilized(self):
+    def df_overutilized(self):
         """
         Get data frame with sched_overutilized data.
         """
@@ -51,7 +51,7 @@ class StatusAnalysis(AnalysisBase):
             return None
 
         # Build sequence of overutilization "bands"
-        df = self._dfg_trace_event('sched_overutilized')
+        df = self.df_events('sched_overutilized')
 
         # Remove duplicated index events, keep only last event which is the
         # only one with a non null length
@@ -69,7 +69,7 @@ class StatusAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    def plotOverutilized(self, axes=None):
+    def plot_overutilized(self, axes=None):
         """
         Draw a plot that shows intervals of time where the system was reported
         as overutilized.
@@ -85,7 +85,7 @@ class StatusAnalysis(AnalysisBase):
                               'plot DISABLED!')
             return
 
-        df = self._dfg_overutilized()
+        df = self.df_overutilized()
 
         # Compute intervals in which the system is reported to be overutilized
         bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]

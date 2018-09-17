@@ -242,7 +242,7 @@ class StaggeredFinishes(_MisfitMigrationBase):
             all tasks are up and running on their designated CPUs.
         """
         trace = self.get_trace(experiment)
-        sdf = trace.data_frame.trace_event('sched_switch')
+        sdf = trace.df_events('sched_switch')
         # Get the time where the first rt-app task spawns
         init_start = sdf[sdf.next_comm.str.contains('misfit')].index[0]
 
@@ -277,9 +277,9 @@ class StaggeredFinishes(_MisfitMigrationBase):
         cpus = range(self.te.target.number_of_cpus)
         sorted_cpus = self._classify_cpus(self.te)
 
-        sdf = trace.data_frame.trace_event('sched_switch')
+        sdf = trace.df_events('sched_switch')
         latency_dfs = {
-            i : trace.data_frame.latency_df('misfit_{}'.format(i))
+            i : trace.analysis.latency.df_latency('misfit_{}'.format(i))
             for i in cpus
         }
 
@@ -339,7 +339,7 @@ class StaggeredFinishes(_MisfitMigrationBase):
         :type busy_cpus: list
         """
         cpus = range(self.te.target.number_of_cpus)
-        sdf = trace.data_frame.trace_event('sched_switch')
+        sdf = trace.df_events('sched_switch')
 
         for task_name, lat_df in latency_dfs.iteritems():
             # Have a look at every task activation
@@ -387,7 +387,7 @@ class StaggeredFinishes(_MisfitMigrationBase):
             res = pd.DataFrame([])
             task_name = 'misfit_{}'.format(i)
 
-            df = trace.data_frame.latency_df(task_name)
+            df = trace.analysis.latency.df_latency(task_name)
             df = self.trim_lat_df(start_time, df[df.curr_state == "A"])
 
             first_big = df[df["__cpu"].isin(bigs)]
@@ -421,7 +421,7 @@ class StaggeredFinishes(_MisfitMigrationBase):
             # runs on a little it's because bigs are busy
             task_name = 'misfit_{}'.format(i)
 
-            df = trace.data_frame.latency_df(task_name)
+            df = trace.analysis.latency.df_latency(task_name)
             latency_dfs[task_name] = self.trim_lat_df(
                 start_time,
                 df[

@@ -223,9 +223,9 @@ class TestTrace(TestCase):
         self.assertAlmostEqual(self.trace.overutilized_time, expected_time,
                                places=self.FLOAT_PLACES)
 
-    def test_plotCPUIdleStateResidency(self):
+    def test_plot_cpu_idle_state_residency(self):
         """
-        Test that plotCPUIdleStateResidency doesn't crash
+        Test that plot_cpu_idle_state_residency doesn't crash
         """
         in_data = """
             foo-1  [000] 0.01: cpu_idle: state=0 cpu_id=0
@@ -240,7 +240,7 @@ class TestTrace(TestCase):
         """
         trace = self.make_trace(in_data)
 
-        trace.analysis.idle.plotCPUIdleStateResidency()
+        trace.analysis.idle.plot_cpu_idle_state_residency()
 
     def test_deriving_cpus_count(self):
         """Test that Trace derives cpus_count if it isn't provided"""
@@ -256,7 +256,7 @@ class TestTrace(TestCase):
 
         self.assertEqual(trace.platform['cpus_count'], 3)
 
-    def test_dfg_cpu_wakeups(self):
+    def test_df_cpu_wakeups(self):
         """
         Test the cpu_wakeups DataFrame getter
         """
@@ -273,14 +273,14 @@ class TestTrace(TestCase):
           <idle>-0     [004]   519.023080: cpu_idle:             state=1 cpu_id=4
         """)
 
-        df = trace.data_frame.cpu_wakeups()
+        df = trace.analysis.cpus.df_cpu_wakeups()
 
         exp_index=[519.021928, 519.022641, 519.022642, 519.022643, 519.022867]
         exp_cpus= [         4,          4,          1,          2,          3]
         self.assertListEqual(df.index.tolist(), exp_index)
         self.assertListEqual(df.cpu.tolist(), exp_cpus)
 
-        df = trace.data_frame.cpu_wakeups([2])
+        df = trace.analysis.cpus.df_cpu_wakeups([2])
 
         self.assertListEqual(df.index.tolist(), [519.022643])
         self.assertListEqual(df.cpu.tolist(), [2])
@@ -289,7 +289,7 @@ class TestTrace(TestCase):
         """Helper for smoke testing _dfg methods in tasks_analysis"""
         trace = self.get_trace(trace_name)
 
-        lt_df = trace.data_frame.task_load_events()
+        lt_df = trace.analysis.tasks.df_load()
         columns = ['comm', 'pid', 'load_avg', 'util_avg', 'cpu']
         if trace.has_big_little:
             columns += ['cluster']
@@ -301,7 +301,7 @@ class TestTrace(TestCase):
             self.assertIn(column, lt_df, msg=msg)
 
         if trace.has_big_little:
-            df = trace.data_frame.top_big_tasks(min_samples=1)
+            df = trace.analysis.tasks.df_top_big_tasks(min_samples=1)
             for column in ['samples', 'comm']:
                 msg = 'Big tasks parsed from {} missing {} column'.format(
                     trace.data_dir, column)
@@ -309,9 +309,9 @@ class TestTrace(TestCase):
 
         # Pick an arbitrary PID to try plotting signals for.
         pid = lt_df['pid'].unique()[0]
-        # Call plotTasks - although we won't check the results we can just check
+        # Call plot - although we won't check the results we can just check
         # that things aren't totally borken.
-        trace.analysis.tasks.plotTasks(tasks=[pid])
+        trace.analysis.tasks.plot_tasks(tasks=[pid])
 
     def test_sched_load_signals(self):
         """Test parsing sched_load_se events from EAS upstream integration"""

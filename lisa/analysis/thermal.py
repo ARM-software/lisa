@@ -52,7 +52,7 @@ class ThermalAnalysis(AnalysisBase):
         """
         Get thermal zone ids that appear in the trace
         """
-        df = self._dfg_trace_event('thermal_temperature')
+        df = self.df_events('thermal_temperature')
         return df["thermal_zone"].unique().tolist()
 
     @property
@@ -61,7 +61,7 @@ class ThermalAnalysis(AnalysisBase):
         """
         Get cpufreq cooling devices that appear in the trace
         """
-        df = self._dfg_trace_event('thermal_power_cpu_limit')
+        df = self.df_events('thermal_power_cpu_limit')
         res = df['cpus'].unique().tolist()
         return [mask_to_list(mask) for mask in res]
 
@@ -71,14 +71,14 @@ class ThermalAnalysis(AnalysisBase):
         """
         Get devfreq cooling devices that appear in the trace
         """
-        df = self._dfg_trace_event('thermal_power_devfreq_limit')
+        df = self.df_events('thermal_power_devfreq_limit')
         return df['type'].unique().tolist()
 
 ###############################################################################
 # DataFrame Getter Methods
 ###############################################################################
 
-    def _dfg_thermal_zone_temperature(self, ids=None):
+    def df_thermal_zone_temperature(self, ids=None):
         """
         Get the temperature readings of one or more thermal zone(s)
         (all by default)
@@ -86,7 +86,7 @@ class ThermalAnalysis(AnalysisBase):
         :param ids: The thermal zones to consider
         :type ids: list(int)
         """
-        df = self._dfg_trace_event('thermal_temperature')
+        df = self.df_events('thermal_temperature')
         df = df[['id', 'thermal_zone', 'temp']]
 
         if ids is not None:
@@ -94,7 +94,7 @@ class ThermalAnalysis(AnalysisBase):
 
         return df
 
-    def _dfg_cpufreq_cooling_state(self, cpus=None):
+    def df_cpufreq_cooling_state(self, cpus=None):
         """
         Get the cooling states of one or more cpufreq cooling device(s)
         (all by default)
@@ -102,18 +102,18 @@ class ThermalAnalysis(AnalysisBase):
         :param cpus: The CPUs to consider
         :type cpus: list(int)
         """
-        df = self._dfg_trace_event('thermal_power_cpu_limit')
+        df = self.df_events('thermal_power_cpu_limit')
         df = df[['cpus', 'freq', 'cdev_state']]
 
         if cpus is not None:
             # Find masks that match the requested CPUs
             # This can include other CPUs
-            masks = self._matchingMasks(cpus)
+            masks = self._matching_masks(cpus)
             df = df[df.cpus.isin(masks)]
 
         return df
 
-    def _dfg_devfreq_cooling_state(self, devices=None):
+    def df_devfreq_cooling_state(self, devices=None):
         """
         Get the cooling states of one or more devfreq cooling device(s)
         (all by default)
@@ -121,7 +121,7 @@ class ThermalAnalysis(AnalysisBase):
         :param devices: The devfreq devices to consider
         :type device: list(str)
         """
-        df = self._dfg_trace_event('thermal_power_devfreq_limit')
+        df = self.df_events('thermal_power_devfreq_limit')
         df = df[['type', 'freq', 'cdev_state']]
 
         if devices is not None:
@@ -134,7 +134,7 @@ class ThermalAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    def plotTemperature(self, thermal_zones=None, ax=None):
+    def plot_temperature(self, thermal_zones=None, ax=None):
         """
         Plot temperature of thermal zones (all by default)
 
@@ -151,7 +151,7 @@ class ThermalAnalysis(AnalysisBase):
                               .format('thermal_temperature'))
             return
 
-        plot_df = self._dfg_thermal_zone_temperature(thermal_zones)
+        plot_df = self.df_thermal_zone_temperature(thermal_zones)
 
         def stringify_tz(id):
             return plot_df[plot_df.id == id]['thermal_zone'].unique()[0]
@@ -177,7 +177,7 @@ class ThermalAnalysis(AnalysisBase):
 
         pl.savefig(figname, bbox_inches='tight')
 
-    def plotCPUCoolingStates(self, cpus=None, ax=None):
+    def plot_cpu_cooling_states(self, cpus=None, ax=None):
         """
         Plot the state evolution of cpufreq cooling devices (all by default)
 
@@ -194,7 +194,7 @@ class ThermalAnalysis(AnalysisBase):
                               .format('thermal_power_cpu_limit'))
             return
 
-        plot_df = self._dfg_trace_event('thermal_power_cpu_limit')
+        plot_df = self.df_events('thermal_power_cpu_limit')
 
         def stringify_mask(mask):
             return 'CPUs {}'.format(mask_to_list(mask))
@@ -203,7 +203,7 @@ class ThermalAnalysis(AnalysisBase):
         # This can include other CPUs
         masks = None
         if cpus is not None:
-            masks = self._matchingMasks(cpus)
+            masks = self._matching_masks(cpus)
 
         filters = None if masks is None else {'cpus' : masks}
         _ax = self._plot_generic(plot_df, 'cpus', filters=filters, columns=['cdev_state'],
@@ -232,7 +232,7 @@ class ThermalAnalysis(AnalysisBase):
         )
         pl.savefig(figname, bbox_inches='tight')
 
-    def plotDevfreqCoolingStates(self, devices=None, ax=None):
+    def plot_dev_freq_cooling_states(self, devices=None, ax=None):
         """
         Plot the state evolution of devfreq cooling devices (all by default)
 
@@ -247,7 +247,7 @@ class ThermalAnalysis(AnalysisBase):
                               .format('thermal_power_devfreq_limit'))
             return
 
-        plot_df = self._dfg_trace_event('thermal_power_devfreq_limit')
+        plot_df = self.df_events('thermal_power_devfreq_limit')
 
         # Might have more than one device selected by 'type', but that's
         # the best we can do
@@ -281,8 +281,8 @@ class ThermalAnalysis(AnalysisBase):
 # Utility Methods
 ###############################################################################
 
-    def _matchingMasks(self, cpus):
-        df = self._dfg_trace_event('thermal_power_cpu_limit')
+    def _matching_masks(self, cpus):
+        df = self.df_events('thermal_power_cpu_limit')
 
         global_mask = list_to_mask(cpus)
         cpumasks = df['cpus'].unique().tolist()

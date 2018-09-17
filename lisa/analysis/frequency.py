@@ -47,7 +47,7 @@ class FrequencyAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    def _dfg_cpu_frequency_residency(self, cpu, total=True):
+    def df_cpu_frequency_residency(self, cpu, total=True):
         """
         Get per-CPU frequency residency, i.e. amount of
         time CPU `cpu` spent at each frequency.
@@ -67,14 +67,14 @@ class FrequencyAnalysis(AnalysisBase):
         if not isinstance(cpu, int):
             raise TypeError('Input CPU parameter must be an integer')
 
-        residency = self._getFrequencyResidency(cpu)
+        residency = self._get_frequency_residency(cpu)
         if not residency:
             return None
         if total:
             return residency.total
         return residency.active
 
-    def _dfg_cluster_frequency_residency(self, cluster, total=True):
+    def df_cluster_frequency_residency(self, cluster, total=True):
         """
         Get per-Cluster frequency residency, i.e. amount of time CLUSTER
         `cluster` spent at each frequency.
@@ -95,7 +95,7 @@ class FrequencyAnalysis(AnalysisBase):
         """
         if isinstance(cluster, str):
             try:
-                residency = self._getFrequencyResidency(
+                residency = self._get_frequency_residency(
                     self._platform['clusters'][cluster.lower()]
                 )
             except KeyError:
@@ -105,14 +105,14 @@ class FrequencyAnalysis(AnalysisBase):
                 )
                 return None
         else:
-            residency = self._getFrequencyResidency(cluster)
+            residency = self._get_frequency_residency(cluster)
         if not residency:
             return None
         if total:
             return residency.total
         return residency.active
 
-    def _dfg_cpu_frequency_transitions(self, cpu):
+    def df_cpu_frequency_transitions(self, cpu):
         """
         Compute number of frequency transitions of a given CPU.
 
@@ -128,7 +128,7 @@ class FrequencyAnalysis(AnalysisBase):
                            'frequency data not available')
             return None
 
-        freq_df = self._dfg_trace_event('cpu_frequency')
+        freq_df = self.df_events('cpu_frequency')
         cpu_freqs = freq_df[freq_df.cpu == cpu].frequency
 
         # Remove possible duplicates (example: when devlib sets trace markers
@@ -141,7 +141,7 @@ class FrequencyAnalysis(AnalysisBase):
         transitions.sort_index(inplace=True)
         return pd.DataFrame(transitions)
 
-    def _dfg_cpu_frequency_transition_rate(self, cpu):
+    def df_cpu_frequency_transition_rate(self, cpu):
         """
         Compute frequency transition rate of a given CPU.
         Requires cpu_frequency events to be available in the trace.
@@ -152,7 +152,7 @@ class FrequencyAnalysis(AnalysisBase):
         :returns: :mod:`pandas.DataFrame - number of frequency transitions per
             second
         """
-        transitions = self._dfg_cpu_frequency_transitions(cpu)
+        transitions = self.df_cpu_frequency_transitions(cpu)
         if transitions is None:
             return None
 
@@ -164,7 +164,7 @@ class FrequencyAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    def plotPeripheralClock(self, clk, title='Peripheral Frequency'):
+    def plot_peripheral_clock(self, clk, title='Peripheral Frequency'):
         """
         Produce graph plotting the frequency of a particular peripheral clock
 
@@ -243,7 +243,7 @@ class FrequencyAnalysis(AnalysisBase):
         figname = os.path.join(self._trace.plots_dir, '{}{}.png'.format(self._trace.plots_prefix, clk))
         pl.savefig(figname, bbox_inches='tight')
 
-    def plotClusterFrequencies(self, title='Clusters Frequencies'):
+    def plot_cluster_frequencies(self, title='Clusters Frequencies'):
         """
         Plot frequency trend for all clusters. If sched_overutilized events are
         available, the plots will also show the intervals of time where the
@@ -255,7 +255,7 @@ class FrequencyAnalysis(AnalysisBase):
         if not self._trace.hasEvents('cpu_frequency'):
             self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
             return
-        df = self._dfg_trace_event('cpu_frequency')
+        df = self.df_events('cpu_frequency')
 
         pd.options.mode.chained_assignment = None
 
@@ -315,7 +315,7 @@ class FrequencyAnalysis(AnalysisBase):
         axes.grid(True)
         axes.set_xticklabels([])
         axes.set_xlabel('')
-        self._trace.analysis.status.plotOverutilized(axes)
+        self._trace.analysis.status.plot_overutilized(axes)
 
         axes = pltaxes[1]
         axes.set_title('LITTLE Cluster')
@@ -333,7 +333,7 @@ class FrequencyAnalysis(AnalysisBase):
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
         axes.set_ylabel('MHz')
         axes.grid(True)
-        self._trace.analysis.status.plotOverutilized(axes)
+        self._trace.analysis.status.plot_overutilized(axes)
 
         # Save generated plots into datadir
         figname = '{}/{}cluster_freqs.png'\
@@ -347,7 +347,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return (avg_lfreq/1e3, avg_bfreq/1e3)
 
-    def plotCPUFrequencies(self, cpus=None):
+    def plot_cpu_frequencies(self, cpus=None):
         """
         Plot frequency for the specified CPUs (or all if not specified).
         If sched_overutilized events are available, the plots will also show the
@@ -365,7 +365,7 @@ class FrequencyAnalysis(AnalysisBase):
         if not self._trace.hasEvents('cpu_frequency'):
             self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
             return
-        df = self._dfg_trace_event('cpu_frequency')
+        df = self.df_events('cpu_frequency')
 
         if cpus is None:
             # Generate plots only for available CPUs
@@ -441,7 +441,7 @@ class FrequencyAnalysis(AnalysisBase):
                                   drawstyle='steps-post', alpha=0.4)
 
             # Plot overutilzied regions (if signal available)
-            self._trace.analysis.status.plotOverutilized(axes)
+            self._trace.analysis.status.plot_overutilized(axes)
 
             # Finalize plot
             axes.set_xlim(self._trace.x_min, self._trace.x_max)
@@ -463,7 +463,7 @@ class FrequencyAnalysis(AnalysisBase):
         return avg_freqs
 
 
-    def plotCPUFrequencyResidency(self, cpus=None, pct=False, active=False):
+    def plot_cpu_frequency_residency(self, cpus=None, pct=False, active=False):
         """
         Plot per-CPU frequency residency. big CPUs are plotted first and then
         LITTLEs.
@@ -491,7 +491,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         if cpus is None:
             # Generate plots only for available CPUs
-            cpufreq_data = self._dfg_trace_event('cpu_frequency')
+            cpufreq_data = self.df_events('cpu_frequency')
             _cpus = list(range(cpufreq_data.cpu.max()+1))
         else:
             _cpus = listify(cpus)
@@ -506,16 +506,16 @@ class FrequencyAnalysis(AnalysisBase):
         residencies = []
         xmax = 0.0
         for cpu in _cpus:
-            res = self._getFrequencyResidency(cpu)
+            res = self._get_frequency_residency(cpu)
             residencies.append(ResidencyData('CPU{}'.format(cpu), res))
 
             max_time = res.total.max().values[0]
             if xmax < max_time:
                 xmax = max_time
 
-        self._plotFrequencyResidency(residencies, 'cpu', xmax, pct, active)
+        self._plot_frequency_residency(residencies, 'cpu', xmax, pct, active)
 
-    def plotClusterFrequencyResidency(self, clusters=None,
+    def plot_cluster_frequency_residency(self, clusters=None,
                                       pct=False, active=False):
         """
         Plot the frequency residency in a given cluster, i.e. the amount of
@@ -564,7 +564,7 @@ class FrequencyAnalysis(AnalysisBase):
         residencies = []
         xmax = 0.0
         for cluster in _clusters:
-            res = self._getFrequencyResidency(
+            res = self._get_frequency_residency(
                 self._platform['clusters'][cluster.lower()])
             residencies.append(ResidencyData('{} Cluster'.format(cluster),
                                              res))
@@ -573,9 +573,9 @@ class FrequencyAnalysis(AnalysisBase):
             if xmax < max_time:
                 xmax = max_time
 
-        self._plotFrequencyResidency(residencies, 'cluster', xmax, pct, active)
+        self._plot_frequency_residency(residencies, 'cluster', xmax, pct, active)
 
-    def plotCPUFrequencyTransitions(self, cpus=None, pct=False):
+    def plot_cpu_frequency_transitions(self, cpus=None, pct=False):
         """
         Plot frequency transitions count of the specified CPUs (or all if not
         specified).
@@ -591,7 +591,7 @@ class FrequencyAnalysis(AnalysisBase):
         if not self._trace.hasEvents('cpu_frequency'):
             self._log.warn('Events [cpu_frequency] not found, plot DISABLED!')
             return
-        df = self._dfg_trace_event('cpu_frequency')
+        df = self.df_events('cpu_frequency')
 
         if cpus is None:
             _cpus = list(range(df.cpu.max() + 1))
@@ -606,7 +606,7 @@ class FrequencyAnalysis(AnalysisBase):
         transitions = {}
         xmax = 0
         for cpu_id in _cpus:
-            t = self._dfg_cpu_frequency_transitions(cpu_id)
+            t = self.df_cpu_frequency_transitions(cpu_id)
 
             if pct:
                 tot = t.transitions.sum()
@@ -658,7 +658,7 @@ class FrequencyAnalysis(AnalysisBase):
         fig.savefig(os.path.join(self._trace.plots_dir, figname),
                     bbox_inches='tight')
 
-    def plotClusterFrequencyTransitions(self, clusters=None, pct=False):
+    def plot_cluster_frequency_transitions(self, clusters=None, pct=False):
         """
         Plot frequency transitions count of the specified clusters (all of them
         is not specified).
@@ -700,7 +700,7 @@ class FrequencyAnalysis(AnalysisBase):
             # We assume frequency is scaled at cluster level and we therefore
             # pick information from the first CPU in the cluster.
             cpu_id = self._platform['clusters'][c.lower()][0]
-            t = self._dfg_cpu_frequency_transitions(cpu_id)
+            t = self.df_cpu_frequency_transitions(cpu_id)
 
             if pct:
                 tot = t.transitions.sum()
@@ -757,7 +757,7 @@ class FrequencyAnalysis(AnalysisBase):
 ###############################################################################
 
     @memoized
-    def _getFrequencyResidency(self, cluster):
+    def _get_frequency_residency(self, cluster):
         """
         Get a DataFrame with per cluster frequency residency, i.e. amount of
         time spent at a given frequency in each cluster.
@@ -780,7 +780,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         _cluster = listify(cluster)
 
-        freq_df = self._dfg_trace_event('cpu_frequency')
+        freq_df = self.df_events('cpu_frequency')
         # Assumption: all CPUs in a cluster run at the same frequency, i.e. the
         # frequency is scaled per-cluster not per-CPU. Hence, we can limit the
         # cluster frequencies data to a single CPU. This assumption is verified
@@ -827,7 +827,7 @@ class FrequencyAnalysis(AnalysisBase):
         active_time.index.name = 'frequency'
         return ResidencyTime(total_time, active_time)
 
-    def _plotFrequencyResidencyAbs(self, axes, residency, n_plots,
+    def _plot_frequency_residency_abs(self, axes, residency, n_plots,
                                    is_first, is_last, xmax, title=''):
         """
         Private method to generate frequency residency plots.
@@ -884,7 +884,7 @@ class FrequencyAnalysis(AnalysisBase):
                           xytext=(50, 25), textcoords='offset points',
                           color='r', fontsize=14)
 
-    def _plotFrequencyResidencyPct(self, axes, residency_df, label,
+    def _plot_frequency_residency_pct(self, axes, residency_df, label,
                                    n_plots, is_first, is_last, res_type):
         """
         Private method to generate PERCENTAGE frequency residency plots.
@@ -932,7 +932,7 @@ class FrequencyAnalysis(AnalysisBase):
                           xy=(0, legend_y), xytext=(-50, 35),
                           textcoords='offset points', fontsize=18)
 
-    def _plotFrequencyResidency(self, residencies, entity_name, xmax,
+    def _plot_frequency_residency(self, residencies, entity_name, xmax,
                                 pct, active):
         """
         Generate Frequency residency plots for the given entities.
@@ -971,21 +971,21 @@ class FrequencyAnalysis(AnalysisBase):
             is_first = idx == 0
             is_last = idx+1 == n_plots
             if pct and active:
-                self._plotFrequencyResidencyPct(axes, data.residency.active,
+                self._plot_frequency_residency_pct(axes, data.residency.active,
                                                 data.label, n_plots,
                                                 is_first, is_last,
                                                 'ACTIVE')
                 figtype = "_pct_active"
                 continue
             if pct:
-                self._plotFrequencyResidencyPct(axes, data.residency.total,
+                self._plot_frequency_residency_pct(axes, data.residency.total,
                                                 data.label, n_plots,
                                                 is_first, is_last,
                                                 'TOTAL')
                 figtype = "_pct_total"
                 continue
 
-            self._plotFrequencyResidencyAbs(axes, data.residency,
+            self._plot_frequency_residency_abs(axes, data.residency,
                                             n_plots, is_first,
                                             is_last, xmax,
                                             title=data.label)

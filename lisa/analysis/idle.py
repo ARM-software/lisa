@@ -43,7 +43,7 @@ class IdleAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    def _dfg_cpu_idle_state_residency(self, cpu):
+    def df_cpu_idle_state_residency(self, cpu):
         """
         Compute time spent by a given CPU in each idle state.
 
@@ -57,7 +57,7 @@ class IdleAnalysis(AnalysisBase):
                               'idle state residency computation not possible!')
             return None
 
-        idle_df = self._dfg_trace_event('cpu_idle')
+        idle_df = self.df_events('cpu_idle')
         cpu_idle = idle_df[idle_df.cpu_id == cpu]
 
         cpu_is_idle = self._trace.getCPUActiveSignal(cpu) ^ 1
@@ -93,7 +93,7 @@ class IdleAnalysis(AnalysisBase):
         idle_time_df.index.name = 'idle_state'
         return idle_time_df
 
-    def _dfg_cluster_idle_state_residency(self, cluster):
+    def df_cluster_idle_state_residency(self, cluster):
         """
         Compute time spent by a given cluster in each idle state.
 
@@ -115,7 +115,7 @@ class IdleAnalysis(AnalysisBase):
                 self._log.warning('%s cluster not found!', cluster)
                 return None
 
-        idle_df = self._dfg_trace_event('cpu_idle')
+        idle_df = self.df_events('cpu_idle')
         # Each core in a cluster can be in a different idle state, but the
         # cluster lies in the idle state with lowest ID, that is the shallowest
         # idle state among the idle states of its CPUs
@@ -165,7 +165,7 @@ class IdleAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    def plotCPUIdleStateResidency(self, cpus=None, pct=False):
+    def plot_cpu_idle_state_residency(self, cpus=None, pct=False):
         """
         Plot per-CPU idle state residency. big CPUs are plotted first and then
         LITTLEs.
@@ -185,7 +185,7 @@ class IdleAnalysis(AnalysisBase):
 
         if cpus is None:
             # Generate plots only for available CPUs
-            cpuidle_data = self._dfg_trace_event('cpu_idle')
+            cpuidle_data = self.df_events('cpu_idle')
             _cpus = list(range(cpuidle_data.cpu_id.max() + 1))
         else:
             _cpus = listify(cpus)
@@ -199,16 +199,16 @@ class IdleAnalysis(AnalysisBase):
         residencies = []
         xmax = 0.0
         for cpu in _cpus:
-            r = self._dfg_cpu_idle_state_residency(cpu)
+            r = self.df_cpu_idle_state_residency(cpu)
             residencies.append(ResidencyData('CPU{}'.format(cpu), r))
 
             max_time = r.max().values[0]
             if xmax < max_time:
                 xmax = max_time
 
-        self._plotIdleStateResidency(residencies, 'cpu', xmax, pct=pct)
+        self._plot_idle_state_residency(residencies, 'cpu', xmax, pct=pct)
 
-    def plotClusterIdleStateResidency(self, clusters=None, pct=False):
+    def plot_cluster_idle_state_residency(self, clusters=None, pct=False):
         """
         Plot per-cluster idle state residency in a given cluster, i.e. the
         amount of time cluster `cluster` spent in idle state `i`. By default,
@@ -236,20 +236,20 @@ class IdleAnalysis(AnalysisBase):
         residencies = []
         xmax = 0.0
         for c in _clusters:
-            r = self._dfg_cluster_idle_state_residency(c.lower())
+            r = self.df_cluster_idle_state_residency(c.lower())
             residencies.append(ResidencyData('{} Cluster'.format(c), r))
 
             max_time = r.max().values[0]
             if xmax < max_time:
                 xmax = max_time
 
-        self._plotIdleStateResidency(residencies, 'cluster', xmax, pct=pct)
+        self._plot_idle_state_residency(residencies, 'cluster', xmax, pct=pct)
 
 ###############################################################################
 # Utility Methods
 ###############################################################################
 
-    def _plotIdleStateResidency(self, residencies, entity_name, xmax,
+    def _plot_idle_state_residency(self, residencies, entity_name, xmax,
                                 pct=False):
         """
         Generate Idle state residency plots for the given entities.

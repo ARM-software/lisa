@@ -149,24 +149,24 @@ def plotdir(run_dir, platform):
 
     # Tasks plots
     if 'tasks' in args.plots:
-        trace.analysis.tasks.plotTasks(tasks)
+        trace.analysis.tasks.plot_tasks(tasks)
         if pa:
             for task in tasks:
                 pa.plotPerf(task)
 
     # Cluster and CPUs plots
     if 'clusters' in args.plots:
-        trace.analysis.frequency.plotClusterFrequencies()
+        trace.analysis.frequency.plot_cluster_frequencies()
     if 'cpus' in args.plots:
-        trace.analysis.cpus.plotCPU()
+        trace.analysis.cpus.plot_cpu()
 
     # SchedTune plots
     if 'stune' in args.plots:
-        trace.analysis.eas.plotSchedTuneConf()
+        trace.analysis.eas.plot_sched_tune_conf()
     if 'ediff' in args.plots:
-        trace.analysis.eas.plotEDiffTime();
+        trace.analysis.eas.plot_e_diff_time();
     if 'edspace' in args.plots:
-        trace.analysis.eas.plotEDiffSpace();
+        trace.analysis.eas.plot_e_diff_space();
 
 if __name__ == "__main__":
     main()

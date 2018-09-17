@@ -43,10 +43,11 @@ class AnalysisBase(object):
         self._log = logging.getLogger('Analysis')
 
         self._trace = trace
+        #TODO: use self._trace.XXXX instead
         self._platform = trace.platform
         self._data_dir = trace.data_dir
 
-        self._dfg_trace_event = trace._dfg_trace_event
+        self.df_events = trace.df_events
 
         # By default assume SMP system
         self._big_cap = 1024
@@ -62,8 +63,6 @@ class AnalysisBase(object):
             'little' in self._platform['clusters']):
             self._big_cpus = self._platform['clusters']['big']
             self._little_cpus = self._platform['clusters']['little']
-
-        trace._registerDataFrameGetters(self)
 
     @classmethod
     def get_subclasses(cls, cls_set=None):

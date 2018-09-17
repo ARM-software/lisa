@@ -46,7 +46,7 @@ class EasAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    def plotEDiffTime(self, tasks=None,
+    def plot_e_diff_time(self, tasks=None,
                       min_usage_delta=None, max_usage_delta=None,
                       min_cap_delta=None, max_cap_delta=None,
                       min_nrg_delta=None, max_nrg_delta=None,
@@ -57,7 +57,7 @@ class EasAnalysis(AnalysisBase):
         if not self._trace.hasEvents('sched_energy_diff'):
             self._log.warning('Event [sched_energy_diff] not found, plot DISABLED!')
             return
-        df = self._dfg_trace_event('sched_energy_diff')
+        df = self.df_events('sched_energy_diff')
 
         # Filter on 'tasks'
         if tasks is not None:
@@ -122,7 +122,7 @@ class EasAnalysis(AnalysisBase):
         axes.grid(True)
         axes.set_xticklabels([])
         axes.set_xlabel('')
-        self._trace.analysis.status.plotOverutilized(axes)
+        self._trace.analysis.status.plot_overutilized(axes)
 
         # Plot2: energy and capacity variations
         axes = plt.subplot(gs[1, :])
@@ -140,7 +140,7 @@ class EasAnalysis(AnalysisBase):
         axes.grid(True)
         axes.set_xticklabels([])
         axes.set_xlabel('')
-        self._trace.analysis.status.plotOverutilized(axes)
+        self._trace.analysis.status.plot_overutilized(axes)
 
         # Plot3: energy payoff
         axes = plt.subplot(gs[2, :])
@@ -155,7 +155,7 @@ class EasAnalysis(AnalysisBase):
         axes.grid(True)
         axes.set_xticklabels([])
         axes.set_xlabel('')
-        self._trace.analysis.status.plotOverutilized(axes)
+        self._trace.analysis.status.plot_overutilized(axes)
 
         # Plot4: energy deltas (kernel and host computed values)
         axes = plt.subplot(gs[3, :])
@@ -163,7 +163,7 @@ class EasAnalysis(AnalysisBase):
         df[['nrg_delta', 'nrg_diff_pct']].plot(ax=axes, style=['ro', 'b+'])
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
         axes.grid(True)
-        self._trace.analysis.status.plotOverutilized(axes)
+        self._trace.analysis.status.plot_overutilized(axes)
 
         # Save generated plots into datadir
         figname = '{}/{}ediff_time.png'\
@@ -189,7 +189,7 @@ class EasAnalysis(AnalysisBase):
                   .format(self._trace.plots_dir, self._trace.plots_prefix)
         pl.savefig(figname, bbox_inches='tight')
 
-    def plotEDiffSpace(self, tasks=None,
+    def plot_e_diff_space(self, tasks=None,
                        min_usage_delta=None, max_usage_delta=None,
                        min_cap_delta=None, max_cap_delta=None,
                        min_nrg_delta=None, max_nrg_delta=None,
@@ -201,7 +201,7 @@ class EasAnalysis(AnalysisBase):
         if not self._trace.hasEvents('sched_energy_diff'):
             self._log.warning('Event [sched_energy_diff] not found, plot DISABLED!')
             return
-        df = self._dfg_trace_event('sched_energy_diff')
+        df = self.df_events('sched_energy_diff')
 
         # Filter on 'tasks'
         if tasks is not None:
@@ -361,7 +361,7 @@ class EasAnalysis(AnalysisBase):
                   .format(self._trace.plots_dir, self._trace.plots_prefix)
         pl.savefig(figname, bbox_inches='tight')
 
-    def plotSchedTuneConf(self):
+    def plot_sched_tune_conf(self):
         """
         Plot the configuration of SchedTune.
         """
@@ -380,7 +380,7 @@ class EasAnalysis(AnalysisBase):
         # Plot: Margin
         axes = plt.subplot(gs[0, 0])
         axes.set_title('Margin')
-        data = self._dfg_trace_event('sched_tune_config')[['margin']]
+        data = self.df_events('sched_tune_config')[['margin']]
         data.plot(ax=axes, drawstyle='steps-post', style=['b'])
         axes.set_ylim(0, 110)
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
@@ -389,7 +389,7 @@ class EasAnalysis(AnalysisBase):
         # Plot: Boost mode
         axes = plt.subplot(gs[1, 0])
         axes.set_title('Boost mode')
-        data = self._dfg_trace_event('sched_tune_config')[['boostmode']]
+        data = self.df_events('sched_tune_config')[['boostmode']]
         data.plot(ax=axes, drawstyle='steps-post')
         axes.set_ylim(0, 4)
         axes.set_xlim(self._trace.x_min, self._trace.x_max)

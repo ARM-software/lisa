@@ -53,7 +53,7 @@ class LatencyAnalysis(AnalysisBase):
 ###############################################################################
 
     @memoized
-    def _dfg_latency_df(self, task):
+    def df_latency(self, task):
         """
         DataFrame of task's wakeup/suspend events
 
@@ -86,12 +86,12 @@ class LatencyAnalysis(AnalysisBase):
             return None
 
         # Get task data
-        td = self._getTaskData(task)
+        td = self._get_task_data(task)
         if not td:
             return None
 
-        wk_df = self._dfg_trace_event('sched_wakeup')
-        sw_df = self._dfg_trace_event('sched_switch')
+        wk_df = self.df_events('sched_wakeup')
+        sw_df = self.df_events('sched_switch')
 
         # Filter Task's WAKEUP events
         task_wakeup = wk_df[wk_df.pid == td.pid][['target_cpu', 'pid']]
@@ -105,7 +105,7 @@ class LatencyAnalysis(AnalysisBase):
         # we don't care about the status of a task we are replacing
         task_switches_df.prev_state = task_switches_df.apply(
             lambda r : np.nan if r['prev_pid'] != td.pid
-                              else self._taskState(r['prev_state']),
+                              else self._task_state(r['prev_state']),
             axis=1)
 
         # Rename prev_state
@@ -136,7 +136,7 @@ class LatencyAnalysis(AnalysisBase):
             self._log.warning('  which %s not currently mapped into a task state.',
                               verb)
             self._log.warning('Check mappings in:')
-            self._log.warning(' %s::%s _taskState()',
+            self._log.warning(' %s::%s _task_state()',
                               __file__, self.__class__.__name__)
 
         # Forward annotate task state
@@ -161,7 +161,7 @@ class LatencyAnalysis(AnalysisBase):
 
 
     # Select Wakeup latency
-    def _dfg_latency_wakeup_df(self, task):
+    def df_latency_wakeup(self, task):
         """
         DataFrame of task's wakeup latencies
 
@@ -173,7 +173,7 @@ class LatencyAnalysis(AnalysisBase):
         :type task: int or str
         """
 
-        task_latency_df = self._dfg_latency_df(task)
+        task_latency_df = self.df_latency(task)
         if task_latency_df is None:
             return None
         df = task_latency_df[
@@ -183,7 +183,7 @@ class LatencyAnalysis(AnalysisBase):
         return df
 
     # Select Wakeup latency
-    def _dfg_latency_preemption_df(self, task):
+    def df_latency_preemption(self, task):
         """
         DataFrame of task's preemption latencies
 
@@ -195,7 +195,7 @@ class LatencyAnalysis(AnalysisBase):
         :param task: the task to report wakeup latencies for
         :type task: int or str
         """
-        task_latency_df = self._dfg_latency_df(task)
+        task_latency_df = self.df_latency(task)
         if task_latency_df is None:
             return None
         df = task_latency_df[
@@ -205,7 +205,7 @@ class LatencyAnalysis(AnalysisBase):
         return df
 
     @memoized
-    def _dfg_activations_df(self, task):
+    def df_activations(self, task):
         """
         DataFrame of task's wakeup intrvals
 
@@ -218,7 +218,7 @@ class LatencyAnalysis(AnalysisBase):
         :type task: int or str
         """
         # Select all wakeup events
-        wkp_df = self._dfg_latency_df(task)
+        wkp_df = self.df_latency(task)
         wkp_df = wkp_df[wkp_df.curr_state == 'W'].copy()
         # Compute delta between successive wakeup events
         wkp_df['activation_interval'] = (
@@ -229,7 +229,7 @@ class LatencyAnalysis(AnalysisBase):
         return wkp_df
 
     @memoized
-    def _dfg_runtimes_df(self, task):
+    def df_runtimes(self, task):
         """
         DataFrame of task's runtime each time the task blocks
 
@@ -242,7 +242,7 @@ class LatencyAnalysis(AnalysisBase):
         :type task: int or str
         """
         # Select all wakeup events
-        run_df = self._dfg_latency_df(task)
+        run_df = self.df_latency(task)
 
         # Filter function to add up RUNNING intervals of each activation
         def cr(row):
@@ -290,7 +290,7 @@ class LatencyAnalysis(AnalysisBase):
         return run_df
 
     @memoized
-    def _dfg_task_residency(self, task):
+    def df_task_residency(self, task):
         """
         DataFrame of a task's execution time on each CPU
 
@@ -305,7 +305,7 @@ class LatencyAnalysis(AnalysisBase):
         cpus = list(range(self._platform['cpus_count']))
         runtimes = {cpu : 0.0 for cpu in cpus}
 
-        df = self._dfg_latency_df(task)
+        df = self.df_latency(task)
 
         # Exclude sleep time
         df = df[df.curr_state != 'S']
@@ -353,14 +353,14 @@ class LatencyAnalysis(AnalysisBase):
             return
 
         # Get task data
-        td = self._getTaskData(task)
+        td = self._get_task_data(task)
         if not td:
             return None
 
         # Load wakeup latencies (if required)
         wkp_df = None
         if 'all' in kind or 'wakeup' in kind:
-            wkp_df = self._dfg_latency_wakeup_df(td.pid)
+            wkp_df = self.df_latency_wakeup(td.pid)
         if wkp_df is not None:
             wkp_df.rename(columns={'wakeup_latency' : 'latency'}, inplace=True)
             self._log.info('Found: %5d WAKEUP latencies', len(wkp_df))
@@ -368,7 +368,7 @@ class LatencyAnalysis(AnalysisBase):
         # Load preempt latencies (if required)
         prt_df = None
         if 'all' in kind or 'preempt' in kind:
-            prt_df = self._dfg_latency_preemption_df(td.pid)
+            prt_df = self.df_latency_preemption(td.pid)
         if prt_df is not None:
             prt_df.rename(columns={'preempt_latency' : 'latency'}, inplace=True)
             self._log.info('Found: %5d PREEMPT latencies', len(prt_df))
@@ -379,12 +379,12 @@ class LatencyAnalysis(AnalysisBase):
 
         # Join the two data frames
         df = wkp_df.append(prt_df)
-        cdf = self._getCDF(df.latency, (threshold_ms / 1000.))
+        cdf = self._get_cdf(df.latency, (threshold_ms / 1000.))
 
         return df, cdf
 
     @memoized
-    def _dfg_latency_stats_df(self, task, kind='all', threshold_ms=1):
+    def df_latency_stats(self, task, kind='all', threshold_ms=1):
         """
         Compute statistics on latencies of the specified task.
 
@@ -416,7 +416,7 @@ class LatencyAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    def plotLatency(self, task, kind='all', tag=None, threshold_ms=1, bins=64):
+    def plot_latency(self, task, kind='all', tag=None, threshold_ms=1, bins=64):
         """
         Generate a set of plots to report the WAKEUP and PREEMPT latencies the
         specified task has been subject to. A WAKEUP latencies is the time from
@@ -451,7 +451,7 @@ class LatencyAnalysis(AnalysisBase):
                        100. * cdf.below, threshold_ms)
 
         # Get task data
-        td = self._getTaskData(task)
+        td = self._get_task_data(task)
         if not td:
             return None
 
@@ -476,7 +476,7 @@ class LatencyAnalysis(AnalysisBase):
             prt_df.plot(style='r+', logy=True, ax=axes)
         except: pass
         axes.axhline(threshold_ms / 1000., linestyle='--', color='g')
-        self._trace.analysis.status.plotOverutilized(axes)
+        self._trace.analysis.status.plot_overutilized(axes)
         axes.legend(loc='lower center', ncol=2)
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
 
@@ -505,7 +505,7 @@ class LatencyAnalysis(AnalysisBase):
         pl.savefig(figname, bbox_inches='tight')
 
 
-    def plotLatencyBands(self, task, axes=None):
+    def plot_latency_bands(self, task, axes=None):
         """
         Draw a plot that shows intervals of time when the execution of a
         RUNNABLE task has been delayed. The plot reports:
@@ -531,12 +531,12 @@ class LatencyAnalysis(AnalysisBase):
             return
 
         # Get task PID
-        td = self._getTaskData(task)
+        td = self._get_task_data(task)
         if not td:
             return None
 
-        wkl_df = self._dfg_latency_wakeup_df(td.pid)
-        prt_df = self._dfg_latency_preemption_df(td.pid)
+        wkl_df = self.df_latency_wakeup(td.pid)
+        prt_df = self.df_latency_preemption(td.pid)
 
         if wkl_df is None and prt_df is None:
             self._log.warning('No task with name [%s]', td.label)
@@ -573,7 +573,7 @@ class LatencyAnalysis(AnalysisBase):
                 axes.set_xlim(self._trace.x_min, self._trace.x_max)
         except: pass
 
-    def plotActivations(self, task, tag=None, threshold_ms=16, bins=64):
+    def plot_activations(self, task, tag=None, threshold_ms=16, bins=64):
         """
         Plots "activation intervals" for the specified task
 
@@ -625,12 +625,12 @@ class LatencyAnalysis(AnalysisBase):
             return
 
         # Get task data
-        td = self._getTaskData(task)
+        td = self._get_task_data(task)
         if not td:
             return None
 
         # Load activation data
-        wkp_df = self._dfg_activations_df(td.pid)
+        wkp_df = self.df_activations(td.pid)
         if wkp_df is None:
             return None
         self._log.info('Found: %5d activations for [%s]',
@@ -650,7 +650,7 @@ class LatencyAnalysis(AnalysisBase):
         ymax = 1.1 * wkp_df.activation_interval.max()
 
         # Build the series for the CDF
-        cdf = self._getCDF(wkp_df.activation_interval, (threshold_ms / 1000.))
+        cdf = self._get_cdf(wkp_df.activation_interval, (threshold_ms / 1000.))
         self._log.info('%.1f %% samples below %d [ms] threshold',
                        100. * cdf.below, threshold_ms)
 
@@ -669,7 +669,7 @@ class LatencyAnalysis(AnalysisBase):
         wkp_df.plot(style='g+', logy=False, ax=axes)
 
         axes.axhline(threshold_ms / 1000., linestyle='--', color='g')
-        self._trace.analysis.status.plotOverutilized(axes)
+        self._trace.analysis.status.plot_overutilized(axes)
         axes.legend(loc='lower center', ncol=2)
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
 
@@ -704,7 +704,7 @@ class LatencyAnalysis(AnalysisBase):
             list(stats.values()), columns=['activation_interval'], index=list(stats.keys())))
 
 
-    def plotRuntimes(self, task, tag=None, threshold_ms=8, bins=64):
+    def plot_runtimes(self, task, tag=None, threshold_ms=8, bins=64):
         """
         Plots "running times" for the specified task
 
@@ -756,12 +756,12 @@ class LatencyAnalysis(AnalysisBase):
             return
 
         # Get task data
-        td = self._getTaskData(task)
+        td = self._get_task_data(task)
         if not td:
             return None
 
         # Load runtime data
-        run_df = self._dfg_runtimes_df(td.pid)
+        run_df = self.df_runtimes(td.pid)
         if run_df is None:
             return None
         self._log.info('Found: %5d activations for [%s]',
@@ -781,7 +781,7 @@ class LatencyAnalysis(AnalysisBase):
         ymax = 1.1 * run_df.running_time.max()
 
         # Build the series for the CDF
-        cdf = self._getCDF(run_df.running_time, (threshold_ms / 1000.))
+        cdf = self._get_cdf(run_df.running_time, (threshold_ms / 1000.))
         self._log.info('%.1f %% samples below %d [ms] threshold',
                        100. * cdf.below, threshold_ms)
 
@@ -800,7 +800,7 @@ class LatencyAnalysis(AnalysisBase):
         run_df.plot(style='g+', logy=False, ax=axes)
 
         axes.axhline(threshold_ms / 1000., linestyle='--', color='g')
-        self._trace.analysis.status.plotOverutilized(axes)
+        self._trace.analysis.status.plot_overutilized(axes)
         axes.legend(loc='lower center', ncol=2)
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
 
@@ -834,7 +834,7 @@ class LatencyAnalysis(AnalysisBase):
         return stats_df.append(pd.DataFrame(
             list(stats.values()), columns=['running_time'], index=list(stats.keys())))
 
-    def plotTaskResidency(self, task):
+    def plot_task_residency(self, task):
         """
         Plot CPU residency of the specified task
         This will show an overview of how much time that task spent being
@@ -843,7 +843,7 @@ class LatencyAnalysis(AnalysisBase):
         :param task: the task to report runtimes for
         :type task: int or str
         """
-        df = self._dfg_task_residency(task)
+        df = self.df_task_residency(task)
 
         ax = df.plot(kind='bar', figsize=(16, 6))
         ax.set_title('CPU residency of task {}'.format(task))
@@ -862,7 +862,7 @@ class LatencyAnalysis(AnalysisBase):
 ###############################################################################
 
     @memoized
-    def _getTaskData(self, task):
+    def _get_task_data(self, task):
 
         # Get task PID
         if isinstance(task, str):
@@ -896,7 +896,7 @@ class LatencyAnalysis(AnalysisBase):
         return TaskData(task_pid, task_name, task_label)
 
     @memoized
-    def _taskState(self, state):
+    def _task_state(self, state):
         try:
             state = int(state)
         except ValueError:
@@ -935,7 +935,7 @@ class LatencyAnalysis(AnalysisBase):
         return res
 
 
-    def _getCDF(self, data, threshold):
+    def _get_cdf(self, data, threshold):
         """
         Build the "Cumulative Distribution Function" (CDF) for the given data
         """
