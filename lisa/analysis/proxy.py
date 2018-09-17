@@ -21,6 +21,7 @@ import os
 import sys
 import logging
 import inspect
+import itertools
 
 from lisa.analysis.base import AnalysisBase
 
@@ -42,6 +43,10 @@ class AnalysisProxy(object):
 
         self._instance_map = {}
 
+    def __dir__(self):
+        """Provide better completion support for interactive notebook usage"""
+        return itertools.chain(super().__dir__(), self._class_map.keys())
+
     def __getattr__(self, attr):
         # First, try to get the instance of the Analysis that was built if we
         # used it already on that proxy.
@@ -58,13 +63,14 @@ class AnalysisProxy(object):
                 try:
                     analysis_cls = super(AnalysisProxy, self).__getattribute__(attr)
                 except Exception:
-                    logger = logging.getLogger('Analysis {} not found'.format(attr))
-                    logger.debug('Registered analysis:')
+                    logger = logging.getLogger('Analysis')
+                    logger.debug('{} not found. Registered analysis:'.format(attr))
                     for name, cls in list(self._class_map.items()):
+                        src_file = '<unknown source>'
                         try:
-                            src_file = inspect.getsourcefile(cls)
+                            src_file = inspect.getsourcefile(cls) or src_file
                         except TypeError:
-                            src_file = '<unknown source>'
+                            pass
 
                         logger.debug('{name} ({cls}) defined in {src}'.format(
                             name=name,
