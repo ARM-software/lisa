@@ -39,6 +39,10 @@ class AnalysisProxy(object):
         self._class_map = {
             cls.name: cls
             for cls in AnalysisBase.get_subclasses()
+            # Classes without a "name" attribute directly defined in their
+            # scope will not get registered. That allows having unnamed
+            # intermediate base classes that are not meant to be exposed.
+            if 'name' in cls.__dict__
         }
 
         self._instance_map = {}
