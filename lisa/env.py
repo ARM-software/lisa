@@ -42,12 +42,12 @@ FTRACE_BUFSIZE_DEFAULT = 10240
 OUT_PREFIX = 'results'
 LATEST_LINK = 'results_latest'
 
-basepath = os.getenv('LISA_HOME')
+BASEPATH = os.getenv('LISA_HOME')
 # This will catch both unset variable and variable set to an empty string
-if not basepath:
+if not BASEPATH:
     logging.getLogger(__name__).warning('LISA_HOME env var is not set, LISA may misbehave.')
 else:
-    platforms_path = os.path.join(basepath, 'lisa', 'platforms')
+    platforms_path = os.path.join(BASEPATH, 'lisa', 'platforms')
 
 class TestEnv(Loggable):
     """
@@ -126,7 +126,7 @@ class TestEnv(Loggable):
         super(TestEnv, self).__init__()
 
         # Compute base installation path
-        self.logger.info('Using base path: %s', basepath)
+        self.logger.info('Using base path: %s', BASEPATH)
 
         self._pre_target_init(target_conf)
         self._init_target()
@@ -625,7 +625,7 @@ class TestEnv(Loggable):
         filepath = filepath or 'target.config'
 
         # Loading default target configuration
-        conf_file = os.path.join(basepath, filepath)
+        conf_file = os.path.join(BASEPATH, filepath)
 
         self.logger.info('Loading target configuration [%s]...', conf_file)
         conf = JsonConf(conf_file)
@@ -654,17 +654,17 @@ class TestEnv(Loggable):
         elif name and append_time:
             name = "{}-{}".format(name, time_str)
 
-        res_dir = os.path.join(basepath, OUT_PREFIX, name)
+        res_dir = os.path.join(BASEPATH, OUT_PREFIX, name)
 
         # Relative paths are interpreted as relative to a fixed root.
         if not os.path.isabs(res_dir):
-            res_dir = os.path.join(basepath, OUT_PREFIX, res_dir)
+            res_dir = os.path.join(BASEPATH, OUT_PREFIX, res_dir)
 
         if not os.path.exists(res_dir):
             os.makedirs(res_dir)
 
         if symlink:
-            res_lnk = os.path.join(basepath, LATEST_LINK)
+            res_lnk = os.path.join(BASEPATH, LATEST_LINK)
         if os.path.islink(res_lnk):
             os.remove(res_lnk)
         os.symlink(res_dir, res_lnk)
@@ -686,10 +686,10 @@ class TestEnv(Loggable):
 
         tools_to_install = []
         for tool in tools:
-            binary = '{}/tools/scripts/{}'.format(basepath, tool)
+            binary = '{}/tools/scripts/{}'.format(BASEPATH, tool)
             if not os.path.isfile(binary):
                 binary = '{}/tools/{}/{}'\
-                         .format(basepath, self.target.abi, tool)
+                         .format(BASEPATH, self.target.abi, tool)
             tools_to_install.append(binary)
 
         for tool_to_install in tools_to_install:

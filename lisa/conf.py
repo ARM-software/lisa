@@ -21,6 +21,8 @@ import re
 import logging
 import logging.config
 
+from lisa.env import BASEPATH
+
 class LisaLogging(object):
 
     @classmethod
@@ -28,9 +30,9 @@ class LisaLogging(object):
         """
         Initialize logging used for all the LISA modules.
 
-        :param filepath: the relative or absolute path of the logging configuration to use.
-                         Relative path uses the LISA_HOME environment variable
-                         has base folder.
+        :param filepath: the relative or absolute path of the logging
+                         configuration to use. Relative path uses the
+                         :data:`env.BASEPATH` as base folder.
         :type filepath: str
 
         :param level: the default log level to enable, INFO by default
@@ -38,8 +40,7 @@ class LisaLogging(object):
         """
 
         # Load the specified logfile using an absolute path
-        basepath = os.getenv('LISA_HOME')
-        filepath = os.path.join(basepath, filepath)
+        filepath = os.path.join(BASEPATH, filepath)
         if not os.path.exists(filepath):
             raise ValueError('Logging configuration file not found in: {}'\
                              .format(filepath))
