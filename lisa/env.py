@@ -29,7 +29,7 @@ from trappy.stats.Topology import Topology
 from lisa.wlgen.rta import RTA
 from lisa.energy import EnergyMeter
 from lisa.energy_model import EnergyModel
-from lisa.conf import JsonConf
+from lisa.conf import JsonConf, BASEPATH
 from lisa.utilities import Loggable
 from lisa.platforms.juno_r0_energy import juno_r0_energy
 from lisa.platforms.hikey_energy import hikey_energy
@@ -42,11 +42,7 @@ FTRACE_BUFSIZE_DEFAULT = 10240
 OUT_PREFIX = 'results'
 LATEST_LINK = 'results_latest'
 
-BASEPATH = os.getenv('LISA_HOME')
-# This will catch both unset variable and variable set to an empty string
-if not BASEPATH:
-    logging.getLogger(__name__).warning('LISA_HOME env var is not set, LISA may misbehave.')
-else:
+if BASEPATH:
     platforms_path = os.path.join(BASEPATH, 'lisa', 'platforms')
 
 class TestEnv(Loggable):

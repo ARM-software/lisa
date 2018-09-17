@@ -21,7 +21,11 @@ import re
 import logging
 import logging.config
 
-from lisa.env import BASEPATH
+BASEPATH = os.getenv('LISA_HOME')
+# This will catch both unset variable and variable set to an empty string
+if not BASEPATH:
+    logging.getLogger(__name__).warning('LISA_HOME env var is not set, LISA may misbehave.')
+
 
 class LisaLogging(object):
 
