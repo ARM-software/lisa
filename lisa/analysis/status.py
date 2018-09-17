@@ -51,7 +51,7 @@ class StatusAnalysis(AnalysisBase):
             return None
 
         # Build sequence of overutilization "bands"
-        df = self.df_events('sched_overutilized')
+        df = self._trace.df_events('sched_overutilized')
 
         # Remove duplicated index events, keep only last event which is the
         # only one with a non null length

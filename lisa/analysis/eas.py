@@ -57,7 +57,7 @@ class EasAnalysis(AnalysisBase):
         if not self._trace.hasEvents('sched_energy_diff'):
             self._log.warning('Event [sched_energy_diff] not found, plot DISABLED!')
             return
-        df = self.df_events('sched_energy_diff')
+        df = self._trace.df_events('sched_energy_diff')
 
         # Filter on 'tasks'
         if tasks is not None:
@@ -117,7 +117,7 @@ class EasAnalysis(AnalysisBase):
         axes = plt.subplot(gs[0, :])
         axes.set_title('Source and Destination CPUs')
         df[['src_cpu', 'dst_cpu']].plot(ax=axes, style=['bo', 'r+'])
-        axes.set_ylim(-1, self._platform['cpus_count']+1)
+        axes.set_ylim(-1, self._trace.platform['cpus_count']+1)
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
         axes.grid(True)
         axes.set_xticklabels([])
@@ -201,7 +201,7 @@ class EasAnalysis(AnalysisBase):
         if not self._trace.hasEvents('sched_energy_diff'):
             self._log.warning('Event [sched_energy_diff] not found, plot DISABLED!')
             return
-        df = self.df_events('sched_energy_diff')
+        df = self._trace.df_events('sched_energy_diff')
 
         # Filter on 'tasks'
         if tasks is not None:
@@ -380,7 +380,7 @@ class EasAnalysis(AnalysisBase):
         # Plot: Margin
         axes = plt.subplot(gs[0, 0])
         axes.set_title('Margin')
-        data = self.df_events('sched_tune_config')[['margin']]
+        data = self._trace.df_events('sched_tune_config')[['margin']]
         data.plot(ax=axes, drawstyle='steps-post', style=['b'])
         axes.set_ylim(0, 110)
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
@@ -389,7 +389,7 @@ class EasAnalysis(AnalysisBase):
         # Plot: Boost mode
         axes = plt.subplot(gs[1, 0])
         axes.set_title('Boost mode')
-        data = self.df_events('sched_tune_config')[['boostmode']]
+        data = self._trace.df_events('sched_tune_config')[['boostmode']]
         data.plot(ax=axes, drawstyle='steps-post')
         axes.set_ylim(0, 4)
         axes.set_xlim(self._trace.x_min, self._trace.x_max)

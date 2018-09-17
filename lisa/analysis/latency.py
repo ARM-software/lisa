@@ -90,8 +90,8 @@ class LatencyAnalysis(AnalysisBase):
         if not td:
             return None
 
-        wk_df = self.df_events('sched_wakeup')
-        sw_df = self.df_events('sched_switch')
+        wk_df = self._trace.df_events('sched_wakeup')
+        sw_df = self._trace.df_events('sched_switch')
 
         # Filter Task's WAKEUP events
         task_wakeup = wk_df[wk_df.pid == td.pid][['target_cpu', 'pid']]
@@ -302,7 +302,7 @@ class LatencyAnalysis(AnalysisBase):
         :param task: the task to report runtimes for
         :type task: int or str
         """
-        cpus = list(range(self._platform['cpus_count']))
+        cpus = list(range(self._trace.platform['cpus_count']))
         runtimes = {cpu : 0.0 for cpu in cpus}
 
         df = self.df_latency(task)

@@ -57,7 +57,7 @@ class IdleAnalysis(AnalysisBase):
                               'idle state residency computation not possible!')
             return None
 
-        idle_df = self.df_events('cpu_idle')
+        idle_df = self._trace.df_events('cpu_idle')
         cpu_idle = idle_df[idle_df.cpu_id == cpu]
 
         cpu_is_idle = self._trace.getCPUActiveSignal(cpu) ^ 1
@@ -110,12 +110,12 @@ class IdleAnalysis(AnalysisBase):
         _cluster = cluster
         if isinstance(cluster, str) or isinstance(cluster, str):
             try:
-                _cluster = self._platform['clusters'][cluster.lower()]
+                _cluster = self._trace.platform['clusters'][cluster.lower()]
             except KeyError:
                 self._log.warning('%s cluster not found!', cluster)
                 return None
 
-        idle_df = self.df_events('cpu_idle')
+        idle_df = self._trace.df_events('cpu_idle')
         # Each core in a cluster can be in a different idle state, but the
         # cluster lies in the idle state with lowest ID, that is the shallowest
         # idle state among the idle states of its CPUs
@@ -185,7 +185,7 @@ class IdleAnalysis(AnalysisBase):
 
         if cpus is None:
             # Generate plots only for available CPUs
-            cpuidle_data = self.df_events('cpu_idle')
+            cpuidle_data = self._trace.df_events('cpu_idle')
             _cpus = list(range(cpuidle_data.cpu_id.max() + 1))
         else:
             _cpus = listify(cpus)
@@ -222,13 +222,13 @@ class IdleAnalysis(AnalysisBase):
         if not self._trace.hasEvents('cpu_idle'):
             self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
             return
-        if 'clusters' not in self._platform:
+        if 'clusters' not in self._trace.platform:
             self._log.warning('No platform cluster info. Plot DISABLED!')
             return
 
         # Sanitize clusters
         if clusters is None:
-            _clusters = list(self._platform['clusters'].keys())
+            _clusters = list(self._trace.platform['clusters'].keys())
         else:
             _clusters = listify(clusters)
 

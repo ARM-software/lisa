@@ -96,7 +96,7 @@ class FrequencyAnalysis(AnalysisBase):
         if isinstance(cluster, str):
             try:
                 residency = self._get_frequency_residency(
-                    self._platform['clusters'][cluster.lower()]
+                    self._trace.platform['clusters'][cluster.lower()]
                 )
             except KeyError:
                 self._log.warning(
@@ -128,7 +128,7 @@ class FrequencyAnalysis(AnalysisBase):
                            'frequency data not available')
             return None
 
-        freq_df = self.df_events('cpu_frequency')
+        freq_df = self._trace.df_events('cpu_frequency')
         cpu_freqs = freq_df[freq_df.cpu == cpu].frequency
 
         # Remove possible duplicates (example: when devlib sets trace markers
@@ -255,7 +255,7 @@ class FrequencyAnalysis(AnalysisBase):
         if not self._trace.hasEvents('cpu_frequency'):
             self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
             return
-        df = self.df_events('cpu_frequency')
+        df = self._trace.df_events('cpu_frequency')
 
         pd.options.mode.chained_assignment = None
 
@@ -302,8 +302,8 @@ class FrequencyAnalysis(AnalysisBase):
         if avg_bfreq > 0:
             axes.axhline(avg_bfreq, color='r', linestyle='--', linewidth=2)
         axes.set_ylim(
-                (self._platform['freqs']['big'][0] - 100000)/1e3,
-                (self._platform['freqs']['big'][-1] + 100000)/1e3
+                (self._trace.platform['freqs']['big'][0] - 100000)/1e3,
+                (self._trace.platform['freqs']['big'][-1] + 100000)/1e3
         )
         if len(bfreq) > 0:
             bfreq['frequency'].plot(style=['r-'], ax=axes,
@@ -322,8 +322,8 @@ class FrequencyAnalysis(AnalysisBase):
         if avg_lfreq > 0:
             axes.axhline(avg_lfreq, color='b', linestyle='--', linewidth=2)
         axes.set_ylim(
-                (self._platform['freqs']['little'][0] - 100000)/1e3,
-                (self._platform['freqs']['little'][-1] + 100000)/1e3
+                (self._trace.platform['freqs']['little'][0] - 100000)/1e3,
+                (self._trace.platform['freqs']['little'][-1] + 100000)/1e3
         )
         if len(lfreq) > 0:
             lfreq['frequency'].plot(style=['b-'], ax=axes,
@@ -365,7 +365,7 @@ class FrequencyAnalysis(AnalysisBase):
         if not self._trace.hasEvents('cpu_frequency'):
             self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
             return
-        df = self.df_events('cpu_frequency')
+        df = self._trace.df_events('cpu_frequency')
 
         if cpus is None:
             # Generate plots only for available CPUs
@@ -424,11 +424,11 @@ class FrequencyAnalysis(AnalysisBase):
             axes.axhline(_avg, color='r', linestyle='--', linewidth=2)
 
             # Set plot limit based on CPU min/max frequencies
-            if 'clusters' in self._platform:
-                for cluster,cpus in self._platform['clusters'].items():
+            if 'clusters' in self._trace.platform:
+                for cluster,cpus in self._trace.platform['clusters'].items():
                     if cpu_id not in cpus:
                         continue
-                    freqs = self._platform['freqs'][cluster]
+                    freqs = self._trace.platform['freqs'][cluster]
                     break
             else:
                 freqs = df['frequency'].unique()
@@ -491,7 +491,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         if cpus is None:
             # Generate plots only for available CPUs
-            cpufreq_data = self.df_events('cpu_frequency')
+            cpufreq_data = self._trace.df_events('cpu_frequency')
             _cpus = list(range(cpufreq_data.cpu.max()+1))
         else:
             _cpus = listify(cpus)
@@ -543,7 +543,7 @@ class FrequencyAnalysis(AnalysisBase):
         if not self._trace.hasEvents('cpu_idle'):
             self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
             return
-        if 'clusters' not in self._platform:
+        if 'clusters' not in self._trace.platform:
             self._log.warning('No platform cluster info. Plot DISABLED!')
             return
 
@@ -556,7 +556,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         # Sanitize clusters
         if clusters is None:
-            _clusters = list(self._platform['clusters'].keys())
+            _clusters = list(self._trace.platform['clusters'].keys())
         else:
             _clusters = listify(clusters)
 
@@ -565,7 +565,7 @@ class FrequencyAnalysis(AnalysisBase):
         xmax = 0.0
         for cluster in _clusters:
             res = self._get_frequency_residency(
-                self._platform['clusters'][cluster.lower()])
+                self._trace.platform['clusters'][cluster.lower()])
             residencies.append(ResidencyData('{} Cluster'.format(cluster),
                                              res))
 
@@ -591,7 +591,7 @@ class FrequencyAnalysis(AnalysisBase):
         if not self._trace.hasEvents('cpu_frequency'):
             self._log.warn('Events [cpu_frequency] not found, plot DISABLED!')
             return
-        df = self.df_events('cpu_frequency')
+        df = self._trace.df_events('cpu_frequency')
 
         if cpus is None:
             _cpus = list(range(df.cpu.max() + 1))
@@ -680,12 +680,12 @@ class FrequencyAnalysis(AnalysisBase):
             self._log.warn('Events [cpu_frequency] not found, plot DISABLED!')
             return
 
-        if not self._platform or 'clusters' not in self._platform:
+        if not self._trace.platform or 'clusters' not in self._trace.platform:
             self._log.warn('No platform cluster info, plot DISABLED!')
             return
 
         if clusters is None:
-            _clusters = list(self._platform['clusters'].keys())
+            _clusters = list(self._trace.platform['clusters'].keys())
         else:
             _clusters = listify(clusters)
 
@@ -699,7 +699,7 @@ class FrequencyAnalysis(AnalysisBase):
         for c in _clusters:
             # We assume frequency is scaled at cluster level and we therefore
             # pick information from the first CPU in the cluster.
-            cpu_id = self._platform['clusters'][c.lower()][0]
+            cpu_id = self._trace.platform['clusters'][c.lower()][0]
             t = self.df_cpu_frequency_transitions(cpu_id)
 
             if pct:
@@ -780,7 +780,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         _cluster = listify(cluster)
 
-        freq_df = self.df_events('cpu_frequency')
+        freq_df = self._trace.df_events('cpu_frequency')
         # Assumption: all CPUs in a cluster run at the same frequency, i.e. the
         # frequency is scaled per-cluster not per-CPU. Hence, we can limit the
         # cluster frequencies data to a single CPU. This assumption is verified

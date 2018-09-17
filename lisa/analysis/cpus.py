@@ -53,8 +53,8 @@ class CpusAnalysis(AnalysisBase):
                               'computation not possible!')
             return None
 
-        sched_df = self.df_events('sched_switch')
-        cpus = list(range(self._platform['cpus_count']))
+        sched_df = self._trace.df_events('sched_switch')
+        cpus = list(range(self._trace.platform['cpus_count']))
         ctx_sw_df = pd.DataFrame(
             [len(sched_df[sched_df['__cpu'] == cpu]) for cpu in cpus],
             index=cpus,
@@ -149,14 +149,14 @@ class CpusAnalysis(AnalysisBase):
 
             # Add CPU utilization
             axes.set_title('{0:s}CPU [{1:d}]'.format(label1, cpu))
-            df = self.df_events('sched_load_avg_cpu')
+            df = self._trace.df_events('sched_load_avg_cpu')
             df = df[df.cpu == cpu]
             if len(df):
                 df[['util_avg']].plot(ax=axes, drawstyle='steps-post',
                                       alpha=0.4)
 
             # if self._trace.hasEvents('sched_boost_cpu'):
-            #     df = self.df_events('sched_boost_cpu')
+            #     df = self._trace.df_events('sched_boost_cpu')
             #     df = df[df.cpu == cpu]
             #     if len(df):
             #         df[['usage', 'boosted_usage']].plot(
@@ -166,7 +166,7 @@ class CpusAnalysis(AnalysisBase):
 
             # Add Capacities data if avilable
             if self._trace.hasEvents('cpu_capacity'):
-                df = self.df_events('cpu_capacity')
+                df = self._trace.df_events('cpu_capacity')
                 df = df[df.cpu == cpu]
                 if len(df):
                     # data = df[['capacity', 'tip_capacity', 'max_capacity']]

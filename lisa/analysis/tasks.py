@@ -119,7 +119,7 @@ class TasksAnalysis(AnalysisBase):
             self._log.warning('Events [sched_wakeup] not found')
             return None
 
-        df = self.df_events('sched_wakeup')
+        df = self._trace.df_events('sched_wakeup')
 
         # Compute number of wakeups above threshold
         wkp_tasks_stats = df.groupby('pid').describe(include=['object'])
@@ -162,7 +162,7 @@ class TasksAnalysis(AnalysisBase):
             self._log.warning('Events [sched_switch] not found')
             return None
 
-        df = self.df_events('sched_switch')
+        df = self._trace.df_events('sched_switch')
 
         # Filters tasks which have a priority bigger than threshold
         df = df[df.next_prio <= min_prio]
@@ -201,7 +201,7 @@ class TasksAnalysis(AnalysisBase):
         df = None
 
         if 'sched_load_avg_task' in self._trace.available_events:
-            df = self.df_events('sched_load_avg_task')
+            df = self._trace.df_events('sched_load_avg_task')
 
         elif 'sched_load_se' in self._trace.available_events:
             df = self._trace.df_events('sched_load_se')
@@ -500,7 +500,7 @@ class TasksAnalysis(AnalysisBase):
         if per_cluster:
 
             # Get per cluster wakeup events
-            df = self.df_events('sched_wakeup_new')
+            df = self._trace.df_events('sched_wakeup_new')
             big_frequent = df.target_cpu.isin(self._big_cpus)
             ntbc = df[big_frequent]
             ntbc_count = len(ntbc)
@@ -542,7 +542,7 @@ class TasksAnalysis(AnalysisBase):
 
         ax = axes[0]
         ax.set_title('Tasks WakeUps Events')
-        df = self.df_events('sched_wakeup')
+        df = self._trace.df_events('sched_wakeup')
         if len(df):
             df = df[df.pid.isin(wkp_task_pids)]
             df.pid.astype(int).plot(style=['b.'], ax=ax)
@@ -554,7 +554,7 @@ class TasksAnalysis(AnalysisBase):
 
         ax = axes[1]
         ax.set_title('Tasks Forks Events')
-        df = self.df_events('sched_wakeup_new')
+        df = self._trace.df_events('sched_wakeup_new')
         if len(df):
             df = df[df.pid.isin(wkp_task_pids)]
             df.pid.astype(int).plot(style=['r.'], ax=ax)
@@ -624,7 +624,7 @@ class TasksAnalysis(AnalysisBase):
         # - tasks with util_avg <= little_cap are running on a LITTLe cpu
         df.loc[:,'ccap_mutil'] = np.select([(bu_bc | su_lc)], [True], False)
 
-        df_freq = self.df_events('cpu_frequency')
+        df_freq = self._trace.df_events('cpu_frequency')
         df_freq = df_freq[df_freq.cpu == cpus[0]]
 
         ax = axes[0]
@@ -695,7 +695,7 @@ class TasksAnalysis(AnalysisBase):
         # Plot boost utilization if available
         if 'boosted_util' in signals and \
            self._trace.hasEvents('sched_boost_task'):
-            boost_df = self.df_events('sched_boost_task')
+            boost_df = self._trace.df_events('sched_boost_task')
             data = boost_df[boost_df.pid == tid][['boosted_util']]
             if len(data):
                 data.plot(ax=axes, style=['y-'], drawstyle='steps-post')
@@ -705,8 +705,8 @@ class TasksAnalysis(AnalysisBase):
                                   tid, task_name)
 
         # Add Capacities data if avilable
-        if 'nrg_model' in self._platform:
-            nrg_model = self._platform['nrg_model']
+        if 'nrg_model' in self._trace.platform:
+            nrg_model = self._trace.platform['nrg_model']
             max_lcap = nrg_model['little']['cpu']['cap_max']
             max_bcap = nrg_model['big']['cpu']['cap_max']
             tip_lcap = 0.8 * max_lcap
@@ -755,7 +755,7 @@ class TasksAnalysis(AnalysisBase):
             if len(cdata) > 0:
                 cdata.plot(ax=axes, style=[ccolor+'+'], legend=False)
         # Y Axis - placeholders for legend, acutal CPUs. topmost empty lane
-        cpus = [str(n) for n in range(self._platform['cpus_count'])]
+        cpus = [str(n) for n in range(self._trace.platform['cpus_count'])]
         ylabels = [''] + cpus
         axes.set_yticklabels(ylabels)
         axes.set_ylim(-1, len(cpus))
@@ -788,7 +788,7 @@ class TasksAnalysis(AnalysisBase):
                 'No sched_load_avg_task events, skipping PELT plot')
             return
 
-        util_df = self.df_events('sched_load_avg_task')
+        util_df = self._trace.df_events('sched_load_avg_task')
         data = util_df[util_df.pid == tid][['load_sum',
                                             'util_sum',
                                             'period_contrib']]

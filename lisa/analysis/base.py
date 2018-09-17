@@ -39,30 +39,25 @@ class AnalysisBase(object):
     """
 
     def __init__(self, trace):
-
         self._log = logging.getLogger('Analysis')
-
         self._trace = trace
-        #TODO: use self._trace.XXXX instead
-        self._platform = trace.platform
-        self._data_dir = trace.data_dir
 
-        self.df_events = trace.df_events
+        platform = self._trace.platform
 
         # By default assume SMP system
         self._big_cap = 1024
         self._little_cap = 1024
-        self._big_cpus = list(range(self._platform['cpus_count']))
+        self._big_cpus = list(range(platform['cpus_count']))
         self._little_cpus = []
 
         if self._trace.has_big_little:
-            self._little_cap = self._platform['nrg_model']['little']['cpu']['cap_max']
+            self._little_cap = platform['nrg_model']['little']['cpu']['cap_max']
 
-        if ('clusters' in self._platform and
-            'big' in self._platform['clusters'] and
-            'little' in self._platform['clusters']):
-            self._big_cpus = self._platform['clusters']['big']
-            self._little_cpus = self._platform['clusters']['little']
+        if ('clusters' in platform and
+            'big' in platform['clusters'] and
+            'little' in platform['clusters']):
+            self._big_cpus = platform['clusters']['big']
+            self._little_cpus = platform['clusters']['little']
 
     @classmethod
     def get_subclasses(cls, cls_set=None):
