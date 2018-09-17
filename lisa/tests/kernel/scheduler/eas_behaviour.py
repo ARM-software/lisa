@@ -26,7 +26,7 @@ from bart.common.Utils import area_under_curve
 
 from lisa.wlgen.rta import RTA, Periodic, Ramp, Step
 from lisa.trace import Trace
-from lisa.kernel_tests.test_bundle import RTATestBundle, ResultBundle
+from lisa.tests.kernel.test_bundle import RTATestBundle, ResultBundle
 from lisa.perf_analysis import PerfAnalysis
 
 class EASBehaviour(RTATestBundle):

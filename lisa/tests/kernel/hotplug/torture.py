@@ -21,7 +21,7 @@ import random
 from devlib.module.hotplug import HotplugModule
 from devlib.exception import TimeoutError
 
-from lisa.kernel_tests.test_bundle import TestMetric, ResultBundle, TestBundle
+from lisa.tests.kernel.test_bundle import TestMetric, ResultBundle, TestBundle
 from lisa.target_script import TargetScript
 
 class HotplugTorture(TestBundle):
