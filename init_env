@@ -19,7 +19,7 @@
 # LISA Shell: Initialization
 grep "bash" /proc/$$/cmdline &>/dev/null
 if [ $? -eq 0 ]; then
-	source "$(dirname "$BASH_SOURCE")/shell/shell"
+	source "$(dirname "$BASH_SOURCE")/shell/lisa_shell"
 else
 	echo "WARNING: Current shell is not a BASH"
 	# Check if a bash shell is available
