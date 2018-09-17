@@ -296,8 +296,6 @@ class TestEnv(Loggable):
         # The platform descriptor to be saved into the results folder
         self.platform = {}
 
-        self.LISA_HOME = os.environ.get('LISA_HOME', '/vagrant')
-
         # Setup target configuration
         if isinstance(target_conf, dict):
             self.logger.info('Loading custom (inline) target configuration')
