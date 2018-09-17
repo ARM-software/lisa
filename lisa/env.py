@@ -19,6 +19,7 @@ from datetime import datetime
 import json
 import os
 import contextlib
+import logging
 
 import devlib
 from devlib.utils.misc import which
@@ -42,7 +43,11 @@ OUT_PREFIX = 'results'
 LATEST_LINK = 'results_latest'
 
 basepath = os.getenv('LISA_HOME')
-platforms_path = os.path.join(basepath, 'lisa', 'lisa', 'platforms')
+# This will catch both unset variable and variable set to an empty string
+if not basepath:
+    logging.getLogger(__name__).warning('LISA_HOME env var is not set, LISA may misbehave.')
+else:
+    platforms_path = os.path.join(basepath, 'lisa', 'platforms')
 
 class TestEnv(Loggable):
     """
