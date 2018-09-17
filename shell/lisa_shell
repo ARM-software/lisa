@@ -26,7 +26,7 @@ DEVMODE=${DEVMODE:-1}
 export LISA_HOME="$(readlink -f "$(dirname "$BASH_SOURCE")/../")"
 
 # Setup colors
-source "$LISA_HOME/lisa_shell/lisa_colors"
+source "$LISA_HOME/shell/lisa_colors"
 
 # In devmode, we provide the lisa package and some of its dependencies within
 # the git tree
@@ -59,7 +59,7 @@ echo "                                                                          
 echo "                    .:: LISA Shell - HELP On-Line ::.                          "
 echo "                                                                               "
 echo -ne "$LISASHELL_RESET$LISASHELL_GREEN"
-cat "$LISA_HOME/lisa_shell/README.txt"
+cat "$LISA_HOME/shell/README.txt"
 echo -ne "$LISASHELL_DEFAULT"
 }
 
@@ -94,7 +94,7 @@ if [ "x$DEVMODE" == "x1" ]; then
     # Force update existing modules
     echo
     echo 'Developer mode ENABLED, updating local libraries...'
-    "$LISA_HOME/lisa_shell/for-each-subtree.py" "$LISA_HOME/external/subtrees.conf" --fetch pull --squash
+    "$LISA_HOME/shell/for-each-subtree.py" "$LISA_HOME/external/subtrees.conf" --fetch pull --squash
     echo 'DONE'
 fi
 echo -ne "$LISASHELL_DEFAULT"
@@ -252,7 +252,7 @@ rm -f $PIDFILE 2>/dev/null
 function lisa-ipython {
 CMD=${1:-start}
 
-if [ "x$2" == "x" -a $USER == "vagrant" -a -e /vagrant/src/shell/lisa_shell ]; then
+if [ "x$2" == "x" -a $USER == "vagrant" -a -e /vagrant/src/shell/shell ]; then
     # NETIF not set and we are in a vagrant environment.  Default to
     # eth0 as loopback won't let you connect from your host machine.
     NETIF="eth0"
