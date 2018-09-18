@@ -16,10 +16,11 @@
 #
 
 import os
+from pathlib import Path
 
 SCRIPT_NAME = 'remote_script.sh'
 
-class TargetScript(object):
+class TargetScript:
     """
     This class provides utility to create and run a script
     directly on a devlib target.
@@ -36,7 +37,7 @@ class TargetScript(object):
     :type script_name: str
 
     :param local_dir: Local directory to use to prepare the script
-    :type local_dir: str
+    :type local_dir: pathlib.Path
     """
 
     _target_attrs = ['screen_resolution', 'android_id', 'abi', 'os_version', 'model']
@@ -45,7 +46,7 @@ class TargetScript(object):
         self._env = env
         self._target = env.target
         self._script_name = script_name
-        self.local_dir = local_dir
+        self.local_dir = Path(local_dir)
         self.commands = []
 
     # This is made to look like the devlib Target execute()
@@ -92,7 +93,7 @@ class TargetScript(object):
         actions = str.join('\n', actions)
 
         # Create script locally
-        self._local_path = os.path.join(self.local_dir, self._script_name)
+        self._local_path = self.local_dir.joinpath(self._script_name)
         with open(self._local_path, 'w') as script:
             script.write(actions)
 

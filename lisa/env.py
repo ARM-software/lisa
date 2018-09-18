@@ -20,6 +20,7 @@ import json
 import os
 import contextlib
 import logging
+from pathlib import Path
 
 import devlib
 from devlib.utils.misc import which
@@ -44,6 +45,15 @@ LATEST_LINK = 'results_latest'
 
 if BASEPATH:
     platforms_path = os.path.join(BASEPATH, 'lisa', 'platforms')
+
+class ArtifactPath(Path):
+    """Path to a folder that can be used to store artifacts of a function.
+    This must be a clean folder, already created on disk.
+    """
+    pass
+
+class TargetConfig(JsonConf):
+    pass
 
 class TestEnv(Loggable):
     """
@@ -118,8 +128,8 @@ class TestEnv(Loggable):
     freeze when using :meth:`freeze_userspace`.
     """
 
-    def __init__(self, target_conf=None):
-        super(TestEnv, self).__init__()
+    def __init__(self, target_conf:TargetConfig=None):
+        super().__init__()
 
         # Compute base installation path
         self.logger.info('Using base path: %s', BASEPATH)
@@ -585,7 +595,7 @@ class TestEnv(Loggable):
             gem5_bin = simulator['bin'],
             gem5_args = args,
             gem5_virtio = virtio_args,
-            host_output_dir = self.get_res_dir('gem5'),
+            host_output_dir = str(self.get_res_dir('gem5')),
             core_names = board['cores'] if board else None,
             core_clusters = self._get_clusters(board['cores']) if board else None,
             big_core = board.get('big_core', None) if board else None,
@@ -648,20 +658,16 @@ class TestEnv(Loggable):
         elif name and append_time:
             name = "{}-{}".format(name, time_str)
 
-        res_dir = os.path.join(BASEPATH, OUT_PREFIX, name)
+        res_dir = Path(BASEPATH, OUT_PREFIX, name)
 
-        # Relative paths are interpreted as relative to a fixed root.
-        if not os.path.isabs(res_dir):
-            res_dir = os.path.join(BASEPATH, OUT_PREFIX, res_dir)
-
-        if not os.path.exists(res_dir):
-            os.makedirs(res_dir)
+        if not res_dir.exists():
+            res_dir.mkdir()
 
         if symlink:
-            res_lnk = os.path.join(BASEPATH, LATEST_LINK)
-        if os.path.islink(res_lnk):
-            os.remove(res_lnk)
-        os.symlink(res_dir, res_lnk)
+            res_lnk = Path(BASEPATH, LATEST_LINK)
+            with contextlib.suppress(FileNotFoundError):
+                res_lnk.unlink()
+            res_lnk.symlink_to(res_dir)
 
         return res_dir
 
@@ -831,13 +837,13 @@ class TestEnv(Loggable):
         :type output_file: str
         """
         if not output_file:
-            output_file = os.path.join(self.get_res_dir(), "trace.dat")
+            output_file = self.get_res_dir().joinpath('trace.dat')
 
         self.ftrace.start()
 
         yield
 
         self.ftrace.stop()
-        self.ftrace.get_trace(output_file)
+        self.ftrace.get_trace(str(output_file))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

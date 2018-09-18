@@ -16,9 +16,11 @@
 #
 
 import sys
+from pathlib import Path
 
-from lisa.kernel_tests.test_bundle import TestMetric, ResultBundle, TestBundle
+from lisa.tests.kernel.test_bundle import TestMetric, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
+from lisa.env import TestEnv, ArtifactPath
 
 class CapacitySanityCheck(TestBundle):
     """
@@ -30,12 +32,12 @@ class CapacitySanityCheck(TestBundle):
     """
 
     def __init__(self, res_dir, capacity_work):
-        super(CapacitySanityCheck, self).__init__(res_dir)
+        super().__init__(res_dir)
 
         self.capacity_work = capacity_work
 
     @classmethod
-    def _from_target(cls, te, res_dir):
+    def _from_target(cls, te:TestEnv, res_dir:ArtifactPath) -> 'CapacitySanityCheck':
         with te.target.cpufreq.use_governor("performance"):
             sysbench = Sysbench(te, "sysbench", res_dir)
 
@@ -51,7 +53,7 @@ class CapacitySanityCheck(TestBundle):
 
         return cls(res_dir, capa_work)
 
-    def test_capacity_sanity(self):
+    def test_capacity_sanity(self) -> ResultBundle:
         """
         Assert that CPU capacity increase leads to more work done
         """

@@ -17,6 +17,7 @@
 
 import os
 from math import isnan
+from pathlib import Path
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -28,6 +29,7 @@ from lisa.wlgen.rta import RTA, Periodic, Ramp, Step
 from lisa.trace import Trace
 from lisa.tests.kernel.test_bundle import RTATestBundle, ResultBundle
 from lisa.perf_analysis import PerfAnalysis
+from lisa.env import TestEnv, ArtifactPath
 
 class EASBehaviour(RTATestBundle):
     """
@@ -49,12 +51,12 @@ class EASBehaviour(RTATestBundle):
     """
 
     def __init__(self, res_dir,rtapp_profile, nrg_model):
-        super(EASBehaviour, self).__init__(res_dir, rtapp_profile)
+        super().__init__(res_dir, rtapp_profile)
 
         self.nrg_model = nrg_model
 
     @classmethod
-    def _from_target(cls, te, res_dir):
+    def _from_target(cls, te:TestEnv, res_dir:ArtifactPath):
         rtapp_profile = cls.create_rtapp_profile(te)
 
         # EAS doesn't make a lot of sense without schedutil,
@@ -287,7 +289,7 @@ class EASBehaviour(RTATestBundle):
         return self._sort_power_df_columns(df.apply(est_power, axis=1))
 
 
-    def test_task_placement(self, energy_est_threshold_pct=5):
+    def test_task_placement(self, energy_est_threshold_pct=5) -> ResultBundle:
         """
         Test that task placement was energy-efficient
 

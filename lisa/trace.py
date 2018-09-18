@@ -83,17 +83,6 @@ class Trace(object):
         # Setup logging
         self._log = logging.getLogger('Trace')
 
-        # Sanity check for API update:
-        # platform used to be the first mandatory argument, now is the third
-        # one and optional. We can still detect clients using the old API since
-        # the new first parameter is forced to be a string. If it's not,
-        # lekely the used is using the old API.
-        if not isinstance(data_dir, str):
-            logging.error("The first parameter of Trace() constructor is "
-                          "expected to be a sting path")
-            raise ValueError("Deprecated Trace() API usage detected: "
-                             "check constructor signature!")
-
         # The platform used to run the experiments
         self.platform = platform or {}
 
@@ -128,9 +117,6 @@ class Trace(object):
         # Cluster frequency coherency flag
         self.freq_coherency = True
 
-        # Folder containing all trace data
-        self.data_dir = None
-
         if not kernel_version:
             kernel_version = KernelVersion("3.18")
             self._log.warning('Kernel version not available from platform data')
@@ -144,10 +130,12 @@ class Trace(object):
         self.kernel_version = None
 
         # Folder containing trace
-        if not os.path.isdir(data_dir):
-            self.data_dir = os.path.dirname(data_dir) or '.'
-        else:
-            self.data_dir = data_dir
+        # TODO: do we need to support getting the path to trace.txt file here ?
+        if not data_dir.is_dir():
+            data_dir = data_dir.parent
+
+        # TODO: make Trace pathlib.Path-friendly
+        self.data_dir = str(data_dir)
 
         # By deafult, use the trace dir to save plots
         self.plots_dir = plots_dir
@@ -156,7 +144,7 @@ class Trace(object):
         self.plots_prefix = plots_prefix
 
         self.__registerTraceEvents(events)
-        self.__parseTrace(data_dir, window, trace_format)
+        self.__parseTrace(self.data_dir, window, trace_format)
 
         # If we don't know the number of CPUs, check the trace for the
         # highest-numbered CPU that traced an event.

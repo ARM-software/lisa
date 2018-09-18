@@ -17,12 +17,14 @@
 
 import sys
 import random
+from pathlib import Path
 
 from devlib.module.hotplug import HotplugModule
 from devlib.exception import TimeoutError
 
 from lisa.tests.kernel.test_bundle import TestMetric, ResultBundle, TestBundle
 from lisa.target_script import TargetScript
+from lisa.env import TestEnv, ArtifactPath
 
 class HotplugTorture(TestBundle):
 
@@ -108,9 +110,9 @@ class HotplugTorture(TestBundle):
         return script
 
     @classmethod
-    def _from_target(cls, te, res_dir=None, seed=None, nr_operations=100,
+    def _from_target(cls, te:TestEnv, res_dir:ArtifactPath=None, seed=None, nr_operations=100,
             sleep_min_ms=10, sleep_max_ms=100, duration_s=10,
-            max_cpus_off=sys.maxsize):
+            max_cpus_off=sys.maxsize) -> 'HotplugTorture':
 
         if not seed:
             random.seed()
@@ -144,13 +146,13 @@ class HotplugTorture(TestBundle):
 
         return cls(target_alive, hotpluggable_cpus, live_cpus)
 
-    def test_target_alive(self):
+    def test_target_alive(self) -> ResultBundle:
         """
         Test that the hotplugs didn't leave the target in an unusable state
         """
         return ResultBundle(self.target_alive)
 
-    def test_cpus_alive(self):
+    def test_cpus_alive(self) -> ResultBundle:
         """
         Test that all CPUs came back online after the hotplug operations
         """

@@ -35,6 +35,8 @@ TASK_NAME_RE = re.compile('.*\/rt-app-(.+)-[0-9]+.log')
 class PerfAnalysis(object):
 
     def __init__(self, datadir, tasks=None):
+        # TODO: make this class pathlib.Path-friendly
+        datadir = str(datadir)
 
         # Dataframe of all tasks performance data
         self.perf_data = {}

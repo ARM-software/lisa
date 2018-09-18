@@ -16,14 +16,17 @@
 #
 
 import os
+import abc
+from pathlib import Path
 
 from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
 from lisa.perf_analysis import PerfAnalysis
 
 from lisa.serialization import YAMLSerializable
+from lisa.env import TestEnv, ArtifactPath
 
-class TestMetric(object):
+class TestMetric:
     """
     A storage class for metrics used by tests
 
@@ -42,9 +45,10 @@ class TestMetric(object):
         return result
 
     def __repr__(self):
-        return '<{}>'.format(self.__str__())
+        return '{cls}({self.data}, {self.units})'.format(
+            cls=type(self).__name__, self=self)
 
-class ResultBundle(object):
+class ResultBundle:
     """
     Bundle for storing test results
 
@@ -83,13 +87,11 @@ class ResultBundle(object):
         return self.passed
 
     def __str__(self):
-        res = ''
         if self.metrics:
-            metrics_str = ', '.join(
-                ['{} = {}'.format(key, val) for key, val in list(self.metrics.items())])
-            res = metrics_str
-
-        return res
+            return ', '.join(
+                ['{} = {}'.format(key, val) for key, val in self.metrics.items()])
+        else:
+            return ''
 
     def add_metric(self, name, data, units=None):
         """
@@ -99,13 +101,13 @@ class ResultBundle(object):
         """
         self.metrics[name] = TestMetric(data, units)
 
-class TestBundle(YAMLSerializable):
+class TestBundle(YAMLSerializable, abc.ABC):
     """
     A LISA test bundle.
 
     :param res_dir: Directory in which the target execution artifacts reside.
         This will also be used to dump any artifact generated in the test code.
-    :type res_dir: str
+    :type res_dir: pathlib.Path
 
     **Design notes:**
 
@@ -181,11 +183,12 @@ class TestBundle(YAMLSerializable):
         self.res_dir = res_dir
 
     @classmethod
+    @abc.abstractmethod
     def _from_target(cls, te, res_dir):
         """
         Internals of the target factory method.
         """
-        raise NotImplementedError()
+        pass
 
     @classmethod
     def from_target(cls, te, res_dir=None, **kwargs):
@@ -200,7 +203,7 @@ class TestBundle(YAMLSerializable):
         if not res_dir:
             res_dir = te.get_res_dir()
 
-        # Logger stuff?
+        #TODO: Logger stuff?
 
         bundle = cls._from_target(te, res_dir, **kwargs)
 
@@ -216,14 +219,14 @@ class TestBundle(YAMLSerializable):
 
     @classmethod
     def _filepath(cls, res_dir):
-        return os.path.join(res_dir, "{}.yaml".format(cls.__name__))
+        return res_dir.joinpath("{}.yaml".format(cls.__qualname__))
 
     @classmethod
     def from_path(cls, res_dir):
         """
         See :meth:`YAMLSerializable.from_path`
         """
-        bundle = YAMLSerializable.from_path(cls._filepath(res_dir))
+        bundle = super().from_path(cls._filepath(res_dir))
         # We need to update the res_dir to the one we were given
         bundle.res_dir = res_dir
 
@@ -233,9 +236,9 @@ class TestBundle(YAMLSerializable):
         """
         See :meth:`YAMLSerializable.to_path`
         """
-        super(TestBundle, self).to_path(self._filepath(res_dir))
+        super().to_path(self._filepath(res_dir))
 
-class RTATestBundle(TestBundle):
+class RTATestBundle(TestBundle, abc.ABC):
     """
     "Abstract" class for :class:`wlgen.rta.RTA`-powered TestBundles
 
@@ -273,12 +276,13 @@ class RTATestBundle(TestBundle):
         return self._trace
 
     def __init__(self, res_dir, rtapp_profile):
-        super(RTATestBundle, self).__init__(res_dir)
+        super().__init__(res_dir)
 
         self._trace = None
         self.rtapp_profile = rtapp_profile
 
     @classmethod
+    @abc.abstractmethod
     def create_rtapp_profile(cls, te):
         """
         :returns: a :class:`dict` with task names as keys and :class:`RTATask` as values
@@ -286,7 +290,7 @@ class RTATestBundle(TestBundle):
         This is the method you want to override to specify what is your
         synthetic workload.
         """
-        raise NotImplementedError()
+        pass
 
     @classmethod
     def _run_rtapp(cls, te, res_dir, profile):
@@ -297,18 +301,17 @@ class RTATestBundle(TestBundle):
         trace_path = os.path.join(res_dir, "trace.dat")
         te.configure_ftrace(**cls.ftrace_conf)
 
-        with te.record_ftrace(trace_path):
-            with te.freeze_userspace():
-                wload.run()
+        with te.record_ftrace(trace_path), te.freeze_userspace():
+            wload.run()
 
     @classmethod
-    def _from_target(cls, te, res_dir):
+    def _from_target(cls, te:TestEnv, res_dir:ArtifactPath):
         rtapp_profile = cls.create_rtapp_profile(te)
         cls._run_rtapp(te, res_dir, rtapp_profile)
 
         return cls(res_dir, rtapp_profile)
 
-    def test_slack(self, negative_slack_allowed_pct=15):
+    def test_slack(self, negative_slack_allowed_pct=15) -> 'TestBundle':
         """
         Assert that the RTApp workload was given enough performance
 
@@ -331,7 +334,7 @@ class RTATestBundle(TestBundle):
         for task in pa.tasks():
             slack = pa.df(task)["Slack"]
 
-            bad_activations_pct = len(slack[slack < 0]) * 100. / len(slack)
+            bad_activations_pct = len(slack[slack < 0]) * 100 / len(slack)
             if bad_activations_pct > negative_slack_allowed_pct:
                 res.passed = False
 

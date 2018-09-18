@@ -54,6 +54,8 @@ class LisaLogging(object):
         logging.info('Using LISA logging configuration:')
         logging.info('  %s', filepath)
 
+
+#TODO: Switch to YAML config
 class JsonConf(object):
     """
     Class for parsing a JSON superset with comments.

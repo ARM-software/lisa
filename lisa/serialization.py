@@ -1,6 +1,6 @@
 from ruamel.yaml import YAML
 
-class YAMLSerializable(object):
+class YAMLSerializable:
 
     _yaml = YAML(typ='unsafe')
     _yaml.allow_unicode = True
@@ -13,6 +13,7 @@ class YAMLSerializable(object):
         return cls._yaml.load(stream)
 
     def to_path(self, filepath):
+        #TODO: check if encoding='utf-8' would be beneficial
         with open(filepath, "w") as fh:
             self.to_stream(fh)
 

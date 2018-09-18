@@ -66,9 +66,8 @@ class EnergyMeter(object):
 
     def __init__(self, target, res_dir=None):
         self._target = target
-        self._res_dir = res_dir
-        if not self._res_dir:
-            self._res_dir = '/tmp'
+        res_dir = res_dir if res_dir else tempfile.gettempdir()
+        self._res_dir = Path(res_dir)
 
         # Setup logging
         self._log = logging.getLogger('EnergyMeter')
@@ -399,16 +398,13 @@ class ACME(EnergyMeter):
             ch_id = self._channels[channel]
 
             # Setup CSV file to collect samples for this channel
-            csv_file = '{}/{}'.format(
-                self._res_dir,
-                'samples_{}.csv'.format(channel)
-            )
+            csv_file = self._res_dir.joinpath('samples_{}.csv'.format(channel))
 
             # Start a dedicated iio-capture instance for this channel
             self._iio[ch_id] = Popen([self._iiocapturebin, '-n',
                                        self._hostname, '-o',
                                        '-c', '-f',
-                                       csv_file,
+                                       str(csv_file),
                                        self._iio_device(channel)],
                                        stdout=PIPE, stderr=STDOUT)
 
@@ -490,8 +486,9 @@ class ACME(EnergyMeter):
             self._log.debug(nrg)
 
             # Save CSV samples file to out_dir
-            os.system('mv {}/samples_{}.csv {}'
-                      .format(self._res_dir, channel, out_dir))
+            os.system('mv {} {}'.format(
+                self._res_dir.joinpath('samples_{}.csv'.format(channel)),
+                out_dir))
 
             # Add channel's energy to return results
             channels_nrg['{}'.format(channel)] = nrg['energy']
