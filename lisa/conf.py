@@ -20,6 +20,7 @@ import os
 import re
 import logging
 import logging.config
+from pathlib import Path
 
 BASEPATH = os.getenv('LISA_HOME')
 # This will catch both unset variable and variable set to an empty string
@@ -56,7 +57,7 @@ class LisaLogging(object):
 
 
 #TODO: Switch to YAML config
-class JsonConf(object):
+class JsonConf:
     """
     Class for parsing a JSON superset with comments.
 
@@ -66,11 +67,11 @@ class JsonConf(object):
     :type filename: str
     """
 
-    def __init__(self, filename):
-        self.filename = filename
-        self.json = None
+    def __init__(self, conf_map):
+        self.json = conf_map
 
-    def load(self):
+    @classmethod
+    def from_path(cls, path):
         """
         Parse a JSON file
 
@@ -91,37 +92,39 @@ class JsonConf(object):
 
         """
 
+        path = Path(path)
+
         # Setup logging
-        self._log = logging.getLogger('JsonConf')
+        logger = logging.getLogger('JsonConf')
+        logger.debug('loading JSON...')
 
-        if not os.path.isfile(self.filename):
+        try:
+            with open(str(path)) as fh:
+                content = fh.read()
+        except Exception as e:
             raise RuntimeError(
-                'Missing configuration file: {}'.format(self.filename)
-            )
-        self._log.debug('loading JSON...')
+                'Failed to parse configuration file: {}'.format(path)
+            ) from e
 
-        with open(self.filename) as fh:
-            content = ''.join(fh.readlines())
-
-            ## Looking for comments
+        ## Looking for comments
+        match = JSON_COMMENTS_RE.search(content)
+        while match:
+            # single line comment
+            content = content[:match.start()] + content[match.end():]
             match = JSON_COMMENTS_RE.search(content)
-            while match:
-                # single line comment
-                content = content[:match.start()] + content[match.end():]
-                match = JSON_COMMENTS_RE.search(content)
 
-            # Allow trailing commas in dicts an lists in JSON
-            # Note that this simple implementation will mangle things like:
-            # {"config": ", }"}
-            content = re.sub(r',[ \t\r\n]+}', '}', content)
-            content = re.sub(r',[ \t\r\n]+\]', ']', content)
+        # Allow trailing commas in dicts an lists in JSON
+        # Note that this simple implementation will mangle things like:
+        # {"config": ", }"}
+        content = re.sub(r',[ \t\r\n]+}', '}', content)
+        content = re.sub(r',[ \t\r\n]+\]', ']', content)
 
-            # Return json file
-            self.json = json.loads(content, parse_int=int)
-            self._log.debug('Loaded JSON configuration:')
-            self._log.debug('   %s', self.json)
+        # Return json file
+        conf_map = json.loads(content, parse_int=int)
+        logger.debug('Loaded JSON configuration:')
+        logger.debug('   %s', conf_map)
 
-        return self.json
+        return cls(conf_map)
 
     def show(self):
         """
@@ -134,7 +137,5 @@ JSON_COMMENTS_RE = re.compile(
     r'(^)?[^\S\n]*/(?:\*(.*?)\*/[^\S\n]*|/[^\n]*)($)?',
     re.DOTALL | re.MULTILINE
 )
-
-
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

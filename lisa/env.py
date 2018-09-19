@@ -20,7 +20,7 @@ import json
 import os
 import contextlib
 import logging
-from pathlib import Path
+from pathlib import Path, PosixPath
 
 import devlib
 from devlib.utils.misc import which
@@ -35,6 +35,7 @@ from lisa.utilities import Loggable
 from lisa.platforms.juno_r0_energy import juno_r0_energy
 from lisa.platforms.hikey_energy import hikey_energy
 from lisa.platforms.pixel_energy import pixel_energy
+from lisa.exekall_customize.utils import IDHidden
 
 USERNAME_DEFAULT = 'root'
 PASSWORD_DEFAULT = ''
@@ -46,13 +47,13 @@ LATEST_LINK = 'results_latest'
 if BASEPATH:
     platforms_path = os.path.join(BASEPATH, 'lisa', 'platforms')
 
-class ArtifactPath(Path):
+class ArtifactPath(PosixPath):
     """Path to a folder that can be used to store artifacts of a function.
     This must be a clean folder, already created on disk.
     """
     pass
 
-class TargetConfig(JsonConf):
+class TargetConfig(JsonConf, IDHidden):
     pass
 
 class TestEnv(Loggable):
@@ -61,12 +62,9 @@ class TestEnv(Loggable):
 
     :param target_conf: Configuration defining the target to use. It may be:
 
-      - A dict defining the values directly
-      - A path to a JSON file containing the configuration
-      - ``None``, in which case:
-        - $LISA_TARGET_CONF environment variable is read to locate a
-        config file.
-        - If the variable is not set, $LISA_HOME/target.config is used.
+      - a :class:`TargetConfig` instance
+      - ``None``, in which case, $LISA_TARGET_CONF environment variable is read
+        to locate a config file.
 
     You need to provide the information needed to connect to the
     target. For SSH targets that means "host", "username" and
@@ -131,6 +129,10 @@ class TestEnv(Loggable):
     def __init__(self, target_conf:TargetConfig=None):
         super().__init__()
 
+        if target_conf is None:
+            target_conf_path = os.getenv('LISA_TARGET_CONF')
+            target_conf = TargetConfig(target_conf_path)
+
         # Compute base installation path
         self.logger.info('Using base path: %s', BASEPATH)
 
@@ -146,8 +148,7 @@ class TestEnv(Loggable):
             return None
         self.logger.info('Loading default EM:')
         self.logger.info('   %s', em_path)
-        board = JsonConf(em_path)
-        board.load()
+        board = JsonConf.from_path(em_path)
         if 'nrg_model' not in board.json:
             return None
         return board.json['nrg_model']
@@ -160,7 +161,7 @@ class TestEnv(Loggable):
             return None
         self.logger.info('Loading board:')
         self.logger.info('   %s', board_path)
-        board = JsonConf(board_path)
+        board = JsonConf.from_path(board_path)
         board.load()
         if 'board' not in board.json:
             return None
@@ -303,17 +304,7 @@ class TestEnv(Loggable):
         self.platform = {}
 
         # Setup target configuration
-        if isinstance(target_conf, dict):
-            self.logger.info('Loading custom (inline) target configuration')
-            self.conf = target_conf
-        elif isinstance(target_conf, str):
-            self.logger.info('Loading %s target configuration', target_conf)
-            self.conf = self.load_target_config(target_conf)
-        else:
-            target_conf = os.environ.get('LISA_TARGET_CONF', '')
-            self.logger.info('Loading [%s] target configuration',
-                    target_conf or 'default')
-            self.conf = self.load_target_config(target_conf)
+        self.conf = target_conf.json
 
         self.logger.debug('Target configuration %s', self.conf)
 
@@ -614,27 +605,6 @@ class TestEnv(Loggable):
 
         # Initialize energy probe instrument
         self._init_energy(True)
-
-    def load_target_config(self, filepath=None):
-        """
-        Load the target configuration from the specified file.
-
-        :param filepath: Path of the target configuration file. Relative to the
-                         root folder of the test suite.
-        :type filepath: str
-
-        """
-
-        # "" and None are replaced by the default 'target.config' value
-        filepath = filepath or 'target.config'
-
-        # Loading default target configuration
-        conf_file = os.path.join(BASEPATH, filepath)
-
-        self.logger.info('Loading target configuration [%s]...', conf_file)
-        conf = JsonConf(conf_file)
-        conf.load()
-        return conf.json
 
     def get_res_dir(self, name=None, append_time=True, symlink=True):
         """
