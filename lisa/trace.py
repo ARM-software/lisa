@@ -32,7 +32,7 @@ from lisa.analysis.proxy import AnalysisProxy
 from devlib.utils.misc import memoized
 from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
-from functools import reduce
+from functools import reduce, lru_cache
 
 
 NON_IDLE_STATE = -1
@@ -86,9 +86,6 @@ class Trace(object):
         # The platform used to run the experiments
         self.platform = platform or {}
 
-        # TRAPpy Trace object
-        self.ftrace = None
-
         # Trace format
         self.trace_format = trace_format
 
@@ -111,6 +108,7 @@ class Trace(object):
         # List of events required by user
         self.events = []
 
+        #TODO: make that a property since it requires "ftrace" attribute
         # List of events available in the parsed trace
         self.available_events = []
 
@@ -143,8 +141,11 @@ class Trace(object):
             self.plots_dir = self.data_dir
         self.plots_prefix = plots_prefix
 
+        # pre-hit ftrace attribute so it is computed along with other attributes
+        # that are set at the same time
+        self.ftrace
+
         self.__registerTraceEvents(events)
-        self.__parseTrace(self.data_dir, window, trace_format)
 
         # If we don't know the number of CPUs, check the trace for the
         # highest-numbered CPU that traced an event.
@@ -195,6 +196,11 @@ class Trace(object):
         if 'cpu_frequency' in events:
             self.events.append('cpu_frequency_devlib')
 
+    @property
+    @lru_cache(maxsize=None)
+    def ftrace(self):
+        return self.__parseTrace(self.data_dir, self.window, self.trace_format)
+
     def __parseTrace(self, path, window, trace_format):
         """
         Internal method in charge of performing the actual parsing of the
@@ -216,11 +222,9 @@ class Trace(object):
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
             self._log.debug('Parsing SysTrace format...')
             trace_class = trappy.SysTrace
-            self.trace_format = 'SysTrace'
         elif trace_format.upper() == 'FTRACE':
             self._log.debug('Parsing FTrace format...')
             trace_class = trappy.FTrace
-            self.trace_format = 'FTrace'
         else:
             raise ValueError("Unknown trace format {}".format(trace_format))
 
@@ -233,14 +237,14 @@ class Trace(object):
             window_kw['abs_window'] = window
 
         # Make sure event names are not unicode strings
-        self.ftrace = trace_class(path, scope="custom", events=self.events,
+        ftrace = trace_class(path, scope="custom", events=self.events,
                                   normalize_time=self.normalize_time, **window_kw)
 
         # Load Functions profiling data
         has_function_stats = self._loadFunctionsStats(path)
 
         # Check for events available on the parsed trace
-        self.__checkAvailableEvents()
+        self.__checkAvailableEvents(ftrace)
         if len(self.available_events) == 0:
             if has_function_stats:
                 self._log.info('Trace contains only functions stats')
@@ -251,7 +255,7 @@ class Trace(object):
         # Index PIDs and Task names
         self.__loadTasksNames()
 
-        self.__computeTimeSpan()
+        self.__computeTimeSpan(ftrace)
 
         # Setup internal data reference to interesting events/dataframes
         self._sanitize_SchedLoadAvgCpu()
@@ -264,15 +268,17 @@ class Trace(object):
         self._sanitize_CpuFrequency()
         self._sanitize_ThermalPowerCpu()
 
-    def __checkAvailableEvents(self, key=""):
+        return ftrace
+
+    def __checkAvailableEvents(self, ftrace, key=""):
         """
         Internal method used to build a list of available events.
 
         :param key: key to be used for TRAPpy filtering
         :type key: str
         """
-        for val in self.ftrace.get_filters(key):
-            obj = getattr(self.ftrace, val)
+        for val in ftrace.get_filters(key):
+            obj = getattr(ftrace, val)
             if len(obj.data_frame):
                 self.available_events.append(val)
         self._log.debug('Events found on trace:')
@@ -310,12 +316,12 @@ class Trace(object):
 
         return set(dataset).issubset(set(self.available_events))
 
-    def __computeTimeSpan(self):
+    def __computeTimeSpan(self, ftrace):
         """
         Compute time axis range, considering all the parsed events.
         """
-        self.start_time = 0 if self.normalize_time else self.ftrace.basetime
-        self.time_range = self.ftrace.get_duration()
+        self.start_time = 0 if self.normalize_time else ftrace.basetime
+        self.time_range = ftrace.get_duration()
         self._log.debug('Collected events spans a %.3f [s] time interval',
                        self.time_range)
 
@@ -419,6 +425,7 @@ class Trace(object):
 # DataFrame Getter Methods
 ###############################################################################
 
+    #TODO: remove that, "soon" is now "now"
     def df(self, event):
         """
         Get a dataframe containing all occurrences of the specified trace event
@@ -442,9 +449,7 @@ class Trace(object):
         :param event: Trace event name
         :type event: str
         """
-        if self.data_dir is None:
-            raise ValueError("trace data not (yet) loaded")
-        if self.ftrace and hasattr(self.ftrace, event):
+        if hasattr(self.ftrace, event):
             return getattr(self.ftrace, event).data_frame
         raise ValueError('Event [{}] not supported. '
                          'Supported events are: {}'
