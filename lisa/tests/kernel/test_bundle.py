@@ -305,13 +305,13 @@ class RTATestBundle(TestBundle, abc.ABC):
             wload.run()
 
     @classmethod
-    def _from_target(cls, te:TestEnv, res_dir:ArtifactPath):
+    def _from_target(cls, te:TestEnv, res_dir:ArtifactPath) -> 'RTATestBundle':
         rtapp_profile = cls.create_rtapp_profile(te)
         cls._run_rtapp(te, res_dir, rtapp_profile)
 
         return cls(res_dir, rtapp_profile)
 
-    def test_slack(self, negative_slack_allowed_pct=15) -> 'TestBundle':
+    def test_slack(self, negative_slack_allowed_pct=15) -> ResultBundle:
         """
         Assert that the RTApp workload was given enough performance
 
@@ -344,7 +344,6 @@ class RTATestBundle(TestBundle, abc.ABC):
             res.add_metric("slack_{}".format(task), slack, '%')
 
         return res
-
 
 ################################################################################
 ################################################################################

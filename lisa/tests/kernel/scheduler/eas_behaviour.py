@@ -18,6 +18,7 @@
 import os
 from math import isnan
 from pathlib import Path
+import abc
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -31,9 +32,9 @@ from lisa.tests.kernel.test_bundle import RTATestBundle, ResultBundle
 from lisa.perf_analysis import PerfAnalysis
 from lisa.env import TestEnv, ArtifactPath
 
-class EASBehaviour(RTATestBundle):
+class EASBehaviour(RTATestBundle, abc.ABC):
     """
-    "Abstract" class for EAS behavioural testing.
+    Abstract class for EAS behavioural testing.
 
     :param rtapp_profile: The rtapp parameters used to create the synthetic
       workload. That happens to be what is returned by :meth:`create_rtapp_profile`
@@ -50,13 +51,22 @@ class EASBehaviour(RTATestBundle):
     `here <https://developer.arm.com/open-source/energy-aware-scheduling/eas-mainline-development>`_.
     """
 
-    def __init__(self, res_dir,rtapp_profile, nrg_model):
+    def __init__(self, res_dir, rtapp_profile, nrg_model):
         super().__init__(res_dir, rtapp_profile)
 
         self.nrg_model = nrg_model
 
     @classmethod
-    def _from_target(cls, te:TestEnv, res_dir:ArtifactPath):
+    @abc.abstractmethod
+    def create_rtapp_profile(cls, te):
+        """Returns the RTapp profile for the given :class:`TestEnv`.
+
+        :returns: :class:`lisa.wlgen.RTATask`
+        """
+        pass
+
+    @classmethod
+    def _from_target(cls, te:TestEnv, res_dir:ArtifactPath) -> 'EASBehaviour':
         rtapp_profile = cls.create_rtapp_profile(te)
 
         # EAS doesn't make a lot of sense without schedutil,
