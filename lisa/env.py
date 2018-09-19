@@ -61,17 +61,17 @@ class TestEnv(Loggable):
 
     :param target_conf: Configuration defining the target to use. It may be:
 
-            - A dict defining the values directly
-            - A path to a JSON file containing the configuration
-            - ``None``, in which case:
+      - A dict defining the values directly
+      - A path to a JSON file containing the configuration
+      - ``None``, in which case:
         - $LISA_TARGET_CONF environment variable is read to locate a
-                  config file.
-                - If the variable is not set, $LISA_HOME/target.config is used.
+        config file.
+        - If the variable is not set, $LISA_HOME/target.config is used.
 
-        You need to provide the information needed to connect to the
-        target. For SSH targets that means "host", "username" and
-        either "password" or "keyfile". All other fields are optional if
-      the relevant features aren't needed.
+    You need to provide the information needed to connect to the
+    target. For SSH targets that means "host", "username" and
+    either "password" or "keyfile". All other fields are optional if
+    the relevant features aren't needed.
 
     :target_conf parameters:
         :platform: Type of target, can be either of:
@@ -85,9 +85,9 @@ class TestEnv(Loggable):
         :device:  Target Android device ID if using ADB
         :port: Port for Android connection default port is 5555
         :rtapp-calib: Calibration values for RT-App. If unspecified, LISA will
-            calibrate RT-App on the target. A message will be logged with
-            a value that can be copied here to avoid having to re-run
-            calibration on subsequent tests.
+          calibrate RT-App on the target. A message will be logged with
+          a value that can be copied here to avoid having to re-run
+          calibration on subsequent tests.
         :ftrace: Ftrace configuration - see :meth:`configure_ftrace`.
 
     :param force_new: Create a new TestEnv object even if there is one available
