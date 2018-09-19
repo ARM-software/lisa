@@ -1,7 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2018, Arm Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 from ruamel.yaml import YAML
 import copy
 
 class YAMLSerializable:
+    """
+    A helper class for YAML serialization/deserialization
+
+    Not to be used on its own - instead, your class should inherit from this
+    class to gain serialization superpowers.
+    """
     serialized_whitelist = []
     serialized_blacklist = []
     serialized_placeholders = dict()
@@ -10,19 +33,43 @@ class YAMLSerializable:
     _yaml.allow_unicode = True
 
     def to_stream(self, stream):
+        """
+        Serialize the object to a stream
+
+        :param stream: A writable stream
+        :type stream: Any writable object (open file, StringIO...)
+        """
         self._yaml.dump(self, stream)
 
     @classmethod
     def from_stream(cls, stream):
+        """
+        Deserialize the object from a stream
+
+        :param stream: A writable stream
+        :type stream: Any writable object (open file, StringIO...)
+        """
         return cls._yaml.load(stream)
 
     def to_path(self, filepath):
+        """
+        Serialize the object to a file
+
+        :param filepath: The path of the file in which the object will be dumped
+        :type filepath: str
+        """
         #TODO: check if encoding='utf-8' would be beneficial
         with open(filepath, "w") as fh:
             self.to_stream(fh)
 
     @classmethod
     def from_path(cls, filepath):
+        """
+        Deserialize the object from a file
+
+        :param filepath: The path of file in which the object has been dumped
+        :type filepath: str
+        """
         with open(filepath, "r") as fh:
             return cls.from_stream(fh)
 
