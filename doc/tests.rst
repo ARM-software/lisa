@@ -42,15 +42,15 @@ b. withstand events we can't control (use error margins, averages...)
 Where to start
 ++++++++++++++
 
-The main class of the kernel tests is :class:`~lisa.kernel_tests.test_bundle.TestBundle`.
+The main class of the kernel tests is :class:`~lisa.tests.kernel.test_bundle.TestBundle`.
 Have a look at its documentation for implementation and usage examples. It can
 also be worth to look at a simple test, such as
-:class:`~lisa.kernel_tests.misc.capacity_sanity.CapacitySanityCheck`.
+:class:`~lisa.tests.kernel.misc.capacity_sanity.CapacitySanityCheck`.
 
-Implementations of :class:`~lisa.kernel_tests.test_bundle.TestBundle` can
+Implementations of :class:`~lisa.tests.kernel.test_bundle.TestBundle` can
 execute any sort of arbitry Python code. This means that you are free to
 manipulate sysfs entries, or to execute arbitray binaries on the target. The
-:class:`~lisa.kernel_tests.workload.Workload` class has been created to
+:class:`~lisa.tests.kernel.workload.Workload` class has been created to
 facilitate the execution of commands/binaries on the target.
 
 An important daughter class of :class:`~lisa.wlgen.workload.Workload`
@@ -65,7 +65,7 @@ API
 Base classes
 ++++++++++++
 
-.. automodule:: lisa.kernel_tests.test_bundle
+.. automodule:: lisa.tests.kernel.test_bundle
    :members:
 
 .. TODO:: Make those imports more generic
@@ -73,19 +73,19 @@ Base classes
 Scheduler tests
 +++++++++++++++
 
-.. autoclass:: lisa.kernel_tests.scheduler.eas_behaviour.EASBehaviour
+.. autoclass:: lisa.tests.kernel.scheduler.eas_behaviour.EASBehaviour
    :members:
 
-.. automodule:: lisa.kernel_tests.scheduler.eas_behaviour
+.. automodule:: lisa.tests.kernel.scheduler.eas_behaviour
    :exclude-members: EASBehaviour
    :members:
 
 Hotplug tests
 +++++++++++++
-.. automodule:: lisa.kernel_tests.hotplug.torture
+.. automodule:: lisa.tests.kernel.hotplug.torture
    :members:
 
 Miscellaneous tests
 +++++++++++++++++++
-.. automodule:: lisa.kernel_tests.misc.capacity_sanity
+.. automodule:: lisa.tests.kernel.misc.capacity_sanity
    :members:
