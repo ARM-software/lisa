@@ -25,7 +25,7 @@ import itertools
 
 from lisa.analysis.base import AnalysisBase
 
-class AnalysisProxy(object):
+class AnalysisProxy:
     """
     Define list of supported Analysis Classes.
 
@@ -52,6 +52,10 @@ class AnalysisProxy(object):
         return itertools.chain(super().__dir__(), self._class_map.keys())
 
     def __getattr__(self, attr):
+        # dunder name lookup would have succeeded by now, like __setstate__
+        if attr.startswith('__') and attr.endswith('__'):
+            return super().__getattribute__(attr)
+
         # First, try to get the instance of the Analysis that was built if we
         # used it already on that proxy.
         try:
@@ -65,7 +69,7 @@ class AnalysisProxy(object):
                 # No analysis class matching "attr", so we log the ones that
                 # are available and let an AttributeError bubble up
                 try:
-                    analysis_cls = super(AnalysisProxy, self).__getattribute__(attr)
+                    analysis_cls = super().__getattribute__(attr)
                 except Exception:
                     logger = logging.getLogger('Analysis')
                     logger.debug('{} not found. Registered analysis:'.format(attr))

@@ -75,10 +75,12 @@ class TargetScript:
     # Thus, if such a property is called on this object,
     # it will be fetched from the 'real' target object.
     def __getattr__(self, name):
-        if name in self._target_attrs:
+        # dunder name lookup would have succeeded by now, like __setstate__
+        if not (name.startswith('__') and name.endswith('__')) \
+            and name in self._target_attrs:
             return getattr(self._target, name)
 
-        return getattr(super, name)
+        return super().__getattribute__(name)
 
     def push(self):
         """
