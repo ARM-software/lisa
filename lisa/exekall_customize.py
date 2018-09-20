@@ -8,11 +8,11 @@ import logging
 import sys
 
 from lisa.env import TargetConfig, ArtifactPath
-from lisa.exekall_customize.utils import IDHidden
+from lisa.utilities import IDHidden
 
-from exekall import utils, engine, glue
+from exekall import utils, engine
 from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name
-from exekall.glue import AdaptorBase
+from exekall.customization import AdaptorBase
 
 @reusable(False)
 class ArtifactStorage(ArtifactPath, IDHidden):

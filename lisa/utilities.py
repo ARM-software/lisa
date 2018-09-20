@@ -25,4 +25,7 @@ class Loggable(object):
     def logger(self):
         return logging.getLogger(self.__class__.__name__)
 
+class IDHidden:
+    pass
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

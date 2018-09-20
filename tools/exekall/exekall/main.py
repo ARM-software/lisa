@@ -21,7 +21,7 @@ import itertools
 import importlib
 import contextlib
 
-from exekall.glue import AdaptorBase
+from exekall.customization import AdaptorBase
 import exekall.engine as engine
 from exekall.engine import take_first, NoValue
 import exekall.utils as utils
@@ -121,14 +121,13 @@ the parameter, the start value, stop value and step size.""")
     adaptor_cls = AdaptorBase
     module_set = set()
     for name in toplevel_package_name_list:
-        customize_name = name + '.exekall_customize.adaptor'
-        try:
+        customize_name = name + '.exekall_customize'
+        # If the module exists, we try to import it
+        if importlib.util.find_spec(customize_name):
             # Importing that module is enough to make the adaptor visible
             # to the Adaptor base class
             customize_module = importlib.import_module(customize_name)
             module_set.add(customize_module)
-        except ImportError:
-            continue
 
         # TODO: Allow listing adapators and choosing the one we want
         adaptor_cls = AdaptorBase.get_adaptor_cls()

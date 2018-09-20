@@ -409,6 +409,9 @@ echo
 echo
 }
 
+function exekall {
+   python3 -m exekall.main "$@"
+}
 
 ################################################################################
 # LISA Workloads utility functions
