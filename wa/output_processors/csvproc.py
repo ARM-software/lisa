@@ -49,17 +49,17 @@ class CsvReportProcessor(OutputProcessor):
                   """),
     ]
 
+    def __init__(self, *args, **kwargs):
+        super(CsvReportProcessor, self).__init__(*args, **kwargs)
+        self.outputs_so_far = []
+        self.artifact_added = False
+
     def validate(self):
         super(CsvReportProcessor, self).validate()
         if self.use_all_classifiers and self.extra_columns:
             msg = 'extra_columns cannot be specified when '\
                   'use_all_classifiers is True'
             raise ConfigError(msg)
-
-    def initialize(self, context):
-        # pylint: disable=attribute-defined-outside-init
-        self.outputs_so_far = []
-        self.artifact_added = False
 
     # pylint: disable=unused-argument
     def process_job_output(self, output, target_info, run_output):

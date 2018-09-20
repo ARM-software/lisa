@@ -85,8 +85,9 @@ class CpuStatesProcessor(OutputProcessor):
                   """),
     ]
 
-    def initialize(self, context):
-        self.iteration_reports = OrderedDict()  # pylint: disable=attribute-defined-outside-init
+    def __init__(self, *args, **kwargs):
+        super(CpuStatesProcessor, self).__init__(*args, **kwargs)
+        self.iteration_reports = OrderedDict()
 
     def process_job_output(self, output, target_info, run_output):  # pylint: disable=unused-argument
         trace_file = output.get_artifact_path('trace-cmd-txt')
