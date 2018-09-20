@@ -26,6 +26,14 @@ class Loggable(object):
         return logging.getLogger(self.__class__.__name__)
 
 class HideExekallID:
+    """Hide the subclasses in the simplified ID format of exekall.
+
+    That is mainly used for uninteresting classes that do not add any useful
+    information to the ID. This should not be used on domain-specific classes
+    since alternatives may be used by the user while debugging for example.
+    Hiding too many classes may lead to ambiguity, which is exactly what the ID
+    is fighting against.
+    """
     pass
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
