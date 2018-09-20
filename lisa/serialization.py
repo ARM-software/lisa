@@ -14,11 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import copy
+import pickle
 
 from ruamel.yaml import YAML
-import copy
 
-class YAMLSerializable:
+class Serializable:
     """
     A helper class for YAML serialization/deserialization
 
@@ -29,49 +30,64 @@ class YAMLSerializable:
     serialized_blacklist = []
     serialized_placeholders = dict()
 
+    DEFAULT_SERIALIZATION_FMT = 'yaml'
+    "Default format used when serializing objects"
+
     _yaml = YAML(typ='unsafe')
     _yaml.allow_unicode = True
+    _yaml.default_flow_style = False
+    _yaml.indent = 4
 
-    def to_stream(self, stream):
-        """
-        Serialize the object to a stream
-
-        :param stream: A writable stream
-        :type stream: Any writable object (open file, StringIO...)
-        """
-        self._yaml.dump(self, stream)
-
-    @classmethod
-    def from_stream(cls, stream):
-        """
-        Deserialize the object from a stream
-
-        :param stream: A writable stream
-        :type stream: Any writable object (open file, StringIO...)
-        """
-        return cls._yaml.load(stream)
-
-    def to_path(self, filepath):
+    def to_path(self, filepath, fmt=None):
         """
         Serialize the object to a file
 
         :param filepath: The path of the file in which the object will be dumped
         :type filepath: str
+
+        :param fmt: Serialization format.
+        :type fmt: str
         """
-        #TODO: check if encoding='utf-8' would be beneficial
-        with open(filepath, "w") as fh:
-            self.to_stream(fh)
+        if fmt is None:
+            fmt = self.DEFAULT_SERIALIZATION_FMT
+
+        if fmt == 'yaml':
+            kwargs = dict(mode='w', encoding='utf-8')
+            dumper = self._yaml.dump
+        elif fmt == 'pickle':
+            kwargs = dict(mode='wb')
+            dumper = pickle.dump
+        else:
+            raise ValueError('Unknown format "{}"'.format(fmt))
+
+        with open(str(filepath), **kwargs) as fh:
+            dumper(self, fh)
 
     @classmethod
-    def from_path(cls, filepath):
+    def from_path(cls, filepath, fmt=None):
         """
-        Deserialize the object from a file
+        Deserialize an object from a file
 
         :param filepath: The path of file in which the object has been dumped
         :type filepath: str
+
+        :param fmt: Serialization format.
+        :type fmt: str
         """
-        with open(filepath, "r") as fh:
-            return cls.from_stream(fh)
+        if fmt is None:
+            fmt = cls.DEFAULT_SERIALIZATION_FMT
+
+        if fmt == 'yaml':
+            kwargs = dict(mode='r', encoding='utf-8')
+            loader = self._yaml.load
+        elif fmt == 'pickle':
+            kwargs = dict(mode='rb')
+            loader = pickle.load
+        else:
+            raise ValueError('Unknown format "{}"'.format(fmt))
+
+        with open(str(filepath), **kwargs) as fh:
+            return loader(fh)
 
     #TODO: figure out why it is breaking deserialization of circular object
     # graphs:

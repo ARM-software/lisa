@@ -21,7 +21,7 @@ import logging
 import operator
 import re
 
-from lisa.serialization import YAMLSerializable
+from lisa.serialization import Serializable
 
 import pandas as pd
 import numpy as np

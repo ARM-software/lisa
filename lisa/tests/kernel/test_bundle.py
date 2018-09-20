@@ -23,7 +23,7 @@ from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
 from lisa.perf_analysis import PerfAnalysis
 
-from lisa.serialization import YAMLSerializable
+from lisa.serialization import Serializable
 from lisa.env import TestEnv, ArtifactPath
 
 class TestMetric:
@@ -101,7 +101,7 @@ class ResultBundle:
         """
         self.metrics[name] = TestMetric(data, units)
 
-class TestBundle(YAMLSerializable, abc.ABC):
+class TestBundle(Serializable, abc.ABC):
     """
     A LISA test bundle.
 
@@ -125,7 +125,7 @@ class TestBundle(YAMLSerializable, abc.ABC):
     from this class, you can define test methods that use this data, and return
     a :class:`ResultBundle`.
 
-    Thanks to :class:`YAMLSerializable`, instances of this class can be
+    Thanks to :class:`Serializable`, instances of this class can be
     serialized with minimal effort. As long as some information is stored
     within an object's member, it will be automagically handled.
 
@@ -224,7 +224,7 @@ class TestBundle(YAMLSerializable, abc.ABC):
     @classmethod
     def from_path(cls, res_dir):
         """
-        See :meth:`YAMLSerializable.from_path`
+        See :meth:`Serializable.from_path`
         """
         bundle = super().from_path(cls._filepath(res_dir))
         # We need to update the res_dir to the one we were given
@@ -234,7 +234,7 @@ class TestBundle(YAMLSerializable, abc.ABC):
 
     def to_path(self, res_dir):
         """
-        See :meth:`YAMLSerializable.to_path`
+        See :meth:`Serializable.to_path`
         """
         super().to_path(self._filepath(res_dir))
 
