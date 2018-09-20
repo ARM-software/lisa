@@ -38,7 +38,7 @@ from pexpect import EOF, TIMEOUT, spawn
 
 # pylint: disable=redefined-builtin,wrong-import-position
 from devlib.exception import (HostError, TargetStableError, TargetNotRespondingError,
-                              TimeoutError)
+                              TimeoutError, TargetTransientError)
 from devlib.utils.misc import which, strip_bash_colors, check_output
 from devlib.utils.misc import (escape_single_quotes, escape_double_quotes,
                                escape_spaces)

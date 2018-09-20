@@ -29,7 +29,7 @@ import subprocess
 from collections import defaultdict
 import pexpect
 
-from devlib.exception import TargetTransientError, TargetStableError, HostError, DevlibError
+from devlib.exception import TargetTransientError, TargetStableError, HostError
 from devlib.utils.misc import check_output, which, ABI_MAP
 from devlib.utils.misc import escape_single_quotes, escape_double_quotes
 

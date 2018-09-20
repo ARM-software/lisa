@@ -20,7 +20,6 @@ from past.builtins import basestring, zip
 
 from devlib.host import PACKAGE_BIN_DIRECTORY
 from devlib.trace import TraceCollector
-from devlib.exception import HostError
 from devlib.utils.misc import ensure_file_directory_exists as _f
 
 

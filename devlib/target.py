@@ -29,7 +29,9 @@ from collections import namedtuple, defaultdict
 from devlib.host import LocalConnection, PACKAGE_BIN_DIRECTORY
 from devlib.module import get_module
 from devlib.platform import Platform
-from devlib.exception import DevlibTransientError, TargetStableError, TargetNotRespondingError, TimeoutError # pylint: disable=redefined-builtin
+from devlib.exception import (DevlibTransientError, TargetStableError,
+                              TargetNotRespondingError, TimeoutError,
+                              TargetTransientError) # pylint: disable=redefined-builtin
 from devlib.utils.ssh import SshConnection
 from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect, INTENT_FLAGS
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
