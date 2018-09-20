@@ -254,6 +254,8 @@ class PostgresqlResultProcessor(OutputProcessor):
         ''' A final export of the RunOutput that updates existing parameters
             and uploads ones which are only generated after jobs have run.
         '''
+        if not self.cursor:  # Database did not connect correctly.
+            return
         self.current_job_uuid = None
         # Update the job statuses following completion of the run
         for job in run_output.jobs:
