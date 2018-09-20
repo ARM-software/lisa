@@ -280,7 +280,7 @@ class SshConnection(object):
         # the regex removes line breaks potential introduced when writing
         # command to shell.
         if sys.version_info[0] == 3:
-            output = process_backspaces(self.conn.before.decode(sys.stdout.encoding, 'replace'))
+            output = process_backspaces(self.conn.before.decode(sys.stdout.encoding or 'utf-8', 'replace'))
         else:
             output = process_backspaces(self.conn.before)
         output = re.sub(r'\r([^\n])', r'\1', output)

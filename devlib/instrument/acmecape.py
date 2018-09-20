@@ -112,7 +112,7 @@ class AcmeCapeInstrument(Instrument):
                 raise HostError(msg.format(output))
         if self.process.returncode != 15: # iio-capture exits with 15 when killed
             if sys.version_info[0] == 3:
-                output += self.process.stdout.read().decode(sys.stdout.encoding, 'replace')
+                output += self.process.stdout.read().decode(sys.stdout.encoding or 'utf-8', 'replace')
             else:
                 output += self.process.stdout.read()
             self.logger.info('ACME instrument encountered an error, '

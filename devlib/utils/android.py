@@ -152,7 +152,7 @@ class ApkInfo(object):
         try:
             output = subprocess.check_output(command, stderr=subprocess.STDOUT)
             if sys.version_info[0] == 3:
-                output = output.decode(sys.stdout.encoding, 'replace')
+                output = output.decode(sys.stdout.encoding or 'utf-8', 'replace')
         except subprocess.CalledProcessError as e:
             raise HostError('Error parsing APK file {}. `aapt` says:\n{}'
                             .format(apk_path, e.output))

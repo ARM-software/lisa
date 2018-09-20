@@ -153,11 +153,11 @@ if sys.version_info[0] == 3:
         if isinstance(value, regex_type):
             if isinstance(value.pattern, bytes):
                 return value
-            return re.compile(value.pattern.encode(sys.stdout.encoding),
+            return re.compile(value.pattern.encode(sys.stdout.encoding or 'utf-8'),
                               value.flags & ~re.UNICODE)
         else:
             if isinstance(value, str):
-                value = value.encode(sys.stdout.encoding)
+                value = value.encode(sys.stdout.encoding or 'utf-8')
             return re.compile(value)
 else:
     def regex(value):

@@ -82,8 +82,8 @@ class EnergyProbeInstrument(Instrument):
         if self.process.returncode is not None:
             stdout, stderr = self.process.communicate()
             if sys.version_info[0] == 3:
-                stdout = stdout.decode(sys.stdout.encoding, 'replace')
-                stderr = stderr.decode(sys.stdout.encoding, 'replace')
+                stdout = stdout.decode(sys.stdout.encoding or 'utf-8', 'replace')
+                stderr = stderr.decode(sys.stdout.encoding or 'utf-8', 'replace')
             raise HostError(
                 'Energy Probe: Caiman exited unexpectedly with exit code {}.\n'
                 'stdout:\n{}\nstderr:\n{}'.format(self.process.returncode,
