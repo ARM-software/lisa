@@ -20,7 +20,7 @@ import os
 
 from devlib.utils.misc import list_to_mask
 
-from utilities import Loggable
+from lisa.utils import Loggable
 
 class Workload(Loggable):
     """
@@ -73,19 +73,9 @@ class Workload(Loggable):
 
     required_tools = ['taskset']
 
-<<<<<<< HEAD
     def __init__(self, te, name, res_dir=None):
         self.te = te
         self.name = name
-=======
-    def __callback(self, step, **kwords):
-        if step not in list(self.steps.keys()):
-            raise ValueError('Callbacks for [%s] step not supported', step)
-        if self.steps[step] is None:
-            return
-        self._log.debug('Callback [%s]...', step)
-        self.steps[step](kwords)
->>>>>>> 9f801df... 2to3: run on part of the lisa tree
 
         # XXX: move this to run() instead?
         if not res_dir:

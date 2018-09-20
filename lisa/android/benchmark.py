@@ -23,7 +23,7 @@ import select
 from subprocess import Popen, PIPE
 from time import sleep
 
-from lisa.conf import LisaLogging
+from lisa.conf import setup_logging
 from lisa.android import System, Workload
 from lisa.env import TestEnv
 
@@ -281,7 +281,7 @@ class LisaBenchmark(object):
         """
         Set up logging and trigger running experiments
         """
-        LisaLogging.setup()
+        setup_logging()
         self._log = logging.getLogger('Benchmark')
 
         self._log.info('=== CommandLine parsing...')

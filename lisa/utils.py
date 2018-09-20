@@ -17,7 +17,7 @@
 
 import logging
 
-class Loggable(object):
+class Loggable:
     """
     A simple class for uniformly named loggers
     """

@@ -24,8 +24,9 @@ import inspect
 import itertools
 
 from lisa.analysis.base import AnalysisBase
+from lisa.utils import Loggable
 
-class AnalysisProxy:
+class AnalysisProxy(Loggable):
     """
     Define list of supported Analysis Classes.
 
@@ -71,8 +72,7 @@ class AnalysisProxy:
                 try:
                     analysis_cls = super().__getattribute__(attr)
                 except Exception:
-                    logger = logging.getLogger('Analysis')
-                    logger.debug('{} not found. Registered analysis:'.format(attr))
+                    self.logger.debug('{} not found. Registered analysis:'.format(attr))
                     for name, cls in list(self._class_map.items()):
                         src_file = '<unknown source>'
                         try:
@@ -80,7 +80,7 @@ class AnalysisProxy:
                         except TypeError:
                             pass
 
-                        logger.debug('{name} ({cls}) defined in {src}'.format(
+                        self.logger.debug('{name} ({cls}) defined in {src}'.format(
                             name=name,
                             cls=cls,
                             src=src_file

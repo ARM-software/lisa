@@ -28,32 +28,29 @@ if not BASEPATH:
     logging.getLogger(__name__).warning('LISA_HOME env var is not set, LISA may misbehave.')
 
 
-class LisaLogging(object):
+def setup_logging(filepath='logging.conf', level=logging.INFO):
+    """
+    Initialize logging used for all the LISA modules.
 
-    @classmethod
-    def setup(self, filepath='logging.conf', level=logging.INFO):
-        """
-        Initialize logging used for all the LISA modules.
+    :param filepath: the relative or absolute path of the logging
+                     configuration to use. Relative path uses the
+                     :data:`env.BASEPATH` as base folder.
+    :type filepath: str
 
-        :param filepath: the relative or absolute path of the logging
-                         configuration to use. Relative path uses the
-                         :data:`env.BASEPATH` as base folder.
-        :type filepath: str
+    :param level: the default log level to enable, INFO by default
+    :type level: logging.<level> or int in [0..50]
+    """
 
-        :param level: the default log level to enable, INFO by default
-        :type level: logging.<level> or int in [0..50]
-        """
+    # Load the specified logfile using an absolute path
+    filepath = os.path.join(BASEPATH, filepath)
+    if not os.path.exists(filepath):
+        raise ValueError('Logging configuration file not found in: {}'\
+                         .format(filepath))
+    logging.config.fileConfig(filepath)
+    logging.getLogger().setLevel(level)
 
-        # Load the specified logfile using an absolute path
-        filepath = os.path.join(BASEPATH, filepath)
-        if not os.path.exists(filepath):
-            raise ValueError('Logging configuration file not found in: {}'\
-                             .format(filepath))
-        logging.config.fileConfig(filepath)
-        logging.getLogger().setLevel(level)
-
-        logging.info('Using LISA logging configuration:')
-        logging.info('  %s', filepath)
+    logging.info('Using LISA logging configuration:')
+    logging.info('  %s', filepath)
 
 
 #TODO: Switch to YAML config

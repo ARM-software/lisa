@@ -8,7 +8,7 @@ import logging
 import sys
 
 from lisa.env import TargetConfig, ArtifactPath
-from lisa.utilities import HideExekallID
+from lisa.utils import HideExekallID
 
 from exekall import utils, engine
 from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name

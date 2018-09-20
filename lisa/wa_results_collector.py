@@ -30,8 +30,6 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_hex
 
-from lisa.conf import LisaLogging
-
 from bart.common.Utils import area_under_curve
 from devlib.target import KernelVersion
 from devlib.utils.misc import memoized

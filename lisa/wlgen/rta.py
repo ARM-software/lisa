@@ -23,8 +23,7 @@ import sys
 from collections import OrderedDict
 
 from lisa.wlgen.workload import Workload
-
-from utilities import Loggable
+from lisa.utils import Loggable
 
 class RTA(Workload):
     """

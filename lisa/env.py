@@ -31,11 +31,11 @@ from lisa.wlgen.rta import RTA
 from lisa.energy import EnergyMeter
 from lisa.energy_model import EnergyModel
 from lisa.conf import JsonConf, BASEPATH
-from lisa.utilities import Loggable
+from lisa.utils import Loggable
 from lisa.platforms.juno_r0_energy import juno_r0_energy
 from lisa.platforms.hikey_energy import hikey_energy
 from lisa.platforms.pixel_energy import pixel_energy
-from lisa.utilities import HideExekallID
+from lisa.utils import HideExekallID
 
 USERNAME_DEFAULT = 'root'
 PASSWORD_DEFAULT = ''
