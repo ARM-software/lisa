@@ -113,6 +113,14 @@ class StorageDB:
         with gzip.open(str(path), 'rt', encoding='utf-8') as f:
             db = yaml.load(f)
         assert isinstance(db, cls)
+
+        # TODO: remove that once the bug is solved
+        # Due to the 2nd issue commented here, ObjectStore.__setstate__ is not
+        # able to reinitialize its id_uuid_map properly so we need to do it
+        # manually:
+        # https://bitbucket.org/ruamel/yaml/issues/238/constructorerror-with-recursive-objects
+        db.obj_store.update_uuid_map()
+
         return db
 
     def to_path(self, path):
