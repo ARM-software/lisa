@@ -166,7 +166,7 @@ COMMON_TARGET_PARAMS = [
               *not* need to be writable by unprivileged users or rooted devices
               (WA will install with elevated privileges as necessary).
               '''),
-    Parameter('modules', kind=list_of_strings,
+    Parameter('modules', kind=list,
               description='''
               A list of additional modules to be installed for the target.
 
@@ -222,7 +222,7 @@ COMMON_PLATFORM_PARAMS = [
               Hardware model of the platform. If not specified, an attempt will
               be made to read it from target.
               '''),
-    Parameter('modules', kind=list_of_strings,
+    Parameter('modules', kind=list,
               description='''
               An additional list of modules to be loaded into the target.
               '''),
