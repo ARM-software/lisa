@@ -76,7 +76,7 @@ A typical ``device_config`` inside ``config.yaml`` may look something like
         # ...
 
 
-or a more specific config could be be
+or a more specific config could be:
 
 .. code-block:: yaml
 
