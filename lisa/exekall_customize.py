@@ -101,7 +101,8 @@ class LISAAdaptor(AdaptorBase):
         parser.add_argument('--target-conf', action='append',
             help="Target config files")
 
-    def load_db(self, db_path, *args, **kwargs):
+    @classmethod
+    def load_db(cls, db_path, *args, **kwargs):
         # This will relocate ArtifactStorage instances to the new absolute path
         # of the results folder, in case it has been moved to another place
         artifact_root = pathlib.Path(db_path).parent.resolve()
