@@ -28,6 +28,8 @@ import operator
 import logging
 import webbrowser
 
+from pathlib import Path
+
 from lisa.analysis.proxy import AnalysisProxy
 from devlib.utils.misc import memoized
 from devlib.target import KernelVersion
@@ -131,7 +133,7 @@ class Trace(object):
 
         # Folder containing trace
         # TODO: do we need to support getting the path to trace.txt file here ?
-        if not data_dir.is_dir():
+        if isinstance(data_dir, Path) and not data_dir.is_dir():
             data_dir = data_dir.parent
 
         # TODO: make Trace pathlib.Path-friendly
