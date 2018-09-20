@@ -159,6 +159,8 @@ class CreateDatabaseSubcommand(SubCommand):
         _update_configuration_file(args, config)
 
     def create_database(self, args):
+        _validate_version(args)
+
         _check_database_existence(args)
 
         _create_database_postgres(args)
@@ -427,6 +429,14 @@ def get_class_name(name, postfix=''):
 def touch(path):
     with open(path, 'w') as _: # NOQA
         pass
+
+
+def _validate_version(args):
+    conn = connect(user=args.username,
+                   password=args.password, host=args.postgres_host, port=args.postgres_port)
+    if conn.server_version < 90400:
+        msg = 'Postgres version too low. Please ensure that you are using atleast v9.4'
+        raise CommandError(msg)
 
 
 def _check_database_existence(args):
