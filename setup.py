@@ -83,12 +83,13 @@ params = dict(
         'colorama',  # Printing with colors
         'pyYAML',  # YAML-formatted agenda parsing
         'requests',  # Fetch assets over HTTP
-        'devlib>=1.0.0',  # Interacting with devices
+        'devlib>=1.0.dev1',  # Interacting with devices
         'louie-latest',  # callbacks dispatch
         'wrapt',  # better decorators
         'pandas>=0.23.0',  # Data analysis and manipulation
         'future',  # Python 2-3 compatiblity
     ],
+    dependency_links=['https://github.com/ARM-software/devlib/tarball/master#egg=devlib-1.0.dev1'],
     extras_require={
         'other': ['jinja2'],
         'test': ['nose', 'mock'],
