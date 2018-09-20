@@ -8,14 +8,14 @@ import logging
 import sys
 
 from lisa.env import TargetConfig, ArtifactPath
-from lisa.utilities import IDHidden
+from lisa.utilities import HideExekallID
 
 from exekall import utils, engine
 from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name
 from exekall.customization import AdaptorBase
 
 @reusable(False)
-class ArtifactStorage(ArtifactPath, IDHidden):
+class ArtifactStorage(ArtifactPath, HideExekallID):
     __slots__ = ('artifact_root',)
 
     def __new__(cls, root, *args, **kwargs):
@@ -62,7 +62,7 @@ class ArtifactStorage(ArtifactPath, IDHidden):
         relative = artifact_dir.relative_to(artifact_root)
         return cls(artifact_root, relative)
 
-class LISALogger(logging.Logger, IDHidden):
+class LISALogger(logging.Logger, HideExekallID):
     pass
 
 @reusable(False)
@@ -90,7 +90,7 @@ class LISAAdaptor(AdaptorBase):
     def get_hidden_callable_set(self, op_map):
         hidden_callable_set = set()
         for produced, op_set in op_map.items():
-            if issubclass(produced, IDHidden):
+            if issubclass(produced, HideExekallID):
                 hidden_callable_set.update(op.callable_ for op in op_set)
 
         self.hidden_callable_set = hidden_callable_set

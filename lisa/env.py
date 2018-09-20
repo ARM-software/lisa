@@ -35,7 +35,7 @@ from lisa.utilities import Loggable
 from lisa.platforms.juno_r0_energy import juno_r0_energy
 from lisa.platforms.hikey_energy import hikey_energy
 from lisa.platforms.pixel_energy import pixel_energy
-from lisa.utilities import IDHidden
+from lisa.utilities import HideExekallID
 
 USERNAME_DEFAULT = 'root'
 PASSWORD_DEFAULT = ''
@@ -53,7 +53,7 @@ class ArtifactPath(PosixPath):
     """
     pass
 
-class TargetConfig(JsonConf, IDHidden):
+class TargetConfig(JsonConf, HideExekallID):
     pass
 
 class TestEnv(Loggable):
