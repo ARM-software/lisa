@@ -18,6 +18,7 @@ import signal
 import shutil
 import subprocess
 import logging
+from distutils.dir_util import copy_tree
 from getpass import getpass
 
 from devlib.exception import TargetTransientError, TargetStableError
@@ -55,7 +56,11 @@ class LocalConnection(object):
             for each_source in iglob(source):
                 shutil.copy(each_source, dest)
         else:
-            shutil.copy(source, dest)
+            if os.path.isdir(source):
+                # Use distutils to allow copying into an existing directory structure.
+                copy_tree(source, dest)
+            else:
+                shutil.copy(source, dest)
 
     # pylint: disable=unused-argument
     def execute(self, command, timeout=None, check_exit_code=True,
