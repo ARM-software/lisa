@@ -5,6 +5,7 @@ import collections
 import numbers
 import importlib
 from importlib import util
+import itertools
 import sys
 import pathlib
 import logging
@@ -292,8 +293,9 @@ once = functools.lru_cache()
 
 def iterate_cb(iterator, pre_hook=None, post_hook=None):
     with contextlib.suppress(StopIteration):
-        while True:
-            if pre_hook:
+        for i in itertools.count():
+            # Do not execute pre_hook on the first iteration
+            if pre_hook and i:
                 pre_hook()
             val = next(iterator)
             if post_hook:

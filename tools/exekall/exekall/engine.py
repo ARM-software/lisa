@@ -156,6 +156,7 @@ class ObjectStore:
     def update_uuid_map(self):
         uuid_value_map = dict()
         id_uuid_map = dict()
+
         def update_map(serial_val):
             for uuid_, val in (
                 (serial_val.value_uuid, serial_val.value),
@@ -172,12 +173,11 @@ class ObjectStore:
     def _serial_val_dfs(self, callback):
         for serial_seq in self.serial_seq_list:
             for serial_val in serial_seq:
-                callback(serial_val)
                 self._do_serial_val_dfs(serial_val, callback)
 
     def _do_serial_val_dfs(cls, serial_val, callback):
+        callback(serial_val)
         for serial_val in serial_val.param_value_map.values():
-            callback(serial_val)
             cls._do_serial_val_dfs(serial_val, callback)
 
     def get_all(self):
@@ -678,9 +678,11 @@ class Expression:
         for i, expr in enumerate(expr_list):
             script += (
                 '#'*80 + '\n# Computed expressions:' +
-                ''.join(make_comment(id_) for id_ in expr.get_id(mark_excep=True)) + '\n' +
-                make_comment(expr.pretty_structure()) +
-                '\n\n'
+                ''.join(
+                    make_comment(id_)
+                    for id_ in expr.get_id(mark_excep=True, full_qual=False)
+                ) + '\n' +
+                make_comment(expr.pretty_structure()) + '\n\n'
             )
             idt = IndentationManager(' '*4)
 
@@ -694,23 +696,27 @@ class Expression:
                 consumer_expr_stack = [],
             )
 
-            # Only dump the ExprData when something was actually computed out
-            # of it and there is therefore an ExprValue instance for it.
-            try:
-                expr_data = storage.get_value_snippet(expr.data)
-            except KeyError:
-                expr_data = ''
+            # If we can expect eval() to work on the representation, we
+            # use that
+            if pprint.isreadable(expr.data):
+                expr_data = pprint.pformat(expr.data)
             else:
-                # If we can expect eval() to work on the representation, we
-                # use that. Otherwise, we will just load it from the StorageDB
-                if pprint.isreadable(expr.data):
-                    expr_data = pprint.pformat(expr.data)
+                # Otherwise, we try to get it from the DB
+                try:
+                    expr_data = storage.get_value_snippet(expr.data)
+                # If the expr_data was not used when computing subexpressions
+                # (that may happen if some subrexpressions were already
+                # computed for an other expression), we just bail out, hoping
+                # that nothing will need EXPR_DATA to be defined. That should
+                # not happen often as EXPR_DATA is supposed to stay
+                # pretty-printable
+                except KeyError:
+                    expr_data = '{} # cannot be pretty-printed'
 
-            if expr_data:
-                expr_data = cls.EXPR_DATA_VAR_NAME + ' = ' + expr_data + '\n'
+            expr_data_snippet = cls.EXPR_DATA_VAR_NAME + ' = ' + expr_data + '\n'
 
             script += (
-                expr_data +
+                expr_data_snippet +
                 snippet +
                 '\n'
             )
@@ -812,7 +818,7 @@ class Expression:
             value = expr_val.value
 
             if excep is NoValue:
-                comment =  expr_val.get_id() + ' (' + type(value).__name__ + ')'
+                comment =  expr_val.get_id(full_qual=False) + ' (' + type(value).__name__ + ')'
                 obj = make_serialized(expr_val, 'value')
             else:
                 comment = type(excep).__name__ + ' raised when executing ' + expr_val.get_id()
@@ -836,7 +842,6 @@ class Expression:
             else:
                 return (consumer_expr_stack[-2].op.name, '')
         elif self.op.callable_ is ExprData:
-            data = consumer_expr_stack[0].data
             # When we actually have an ExprValue, use it so we have the right
             # UUID.
             if expr_val_set:
@@ -969,7 +974,7 @@ class Expression:
 
         script += '\n'
         script += make_comment('{id}{src_loc}'.format(
-            id = list(self.get_id(with_tags=False))[0],
+            id = list(self.get_id(with_tags=False, full_qual=False))[0],
             src_loc = '\n' + src_loc if src_loc else ''
         ), idt_str)
 
@@ -1345,6 +1350,7 @@ def get_src_loc(obj):
     try:
         src_line = inspect.getsourcelines(obj)[1]
         src_file = inspect.getsourcefile(obj)
+        src_file = str(pathlib.Path(src_file).resolve())
     except (OSError, TypeError):
         src_line, src_file = None, None
 

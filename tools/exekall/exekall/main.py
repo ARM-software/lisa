@@ -486,7 +486,7 @@ the parameter, the start value, stop value and step size.""")
     if only_template_scripts:
         return 0
 
-    print('#'*80)
+    print('\n')
     result_map = collections.defaultdict(list)
     for testcase, executor in engine.Expression.get_executor_map(testcase_list).items():
         exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}'.format(
@@ -510,6 +510,7 @@ the parameter, the start value, stop value and step size.""")
 
         pre_line = lambda: print('-' * 40)
         post_line = lambda: print()
+        print()
         for result in utils.iterate_cb(executor(), pre_line, post_line):
             for failed_val in result.get_failed_values():
                 excep = failed_val.excep
@@ -555,7 +556,7 @@ the parameter, the start value, stop value and step size.""")
             result_list.append(result)
 
 
-        print('\n')
+        print()
         testcase_artifact_root = testcase.data['testcase_artifact_root']
 
         # Finalize the computation
