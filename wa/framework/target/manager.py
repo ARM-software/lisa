@@ -73,6 +73,8 @@ class TargetManager(object):
             self.rpm = RuntimeParameterManager(self.target)
 
     def finalize(self):
+        if not self.target:
+            return
         if self.disconnect or isinstance(self.target.platform, Gem5SimulationPlatform):
             self.logger.info('Disconnecting from the device')
             with signal.wrap('TARGET_DISCONNECT'):
