@@ -27,7 +27,7 @@ from exekall.engine import take_first, NoValue
 import exekall.utils as utils
 from exekall.utils import error, warn, debug, info
 
-def main(argv):
+def _main(argv):
     parser = argparse.ArgumentParser(description="""
     LISA test runner
     """,
@@ -119,16 +119,18 @@ the parameter, the start value, stop value and step size.""")
     ]
 
     adaptor_cls = AdaptorBase
-    customize_module = None
+    module_set = set()
     for name in toplevel_package_name_list:
         customize_name = name + '.exekall_customize.adaptor'
         try:
             # Importing that module is enough to make the adaptor visible
             # to the Adaptor base class
             customize_module = importlib.import_module(customize_name)
+            module_set.add(customize_module)
         except ImportError:
             continue
 
+        # TODO: Allow listing adapators and choosing the one we want
         adaptor_cls = AdaptorBase.get_adaptor_cls()
         # Add all the CLI arguments of the adaptor before reparsing the
         # command line.
@@ -163,9 +165,7 @@ the parameter, the start value, stop value and step size.""")
 
     sys.path.extend(args.modules_root)
 
-    module_set = {utils.import_file(path) for path in args.python_files}
-    if customize_module:
-        module_set.add(customize_module)
+    module_set.update(utils.import_file(path) for path in args.python_files)
 
     # Pool of all callable considered
     callable_pool = set()
@@ -613,12 +613,13 @@ the parameter, the start value, stop value and step size.""")
 
 SILENT_EXCEPTIONS = (KeyboardInterrupt, BrokenPipeError)
 GENERIC_ERROR_CODE = 1
-if __name__ == '__main__':
-    show_traceback = True
 
+def main():
+    show_traceback = True
     return_code = 0
+
     try:
-        return_code = main(argv=sys.argv[1:])
+        return_code = _main(argv=sys.argv[1:])
     # Quietly exit for these exceptions
     except SILENT_EXCEPTIONS:
         pass
@@ -640,3 +641,5 @@ if __name__ == '__main__':
 
     sys.exit(return_code)
 
+if __name__ == '__main__':
+    main()
