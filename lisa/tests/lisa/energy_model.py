@@ -26,9 +26,9 @@ from lisa.energy_model import (EnergyModel, ActiveState, EnergyModelCapacityErro
 from lisa.trace import Trace
 
 # Import these just to test that they can be constructed
-import libs.utils.platforms.juno_r0_energy
-import libs.utils.platforms.pixel_energy
-import libs.utils.platforms.hikey_energy
+import lisa.platforms.juno_r0_energy
+import lisa.platforms.pixel_energy
+import lisa.platforms.hikey_energy
 
 """ A very basic test suite for the EnergyModel class."""
 
@@ -187,7 +187,7 @@ class TestOptimalPlacement(TestCase):
         total_cap = 400 * 2 + 200 * 2
         task_size = 200
         tasks = {'task' + str(i): task_size
-                 for i in list(range((total_cap / task_size) + 1))}
+                 for i in list(range((total_cap // task_size) + 1))}
         self.assertRaises(EnergyModelCapacityError,
                           em.get_optimal_placements, tasks)
 
