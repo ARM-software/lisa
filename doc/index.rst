@@ -36,9 +36,10 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   tests
+   kernel_tests
    wlgen
    internals
+   lisa_tests
 
 
 Indices and tables
