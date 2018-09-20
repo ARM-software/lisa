@@ -89,9 +89,8 @@ class TestEnv(Loggable):
         :ftrace: Ftrace configuration - see :meth:`configure_ftrace`.
 
     The role of :class:`TestEnv` is to bundle together Devlib
-    features (such as :mod:`libs.devlib.devlib.instrument`,
-    :mod:`libs.devlib.devlib.trace`, ...) and provide some helper methods to
-    manipulate them.
+    features (such as :mod:`devlib.instrument`, :mod:`devlib.trace`, ...)
+    and provide some helper methods to  manipulate them.
     """
 
     critical_tasks = {

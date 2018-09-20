@@ -240,7 +240,7 @@ class TestBundle(Serializable, abc.ABC):
 
 class RTATestBundle(TestBundle, abc.ABC):
     """
-    "Abstract" class for :class:`wlgen.rta.RTA`-powered TestBundles
+    "Abstract" class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
     :param rtapp_profile: The rtapp parameters used to create the synthetic
       workload. That happens to be what is returned by :meth:`create_rtapp_profile`
@@ -257,7 +257,7 @@ class RTATestBundle(TestBundle, abc.ABC):
 
     TASK_PERIOD_MS=16
     """
-    A task period you can re-use for your :class:`wlgen.rta.RTATask`
+    A task period you can re-use for your :class:`lisa.wlgen.rta.RTATask`
     definitions.
     """
 
