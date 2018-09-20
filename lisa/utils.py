@@ -15,15 +15,25 @@
 # limitations under the License.
 #
 
+import inspect
 import logging
 
 class Loggable:
     """
     A simple class for uniformly named loggers
     """
-    @property
-    def logger(self):
-        return logging.getLogger(self.__class__.__name__)
+
+    @classmethod
+    def get_logger(cls, suffix=None):
+        cls_name = cls.__name__
+        module = inspect.getmodule(cls)
+        if module:
+            name = module.__name__ + '.' + cls_name
+        else:
+            name = cls_name
+        if suffix:
+            name += '.' + suffix
+        return logging.getLogger(name)
 
 class HideExekallID:
     """Hide the subclasses in the simplified ID format of exekall.

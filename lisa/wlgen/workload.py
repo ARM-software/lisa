@@ -107,6 +107,7 @@ class Workload(Loggable):
 
         The standard output will be saved into a file in :attr:`self.res_dir`
         """
+        logger = self.get_logger()
         if not self.command:
             raise RuntimeError("Workload does not specify any command to execute")
 
@@ -124,16 +125,16 @@ class Workload(Loggable):
         if cgroup:
             _command = self.te.target.cgroups.run_into_cmd(cgroup, _command)
 
-        self.logger.info("Execution start: %s", _command)
+        logger.info("Execution start: %s", _command)
 
         if background:
             self.te.target.background(_command, as_root=as_root)
         else:
             self.output = self.te.target.execute(_command, as_root=as_root)
-            self.logger.info("Execution complete")
+            logger.info("Execution complete")
 
             logfile = os.path.join(self.res_dir, 'output.log')
-            self.logger.debug('Saving stdout to %s...', logfile)
+            logger.debug('Saving stdout to %s...', logfile)
 
             with open(logfile, 'w') as ofile:
                 ofile.write(self.output)

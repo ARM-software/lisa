@@ -39,8 +39,9 @@ from IPython.display import display
 
 from lisa.trace import Trace
 from lisa.git import Git
+from lisa.utils import Loggable
 
-class WaResultsCollector(object):
+class WaResultsCollector(Loggable):
     """
     Collects, analyses and visualises results from multiple WA3 directories
 
@@ -123,7 +124,7 @@ class WaResultsCollector(object):
                  kernel_repo_path=None, parse_traces=True,
                  use_cached_trace_metrics=True, display_charts=True):
 
-        self._log = logging.getLogger('WaResultsCollector')
+        logger = self.get_logger()
 
         if base_dir:
             base_dir = os.path.expanduser(base_dir)
@@ -146,14 +147,14 @@ class WaResultsCollector(object):
         self.platform = platform
         self.parse_traces = parse_traces
         if not self.parse_traces:
-            self._log.warning("Trace parsing disabled")
+            logger.warning("Trace parsing disabled")
         self.use_cached_trace_metrics = use_cached_trace_metrics
         self.display_charts = display_charts
 
         df = pd.DataFrame()
         df_list = []
         for wa_dir in wa_dirs:
-            self._log.info("Reading wa_dir %s", wa_dir)
+            logger.info("Reading wa_dir %s", wa_dir)
             df_list.append(self._read_wa_dir(wa_dir))
         df = df.append(df_list)
 
@@ -174,7 +175,8 @@ class WaResultsCollector(object):
 
     def _list_wa_dirs(self, base_dir, wa_dirs_re):
         dirs = []
-        self._log.info("Processing WA3 dirs matching [%s], rooted at %s",
+        logger = self.get_logger()
+        logger.info("Processing WA3 dirs matching [%s], rooted at %s",
                        wa_dirs_re, base_dir)
         wa_dirs_re = re.compile(wa_dirs_re)
 
@@ -185,7 +187,7 @@ class WaResultsCollector(object):
 
             # WA3 results dirs contains a __meta directory at the top level.
             if '__meta' not in os.listdir(dir):
-                self._log.warning('Ignoring {}, does not contain __meta directory')
+                logger.warning('Ignoring {}, does not contain __meta directory')
                 continue
 
             dirs.append(dir)
@@ -216,6 +218,8 @@ class WaResultsCollector(object):
         # |  |    jankbench job)
         # |- pelt-wk1-jankbench-2/
         #      [etc]
+
+        logger = self.get_logger()
 
         # results.csv contains all the metrics reported by WA for all jobs.
         df = pd.read_csv(os.path.join(wa_dir, 'results.csv'))
@@ -360,8 +364,8 @@ class WaResultsCollector(object):
             df = df.append(extra_dfs)
 
         for iteration, job_ids in skipped_jobs.items():
-            self._log.warning("Skipped failed iteration %d for jobs:", iteration)
-            self._log.warning("   %s", ', '.join(job_ids))
+            logger.warning("Skipped failed iteration %d for jobs:", iteration)
+            logger.warning("   %s", ', '.join(job_ids))
 
         df['tag'] = df['id'].replace(tag_map)
         df['test'] = df['id'].replace(test_map)
@@ -386,6 +390,7 @@ class WaResultsCollector(object):
 
         metric,value,units
         """
+        logger = self.get_logger()
         cache_path = os.path.join(os.path.dirname(trace_path), 'lisa_trace_metrics.csv')
         if self.use_cached_trace_metrics and os.path.exists(cache_path):
             return pd.read_csv(cache_path)
@@ -411,7 +416,7 @@ class WaResultsCollector(object):
 
                 df = trace.analysis.frequency.df_cluster_frequency_residency(cluster)
                 if df is None or df.empty:
-                    self._log.warning("Can't get cluster freq residency from %s",
+                    logger.warning("Can't get cluster freq residency from %s",
                                       trace.data_dir)
                 else:
                     df = df.reset_index()
@@ -480,6 +485,7 @@ class WaResultsCollector(object):
 
         metric,value,units
         """
+        logger = self.get_logger()
         # return
         # value,metric,units
         extra_metric_list = []
@@ -515,7 +521,7 @@ class WaResultsCollector(object):
         # think we can simplify this.
         for artifact_name, path in artifacts.items():
             if os.stat(path).st_size == 0:
-                self._log.info(" no data for %s",  path)
+                logger.info(" no data for %s",  path)
                 continue
 
             if artifact_name.startswith('energy_instrument_output'):
@@ -523,7 +529,7 @@ class WaResultsCollector(object):
                 try:
                     df = pd.read_csv(path)
                 except pandas.errors.ParserError as e:
-                    self._log.info(" no data for %s",  path)
+                    logger.info(" no data for %s",  path)
                     continue
 
                 if 'device_power' in df.columns:
@@ -619,27 +625,28 @@ class WaResultsCollector(object):
         """
         Common helper for getting results to plot for a given metric
         """
+        logger = self.get_logger()
 
         df = self._select(tag, kernel, test)
         if df.empty:
-            self._log.warn("No data to plot for (tag: %s, kernel: %s, test: %s)",
+            logger.warn("No data to plot for (tag: %s, kernel: %s, test: %s)",
                            tag, kernel, test)
             return None
 
         valid_workloads = df.workload.unique()
         if workload not in valid_workloads:
-            self._log.warning("No data for [%s] workload", workload)
-            self._log.info("Workloads with data, for the specified filters, are:")
-            self._log.info(" %s", ','.join(valid_workloads))
+            logger.warning("No data for [%s] workload", workload)
+            logger.info("Workloads with data, for the specified filters, are:")
+            logger.info(" %s", ','.join(valid_workloads))
             return None
         df = df[df['workload'] == workload]
 
         valid_metrics = df.metric.unique()
         if metric not in valid_metrics:
-            self._log.warning("No metric [%s] collected for workoad [%s]",
-                              metric, workload)
-            self._log.info("Metrics with data, for the specied filters, are:")
-            self._log.info("   %s", ', '.join(valid_metrics))
+            logger.warning("No metric [%s] collected for workoad [%s]",
+                         metric, workload)
+            logger.info("Metrics with data, for the specied filters, are:")
+            logger.info("   %s", ', '.join(valid_metrics))
             return None
         df = df[df['metric'] == metric]
 
@@ -907,6 +914,7 @@ class WaResultsCollector(object):
 
         :param by: List of identifiers to group output as in DataFrame.groupby.
         """
+        logger = self.get_logger()
 
         if not self.display_charts:
             return
@@ -936,7 +944,7 @@ class WaResultsCollector(object):
             lines.append(ax.lines[-1])
             axes.axhline(y=cdf.below, linewidth=1,
                          linestyle='--', color=to_hex(color))
-            self._log.debug("%-32s: %-32s: %.1f", keys[2], keys[1], 100.*cdf.below)
+            logger.debug("%-32s: %-32s: %.1f", keys[2], keys[1], 100.*cdf.below)
 
         axes.grid(True)
         axes.legend(lines, labels)
@@ -951,6 +959,7 @@ class WaResultsCollector(object):
         'kernel' column in the results_df uses). If by='tag' then `base_id`
         should be a WA 'tag id' (as named in the WA agenda).
         """
+        logger = self.get_logger()
         comparisons = []
 
         # I dunno why I wrote this with a namedtuple instead of just a dict or
@@ -986,7 +995,7 @@ class WaResultsCollector(object):
                 gb = wl_inv_results.groupby(by)['value']
 
                 if base_id not in gb.groups:
-                    self._log.warning('Skipping - No baseline results for test '
+                    logger.warning('Skipping - No baseline results for test '
                                       '[%s] %s [%s] metric [%s]',
                                       test, invariant, inv_id, metric)
                     continue
@@ -1054,15 +1063,17 @@ class WaResultsCollector(object):
         'kernel' column in the results_df uses). If by='tag' then `base_id`
         should be a WA 'tag id' (as named in the WA agenda).
         """
+
+        logger = self.get_logger()
         if not self.display_charts:
             return
 
         df = self.find_comparisons(base_id=base_id, by=by)
 
         if df.empty:
-            self._log.error('No comparisons by %s found', by)
+            logger.error('No comparisons by %s found', by)
             if len(self.results_df[by].unique()) == 1:
-                self._log.warning('There is only one %s in the results', by)
+                logger.warning('There is only one %s in the results', by)
             return
 
         # Separate plot for each test (e.g. one plot for Jankbench list_view)
@@ -1103,7 +1114,7 @@ class WaResultsCollector(object):
                 missing_metrics = set(all_metrics) - set(gdf['metric'].unique())
                 gdf = gdf.set_index('metric')
                 for missing_metric in missing_metrics:
-                    self._log.warning(
+                    logger.warning(
                         "Data missing, can't compare metric [{}] for {} [{}]"
                         .format(missing_metric, by, group))
                     gdf = gdf.append(get_dummy_row(missing_metric))

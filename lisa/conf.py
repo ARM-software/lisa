@@ -22,6 +22,8 @@ import logging
 import logging.config
 from pathlib import Path
 
+from lisa.utils import Loggable
+
 BASEPATH = os.getenv('LISA_HOME')
 # This will catch both unset variable and variable set to an empty string
 if not BASEPATH:
@@ -54,7 +56,7 @@ def setup_logging(filepath='logging.conf', level=logging.INFO):
 
 
 #TODO: Switch to YAML config
-class JsonConf:
+class JsonConf(Loggable):
     """
     Class for parsing a JSON superset with comments.
 
@@ -92,7 +94,7 @@ class JsonConf:
         path = Path(path)
 
         # Setup logging
-        logger = logging.getLogger('JsonConf')
+        logger = cls.get_logger()
         logger.debug('loading JSON...')
 
         try:

@@ -22,6 +22,7 @@ import operator
 import re
 
 from lisa.serialization import Serializable
+from lisa.utils import Loggable
 
 import pandas as pd
 import numpy as np
@@ -91,7 +92,7 @@ class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
         cap, power = (int(x) for x in node.value.split(','))
         return cls(capacity=cap, power=power)
 
-class _CpuTree(object):
+class _CpuTree(Loggable):
     """Internal class. Abstract representation of a CPU topology.
 
     Each node contains either a single CPU or a set of child nodes.
@@ -171,8 +172,7 @@ class EnergyModelNode(_CpuTree):
     def __init__(self, active_states, idle_states,
                  cpu=None, children=None, name=None):
         super(EnergyModelNode, self).__init__(cpu, children)
-
-        _log = logging.getLogger('EnergyModel')
+        logger = self.get_logger()
 
         def is_monotonic(l, decreasing=False):
             op = operator.ge if decreasing else operator.le
@@ -182,14 +182,14 @@ class EnergyModelNode(_CpuTree):
             # Sanity check for active_states's frequencies
             freqs = list(active_states.keys())
             if not is_monotonic(freqs):
-                _log.warning(
+                logger.warning(
                     'Active states frequencies are expected to be '
                     'monotonically increasing. Freqs: {}'.format(freqs))
 
             # Sanity check for active_states's powers
             power_vals = [s.power for s in list(active_states.values())]
             if not is_monotonic(power_vals):
-                _log.warning(
+                logger.warning(
                     'Active states powers are expected to be '
                     'monotonically increasing. Values: {}'.format(power_vals))
 
@@ -202,7 +202,7 @@ class EnergyModelNode(_CpuTree):
             # Sanity check for idle_states powers
             power_vals = list(idle_states.values())
             if not is_monotonic(power_vals, decreasing=True):
-                _log.warning(
+                logger.warning(
                     'Idle states powers are expected to be '
                     'monotonically decreasing. Values: {}'.format(power_vals))
 
@@ -274,7 +274,7 @@ class PowerDomain(_CpuTree):
         super(PowerDomain, self).__init__(cpu, children)
         self.idle_states = idle_states
 
-class EnergyModel(Serializable):
+class EnergyModel(Serializable, Loggable):
     """Represents hierarchical CPU topology with power and capacity data
 
     An energy model consists of
@@ -342,6 +342,7 @@ class EnergyModel(Serializable):
     """
 
     def __init__(self, root_node, root_power_domain, freq_domains):
+        logger = self.get_logger()
         self.cpus = root_node.cpus
         if self.cpus != tuple(range(len(self.cpus))):
             raise ValueError('CPU IDs [{}] are sparse'.format(self.cpus))
@@ -384,11 +385,9 @@ class EnergyModel(Serializable):
         self.cpu_pds = sorted_leaves(root_power_domain)
         assert len(self.cpu_pds) == len(self.cpu_nodes)
 
-        _log = logging.getLogger('EnergyModel')
-
         max_cap = max(n.max_capacity for n in self.cpu_nodes)
         if max_cap != self.capacity_scale:
-            _log.debug(
+            logger.debug(
                 'Unusual max capacity (%s), overriding capacity_scale', max_cap)
             self.capacity_scale = max_cap
 
@@ -696,8 +695,8 @@ class EnergyModel(Serializable):
 
         num_candidates = len(self.cpus) ** len(tasks)
 
-        _log = logging.getLogger('EnergyModel')
-        _log.debug(
+        logger = self.get_logger()
+        logger.debug(
             '%14s - Searching %d configurations for optimal task placement...',
             'EnergyModel', num_candidates)
 
@@ -735,7 +734,7 @@ class EnergyModel(Serializable):
         min_power = min(p for p in iter(candidates.values()))
         ret = [u for u, p in candidates.items() if p == min_power]
 
-        _log.debug('%14s - Done', 'EnergyModel')
+        logger.debug('%14s - Done', 'EnergyModel')
         return ret
 
     @classmethod
@@ -1034,7 +1033,7 @@ class EnergyModel(Serializable):
         :returns: Constructed EnergyModel object based on the parameters
                   reported by the target.
         """
-        _log = logging.getLogger('EMReader')
+        logger = self.get_logger('EMReader')
 
         # To add a new EM reader type, the following is required:
         # 1. Create an inline function to test for EM presence which takes a
@@ -1077,7 +1076,7 @@ class EnergyModel(Serializable):
             except Exception:
                 em_present = False
             if em_present:
-                _log.info('Attempting to load EM using {}'.format(load.__name__))
+                logger.info('Attempting to load EM using {}'.format(load.__name__))
                 return load(target, **args)
 
         raise TargetError('Unable to probe for energy model on target.')

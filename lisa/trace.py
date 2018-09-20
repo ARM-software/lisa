@@ -27,19 +27,20 @@ import warnings
 import operator
 import logging
 import webbrowser
+from functools import reduce
 
 from pathlib import Path
 
 from lisa.analysis.proxy import AnalysisProxy
+from lisa.utils import Loggable
 from devlib.utils.misc import memoized
 from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
-from functools import reduce
 
 
 NON_IDLE_STATE = -1
 
-class Trace(object):
+class Trace(Loggable):
     """
     The Trace object is the LISA trace events parser.
 
@@ -81,9 +82,7 @@ class Trace(object):
                  trace_format='FTrace',
                  plots_dir=None,
                  plots_prefix=''):
-
-        # Setup logging
-        self._log = logging.getLogger('Trace')
+        logger = self.get_logger()
 
         # The platform used to run the experiments
         self.platform = platform or {}
@@ -121,11 +120,11 @@ class Trace(object):
 
         if not kernel_version:
             kernel_version = KernelVersion("3.18")
-            self._log.warning('Kernel version not available from platform data')
+            logger.warning('Kernel version not available from platform data')
 
         self.kernel_version = kernel_version
 
-        self._log.info('Parsing trace assuming kernel v%d.%d',
+        logger.info('Parsing trace assuming kernel v%d.%d',
                        self.kernel_version.parts[0], self.kernel_version.parts[1])
 
         # Version of the traced kernel
@@ -173,7 +172,7 @@ class Trace(object):
         self.x_min = t_min if t_min is not None else self.start_time
         self.x_max = t_max if t_max is not None else self.start_time + self.time_range
 
-        self._log.debug('Set plots time range to (%.6f, %.6f)[s]',
+        self.get_logger().debug('Set plots time range to (%.6f, %.6f)[s]',
                        self.x_min, self.x_max)
 
     def __registerTraceEvents(self, events):
@@ -213,14 +212,15 @@ class Trace(object):
             - SysTrace
         :type trace_format: str
         """
-        self._log.debug('Loading [sched] events from trace in [%s]...', path)
-        self._log.debug('Parsing events: %s', self.events)
+        logger = self.get_logger()
+        logger.debug('Loading [sched] events from trace in [%s]...', path)
+        logger.debug('Parsing events: %s', self.events)
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
-            self._log.debug('Parsing SysTrace format...')
+            logger.debug('Parsing SysTrace format...')
             trace_class = trappy.SysTrace
             self.trace_format = 'SysTrace'
         elif trace_format.upper() == 'FTRACE':
-            self._log.debug('Parsing FTrace format...')
+            logger.debug('Parsing FTrace format...')
             trace_class = trappy.FTrace
             self.trace_format = 'FTrace'
         else:
@@ -245,7 +245,7 @@ class Trace(object):
         self.__checkAvailableEvents()
         if len(self.available_events) == 0:
             if has_function_stats:
-                self._log.info('Trace contains only functions stats')
+                logger.info('Trace contains only functions stats')
                 return
             raise ValueError('The trace does not contain useful events '
                              'nor function stats')
@@ -273,13 +273,14 @@ class Trace(object):
         :param key: key to be used for TRAPpy filtering
         :type key: str
         """
+        logger = self.get_logger()
         for val in self.ftrace.get_filters(key):
             obj = getattr(self.ftrace, val)
             if len(obj.data_frame):
                 self.available_events.append(val)
-        self._log.debug('Events found on trace:')
+        logger.debug('Events found on trace:')
         for evt in self.available_events:
-            self._log.debug(' - %s', evt)
+            logger.debug(' - %s', evt)
 
     def __loadTasksNames(self):
         """
@@ -297,7 +298,7 @@ class Trace(object):
             load('sched_load_avg_task', 'comm', 'pid')
             return
 
-        self._log.warning('Failed to load tasks names from trace events')
+        self.get_logger().warning('Failed to load tasks names from trace events')
 
     def hasEvents(self, dataset):
         """
@@ -318,7 +319,7 @@ class Trace(object):
         """
         self.start_time = 0 if self.normalize_time else self.ftrace.basetime
         self.time_range = self.ftrace.get_duration()
-        self._log.debug('Collected events spans a %.3f [s] time interval',
+        self.get_logger().debug('Collected events spans a %.3f [s] time interval',
                        self.time_range)
 
         self.setXTimeRange(max(self.start_time, self.window[0]), self.window[1])
@@ -414,7 +415,7 @@ class Trace(object):
             return os.popen("kernelshark '{}'".format(self.ftrace.trace_path))
         if isinstance(self.ftrace, trappy.SysTrace):
             return webbrowser.open(self.ftrace.trace_path)
-        self._log.warning('No trace data available')
+        self.get_logger().warning('No trace data available')
 
 
 ###############################################################################
@@ -572,6 +573,7 @@ class Trace(object):
 
         Also convert between existing field name formats for sched_energy_diff
         """
+        logger = self.get_logger()
         if not self.hasEvents('sched_energy_diff') \
            or 'nrg_model' not in self.platform \
            or not self.has_big_little:
@@ -587,7 +589,7 @@ class Trace(object):
 
         power_max = em_lcpu['nrg_max'] * lcpus + em_bcpu['nrg_max'] * bcpus + \
             em_lcluster['nrg_max'] + em_bcluster['nrg_max']
-        self._log.debug(
+        logger.debug(
             "Maximum estimated system energy: {0:d}".format(power_max))
 
         df = self.df_events('sched_energy_diff')
@@ -625,7 +627,7 @@ class Trace(object):
         self.overutilized_time = df[df.overutilized == 1].len.sum()
         self.overutilized_prc = 100. * self.overutilized_time / self.time_range
 
-        self._log.debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
+        self.get_logger().debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
                         self.overutilized_time, self.overutilized_prc)
 
     def _sanitize_ThermalPowerCpu(self):
@@ -674,6 +676,7 @@ class Trace(object):
         Verify that all platform reported clusters are frequency coherent (i.e.
         frequency scaling is performed at a cluster level).
         """
+        logger = self.get_logger()
         if not self.hasEvents('cpu_frequency_devlib') \
            or 'clusters' not in self.platform:
             return
@@ -711,12 +714,12 @@ class Trace(object):
                 for _,c in self.platform['clusters'].items():
                     dl_freqs = dl_df[dl_df.cpu.isin(c)]
                     os_freqs = os_df[os_df.cpu.isin(c)]
-                    self._log.debug("First freqs for %s:\n%s", c, dl_freqs)
+                    logger.debug("First freqs for %s:\n%s", c, dl_freqs)
                     # All devlib events "before" os-generated events
-                    self._log.debug("Min os freq @: %s", os_freqs.index.min())
+                    logger.debug("Min os freq @: %s", os_freqs.index.min())
                     if os_freqs.empty or \
                        os_freqs.index.min() > dl_freqs.index.max():
-                        self._log.debug("Insert devlib freqs for %s", c)
+                        logger.debug("Insert devlib freqs for %s", c)
                         df = pd.concat([dl_freqs, df])
 
                 # Inject "final" devlib frequencies
@@ -725,12 +728,12 @@ class Trace(object):
                 for _,c in self.platform['clusters'].items():
                     dl_freqs = dl_df[dl_df.cpu.isin(c)]
                     os_freqs = os_df[os_df.cpu.isin(c)]
-                    self._log.debug("Last freqs for %s:\n%s", c, dl_freqs)
+                    logger.debug("Last freqs for %s:\n%s", c, dl_freqs)
                     # All devlib events "after" os-generated events
-                    self._log.debug("Max os freq @: %s", os_freqs.index.max())
+                    logger.debug("Max os freq @: %s", os_freqs.index.max())
                     if os_freqs.empty or \
                        os_freqs.index.max() < dl_freqs.index.min():
-                        self._log.debug("Append devlib freqs for %s", c)
+                        logger.debug("Append devlib freqs for %s", c)
                         df = pd.concat([df, dl_freqs])
 
                 df.sort_index(inplace=True)
@@ -743,12 +746,12 @@ class Trace(object):
             for chunk in self._chunker(cluster_df, len(cpus)):
                 f = chunk.iloc[0].frequency
                 if any(chunk.frequency != f):
-                    self._log.warning('Cluster Frequency is not coherent! '
+                    logger.warning('Cluster Frequency is not coherent! '
                                       'Failure in [cpu_frequency] events at:')
-                    self._log.warning(chunk)
+                    logger.warning(chunk)
                     self.freq_coherency = False
                     return
-        self._log.info('Platform clusters verified to be Frequency coherent')
+        logger.info('Platform clusters verified to be Frequency coherent')
 
 ###############################################################################
 # Utility Methods
@@ -789,7 +792,7 @@ class Trace(object):
             return False
 
         # Opening functions profiling JSON data file
-        self._log.debug('Loading functions profiling data from [%s]...', path)
+        self.get_logger().debug('Loading functions profiling data from [%s]...', path)
         with open(os.path.join(path), 'r') as fh:
             trace_stats = json.load(fh)
 
@@ -821,7 +824,7 @@ class Trace(object):
                   "cpu_idle" events
         """
         if not self.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, '
+            self.get_logger().warning('Events [cpu_idle] not found, '
                               'cannot compute CPU active signal!')
             return None
 
@@ -862,7 +865,7 @@ class Trace(object):
                   "cpu_idle" events
         """
         if not self.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, '
+            self.get_logger().warning('Events [cpu_idle] not found, '
                               'cannot compute cluster active signal!')
             return None
 
@@ -891,11 +894,12 @@ class Trace(object):
 
     @memoized
     def getPeripheralClockEffectiveRate(self, clk_name):
+        logger = self.get_logger()
         if clk_name is None:
-            self._log.warning('no specified clk_name in computing peripheral clock, returning None')
+            logger.warning('no specified clk_name in computing peripheral clock, returning None')
             return
         if not self.hasEvents('clock_set_rate'):
-            self._log.warning('Events [clock_set_rate] not found, returning None!')
+            logger.warning('Events [clock_set_rate] not found, returning None!')
             return
         rate_df = self.df_events('clock_set_rate')
         enable_df = self.df_events('clock_enable')
@@ -910,7 +914,7 @@ class Trace(object):
 
         freq = pd.concat([freq, enables, disables]).sort_index()
         if freq.empty:
-            self._log.warning('No events for clock ' + clk_name + ' found in trace')
+            logger.warning('No events for clock ' + clk_name + ' found in trace')
             return
 
         freq['start'] = freq.index

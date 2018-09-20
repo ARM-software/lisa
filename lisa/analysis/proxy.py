@@ -57,6 +57,8 @@ class AnalysisProxy(Loggable):
         if attr.startswith('__') and attr.endswith('__'):
             return super().__getattribute__(attr)
 
+        logger = self.get_logger()
+
         # First, try to get the instance of the Analysis that was built if we
         # used it already on that proxy.
         try:
@@ -72,7 +74,7 @@ class AnalysisProxy(Loggable):
                 try:
                     analysis_cls = super().__getattribute__(attr)
                 except Exception:
-                    self.logger.debug('{} not found. Registered analysis:'.format(attr))
+                    logger.debug('{} not found. Registered analysis:'.format(attr))
                     for name, cls in list(self._class_map.items()):
                         src_file = '<unknown source>'
                         try:
@@ -80,7 +82,7 @@ class AnalysisProxy(Loggable):
                         except TypeError:
                             pass
 
-                        self.logger.debug('{name} ({cls}) defined in {src}'.format(
+                        logger.debug('{name} ({cls}) defined in {src}'.format(
                             name=name,
                             cls=cls,
                             src=src_file
