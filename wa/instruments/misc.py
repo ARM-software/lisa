@@ -73,7 +73,7 @@ class SysfsExtractor(Instrument):
                   description="""
                   Specifies whether tmpfs should be used to cache sysfile trees and then pull them down
                   as a tarball. This is significantly faster then just copying the directory trees from
-                  the device directly, bur requres root and may not work on all devices. Defaults to
+                  the device directly, but requires root and may not work on all devices. Defaults to
                   ``True`` if the device is rooted and ``False`` if it is not.
                   """),
         Parameter('tmpfs_mount_point', default=None,
