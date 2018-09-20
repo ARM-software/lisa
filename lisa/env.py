@@ -88,11 +88,6 @@ class TestEnv(Loggable):
           calibration on subsequent tests.
         :ftrace: Ftrace configuration - see :meth:`configure_ftrace`.
 
-    :param force_new: Create a new TestEnv object even if there is one available
-                      for this session.  By default, TestEnv only creates one
-                      object per session, use this to override this behaviour.
-    :type force_new: bool
-
     The role of :class:`TestEnv` is to bundle together Devlib
     features (such as :mod:`libs.devlib.devlib.instrument`,
     :mod:`libs.devlib.devlib.trace`, ...) and provide some helper methods to
