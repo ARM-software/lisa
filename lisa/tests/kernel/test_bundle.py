@@ -219,7 +219,7 @@ class TestBundle(Serializable, abc.ABC):
 
     @classmethod
     def _filepath(cls, res_dir):
-        return res_dir.joinpath("{}.yaml".format(cls.__qualname__))
+        return os.path.join(res_dir, "{}.yaml".format(cls.__qualname__))
 
     @classmethod
     def from_path(cls, res_dir):
