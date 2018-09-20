@@ -6,6 +6,7 @@ import collections
 import copy
 import datetime
 import inspect
+import io
 import os
 import pathlib
 import sys
@@ -89,9 +90,25 @@ the parameter, the start value, stop value and step size.""")
         help="""Change the default log level of the standard logging module.""")
 
 
-    #TODO: how to show the help of the adaptor CLI arguments ?
     args = argparse.Namespace()
-    args, _ = parser.parse_known_args(argv, args)
+    # Avoid showing help message on the incomplete parser. Instead, we carry on
+    # and the help will be displayed after the parser customization has a
+    # chance to take place.
+    help_options =  ('-h', '--help')
+    no_help_argv = [
+        arg for arg in argv
+        if arg not in help_options
+    ]
+    try:
+        # Silence argparse until we know what is going on
+        stream = io.StringIO()
+        with contextlib.redirect_stderr(stream):
+            args, _ = parser.parse_known_args(no_help_argv, args)
+    # If it fails, that may be because of an incomplete command line with just
+    # --help for example. If it was for another reason, it will fail again and
+    # show the message.
+    except SystemExit:
+        args, _ = parser.parse_known_args(argv, args)
 
     # Look for a customization submodule in one of the toplevel packages
     # of the modules we specified on the command line.
