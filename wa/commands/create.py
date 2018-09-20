@@ -225,7 +225,7 @@ class CreateAgendaSubcommand(SubCommand):
                     energy_config = pluginloader.get_default_config('energy_measurement')
                     agenda['config']['augmentations'].append('energy_measurement')
                     agenda['config']['energy_measurement'] = energy_config
-                agenda['config']['energy_measurement']['instrument'] = name
+                agenda['config']['energy_measurement']['instrument'] = extcls.name
                 agenda['config']['energy_measurement']['instrument_parameters'] = config
             elif extcls.kind == 'workload':
                 entry = OrderedDict()
@@ -236,11 +236,11 @@ class CreateAgendaSubcommand(SubCommand):
                 agenda['workloads'].append(entry)
             else:
                 if extcls.kind in ('instrument', 'output_processor'):
-                    if name not in agenda['config']['augmentations']:
-                        agenda['config']['augmentations'].append(name)
+                    if extcls.name not in agenda['config']['augmentations']:
+                        agenda['config']['augmentations'].append(extcls.name)
 
-                if name not in agenda['config']:
-                    agenda['config'][name] = config
+                if extcls.name not in agenda['config']:
+                    agenda['config'][extcls.name] = config
 
         if args.output:
             wfh = open(args.output, 'w')
