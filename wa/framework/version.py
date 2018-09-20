@@ -21,7 +21,7 @@ from subprocess import Popen, PIPE
 
 VersionTuple = namedtuple('Version', ['major', 'minor', 'revision'])
 
-version = VersionTuple(3, 0, 0)
+version = VersionTuple(3, 0, 'dev1')
 
 
 def get_wa_version():
