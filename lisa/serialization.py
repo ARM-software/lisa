@@ -79,7 +79,7 @@ class Serializable:
 
         if fmt == 'yaml':
             kwargs = dict(mode='r', encoding='utf-8')
-            loader = self._yaml.load
+            loader = cls._yaml.load
         elif fmt == 'pickle':
             kwargs = dict(mode='rb')
             loader = pickle.load
