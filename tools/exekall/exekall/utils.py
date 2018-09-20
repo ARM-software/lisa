@@ -180,30 +180,11 @@ class TaggedNum:
     def __init__(self, *args, **kwargs):
         self.tags = [str(a) for a in args]
 
-# We override the __qualname__ so it won't add to the length of the ID.
 class Int(int, TaggedNum):
-    #TOD: why redefining __qualname__ is breaking the script output ?
-    #  __qualname__ = 'int'
     pass
 
 class Float(float, TaggedNum):
-    #  __qualname__ = 'float'
     pass
-
-#  def sweep_number(start, stop=None, step=1):
-    #  if stop is None:
-        #  stop = start
-        #  start = 0
-
-    #  if isinstance(stop, numbers.Integral):
-        #  tagged_type = Int
-    #  else:
-        #  tagged_type = Float
-
-    #  i = tagged_type(start)
-    #  step = tagged_type(step)
-    #  while i < stop:
-        #  yield tagged_type(i)
 
 def sweep_number(
     callable_, param,
@@ -219,9 +200,16 @@ def sweep_number(
         stop = start
         start = 0
 
+    # Swap-in the tagged type if possible
+    if issubclass(type_, numbers.Integral):
+        type_ = Int
+    # Must come in 2nd place, since int is a subclass of numbers.Real
+    elif issubclass(type_, numbers.Real):
+        type_ = Float
+
     i = type_(start)
     step = type_(step)
-    while i < stop:
+    while i <= stop:
         yield type_(i)
         i += step
 
