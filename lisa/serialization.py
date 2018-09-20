@@ -74,7 +74,8 @@ class YAMLSerializable:
             return cls.from_stream(fh)
 
     #TODO: figure out why it is breaking deserialization of circular object
-    # graphs
+    # graphs:
+    # https://bitbucket.org/ruamel/yaml/issues/238/constructorerror-with-recursive-objects
     #  def __getstate__(self):
         #  """
         #  Filter the instance's attributes upon serialization.
