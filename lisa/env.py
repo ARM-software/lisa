@@ -209,6 +209,7 @@ class TestEnv(Loggable):
             len(self.platform['clusters']['big'])
 
     def _init_platform_smp(self):
+        logger = self.get_logger()
         self.platform = {
             'clusters' : {},
             'freqs' : {}
