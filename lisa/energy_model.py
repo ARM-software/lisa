@@ -1033,7 +1033,7 @@ class EnergyModel(Serializable, Loggable):
         :returns: Constructed EnergyModel object based on the parameters
                   reported by the target.
         """
-        logger = self.get_logger('EMReader')
+        logger = cls.get_logger('EMReader')
 
         # To add a new EM reader type, the following is required:
         # 1. Create an inline function to test for EM presence which takes a
