@@ -50,9 +50,17 @@ class TestMetric:
             cls=type(self).__name__, self=self)
 
 class Result(enum.Enum):
+    """
+    Result of a test:
+        * `PASSED` : the test has passed
+        * `FAILED` : the test has failed
+        * `SKIP` : the test has been skipped as it does not make sense to
+                   execute it in that environment.
+        * `NOISY_DATA`: the input data were too noisy and the test cannot decide
+                        between a `PASSED` or `FAILED` result.
+    """
     PASSED = 1
     FAILED = 2
-    ERROR = 3
     SKIP = 4
     NOISY_DATA = 5
 
