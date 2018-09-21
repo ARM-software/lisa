@@ -381,6 +381,8 @@ class TestEnv(Loggable):
 
         board_name = self.conf['board'].upper()
 
+        self.tags = [board_name]
+
         # Initialize TC2 board
         if board_name == 'TC2':
             platform = devlib.platform.arm.TC2()
