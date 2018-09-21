@@ -20,9 +20,9 @@ import json
 import os
 
 from lisa.perf_analysis import PerfAnalysis
-from lisa.wlgen import RTA, Periodic, Ramp, Step, RunAndSync
+from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
 
-from lisa.self_tests.wlgen import WlgenSelfBase
+from lisa.tests.lisa.wlgen import WlgenSelfBase
 
 class RTABase(WlgenSelfBase):
     """
