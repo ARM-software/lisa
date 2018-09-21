@@ -120,13 +120,9 @@ class TestEnv(Loggable):
     freeze when using :meth:`freeze_userspace`.
     """
 
-    def __init__(self, target_conf:TargetConfig=None):
+    def __init__(self, target_conf:TargetConfig):
         super().__init__()
         logger = self.get_logger()
-
-        if target_conf is None:
-            target_conf_path = os.getenv('LISA_TARGET_CONF')
-            target_conf = TargetConfig(target_conf_path)
 
         # Compute base installation path
         logger.info('Using base path: %s', BASEPATH)
@@ -134,6 +130,12 @@ class TestEnv(Loggable):
         self._pre_target_init(target_conf)
         self._init_target()
         self._post_target_init()
+
+    @classmethod
+    def from_default_conf(cls):
+        target_conf_path = os.getenv('LISA_TARGET_CONF')
+        target_conf = TargetConfig(target_conf_path)
+        return cls(target_conf)
 
     def _load_em(self, board):
         logger = self.get_logger()
