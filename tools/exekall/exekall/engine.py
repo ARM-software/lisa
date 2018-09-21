@@ -438,7 +438,7 @@ class Expression:
         indent_str = 4*" " * indent
 
         if isinstance(self.op, PrebuiltOperator):
-            op_name = 'provided'
+            op_name = '<provided>'
             value_type_name = (
                 get_name(self.op.value_type, full_qual=True)
                 # We just call the operator. It is cheap since it is only
@@ -650,8 +650,13 @@ class Expression:
         return self.get_all_script([self], *args, **kwargs)
 
     @classmethod
-    def get_all_script(cls, expr_list, prefix='value', db_path='storage.yml.gz', db_relative_to=None):
+    def get_all_script(cls, expr_list, prefix='value', db_path='storage.yml.gz', db_relative_to=None, db_loader=None, obj_store=None):
         assert expr_list
+
+        db_var_name = 'db'
+        if obj_store is None:
+            serial_list = Expression.get_all_serializable_values(expr_list)
+            obj_store = ObjectStore(serial_list, db_var_name=db_var_name)
 
         def make_comment(txt):
             joiner = '\n# '
@@ -660,9 +665,6 @@ class Expression:
                 if line.strip()
             )
 
-        db_var_name = 'db'
-        serial_list = Expression.get_all_serializable_values(expr_list)
-        storage = ObjectStore(serial_list, db_var_name=db_var_name)
         module_name_set = set()
         plain_name_cls_set = set()
         script = ''
@@ -681,7 +683,7 @@ class Expression:
             expr_val_set = set(expr.get_all_values())
             result_name, snippet = expr._get_script(
                 prefix = prefix + str(i),
-                storage = storage,
+                obj_store = obj_store,
                 module_name_set = module_name_set,
                 idt = idt,
                 expr_val_set = expr_val_set,
@@ -695,7 +697,7 @@ class Expression:
             else:
                 # Otherwise, we try to get it from the DB
                 try:
-                    expr_data = storage.get_value_snippet(expr.data)
+                    expr_data = obj_store.get_value_snippet(expr.data)
                 # If the expr_data was not used when computing subexpressions
                 # (that may happen if some subrexpressions were already
                 # computed for an other expression), we just bail out, hoping
@@ -715,6 +717,16 @@ class Expression:
             plain_name_cls_set.update(type(x) for x in expr.data.values())
 
             result_name_map[expr] = result_name
+
+
+        # Get the name of the customized db_loader
+        if db_loader is None:
+            db_loader_name = '{cls_name}.from_path'.format(
+                cls_name=get_name(StorageDB, full_qual=True),
+            )
+        else:
+            module_name_set.add(inspect.getmodule(db_loader).__name__)
+            db_loader_name = get_name(db_loader, full_qual=True)
 
         # Add all the imports
         header = (
@@ -749,9 +761,9 @@ class Expression:
             else:
                 db_relative_to = ''
 
-            header += '{db} = {cls_name}.from_path({path}{db_relative_to})\n'.format(
+            header += '{db} = {db_loader_name}({path}{db_relative_to})\n'.format(
                 db = db_var_name,
-                cls_name = get_name(StorageDB, full_qual=True),
+                db_loader_name = db_loader_name,
                 path = repr(str(db_path)),
                 db_relative_to = db_relative_to
             )
@@ -761,7 +773,7 @@ class Expression:
 
     EXPR_DATA_VAR_NAME = 'EXPR_DATA'
 
-    def _get_script(self, prefix, storage, module_name_set, idt, expr_val_set, consumer_expr_stack):
+    def _get_script(self, prefix, obj_store, module_name_set, idt, expr_val_set, consumer_expr_stack):
         def make_method_self_name(expr):
             return expr.op.value_type.__name__.replace('.', '')
 
@@ -789,7 +801,7 @@ class Expression:
             elif attr == 'value' and callable_ is ExprData:
                 return self.EXPR_DATA_VAR_NAME
             else:
-                return storage.get_value_snippet(obj)
+                return obj_store.get_value_snippet(obj)
 
         def format_build_param(param_expr_val_map):
             out = list()
@@ -894,7 +906,7 @@ class Expression:
 
             # Do a deep first search traversal of the expression.
             param_outvar, param_out = param_expr._get_script(
-                param_prefix, storage, module_name_set, idt,
+                param_prefix, obj_store, module_name_set, idt,
                 param_expr_val_set,
                 consumer_expr_stack = consumer_expr_stack + [self],
             )
@@ -1472,9 +1484,9 @@ class Operator:
 
     @property
     def mod_name(self):
-        if self.is_class:
-            name = self.unwrapped_callable.__module__
-        else:
+        try:
+            name = inspect.getmodule(self.unwrapped_callable).__name__
+        except Exception:
             name = self.callable_globals['__name__']
         return name
 
@@ -1789,7 +1801,6 @@ class SerializableExprValue:
             if predicate(parent):
                 parent_set.add(parent)
             parent._get_parent_set(parent_set, predicate)
-
 
 def get_name(obj, full_qual=True):
     # Add the module's name in front of the name to get a fully

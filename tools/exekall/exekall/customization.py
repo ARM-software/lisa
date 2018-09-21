@@ -8,6 +8,9 @@ class AdaptorBase:
             args = dict()
         self.args = args
 
+    def get_db_loader(self):
+        return None
+
     def filter_callable_pool(self, callable_pool):
         return callable_pool
 

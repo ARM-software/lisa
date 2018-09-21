@@ -8,14 +8,14 @@ import logging
 import sys
 
 from lisa.env import TargetConfig, ArtifactPath
-from lisa.utils import HideExekallID
+from lisa.utils import HideExekallID, Loggable
 
 from exekall import utils, engine
 from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name
 from exekall.customization import AdaptorBase
 
 @reusable(False)
-class ArtifactStorage(ArtifactPath, HideExekallID):
+class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
     __slots__ = ('artifact_root',)
 
     def __new__(cls, root, *args, **kwargs):
@@ -40,14 +40,14 @@ class ArtifactStorage(ArtifactPath, HideExekallID):
         return type(self)(artifact_root, relative)
 
     @classmethod
-    def from_expr_data(cls, data:ExprData, consumer:Consumer, log:logging.Logger) -> 'ArtifactStorage':
+    def from_expr_data(cls, data:ExprData, consumer:Consumer) -> 'ArtifactStorage':
         """
         Factory used when running under `exekall`
         """
         artifact_root = pathlib.Path(data['artifact_root']).resolve()
         root = data['testcase_artifact_root']
         consumer_name = get_name(consumer)
-        log.info('Creating storage for: ' + consumer_name)
+        cls.get_logger().info('Creating storage for: ' + consumer_name)
 
         # Find a non-used directory
         for i in itertools.count(1):
@@ -61,15 +61,6 @@ class ArtifactStorage(ArtifactPath, HideExekallID):
         artifact_dir.mkdir(parents=True)
         relative = artifact_dir.relative_to(artifact_root)
         return cls(artifact_root, relative)
-
-class LISALogger(logging.Logger, HideExekallID):
-    pass
-
-@reusable(False)
-def get_logger(consumer:Consumer) -> LISALogger:
-    # This is not an instance of LISALogger, but since all callable are
-    # depending on logging.Logger, that will work properly
-    return logging.getLogger(get_name(consumer))
 
 class LISAAdaptor(AdaptorBase):
 
@@ -100,6 +91,9 @@ class LISAAdaptor(AdaptorBase):
     def register_cli_param(parser):
         parser.add_argument('--target-conf', action='append',
             help="Target config files")
+
+    def get_db_loader(self):
+        return self.load_db
 
     @classmethod
     def load_db(cls, db_path, *args, **kwargs):

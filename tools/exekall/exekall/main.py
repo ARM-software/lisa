@@ -420,6 +420,7 @@ the parameter, the start value, stop value and step size.""")
         artifact_root = pathlib.Path(result_root, date + '_' + testsession_uuid)
     artifact_root = artifact_root.resolve()
 
+    print('The following expressions will be executed:')
     for testcase in testcase_list:
         print(take_first(testcase.get_id(
             full_qual = verbose,
@@ -436,6 +437,7 @@ the parameter, the start value, stop value and step size.""")
         with open(str(artifact_root.joinpath('UUID')), 'wt') as f:
             f.write(testsession_uuid+'\n')
 
+    db_loader = adaptor.get_db_loader()
 
     for testcase in testcase_list:
         testcase_short_id = take_first(testcase.get_id(
@@ -479,7 +481,8 @@ the parameter, the start value, stop value and step size.""")
                 testcase.get_script(
                     prefix = 'testcase',
                     db_path = '../../storage.yml.gz',
-                    db_relative_to = '__file__'
+                    db_relative_to = '__file__',
+                    db_loader = db_loader
                 )[1]+'\n',
             )
 
@@ -571,7 +574,8 @@ the parameter, the start value, stop value and step size.""")
                 testcase.get_script(
                     prefix = 'testcase',
                     db_path = '../../../storage.yml.gz',
-                    db_relative_to = '__file__'
+                    db_relative_to = '__file__',
+                    db_loader = db_loader
                 )[1]+'\n',
             )
 
@@ -606,6 +610,8 @@ the parameter, the start value, stop value and step size.""")
         testcase_list, prefix='testcase',
         db_path=db_path.relative_to(artifact_root),
         db_relative_to='__file__',
+        obj_store=obj_store,
+        db_loader=adaptor.get_db_loader()
     )
 
     with open(str(script_path), 'wt', encoding='utf-8') as f:
