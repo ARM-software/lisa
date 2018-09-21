@@ -17,6 +17,7 @@
 
 import inspect
 import logging
+import functools
 
 class Loggable:
     """
@@ -45,5 +46,15 @@ class HideExekallID:
     is fighting against.
     """
     pass
+
+def memoized(callable_):
+    """
+    Decorator to memoize the result of a callable,
+    based on :func:`functools.lru_cache`
+    """
+    # It is important to have one separate call to lru_cache for every call to
+    # memoized, otherwise all uses of the decorator will end up using the same
+    # wrapper and all hells will break loose.
+    return functools.lru_cache(maxsize=None, typed=True)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
