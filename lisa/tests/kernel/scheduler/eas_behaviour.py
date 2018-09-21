@@ -138,7 +138,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
             add_transition(time, task, 0)
             for _ in range(params.loops):
                 for phase in params.phases:
-                    util = (phase.duty_cycle_pct * util_scale / 100.)
+                    util = (phase.duty_cycle_pct * util_scale / 100)
                     add_transition(time, task, util)
                     time += phase.duration_s
             add_transition(time, task, 0)
@@ -320,7 +320,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
 
         msg = 'Estimated {} bogo-Joules to run workload, expected {}'.format(
             est_energy, exp_energy)
-        threshold = exp_energy * (1 + (energy_est_threshold_pct / 100.))
+        threshold = exp_energy * (1 + (energy_est_threshold_pct / 100))
 
         passed = est_energy < threshold
         res = ResultBundle(passed)
@@ -342,7 +342,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         :type utilization_pct: int
         """
         # TODO(?): use te.nrg_model.capacity_scale
-        return int((capacity / 1024.) * utilization_pct)
+        return int((capacity / 1024) * utilization_pct)
 
 # TODO: factorize this crap out of these classes
 class OneSmallTask(EASBehaviour):
