@@ -15,12 +15,8 @@
 # limitations under the License.
 #
 
-from unittest import TestCase
-import shutil
-import tempfile
-
 from lisa.tests.kernel.test_bundle import TestBundle, ResultBundle
-from lisa.tests.lisa.utils import create_local_testenv
+from lisa.tests.lisa.utils import create_local_testenv, StorageTestCase
 
 class DummyTestBundle(TestBundle):
     """
@@ -44,17 +40,14 @@ class DummyTestBundle(TestBundle):
 
         return ResultBundle(passed)
 
-class BundleCheck(TestCase):
+class BundleCheck(StorageTestCase):
     """
     A test class that verifies some :class:`lisa.tests.kernel.test_bundle.TestBundle`
     base behaviours.
     """
     def setUp(self):
+        super().setUp()
         self.te = create_local_testenv()
-        self.res_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        shutil.rmtree(self.res_dir)
 
     def test_init(self):
         """

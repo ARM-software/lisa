@@ -15,6 +15,10 @@
 # limitations under the License.
 #
 
+from unittest import TestCase
+import tempfile
+import shutil
+
 from lisa.env import TestEnv, TargetConfig
 
 HOST_TARGET_CONF = {
@@ -27,3 +31,13 @@ HOST_TARGET_CONF = {
 
 def create_local_testenv():
     return TestEnv(TargetConfig(HOST_TARGET_CONF))
+
+class StorageTestCase(TestCase):
+    """
+    A base class for tests that also provides a directory
+    """
+    def setUp(self):
+        self.res_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.res_dir)
