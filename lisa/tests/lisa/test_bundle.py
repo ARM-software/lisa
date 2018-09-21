@@ -38,7 +38,7 @@ class DummyTestBundle(TestBundle):
                 passed = True
                 break
 
-        return ResultBundle(passed)
+        return ResultBundle.from_bool(passed)
 
 class BundleCheck(StorageTestCase):
     """

@@ -150,13 +150,13 @@ class HotplugTorture(TestBundle):
         """
         Test that the hotplugs didn't leave the target in an unusable state
         """
-        return ResultBundle(self.target_alive)
+        return ResultBundle.from_bool(self.target_alive)
 
     def test_cpus_alive(self) -> ResultBundle:
         """
         Test that all CPUs came back online after the hotplug operations
         """
-        res = ResultBundle(self.hotpluggable_cpus == self.live_cpus)
+        res = ResultBundle.from_bool(self.hotpluggable_cpus == self.live_cpus)
         res.add_metric("hotpluggable CPUs", self.hotpluggable_cpus)
         res.add_metric("Online CPUs", self.live_cpus)
         return res

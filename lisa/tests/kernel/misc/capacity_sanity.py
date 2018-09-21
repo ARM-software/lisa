@@ -58,14 +58,14 @@ class CapacitySanityCheck(TestBundle):
         Assert that CPU capacity increase leads to more work done
         """
         sorted_capacities = sorted(self.capacity_work.keys())
-        res = ResultBundle(True)
+        work = [self.capacity_work[cap] for cap in sorted_capacities]
 
-        for capacity, work in list(self.capacity_work.items()):
+        # Check the list of work units is monotonically increasing
+        work_increasing = (work == sorted(work))
+        res = ResultBundle.from_bool(work_increasing)
+
+        for capacity, work in self.capacity_work.items():
             res.add_metric("Performance @{} capacity".format(capacity), work)
-
-        for idx, capacity in enumerate(sorted_capacities[1:]):
-            if self.capacity_work[capacity] <= self.capacity_work[sorted_capacities[idx]]:
-                res.passed = False
 
         return res
 

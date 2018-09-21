@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import enum
 import os
 import abc
 from pathlib import Path
@@ -48,13 +49,24 @@ class TestMetric:
         return '{cls}({self.data}, {self.units})'.format(
             cls=type(self).__name__, self=self)
 
+class Result(enum.Enum):
+    PASSED = 1
+    FAILED = 2
+    ERROR = 3
+    SKIP = 4
+    NOISY_DATA = 5
+
+    @property
+    def lower_name(self):
+        return self.name.lower()
+
 class ResultBundle:
     """
     Bundle for storing test results
 
-    :param passed: Indicates whether the associated test passed.
+    :param result: Indicates whether the associated test passed.
       It will also be used as the truth-value of a ResultBundle.
-    :type passed: boolean
+    :type result: :class:`Result`
 
     :class:`TestMetric` can be added to an instance of this class. This can
     make it easier for users of your tests to understand why a certain test
@@ -62,16 +74,13 @@ class ResultBundle:
 
         def test_is_noon():
             now = time.localtime().tm_hour
-            res = ResultBundle(now == 12)
+            res = ResultBundle(Result.PASSED if now == 12 else Result.FAILED)
             res.add_metric("current time", now)
 
             return res
 
         >>> res_bundle = test_is_noon()
-        >>> if res_bundle:
-        >>>     print "PASSED"
-        >>> else:
-        >>>     print "FAILED"
+        >>> print(res_bundle.result.name)
         FAILED
 
         # At this point, the user can wonder why the test failed.
@@ -79,19 +88,22 @@ class ResultBundle:
         >>> print res_bundle
         current time = 11
     """
-    def __init__(self, passed=True):
-        self.passed = passed
+    def __init__(self, result):
+        self.result = result
         self.metrics = {}
 
+    @classmethod
+    def from_bool(cls, cond, *args, **kwargs):
+        result = Result.PASSED if cond else Result.FAILED
+        return cls(result, *args, **kwargs)
+
     def __bool__(self):
-        return self.passed
+        return self.result == Result.PASSED
 
     def __str__(self):
-        if self.metrics:
-            return ', '.join(
-                ['{} = {}'.format(key, val) for key, val in self.metrics.items()])
-        else:
-            return ''
+        return self.result.name + ': ' + ', '.join(
+                '{} = {}'.format(key, val)
+                for key, val in self.metrics.items())
 
     def add_metric(self, name, data, units=None):
         """
@@ -154,7 +166,7 @@ class TestBundle(Serializable, abc.ABC):
                         passed = True
                         break
 
-                return ResultBundle(passed)
+                return ResultBundle.from_bool(passed)
 
     **Usage example**::
 
@@ -327,18 +339,20 @@ class RTATestBundle(TestBundle, abc.ABC):
         pa = PerfAnalysis(self.res_dir)
 
         slacks = {}
-        res = ResultBundle()
 
         # Data is only collected for rt-app tasks, so it's safe to iterate over
         # all of them
+        passed = True
         for task in pa.tasks():
             slack = pa.df(task)["Slack"]
 
             bad_activations_pct = len(slack[slack < 0]) * 100 / len(slack)
             if bad_activations_pct > negative_slack_allowed_pct:
-                res.passed = False
+                passed = False
 
             slacks[task] = bad_activations_pct
+
+        res = ResultBundle.from_bool(passed)
 
         for task, slack in slacks.items():
             res.add_metric("slack_{}".format(task), slack, '%')
