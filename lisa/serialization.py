@@ -131,9 +131,9 @@ class Serializable:
 
     def __copy__(self):
        """Make sure that copying the class still works as usual, without
-       dropping some attributes.
+       dropping some attributes by defining __copy__
        """
-       return super().__copy__(self)
+       return super().__copy__()
 
     def __deepcopy__(self):
        return super().__deepcopy__()
