@@ -49,6 +49,7 @@ class TestMetric:
         return '{cls}({self.data}, {self.units})'.format(
             cls=type(self).__name__, self=self)
 
+@enum.unique
 class Result(enum.Enum):
     """
     Result of a test:
