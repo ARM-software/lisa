@@ -274,7 +274,7 @@ class PowerDomain(_CpuTree):
         super(PowerDomain, self).__init__(cpu, children)
         self.idle_states = idle_states
 
-class EnergyModel(object):
+class EnergyModel(Serializable):
     """Represents hierarchical CPU topology with power and capacity data
 
     An energy model consists of
