@@ -24,6 +24,11 @@ import sys
 
 import ruamel.yaml
 
+yaml = ruamel.yaml.YAML(typ='unsafe')
+yaml.allow_unicode = True
+yaml.default_flow_style = False
+yaml.indent = 4
+
 # Basic reimplementation of typing.get_type_hints for Python versions that
 # do not have a typing module available, and also avoids creating Optional[]
 # when the parameter has a None default value.
@@ -55,8 +60,6 @@ def take_first(iterable):
 def create_uuid():
     return uuid.uuid4().hex
 
-yaml = ruamel.yaml.YAML(typ='unsafe')
-yaml.allow_unicode = True
 
 class NoOperatorError(Exception):
     pass
@@ -114,13 +117,6 @@ class StorageDB:
             db = yaml.load(f)
         assert isinstance(db, cls)
 
-        # TODO: remove that once the bug is solved
-        # Due to the 2nd issue commented here, ObjectStore.__setstate__ is not
-        # able to reinitialize its id_uuid_map properly so we need to do it
-        # manually:
-        # https://bitbucket.org/ruamel/yaml/issues/238/constructorerror-with-recursive-objects
-        db.obj_store.update_uuid_map()
-
         return db
 
     def to_path(self, path):
@@ -137,31 +133,20 @@ class ObjectStore:
     def __init__(self, serial_seq_list, db_var_name=None):
         self.db_var_name = db_var_name
         self.serial_seq_list = serial_seq_list
-        self.update_uuid_map()
-
-    def __deepcopy__(self):
-        return super().__deepcopy__()
-
-    def __getstate__(self):
-        dct = copy.copy(self.__dict__)
-        del dct['uuid_value_map']
-        del dct['id_uuid_map']
-        return dct
-
-    def __setstate__(self, dct):
-        self.__dict__ = dct
-        self.update_uuid_map()
 
     def get_value_snippet(self, value):
+        _, id_uuid_map = self.get_indexes()
         return '{db}.by_uuid({key})'.format(
             db = self.db_var_name,
-            key = repr(self.id_uuid_map[id(value)])
+            key = repr(id_uuid_map[id(value)])
         )
 
     def by_uuid(self, uuid):
-        return self.uuid_value_map[uuid]
+        uuid_value_map, _ = self.get_indexes()
+        return uuid_value_map[uuid]
 
-    def update_uuid_map(self):
+    @functools.lru_cache(maxsize=None, typed=True)
+    def get_indexes(self):
         uuid_value_map = dict()
         id_uuid_map = dict()
 
@@ -175,8 +160,7 @@ class ObjectStore:
 
         self._serial_val_dfs(update_map)
 
-        self.uuid_value_map = uuid_value_map
-        self.id_uuid_map = id_uuid_map
+        return (uuid_value_map, id_uuid_map)
 
     def _serial_val_dfs(self, callback):
         for serial_seq in self.serial_seq_list:
