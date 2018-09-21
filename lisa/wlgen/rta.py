@@ -438,9 +438,9 @@ class Phase(Loggable):
 
             cloops = -1
             if duration >= 0:
-                cloops = int(duration / period)
+                cloops = duration // period
 
-            sleep_time = period * (100 - self.duty_cycle_pct) / 100
+            sleep_time = period * (100 - self.duty_cycle_pct) // 100
             running_time = period - sleep_time
 
             self.logger.info(' | duration %.6f [s] (%d loops)',
