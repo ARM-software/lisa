@@ -22,10 +22,12 @@ import shutil
 from tempfile import mkdtemp
 
 from lisa.energy_model import (EnergyModel, ActiveState, EnergyModelCapacityError,
-                          EnergyModelNode, EnergyModelRoot, PowerDomain)
+                               EnergyModelNode, EnergyModelRoot, PowerDomain)
 from lisa.trace import Trace
+from lisa.tests.lisa.utils import StorageTestCase
 
 # Import these just to test that they can be constructed
+# pylint: disable=unused-import
 import lisa.platforms.juno_r0_energy
 import lisa.platforms.pixel_energy
 import lisa.platforms.hikey_energy
@@ -423,5 +425,16 @@ class TestEstimateFromTrace(TestCase):
             row = df.iloc[i]
             self.assertAlmostEqual(row.name, exp_index, places=4)
             self.assertDictEqual(row.to_dict(), exp_values)
+
+class TestSerialization(StorageTestCase):
+    """
+    A test class that verifies the Energy Model's serialization
+    """
+
+    def test_serialization(self):
+        path = os.path.join(self.res_dir, "nrg_model")
+        em.to_path(path)
+        stored_em = EnergyModel.from_path(path)
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
