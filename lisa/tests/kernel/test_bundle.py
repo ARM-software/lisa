@@ -67,6 +67,7 @@ class Result(enum.Enum):
 
     @property
     def lower_name(self):
+        """Return the name in lower case"""
         return self.name.lower()
 
 class ResultBundle:
