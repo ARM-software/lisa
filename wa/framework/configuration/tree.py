@@ -69,14 +69,20 @@ class SectionNode(JobSpecSource):
     def is_leaf(self):
         return not bool(self.children)
 
-    def __init__(self, config, parent=None):
+    def __init__(self, config, parent=None, group=None):
         super(SectionNode, self).__init__(config, parent=parent)
         self.workload_entries = []
         self.children = []
+        self.group = group
 
-    def add_section(self, section):
-        new_node = SectionNode(section, parent=self)
-        self.children.append(new_node)
+    def add_section(self, section, group=None):
+        # Each level is the same group, only need to check first
+        if not self.children or group == self.children[0].group:
+            new_node = SectionNode(section, parent=self, group=group)
+            self.children.append(new_node)
+        else:
+            for child in self.children:
+                new_node = child.add_section(section, group)
         return new_node
 
     def add_workload(self, workload_config):

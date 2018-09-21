@@ -196,9 +196,10 @@ class AgendaParser(object):
                     raise ConfigError(msg.format(json.dumps(section, indent=None)))
                 section['runtime_params'] = section.pop('params')
 
+            group = section.pop('group', None)
             section = _construct_valid_entry(section, seen_sect_ids,
                                              "s", state.jobs_config)
-            state.jobs_config.add_section(section, workloads)
+            state.jobs_config.add_section(section, workloads, group)
 
 
 ########################

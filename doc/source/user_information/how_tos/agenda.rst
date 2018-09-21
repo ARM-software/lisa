@@ -489,6 +489,75 @@ Note that the ``config`` section still applies to every spec in the agenda. So
 the precedence order is -- spec settings override section settings, which in
 turn override global settings.
 
+
+.. _section-groups:
+
+Section Groups
+---------------
+
+Section groups are a way of grouping sections together and are used to produce a
+cross product of each of the different groups. This can be useful when you want
+to run a set of experiments with all the available combinations without having
+to specify each combination manually.
+
+For example if we want to investigate the differences between running the
+maximum and minimum frequency with both the maximum and minimum number of cpus
+online, we can create an agenda as follows:
+
+.. code-block:: yaml
+
+        sections:
+          - id: min_freq
+          runtime_parameters:
+              freq: min
+          group: frequency
+         - id: max_freq
+          runtime_parameters:
+              freq: max
+         group: frequency
+
+         - id: min_cpus
+           runtime_parameters:
+              cpus: 1
+         group: cpus
+         - id: max_cpus
+           runtime_parameters:
+              cpus: 8
+         group: cpus
+
+        workloads:
+        -  dhrystone
+
+This will results in 8 jobs being generated for each of the possible combinations.
+
+::
+
+      min_freq-min_cpus-wk1 (dhrystone)
+      min_freq-max_cpus-wk1 (dhrystone)
+      max_freq-min_cpus-wk1 (dhrystone)
+      max_freq-max_cpus-wk1 (dhrystone)
+      min_freq-min_cpus-wk1 (dhrystone)
+      min_freq-max_cpus-wk1 (dhrystone)
+      max_freq-min_cpus-wk1 (dhrystone)
+      max_freq-max_cpus-wk1 (dhrystone)
+
+Each of the generated jobs will have :ref:`classifiers <classifiers>` for
+each group and the associated id automatically added.
+
+.. code-block:: python
+
+      # ...
+      print('Job ID: {}'.format(job.id))
+      print('Classifiers:')
+      for k, v in job.classifiers.items():
+          print('  {}: {}'.format(k, v))
+
+      Job ID: min_freq-min_cpus-no_idle-wk1
+      Classifiers:
+          frequency: min_freq
+          cpus: min_cpus
+
+
 .. _augmentations:
 
 Augmentations

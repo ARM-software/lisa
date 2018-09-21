@@ -978,8 +978,8 @@ class JobGenerator(object):
         if name == "augmentations":
             self.update_augmentations(value)
 
-    def add_section(self, section, workloads):
-        new_node = self.root_node.add_section(section)
+    def add_section(self, section, workloads, group):
+        new_node = self.root_node.add_section(section, group)
         with log.indentcontext():
             for workload in workloads:
                 new_node.add_workload(workload)
@@ -1041,6 +1041,12 @@ def create_job_spec(workload_entry, sections, target_manager, plugin_cache,
     # PHASE 2.1: Merge general job spec configuration
     for section in sections:
         job_spec.update_config(section, check_mandatory=False)
+
+        # Add classifiers for any present groups
+        if section.id == 'global' or section.group is None:
+            # Ignore global config and default group
+            continue
+        job_spec.classifiers[section.group] = section.id
     job_spec.update_config(workload_entry, check_mandatory=False)
 
     # PHASE 2.2: Merge global, section and workload entry "workload_parameters"
