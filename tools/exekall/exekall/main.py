@@ -520,7 +520,7 @@ the parameter, the start value, stop value and step size.""")
     print('\n')
     result_map = collections.defaultdict(list)
     for testcase, executor in engine.Expression.get_executor_map(testcase_list).items():
-        exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}'.format(
+        exec_start_msg = 'Executing: {short_id}\n\nFull ID: {full_id}\nArtifacts: {folder}'.format(
                 short_id=take_first(testcase.get_id(
                     hidden_callable_set=hidden_callable_set,
                     full_qual = False
@@ -540,7 +540,7 @@ the parameter, the start value, stop value and step size.""")
         result_map[testcase] = result_list
 
         pre_line = lambda: print('-' * 40)
-        post_line = lambda: print()
+        post_line = None
         print()
         for result in utils.iterate_cb(executor(), pre_line, post_line):
             for failed_val in result.get_failed_values():

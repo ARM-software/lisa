@@ -63,9 +63,7 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
         return cls(artifact_root, relative)
 
 class LISAAdaptor(AdaptorBase):
-
-    def __init__(self, args):
-        super().__init__(args)
+    name = 'LISA'
 
     def get_prebuilt_list(self):
         if not self.args.target_conf:
@@ -89,7 +87,7 @@ class LISAAdaptor(AdaptorBase):
     @staticmethod
     def register_cli_param(parser):
         parser.add_argument('--target-conf', action='append',
-            help="Target config files")
+            help="Target config file")
 
     def get_db_loader(self):
         return self.load_db
