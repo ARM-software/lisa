@@ -113,28 +113,43 @@ the parameter, the start value, stop value and step size.""")
     # Look for a customization submodule in one of the toplevel packages
     # of the modules we specified on the command line.
     module_list = [utils.import_file(path) for path in args.python_files]
-    toplevel_package_name_list = [
-        module.__name__.split('.', 1)[0]
-        for module in module_list
+    package_names_list = [
+        module.__name__.split('.')
+        for module in reversed(module_list)
     ]
+
+    def build_full_names(l_l):
+        """Explode list of lists, and build full package names."""
+        for l in l_l:
+            for i, _ in enumerate(l):
+                i += 1
+                yield '.'.join(l[:i])
+
+    package_name_list = list(build_full_names(package_names_list))
 
     adaptor_cls = AdaptorBase
     module_set = set()
-    for name in toplevel_package_name_list:
+    for name in reversed(package_name_list):
         customize_name = name + '.exekall_customize'
-        # If the module exists, we try to import it
-        if importlib.util.find_spec(customize_name):
+        # Only hide ModuleNotFoundError exceptions when looking up that
+        # specific module, we don't want to hide issues inside the module
+        # itself.
+        module_exists = False
+        with contextlib.suppress(ModuleNotFoundError):
+            module_exists = importlib.util.find_spec(customize_name)
+
+        if module_exists:
             # Importing that module is enough to make the adaptor visible
             # to the Adaptor base class
             customize_module = importlib.import_module(customize_name)
             module_set.add(customize_module)
+            break
 
-        # TODO: Allow listing adapators and choosing the one we want
-        adaptor_cls = AdaptorBase.get_adaptor_cls()
-        # Add all the CLI arguments of the adaptor before reparsing the
-        # command line.
-        adaptor_cls.register_cli_param(run_parser)
-        break
+    # TODO: Allow listing adapators and choosing the one we want
+    adaptor_cls = AdaptorBase.get_adaptor_cls()
+    # Add all the CLI arguments of the adaptor before reparsing the
+    # command line.
+    adaptor_cls.register_cli_param(run_parser)
 
     # Reparse the command line after the adaptor had a chance to add its own
     # arguments.
@@ -167,9 +182,7 @@ the parameter, the start value, stop value and step size.""")
     module_set.update(utils.import_file(path) for path in args.python_files)
 
     # Pool of all callable considered
-    callable_pool = set()
-    for module in module_set:
-        callable_pool.update(utils.get_callable_set(module))
+    callable_pool = utils.get_callable_set(module_set)
     callable_pool = adaptor.filter_callable_pool(callable_pool)
 
     op_pool = {engine.Operator(callable_) for callable_ in callable_pool}
@@ -398,6 +411,14 @@ the parameter, the start value, stop value and step size.""")
         non_produced_handler = handle_non_produced,
         cycle_handler = handle_cycle
     ))
+
+    # Only keep the Expression where the outermost operator is defined in one
+    # of the files that were explicitely specified on the command line.
+    testcase_list = [
+        testcase
+        for testcase in testcase_list
+        if inspect.getmodule(testcase.op.callable_) in module_set
+    ]
 
     if user_filter:
         testcase_list = [

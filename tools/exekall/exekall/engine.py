@@ -1365,6 +1365,7 @@ class Operator:
     REUSABLE_DEFAULT = True
 
     def __init__(self, callable_, name=None):
+        assert callable(callable_)
         self._name = name
         self.callable_ = callable_
 

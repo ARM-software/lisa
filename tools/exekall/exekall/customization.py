@@ -54,7 +54,7 @@ class AdaptorBase:
             return str(val)
 
     def process_results(self, result_map):
-        hidden_callable_set = getattr(self, 'hidden_callable_set', set())
+        hidden_callable_set = self.hidden_callable_set
         for expr, result_list in result_map.items():
             for result in result_list:
                 msg = self.result_str(result)

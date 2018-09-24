@@ -12,6 +12,7 @@ import logging
 import functools
 import fnmatch
 import contextlib
+import types
 
 import exekall.engine as engine
 
@@ -24,7 +25,49 @@ def match_base_cls(cls, pattern):
 
     return False
 
-def get_callable_set(module):
+def get_recursive_module_set(module_set, package_set):
+    """Retrieve the set of all modules recurisvely imported from the modules in
+    `module_set`, if they are (indirectly) part of one of the packages named in
+    `package_set`.
+    """
+
+    recursive_module_set = set()
+    for module in module_set:
+        _get_recursive_module_set(module, recursive_module_set, package_set)
+
+    return recursive_module_set
+
+def _get_recursive_module_set(module, module_set, package_set):
+    if module in module_set:
+        return
+    module_set.add(module)
+    for imported_module in vars(module).values():
+        if (
+            isinstance(imported_module, types.ModuleType)
+            # We only recurse into modules that are part of the given set
+            # of packages
+            and any(
+                # Either a submodule of one of the packages or one of the
+                # packages themselves
+                imported_module.__name__.split('.', 1)[0] == package
+                for package in package_set
+            )
+        ):
+            _get_recursive_module_set(imported_module, module_set, package_set)
+
+def get_callable_set(module_set):
+    # We keep the search local to the packages these modules are defined in, to
+    # avoid getting a huge set of uninteresting callables.
+    package_set = {
+        module.__package__.split('.', 1)[0] for module in module_set
+    }
+    callable_set = set()
+    for module in get_recursive_module_set(module_set, package_set):
+        callable_set.update(_get_callable_set(module))
+
+    return callable_set
+
+def _get_callable_set(module):
     callable_pool = set()
     for name, obj in vars(module).items():
         # skip internal classes that may end up being exposed as a global
@@ -38,23 +81,19 @@ def get_callable_set(module):
         else:
             callable_list = [obj]
 
-        for callable_ in callable_list:
-            if not (
-                callable(callable_)
-                # TODO: which behavior do we want ? Including everything makes
-                # it also much easier to find all the dependencies
-                # Only callables directly defined in that module will be
-                # selected, unless the module is a package.
-                #  and inspect.getmodule(obj) is module or hasattr(module, '__path__')
-            ):
-                continue
+        callable_list = [c for c in callable_list if callable(c)]
 
+        for callable_ in callable_list:
             try:
                 param_list, return_type = engine.Operator(callable_).get_prototype()
             # If something goes wrong, that means it is not properly annotated
             # so we just ignore it
             except (AttributeError, ValueError, KeyError, engine.AnnotationError):
                 continue
+
+            # Also make sure we don't accidentally get callables that will
+            # return a abstract base class instance, since that would not work
+            # anyway.
             if not inspect.isabstract(return_type):
                 callable_pool.add(callable_)
 
