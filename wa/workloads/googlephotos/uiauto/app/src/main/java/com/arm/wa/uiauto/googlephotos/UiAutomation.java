@@ -304,6 +304,11 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         Iterator<Entry<String, PositionPair>> it = testParams.entrySet().iterator();
 
         clickUiObject(BY_ID, packageID + "edit", "android.widget.ImageView");
+        UiObject enhance = 
+            mDevice.findObject(new UiSelector().description("Enhance photo"));
+        if (enhance.exists()){
+            enhance.click();
+        }
 
         // Manage potential different spelling of UI element
         UiObject editCol =
