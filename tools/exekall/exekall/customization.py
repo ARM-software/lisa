@@ -3,6 +3,8 @@
 from exekall.engine import NoValue, get_name
 
 class AdaptorBase:
+    name = 'default'
+
     def __init__(self, args=None):
         if args is None:
             args = dict()
@@ -70,7 +72,11 @@ class AdaptorBase:
 
     @classmethod
     def get_adaptor_cls(cls, name=None):
-        for subcls in cls.__subclasses__():
+        subcls_list = list(cls.__subclasses__())
+        if len(subcls_list) > 1 and not name:
+            raise ValueError('An adaptor name must be specified if there is more than one adaptor to choose from')
+
+        for subcls in subcls_list:
             if name:
                 if subcls.name == name:
                     return subcls

@@ -45,6 +45,10 @@ def _main(argv):
         metavar='PYTHON_SRC',
         help="Python modules files")
 
+    run_parser.add_argument('--adaptor',
+        help="""Adaptor to use from the customization module, if there is more
+        than one to choose from.""")
+
     run_parser.add_argument('--filter',
         help="""Only run the testcases with an ID matching the filter.""")
 
@@ -94,6 +98,9 @@ the parameter, the start value, stop value and step size.""")
         choices=('debug', 'info', 'warn', 'error', 'critical'),
         help="""Change the default log level of the standard logging module.""")
 
+    run_parser.add_argument('--debug', action='store_true',
+        help="""Show complete Python backtrace when exekall crashes.""")
+
 
     args = argparse.Namespace()
     # Avoid showing help message on the incomplete parser. Instead, we carry on
@@ -114,6 +121,9 @@ the parameter, the start value, stop value and step size.""")
     # show the message.
     except SystemExit:
         args, _ = parser.parse_known_args(argv, args)
+
+    global show_traceback
+    show_traceback = args.debug
 
     # Look for a customization submodule in one of the toplevel packages
     # of the modules we specified on the command line.
@@ -150,8 +160,10 @@ the parameter, the start value, stop value and step size.""")
             module_set.add(customize_module)
             break
 
-    # TODO: Allow listing adapators and choosing the one we want
-    adaptor_cls = AdaptorBase.get_adaptor_cls()
+    adaptor_name = args.adaptor
+    adaptor_cls = AdaptorBase.get_adaptor_cls(adaptor_name)
+    if not adaptor_cls:
+        raise RuntimeError('Adaptor "{}" cannot be found'.format(adaptor_name))
     # Add all the CLI arguments of the adaptor before reparsing the
     # command line.
     adaptor_cls.register_cli_param(run_parser)
@@ -636,12 +648,13 @@ the parameter, the start value, stop value and step size.""")
 SILENT_EXCEPTIONS = (KeyboardInterrupt, BrokenPipeError)
 GENERIC_ERROR_CODE = 1
 
-def main():
-    show_traceback = True
+# Global variable reset once we parsed the command line
+show_traceback = True
+def main(argv=sys.argv[1:]):
     return_code = 0
 
     try:
-        return_code = _main(argv=sys.argv[1:])
+        return_code = _main(argv)
     # Quietly exit for these exceptions
     except SILENT_EXCEPTIONS:
         pass
@@ -649,8 +662,6 @@ def main():
         return_code = e.code
     # Catch-all
     except Exception as e:
-        #TODO: remove that
-        raise
         if show_traceback:
             error(
                 'Exception traceback:\n' +
