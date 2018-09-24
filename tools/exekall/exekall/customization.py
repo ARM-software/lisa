@@ -24,7 +24,8 @@ class AdaptorBase:
         return []
 
     def get_hidden_callable_set(self, op_map):
-        return set()
+        self.hidden_callable_set = set()
+        return self.hidden_callable_set
 
     @staticmethod
     def register_cli_param(parser):

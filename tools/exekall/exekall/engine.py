@@ -130,7 +130,7 @@ class StorageDB:
         return self.obj_store.by_uuid(*args, **kwargs)
 
 class ObjectStore:
-    def __init__(self, serial_seq_list, db_var_name=None):
+    def __init__(self, serial_seq_list, db_var_name='db'):
         self.db_var_name = db_var_name
         self.serial_seq_list = serial_seq_list
 
@@ -653,10 +653,11 @@ class Expression:
     def get_all_script(cls, expr_list, prefix='value', db_path='storage.yml.gz', db_relative_to=None, db_loader=None, obj_store=None):
         assert expr_list
 
-        db_var_name = 'db'
         if obj_store is None:
             serial_list = Expression.get_all_serializable_values(expr_list)
-            obj_store = ObjectStore(serial_list, db_var_name=db_var_name)
+            obj_store = ObjectStore(serial_list)
+
+        db_var_name = obj_store.db_var_name
 
         def make_comment(txt):
             joiner = '\n# '
@@ -1650,6 +1651,8 @@ class PrebuiltOperator(Operator):
         obj_list_ = list()
         uuid_list = list()
         for obj in obj_list:
+            # Transparently copy the UUID to avoid having multiple UUIDs
+            # refering to the same actual value.
             if isinstance(obj, SerializableExprValue):
                 uuid_ = obj.value_uuid
                 obj = obj.value
@@ -1765,17 +1768,15 @@ class SerializableExprValue:
         self.callable_qual_name = expr_val.expr.op.get_name(full_qual=True)
         self.callable_name = expr_val.expr.op.get_name(full_qual=False)
 
-        self.full_id = expr_val.get_id(full_qual=True, with_tags=True)
-        self.simplified_id = expr_val.get_id(
-            hidden_callable_set=hidden_callable_set,
-            full_qual=False,
-            with_tags=True,
-        )
-        self.simplified_qual_id = expr_val.get_id(
-            hidden_callable_set=hidden_callable_set,
-            full_qual=True,
-            with_tags=True,
-        )
+        # Pre-compute all the IDs so they are readily available once the value
+        # is deserialized
+        self.recorded_id_map = dict()
+        for full_qual, with_tags in itertools.product((True, False), repeat=2):
+            self.recorded_id_map[(full_qual, with_tags)] = expr_val.get_id(
+                full_qual = full_qual,
+                with_tags = with_tags
+            )
+
         self.type_names = [
             get_name(type_, full_qual=True)
             for type_ in inspect.getmro(expr_val.expr.op.value_type)
@@ -1789,6 +1790,10 @@ class SerializableExprValue:
                 hidden_callable_set
             )
             self.param_value_map[param] = param_serialzable
+
+    def get_id(self, full_qual=True, with_tags=True):
+        args = (full_qual, with_tags)
+        return self.recorded_id_map[args]
 
     def get_parent_set(self, predicate):
         parent_set = set()

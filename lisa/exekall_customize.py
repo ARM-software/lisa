@@ -65,8 +65,7 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
 class LISAAdaptor(AdaptorBase):
 
     def __init__(self, args):
-        self.args = args
-        self.hidden_callable_set = None
+        super().__init__(args)
 
     def get_prebuilt_list(self):
         if not self.args.target_conf:

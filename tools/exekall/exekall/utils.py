@@ -16,6 +16,38 @@ import types
 
 import exekall.engine as engine
 
+def flatten_nested_seq(seq):
+    return list(itertools.chain.from_iterable(seq))
+
+def load_serial_from_db(db, uuid_seq=None, type_pattern_seq=None):
+
+    def uuid_predicate(serial):
+        return (
+            serial.value_uuid in uuid_seq
+            or serial.excep_uuid in uuid_seq
+        )
+
+    def type_pattern_predicate(serial):
+        return any(
+            match_base_cls(type(serial.value), pattern)
+            for pattern in type_pattern_seq
+        )
+
+    if type_pattern_seq and not uuid_seq:
+        predicate = type_pattern_predicate
+
+    elif uuid_seq and not type_pattern_seq:
+        predicate = uuid_predicate
+
+    elif not uuid_seq and not type_pattern_seq:
+        predicate = lambda serial: True
+
+    else:
+        def predicate(serial):
+            return uuid_predicate(serial) and type_pattern_predicate(serial)
+
+    return db.obj_store.get_by_predicate(predicate)
+
 def match_base_cls(cls, pattern):
     # Match on the name of the class of the object and all its base classes
     for base_cls in inspect.getmro(cls):

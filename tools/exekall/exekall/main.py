@@ -61,10 +61,15 @@ def _main(argv):
         help="""Load the (indirect) instances of the given class from the
 database instead of the root objects.""")
 
-    run_parser.add_argument('--load-uuid',
-        help="""Load the given UUID from the database. If it is the UUID of an
-error, the parameters of the callable that errored will be reloaded.
-What is reloaded can be refined with --load-type.""")
+    uuid_group = run_parser.add_mutually_exclusive_group()
+
+    uuid_group.add_argument('--load-uuid', action='append', default=[],
+        help="""Load the given UUID from the database. What is reloaded can be
+        refined with --load-type.""")
+
+    uuid_group.add_argument('--load-uuid-args',
+        help="""Load the parameters of the values that were used to compute the
+        given UUID from the database.""")
 
     run_parser.add_argument('--goal', default='*ResultBundle',
         help="""Compute expressions leading to an instance of the specified
@@ -173,7 +178,8 @@ the parameter, the start value, stop value and step size.""")
 
     load_db_path = args.load_db
     load_db_pattern_list = args.load_type
-    load_db_uuid_list = [args.load_uuid] if args.load_uuid is not None else []
+    load_db_uuid_list = args.load_uuid
+    load_db_uuid_args = args.load_uuid_args
 
     user_filter = args.filter
 
@@ -205,42 +211,53 @@ the parameter, the start value, stop value and step size.""")
 
     only_prebuilt_cls = set()
 
-    # Load objects from an existing database
-    if load_db_path:
-        db = adaptor.load_db(load_db_path)
-        if load_db_pattern_list or load_db_uuid_list:
-            serial_res_set = set()
-            if not load_db_uuid_list:
-                for load_db_pattern in load_db_pattern_list:
-                    # When we reload instances of a class from the DB, we don't
-                    # want anything else to be able to produce it, since we want to
-                    # run on that existing data set
-                    def predicate(serial):
-                        return utils.match_base_cls(
-                            type(serial.value), load_db_pattern
-                        )
-                    serial_res_set_ = db.obj_store.get_by_predicate(predicate)
-                    serial_res_set.update(serial_res_set_)
-                    if not serial_res_set_:
-                        raise ValueError('No result of type matching "{pattern}" could be found in the database'.format(
-                            pattern=load_db_pattern
-                        ))
+    # Get the prebuilt operators from the adaptor
+    if not load_db_path:
+        prebuilt_op_pool_list = adaptor.get_prebuilt_list()
 
-            for load_db_uuid in load_db_uuid_list:
-                assert load_db_uuid is not None
-                def predicate(serial):
-                    return (
-                        serial.value_uuid == load_db_uuid or
-                        serial.excep_uuid == load_db_uuid
-                    )
-                serial_res_set_ = db.obj_store.get_by_predicate(predicate)
-                serial_res_set.update(serial_res_set_)
-                if not serial_res_set_:
-                    raise ValueError('No value with UUID "{uuid}" could be found in the database'.format(
-                        uuid=load_db_uuid
-                    ))
+    # Load objects from an existing database
+    else:
+        db = adaptor.load_db(load_db_path)
+
+        # We do not filter on UUID if we only got a type pattern list
+        load_all_uuid = (
+            load_db_pattern_list and not (
+                load_db_uuid_list
+                or load_db_uuid_args
+            )
+        )
+
+        serial_res_set = set()
+        if load_all_uuid:
+            serial_res_set.update(
+                utils.load_serial_from_db(db, None, load_db_pattern_list)
+            )
+        elif load_db_uuid_list:
+            serial_res_set.update(
+                utils.load_serial_from_db(db, load_db_uuid_list,
+                load_db_pattern_list
+            ))
+        elif load_db_uuid_args:
+            # Get the serial value we are interested in
+            serial_list = utils.flatten_nested_seq(
+                utils.load_serial_from_db(db, [load_db_uuid_args],
+                load_db_pattern_list
+            ))
+            for serial in serial_list:
+                # Get all the UUIDs of its parameters
+                param_uuid_list = [
+                    param_serial.value_uuid
+                    for param_serial in serial.param_value_map.values()
+                ]
+
+                serial_res_set.update(
+                        utils.load_serial_from_db(db, param_uuid_list,
+                        load_db_pattern_list
+                ))
+
+        # Otherwise, reload all the root serial values
         else:
-            serial_res_set = set(
+            serial_res_set.update(
                 frozenset(l)
                 for l in db.obj_store.serial_seq_list
             )
@@ -250,8 +267,8 @@ the parameter, the start value, stop value and step size.""")
         serial_res_set_ = set()
         for serial_res in serial_res_set:
             serial_res = frozenset(serial_res - loaded_serial)
+            loaded_serial.update(serial_res)
             if serial_res:
-                loaded_serial.update(serial_res)
                 serial_res_set_.add(serial_res)
         serial_res_set = serial_res_set_
 
@@ -259,54 +276,30 @@ the parameter, the start value, stop value and step size.""")
         # into the tests
         prebuilt_op_pool_list = list()
         for serial_res in serial_res_set:
-
-            for serial in serial_res:
-                # No value and no excep, this UUID was never calculated
-                # because of a failed parent.
-                if serial.value is NoValue and serial.excep is NoValue:
-                    continue
-
-                # If we end up with a NoValue here, that means we matched the
-                # UUID of a failed value, so we load the parameters that lead
-                # to it instead.
-                #TODO: we should only allow one of these, otherwise we will
-                # mixup the parameter values.
-                if serial.value is NoValue:
-                    for param_serial in serial.param_value_map.values():
-                        if param_serial.value is NoValue:
-                            continue
-
-                        # Make sure we only get the types we care about
-                        if load_db_pattern_list and not any(
-                            utils.match_base_cls(
-                                type(param_serial.value), load_db_pattern
-                            ) for load_db_pattern in load_db_pattern_list
-                        ):
-                            continue
-
-                        type_ = type(param_serial.value)
-                        id_ = param_serial.simplified_qual_id
-                        prebuilt_op_pool_list.append(engine.PrebuiltOperator(
-                            type_, [param_serial], id_=id_
-                        ))
-                        only_prebuilt_cls.add(type_)
-
             serial_list = [
                 serial for serial in serial_res
                 if serial.value is not NoValue
             ]
-            serial = take_first(serial_list)
-            if serial is not NoValue:
-                type_ = type(serial.value)
-                # This provides a middle-ground: fully qualified names but some
-                # callables are hidden
-                id_ = serial.simplified_qual_id
-                prebuilt_op_pool_list.append(engine.PrebuiltOperator(
-                    type_, serial_list, id_=id_
-                ))
+            if not serial_list:
+                continue
+
+            def key(serial):
+                # Since no two sub-expression is allowed to compute values of a
+                # given type, it is safe to assume that grouping by the
+                # non-tagged ID will group together all values of compatible
+                # types into one PrebuiltOperator per root Expression.
+                return serial.get_id(full_qual=True, with_tags=False)
+
+            for full_id, group in itertools.groupby(serial_list, key=key):
+                serial_list = list(group)
+
+                type_ = type(serial_list[0].value)
+                id_ = serial_list[0].get_id(full_qual=False, with_tags=True)
+                prebuilt_op_pool_list.append(
+                    engine.PrebuiltOperator(
+                        type_, serial_list, id_=id_
+                    ))
                 only_prebuilt_cls.add(type_)
-    else:
-        prebuilt_op_pool_list = adaptor.get_prebuilt_list()
 
     only_prebuilt_cls.discard(type(NoValue))
 
@@ -406,14 +399,16 @@ the parameter, the start value, stop value and step size.""")
             )
         ))
 
+    # Build the list of Expression that can be constructed from the set of
+    # callables
     testcase_list = list(engine.ExpressionWrapper.build_expr_list(
         root_op_list, op_map, cls_map,
         non_produced_handler = handle_non_produced,
         cycle_handler = handle_cycle
     ))
 
-    # Only keep the Expression where the outermost operator is defined in one
-    # of the files that were explicitely specified on the command line.
+    # Only keep the Expression where the outermost (root) operator is defined
+    # in one of the files that were explicitely specified on the command line.
     testcase_list = [
         testcase
         for testcase in testcase_list
@@ -441,7 +436,7 @@ the parameter, the start value, stop value and step size.""")
         artifact_root = pathlib.Path(result_root, date + '_' + testsession_uuid)
     artifact_root = artifact_root.resolve()
 
-    print('The following expressions will be executed:')
+    print('The following expressions will be executed:\n')
     for testcase in testcase_list:
         print(take_first(testcase.get_id(
             full_qual = verbose,
