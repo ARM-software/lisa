@@ -135,9 +135,9 @@ class TestBundle(Serializable, abc.ABC):
 
     * :meth:`from_target` will collect whatever artifacts are required
       from a given target, and will then return a :class:`TestBundle`.
-    * :meth:`from_path` will use whatever artifacts are available in a
+    * :meth:`from_dir` will use whatever artifacts are available in a
       given directory (which should have been created by an earlier call
-      to :meth:`from_target` and then :meth:`to_path`), and will then return
+      to :meth:`from_target` and then :meth:`to_dir`), and will then return
       a :class:`TestBundle`.
     * :attr:`verify_serialization` is there to ensure both above methods remain
       operationnal at all times.
@@ -186,10 +186,10 @@ class TestBundle(Serializable, abc.ABC):
         res_bundle = bundle.test_foo()
 
         # Saving the bundle on the disk
-        bundle.to_path(test_env, "/my/res/dir")
+        bundle.to_dir(test_env, "/my/res/dir")
 
         # Reloading the bundle from the disk
-        bundle = TestBundle.from_path("/my/res/dir")
+        bundle = TestBundle.from_dir("/my/res/dir")
         res_bundle = bundle.test_foo()
     """
 
@@ -197,7 +197,7 @@ class TestBundle(Serializable, abc.ABC):
     """
     When True, this enforces a serialization/deserialization step in :meth:`from_target`.
     Although it hinders performance (we end up creating two :class:`TestBundle`
-    instances), it's very valuable to ensure :meth:`from_path` does not get broken
+    instances), it's very valuable to ensure :meth:`from_dir` does not get broken
     for some particular class.
     """
 
@@ -225,8 +225,6 @@ class TestBundle(Serializable, abc.ABC):
         if not res_dir:
             res_dir = te.get_res_dir()
 
-        #TODO: Logger stuff?
-
         bundle = cls._from_target(te, res_dir, **kwargs)
 
         # We've created the bundle from the target, and have all of
@@ -234,8 +232,8 @@ class TestBundle(Serializable, abc.ABC):
         # we enforce the use of the offline reloading path to ensure
         # it does not get broken.
         if cls.verify_serialization:
-            bundle.to_path(res_dir)
-            bundle = cls.from_path(res_dir)
+            bundle.to_dir(res_dir)
+            bundle = cls.from_dir(res_dir)
 
         return bundle
 
@@ -244,7 +242,7 @@ class TestBundle(Serializable, abc.ABC):
         return os.path.join(res_dir, "{}.yaml".format(cls.__qualname__))
 
     @classmethod
-    def from_path(cls, res_dir):
+    def from_dir(cls, res_dir):
         """
         See :meth:`Serializable.from_path`
         """
@@ -254,11 +252,11 @@ class TestBundle(Serializable, abc.ABC):
 
         return bundle
 
-    def to_path(self, res_dir):
+    def to_dir(self, res_dir):
         """
         See :meth:`Serializable.to_path`
         """
-        super().to_path(self._filepath(res_dir))
+        super().to_dir(self._filepath(res_dir))
 
 class RTATestBundle(TestBundle, abc.ABC):
     """

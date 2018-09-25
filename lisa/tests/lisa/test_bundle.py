@@ -68,7 +68,7 @@ class BundleCheck(StorageTestCase):
         bundle = DummyTestBundle(None, "42")
         output = bundle.shell_output
 
-        bundle.to_path(self.res_dir)
-        bundle = DummyTestBundle.from_path(self.res_dir)
+        bundle.to_dir(self.res_dir)
+        bundle = DummyTestBundle.from_dir(self.res_dir)
 
         self.assertEqual(output, bundle.shell_output)
