@@ -19,6 +19,7 @@
 
 import numpy as np
 import os
+import os.path
 import pandas as pd
 import sys
 import trappy
@@ -28,8 +29,6 @@ import operator
 import logging
 import webbrowser
 from functools import reduce
-
-from pathlib import Path
 
 from lisa.analysis.proxy import AnalysisProxy
 from lisa.utils import Loggable
@@ -131,12 +130,7 @@ class Trace(Loggable):
         self.kernel_version = None
 
         # Folder containing trace
-        # TODO: do we need to support getting the path to trace.txt file here ?
-        if isinstance(data_dir, Path) and not data_dir.is_dir():
-            data_dir = data_dir.parent
-
-        # TODO: make Trace pathlib.Path-friendly
-        self.data_dir = str(data_dir)
+        self.data_dir = data_dir
 
         # By deafult, use the trace dir to save plots
         self.plots_dir = plots_dir

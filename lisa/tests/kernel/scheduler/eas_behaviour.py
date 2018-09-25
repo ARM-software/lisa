@@ -16,8 +16,8 @@
 #
 
 import os
+import os.path
 from math import isnan
-from pathlib import Path
 import abc
 
 import pandas as pd

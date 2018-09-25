@@ -17,7 +17,7 @@
 
 import sys
 import random
-from pathlib import Path
+import os.path
 
 from devlib.module.hotplug import HotplugModule
 from devlib.exception import TimeoutError

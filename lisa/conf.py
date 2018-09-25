@@ -17,10 +17,10 @@
 
 import json
 import os
+import os.path
 import re
 import logging
 import logging.config
-from pathlib import Path
 
 from lisa.utils import Loggable
 
@@ -91,14 +91,12 @@ class JsonConf(Loggable):
 
         """
 
-        path = Path(path)
-
         # Setup logging
         logger = cls.get_logger()
         logger.debug('loading JSON...')
 
         try:
-            with open(str(path)) as fh:
+            with open(path) as fh:
                 content = fh.read()
         except Exception as e:
             raise RuntimeError(

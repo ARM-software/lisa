@@ -1,11 +1,12 @@
 #! /usr/bin/env python3
 
 import contextlib
-import pathlib
 import itertools
 import functools
 import logging
 import sys
+import os.path
+from pathlib import Path
 
 from lisa.env import TargetConfig, ArtifactPath
 from lisa.utils import HideExekallID, Loggable
@@ -16,27 +17,35 @@ from exekall.customization import AdaptorBase
 
 @reusable(False)
 class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
-    __slots__ = ('artifact_root',)
+    def __new__(cls, root, relative, *args, **kwargs):
+        root = Path(root).resolve()
+        relative = Path(relative)
+        # we only support paths relative to the root
+        assert not relative.is_absolute()
+        absolute = root/relative
 
-    def __new__(cls, root, *args, **kwargs):
-        root = pathlib.Path(root).resolve()
-        # We treat relative paths as relative to the results root
-        path = super().__new__(cls, root, *args, **kwargs).resolve()
-        path.artifact_root = root
-        return path
+        # Use a resolved absolute path so it is more convenient for users to
+        # manipulate
+        path = absolute.resolve()
+
+        path_str = super().__new__(cls, str(path), *args, **kwargs)
+        path_str.artifact_root = root
+        return path_str
 
     def __reduce__(self):
         # Serialize the path relatively to the root, so it can be relocated
         # easily
         relative = self.relative_to(self.artifact_root)
-        return (type(self), (self.artifact_root, *relative.parts))
+        return (type(self), (self.artifact_root, relative))
+
+    def relative_to(self, path):
+        return os.path.relpath(self, start=path)
 
     def with_artifact_root(self, artifact_root):
         # Get the path relative to the old root
-        old_artifact_root = self.artifact_root
-        relative = self.relative_to(old_artifact_root)
+        relative = self.relative_to(self.artifact_root)
 
-        # Swap-in the new artifact_root
+        # Swap-in the new artifact_root and return a new instance
         return type(self)(artifact_root, relative)
 
     @classmethod
@@ -44,13 +53,13 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
         """
         Factory used when running under `exekall`
         """
-        artifact_root = pathlib.Path(data['artifact_root']).resolve()
+        artifact_root = Path(data['artifact_root']).resolve()
         root = data['testcase_artifact_root']
         consumer_name = get_name(consumer)
 
         # Find a non-used directory
         for i in itertools.count(1):
-            artifact_dir = pathlib.Path(root, consumer_name, str(i))
+            artifact_dir = Path(root, consumer_name, str(i))
             if not artifact_dir.exists():
                 break
 
@@ -99,7 +108,7 @@ class LISAAdaptor(AdaptorBase):
     def load_db(cls, db_path, *args, **kwargs):
         # This will relocate ArtifactStorage instances to the new absolute path
         # of the results folder, in case it has been moved to another place
-        artifact_root = pathlib.Path(db_path).parent.resolve()
+        artifact_root = Path(db_path).parent.resolve()
         db = engine.StorageDB.from_path(db_path, *args, **kwargs)
 
         # Relocate ArtifactStorage embeded in objects so they will always
@@ -141,9 +150,10 @@ class LISAAdaptor(AdaptorBase):
                 callable_folder = val.parts[-2]
                 folder = testcase_artifact_root/callable_folder
 
+                # TODO: check os.path.relpath
                 # We build a relative path back in the hierarchy to the root of
                 # all artifacts
-                relative_artifact_root = pathlib.Path(*(
+                relative_artifact_root = Path(*(
                     '..' for part in
                     folder.relative_to(artifact_root).parts
                 ))
@@ -156,7 +166,7 @@ class LISAAdaptor(AdaptorBase):
                     folder.mkdir(parents=True)
 
                 for i in itertools.count(1):
-                    symlink = pathlib.Path(folder, str(i))
+                    symlink = Path(folder, str(i))
                     if not symlink.exists():
                         break
 

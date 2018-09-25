@@ -18,9 +18,10 @@
 from datetime import datetime
 import json
 import os
+import os.path
 import contextlib
 import logging
-from pathlib import Path, PosixPath
+from pathlib import Path
 
 import devlib
 from devlib.utils.misc import which
@@ -47,7 +48,7 @@ LATEST_LINK = 'results_latest'
 if BASEPATH:
     platforms_path = os.path.join(BASEPATH, 'lisa', 'platforms')
 
-class ArtifactPath(PosixPath):
+class ArtifactPath(str):
     """Path to a folder that can be used to store artifacts of a function.
     This must be a clean folder, already created on disk.
     """
@@ -634,10 +635,10 @@ class TestEnv(Loggable):
         elif name and append_time:
             name = "{}-{}".format(name, time_str)
 
-        res_dir = Path(BASEPATH, OUT_PREFIX, name)
+        res_dir = os.path.join(BASEPATH, OUT_PREFIX, name)
 
-        if not res_dir.exists():
-            res_dir.mkdir()
+        if not os.path.exists(res_dir):
+            os.mkdir(res_dir)
 
         if symlink:
             res_lnk = Path(BASEPATH, LATEST_LINK)
@@ -816,8 +817,9 @@ class TestEnv(Loggable):
         :param output_file: Filepath for the trace to be created
         :type output_file: str
         """
+        res_dir = self.get_res_dir()
         if not output_file:
-            output_file = self.get_res_dir().joinpath('trace.dat')
+            output_file = os.path.join(res_dir, 'trace.dat')
 
         self.ftrace.start()
 

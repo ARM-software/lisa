@@ -17,8 +17,8 @@
 
 import enum
 import os
+import os.path
 import abc
-from pathlib import Path
 
 from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
@@ -129,7 +129,7 @@ class TestBundle(Serializable, abc.ABC):
 
     :param res_dir: Directory in which the target execution artifacts reside.
         This will also be used to dump any artifact generated in the test code.
-    :type res_dir: pathlib.Path
+    :type res_dir: str
 
     **Design notes:**
 

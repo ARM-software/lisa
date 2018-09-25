@@ -20,6 +20,7 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import os.path
 import pandas as pd
 import pylab as pl
 import re
@@ -37,9 +38,6 @@ TASK_NAME_RE = re.compile('.*\/rt-app-(.+)-[0-9]+.log')
 class PerfAnalysis(Loggable):
 
     def __init__(self, datadir, tasks=None):
-        # TODO: make this class pathlib.Path-friendly
-        datadir = str(datadir)
-
         # Dataframe of all tasks performance data
         self.perf_data = {}
 
