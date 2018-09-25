@@ -112,7 +112,7 @@ class ResultBundle:
 
     def __str__(self):
         return self.result.name + ': ' + ', '.join(
-                '{} = {}'.format(key, val)
+                '{}={}'.format(key, val)
                 for key, val in self.metrics.items())
 
     def add_metric(self, name, data, units=None):
