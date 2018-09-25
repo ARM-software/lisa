@@ -256,7 +256,7 @@ class TestBundle(Serializable, abc.ABC):
         """
         See :meth:`Serializable.to_path`
         """
-        super().to_dir(self._filepath(res_dir))
+        super().to_path(self._filepath(res_dir))
 
 class RTATestBundle(TestBundle, abc.ABC):
     """
