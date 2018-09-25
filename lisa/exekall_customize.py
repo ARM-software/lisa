@@ -47,7 +47,6 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
         artifact_root = pathlib.Path(data['artifact_root']).resolve()
         root = data['testcase_artifact_root']
         consumer_name = get_name(consumer)
-        cls.get_logger().info('Creating storage for: ' + consumer_name)
 
         # Find a non-used directory
         for i in itertools.count(1):
@@ -58,6 +57,10 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
         # Get canonical absolute paths
         artifact_dir = artifact_dir.resolve()
 
+        cls.get_logger().info('Creating {consumer} storage: {path}'.format(
+            consumer = consumer_name,
+            path = artifact_dir
+        ))
         artifact_dir.mkdir(parents=True)
         relative = artifact_dir.relative_to(artifact_root)
         return cls(artifact_root, relative)

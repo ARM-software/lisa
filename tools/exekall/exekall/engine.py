@@ -1168,6 +1168,7 @@ class Expression:
                     # that was computed with a given param_expr_val_map
                     assert len(result_list) == 1
                     expr_val_seq = result_list[0]
+                    #TODO: call a callback for logging what we reused
                     yield from expr_val_seq.get_expr_value_iter()
                     continue
 

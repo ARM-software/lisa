@@ -574,7 +574,8 @@ the parameter, the start value, stop value and step size.""")
                     full_qual=True,
                 )
             ))
-            prefix = 'ID: '
+            prefix = 'Full ID: '
+            #TODO: turn these prints into logs output, so they end up on the same stderr or file
             print('{prefix}{id}{uuid_str}'.format(
                 id=result.get_id(
                     mark_excep=True,
