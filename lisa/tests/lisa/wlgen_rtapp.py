@@ -22,9 +22,9 @@ import os
 from lisa.perf_analysis import PerfAnalysis
 from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
 
-from lisa.tests.lisa.wlgen import WlgenSelfBase
+from lisa.tests.lisa.utils import StorageTestCase, create_local_testenv
 
-class RTABase(WlgenSelfBase):
+class RTABase(StorageTestCase):
     """
     Common functionality for testing RTA
 
@@ -36,63 +36,51 @@ class RTABase(WlgenSelfBase):
 
     def get_expected_command(self, rta_wload):
         """Return the rt-app command we should execute when `run` is called"""
-        rta_path = os.path.join(self.target.executables_directory, 'rt-app')
+        rta_path = self.te.target.which('rt-app')
         json_path = os.path.join(rta_wload.run_dir, rta_wload.json)
         return '{} {} 2>&1'.format(rta_path, json_path)
 
     def setUp(self):
-        super(RTABase, self).setUp()
-
-        # Can't calibrate rt-app because:
-        # - Need to set performance governor
-        # - Need to use SCHED_FIFO + high priority
-        # We probably don't have permissions so use a dummy calibration.
-        self.calibration = {c: 100
-                           for c in list(range(len(self.target.cpuinfo.cpu_names)))}
-
-        os.makedirs(self.host_out_dir)
+        super().setUp()
+        self.te = create_local_testenv()
 
     def assert_output_file_exists(self, path):
-        """Assert that a file was created in host_out_dir"""
-        path = os.path.join(self.host_out_dir, path)
+        """Assert that a file was created"""
+        path = os.path.join(self.res_dir, path)
         self.assertTrue(os.path.isfile(path),
                         'No output file {} from rt-app'.format(path))
 
     def assert_can_read_logfile(self, exp_tasks):
         """Assert that the perf_analysis module understands the log output"""
-        pa = PerfAnalysis(self.host_out_dir)
+        pa = PerfAnalysis(self.res_dir)
         self.assertSetEqual(set(exp_tasks), set(pa.tasks()))
 
 class TestRTAProfile(RTABase):
-    def _do_test(self, task, exp_phases):
-        rtapp = RTA(self.target, name='test', calibration=self.calibration)
+    def _do_test(self, profile, exp_phases):
+        rtapp = RTA.by_profile(
+            self.te, name='test', profile=profile, res_dir=self.res_dir,
+            calibration=self.te.get_rtapp_calibration())
 
-        rtapp.conf(
-            kind = 'profile',
-            params = {'my_task': task.get()},
-            run_dir=self.target_run_dir
-        )
-
-        with open(rtapp.json) as f:
+        with open(rtapp.local_json) as f:
             conf = json.load(f, object_pairs_hook=OrderedDict)
 
         # Check that the configuration looks like we expect it to
-        phases = list(conf['tasks']['my_task']['phases'].values())
+        phases = list(conf['tasks']['test_task']['phases'].values())
         self.assertEqual(len(phases), len(exp_phases), 'Wrong number of phases')
         for phase, exp_phase in zip(phases, exp_phases):
             self.assertDictEqual(phase, exp_phase)
 
         # Try running the workload and check that it produces the expected log
         # files
-        rtapp.run(out_dir=self.host_out_dir)
+        rtapp.run()
 
-        rtapp_cmds = [c for c in self.target.executed_commands if 'rt-app' in c]
-        self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
+        # rtapp_cmds = [c for c in self.te.target.executed_commands if 'rt-app' in c]
+        # self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
 
         self.assert_output_file_exists('output.log')
-        self.assert_output_file_exists('test_00.json')
-        self.assert_output_file_exists('rt-app-my_task-0.log')
-        self.assert_can_read_logfile(exp_tasks=['my_task'])
+        self.assert_output_file_exists('test.json')
+        self.assert_output_file_exists('rt-app-test_task-0.log')
+        self.assert_can_read_logfile(exp_tasks=['test_task'])
 
     def test_profile_periodic_smoke(self):
         """
@@ -102,7 +90,9 @@ class TestRTAProfile(RTABase):
         content, then tests that it can be run.
         """
 
-        task = Periodic(period_ms=100, duty_cycle_pct=20, duration_s=1)
+        profile = {
+            "test_task" : Periodic(period_ms=100, duty_cycle_pct=20, duration_s=1)
+        }
 
         exp_phases = [
             {
@@ -110,12 +100,12 @@ class TestRTAProfile(RTABase):
                 'run': 20000,
                 'timer': {
                     'period': 100000,
-                    'ref': 'my_task'
+                    'ref': 'test_task'
                 }
             }
         ]
 
-        self._do_test(task, exp_phases)
+        self._do_test(profile, exp_phases)
 
     def test_profile_step_smoke(self):
         """
@@ -125,7 +115,7 @@ class TestRTAProfile(RTABase):
         content, then tests that it can be run.
         """
 
-        task = Step(start_pct=100, end_pct=0, time_s=1)
+        profile = {"test_task" : Step(start_pct=100, end_pct=0, time_s=1)}
 
         exp_phases = [
             {
@@ -138,10 +128,10 @@ class TestRTAProfile(RTABase):
             },
         ]
 
-        self._do_test(task, exp_phases)
+        self._do_test(profile, exp_phases)
 
     def test_profile_run_and_sync_smoke(self):
-        task = RunAndSync('my_barrier', time_s=1)
+        profile = {"test_task" : RunAndSync('my_barrier', time_s=1)}
         exp_phases = [
             OrderedDict([
                 ('loop', 1),
@@ -150,7 +140,7 @@ class TestRTAProfile(RTABase):
             ])
         ]
 
-        self._do_test(task, exp_phases)
+        self._do_test(profile, exp_phases)
 
     def test_composition(self):
         """
@@ -159,18 +149,17 @@ class TestRTAProfile(RTABase):
         Creates a composed workload by +-ing RTATask objects, tests that the
         JSON has the expected content, then tests running the workload
         """
-        light  = Periodic(duty_cycle_pct=10, duration_s=1.0, period_ms=10)
+        light = Periodic(duty_cycle_pct=10, duration_s=1.0, period_ms=10)
 
         start_pct = 10
         end_pct = 90
         delta_pct = 20
-        num_ramp_phases = ((end_pct - start_pct) / delta_pct) + 1
         ramp = Ramp(start_pct=start_pct, end_pct=end_pct, delta_pct=delta_pct,
                     time_s=1, period_ms=50)
 
         heavy = Periodic(duty_cycle_pct=90, duration_s=0.1, period_ms=100)
 
-        task = light + ramp + heavy
+        profile = {"test_task" : light + ramp + heavy}
 
         exp_phases = [
             # Light phase:
@@ -179,7 +168,7 @@ class TestRTAProfile(RTABase):
                 "run": 1000,
                 "timer": {
                     "period": 10000,
-                    "ref": "my_task"
+                    "ref": "test_task"
                 }
             },
             # Ramp phases:
@@ -188,7 +177,7 @@ class TestRTAProfile(RTABase):
                 "run": 5000,
                 "timer": {
                     "period": 50000,
-                    "ref": "my_task"
+                    "ref": "test_task"
                 }
             },
             {
@@ -196,7 +185,7 @@ class TestRTAProfile(RTABase):
                 "run": 15000,
                 "timer": {
                     "period": 50000,
-                    "ref": "my_task"
+                    "ref": "test_task"
                 }
             },
             {
@@ -204,7 +193,7 @@ class TestRTAProfile(RTABase):
                 "run": 25000,
                 "timer": {
                     "period": 50000,
-                    "ref": "my_task"
+                    "ref": "test_task"
                 }
             },
             {
@@ -212,7 +201,7 @@ class TestRTAProfile(RTABase):
                 "run": 35000,
                 "timer": {
                     "period": 50000,
-                    "ref": "my_task"
+                    "ref": "test_task"
                 }
             },
             {
@@ -220,7 +209,7 @@ class TestRTAProfile(RTABase):
                 "run": 45000,
                 "timer": {
                     "period": 50000,
-                    "ref": "my_task"
+                    "ref": "test_task"
                 }
             },
             # Heavy phase:
@@ -229,12 +218,12 @@ class TestRTAProfile(RTABase):
                 "run": 90000,
                 "timer": {
                     "period": 100000,
-                    "ref": "my_task"
+                    "ref": "test_task"
                 }
             }]
 
 
-        self._do_test(task, exp_phases)
+        self._do_test(profile, exp_phases)
 
     def test_invalid_composition(self):
         """Test that you can't compose tasks with a delay in the second task"""
@@ -252,93 +241,92 @@ class TestRTAProfile(RTABase):
             t3 = t1 + t2
 
 
-class TestRTACustom(RTABase):
-    def _test_custom_smoke(self, calibration):
-        """
-        Test RTA custom workload
+# class TestRTACustom(RTABase):
+#     def _test_custom_smoke(self, calibration):
+#         """
+#         Test RTA custom workload
 
-        Creates an rt-app workload using 'custom' and checks that the json
-        roughly matches the file we provided. If we have root, attempts to run
-        the workload.
-        """
+#         Creates an rt-app workload using 'custom' and checks that the json
+#         roughly matches the file we provided. If we have root, attempts to run
+#         the workload.
+#         """
 
-        #TODO: update the path to mp3-short.json
-        json_path = os.path.join(os.getenv('LISA_HOME'),
-                                 'assets', 'mp3-short.json')
-        rtapp = RTA(self.target, name='test', calibration=calibration)
+#         #TODO: update the path to mp3-short.json
+#         json_path = os.path.join(os.getenv('LISA_HOME'),
+#                                  'lisa', 'assets', 'mp3-short.json')
 
-        # Configure this RTApp instance to:
-        rtapp.conf(kind='custom', params=json_path, duration=5,
-                   run_dir=self.target_run_dir)
+#         with open(json_path, 'r') as fh:
+#             conf = fh.read()
 
-        with open(rtapp.json) as f:
-            conf = json.load(f)
+#         rtapp = RTA.by_conf(
+#             self.te, name='test', conf=conf, res_dir=self.res_dir,
+#             calibration=calibration)
 
-        # Convert k to str because the json loader gives us unicode strings
-        tasks = set([str(k) for k in list(conf['tasks'].keys())])
-        self.assertSetEqual(
-            tasks,
-            set(['AudioTick', 'AudioOut', 'AudioTrack',
-                 'mp3.decoder', 'OMXCall']))
+#         with open(rtapp.local_json, 'r') as fh:
+#             conf = json.load(fh)
 
-        # Would like to try running the workload but mp3-short.json has nonzero
-        # 'priority' fields, and we probably don't have permission for that
-        # unless we're root.
-        if self.target.is_rooted:
-            rtapp.run(out_dir=self.host_out_dir)
+#         # Convert k to str because the json loader gives us unicode strings
+#         tasks = set([str(k) for k in list(conf['tasks'].keys())])
+#         self.assertSetEqual(
+#             tasks,
+#             set(['AudioTick', 'AudioOut', 'AudioTrack',
+#                  'mp3.decoder', 'OMXCall']))
 
-            rtapp_cmds = [c for c in self.target.executed_commands
-                          if 'rt-app' in c]
-            self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
+#         # Would like to try running the workload but mp3-short.json has nonzero
+#         # 'priority' fields, and we probably don't have permission for that
+#         # unless we're root.
+#         if self.te.target.is_rooted:
+#             rtapp.run()
 
-            self.assert_output_file_exists('output.log')
-            self.assert_output_file_exists('test_00.json')
+#             # rtapp_cmds = [c for c in self.target.executed_commands
+#             #               if 'rt-app' in c]
+#             # self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
 
-    def test_custom_smoke_calib(self):
-        """Test RTA custom workload (providing calibration)"""
-        self._test_custom_smoke(self.calibration)
+#             self.assert_output_file_exists('output.log')
+#             self.assert_output_file_exists('test.json')
 
-    def test_custom_smoke_no_calib(self):
-        """Test RTA custom workload (providing no calibration)"""
-        self._test_custom_smoke(None)
+#     def test_custom_smoke_calib(self):
+#         """Test RTA custom workload (providing calibration)"""
+#         self._test_custom_smoke(self.te.get_rtapp_calibration())
+
+#     def test_custom_smoke_no_calib(self):
+#         """Test RTA custom workload (providing no calibration)"""
+#         self._test_custom_smoke(None)
 
 
-DummyBlModule = namedtuple('bl', ['bigs'])
+# DummyBlModule = namedtuple('bl', ['bigs'])
 
-class TestRTACalibrationConf(RTABase):
-    """Test setting the "calibration" field of rt-app config"""
-    def _get_calib_conf(self, calibration):
-        rtapp = RTA(self.target, name='test', calibration=calibration)
+# class TestRTACalibrationConf(RTABase):
+#     """Test setting the "calibration" field of rt-app config"""
+#     def _get_calib_conf(self, calibration):
+#         profile = {"test_task" : Periodic()}
+#         rtapp = RTA.by_profile(
+#             self.te.target, name='test', res_dir=self.res_dir, profile=profile,
+#             calibration=calibration)
 
-        rtapp.conf(
-            kind = 'profile',
-            params = {'t1': Periodic().get()},
-            run_dir=self.target_run_dir
-        )
+#         with open(rtapp.local_json) as fh:
+#             return json.load(fh)['global']['calibration']
 
-        with open(rtapp.json) as f:
-            return json.load(f)['global']['calibration']
+#     def test_calibration_conf_pload(self):
+#         """Test that the smallest pload value is used, if provided"""
+#         cpus = list(range(self.te.target.number_of_cpus))
+#         conf = self._get_calib_conf(dict(list(zip(cpus, [c + 100 for c in cpus]))))
+#         self.assertEqual(conf, 100,
+#                          'Calibration not set to minimum pload value')
 
-    def test_calibration_conf_pload(self):
-        """Test that the smallest pload value is used, if provided"""
-        cpus = list(range(self.target.number_of_cpus))
-        conf = self._get_calib_conf(dict(list(zip(cpus, [c + 100 for c in cpus]))))
-        self.assertEqual(conf, 100,
-                         'Calibration not set to minimum pload value')
+#     def test_calibration_conf_bl(self):
+#         """Test that a big CPU is used if big.LITTLE data is available"""
+#         self.te.target.modules.append('bl')
+#         self.te.target.bl = DummyBlModule([1, 2])
+#         conf = self._get_calib_conf(None)
+#         self.assertIn(conf, ['CPU{}'.format(c) for c in self.te.target.bl.bigs],
+#                       'Calibration not set to use a big CPU')
 
-    def test_calibration_conf_bl(self):
-        """Test that a big CPU is used if big.LITTLE data is available"""
-        self.target.modules.append('bl')
-        self.target.bl = DummyBlModule([1, 2])
-        conf = self._get_calib_conf(None)
-        self.assertIn(conf, ['CPU{}'.format(c) for c in self.target.bl.bigs],
-                      'Calibration not set to use a big CPU')
-
-    def test_calibration_conf_nodata(self):
-        """Test that the last CPU is used if no data is available"""
-        conf = self._get_calib_conf(None)
-        cpu = self.target.number_of_cpus - 1
-        self.assertEqual(conf, 'CPU{}'.format(cpu),
-                         'Calibration not set to highest numbered CPU')
+#     def test_calibration_conf_nodata(self):
+#         """Test that the last CPU is used if no data is available"""
+#         conf = self._get_calib_conf(None)
+#         cpu = self.te.target.number_of_cpus - 1
+#         self.assertEqual(conf, 'CPU{}'.format(cpu),
+#                          'Calibration not set to highest numbered CPU')
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
