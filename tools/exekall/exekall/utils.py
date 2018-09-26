@@ -13,6 +13,7 @@ import functools
 import fnmatch
 import contextlib
 import types
+import traceback
 
 import exekall.engine as engine
 
@@ -361,3 +362,6 @@ def iterate_cb(iterator, pre_hook=None, post_hook=None):
                 post_hook()
 
             yield val
+
+def format_exception(e):
+    return traceback.format_exception(type(e), e, e.__traceback__)

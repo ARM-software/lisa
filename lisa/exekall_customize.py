@@ -2,14 +2,18 @@
 
 import contextlib
 import itertools
+import inspect
 import functools
 import logging
 import sys
 import os.path
 from pathlib import Path
+import xml.etree.ElementTree as ET
+import traceback
 
 from lisa.env import TargetConfig, ArtifactPath
 from lisa.utils import HideExekallID, Loggable
+from lisa.tests.kernel.test_bundle import Result, ResultBundle
 
 from exekall import utils, engine
 from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name
@@ -20,7 +24,7 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
     def __new__(cls, root, relative, *args, **kwargs):
         root = Path(root).resolve()
         relative = Path(relative)
-        # we only support paths relative to the root
+        # we only support paths relative to the root parameter
         assert not relative.is_absolute()
         absolute = root/relative
 
@@ -29,8 +33,13 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
         path = absolute.resolve()
 
         path_str = super().__new__(cls, str(path), *args, **kwargs)
+        # Record the actual root, so we can relocate the path later with an
+        # updated root
         path_str.artifact_root = root
         return path_str
+
+    def __fspath__(self):
+        return str(self)
 
     def __reduce__(self):
         # Serialize the path relatively to the root, so it can be relocated
@@ -100,6 +109,9 @@ class LISAAdaptor(AdaptorBase):
     def register_cli_param(parser):
         parser.add_argument('--target-conf', action='append',
             help="Target config file")
+
+        parser.add_argument('--xunit',
+            help="xUnit XML output")
 
     def get_db_loader(self):
         return self.load_db
@@ -174,5 +186,109 @@ class LISAAdaptor(AdaptorBase):
 
         for param, param_expr_val in expr_val.param_value_map.items():
             self._finalize_expr_val(param_expr_val, artifact_root, testcase_artifact_root)
+
+
+    def process_results(self, result_map):
+        super().process_results(result_map)
+
+        # The goal is to implement something that is roughly compatible with:
+        #  https://github.com/jenkinsci/xunit-plugin/blob/master/src/main/resources/org/jenkinsci/plugins/xunit/types/model/xsd/junit-10.xsd
+        # This way, Jenkins should be able to read it, and other tools as well
+
+        xunit_path = self.args.xunit
+        if xunit_path:
+            et_root = self.create_xunit(result_map, self.hidden_callable_set)
+            et_tree = ET.ElementTree(et_root)
+            utils.info('Writing xUnit file at: ' + xunit_path)
+            et_tree.write(xunit_path)
+
+    def create_xunit(self, result_map, hidden_callable_set):
+        et_testsuites = ET.Element('testsuites')
+
+        testcase_list = list(result_map.keys())
+        # We group by module in which the root operators are defined. There will
+        # be one testsuite for each such module.
+        def key(expr):
+            return expr.op.mod_name
+
+        # One testsuite per module where a root operator is defined
+        for mod_name, group in itertools.groupby(testcase_list, key=key):
+            testcase_list = list(group)
+            et_testsuite = ET.SubElement(et_testsuites, 'testsuite', attrib=dict(
+                name = mod_name
+            ))
+            testsuite_counters = dict(failures=0, errors=0, tests=0)
+
+            for testcase in testcase_list:
+                # If there is more than one value for a given expression, we
+                # assume that they testcase will have unique names using tags
+                expr_val_list = result_map[testcase]
+                for expr_val in expr_val_list:
+                    et_testcase = ET.SubElement(et_testsuite, 'testcase', dict(
+                        name = expr_val.get_id(
+                            full_qual=False,
+                            with_tags=True,
+                            hidden_callable_set=hidden_callable_set,
+                        )))
+                    testsuite_counters['tests'] += 1
+
+                    for failed_expr_val in expr_val.get_failed_values():
+                        excep = failed_expr_val.excep
+                        result = 'error'
+                        short_msg = str(excep)
+                        msg = traceback.format_exception(type(e), e, e.__traceback__)
+                        type_ = type(excep)
+
+                        append_result_tag(et_testcase, result, type_, short_msg, msg)
+                        testsuite_counters['errors'] += 1
+
+                    value = expr_val.value
+                    if isinstance(value, ResultBundle):
+                        result = RESULT_TAG_MAP[value.result]
+                        short_msg = value.result.lower_name
+                        #TODO: add API to ResultBundle to print the message without the Result
+                        msg = str(value)
+                        type_ = type(value)
+
+                        append_result_tag(et_testcase, result, type_, short_msg, msg)
+                        if value.result is Result.FAILED:
+                            testsuite_counters['failures'] += 1
+
+            et_testsuite.attrib.update(
+                (k, str(v)) for k, v in testsuite_counters.items()
+            )
+
+        return et_testsuites
+
+
+def append_result_tag(et_testcase, result, type_, short_msg, msg):
+    et_result = ET.SubElement(et_testcase, result, dict(
+        #TODO: add base classes in an extra attribute
+        type=get_name(type_, full_qual=True),
+        type_bases=','.join(
+            get_name(type_, full_qual=True)
+            for type_ in inspect.getmro(type_)
+        ),
+        message=str(short_msg),
+    ))
+    et_result.text = str(msg)
+    return et_result
+
+RESULT_TAG_MAP = {
+    # "passed" is an extension to xUnit format that we add for parsing
+    # convenience
+    Result.PASSED: 'passed',
+    Result.FAILED: 'failure',
+    Result.SKIP: 'skipped',
+    # This tag is not part of xUnit format but necessary for our reporting
+    Result.NOISY_DATA: 'noisy'
+}
+# Make sure we cover all cases
+assert set(RESULT_TAG_MAP.keys()) == set(Result)
+
+
+
+
+
 
 
