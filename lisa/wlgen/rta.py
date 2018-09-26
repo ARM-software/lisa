@@ -148,7 +148,8 @@ class RTA(Workload):
           by the longest running task if not specified.
         :type max_duration_s: int
 
-        :param calibration:
+        :param calibration: The calibration value to be used by rt-app. This can
+          be an integer value or a CPU string (e.g. "CPU0").
         :type calibration: int or str
 
         A simple profile workload would be::
@@ -241,11 +242,28 @@ class RTA(Workload):
         return self
 
     @classmethod
-    def process_template(cls, template, output, duration=None, pload=None,
-                         log_dir=None, work_dir=None):
+    def process_template(cls, template, duration=None, pload=None, log_dir=None,
+                         work_dir=None):
         """
-        :param output: An open <thing>
-        :type output: yolo (IOStream?)
+        Turn a raw string rt-app description into a JSON dict.
+        Also, process some tokens and replace them.
+
+        :param template: The raw string to process
+        :type template: str
+
+        :param duration: The value to replace ``__DURATION__`` with
+        :type duration: int
+
+        :param pload: The value to replace ``__PVALUE__`` with
+        :type pload: int or str
+
+        :param log_dir: The value to replace ``__LOGDIR__`` with
+        :type log_dir: str
+
+        :param work_dir: The value to replace ``__WORKDIR__`` with
+        :type work_dir: str
+
+        :returns: a JSON dict
         """
         # pload can either be a string like "CPU1" or an integer, if the
         # former we need to quote it.
@@ -259,7 +277,9 @@ class RTA(Workload):
             '__WORKDIR__'  : work_dir,
         }
 
-        for line in template:
+        res = []
+
+        for line in template.splitlines(True):
             for token, replacement in replacements.items():
                 if token not in line:
                     continue
@@ -269,25 +289,41 @@ class RTA(Workload):
 
                 line = line.replace(token, str(replacement))
 
-            output.write(line)
+            res.append(line)
+
+        return json.loads('\n'.join(res))
 
     @classmethod
-    def by_conf(cls, te, name, conf, res_dir=None, max_duration_s=None,
-                calibration=None):
+    def by_str(cls, te, name, str_conf, res_dir=None, max_duration_s=None,
+               calibration=None):
+        """
+        Create an rt-app workload using a pure string description
+
+        :param str_conf: The raw string description. This must be a valid json
+          description, with the exception of some tokens (see
+          :meth:`process_template`) that will be replaced automagically.
+        :type str_conf: str
+
+        :param max_duration_s: Maximum duration of the workload.
+        :type max_duration_s: int
+
+        :param calibration: The calibration value to be used by rt-app. This can
+          be an integer value or a CPU string (e.g. "CPU0").
+        :type calibration: int or str
+        """
 
         self = cls.__new__(cls)
         self._early_init(te, name, res_dir, None)
 
-        str_conf = json.dumps(conf, indent=4, separators=(',', ': '),
-                              sort_keys=True).splitlines(True)
-
         calibration = self._process_calibration(calibration)
 
-        with open(self.local_json, 'w') as fh:
-            self.process_template(str_conf, fh, max_duration_s, calibration,
-                                  self.run_dir, self.run_dir)
+        json_conf = self.process_template(
+            str_conf, max_duration_s, calibration, self.run_dir, self.run_dir)
 
-        tasks_names = [tid for tid in conf['tasks']]
+        with open(self.local_json, 'w') as fh:
+            json.dump(json_conf, fh)
+
+        tasks_names = [tid for tid in json_conf['tasks']]
         self._late_init(calibration=calibration, tasks_names=tasks_names)
 
         return self
