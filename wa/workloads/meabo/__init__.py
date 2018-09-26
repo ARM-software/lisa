@@ -14,6 +14,7 @@
 
 import os
 import re
+import sys
 
 from wa import Workload, Parameter, Executable, ConfigError, WorkloadError
 from wa.utils.exec_control import once
@@ -255,7 +256,10 @@ class Meabo(Workload):
 
         outfile = os.path.join(context.output_directory, 'meabo-output.txt')
         with open(outfile, 'wb') as wfh:
-            wfh.write(self.output)
+            if sys.version_info[0] == 3:
+                wfh.write(self.output.encode('utf-8'))
+            else:
+                wfh.write(self.output)
         context.add_artifact('meabo-output', outfile, kind='raw')
 
         cur_phase = 0
