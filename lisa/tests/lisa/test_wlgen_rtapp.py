@@ -241,92 +241,90 @@ class TestRTAProfile(RTABase):
             t3 = t1 + t2
 
 
-# class TestRTACustom(RTABase):
-#     def _test_custom_smoke(self, calibration):
-#         """
-#         Test RTA custom workload
+class TestRTACustom(RTABase):
+    def _test_custom_smoke(self, calibration):
+        """
+        Test RTA custom workload
 
-#         Creates an rt-app workload using 'custom' and checks that the json
-#         roughly matches the file we provided. If we have root, attempts to run
-#         the workload.
-#         """
+        Creates an rt-app workload using 'custom' and checks that the json
+        roughly matches the file we provided. If we have root, attempts to run
+        the workload.
+        """
 
-#         #TODO: update the path to mp3-short.json
-#         json_path = os.path.join(os.getenv('LISA_HOME'),
-#                                  'lisa', 'assets', 'mp3-short.json')
+        #TODO: update the path to mp3-short.json
+        json_path = os.path.join(os.getenv('LISA_HOME'),
+                                 'lisa', 'assets', 'mp3-short.json')
 
-#         with open(json_path, 'r') as fh:
-#             conf = fh.read()
+        with open(json_path, 'r') as fh:
+            str_conf = fh.read()
 
-#         rtapp = RTA.by_conf(
-#             self.te, name='test', conf=conf, res_dir=self.res_dir,
-#             calibration=calibration)
+        rtapp = RTA.by_str(
+            self.te, name='test', str_conf=str_conf, res_dir=self.res_dir,
+            max_duration_s=5, calibration=calibration)
 
-#         with open(rtapp.local_json, 'r') as fh:
-#             conf = json.load(fh)
+        with open(rtapp.local_json, 'r') as fh:
+            conf = json.load(fh)
 
-#         # Convert k to str because the json loader gives us unicode strings
-#         tasks = set([str(k) for k in list(conf['tasks'].keys())])
-#         self.assertSetEqual(
-#             tasks,
-#             set(['AudioTick', 'AudioOut', 'AudioTrack',
-#                  'mp3.decoder', 'OMXCall']))
+        # Convert k to str because the json loader gives us unicode strings
+        tasks = set([str(k) for k in list(conf['tasks'].keys())])
+        self.assertSetEqual(
+            tasks,
+            set(['AudioTick', 'AudioOut', 'AudioTrack',
+                 'mp3.decoder', 'OMXCall']))
 
-#         # Would like to try running the workload but mp3-short.json has nonzero
-#         # 'priority' fields, and we probably don't have permission for that
-#         # unless we're root.
-#         if self.te.target.is_rooted:
-#             rtapp.run()
+        # Would like to try running the workload but mp3-short.json has nonzero
+        # 'priority' fields, and we probably don't have permission for that
+        # unless we're root.
+        if self.te.target.is_rooted:
+            rtapp.run()
 
-#             # rtapp_cmds = [c for c in self.target.executed_commands
-#             #               if 'rt-app' in c]
-#             # self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
+            # rtapp_cmds = [c for c in self.target.executed_commands
+            #               if 'rt-app' in c]
+            # self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
 
-#             self.assert_output_file_exists('output.log')
-#             self.assert_output_file_exists('test.json')
+            self.assert_output_file_exists('output.log')
+            self.assert_output_file_exists('test.json')
 
-#     def test_custom_smoke_calib(self):
-#         """Test RTA custom workload (providing calibration)"""
-#         self._test_custom_smoke(self.te.get_rtapp_calibration())
+    def test_custom_smoke_calib(self):
+        """Test RTA custom workload (providing calibration)"""
+        self._test_custom_smoke(self.te.get_rtapp_calibration())
 
-#     def test_custom_smoke_no_calib(self):
-#         """Test RTA custom workload (providing no calibration)"""
-#         self._test_custom_smoke(None)
+    def test_custom_smoke_no_calib(self):
+        """Test RTA custom workload (providing no calibration)"""
+        self._test_custom_smoke(None)
 
 
-# DummyBlModule = namedtuple('bl', ['bigs'])
+DummyBlModule = namedtuple('bl', ['bigs'])
 
-# class TestRTACalibrationConf(RTABase):
-#     """Test setting the "calibration" field of rt-app config"""
-#     def _get_calib_conf(self, calibration):
-#         profile = {"test_task" : Periodic()}
-#         rtapp = RTA.by_profile(
-#             self.te.target, name='test', res_dir=self.res_dir, profile=profile,
-#             calibration=calibration)
+class TestRTACalibrationConf(RTABase):
+    """Test setting the "calibration" field of rt-app config"""
+    def _get_calib_conf(self, calibration):
+        profile = {"test_task" : Periodic()}
+        rtapp = RTA.by_profile(
+            self.te, name='test', res_dir=self.res_dir, profile=profile,
+            calibration=calibration)
 
-#         with open(rtapp.local_json) as fh:
-#             return json.load(fh)['global']['calibration']
+        with open(rtapp.local_json) as fh:
+            return json.load(fh)['global']['calibration']
 
-#     def test_calibration_conf_pload(self):
-#         """Test that the smallest pload value is used, if provided"""
-#         cpus = list(range(self.te.target.number_of_cpus))
-#         conf = self._get_calib_conf(dict(list(zip(cpus, [c + 100 for c in cpus]))))
-#         self.assertEqual(conf, 100,
-#                          'Calibration not set to minimum pload value')
+    def test_calibration_conf_pload(self):
+        """Test that the smallest pload value is used, if provided"""
+        conf = self._get_calib_conf(self.te.get_rtapp_calibration())
+        self.assertEqual(conf, 100, 'Calibration not set to minimum pload value')
 
-#     def test_calibration_conf_bl(self):
-#         """Test that a big CPU is used if big.LITTLE data is available"""
-#         self.te.target.modules.append('bl')
-#         self.te.target.bl = DummyBlModule([1, 2])
-#         conf = self._get_calib_conf(None)
-#         self.assertIn(conf, ['CPU{}'.format(c) for c in self.te.target.bl.bigs],
-#                       'Calibration not set to use a big CPU')
+    def test_calibration_conf_bl(self):
+        """Test that a big CPU is used if big.LITTLE data is available"""
+        self.te.target.modules.append('bl')
+        self.te.target.bl = DummyBlModule([1, 2])
+        conf = self._get_calib_conf(None)
+        self.assertIn(conf, ['CPU{}'.format(c) for c in self.te.target.bl.bigs],
+                      'Calibration not set to use a big CPU')
 
-#     def test_calibration_conf_nodata(self):
-#         """Test that the last CPU is used if no data is available"""
-#         conf = self._get_calib_conf(None)
-#         cpu = self.te.target.number_of_cpus - 1
-#         self.assertEqual(conf, 'CPU{}'.format(cpu),
-#                          'Calibration not set to highest numbered CPU')
+    def test_calibration_conf_nodata(self):
+        """Test that the last CPU is used if no data is available"""
+        conf = self._get_calib_conf(None)
+        cpu = self.te.target.number_of_cpus - 1
+        self.assertEqual(conf, 'CPU{}'.format(cpu),
+                         'Calibration not set to highest numbered CPU')
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
