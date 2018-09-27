@@ -35,6 +35,7 @@ class AnalysisProxy(Loggable):
     """
 
     def __init__(self, trace):
+        self.trace = trace
         # Get the list once when the proxy is built, since we know all classes
         # will have had a chance to get registered at that point
         self._class_map = {
@@ -89,9 +90,9 @@ class AnalysisProxy(Loggable):
                         ))
 
                     raise
-
-            analysis_instance = analysis_cls(self)
-            self._instance_map[attr] = analysis_instance
-            return analysis_instance
+            else:
+                analysis_instance = analysis_cls(self.trace)
+                self._instance_map[attr] = analysis_instance
+                return analysis_instance
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
