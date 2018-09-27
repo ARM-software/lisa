@@ -1,0 +1,6 @@
+#! /bin/bash
+
+export EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}
+python3 -m exekall.main "$@"
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

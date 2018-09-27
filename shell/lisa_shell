@@ -34,6 +34,9 @@ if [ "x$DEVMODE" == "x1" ]; then
   export PYTHONPATH="$LISA_HOME/modules_root/:$PYTHONPATH"
 fi
 
+# Add some shell utilities to the PATH
+export PATH=$PATH:$LISA_HOME/shell
+
 ################################################################################
 # Helpers
 ################################################################################
@@ -94,7 +97,7 @@ if [ "x$DEVMODE" == "x1" ]; then
     # Force update existing modules
     echo
     echo 'Developer mode ENABLED, updating local libraries...'
-    "$LISA_HOME/shell/for-each-subtree.py" "$LISA_HOME/external/subtrees.conf" --fetch pull --squash
+    for-each-subtree.py "$LISA_HOME/external/subtrees.conf" --fetch pull --squash
     echo 'DONE'
 fi
 echo -ne "$LISASHELL_DEFAULT"
@@ -283,114 +286,15 @@ echo
 # LISA Tests utility functions
 ################################################################################
 
-function _lisa-test-usage {
-cat <<EOF
-Usage: lisa-test [OPTIONS] [args] FILE[:CLASS]
+export LISA_RESULT_ROOT=$LISA_HOME/results
 
-  Run automated tests. Tests can be found under the tests/ directory.
-  Only one python file can be specified at a time, otherwise the results might
-  not be valid.
-
-  Valid OPTIONS are:
-
-  --iterations (or -n) sets the number of iterations to use for
-    each workload/target-conf, for tests that support this usage. 0 means use
-    the test's default iteration count.
-
-  --target-conf (or -t) sets an alternative target.config file.
-
-  --results-dir (or -o) sets the output directory of the tests.
-
-  This is a wrapper for the 'nosetests' utility, additional arguments are passed
-  to that tool.
-
-  Examples:
-    Run all EAS Generic tests:
-
-      lisa-test tests/eas/generic.py
-
-    Run RampUp test from EAS Generic suite:
-
-      lisa-test tests/eas/generic.py:RampUp
-
-    Run RampUp test from EAS Generic suite, generating an XML test
-    report via nose's XUnit plugin (see nosetests documentation):
-
-      lisa-test --with-xunit --xunit-file=report.xml tests/eas/generic.py:RampUp
-
-    Run RampUp test from EAS Generic suite, repeating the
-    workload 10 times and reporting how many times the test run
-    passed:
-
-      lisa-test --iterations 10 tests/eas/generic.py:RampUp
-
-    Run EAS Generic suite, repeating each workload 10 times:
-
-      lisa-test --iterations 10 tests/eas/generic.py
-EOF
-}
-
-function _lisa-test {
-if [ -n "$LISA_RESULTS_DIR" ]; then
-  mkdir -p "$LISA_RESULTS_DIR"
-  # There is no sensible place to store results.xml when the directory is not
-  # set explicitely, as the Python scripts decide where to put the results..
-  # Using results_latest symlink is not an option as it would race if using the
-  # same tree to run multiple tests on different boards at the same time.
-  local xunit_options=(--with-xunit --xunit-file="$LISA_RESULTS_DIR/results.xml")
-fi
-nosetests -v --nocapture --nologcapture    \
-          --logging-config=logging.conf    \
-          "${xunit_options[@]}"            \
-          "$@"
+function exekall {
+    EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}   \
+    python3 -m exekall.main "$@"
 }
 
 function lisa-test {
-local extra_args=()
-
-echo
-while [[ $# -gt 0 ]]; do
-        case "$1" in
-                help|-h|--help)
-                        _lisa-test-usage
-                        return 0
-                        ;;
-                -n|--iterations)
-                        LISA_TEST_ITERATIONS="$2"
-                        shift
-                        ;;
-
-                -t|--target-conf)
-                        LISA_TARGET_CONF="$2"
-                        shift
-                        ;;
-                -o|--results-dir)
-                        LISA_RESULTS_DIR="$2"
-                        shift
-                        ;;
-                *)
-                        # Unrecognised args are passed through to nosetests
-                        extra_args+=("$1")
-                        ;;
-        esac
-        shift
-done
-
-if [ -z "${extra_args[*]}" ]; then
-        # No arguments provided, default to "help"
-        _lisa-test-usage
-        return 1
-fi
-
-# Execute in a sub-shell
-(
-  export LISA_TEST_ITERATIONS LISA_TARGET_CONF LISA_RESULTS_DIR
-  _lisa-test "${extra_args[@]}"
-)
-local retcode=$?
-echo
-echo
-return $retcode
+    exekall "$@"
 }
 
 function lisa-report {
@@ -409,9 +313,6 @@ echo
 echo
 }
 
-function exekall {
-   python3 -m exekall.main "$@"
-}
 
 ################################################################################
 # LISA Workloads utility functions
