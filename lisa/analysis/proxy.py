@@ -17,6 +17,7 @@
 
 """ Helper module for registering Analysis classes methods """
 
+import contextlib
 import os
 import sys
 import logging
@@ -78,10 +79,8 @@ class AnalysisProxy(Loggable):
                     logger.debug('{} not found. Registered analysis:'.format(attr))
                     for name, cls in list(self._class_map.items()):
                         src_file = '<unknown source>'
-                        try:
+                        with contextlib.suppress(TypeError):
                             src_file = inspect.getsourcefile(cls) or src_file
-                        except TypeError:
-                            pass
 
                         logger.debug('{name} ({cls}) defined in {src}'.format(
                             name=name,
