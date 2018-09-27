@@ -126,9 +126,6 @@ class Trace(Loggable):
         logger.info('Parsing trace assuming kernel v%d.%d',
                        self.kernel_version.parts[0], self.kernel_version.parts[1])
 
-        # Version of the traced kernel
-        self.kernel_version = None
-
         # Folder containing trace
         self.data_dir = data_dir
 
