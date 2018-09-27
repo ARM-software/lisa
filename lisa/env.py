@@ -817,8 +817,8 @@ class TestEnv(Loggable):
         :param output_file: Filepath for the trace to be created
         :type output_file: str
         """
-        res_dir = self.get_res_dir()
         if not output_file:
+            res_dir = self.get_res_dir()
             output_file = os.path.join(res_dir, 'trace.dat')
 
         self.ftrace.start()
@@ -826,6 +826,6 @@ class TestEnv(Loggable):
         yield
 
         self.ftrace.stop()
-        self.ftrace.get_trace(str(output_file))
+        self.ftrace.get_trace(output_file)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
