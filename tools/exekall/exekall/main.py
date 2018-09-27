@@ -55,8 +55,15 @@ def _main(argv):
     run_parser.add_argument('--modules-root', action='append', default=[],
         help="Equivalent to setting PYTHONPATH")
 
-    run_parser.add_argument('--result-root', default='results',
-        help="Folder in which the test artifacts will be stored")
+    artifact_dir_group = run_parser.add_mutually_exclusive_group()
+    artifact_dir_group.add_argument('--artifact-root',
+        default=os.getenv('EXEKALL_ARTIFACT_ROOT', 'artifacts'),
+        help="Root folder under which the artifact folders will be created")
+
+    artifact_dir_group.add_argument('--artifact-dir',
+        default=os.getenv('EXEKALL_ARTIFACT_DIR'),
+        help="""Folder in which the artifacts will be stored. This take
+        precedence over --artifact-root""")
 
     run_parser.add_argument('--load-db',
         help="""Reload a database and use its results as prebuilt objects.""")
@@ -183,8 +190,6 @@ the parameter, the start value, stop value and step size.""")
     verbose = args.verbose
     dry_run = args.dry_run
     only_template_scripts = args.template_scripts
-
-    result_root = pathlib.Path(args.result_root)
 
     goal_pattern = args.goal
 
@@ -442,11 +447,20 @@ the parameter, the start value, stop value and step size.""")
 
     date = datetime.datetime.now().strftime('%Y%m%d_%H:%M:%S')
     testsession_uuid = engine.create_uuid()
+
     if only_template_scripts:
-        artifact_root = pathlib.Path(only_template_scripts)
+        artifact_dir = pathlib.Path(only_template_scripts)
+    elif args.artifact_dir:
+        artifact_dir = pathlib.Path(args.artifact_dir)
+    # If we are not given a specific folder, we create one under the root we
+    # were given
     else:
-        artifact_root = pathlib.Path(result_root, date + '_' + testsession_uuid)
-    artifact_root = artifact_root.resolve()
+        artifact_dir = pathlib.Path(args.artifact_root, date + '_' + testsession_uuid)
+
+    artifact_dir = artifact_dir.resolve()
+    # Update the CLI arguments so the customization module has access to the
+    # correct value
+    args.artifact_dir = artifact_dir
 
     print('The following expressions will be executed:\n')
     for testcase in testcase_list:
@@ -460,9 +474,9 @@ the parameter, the start value, stop value and step size.""")
     if dry_run:
         return 0
 
-    artifact_root.mkdir(parents=True)
+    artifact_dir.mkdir(parents=True)
     if not only_template_scripts:
-        with open(str(artifact_root.joinpath('UUID')), 'wt') as f:
+        with open(str(artifact_dir.joinpath('UUID')), 'wt') as f:
             f.write(testsession_uuid+'\n')
 
     db_loader = adaptor.get_db_loader()
@@ -488,21 +502,21 @@ the parameter, the start value, stop value and step size.""")
         data['id'] = testcase_id
         data['uuid'] = testcase.uuid
 
-        testcase_artifact_root = pathlib.Path(
-            artifact_root,
+        testcase_artifact_dir = pathlib.Path(
+            artifact_dir,
             testcase.op.get_name(full_qual=False),
             testcase_short_id,
             testcase.uuid
         ).resolve()
-        testcase_artifact_root.mkdir(parents=True)
-        data['artifact_root'] = artifact_root
-        data['testcase_artifact_root'] = testcase_artifact_root
+        testcase_artifact_dir.mkdir(parents=True)
+        data['artifact_dir'] = artifact_dir
+        data['testcase_artifact_dir'] = testcase_artifact_dir
 
-        with open(str(testcase_artifact_root.joinpath('ID')), 'wt') as f:
+        with open(str(testcase_artifact_dir.joinpath('ID')), 'wt') as f:
             f.write(testcase_id+'\n')
 
         with open(
-            str(testcase_artifact_root.joinpath('testcase_template.py')),
+            str(testcase_artifact_dir.joinpath('testcase_template.py')),
             'wt', encoding='utf-8'
         ) as f:
             f.write(
@@ -530,7 +544,7 @@ the parameter, the start value, stop value and step size.""")
                     hidden_callable_set=hidden_callable_set,
                     full_qual = True
                 )),
-                folder=testcase.data['testcase_artifact_root']
+                folder=testcase.data['testcase_artifact_dir']
         ).replace('\n', '\n# ')
 
         delim = '#' * (len(exec_start_msg.splitlines()[0]) + 2)
@@ -595,14 +609,14 @@ the parameter, the start value, stop value and step size.""")
 
 
         print()
-        testcase_artifact_root = testcase.data['testcase_artifact_root']
+        testcase_artifact_dir = testcase.data['testcase_artifact_dir']
 
         # Finalize the computation
         adaptor.finalize_expr(testcase)
 
         # Dump the reproducer script
         with open(
-            str(testcase_artifact_root.joinpath('testcase.py')),
+            str(testcase_artifact_dir.joinpath('testcase.py')),
             'wt', encoding='utf-8'
         ) as f:
             f.write(
@@ -615,7 +629,7 @@ the parameter, the start value, stop value and step size.""")
             )
 
 
-        with open(str(testcase_artifact_root.joinpath('UUID')), 'wt') as f:
+        with open(str(testcase_artifact_dir.joinpath('UUID')), 'wt') as f:
             for expr_val in result_list:
                 if expr_val.value is not NoValue:
                     f.write(expr_val.value_uuid + '\n')
@@ -630,7 +644,7 @@ the parameter, the start value, stop value and step size.""")
     )
     db = engine.StorageDB(obj_store)
 
-    db_path = artifact_root.joinpath('storage.yml.gz')
+    db_path = artifact_dir.joinpath('storage.yml.gz')
     db.to_path(db_path)
 
     print('#'*80)
@@ -640,10 +654,10 @@ the parameter, the start value, stop value and step size.""")
     adaptor.process_results(result_map)
 
     # Output the merged script with all subscripts
-    script_path = artifact_root.joinpath('all_scripts.py')
+    script_path = artifact_dir.joinpath('all_scripts.py')
     result_name_map, all_scripts = engine.Expression.get_all_script(
         testcase_list, prefix='testcase',
-        db_path=db_path.relative_to(artifact_root),
+        db_path=db_path.relative_to(artifact_dir),
         db_relative_to='__file__',
         obj_store=obj_store,
         db_loader=adaptor.get_db_loader()

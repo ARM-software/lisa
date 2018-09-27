@@ -35,7 +35,7 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
         path_str = super().__new__(cls, str(path), *args, **kwargs)
         # Record the actual root, so we can relocate the path later with an
         # updated root
-        path_str.artifact_root = root
+        path_str.artifact_dir = root
         return path_str
 
     def __fspath__(self):
@@ -44,26 +44,26 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
     def __reduce__(self):
         # Serialize the path relatively to the root, so it can be relocated
         # easily
-        relative = self.relative_to(self.artifact_root)
-        return (type(self), (self.artifact_root, relative))
+        relative = self.relative_to(self.artifact_dir)
+        return (type(self), (self.artifact_dir, relative))
 
     def relative_to(self, path):
         return os.path.relpath(self, start=path)
 
-    def with_artifact_root(self, artifact_root):
+    def with_artifact_dir(self, artifact_dir):
         # Get the path relative to the old root
-        relative = self.relative_to(self.artifact_root)
+        relative = self.relative_to(self.artifact_dir)
 
-        # Swap-in the new artifact_root and return a new instance
-        return type(self)(artifact_root, relative)
+        # Swap-in the new artifact_dir and return a new instance
+        return type(self)(artifact_dir, relative)
 
     @classmethod
     def from_expr_data(cls, data:ExprData, consumer:Consumer) -> 'ArtifactStorage':
         """
         Factory used when running under `exekall`
         """
-        artifact_root = Path(data['artifact_root']).resolve()
-        root = data['testcase_artifact_root']
+        artifact_dir = Path(data['artifact_dir']).resolve()
+        root = data['testcase_artifact_dir']
         consumer_name = get_name(consumer)
 
         # Find a non-used directory
@@ -80,8 +80,8 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
             path = artifact_dir
         ))
         artifact_dir.mkdir(parents=True)
-        relative = artifact_dir.relative_to(artifact_root)
-        return cls(artifact_root, relative)
+        relative = artifact_dir.relative_to(artifact_dir)
+        return cls(artifact_dir, relative)
 
 class LISAAdaptor(AdaptorBase):
     name = 'LISA'
@@ -110,9 +110,6 @@ class LISAAdaptor(AdaptorBase):
         parser.add_argument('--target-conf', action='append',
             help="Target config file")
 
-        parser.add_argument('--xunit',
-            help="xUnit XML output")
-
     def get_db_loader(self):
         return self.load_db
 
@@ -120,7 +117,7 @@ class LISAAdaptor(AdaptorBase):
     def load_db(cls, db_path, *args, **kwargs):
         # This will relocate ArtifactStorage instances to the new absolute path
         # of the results folder, in case it has been moved to another place
-        artifact_root = Path(db_path).parent.resolve()
+        artifact_dir = Path(db_path).parent.resolve()
         db = engine.StorageDB.from_path(db_path, *args, **kwargs)
 
         # Relocate ArtifactStorage embeded in objects so they will always
@@ -134,18 +131,18 @@ class LISAAdaptor(AdaptorBase):
             for attr, attr_val in dct.items():
                 if isinstance(attr_val, ArtifactStorage):
                     setattr(val, attr,
-                        attr_val.with_artifact_root(artifact_root)
+                        attr_val.with_artifact_dir(artifact_dir)
                     )
 
         return db
 
     def finalize_expr(self, expr):
-        testcase_artifact_root = expr.data['testcase_artifact_root']
-        artifact_root = expr.data['artifact_root']
+        testcase_artifact_dir = expr.data['testcase_artifact_dir']
+        artifact_dir = expr.data['artifact_dir']
         for expr_val in expr.get_all_values():
-            self._finalize_expr_val(expr_val, artifact_root, testcase_artifact_root)
+            self._finalize_expr_val(expr_val, artifact_dir, testcase_artifact_dir)
 
-    def _finalize_expr_val(self, expr_val, artifact_root, testcase_artifact_root):
+    def _finalize_expr_val(self, expr_val, artifact_dir, testcase_artifact_dir):
         val = expr_val.value
 
         # Add symlinks to artifact folders for ExprValue that were used in the
@@ -154,25 +151,25 @@ class LISAAdaptor(AdaptorBase):
             try:
                 # If the folder is already a subfolder of our artifacts, we
                 # don't need to do anything
-                val.relative_to(testcase_artifact_root)
+                val.relative_to(testcase_artifact_dir)
             # Otherwise, that means that such folder is reachable from our
             # parent ExprValue and we want to get a symlink to them
             except ValueError:
                 # We get the name of the callable
                 callable_folder = val.parts[-2]
-                folder = testcase_artifact_root/callable_folder
+                folder = testcase_artifact_dir/callable_folder
 
                 # TODO: check os.path.relpath
                 # We build a relative path back in the hierarchy to the root of
                 # all artifacts
-                relative_artifact_root = Path(*(
+                relative_artifact_dir = Path(*(
                     '..' for part in
-                    folder.relative_to(artifact_root).parts
+                    folder.relative_to(artifact_dir).parts
                 ))
 
                 # The target needs to be a relative symlink, so we replace the
-                # absolute artifact_root by a relative version of it
-                target = relative_artifact_root/val.relative_to(artifact_root)
+                # absolute artifact_dir by a relative version of it
+                target = relative_artifact_dir/val.relative_to(artifact_dir)
 
                 with contextlib.suppress(FileExistsError):
                     folder.mkdir(parents=True)
@@ -185,7 +182,7 @@ class LISAAdaptor(AdaptorBase):
                 symlink.symlink_to(target, target_is_directory=True)
 
         for param, param_expr_val in expr_val.param_value_map.items():
-            self._finalize_expr_val(param_expr_val, artifact_root, testcase_artifact_root)
+            self._finalize_expr_val(param_expr_val, artifact_dir, testcase_artifact_dir)
 
 
     def process_results(self, result_map):
@@ -195,12 +192,11 @@ class LISAAdaptor(AdaptorBase):
         #  https://github.com/jenkinsci/xunit-plugin/blob/master/src/main/resources/org/jenkinsci/plugins/xunit/types/model/xsd/junit-10.xsd
         # This way, Jenkins should be able to read it, and other tools as well
 
-        xunit_path = self.args.xunit
-        if xunit_path:
-            et_root = self.create_xunit(result_map, self.hidden_callable_set)
-            et_tree = ET.ElementTree(et_root)
-            utils.info('Writing xUnit file at: ' + xunit_path)
-            et_tree.write(xunit_path)
+        xunit_path = os.path.join(self.args.artifact_dir, 'xunit.xml')
+        et_root = self.create_xunit(result_map, self.hidden_callable_set)
+        et_tree = ET.ElementTree(et_root)
+        utils.info('Writing xUnit file at: ' + xunit_path)
+        et_tree.write(xunit_path)
 
     def create_xunit(self, result_map, hidden_callable_set):
         et_testsuites = ET.Element('testsuites')
@@ -263,7 +259,6 @@ class LISAAdaptor(AdaptorBase):
 
 def append_result_tag(et_testcase, result, type_, short_msg, msg):
     et_result = ET.SubElement(et_testcase, result, dict(
-        #TODO: add base classes in an extra attribute
         type=get_name(type_, full_qual=True),
         type_bases=','.join(
             get_name(type_, full_qual=True)
