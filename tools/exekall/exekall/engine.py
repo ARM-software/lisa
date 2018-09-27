@@ -1100,11 +1100,11 @@ class Expression:
         }
 
     @classmethod
-    def execute_all(cls, *args, **kwargs):
-        executor_map = cls.get_executor_map(*args, **kwargs)
+    def execute_all(cls, expr_wrapper_list, *args, **kwargs):
+        executor_map = cls.get_executor_map(expr_wrapper_list)
 
         for expr_wrapper, executor in executor_map.items():
-            for expr_val in executor():
+            for expr_val in executor(*args, **kwargs):
                 yield (expr_wrapper, expr_val)
 
     def _prepare_exec(self, expr_set):
@@ -1128,10 +1128,10 @@ class Expression:
             expr_set.add(self)
             return self
 
-    def execute(self, consumer_expr_stack=None):
-        if consumer_expr_stack is None:
-            consumer_expr_stack = []
+    def execute(self, post_compute_cb=None):
+        return self._execute([], post_compute_cb)
 
+    def _execute(self, consumer_expr_stack, post_compute_cb):
         # Lazily compute the values of the Expression, trying to use
         # already computed values when possible
 
@@ -1141,7 +1141,10 @@ class Expression:
 
         # Get all the generators for reusable parameters
         reusable_param_exec_map = OrderedDict(
-            (param, param_expr.execute(consumer_expr_stack=consumer_expr_stack + [self]))
+            (param, param_expr._execute(
+                consumer_expr_stack=consumer_expr_stack + [self],
+                post_compute_cb=post_compute_cb,
+            ))
             for param, param_expr in self.param_map.items()
             if param_expr.op.reusable
         )
@@ -1168,7 +1171,6 @@ class Expression:
                     # that was computed with a given param_expr_val_map
                     assert len(result_list) == 1
                     expr_val_seq = result_list[0]
-                    #TODO: call a callback for logging what we reused
                     yield from expr_val_seq.get_expr_value_iter()
                     continue
 
@@ -1182,7 +1184,10 @@ class Expression:
                 # don't take their cartesian product since we have fresh values
                 # for all operator calls.
                 nonreusable_param_exec_map = OrderedDict(
-                    (param, param_expr.execute(consumer_expr_stack=consumer_expr_stack + [self]))
+                    (param, param_expr._execute(
+                        consumer_expr_stack=consumer_expr_stack + [self],
+                        post_compute_cb=post_compute_cb,
+                    ))
                     for param, param_expr in self.param_map.items()
                     if not param_expr.op.reusable
                 )
@@ -1200,7 +1205,10 @@ class Expression:
                 any_value_is_NoValue(param_expr_val_map.values())
             ):
                 expr_val = ExprValue(self, param_expr_val_map)
-                expr_val_seq = ExprValueSeq(self, None, param_expr_val_map)
+                expr_val_seq = ExprValueSeq(
+                    self, None, param_expr_val_map,
+                    post_compute_cb
+                )
                 expr_val_seq.value_list.append(expr_val)
                 expr_val_seq.completed = True
                 self.result_list.append(expr_val_seq)
@@ -1233,7 +1241,10 @@ class Expression:
                 iterated = self.op.generator_wrapper(**param_value_map)
 
             iterator = iter(iterated)
-            expr_val_seq = ExprValueSeq(self, iterator, param_expr_val_map)
+            expr_val_seq = ExprValueSeq(
+                self, iterator, param_expr_val_map,
+                post_compute_cb
+            )
             self.result_list.append(expr_val_seq)
             yield from expr_val_seq.get_expr_value_iter()
 
@@ -1710,16 +1721,26 @@ def reusable(reusable=Operator.REUSABLE_DEFAULT):
     return decorator
 
 class ExprValueSeq:
-    def __init__(self, expr, iterator, param_expr_val_map):
+    def __init__(self, expr, iterator, param_expr_val_map, post_compute_cb=None):
         self.expr = expr
         self.iterator = iterator
         self.value_list = list()
         self.param_expr_val_map = param_expr_val_map
         self.completed = False
+        self.post_compute_cb = post_compute_cb
 
     def get_expr_value_iter(self):
+        callback = self.post_compute_cb
+        if not callback:
+            callback = lambda x,y: None
+
+        def yielder(iteratable, reused):
+            for x in iteratable:
+                callback(x, reused=reused)
+                yield x
+
         # Yield existing values
-        yield from self.value_list
+        yield from yielder(self.value_list, True)
 
         # Then compute the remaining ones
         if not self.completed:
@@ -1728,6 +1749,8 @@ class ExprValueSeq:
                     value, value_uuid,
                     excep, excep_uuid
                 )
+                callback(expr_val, reused=False)
+
                 self.value_list.append(expr_val)
                 value_list_idx = len(self.value_list) - 1
                 yield expr_val
@@ -1738,8 +1761,10 @@ class ExprValueSeq:
                 if value_list_idx != len(self.value_list) - 1:
                     # This will yield all values, even if the list grows while
                     # we are yielding the control back to another piece of code.
-                    yield from self.value_list[value_list_idx + 1:]
-
+                    yield from yielder(
+                        self.value_list[value_list_idx + 1:],
+                        True
+                    )
 
             self.completed = True
 

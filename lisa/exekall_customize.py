@@ -75,7 +75,7 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
         # Get canonical absolute paths
         artifact_dir = artifact_dir.resolve()
 
-        cls.get_logger().info('Creating {consumer} storage: {path}'.format(
+        cls.get_logger().info('Creating {consumer} artifact storage: {path}'.format(
             consumer = consumer_name,
             path = artifact_dir
         ))
@@ -232,7 +232,7 @@ class LISAAdaptor(AdaptorBase):
                         excep = failed_expr_val.excep
                         result = 'error'
                         short_msg = str(excep)
-                        msg = traceback.format_exception(type(e), e, e.__traceback__)
+                        msg = traceback.format_exception(type(excep), excep, excep.__traceback__)
                         type_ = type(excep)
 
                         append_result_tag(et_testcase, result, type_, short_msg, msg)

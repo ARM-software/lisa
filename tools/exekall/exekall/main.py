@@ -553,7 +553,8 @@ the parameter, the start value, stop value and step size.""")
         result_list = list()
         result_map[testcase] = result_list
 
-        pre_line = lambda: print('-' * 40)
+        def pre_line():
+            print('-' * 40)
         # Make sure that all the output of the expression is flushed before we
         # print on stdout, to ensure there won't be any buffered stderr output
         # being displayed after the "official" end of the Expression's
@@ -561,8 +562,28 @@ the parameter, the start value, stop value and step size.""")
         def flush_std_streams():
             sys.stdout.flush()
             sys.stderr.flush()
+
+        def log_expr_val(expr_val, reused):
+            if expr_val.expr.op.callable_ in hidden_callable_set:
+                return
+
+            if reused:
+                msg='Reusing {id} UUID={uuid}'
+            else:
+                msg='Computed {id} UUID={uuid}'
+            info(msg.format(
+                id=expr_val.get_id(
+                    full_qual=False,
+                    with_tags=True,
+                    hidden_callable_set=hidden_callable_set,
+                ),
+                uuid = expr_val.value_uuid
+            ))
+
+        executor = executor(log_expr_val)
+
         print()
-        for result in utils.iterate_cb(executor(), pre_line, flush_std_streams):
+        for result in utils.iterate_cb(executor, pre_line, flush_std_streams):
             for failed_val in result.get_failed_values():
                 excep = failed_val.excep
                 tb_list = traceback.format_exception(type(excep), excep, excep.__traceback__)
