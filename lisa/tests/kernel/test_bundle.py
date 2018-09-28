@@ -20,6 +20,8 @@ import os
 import os.path
 import abc
 
+from collections.abc import Mapping
+
 from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
 from lisa.perf_analysis import PerfAnalysis
@@ -40,9 +42,14 @@ class TestMetric:
         self.units = units
 
     def __str__(self):
-        result = '{}'.format(self.data)
+        if isinstance(self.data, Mapping):
+            return '{{{}}}'.format(', '.join(
+                ["{}={}".format(name, data) for name, data in self.data.items()]))
+
+        result = str(self.data)
         if self.units:
             result += ' ' + self.units
+
         return result
 
     def __repr__(self):
