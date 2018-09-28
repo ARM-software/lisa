@@ -14,6 +14,7 @@ import fnmatch
 import contextlib
 import types
 import traceback
+import logging
 
 import exekall.engine as engine
 
@@ -327,27 +328,6 @@ def unique_type(*param_list):
 
     return decorator
 
-
-def _get_logger():
-    return logging.getLogger('EXEKALL')
-
-def info(msg):
-    """Write a log message at the INFO level."""
-    _get_logger().info(msg)
-
-def debug(msg):
-    """Write a log message at the DEBUG level."""
-    _get_logger().debug(msg)
-
-def warn(msg):
-    """Write a log message at the WARNING level."""
-    _get_logger().warning(msg)
-
-def error(msg):
-    """Write a log message at the ERROR level."""
-    _get_logger().error(msg)
-
-
 # Call the given function at most once per set of parameters
 once = functools.lru_cache()
 
@@ -366,4 +346,59 @@ def iterate_cb(iterator, pre_hook=None, post_hook=None):
 def format_exception(e):
     elements = traceback.format_exception(type(e), e, e.__traceback__)
     return ''.join(elements)
+
+# Logging level above CRITICAL that is always displayed and used for output
+LOGGING_OUT_LEVEL = 60
+
+class ExekallFormatter(logging.Formatter):
+    def __init__(self, fmt, *args, **kwargs):
+        self.default_fmt = logging.Formatter(fmt, *args, **kwargs)
+        self.out_fmt = logging.Formatter('%(message)s', *args, **kwargs)
+
+    def format(self, record):
+        # level above CRITICAL, so it is always displayed
+        if record.levelno == LOGGING_OUT_LEVEL:
+            return self.out_fmt.format(record)
+        # regular levels are logged with the regular formatter
+        else:
+            return self.default_fmt.format(record)
+
+def setup_logging(log_level, verbose=False):
+    logging.addLevelName(LOGGING_OUT_LEVEL, 'OUT')
+    level=getattr(logging, log_level.upper())
+    if verbose:
+        fmt = '[%(name)s/%(filename)s:%(lineno)s][%(asctime)s] %(levelname)s  %(message)s'
+    else:
+        fmt = '[%(name)s][%(asctime)s] %(levelname)s  %(message)s'
+    formatter = ExekallFormatter(fmt)
+
+    logger = logging.getLogger()
+    logger.setLevel(level)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(level)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+EXEKALL_LOGGER  = logging.getLogger('EXEKALL')
+
+def out(msg):
+    EXEKALL_LOGGER.log(LOGGING_OUT_LEVEL, msg)
+
+def info(msg):
+    """Write a log message at the INFO level."""
+    EXEKALL_LOGGER.info(msg)
+
+def debug(msg):
+    """Write a log message at the DEBUG level."""
+    EXEKALL_LOGGER.debug(msg)
+
+def warn(msg):
+    """Write a log message at the WARNING level."""
+    EXEKALL_LOGGER.warning(msg)
+
+def error(msg):
+    """Write a log message at the ERROR level."""
+    EXEKALL_LOGGER.error(msg)
+
 

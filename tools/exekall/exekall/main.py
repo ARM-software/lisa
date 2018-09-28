@@ -25,7 +25,7 @@ from exekall.customization import AdaptorBase
 import exekall.engine as engine
 from exekall.engine import take_first, NoValue
 import exekall.utils as utils
-from exekall.utils import error, warn, debug, info
+from exekall.utils import error, warn, debug, info, out
 
 def _main(argv):
     parser = argparse.ArgumentParser(description="""
@@ -184,15 +184,11 @@ the name of the parameter, the start value, stop value and step size.""")
     # arguments.
     args = parser.parse_args(argv)
 
-    logging.basicConfig(
-        level=getattr(logging, args.log_level.upper()),
-        format='[%(name)s][%(asctime)s] %(levelname)s  %(message)s',
-        stream=sys.stdout,
-    )
+    verbose = args.verbose
+    utils.setup_logging(args.log_level, verbose)
 
     adaptor = adaptor_cls(args)
 
-    verbose = args.verbose
     dry_run = args.dry_run
     only_template_scripts = args.template_scripts
 
@@ -467,14 +463,14 @@ the name of the parameter, the start value, stop value and step size.""")
     # correct value
     args.artifact_dir = artifact_dir
 
-    print('The following expressions will be executed:\n')
+    out('The following expressions will be executed:\n')
     for testcase in testcase_list:
-        print(take_first(testcase.get_id(
+        out(take_first(testcase.get_id(
             full_qual = verbose,
             hidden_callable_set=hidden_callable_set
         )))
         if verbose:
-            print(testcase.pretty_structure() + '\n')
+            out(testcase.pretty_structure() + '\n')
 
     if dry_run:
         return 0
@@ -536,7 +532,7 @@ the name of the parameter, the start value, stop value and step size.""")
     if only_template_scripts:
         return 0
 
-    print('\n')
+    out('\n')
     result_map = collections.defaultdict(list)
     for testcase, executor in engine.Expression.get_executor_map(testcase_list).items():
         exec_start_msg = 'Executing: {short_id}\n\nFull ID: {full_id}\nArtifacts: {folder}'.format(
@@ -553,17 +549,16 @@ the name of the parameter, the start value, stop value and step size.""")
         ).replace('\n', '\n# ')
 
         delim = '#' * (len(exec_start_msg.splitlines()[0]) + 2)
-        print(delim + '\n# ' + exec_start_msg + '\n' + delim)
+        out(delim + '\n# ' + exec_start_msg + '\n' + delim)
 
         result_list = list()
         result_map[testcase] = result_list
 
         def pre_line():
-            print('-' * 40)
-        # Make sure that all the output of the expression is flushed before we
-        # print on stdout, to ensure there won't be any buffered stderr output
-        # being displayed after the "official" end of the Expression's
-        # execution.
+            out('-' * 40)
+        # Make sure that all the output of the expression is flushed to ensure
+        # there won't be any buffered stderr output being displayed after the
+        # "official" end of the Expression's execution.
         def flush_std_streams():
             sys.stdout.flush()
             sys.stderr.flush()
@@ -587,7 +582,7 @@ the name of the parameter, the start value, stop value and step size.""")
 
         executor = executor(log_expr_val)
 
-        print()
+        out('')
         for result in utils.iterate_cb(executor, pre_line, flush_std_streams):
             for failed_val in result.get_failed_values():
                 excep = failed_val.excep
@@ -620,8 +615,9 @@ the name of the parameter, the start value, stop value and step size.""")
                 )
             ))
             prefix = 'Full ID: '
-            #TODO: turn these prints into logs output, so they end up on the same stderr or file
-            print('{prefix}{id}{uuid_str}'.format(
+            #TODO: turn these prints into logs output, so they end up on the
+            # same stderr or file as the logging output
+            out('{prefix}{id}{uuid_str}'.format(
                 id=result.get_id(
                     mark_excep=True,
                     hidden_callable_set=hidden_callable_set
@@ -629,11 +625,11 @@ the name of the parameter, the start value, stop value and step size.""")
                 prefix=prefix,
                 uuid_str = uuid_str
             ))
-            print(adaptor.result_str(result))
+            out(adaptor.result_str(result))
             result_list.append(result)
 
 
-        print()
+        out('')
         testcase_artifact_dir = testcase.data['testcase_artifact_dir']
 
         # Finalize the computation
@@ -672,7 +668,7 @@ the name of the parameter, the start value, stop value and step size.""")
     db_path = artifact_dir.joinpath('storage.yml.gz')
     db.to_path(db_path)
 
-    print('#'*80)
+    out('#'*80)
     info('Result summary:\n')
 
     # Display the results
