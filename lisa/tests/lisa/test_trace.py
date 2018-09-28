@@ -22,8 +22,9 @@ import numpy as np
 import pandas as pd
 
 from lisa.trace import Trace
+from lisa.tests.lisa.utils import StorageTestCase
 
-class TestTrace(TestCase):
+class TestTrace(StorageTestCase):
     """Smoke tests for LISA's Trace class"""
 
     traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
@@ -51,11 +52,12 @@ class TestTrace(TestCase):
         """
         Get a trace from an embedded string of textual trace data
         """
-        with open(self.test_trace, "w") as fout:
+        trace_path = os.path.join(self.res_dir, "test_trace.txt")
+        with open(trace_path, "w") as fout:
             fout.write(in_data)
 
-        return Trace(self.test_trace, self.events,
-                     self.platform, normalize_time=False)
+        return Trace(trace_path, self.events, self.platform,
+                     normalize_time=False, plots_dir=self.res_dir)
 
     def get_trace(self, trace_name):
         """
@@ -108,8 +110,6 @@ class TestTrace(TestCase):
         self.assertEqual(trace.getTaskByPid(1234), 'father')
         self.assertEqual(trace.getTaskByPid(5678), 'child')
         self.assertEqual(trace.getTaskByName('father'), [1234])
-
-        os.remove(self.test_trace)
 
     def test_time_range(self):
         """
