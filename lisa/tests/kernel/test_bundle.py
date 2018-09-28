@@ -123,6 +123,12 @@ class ResultBundle:
         """
         self.metrics[name] = TestMetric(data, units)
 
+class CannotCreateError(RuntimeError):
+    """
+    Something prevented the creation of a :class:`TestBundle` instance
+    """
+    pass
+
 class TestBundle(Serializable, abc.ABC):
     """
     A LISA test bundle.
@@ -213,6 +219,32 @@ class TestBundle(Serializable, abc.ABC):
         pass
 
     @classmethod
+    def check_from_target(cls, te):
+        """
+        Check whether the given target can be used to create an instance of this class
+
+        :raises: CannotCreateError if the check fails
+
+        This method should be overriden to check your implementation requirements
+        """
+        pass
+
+    @classmethod
+    def can_create_from_target(cls, te):
+        """
+        :returns: Whether the given target can be used to create an instance of this class
+        :rtype: bool
+
+        :meth:`check_from_target` is used internally, so there shouldn't be any
+          need to override this.
+        """
+        try:
+            cls.check_from_target(te)
+            return True
+        except:
+            return False
+
+    @classmethod
     def from_target(cls, te, res_dir=None, **kwargs):
         """
         Factory method to create a bundle using a live target
@@ -222,6 +254,8 @@ class TestBundle(Serializable, abc.ABC):
         Unless you know what you are doing, you should not override this method,
         but the internal :meth:`_from_target` instead.
         """
+        cls.check_from_target(te)
+
         if not res_dir:
             res_dir = te.get_res_dir()
 
