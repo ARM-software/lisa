@@ -57,6 +57,7 @@ workloads:
     classifiers:
        tag: mov_720p_3s
     workload_parameters:
+      version: 2.4
       format: "mov_720p"
       duration: 3
       landscape: True
@@ -67,6 +68,7 @@ workloads:
     classifiers:
        tag: ogg_128kbps_3s
     workload_parameters:
+      version: 2.4
       format: "ogg_128kbps"
       duration: 3
 
@@ -78,6 +80,8 @@ workloads:
     classifiers:
        tag: iter_5
     iterations: 5
+    runtime_parameters:
+      airplane_mode: false
 
 ################################################################################
 # Geekbench
@@ -98,7 +102,7 @@ workloads:
     classifiers:
       tag: iter_3
     workload_parameters:
-      test: list_view
+      test_ids: list_view
     iterations: 3
 
   - name: jankbench
@@ -106,7 +110,7 @@ workloads:
     classifiers:
       tag: iter_3
     workload_parameters:
-      test: image_list_view
+      test_ids: image_list_view
     iterations: 3
 
   - name: jankbench
@@ -114,7 +118,7 @@ workloads:
     classifiers:
       tag: iter_3
     workload_parameters:
-      test: shadow_grid
+      test_ids: shadow_grid
     iterations: 3
 
   - name: jankbench
@@ -122,7 +126,7 @@ workloads:
     classifiers:
       tag: iter_3
     workload_parameters:
-      test: low_hitrate_text
+      test_ids: low_hitrate_text
     iterations: 3
 
   - name: jankbench
@@ -130,5 +134,5 @@ workloads:
     classifiers:
       tag: iter_3
     workload_parameters:
-      test: edit_text
+      test_ids: edit_text
     iterations: 3

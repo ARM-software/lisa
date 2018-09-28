@@ -53,10 +53,13 @@ workloads:
   - name: exoplayer
     id: exoplayer_30s
     workload_parameters:
+      version: 2.4
       duration: 30
 
   - name: pcmark
     id: pcmark
+    runtime_parameters:
+      airplane_mode: false
 
   - name: geekbench
     id: geekbench
@@ -69,31 +72,31 @@ workloads:
     # easier to read/parse
     id: jb_list_view
     classifiers:
-      test: jb_list_view
+      test_ids: jb_list_view
     # workload_parameters are the real parameters that influence what gets run
     workload_parameters:
-      test: list_view
+      test_ids: list_view
   - name: jankbench
     id: jb_image_list_view
     classifiers:
-      test: jb_image_list_view
+      test_ids: jb_image_list_view
     workload_parameters:
-      test: image_list_view
+      test_ids: image_list_view
   - name: jankbench
     id: jb_shadow_grid
     classifiers:
-      test: jb_shadow_grid
+      test_ids: jb_shadow_grid
     workload_parameters:
-      test: shadow_grid
+      test_ids: shadow_grid
   - name: jankbench
     id: jb_low_hitrate_text
     classifiers:
-      test: jb_low_hitrate_text
+      test_ids: jb_low_hitrate_text
     workload_parameters:
-      test: low_hitrate_text
+      test_ids: low_hitrate_text
   - name: jankbench
     id: jb_edit_text
     classifiers:
-      test: jb_edit_text
+      test_ids: jb_edit_text
     workload_parameters:
-      test: edit_text
+      test_ids: edit_text
