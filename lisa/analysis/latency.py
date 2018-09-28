@@ -918,7 +918,7 @@ class LatencyAnalysis(AnalysisBase):
             512: "P", # TASK_PARKED
            1024: "N", # TASK_NOLOAD
         }
-        if self._trace.kernel_version >= (4, 8):
+        if self._trace.kernel_version.parts >= (4, 8):
             TASK_STATES[2048] = "n" # TASK_NEW
         TASK_MAX_STATE = 2 * max(TASK_STATES)
 
