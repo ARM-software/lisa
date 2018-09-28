@@ -15,54 +15,37 @@
 # limitations under the License.
 #
 
-import os
-import json
-import numpy as np
 import pandas as pd
-
-from collections import OrderedDict
-from copy import deepcopy
-from unittest import SkipTest
-
-from test import LisaTest, experiment_test
-from trace import Trace
-from executor import Executor
-from wlgen.rta import Periodic, RTA
 
 from devlib.utils.misc import memoized
 from devlib.module.sched import SchedDomain
 
-WORKLOAD_PERIOD_MS =  16
+from lisa.trace import Trace
+from lisa.wlgen.rta import Periodic
+from lisa.tests.kernel.test_bundle import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
 
-SD_ASYM_CPUCAPACITY = 0x0040
-
-class _MisfitMigrationBase(LisaTest):
+class MisfitMigrationBase(RTATestBundle):
     """
-    Base class for shared functionality of misfit migration tests
+    Abstract class for Misfit behavioural testing
+
+    This class provides some helpers for features related to Misfit.
     """
 
-    test_conf = {
-        "ftrace" : {
-            "events" : [
-                "sched_switch",
-                "sched_wakeup",
-                "sched_wakeup_new",
-                "cpu_idle",
-            ],
-            "buffsize" : 100 * 1024
-        },
-        "modules": ["cgroups", "cpufreq"],
+    ftrace_conf = {
+        "events" : [
+            "sched_switch",
+            "sched_wakeup",
+            "cpu_idle"
+        ]
     }
 
     @classmethod
-    def setUpClass(cls, *args, **kwargs):
-        super(_MisfitMigrationBase, cls).runExperiments(*args, **kwargs)
-
-    @memoized
-    @staticmethod
-    def _has_asym_cpucapacity(test_env):
+    def _has_asym_cpucapacity(cls, te):
+        """
+        :returns: Whether the target has SD_ASYM_CPUCAPACITY set on any of its sd
+        """
         # Just try to find at least one instance of that flag
-        sd_info = test_env.target.sched.get_sd_info()
+        sd_info = te.target.sched.get_sd_info()
 
         for cpu, domain_node in sd_info.cpus.items():
             for domain in domain_node.domains.values():
@@ -72,28 +55,8 @@ class _MisfitMigrationBase(LisaTest):
         return False
 
     @memoized
-    @staticmethod
-    def _classify_cpus(test_env):
-        """
-        Classify cpus per capacity.
-
-        :returns: A list of list. CPUs of equal capacities are packed in the
-        same list, and those lists of CPUs are ordered by capacity values.
-        """
-        cpus = {}
-        for cpu in xrange(test_env.target.number_of_cpus):
-            cap = test_env.target.sched.get_capacity(cpu)
-            if cap not in cpus:
-                cpus[cap] = []
-
-            cpus[cap].append(cpu)
-
-        capacities = sorted(cpus.keys())
-        return [cpus[capacity] for capacity in capacities]
-
-    @memoized
-    @staticmethod
-    def _get_max_lb_interval(test_env):
+    @classmethod
+    def _get_max_lb_interval(cls, te):
         """
         Get the value of maximum_load_balance_interval.
 
@@ -105,123 +68,207 @@ class _MisfitMigrationBase(LisaTest):
 
         :returns: The absolute maximum load-balance interval in seconds
         """
-        HZ = test_env.target.sched.get_hz()
-        return ((HZ * test_env.target.number_of_cpus) / 10) * (1. / HZ)
+        HZ = te.target.sched.get_hz()
+        return ((HZ * te.target.number_of_cpus) // 10) * (1. / HZ)
 
-    @classmethod
-    def _get_wload(cls, test_env):
-        raise NotImplementedError()
-
-    @classmethod
-    def _getExperimentsConf(cls, test_env):
-        if not cls._has_asym_cpucapacity(test_env):
-            raise SkipTest(
-                'This test requires a target with asymetric CPU capacities. '
-                'SD_ASYM_CPUCAPACITY was not found.'
-            )
-
-        conf = {
-            'tag' : 'misfit',
-            'flags' : ['ftrace', 'freeze_userspace'],
-        }
-
-        if 'cpufreq' in test_env.target.modules:
-            available_govs = test_env.target.cpufreq.list_governors(0)
-            conf['cpufreq'] = {'governor' : 'performance'}
-
-        return {
-            'wloads' : cls._get_wload(test_env),
-            'confs' : [conf],
-        }
-
-class StaggeredFinishes(_MisfitMigrationBase):
+class StaggeredFinishes(MisfitMigrationBase):
     """
-    Test Misfit task migration happens at idle balance (staggered test case)
+    One 100% task per CPU, with staggered completion times.
 
-    This test spawns nr_cpus 100% tasks. The tasks running on bigger-capacity
-    CPUs will finish first, and it is expected of them to instantly pull the
-    tasks running on smaller-capacity CPUs via idle-balance.
+    By spawning one task per CPU on an asymmetric system, we expect the tasks
+    running on the higher-performance CPUs to complete first. At this point,
+    the misfit logic should kick in and they should pull tasks from
+    lower-performance CPUs.
+
+    The tasks have staggered completion times to prevent having several of them
+    completing at the same time, which can cause some unwanted noise (e.g. some
+    sshd or systemd activity at the end of the task).
+
+    The end result should look something like this on big.LITTLE::
+
+      a,b,c,d are CPU-hogging tasks
+      _ signifies idling
+
+      LITTLE_0 | a a a a _ _ _
+      LITTLE_1 | b b b b b _ _
+      ---------|--------------
+        big_0  | c c c c a a a
+        big_1  | d d d d d b b
+
     """
 
-    # How long the tasks will be pinned to their "starting" CPU. Doesn't have
-    # to be long (we just have to ensure they spawn there), so arbitrary value
+    task_prefix = "misfit"
+
     pin_delay_s = 0.001
+    """
+    How long the tasks will be pinned to their "starting" CPU. Doesn't have
+    to be long (we just have to ensure they spawn there), so arbitrary value
+    """
 
     # Somewhat arbitrary delay - long enough to ensure
     # rq->avg_idle > sysctl_sched_migration_cost
     idling_delay_s = 1
+    """
+    A somewhat arbitray delay - long enough to ensure
+    rq->avg_idle > sysctl_sched_migration_cost
+    """
 
-    # How long do we allow the bigs to be idle when there are tasks running on
-    # the LITTLEs
-    allowed_idle_time_s = 0.001
+    def __init__(self, res_dir, rtapp_profile, cpu_capacities):
+        super().__init__(res_dir, rtapp_profile)
+        self.cpu_capacities = cpu_capacities
 
-    # How much % of time do we allow the tasks to be preempted, out of the
-    # total test duration
-    allowed_preempt_pct = 1
+        cpu_classes = {}
+        for cpu, capacity in cpu_capacities.items():
+            if capacity not in cpu_classes.keys():
+                cpu_classes[capacity] = []
+
+            cpu_classes[capacity].append(cpu)
+
+        capacities = sorted(cpu_classes.keys())
+        self.cpu_classes = [cpu_classes[capacity] for capacity in capacities]
+
+        sdf = self.trace.df_events('sched_switch')
+        # Get the time where the first rt-app task spawns
+        init_start = sdf[sdf.next_comm.str.contains(self.task_prefix)].index[0]
+
+        # The tasks don't wake up at the same exact time, find the task that is
+        # the last to wake up.
+        last_start = 0
+
+        sdf = sdf[init_start + self.idling_delay_s * 0.9 :]
+
+        for task in self.rtapp_profile.keys():
+            task_cpu = int(task.strip("{}_".format(self.task_prefix)))
+            task_start = sdf[(sdf.next_comm == task) & (sdf["__cpu"] == task_cpu)].index[0]
+            last_start = max(last_start, task_start)
+
+        self.start_time = last_start
+
+        self.end_time = sdf[sdf.prev_comm.str.contains(self.task_prefix)].index[-1]
+        self.duration = self.end_time - self.start_time
+
+        self.src_cpus = self.cpu_classes[0]
+        # XXX: Might need to check the tasks can fit on all of those, rather
+        # than just pick all but the smallest CPUs
+        self.dst_cpus = []
+        for group in self.cpu_classes[1:]:
+            self.dst_cpus += group
+
+        # TODO: clean me up
+        # Needed because of serialization
+        self._trace = None
 
     @classmethod
-    def _get_wload(cls, test_env):
-        cpus = range(test_env.platform['cpus_count'])
+    def check_from_target(cls, te):
+        if not cls._has_asym_cpucapacity(te):
+            raise CannotCreateError(
+                "Target doesn't have SD_ASYM_CPUCAPACITY on any sched_domain")
+
+    @classmethod
+    def _from_target(cls, te, res_dir):
+        rtapp_profile = cls.create_rtapp_profile(te)
+        cls._run_rtapp(te, res_dir, rtapp_profile)
+
+        cpu_capacities = te.target.sched.get_capacities()
+        return cls(res_dir, rtapp_profile, cpu_capacities)
+
+    @classmethod
+    def create_rtapp_profile(cls, te):
+        cpus = list(range(te.target.number_of_cpus))
 
         # We're pinning stuff in the first phase, so give it ample time to
         # clean the pinned logic out of balance_interval
-        free_time_s = 1.1 * cls._get_max_lb_interval(test_env)
-        stagger_s = free_time_s / (10 * len(cpus))
+        free_time_s = 1.1 * cls._get_max_lb_interval(te)
+        stagger_s = free_time_s // (10 * len(cpus))
 
-        params = {}
+        profile = {}
 
         for cpu in cpus:
-            params["misfit_{}".format(cpu)] = (
+            profile["{}_{}".format(cls.task_prefix, cpu)] = (
                 Periodic(
                     duty_cycle_pct=100,
                     duration_s=cls.pin_delay_s,
                     delay_s=cls.idling_delay_s,
-                    period_ms=16,
+                    period_ms=cls.TASK_PERIOD_MS,
                     cpus=[cpu]
                 ) + Periodic(
                     duty_cycle_pct=100,
                     # Introduce staggered task completions
                     duration_s=free_time_s + cpu * stagger_s,
-                    period_ms=16,
+                    period_ms=cls.TASK_PERIOD_MS,
                     cpus=cpus
                 )
-            ).get()
+            )
 
-        wload = RTA(test_env.target, 'tmp',
-            calibration=test_env.calibration())
-        wload.conf(kind='profile', params=params,
-                   run_dir=Executor.get_run_dir(test_env.target))
+        return profile
 
-        return {
-            'staggered' : {
-                'type' : 'rt-app',
-                'conf' : {
-                    'class' : 'custom',
-                    'json' : wload.json
-                }
-            }
+    def _trim_lat_df(self, lat_df):
+        if lat_df.empty:
+            return lat_df
+
+        lat_df = Trace.squash_df(lat_df, self.start_time,
+                                 lat_df.index[-1] + lat_df.t_delta.values[-1], "t_delta")
+        # squash_df only updates t_delta, remove t_start to make sure it's not used
+        return lat_df.drop('t_start', 1)
+
+    def test_preempt_time(self, allowed_preempt_pct=1):
+        """
+        Test that tasks are not being preempted too much
+        """
+
+        sdf = self.trace.df_events('sched_switch')
+        latency_dfs = {
+            task : self.trace.analysis.latency.df_latency(task)
+            for task in self.rtapp_profile.keys()
         }
 
+        res = ResultBundle.from_bool(True)
+        for task, lat_df in latency_dfs.items():
+            # The sched_switch dataframe where the misfit task
+            # is replaced by another misfit task
+            preempt_sdf = sdf[
+                (sdf.prev_comm == task) &
+                (sdf.next_comm.str.startswith(self.task_prefix))
+            ]
+
+            lat_df = self._trim_lat_df(
+                lat_df[
+                    (lat_df.index.isin(preempt_sdf.index)) &
+                    # Ensure this is a preemption and not just the task ending
+                    (lat_df.curr_state == "S")
+                ]
+            )
+
+            preempt_time = lat_df.t_delta.sum()
+            preempt_pct = (preempt_time / self.duration) * 100
+
+            res.add_metric("{} preemption".format(task), {
+                "ratio" : TestMetric(preempt_pct, "%"),
+                "time" : TestMetric(preempt_time, "seconds")})
+
+            if preempt_pct > allowed_preempt_pct:
+                res.result = Result.FAILED
+
+        return res
+
     @memoized
-    def get_active_df(self, trace, cpu):
+    def _get_active_df(self, cpu):
         """
         :returns: A dataframe that describes the idle status (on/off) of 'cpu'
         """
-        active_df = pd.DataFrame(trace.getCPUActiveSignal(cpu), columns=['state'])
-        trace.addEventsDeltas(active_df)
-
+        active_df = pd.DataFrame(self.trace.getCPUActiveSignal(cpu), columns=['state'])
+        self.trace.addEventsDeltas(active_df)
         return active_df
 
-    def max_idle_time(self, trace, start, end, cpus):
+    def _max_idle_time(self, start, end, cpus):
         """
         :returns: The maximum idle time of 'cpus' in the [start, end] interval
         """
-        idle_df = pd.DataFrame()
         max_time = 0
         max_cpu = 0
 
         for cpu in cpus:
-            busy_df = self.get_active_df(trace, cpu)
+            busy_df = self._get_active_df(cpu)
             busy_df = Trace.squash_df(busy_df, start, end)
             busy_df = busy_df[busy_df.state == 0]
 
@@ -235,200 +282,84 @@ class StaggeredFinishes(_MisfitMigrationBase):
 
         return max_time, max_cpu
 
-    @memoized
-    def start_time(self, experiment):
+    def _test_cpus_busy(self, latency_dfs, cpus, allowed_idle_time_s):
         """
-        :returns: The start time of the test workload, IOW the time at which
-            all tasks are up and running on their designated CPUs.
+        Test that for every window in which the tasks are running, :attr:`cpus`
+        are not idle for more than :attr:`allowed_idle_time_s`
         """
-        trace = self.get_trace(experiment)
-        sdf = trace.df_events('sched_switch')
-        # Get the time where the first rt-app task spawns
-        init_start = sdf[sdf.next_comm.str.contains('misfit')].index[0]
+        res = ResultBundle.from_bool(True)
 
-        # The tasks don't wake up at the same exact time, find the task that is
-        # the last to wake up.
-        last_start = 0
-
-        sdf = sdf[init_start + self.idling_delay_s * 0.9 :]
-
-        for cpu in range(self.te.target.number_of_cpus):
-            task_name = "misfit_{}".format(cpu)
-            task_start = sdf[(sdf.next_comm == task_name) & (sdf["__cpu"] == cpu)].index[0]
-            last_start = max(last_start, task_start)
-
-        return last_start
-
-    def trim_lat_df(self, start, lat_df):
-        if lat_df.empty:
-            return lat_df
-
-        lat_df = Trace.squash_df(lat_df, start, lat_df.index[-1], "t_delta")
-        # squash_df only updates t_delta, remove t_start to make sure it's not used
-        return lat_df.drop('t_start', 1)
-
-    @experiment_test
-    def test_preempt_time(self, experiment, tasks):
-        """
-        Test that tasks are not being preempted too much
-        """
-        trace = self.get_trace(experiment)
-
-        cpus = range(self.te.target.number_of_cpus)
-        sorted_cpus = self._classify_cpus(self.te)
-
-        sdf = trace.df_events('sched_switch')
-        latency_dfs = {
-            i : trace.analysis.latency.df_latency('misfit_{}'.format(i))
-            for i in cpus
-        }
-
-        start_time = self.start_time(experiment)
-        end_time = sdf[sdf.prev_comm.str.contains('misfit')].index[-1]
-        test_duration = end_time - start_time
-
-        for task_num in cpus:
-            task_name = "misfit_{}".format(task_num)
-            lat_df = latency_dfs[task_num]
-
-            # The sched_switch dataframe where the misfit task
-            # is replaced by another misfit task
-            preempt_sdf = sdf[
-                (sdf.prev_comm == task_name) &
-                (sdf.next_comm.str.startswith("misfit_"))
-            ]
-
-            lat_df = self.trim_lat_df(
-                start_time,
-                lat_df[
-                    (lat_df.index.isin(preempt_sdf.index)) &
-                    # Ensure this is a preemption and not just the task ending
-                    (lat_df.curr_state == "S")
-                ]
-            )
-
-            task_name = "misfit_{}".format(task_num)
-            preempt_time = lat_df.t_delta.sum()
-
-            preempt_pct = (preempt_time / test_duration) * 100
-            self._log.debug("{} was preempted {:.2f}% of the time".format(task_name, preempt_pct))
-
-            if preempt_time > test_duration * self.allowed_preempt_pct/100.:
-                err = "{} was preempted for {:.2f}% ({:.2f}s) of the test duration, " \
-                      "expected < {}%".format(
-                          task_name,
-                          preempt_pct,
-                          preempt_time,
-                          self.allowed_preempt_pct
-                      )
-                raise AssertionError(err)
-
-    def _test_idle_time(self, trace, latency_dfs, busy_cpus):
-        """
-        Test that for every event in latency_dfs, busy_cpus are
-        not idle for more than self.allowed_idle_time_s
-
-        :param trace: The trace to process
-        :type trace: :class:`Trace`:
-
-        :param latency_dfs: The latency dataframes (see :class:`analysis.LatencyAnalysis`),
-            arranged in a {task_name : latency_df} shape
-        :type latency_dfs: dict
-
-        :param busy_cpus: The CPUs we want to assert are kept busy
-        :type busy_cpus: list
-        """
-        cpus = range(self.te.target.number_of_cpus)
-        sdf = trace.df_events('sched_switch')
-
-        for task_name, lat_df in latency_dfs.iteritems():
+        for task, lat_df in latency_dfs.items():
             # Have a look at every task activation
-            for index, row in lat_df.iterrows():
-                cpu = int(row["__cpu"])
-                end = index + row.t_delta
-                # Ensure 'busy_cpus' are not idle for too long
-                idle_time, other_cpu = self.max_idle_time(trace, index, end, busy_cpus)
+            task_idle_times = [self._max_idle_time(index, index + row.t_delta, cpus)
+                               for index, row in lat_df.iterrows()]
 
-                if idle_time > self.allowed_idle_time_s:
-                    err = "{} was on CPU{} @{:.3f} but CPU{} was idle " \
-                          "for {:.3f}s, expected < {}s".format(
-                              task_name,
-                              cpu,
-                              index + trace.ftrace.basetime,
-                              other_cpu,
-                              idle_time,
-                              self.allowed_idle_time_s
-                          )
-                    raise AssertionError(err)
+            if not task_idle_times:
+                continue
 
-    @experiment_test
-    def test_migration_delay(self, experiment, tasks):
+            max_time, max_cpu = max(task_idle_times)
+            res.add_metric("{} max idle".format(task), data={
+                "time" : TestMetric(max_time, "seconds"), "cpu" : TestMetric(max_cpu)})
+
+            if max_time > allowed_idle_time_s:
+                res.result = Result.FAILED
+
+        return res
+
+    def test_migration_delay(self, allowed_delay_s=0.001):
         """
         Test that big CPUs pull tasks ASAP
+
+        :param allowed_idle_time_s: How much time should be allowed between a
+          big CPU going idle and a misfit task ending on that CPU. In theory
+          a newidle balance should lead to a null delay, but in practice
+          there's a tiny one, so don't set that to 0 and expect the test to
+          pass.
+        :type allowed_idle_time_s: int
+
+        This test is about the very first migration from LITTLE to big.
+        It's a subset of :meth:`test_throughput`, it only checks the very
+        first migration.
         """
-
-        trace = self.get_trace(experiment)
-        cpus = range(self.te.target.number_of_cpus)
-        sorted_cpus = self._classify_cpus(self.te)
-
-        littles = sorted_cpus[0]
-        bigs = []
-        for group in sorted_cpus[1:]:
-            bigs += group
-
-        start_time = self.start_time(experiment)
 
         latency_dfs = {}
-        for i in cpus:
-            # This test is about the first migration delay.
-            # Trim the latency_df to up until the first time the task
-            # runs on a big CPU. The test will fail if the task wasn't
-            # migrated ASAP
-            res = pd.DataFrame([])
-            task_name = 'misfit_{}'.format(i)
+        for task in self.rtapp_profile.keys():
+            df = self.trace.analysis.latency.df_latency(task)
+            df = self._trim_lat_df(df[
+                # Task is active
+                df.curr_state == "A"
+            ])
 
-            df = trace.analysis.latency.df_latency(task_name)
-            df = self.trim_lat_df(start_time, df[df.curr_state == "A"])
+            # The first time the task runs on a big
+            first_big = df[df["__cpu"].isin(self.dst_cpus)].index[0]
 
-            first_big = df[df["__cpu"].isin(bigs)]
+            df = df[df["__cpu"].isin(self.src_cpus)]
 
-            if not first_big.empty:
-                res = df[df["__cpu"].isin(littles)][:first_big.index[0]]
+            latency_dfs[task] = df[:first_big]
 
-            latency_dfs[task_name] = res
+        return self._test_cpus_busy(latency_dfs, self.dst_cpus, allowed_delay_s)
 
-        self._test_idle_time(trace, latency_dfs, bigs)
-
-    @experiment_test
-    def test_throughput(self, experiment, tasks):
+    def test_throughput(self, allowed_idle_time_s=0.001):
         """
-        Test that big CPUs are kept as busy as possible
+        Test that big CPUs are not idle when there are misfit tasks to upmigrate
+
+        :param allowed_idle_time_s: How much time should be allowed between a
+          big CPU going idle and a misfit task ending on that CPU. In theory
+          a newidle balance should lead to a null delay, but in practice
+          there's a tiny one, so don't set that to 0 and expect the test to
+          pass.
+        :type allowed_idle_time_s: int
         """
-        trace = self.get_trace(experiment)
-        cpus = range(self.te.target.number_of_cpus)
-        sorted_cpus = self._classify_cpus(self.te)
-
-        littles = sorted_cpus[0]
-        bigs = []
-        for group in sorted_cpus[1:]:
-            bigs += group
-
-        start_time = self.start_time(experiment)
-
         latency_dfs = {}
-        for i in cpus:
+        for task in self.rtapp_profile.keys():
             # This test is all about throughput: check that every time a task
             # runs on a little it's because bigs are busy
-            task_name = 'misfit_{}'.format(i)
+            df = self.trace.analysis.latency.df_latency(task)
+            latency_dfs[task] = self._trim_lat_df(df[
+                # Task is active
+                (df.curr_state == "A") &
+                # Task needs to be upmigrated
+                (df["__cpu"].isin(self.src_cpus))
+            ])
 
-            df = trace.analysis.latency.df_latency(task_name)
-            latency_dfs[task_name] = self.trim_lat_df(
-                start_time,
-                df[
-                    (df.curr_state == "A") &
-                    (df["__cpu"].isin(littles))
-                ])
-
-        self._test_idle_time(trace, latency_dfs, bigs)
-
-# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
+        return self._test_cpus_busy(latency_dfs, self.dst_cpus, allowed_idle_time_s)
