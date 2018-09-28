@@ -404,7 +404,7 @@ class RTATestBundle(TestBundle, abc.ABC):
         res = ResultBundle.from_bool(passed)
 
         for task, slack in slacks.items():
-            res.add_metric("slack_{}".format(task), slack, '%')
+            res.add_metric("{} slack".format(task), slack, '%')
 
         return res
 

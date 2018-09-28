@@ -334,8 +334,8 @@ class EASBehaviour(RTATestBundle, abc.ABC):
 
         passed = est_energy < threshold
         res = ResultBundle.from_bool(passed)
-        res.add_metric("estimated_energy", est_energy, 'bogo-joules')
-        res.add_metric("energy_threshold", threshold, 'bogo-joules')
+        res.add_metric("estimated energy", est_energy, 'bogo-joules')
+        res.add_metric("energy threshold", threshold, 'bogo-joules')
         return res
 
 
