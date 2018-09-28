@@ -59,16 +59,16 @@ execution of `rt-app <https://github.com/scheduler-tools/rt-app>`_ workloads.
 It is very useful for scheduler-related tests, as it makes it easy to create
 tasks with a pre-determined utilization.
 
-API
-===
-
-Base classes
-++++++++++++
+Base API
+========
 
 .. automodule:: lisa.tests.kernel.test_bundle
    :members:
 
 .. TODO:: Make those imports more generic
+
+Implemented tests
+=================
 
 Scheduler tests
 +++++++++++++++
