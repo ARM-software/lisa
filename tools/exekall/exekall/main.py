@@ -47,7 +47,7 @@ def _main(argv):
 
     run_parser.add_argument('--adaptor',
         help="""Adaptor to use from the customization module, if there is more
-        than one to choose from.""")
+than one to choose from.""")
 
     run_parser.add_argument('--filter',
         help="""Only run the testcases with an ID matching the filter.""")
@@ -63,7 +63,7 @@ def _main(argv):
     artifact_dir_group.add_argument('--artifact-dir',
         default=os.getenv('EXEKALL_ARTIFACT_DIR'),
         help="""Folder in which the artifacts will be stored. This take
-        precedence over --artifact-root""")
+precedence over --artifact-root""")
 
     run_parser.add_argument('--load-db',
         help="""Reload a database and use its results as prebuilt objects.""")
@@ -76,11 +76,11 @@ database instead of the root objects.""")
 
     uuid_group.add_argument('--load-uuid', action='append', default=[],
         help="""Load the given UUID from the database. What is reloaded can be
-        refined with --load-type.""")
+refined with --load-type.""")
 
     uuid_group.add_argument('--load-uuid-args',
         help="""Load the parameters of the values that were used to compute the
-        given UUID from the database.""")
+given UUID from the database.""")
 
     run_parser.add_argument('--goal', default='*ResultBundle',
         help="""Compute expressions leading to an instance of the specified
@@ -89,8 +89,8 @@ class or a subclass of it.""")
     run_parser.add_argument('--sweep', nargs=5, action='append', default=[],
         metavar=('CALLABLE', 'PARAM', 'START', 'STOP', 'STEP'),
         help="""Parametric sweep on a function parameter.
-It needs five fields: the qualified name of the callable, the name of
-the parameter, the start value, stop value and step size.""")
+It needs five fields: the qualified name of the callable (pattern can be used),
+the name of the parameter, the start value, stop value and step size.""")
 
     run_parser.add_argument('--verbose', action='store_true',
         help="""More verbose output.""")
@@ -128,6 +128,11 @@ the parameter, the start value, stop value and step size.""")
     # show the message.
     except SystemExit:
         args, _ = parser.parse_known_args(argv, args)
+
+    if not args.subcommand == 'run':
+        # Show the help messages
+        parser.parse_args(argv)
+        return 0
 
     global show_traceback
     show_traceback = args.debug
@@ -568,7 +573,7 @@ the parameter, the start value, stop value and step size.""")
                 return
 
             if reused:
-                msg='Reusing {id} UUID={uuid}'
+                msg='Reusing already computed {id} UUID={uuid}'
             else:
                 msg='Computed {id} UUID={uuid}'
             info(msg.format(
@@ -586,8 +591,7 @@ the parameter, the start value, stop value and step size.""")
         for result in utils.iterate_cb(executor, pre_line, flush_std_streams):
             for failed_val in result.get_failed_values():
                 excep = failed_val.excep
-                tb_list = traceback.format_exception(type(excep), excep, excep.__traceback__)
-                tb =  ''.join(tb_list)
+                tb = utils.format_exception(excep)
                 error('Error ({e_name}): {e}\nID: {id}\n{tb}'.format(
                         id=failed_val.get_id(),
                         e_name = engine.get_name(type(excep)),
@@ -707,9 +711,8 @@ def main(argv=sys.argv[1:]):
         if show_traceback:
             error(
                 'Exception traceback:\n' +
-                ''.join(
                 utils.format_exception(e)
-            ))
+            )
         # Always show the concise message
         error(e)
         return_code = GENERIC_ERROR_CODE

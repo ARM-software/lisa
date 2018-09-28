@@ -364,4 +364,6 @@ def iterate_cb(iterator, pre_hook=None, post_hook=None):
             yield val
 
 def format_exception(e):
-    return traceback.format_exception(type(e), e, e.__traceback__)
+    elements = traceback.format_exception(type(e), e, e.__traceback__)
+    return ''.join(elements)
+

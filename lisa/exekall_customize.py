@@ -232,7 +232,7 @@ class LISAAdaptor(AdaptorBase):
                         excep = failed_expr_val.excep
                         result = 'error'
                         short_msg = str(excep)
-                        msg = traceback.format_exception(type(excep), excep, excep.__traceback__)
+                        msg = ''.join(traceback.format_exception(type(excep), excep, excep.__traceback__))
                         type_ = type(excep)
 
                         append_result_tag(et_testcase, result, type_, short_msg, msg)

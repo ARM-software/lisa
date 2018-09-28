@@ -145,6 +145,8 @@ class ObjectStore:
         uuid_value_map, _ = self.get_indexes()
         return uuid_value_map[uuid]
 
+    # Since the content of the cache is not serialized, the maps will be
+    # regenerated when the object is restored.
     @functools.lru_cache(maxsize=None, typed=True)
     def get_indexes(self):
         uuid_value_map = dict()
