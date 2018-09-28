@@ -903,7 +903,7 @@ class Trace(Loggable):
         if not disable_df.empty:
             disables = disable_df[disable_df.clk_name == clk_name]
 
-        freq = pd.concat([freq, enables, disables]).sort_index()
+        freq = pd.concat([freq, enables, disables], sort=False).sort_index()
         if freq.empty:
             logger.warning('No events for clock ' + clk_name + ' found in trace')
             return

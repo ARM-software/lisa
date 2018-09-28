@@ -38,7 +38,7 @@ setup(
         "psutil >= 4.4.2",
         "wrapt >= 1.10.8",
         "matplotlib >= 1.4.2, < 3.0",
-        "pandas",
+        "pandas >= 0.23.0",
         "numpy",
         "future",
         "ruamel.yaml",
