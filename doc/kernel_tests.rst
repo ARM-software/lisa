@@ -73,11 +73,15 @@ Base classes
 Scheduler tests
 +++++++++++++++
 
-.. autoclass:: lisa.tests.kernel.scheduler.eas_behaviour.EASBehaviour
+EAS tests
+---------
+.. automodule:: lisa.tests.kernel.scheduler.eas_behaviour
    :members:
 
-.. automodule:: lisa.tests.kernel.scheduler.eas_behaviour
-   :exclude-members: EASBehaviour
+Misfit tests
+------------
+
+.. automodule:: lisa.tests.kernel.scheduler.misfit
    :members:
 
 Hotplug tests
