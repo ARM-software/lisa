@@ -31,7 +31,7 @@ based on the underlying FTrace data.
 REQUIRES = [
     "numpy",
     "pyparsing",
-    "pandas>=0.13.1",
+    "pandas>=0.15.0",
     "future",
 ]
 
