@@ -66,6 +66,16 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         pass
 
     @classmethod
+    def check_from_target(cls, te):
+        for domain in te.target.cpufreq.iter_domains():
+            if "schedutil" not in te.target.cpufreq.list_governors(domain[0]):
+                raise CannotCreateError(
+                    "Can't set schedutil governor for domain {}".format(domain))
+
+        if not te.nrg_model:
+            raise CannotCreateError("Target doesn't have an energy model")
+
+    @classmethod
     def _from_target(cls, te:TestEnv, res_dir:ArtifactPath) -> 'EASBehaviour':
         rtapp_profile = cls.create_rtapp_profile(te)
 
