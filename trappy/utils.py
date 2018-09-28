@@ -75,7 +75,7 @@ def handle_duplicate_index(data,
     index = data.index
     new_index = index.values
 
-    dups = index.get_duplicates()
+    dups = index[index.duplicated()].unique()
 
     for dup in dups:
         # Leave one of the values intact
