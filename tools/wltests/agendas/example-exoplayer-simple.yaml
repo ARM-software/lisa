@@ -7,3 +7,5 @@
 workloads:
   - name: exoplayer
     iterations: 3
+    workload_parameters:
+      version: 2.4

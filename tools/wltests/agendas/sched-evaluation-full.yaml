@@ -80,6 +80,8 @@ workloads:
     classifiers:
        tag: single
     iterations: 10
+    runtime_parameters:
+      airplane_mode: false
 
 ################################################################################
 # Geekbench
