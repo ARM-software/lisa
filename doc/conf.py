@@ -272,9 +272,13 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
 
-
-# Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'http://docs.python.org/': None}
+intersphinx_mapping = {
+    'python' : ('https://docs.python.org/3', None),
+    # XXX: Doesn't seem to work, might be due to how devlib doc is generated
+    'devlib' : ('https://devlib.readthedocs.io/en/latest', None),
+    'trappy' : ('https://pythonhosted.org/TRAPpy', None),
+    'bart' :   ('https://pythonhosted.org/bart-py/', None),
+}
 
 #
 # Fix autodoc
