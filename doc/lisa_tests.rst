@@ -51,6 +51,12 @@ EnergyModel
 .. automodule:: lisa.tests.lisa.test_energy_model
    :members:
 
+Trace
++++++
+
+.. automodule:: lisa.tests.lisa.test_trace
+   :members:
+
 wlgen rt-app
 ++++++++++++
 
