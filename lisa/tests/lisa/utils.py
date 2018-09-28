@@ -30,6 +30,9 @@ HOST_TARGET_CONF = {
 }
 
 def create_local_testenv():
+    """
+    :returns: A localhost :class:`lisa.env.TestEnv` instance
+    """
     return TestEnv(TargetConfig(HOST_TARGET_CONF))
 
 class StorageTestCase(TestCase):
