@@ -37,7 +37,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
     Abstract class for EAS behavioural testing.
 
     :param rtapp_profile: The rtapp parameters used to create the synthetic
-      workload. That happens to be what is returned by :meth:`create_rtapp_profile`
+      workload. That happens to be what is returned by :meth:`get_rtapp_profile`
     :type rtapp_profile: dict
 
     :param nrg_model: The energy model of the platform the synthetic workload
@@ -58,7 +58,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def create_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, te):
         """Returns the RTapp profile for the given :class:`TestEnv`.
 
         :returns: :class:`lisa.wlgen.RTATask`
@@ -77,7 +77,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
 
     @classmethod
     def _from_target(cls, te:TestEnv, res_dir:ArtifactPath) -> 'EASBehaviour':
-        rtapp_profile = cls.create_rtapp_profile(te)
+        rtapp_profile = cls.get_rtapp_profile(te)
 
         # EAS doesn't make a lot of sense without schedutil,
         # so make sure this is what's being used
@@ -363,7 +363,7 @@ class OneSmallTask(EASBehaviour):
     task_name = "small"
 
     @classmethod
-    def create_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, te):
         # 50% of the smallest CPU's capacity
         duty = cls.unscaled_utilization(cls.min_cpu_capacity(te), 50)
 
@@ -383,7 +383,7 @@ class ThreeSmallTasks(EASBehaviour):
     task_prefix = "small"
 
     @classmethod
-    def create_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, te):
         # 50% of the smallest CPU's capacity
         duty = cls.unscaled_utilization(cls.min_cpu_capacity(te), 50)
 
@@ -405,7 +405,7 @@ class TwoBigTasks(EASBehaviour):
     task_prefix = "big"
 
     @classmethod
-    def create_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, te):
         # 80% of the biggest CPU's capacity
         duty = cls.unscaled_utilization(cls.max_cpu_capacity(te), 80)
 
@@ -428,7 +428,7 @@ class TwoBigThreeSmall(EASBehaviour):
     big_prefix = "big"
 
     @classmethod
-    def create_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, te):
         # 50% of the smallest CPU's capacity
         small_duty = cls.unscaled_utilization(cls.min_cpu_capacity(te), 50)
         # 80% of the biggest CPU's capacity
@@ -459,7 +459,7 @@ class RampUp(EASBehaviour):
     task_name = "ramp_up"
 
     @classmethod
-    def create_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, te):
         start_pct = cls.unscaled_utilization(cls.min_cpu_capacity(te), 10)
         end_pct = cls.unscaled_utilization(cls.max_cpu_capacity(te), 70)
 
@@ -482,7 +482,7 @@ class RampDown(EASBehaviour):
     task_name = "ramp_down"
 
     @classmethod
-    def create_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, te):
         start_pct = cls.unscaled_utilization(cls.max_cpu_capacity(te), 70)
         end_pct = cls.unscaled_utilization(cls.min_cpu_capacity(te), 10)
         rtapp_profile = {
@@ -506,7 +506,7 @@ class EnergyModelWakeMigration(EASBehaviour):
     task_prefix = "emwm"
 
     @classmethod
-    def create_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, te):
         rtapp_profile = {}
         capacities = te.target.sched.get_capacities()
         bigs = [cpu for cpu, capacity in list(capacities.items())

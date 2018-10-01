@@ -313,7 +313,7 @@ class RTATestBundle(TestBundle, abc.ABC):
     "Abstract" class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
     :param rtapp_profile: The rtapp parameters used to create the synthetic
-      workload. That happens to be what is returned by :meth:`create_rtapp_profile`
+      workload. That happens to be what is returned by :meth:`get_rtapp_profile`
     :type rtapp_profile: dict
     """
 
@@ -353,7 +353,7 @@ class RTATestBundle(TestBundle, abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def create_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, te):
         """
         :returns: a :class:`dict` with task names as keys and :class:`RTATask` as values
 
@@ -376,7 +376,7 @@ class RTATestBundle(TestBundle, abc.ABC):
 
     @classmethod
     def _from_target(cls, te:TestEnv, res_dir:ArtifactPath) -> 'RTATestBundle':
-        rtapp_profile = cls.create_rtapp_profile(te)
+        rtapp_profile = cls.get_rtapp_profile(te)
         cls._run_rtapp(te, res_dir, rtapp_profile)
 
         return cls(res_dir, rtapp_profile)

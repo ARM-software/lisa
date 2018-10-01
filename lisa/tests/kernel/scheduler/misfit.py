@@ -166,14 +166,14 @@ class StaggeredFinishes(MisfitMigrationBase):
 
     @classmethod
     def _from_target(cls, te, res_dir):
-        rtapp_profile = cls.create_rtapp_profile(te)
+        rtapp_profile = cls.get_rtapp_profile(te)
         cls._run_rtapp(te, res_dir, rtapp_profile)
 
         cpu_capacities = te.target.sched.get_capacities()
         return cls(res_dir, rtapp_profile, cpu_capacities)
 
     @classmethod
-    def create_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, te):
         cpus = list(range(te.target.number_of_cpus))
 
         # We're pinning stuff in the first phase, so give it ample time to
