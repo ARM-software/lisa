@@ -29,6 +29,11 @@ yaml.allow_unicode = True
 yaml.default_flow_style = False
 yaml.indent = 4
 
+#TODO: remove that once the issue is fixed
+# Workaround for ruamel.yaml bug #244:
+# https://bitbucket.org/ruamel/yaml/issues/244
+ruamel.yaml.add_multi_representer(type, ruamel.yaml.representer.Representer.represent_name)
+
 # Basic reimplementation of typing.get_type_hints for Python versions that
 # do not have a typing module available, and also avoids creating Optional[]
 # when the parameter has a None default value.
@@ -1778,17 +1783,8 @@ def any_value_is_NoValue(value_list):
 
 class SerializableExprValue:
     def __init__(self, expr_val, serialized_map, hidden_callable_set=None):
-        # YAML serializer uses __name__ instead of __qualname__ to store
-        # references to objects, which breaks when storing a reference to a
-        # method
-        #  https://bitbucket.org/ruamel/yaml/issues/214/incorrect-tag-generation-for-python-types
-        if expr_val.expr.op.callable_ is Consumer:
-            self.value = None
-            self.excep = NoValue
-        else:
-            self.value = expr_val.value if is_serializable(expr_val.value) else NoValue
-            self.excep = expr_val.excep if is_serializable(expr_val.excep) else NoValue
-
+        self.value = expr_val.value if is_serializable(expr_val.value) else NoValue
+        self.excep = expr_val.excep if is_serializable(expr_val.excep) else NoValue
 
         self.value_uuid = expr_val.value_uuid
         self.excep_uuid = expr_val.excep_uuid
