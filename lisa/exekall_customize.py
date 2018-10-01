@@ -13,7 +13,7 @@ import traceback
 
 from lisa.env import TargetConfig, ArtifactPath
 from lisa.utils import HideExekallID, Loggable
-from lisa.tests.kernel.test_bundle import Result, ResultBundle
+from lisa.tests.kernel.test_bundle import Result, ResultBundle, CannotCreateError
 
 from exekall import utils, engine
 from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name
@@ -230,13 +230,20 @@ class LISAAdaptor(AdaptorBase):
 
                     for failed_expr_val in expr_val.get_failed_values():
                         excep = failed_expr_val.excep
-                        result = 'error'
+                        # When one critical object cannot be created, we assume
+                        # the test was skipped.
+                        if isinstance(excep, CannotCreateError):
+                            result = 'skipped'
+                            testsuite_counters['skipped'] += 1
+                        else:
+                            result = 'error'
+                            testsuite_counters['errors'] += 1
+
                         short_msg = str(excep)
                         msg = ''.join(traceback.format_exception(type(excep), excep, excep.__traceback__))
                         type_ = type(excep)
 
                         append_result_tag(et_testcase, result, type_, short_msg, msg)
-                        testsuite_counters['errors'] += 1
 
                     value = expr_val.value
                     if isinstance(value, ResultBundle):
@@ -274,9 +281,8 @@ RESULT_TAG_MAP = {
     # convenience
     Result.PASSED: 'passed',
     Result.FAILED: 'failure',
-    Result.SKIP: 'skipped',
     # This tag is not part of xUnit format but necessary for our reporting
-    Result.NOISY_DATA: 'noisy'
+    Result.UNDECIDED: 'undecided'
 }
 # Make sure we cover all cases
 assert set(RESULT_TAG_MAP.keys()) == set(Result)
