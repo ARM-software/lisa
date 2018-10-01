@@ -54,7 +54,7 @@ class CapacitySanityCheck(TestBundle):
 
     def test_capacity_sanity(self) -> ResultBundle:
         """
-        Assert that CPU capacity increase leads to more work done
+        Assert that higher CPU capacity means more work done
         """
         sorted_capacities = sorted(self.capacity_work.keys())
         work = [self.capacity_work[cap] for cap in sorted_capacities]
@@ -63,8 +63,11 @@ class CapacitySanityCheck(TestBundle):
         work_increasing = (work == sorted(work))
         res = ResultBundle.from_bool(work_increasing)
 
+        capa_score = {}
         for capacity, work in self.capacity_work.items():
-            res.add_metric("Performance @{} capacity".format(capacity), work)
+            capa_score[capacity] = TestMetric(work)
+
+        res.add_metric("Capacity to performance", capa_score)
 
         return res
 
