@@ -34,9 +34,11 @@ class TestMetric:
     A storage class for metrics used by tests
 
     :param data: The data to store
-    :param units: The data units
-    """
+    :type data: Any base type or dict(TestMetric)
 
+    :param units: The data units
+    :type units: str
+    """
     def __init__(self, data, units=None):
         self.data = data
         self.units = units
@@ -105,9 +107,9 @@ class ResultBundle:
         FAILED
 
         # At this point, the user can wonder why the test failed.
-        # Metrics are here to help.
-        >>> print res_bundle
-        current time = 11
+        # Metrics are here to help, and are printed along with the result:
+        >>> print(res_bundle)
+        FAILED: current time=11
     """
     def __init__(self, result):
         self.result = result
@@ -115,6 +117,9 @@ class ResultBundle:
 
     @classmethod
     def from_bool(cls, cond, *args, **kwargs):
+        """
+        Alternate constructor where :attr:`result` is determined from a bool
+        """
         result = Result.PASSED if cond else Result.FAILED
         return cls(result, *args, **kwargs)
 
@@ -148,29 +153,29 @@ class TestBundle(Serializable, abc.ABC):
         This will also be used to dump any artifact generated in the test code.
     :type res_dir: str
 
-    **Design notes:**
-
-    * :meth:`from_target` will collect whatever artifacts are required
-      from a given target, and will then return a :class:`TestBundle`.
-    * :meth:`from_dir` will use whatever artifacts are available in a
-      given directory (which should have been created by an earlier call
-      to :meth:`from_target` and then :meth:`to_dir`), and will then return
-      a :class:`TestBundle`.
-    * :attr:`verify_serialization` is there to ensure both above methods remain
-      operationnal at all times.
-
     The point of a TestBundle is to bundle in a single object all of the
     required data to run some test assertion (hence the name). When inheriting
     from this class, you can define test methods that use this data, and return
     a :class:`ResultBundle`.
 
-    Thanks to :class:`Serializable`, instances of this class can be
-    serialized with minimal effort. As long as some information is stored
+    Thanks to :class:`~lisa.serialization.Serializable`, instances of this class
+    can be serialized with minimal effort. As long as some information is stored
     within an object's member, it will be automagically handled.
 
     Please refrain from monkey-patching the object in :meth:`from_target`.
     Data required by the object to run test assertions should be exposed as
     :meth:`__init__` parameters.
+
+    **Design notes:**
+
+      * :meth:`from_target` will collect whatever artifacts are required
+        from a given target, and will then return a :class:`TestBundle`.
+      * :meth:`from_dir` will use whatever artifacts are available in a
+        given directory (which should have been created by an earlier call
+        to :meth:`from_target` and then :meth:`to_dir`), and will then return
+        a :class:`TestBundle`.
+      * :attr:`verify_serialization` is there to ensure both above methods remain
+        operationnal at all times.
 
     **Implementation example**::
 
