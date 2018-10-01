@@ -59,18 +59,22 @@ class TestMetric:
 @enum.unique
 class Result(enum.Enum):
     """
-    Result of a test:
-        * `PASSED` : the test has passed
-        * `FAILED` : the test has failed
-        * `SKIP` : the test has been skipped as it does not make sense to
-                   execute it in that environment.
-        * `NOISY_DATA`: the input data were too noisy and the test cannot decide
-                        between a `PASSED` or `FAILED` result.
+    A classification of a test result
     """
     PASSED = 1
+    """
+    The test has passed
+    """
+
     FAILED = 2
-    SKIP = 4
-    NOISY_DATA = 5
+    """
+    The test has failed
+    """
+
+    UNDECIDED = 3
+    """
+    The test data could not be used to decide between :attr:`PASSED` or :attr:`FAILED`
+    """
 
     @property
     def lower_name(self):
