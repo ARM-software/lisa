@@ -26,7 +26,7 @@ from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
 from lisa.perf_analysis import PerfAnalysis
 
-from lisa.serialization import Serializable
+from lisa.utils import Serializable
 from lisa.env import TestEnv, ArtifactPath
 
 class TestMetric:
@@ -158,7 +158,7 @@ class TestBundle(Serializable, abc.ABC):
     from this class, you can define test methods that use this data, and return
     a :class:`ResultBundle`.
 
-    Thanks to :class:`~lisa.serialization.Serializable`, instances of this class
+    Thanks to :class:`~lisa.utils.Serializable`, instances of this class
     can be serialized with minimal effort. As long as some information is stored
     within an object's member, it will be automagically handled.
 

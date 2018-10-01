@@ -21,8 +21,7 @@ import logging
 import operator
 import re
 
-from lisa.serialization import Serializable
-from lisa.utils import Loggable
+from lisa.utils import Loggable, Serializable
 
 import pandas as pd
 import numpy as np
