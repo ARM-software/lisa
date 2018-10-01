@@ -382,6 +382,20 @@ class ThreeSmallTasks(EASBehaviour):
     """
     task_prefix = "small"
 
+    def test_task_placement(self, energy_est_threshold_pct=20) -> ResultBundle:
+        """
+        Same as :meth:`EASBehaviour.test_task_placement` but with a higher
+        default threshold
+
+        The energy estimation for this test is probably not very accurate and this
+        isn't a very realistic workload. It doesn't really matter if we pick an
+        "ideal" task placement for this workload, we just want to avoid using big
+        CPUs in a big.LITTLE system. So use a larger energy threshold that
+        hopefully prevents too much use of big CPUs but otherwise is flexible in
+        allocation of LITTLEs.
+        """
+        return super().test_task_placement(energy_est_threshold_pct)
+
     @classmethod
     def get_rtapp_profile(cls, te):
         # 50% of the smallest CPU's capacity
@@ -452,11 +466,54 @@ class TwoBigThreeSmall(EASBehaviour):
 
         return rtapp_profile
 
+class EnergyModelWakeMigration(EASBehaviour):
+    """
+    One task per big CPU, alternating between two phases:
+
+    * Low utilization phase (should run on a LITTLE CPU)
+    * High utilization phase (should run on a big CPU)
+    """
+    task_prefix = "emwm"
+
+    @classmethod
+    def get_rtapp_profile(cls, te):
+        rtapp_profile = {}
+        capacities = te.target.sched.get_capacities()
+        bigs = [cpu for cpu, capacity in list(capacities.items())
+                if capacity == cls.max_cpu_capacity(te)]
+
+        start_pct = cls.unscaled_utilization(cls.min_cpu_capacity(te), 20)
+        end_pct = cls.unscaled_utilization(cls.max_cpu_capacity(te), 70)
+
+        for i in range(len(bigs)):
+            rtapp_profile["{}_{}".format(cls.task_prefix, i)] = Step(
+                start_pct=start_pct,
+                end_pct=end_pct,
+                time_s=2,
+                loops=2,
+                period_ms=cls.TASK_PERIOD_MS
+            )
+
+        return rtapp_profile
+
 class RampUp(EASBehaviour):
     """
     A single task whose utilisation slowly ramps up
     """
     task_name = "ramp_up"
+
+    def test_task_placement(self, energy_est_threshold_pct=15) -> ResultBundle:
+        """
+        Same as :meth:`EASBehaviour.test_task_placement` but with a higher
+        default threshold.
+
+        The main purpose of this test is to ensure that as it grows in load, a
+        task is migrated from LITTLE to big CPUs on a big.LITTLE system.
+        This migration naturally happens some time _after_ it could possibly be
+        done, since there must be some hysteresis to avoid a performance cost.
+        Therefore allow a larger energy usage threshold
+        """
+        return super().test_task_placement(energy_est_threshold_pct)
 
     @classmethod
     def get_rtapp_profile(cls, te):
@@ -481,10 +538,32 @@ class RampDown(EASBehaviour):
     """
     task_name = "ramp_down"
 
+    def test_task_placement(self, energy_est_threshold_pct=18) -> ResultBundle:
+        """
+        Same as :meth:`EASBehaviour.test_task_placement` but with a higher
+        default threshold
+
+        The main purpose of this test is to ensure that as it reduces in load, a
+        task is migrated from big to LITTLE CPUs on a big.LITTLE system.
+        This migration naturally happens some time _after_ it could possibly be
+        done, since there must be some hysteresis to avoid a performance cost.
+        Therefore allow a larger energy usage threshold
+
+        The number below has been found by trial and error on the platforms
+        generally used for testing EAS (at the time of writing: Juno r0, Juno r2,
+        Hikey960 and TC2). It would be better to estimate the amount of energy
+        'wasted' in the hysteresis (the overutilized band) and compute a threshold
+        based on that. But implementing this isn't easy because it's very platform
+        dependent, so until we have a way to do that easily in test classes, let's
+        stick with the arbitrary threshold.
+        """
+        return super().test_task_placement(energy_est_threshold_pct)
+
     @classmethod
     def get_rtapp_profile(cls, te):
         start_pct = cls.unscaled_utilization(cls.max_cpu_capacity(te), 70)
         end_pct = cls.unscaled_utilization(cls.min_cpu_capacity(te), 10)
+
         rtapp_profile = {
             cls.task_name : Ramp(
                 start_pct=start_pct,
@@ -494,35 +573,6 @@ class RampDown(EASBehaviour):
                 period_ms=cls.TASK_PERIOD_MS
             )
         }
-
-        return rtapp_profile
-
-class EnergyModelWakeMigration(EASBehaviour):
-    """
-    One task per big CPU, alternating between two phases:
-      * Low utilization phase (should run on a LITTLE CPU)
-      * High utilization phase (should run on a big CPU)
-    """
-    task_prefix = "emwm"
-
-    @classmethod
-    def get_rtapp_profile(cls, te):
-        rtapp_profile = {}
-        capacities = te.target.sched.get_capacities()
-        bigs = [cpu for cpu, capacity in list(capacities.items())
-                if capacity == cls.max_cpu_capacity(te)]
-
-        start_pct = cls.unscaled_utilization(cls.min_cpu_capacity(te), 20)
-        end_pct = cls.unscaled_utilization(cls.max_cpu_capacity(te), 70)
-
-        for i in range(len(bigs)):
-            rtapp_profile["{}_{}".format(cls.task_prefix, i)] = Step(
-                start_pct=start_pct,
-                end_pct=end_pct,
-                time_s=2,
-                loops=2,
-                period_ms=cls.TASK_PERIOD_MS
-            )
 
         return rtapp_profile
 
