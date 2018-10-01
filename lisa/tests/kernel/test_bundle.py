@@ -162,17 +162,17 @@ class TestBundle(Serializable, abc.ABC):
     can be serialized with minimal effort. As long as some information is stored
     within an object's member, it will be automagically handled.
 
-    Please refrain from monkey-patching the object in :meth:`from_target`.
+    Please refrain from monkey-patching the object in :meth:`from_testenv`.
     Data required by the object to run test assertions should be exposed as
     :meth:`__init__` parameters.
 
     **Design notes:**
 
-      * :meth:`from_target` will collect whatever artifacts are required
+      * :meth:`from_testenv` will collect whatever artifacts are required
         from a given target, and will then return a :class:`TestBundle`.
       * :meth:`from_dir` will use whatever artifacts are available in a
         given directory (which should have been created by an earlier call
-        to :meth:`from_target` and then :meth:`to_dir`), and will then return
+        to :meth:`from_testenv` and then :meth:`to_dir`), and will then return
         a :class:`TestBundle`.
       * :attr:`verify_serialization` is there to ensure both above methods remain
         operationnal at all times.
@@ -187,7 +187,7 @@ class TestBundle(Serializable, abc.ABC):
                 self.shell_output = shell_output
 
             @classmethod
-            def _from_target(cls, te, res_dir):
+            def _from_testenv(cls, te, res_dir):
                 output = te.target.execute('echo $((21+21))').split()
                 return cls(res_dir, output)
 
@@ -203,7 +203,7 @@ class TestBundle(Serializable, abc.ABC):
     **Usage example**::
 
         # Creating a Bundle from a live target
-        bundle = TestBundle.from_target(test_env, "/my/res/dir")
+        bundle = TestBundle.from_testenv(test_env, "/my/res/dir")
         # Running some test on the bundle
         res_bundle = bundle.test_foo()
 
@@ -217,7 +217,7 @@ class TestBundle(Serializable, abc.ABC):
 
     verify_serialization = True
     """
-    When True, this enforces a serialization/deserialization step in :meth:`from_target`.
+    When True, this enforces a serialization/deserialization step in :meth:`from_testenv`.
     Although it hinders performance (we end up creating two :class:`TestBundle`
     instances), it's very valuable to ensure :meth:`from_dir` does not get broken
     for some particular class.
@@ -228,14 +228,14 @@ class TestBundle(Serializable, abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def _from_target(cls, te, res_dir):
+    def _from_testenv(cls, te, res_dir):
         """
         Internals of the target factory method.
         """
         pass
 
     @classmethod
-    def check_from_target(cls, te):
+    def check_from_testenv(cls, te):
         """
         Check whether the given target can be used to create an instance of this class
 
@@ -246,36 +246,36 @@ class TestBundle(Serializable, abc.ABC):
         pass
 
     @classmethod
-    def can_create_from_target(cls, te):
+    def can_create_from_testenv(cls, te):
         """
         :returns: Whether the given target can be used to create an instance of this class
         :rtype: bool
 
-        :meth:`check_from_target` is used internally, so there shouldn't be any
+        :meth:`check_from_testenv` is used internally, so there shouldn't be any
           need to override this.
         """
         try:
-            cls.check_from_target(te)
+            cls.check_from_testenv(te)
             return True
         except:
             return False
 
     @classmethod
-    def from_target(cls, te, res_dir=None, **kwargs):
+    def from_testenv(cls, te, res_dir=None, **kwargs):
         """
         Factory method to create a bundle using a live target
 
-        This is mostly boiler-plate code around :meth:`_from_target`,
+        This is mostly boiler-plate code around :meth:`_from_testenv`,
         which lets us introduce common functionalities for daughter classes.
         Unless you know what you are doing, you should not override this method,
-        but the internal :meth:`_from_target` instead.
+        but the internal :meth:`_from_testenv` instead.
         """
-        cls.check_from_target(te)
+        cls.check_from_testenv(te)
 
         if not res_dir:
             res_dir = te.get_res_dir()
 
-        bundle = cls._from_target(te, res_dir, **kwargs)
+        bundle = cls._from_testenv(te, res_dir, **kwargs)
 
         # We've created the bundle from the target, and have all of
         # the information we need to execute the test code. However,
@@ -375,7 +375,7 @@ class RTATestBundle(TestBundle, abc.ABC):
             wload.run()
 
     @classmethod
-    def _from_target(cls, te:TestEnv, res_dir:ArtifactPath) -> 'RTATestBundle':
+    def _from_testenv(cls, te:TestEnv, res_dir:ArtifactPath) -> 'RTATestBundle':
         rtapp_profile = cls.get_rtapp_profile(te)
         cls._run_rtapp(te, res_dir, rtapp_profile)
 

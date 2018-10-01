@@ -66,7 +66,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         pass
 
     @classmethod
-    def check_from_target(cls, te):
+    def check_from_testenv(cls, te):
         for domain in te.target.cpufreq.iter_domains():
             if "schedutil" not in te.target.cpufreq.list_governors(domain[0]):
                 raise CannotCreateError(
@@ -76,7 +76,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
             raise CannotCreateError("Target doesn't have an energy model")
 
     @classmethod
-    def _from_target(cls, te:TestEnv, res_dir:ArtifactPath) -> 'EASBehaviour':
+    def _from_testenv(cls, te:TestEnv, res_dir:ArtifactPath) -> 'EASBehaviour':
         rtapp_profile = cls.get_rtapp_profile(te)
 
         # EAS doesn't make a lot of sense without schedutil,

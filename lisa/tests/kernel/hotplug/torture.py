@@ -110,7 +110,7 @@ class HotplugTorture(TestBundle):
         return script
 
     @classmethod
-    def _from_target(cls, te:TestEnv, res_dir:ArtifactPath=None, seed=None, nr_operations=100,
+    def _from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None, seed=None, nr_operations=100,
             sleep_min_ms=10, sleep_max_ms=100, duration_s=10,
             max_cpus_off=sys.maxsize) -> 'HotplugTorture':
 

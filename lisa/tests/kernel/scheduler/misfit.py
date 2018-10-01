@@ -159,13 +159,13 @@ class StaggeredFinishes(MisfitMigrationBase):
         self._trace = None
 
     @classmethod
-    def check_from_target(cls, te):
+    def check_from_testenv(cls, te):
         if not cls._has_asym_cpucapacity(te):
             raise CannotCreateError(
                 "Target doesn't have SD_ASYM_CPUCAPACITY on any sched_domain")
 
     @classmethod
-    def _from_target(cls, te, res_dir):
+    def _from_testenv(cls, te, res_dir):
         rtapp_profile = cls.get_rtapp_profile(te)
         cls._run_rtapp(te, res_dir, rtapp_profile)
 

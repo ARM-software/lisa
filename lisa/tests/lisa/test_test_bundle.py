@@ -27,7 +27,7 @@ class DummyTestBundle(TestBundle):
         self.shell_output = shell_output
 
     @classmethod
-    def _from_target(cls, te, res_dir):
+    def _from_testenv(cls, te, res_dir):
         output = te.target.execute('echo $((21+21))').split()
         return cls(res_dir, output)
 
@@ -59,7 +59,7 @@ class BundleCheck(StorageTestCase):
         """
         Test that creating a bundle from a target works
         """
-        bundle = DummyTestBundle.from_target(self.te)
+        bundle = DummyTestBundle.from_testenv(self.te)
 
     def test_bundle_serialization(self):
         """
