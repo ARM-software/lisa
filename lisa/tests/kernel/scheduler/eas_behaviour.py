@@ -467,10 +467,10 @@ class RampUp(EASBehaviour):
             cls.task_name : Ramp(
                 start_pct=start_pct,
                 end_pct=end_pct,
-            delta_pct=5,
-            time_s=.5,
+                delta_pct=5,
+                time_s=.5,
                 period_ms=cls.TASK_PERIOD_MS
-        )
+            )
         }
 
         return rtapp_profile
@@ -489,10 +489,10 @@ class RampDown(EASBehaviour):
             cls.task_name : Ramp(
                 start_pct=start_pct,
                 end_pct=end_pct,
-            delta_pct=5,
-            time_s=.5,
+                delta_pct=5,
+                time_s=.5,
                 period_ms=cls.TASK_PERIOD_MS
-        )
+            )
         }
 
         return rtapp_profile
