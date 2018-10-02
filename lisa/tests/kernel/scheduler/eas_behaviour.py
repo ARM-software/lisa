@@ -29,6 +29,7 @@ from bart.common.Utils import area_under_curve
 from lisa.wlgen.rta import Periodic, Ramp, Step
 from lisa.tests.kernel.test_bundle import ResultBundle, CannotCreateError, RTATestBundle
 from lisa.env import TestEnv, ArtifactPath
+from lisa.energy_model import EnergyModel
 
 class EASBehaviour(RTATestBundle, abc.ABC):
     """
@@ -122,14 +123,17 @@ class EASBehaviour(RTATestBundle, abc.ABC):
 
         return start_time
 
-    def _get_expected_task_utils_df(self):
+    def _get_expected_task_utils_df(self, nrg_model):
         """
         Get a DataFrame with the *expected* utilization of each task over time
+
+        :param nrg_model: EnergyModel used to computed the expected utilisation
+        :type nrg_model: EnergyModel
 
         :returns: A Pandas DataFrame with a column for each task, showing how
                   the utilization of that task varies over time
         """
-        util_scale = self.nrg_model.capacity_scale
+        util_scale = nrg_model.capacity_scale
 
         transitions = {}
         def add_transition(time, task, util):
@@ -176,32 +180,38 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         cpu_df = cpu_df[(cpu_df.shift(+1) != cpu_df).any(axis=1)]
         return cpu_df
 
-    def _sort_power_df_columns(self, df):
+    def _sort_power_df_columns(self, df, nrg_model):
         """
         Helper method to re-order the columns of a power DataFrame
 
         This has no significance for code, but when examining DataFrames by hand
         they are easier to understand if the columns are in a logical order.
+
+        :param nrg_model: EnergyModel used to get the CPU from
+        :type nrg_model: EnergyModel
         """
-        node_cpus = [node.cpus for node in self.nrg_model.root.iter_nodes()]
+        node_cpus = [node.cpus for node in nrg_model.root.iter_nodes()]
         return pd.DataFrame(df, columns=[c for c in node_cpus if c in df])
 
-    def _plot_expected_util(self, util_df):
+    def _plot_expected_util(self, util_df, nrg_model):
         """
         Create a plot of the expected per-CPU utilization for the experiment
-        The plot is then outputted to the test results directory.
+        The plot is then output to the test results directory.
 
         :param experiment: The :class:Experiment to examine
         :param util_df: A Pandas Dataframe with a column per CPU giving their
                         (expected) utilization at each timestamp.
+
+        :param nrg_model: EnergyModel used to get the CPU from
+        :type nrg_model: EnergyModel
         """
 
         fig, ax = plt.subplots(
-            len(self.nrg_model.cpus), 1, figsize=(16, 1.8 * len(self.nrg_model.cpus))
+            len(nrg_model.cpus), 1, figsize=(16, 1.8 * len(nrg_model.cpus))
         )
         fig.suptitle('Per-CPU expected utilization')
 
-        for cpu in self.nrg_model.cpus:
+        for cpu in nrg_model.cpus:
             tdf = util_df[cpu]
 
             ax[cpu].set_ylim((0, 1024))
@@ -224,7 +234,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         pl.savefig(figname, bbox_inches='tight')
         plt.close()
 
-    def _get_expected_power_df(self):
+    def _get_expected_power_df(self, nrg_model):
         """
         Estimate *optimal* power usage over time
 
@@ -236,20 +246,23 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         are usually equivalent, but can be drastically different in some cases.
         Currently only one of those placements is used (the first in the list).
 
+        :param nrg_model: EnergyModel used compute the optimal placement
+        :type nrg_model: EnergyModel
+
         :returns: A Pandas DataFrame with a column each node in the energy model
                   (keyed with a tuple of the CPUs contained by that node) and a
                   "power" column with the sum of other columns. Shows the
                   estimated *optimal* power over time.
         """
-        task_utils_df = self._get_expected_task_utils_df()
+        task_utils_df = self._get_expected_task_utils_df(nrg_model)
 
         data = []
         index = []
 
-        def exp_power(row):
+        def exp_power(row, nrg_model):
             task_utils = row.to_dict()
-            expected_utils = self.nrg_model.get_optimal_placements(task_utils)[0]
-            power = self.nrg_model.estimate_from_cpu_util(expected_utils)
+            expected_utils = nrg_model.get_optimal_placements(task_utils)[0]
+            power = nrg_model.estimate_from_cpu_util(expected_utils)
             columns = list(power.keys())
 
             # Assemble a dataframe to plot the expected utilization
@@ -259,13 +272,13 @@ class EASBehaviour(RTATestBundle, abc.ABC):
             return pd.Series([power[c] for c in columns], index=columns)
 
         res_df = self._sort_power_df_columns(
-            task_utils_df.apply(exp_power, axis=1))
+            task_utils_df.apply(exp_power, axis=1), nrg_model)
 
-        self._plot_expected_util(pd.DataFrame(data, index=index))
+        self._plot_expected_util(pd.DataFrame(data, index=index), nrg_model)
 
         return res_df
 
-    def _get_estimated_power_df(self):
+    def _get_estimated_power_df(self, nrg_model):
         """
         Considering only the task placement, estimate power usage over time
 
@@ -273,12 +286,16 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         a DataFrame showing the estimated power usage over time. This assumes
         perfect cpuidle and cpufreq behaviour.
 
+        :param nrg_model: EnergyModel used compute the optimal placement and
+                          CPUs
+        :type nrg_model: EnergyModel
+
         :returns: A Pandas DataFrame with a column node in the energy model
                   (keyed with a tuple of the CPUs contained by that node) Shows
                   the estimated power over time.
         """
         task_cpu_df = self._get_task_cpu_df()
-        task_utils_df = self._get_expected_task_utils_df()
+        task_utils_df = self._get_expected_task_utils_df(nrg_model)
         task_utils_df.index = [time + self._get_start_time() for time in task_utils_df.index]
         tasks = list(self.rtapp_profile.keys())
 
@@ -295,21 +312,25 @@ class EASBehaviour(RTATestBundle, abc.ABC):
 
         # Now make a DataFrame with the estimated power at each moment.
         def est_power(row):
-            cpu_utils = [0 for cpu in self.nrg_model.cpus]
+            cpu_utils = [0 for cpu in nrg_model.cpus]
             for task in tasks:
                 cpu = row['cpus'][task]
                 util = row['utils'][task]
                 if not isnan(cpu):
                     cpu_utils[int(cpu)] += util
-            power = self.nrg_model.estimate_from_cpu_util(cpu_utils)
+            power = nrg_model.estimate_from_cpu_util(cpu_utils)
             columns = list(power.keys())
             return pd.Series([power[c] for c in columns], index=columns)
-        return self._sort_power_df_columns(df.apply(est_power, axis=1))
+        return self._sort_power_df_columns(df.apply(est_power, axis=1), nrg_model)
 
 
-    def test_task_placement(self, energy_est_threshold_pct=5) -> ResultBundle:
+    def test_task_placement(self, energy_est_threshold_pct=5, nrg_model:EnergyModel=None) -> ResultBundle:
         """
         Test that task placement was energy-efficient
+
+        :param nrg_model: Allow using an alternate EnergyModel instead of
+            :attr:`nrg_model`
+        :type nrg_model: EnergyModel
 
         :param energy_est_threshold_pct: Allowed margin for estimated vs
             optimal task placement energy cost
@@ -320,8 +341,10 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         Check that the estimated energy does not exceed the optimal energy by
         more than :attr:`energy_est_threshold_pct` percents.
         """
-        exp_power = self._get_expected_power_df()
-        est_power = self._get_estimated_power_df()
+        nrg_model = nrg_model or self.nrg_model
+
+        exp_power = self._get_expected_power_df(nrg_model)
+        est_power = self._get_estimated_power_df(nrg_model)
 
         exp_energy = area_under_curve(exp_power.sum(axis=1), method='rect')
         est_energy = area_under_curve(est_power.sum(axis=1), method='rect')
@@ -380,7 +403,7 @@ class ThreeSmallTasks(EASBehaviour):
     """
     task_prefix = "small"
 
-    def test_task_placement(self, energy_est_threshold_pct=20) -> ResultBundle:
+    def test_task_placement(self, energy_est_threshold_pct=20, nrg_model:EnergyModel=None) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
         default threshold
@@ -392,7 +415,7 @@ class ThreeSmallTasks(EASBehaviour):
         hopefully prevents too much use of big CPUs but otherwise is flexible in
         allocation of LITTLEs.
         """
-        return super().test_task_placement(energy_est_threshold_pct)
+        return super().test_task_placement(energy_est_threshold_pct, nrg_model)
 
     @classmethod
     def get_rtapp_profile(cls, te):
@@ -500,7 +523,7 @@ class RampUp(EASBehaviour):
     """
     task_name = "ramp_up"
 
-    def test_task_placement(self, energy_est_threshold_pct=15) -> ResultBundle:
+    def test_task_placement(self, energy_est_threshold_pct=15, nrg_model:EnergyModel=None) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
         default threshold.
@@ -511,7 +534,7 @@ class RampUp(EASBehaviour):
         done, since there must be some hysteresis to avoid a performance cost.
         Therefore allow a larger energy usage threshold
         """
-        return super().test_task_placement(energy_est_threshold_pct)
+        return super().test_task_placement(energy_est_threshold_pct, nrg_model)
 
     @classmethod
     def get_rtapp_profile(cls, te):
@@ -536,7 +559,7 @@ class RampDown(EASBehaviour):
     """
     task_name = "ramp_down"
 
-    def test_task_placement(self, energy_est_threshold_pct=18) -> ResultBundle:
+    def test_task_placement(self, energy_est_threshold_pct=18, nrg_model:EnergyModel=None) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
         default threshold
@@ -555,7 +578,7 @@ class RampDown(EASBehaviour):
         dependent, so until we have a way to do that easily in test classes, let's
         stick with the arbitrary threshold.
         """
-        return super().test_task_placement(energy_est_threshold_pct)
+        return super().test_task_placement(energy_est_threshold_pct, nrg_model)
 
     @classmethod
     def get_rtapp_profile(cls, te):
