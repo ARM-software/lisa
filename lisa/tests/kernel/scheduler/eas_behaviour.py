@@ -127,7 +127,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         """
         Get a DataFrame with the *expected* utilization of each task over time
 
-        :param nrg_model: EnergyModel used to computed the expected utilisation
+        :param nrg_model: EnergyModel used to computed the expected utilization
         :type nrg_model: EnergyModel
 
         :returns: A Pandas DataFrame with a column for each task, showing how
@@ -519,7 +519,7 @@ class EnergyModelWakeMigration(EASBehaviour):
 
 class RampUp(EASBehaviour):
     """
-    A single task whose utilisation slowly ramps up
+    A single task whose utilization slowly ramps up
     """
     task_name = "ramp_up"
 
@@ -555,7 +555,7 @@ class RampUp(EASBehaviour):
 
 class RampDown(EASBehaviour):
     """
-    A single task whose utilisation slowly ramps down
+    A single task whose utilization slowly ramps down
     """
     task_name = "ramp_down"
 
